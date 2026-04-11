@@ -418,6 +418,18 @@ function LogTab({ logData }) {
   </div>);
 }
 
+// ═══ PERSISTENCE ═══
+var saveTimer = null;
+function saveState(state, log) {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(function() {
+    fetch("/api/state", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: state, log: log }),
+    }).catch(function(e) { console.error("Auto-save failed:", e); });
+  }, 1000);
+}
+
 // ═══ APP ═══
 export default function App() {
   var _s = useState("weekly"), sec = _s[0], setSec = _s[1];
@@ -430,6 +442,31 @@ export default function App() {
   var _th = useState(null), thumb = _th[0], setThumb = _th[1];
   var _lch = useState(false), launched = _lch[0], setLaunched = _lch[1];
   var _log = useState([]), logData = _log[0], setLogData = _log[1];
+  var _loaded = useState(false), loaded = _loaded[0], setLoaded = _loaded[1];
+
+  // Load from KV on mount
+  useEffect(function() {
+    fetch("/api/state").then(function(r) { return r.json(); }).then(function(d) {
+      if (d.state) {
+        if (d.state.ep) setEp(d.state.ep);
+        if (d.state.guests) setGuests(d.state.guests);
+        if (d.state.opts) setOpts(d.state.opts);
+        if (d.state.sel) setSel(d.state.sel);
+        if (d.state.fin) setFin(d.state.fin);
+        if (d.state.thumb) setThumb(d.state.thumb);
+        if (d.state.launched) setLaunched(d.state.launched);
+        if (d.state.tab) setTab(d.state.tab);
+      }
+      if (d.log && Array.isArray(d.log)) setLogData(d.log);
+      setLoaded(true);
+    }).catch(function() { setLoaded(true); });
+  }, []);
+
+  // Auto-save on changes (after initial load)
+  useEffect(function() {
+    if (!loaded) return;
+    saveState({ ep: ep, guests: guests, opts: opts, sel: sel, fin: fin, thumb: thumb, launched: launched, tab: tab }, logData);
+  }, [ep, guests, opts, sel, fin, thumb, launched, tab, logData, loaded]);
 
   var tabs = [{ id: "setup", l: "Episode Setup" }, { id: "test", l: "Test Page" }, { id: "launch", l: "Launch Rollout" }, { id: "clips", l: "Clip Manager" }, { id: "log", l: "Activity Log" }];
   var locks = [];
