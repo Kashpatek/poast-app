@@ -292,11 +292,58 @@ function TestPage({ ep, guests, opts, fin, setFin, thumb, setThumb, goLaunch }) 
   if (!fin) return <div style={{ textAlign: "center", padding: 80, color: C.txd, fontFamily: ft }}>Save selections in Episode Setup first.</div>;
   var thS = thTxt(fin.thumbnail);
 
-  var doubleCheck = async function() { setCheckL(true); var thC = typeof fin.thumbnail === "string" ? fin.thumbnail : fin.thumbnail.concept; var thT2 = typeof fin.thumbnail === "string" ? "" : fin.thumbnail.text_overlay; var data = await ask(SYS_EP, buildPrompt(["Review title/description/thumbnail for SA Weekly Ep #" + ep.number + " for max exposure.", "Title: " + fin.title, "Description: " + (fin.description || "").slice(0, 300), "Thumbnail: " + thC + " | Text: " + thT2, "Guests: " + gStr(guests), "Evaluate cohesion, redundancy, scroll-stopping. Score 1-10.", 'Return JSON: {"score":8,"feedback":"...","suggestions":["s1","s2"]}'])); if (data) setCheckR(data); setCheckL(false); };
+  var doubleCheck = async function() {
+    setCheckL(true);
+    var thC = typeof fin.thumbnail === "string" ? fin.thumbnail : fin.thumbnail.concept;
+    var thT2 = typeof fin.thumbnail === "string" ? "" : fin.thumbnail.text_overlay;
+    var thMood = typeof fin.thumbnail === "string" ? "" : fin.thumbnail.mood;
+    var thumbInfo = "Thumbnail concept: " + thC;
+    if (thT2) thumbInfo += " | Text overlay: " + thT2;
+    if (thMood) thumbInfo += " | Mood: " + thMood;
+    if (thumb) thumbInfo += " | Actual thumbnail has been uploaded (image present).";
+    else thumbInfo += " | No actual thumbnail uploaded yet, only the concept.";
+    var data = await ask(SYS_EP, buildPrompt([
+      "You are reviewing the full package for SemiAnalysis Weekly Episode #" + ep.number + " before it goes live. Evaluate how well the title, description, and thumbnail work TOGETHER as a cohesive unit.",
+      "Title: " + fin.title,
+      "Full Description: " + (fin.description || ""),
+      thumbInfo,
+      "Guests: " + gStr(guests),
+      "Evaluate: 1) Does the title create curiosity that the thumbnail reinforces? 2) Does the description deliver on what the title promises? 3) Is there redundancy between title and thumbnail text? 4) Would this stop a scroll on YouTube? 5) Is the overall package cohesive or disjointed?",
+      "Score 1-10 (10 = perfect cohesion, scroll-stopping, zero redundancy).",
+      'Return JSON: {"score":8,"feedback":"2-3 sentence overall assessment of how well these three elements work together","suggestions":["specific actionable suggestion 1","specific actionable suggestion 2","specific actionable suggestion 3"]}'
+    ]));
+    if (data) setCheckR(data);
+    setCheckL(false);
+  };
 
-  var runAB = async function() { setAbL(true); var allT = opts && opts.titles || []; var allTh = opts && opts.thumbnails || []; var mS = abM === "both" ? "Title + Thumbnail" : abM === "title" ? "Title only" : "Thumbnail only"; var data = await ask(SYS_EP, buildPrompt(["A/B Test SA Weekly Ep #" + ep.number, "Current title: " + fin.title, "Current thumb: " + (typeof fin.thumbnail === "string" ? fin.thumbnail : fin.thumbnail.concept), "All titles: " + JSON.stringify(allT), "All thumbs: " + JSON.stringify(allTh), "Mode: " + mS + ". Find best CTR combo.", 'Return JSON: {"current_combo_score":7,"recommended_title":"...","recommended_thumbnail_concept":"...","recommended_combo_score":9,"reasoning":"...","is_change_recommended":true}'])); if (data) setAbR(data); setAbL(false); };
+  var runAB = async function() {
+    setAbL(true);
+    var allT = opts && opts.titles || [];
+    var allTh = opts && opts.thumbnails || [];
+    var mS = abM === "both" ? "Title + Thumbnail" : abM === "title" ? "Title only" : "Thumbnail only";
+    var curThumb = typeof fin.thumbnail === "string" ? fin.thumbnail : fin.thumbnail.concept;
+    var data = await ask(SYS_EP, buildPrompt([
+      "A/B Test for SA Weekly Ep #" + ep.number + ". Mode: " + mS + ".",
+      "Current title: " + fin.title,
+      "Current thumbnail concept: " + curThumb,
+      "All previously generated titles: " + JSON.stringify(allT),
+      "All previously generated thumbnails: " + JSON.stringify(allTh),
+      "Provide two options: Option A (current) and Option B (your recommended alternative). Score each for predicted CTR on a 1-10 scale. Explain the reasoning for each.",
+      'Return JSON: {"option_a":{"title":"...","thumbnail_concept":"...","score":7,"reasoning":"why this works or falls short"},"option_b":{"title":"...","thumbnail_concept":"...","score":9,"reasoning":"why this is better"},"verdict":"1-2 sentence recommendation"}'
+    ]));
+    if (data) setAbR(data);
+    setAbL(false);
+  };
 
-  var applyAB = function() { if (!abR) return; var nf = Object.assign({}, fin); if ((abM === "title" || abM === "both") && abR.recommended_title) nf.title = abR.recommended_title; if ((abM === "thumbnail" || abM === "both") && abR.recommended_thumbnail_concept) { nf.thumbnail = typeof fin.thumbnail === "string" ? abR.recommended_thumbnail_concept : Object.assign({}, fin.thumbnail, { concept: abR.recommended_thumbnail_concept }); } setFin(nf); setAbR(null); setCheckR(null); };
+  var applyAB = function() {
+    if (!abR || !abR.option_b) return;
+    var nf = Object.assign({}, fin);
+    if ((abM === "title" || abM === "both") && abR.option_b.title) nf.title = abR.option_b.title;
+    if ((abM === "thumbnail" || abM === "both") && abR.option_b.thumbnail_concept) {
+      nf.thumbnail = typeof fin.thumbnail === "string" ? abR.option_b.thumbnail_concept : Object.assign({}, fin.thumbnail, { concept: abR.option_b.thumbnail_concept });
+    }
+    setFin(nf); setAbR(null); setCheckR(null);
+  };
 
   return (<div>
     <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: C.tx, marginBottom: 4 }}>Test Page</div>
@@ -322,7 +369,26 @@ function TestPage({ ep, guests, opts, fin, setFin, thumb, setThumb, goLaunch }) 
       <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>{[{ id: "title", l: "Title Only" }, { id: "thumbnail", l: "Thumbnail Only" }, { id: "both", l: "Title + Thumbnail" }].map(function(m) { var s2 = abM === m.id; return <div key={m.id} onClick={function() { setAbM(m.id); }} style={{ padding: "7px 14px", borderRadius: 5, cursor: "pointer", background: s2 ? C.amber + "15" : C.card, border: "1px solid " + (s2 ? C.amber : C.border), fontFamily: mn, fontSize: 10, color: s2 ? C.amber : C.txm }}>{m.l}</div>; })}</div>
       <div style={{ display: "flex", gap: 8 }}><Btn onClick={runAB} loading={abL} sec>Run A/B Test</Btn>{abR && <Btn onClick={function() { setAbR(null); runAB(); }} loading={abL} sec sm>Redo Fresh</Btn>}</div>
       {abL && <ProgressBar label="Running A/B analysis" />}
-      {abR && <div className="poast-card" style={{ background: C.cardGrad, border: "1px solid " + C.border, borderRadius: 8, padding: 18, marginTop: 14, boxShadow: C.glow }}><div style={{ display: "flex", gap: 20, marginBottom: 14 }}><div style={{ textAlign: "center" }}><div style={{ fontFamily: mn, fontSize: 9, color: C.txm }}>CURRENT</div><div style={{ fontFamily: mn, fontSize: 22, fontWeight: 700, color: C.txm }}>{abR.current_combo_score}</div></div><div style={{ fontFamily: ft, fontSize: 20, color: C.txd, alignSelf: "center" }}>&rarr;</div><div style={{ textAlign: "center" }}><div style={{ fontFamily: mn, fontSize: 9, color: C.amber }}>RECOMMENDED</div><div style={{ fontFamily: mn, fontSize: 22, fontWeight: 700, color: C.amber }}>{abR.recommended_combo_score}</div></div></div>{abR.is_change_recommended ? <div>{abR.recommended_title && <div style={{ marginBottom: 10 }}><div style={{ fontFamily: mn, fontSize: 9, color: C.txm }}>TITLE</div><div style={{ fontFamily: ft, fontSize: 14, color: C.tx, fontWeight: 600 }}>{abR.recommended_title}</div></div>}{abR.recommended_thumbnail_concept && <div style={{ marginBottom: 10 }}><div style={{ fontFamily: mn, fontSize: 9, color: C.txm }}>THUMBNAIL</div><div style={{ fontFamily: ft, fontSize: 13, color: C.tx }}>{abR.recommended_thumbnail_concept}</div></div>}<div style={{ fontFamily: ft, fontSize: 12, color: C.txm, marginBottom: 14 }}>{abR.reasoning}</div><Btn onClick={applyAB} sm>Apply</Btn></div> : <div style={{ fontFamily: ft, fontSize: 13, color: C.teal }}>Current combo is already strongest.</div>}</div>}
+      {abR && abR.option_a && abR.option_b && <div style={{ marginTop: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+          {[{ key: "option_a", label: "Option A // Current", color: C.txm }, { key: "option_b", label: "Option B // Recommended", color: C.amber }].map(function(col) {
+            var opt = abR[col.key];
+            return <div key={col.key} className="poast-card" style={{ background: C.cardGrad, border: "1px solid " + (col.key === "option_b" ? C.amber + "40" : C.border), borderRadius: 8, padding: 18, boxShadow: C.glow }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <div style={{ fontFamily: mn, fontSize: 9, color: col.color, textTransform: "uppercase", letterSpacing: "1.5px" }}>{col.label}</div>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: col.color + "18", border: "2px solid " + col.color, fontFamily: mn, fontSize: 15, fontWeight: 700, color: col.color }}>{opt.score}</div>
+              </div>
+              {opt.title && <div style={{ marginBottom: 10 }}><div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 3 }}>TITLE</div><div style={{ fontFamily: ft, fontSize: 13, color: C.tx, fontWeight: 600 }}>{opt.title}</div></div>}
+              {opt.thumbnail_concept && <div style={{ marginBottom: 10 }}><div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 3 }}>THUMBNAIL</div><div style={{ fontFamily: ft, fontSize: 12, color: C.tx }}>{opt.thumbnail_concept}</div></div>}
+              <div style={{ fontFamily: ft, fontSize: 11, color: C.txm, lineHeight: 1.5, borderTop: "1px solid " + C.border, paddingTop: 10, marginTop: 6 }}>{opt.reasoning}</div>
+            </div>;
+          })}
+        </div>
+        <div style={{ background: C.surfGrad, border: "1px solid " + C.border, borderRadius: 6, padding: "12px 16px", marginBottom: 14 }}>
+          <div style={{ fontFamily: ft, fontSize: 12, color: C.tx, lineHeight: 1.5 }}>{abR.verdict}</div>
+        </div>
+        <Btn onClick={applyAB} sm>Apply Option B</Btn>
+      </div>}
     </div>
     <Divider />
     <div style={{ background: locked ? C.teal + "10" : C.surface, border: "1px solid " + (locked ? C.teal : C.border), borderRadius: 8, padding: 20 }}>
@@ -576,17 +642,10 @@ export default function App() {
     setLogData(function(prev) { return [entry].concat(prev); });
   };
 
-  // Mouse-tracking glow
-  var _mx = useState(0), mx = _mx[0], setMx = _mx[1];
-  var _my = useState(0), my = _my[0], setMy = _my[1];
-  var handleMouse = function(e) { setMx(e.clientX); setMy(e.clientY); };
-
   if (showSplash) return <><Toast /><Splash onDone={function() { setShowSplash(false); }} /></>;
 
-  return (<div onMouseMove={handleMouse} style={{ background: C.bg, minHeight: "100vh", position: "relative" }}>
+  return (<div style={{ background: C.bg, minHeight: "100vh", position: "relative" }}>
     <Toast />
-    {/* Cursor glow */}
-    <div style={{ position: "fixed", left: mx - 200, top: my - 200, width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(247,176,65,0.06) 0%, rgba(247,176,65,0.02) 30%, transparent 70%)", pointerEvents: "none", zIndex: 9998, transition: "left 0.15s ease-out, top 0.15s ease-out" }} />
     {/* Background brand glows */}
     <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0 }}>
       <div style={{ position: "absolute", top: "-10%", right: "-5%", width: "50vw", height: "50vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(247,176,65,0.04) 0%, transparent 60%)" }} />
@@ -594,20 +653,22 @@ export default function App() {
       <div style={{ position: "absolute", top: "40%", left: "-10%", width: "40vw", height: "40vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(144,92,203,0.03) 0%, transparent 60%)" }} />
       <div style={{ position: "absolute", bottom: "10%", right: "5%", width: "35vw", height: "35vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(46,173,142,0.03) 0%, transparent 60%)" }} />
     </div>
-    <style dangerouslySetInnerHTML={{ __html: "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{background:" + C.bg + "}::selection{background:" + C.amber + "33;color:" + C.amber + "}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:" + C.bg + "}::-webkit-scrollbar-thumb{background:" + C.border + ";border-radius:3px}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}@keyframes fadeInUp{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}.poast-card{position:relative;overflow:visible!important;transition:box-shadow 0.3s ease, border-color 0.3s ease, transform 0.2s ease}.poast-card::after{content:'';position:absolute;inset:-1px;border-radius:inherit;background:linear-gradient(90deg,transparent 0%,rgba(247,176,65,0.04) 25%,rgba(247,176,65,0.08) 50%,rgba(247,176,65,0.04) 75%,transparent 100%);background-size:200% 100%;opacity:0;transition:opacity 0.3s ease;pointer-events:none;z-index:0;border-radius:inherit}.poast-card:hover::after{opacity:1;animation:shimmer 2s ease-in-out infinite}.poast-card:hover{box-shadow:0 0 24px rgba(247,176,65,0.18),0 0 48px rgba(247,176,65,0.08)!important;border-color:#2A2A3C!important;transform:translateY(-1px)}.poast-fadein{animation:fadeInUp 0.4s ease forwards}@keyframes progressSlide{0%{left:-40%}100%{left:100%}}.progress-slide{animation:progressSlide 1.5s ease-in-out infinite}@keyframes dotPulse{0%,80%,100%{opacity:0.2}40%{opacity:1}}.progress-dots::after{content:'...';display:inline-block;animation:dotPulse 1.4s ease-in-out infinite}" }} />
+    <style dangerouslySetInnerHTML={{ __html: "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{background:" + C.bg + "}::selection{background:" + C.amber + "33;color:" + C.amber + "}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:" + C.bg + "}::-webkit-scrollbar-thumb{background:" + C.border + ";border-radius:3px}@keyframes fadeInUp{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}.poast-card{position:relative;transition:box-shadow 0.35s ease, border-color 0.35s ease}.poast-card:hover{box-shadow:0 0 20px rgba(247,176,65,0.12), 0 0 40px rgba(247,176,65,0.05);border-color:#2A2A3C}.poast-fadein{animation:fadeInUp 0.4s ease forwards}@keyframes progressSlide{0%{left:-40%}100%{left:100%}}.progress-slide{animation:progressSlide 1.5s ease-in-out infinite}@keyframes dotPulse{0%,80%,100%{opacity:0.2}40%{opacity:1}}.progress-dots::after{content:'...';display:inline-block;animation:dotPulse 1.4s ease-in-out infinite}" }} />
     <Sidebar active={sec} onNav={setSec} />
     <div style={{ marginLeft: 200 }} className="poast-fadein">
-      <div style={{ padding: "16px 36px", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bg, position: "sticky", top: 0, zIndex: 50 }}>
-        <div><div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: C.tx }}>SemiAnalysis Weekly</div><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginTop: 1 }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div></div>
-        <a href="https://youtube.com/@SemianalysisWeekly" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 9, color: C.txd, textDecoration: "none", padding: "5px 10px", border: "1px solid " + C.border, borderRadius: 5 }}>@SemianalysisWeekly</a>
-      </div>
-      <div style={{ padding: "0 36px" }}><TabBar items={tabs} active={tab} onPick={setTab} locks={locks} /></div>
-      <div style={{ padding: "0 36px 60px" }}>
+      <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 40px" }}>
+        <div style={{ padding: "16px 0", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bg, position: "sticky", top: 0, zIndex: 50 }}>
+          <div><div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: C.tx }}>SemiAnalysis Weekly</div><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginTop: 1 }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div></div>
+          <a href="https://youtube.com/@SemianalysisWeekly" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 9, color: C.txd, textDecoration: "none", padding: "5px 10px", border: "1px solid " + C.border, borderRadius: 5 }}>@SemianalysisWeekly</a>
+        </div>
+        <TabBar items={tabs} active={tab} onPick={setTab} locks={locks} />
+        <div style={{ paddingBottom: 60 }}>
         {tab === "setup" && <EpisodeSetup ep={ep} setEp={setEp} guests={guests} setGuests={setGuests} opts={opts} setOpts={setOpts} sel={sel} setSel={setSel} fin={fin} setFin={setFin} goTest={function() { setTab("test"); }} />}
         {tab === "test" && <TestPage ep={ep} guests={guests} opts={opts} fin={fin} setFin={setFin} thumb={thumb} setThumb={setThumb} goLaunch={function() { setTab("launch"); }} />}
         {tab === "launch" && <LaunchRollout ep={ep} guests={guests} fin={fin} onComplete={handleComplete} />}
         {tab === "clips" && <ClipMgr />}
         {tab === "log" && <LogTab logData={logData} />}
+        </div>
       </div>
     </div>
   </div>);
