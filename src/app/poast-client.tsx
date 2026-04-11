@@ -749,24 +749,35 @@ export default function App() {
   var _lch = useState(false), launched = _lch[0], setLaunched = _lch[1];
   var _log = useState([]), logData = _log[0], setLogData = _log[1];
   var _loaded = useState(false), loaded = _loaded[0], setLoaded = _loaded[1];
+  var _hasDraft = useState(false), hasDraft = _hasDraft[0], setHasDraft = _hasDraft[1];
+  var draftRef = useRef(null);
 
-  // Load from KV on mount
+  // Load only activity log on mount, check if draft exists
   useEffect(function() {
     fetch("/api/state").then(function(r) { return r.json(); }).then(function(d) {
-      if (d.state) {
-        if (d.state.ep) setEp(d.state.ep);
-        if (d.state.guests) setGuests(d.state.guests);
-        if (d.state.opts) setOpts(d.state.opts);
-        if (d.state.sel) setSel(d.state.sel);
-        if (d.state.fin) setFin(d.state.fin);
-        if (d.state.thumb) setThumb(d.state.thumb);
-        if (d.state.launched) setLaunched(d.state.launched);
-        if (d.state.tab) setTab(d.state.tab);
-      }
       if (d.log && Array.isArray(d.log)) setLogData(d.log);
+      if (d.state && (d.state.ep && d.state.ep.transcript || d.state.opts || d.state.fin)) {
+        draftRef.current = d.state;
+        setHasDraft(true);
+      }
       setLoaded(true);
     }).catch(function() { setLoaded(true); });
   }, []);
+
+  var loadDraft = function() {
+    var s = draftRef.current;
+    if (!s) return;
+    if (s.ep) setEp(s.ep);
+    if (s.guests) setGuests(s.guests);
+    if (s.opts) setOpts(s.opts);
+    if (s.sel) setSel(s.sel);
+    if (s.fin) setFin(s.fin);
+    if (s.thumb) setThumb(s.thumb);
+    if (s.launched) setLaunched(s.launched);
+    if (s.tab) setTab(s.tab);
+    setHasDraft(false);
+    draftRef.current = null;
+  };
 
   // Auto-save on changes (after initial load)
   useEffect(function() {
@@ -803,7 +814,10 @@ export default function App() {
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 40px" }}>
         <div style={{ padding: "16px 0", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bg, position: "sticky", top: 0, zIndex: 50 }}>
           <div><div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: C.tx }}>SemiAnalysis Weekly</div><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginTop: 1 }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div></div>
-          <a href="https://youtube.com/@SemianalysisWeekly" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 9, color: C.txd, textDecoration: "none", padding: "5px 10px", border: "1px solid " + C.border, borderRadius: 5 }}>@SemianalysisWeekly</a>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {hasDraft && <span onClick={loadDraft} style={{ fontFamily: mn, fontSize: 9, color: C.amber, cursor: "pointer", padding: "5px 10px", border: "1px solid " + C.amber + "40", borderRadius: 5, background: C.amber + "10" }}>Load from Draft</span>}
+            <a href="https://youtube.com/@SemianalysisWeekly" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 9, color: C.txd, textDecoration: "none", padding: "5px 10px", border: "1px solid " + C.border, borderRadius: 5 }}>@SemianalysisWeekly</a>
+          </div>
         </div>
         <TabBar items={tabs} active={tab} onPick={setTab} locks={locks} />
         <div style={{ paddingBottom: 60 }}>
