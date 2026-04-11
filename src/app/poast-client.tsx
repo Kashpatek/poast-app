@@ -19,6 +19,10 @@ var SYS_EP = "You are a content strategist for SemiAnalysis, a semiconductor and
 
 var SYS_SOC = "You are a social media strategist for SemiAnalysis Weekly. Rules: Never use em dashes. No emojis. No hashtags on X/Twitter ever. YT Shorts titles under 40 chars. Instagram: caption + Save this for later CTA + 5-8 hashtags + location San Francisco CA, point to youtube.com/@SemianalysisWeekly. TikTok: all lowercase 4-6 hashtags. LinkedIn/Facebook: link in first comment, end Link in comments. X: Hook tweet no link + reply-to-self with link. Mention all guests with handles on every platform. RESPOND ONLY IN VALID JSON. No markdown fences. No preamble.";
 
+var _toastMsg = { current: null };
+var _toastSet = { current: null };
+function showToast(msg) { if (_toastSet.current) _toastSet.current(msg); }
+
 async function ask(sys, prompt) {
   try {
     var r = await fetch("/api/generate", {
@@ -26,9 +30,13 @@ async function ask(sys, prompt) {
       body: JSON.stringify({ system: sys, prompt: prompt }),
     });
     var d = await r.json();
+    if (d.error) { showToast("API Error: " + (d.error.message || d.error)); return null; }
+    if (!d.content) { showToast("API returned empty response. Check your ANTHROPIC_API_KEY in Vercel env vars."); return null; }
     var t = (d.content || []).map(function(c) { return c.text || ""; }).join("");
-    return JSON.parse(t.replace(/```json|```/g, "").trim());
-  } catch (e) { console.error("API:", e); return null; }
+    try {
+      return JSON.parse(t.replace(/```json|```/g, "").trim());
+    } catch (pe) { showToast("Failed to parse API response. The model returned invalid JSON."); console.error("Parse error:", t); return null; }
+  } catch (e) { showToast("Network error: Could not reach /api/generate"); console.error("API:", e); return null; }
 }
 
 function buildPrompt(parts) { return parts.filter(Boolean).join("\n\n"); }
@@ -55,6 +63,13 @@ function exportDoc(title, sections) {
 }
 
 // ═══ UI ═══
+function Toast() {
+  var _s = useState(null), msg = _s[0], setMsg = _s[1];
+  _toastSet.current = function(m) { setMsg(m); setTimeout(function() { setMsg(null); }, 6000); };
+  if (!msg) return null;
+  return <div onClick={function() { setMsg(null); }} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 10000, maxWidth: 420, padding: "14px 20px", background: C.coral + "20", border: "1px solid " + C.coral, borderRadius: 8, fontFamily: mn, fontSize: 11, color: C.coral, cursor: "pointer", boxShadow: "0 0 20px rgba(224,99,71,0.2)", lineHeight: 1.5 }}>{msg}</div>;
+}
+
 function Label({ children }) { return <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 6 }}>{children}</div>; }
 function Field({ label, value, onChange, placeholder, isMono }) { return (<div style={{ marginBottom: 14 }}>{label && <Label>{label}</Label>}<input value={value} onChange={function(e) { onChange(e.target.value); }} placeholder={placeholder} style={{ width: "100%", padding: "10px 12px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: isMono ? mn : ft, fontSize: 13, outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} /></div>); }
 function Btn({ children, onClick, loading, sec, sm, off }) { return (<button onClick={onClick} disabled={loading || off} style={{ padding: sm ? "6px 13px" : "10px 24px", background: off ? C.surface : sec ? "transparent" : C.amber, color: off ? C.txd : sec ? C.amber : C.bg, border: sec ? "1px solid " + (off ? C.border : C.amber) : "none", borderRadius: 6, fontFamily: ft, fontSize: sm ? 11 : 13, fontWeight: 700, cursor: loading || off ? "not-allowed" : "pointer", opacity: loading ? 0.5 : 1 }}>{loading ? "Working..." : children}</button>); }
@@ -544,9 +559,10 @@ export default function App() {
     setLogData(function(prev) { return [entry].concat(prev); });
   };
 
-  if (showSplash) return <Splash onDone={function() { setShowSplash(false); }} />;
+  if (showSplash) return <><Toast /><Splash onDone={function() { setShowSplash(false); }} /></>;
 
   return (<div style={{ background: C.bg, minHeight: "100vh" }}>
+    <Toast />
     <style dangerouslySetInnerHTML={{ __html: "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{background:" + C.bg + "}::selection{background:" + C.amber + "33;color:" + C.amber + "}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:" + C.bg + "}::-webkit-scrollbar-thumb{background:" + C.border + ";border-radius:3px}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}@keyframes fadeInUp{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}.poast-card{position:relative;overflow:hidden;transition:box-shadow 0.3s ease, border-color 0.3s ease, transform 0.2s ease}.poast-card::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(90deg,transparent 0%,rgba(247,176,65,0.03) 25%,rgba(247,176,65,0.06) 50%,rgba(247,176,65,0.03) 75%,transparent 100%);background-size:200% 100%;opacity:0;transition:opacity 0.3s ease;pointer-events:none;z-index:1}.poast-card:hover::before{opacity:1;animation:shimmer 2s ease-in-out infinite}.poast-card:hover{box-shadow:" + C.glowHover + ";border-color:#2A2A3C;transform:translateY(-1px)}.poast-fadein{animation:fadeInUp 0.4s ease forwards}" }} />
     <Sidebar active={sec} onNav={setSec} />
     <div style={{ marginLeft: 200 }} className="poast-fadein">
