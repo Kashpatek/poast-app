@@ -502,21 +502,81 @@ function LaunchRollout({ ep, guests, fin, onComplete }) {
 // ═══ CLIP MANAGER + LOG ═══
 function ClipMgr() { return <div style={{ textAlign: "center", padding: 80, color: C.txd, fontFamily: ft }}><div style={{ fontSize: 16, marginBottom: 6 }}>Clip Manager</div><div style={{ fontFamily: mn, fontSize: 11 }}>Coming next.</div></div>; }
 
-function LogTab({ logData }) {
+function LogTab({ logData, setLogData }) {
+  var _ed = useState(false), editing = _ed[0], setEditing = _ed[1];
+  var _view = useState(null), viewIdx = _view[0], setViewIdx = _view[1];
+
+  var removeEntry = function(idx) { setLogData(function(prev) { return prev.filter(function(_, j) { return j !== idx; }); }); };
+
+  var downloadLaunchKit = function(e) {
+    var sections = [
+      { heading: "Episode Info", items: [
+        { label: "Title", content: e.title },
+        { label: "Description", content: e.description || "" },
+        { label: "Guests", content: e.guests },
+        { label: "Date", content: e.date },
+      ]},
+    ];
+    if (e.social) {
+      sections.push({ heading: "Horizontal (X, LinkedIn, Facebook)", items: ["x_hook", "x_reply", "linkedin_post", "linkedin_comment", "facebook_post", "facebook_comment"].filter(function(k) { return e.social[k]; }).map(function(k) { return { label: k.replace(/_/g, " ").replace(/\b\w/g, function(c) { return c.toUpperCase(); }), content: e.social[k] }; }) });
+      sections.push({ heading: "Vertical (Shorts, Reels, TikTok)", items: ["instagram_caption", "yt_shorts_title", "yt_shorts_desc", "tiktok_caption"].filter(function(k) { return e.social[k]; }).map(function(k) { return { label: k.replace(/_/g, " ").replace(/\b\w/g, function(c) { return c.toUpperCase(); }), content: e.social[k] }; }) });
+    }
+    exportDoc("Ep #" + e.episode + " Launch Kit", sections);
+  };
+
+  var downloadSocialKit = function(e) {
+    if (!e.social) return;
+    var sections = [
+      { heading: "Social Captions", items: Object.keys(e.social).map(function(k) { return { label: k.replace(/_/g, " ").replace(/\b\w/g, function(c) { return c.toUpperCase(); }), content: e.social[k] }; }) },
+    ];
+    exportDoc("Ep #" + e.episode + " Social Kit", sections);
+  };
+
+  var viewEntry = viewIdx !== null && logData[viewIdx] ? logData[viewIdx] : null;
+
   return (<div>
-    <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: C.tx, marginBottom: 16 }}>Activity Log</div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: C.tx }}>Activity Log</div>
+      {logData.length > 0 && <span onClick={function() { setEditing(!editing); }} style={{ fontFamily: mn, fontSize: 10, color: editing ? C.coral : C.txd, cursor: "pointer", padding: "4px 10px", borderRadius: 4, border: "1px solid " + (editing ? C.coral + "40" : C.border) }}>{editing ? "Done" : "Edit"}</span>}
+    </div>
     {logData.length === 0 ? <div style={{ textAlign: "center", padding: 60, color: C.txd, fontFamily: ft, fontSize: 13 }}>No completed episodes yet.</div>
       : logData.map(function(e, i) { return (<div key={i} className="poast-card" style={{ background: C.cardGrad, border: "1px solid " + C.border, borderRadius: 8, padding: "16px 18px", marginBottom: 8, boxShadow: C.glow }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 8 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 6, background: C.surface, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 12, color: C.amber, fontWeight: 700, border: "1px solid " + C.border }}>{"#" + e.episode}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10 }}>
+          {editing && <span onClick={function() { removeEntry(i); }} style={{ width: 24, height: 24, borderRadius: "50%", background: C.coral + "20", border: "1px solid " + C.coral, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 13, color: C.coral, cursor: "pointer", flexShrink: 0 }}>x</span>}
+          <div style={{ width: 40, height: 40, borderRadius: 6, background: C.surface, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 12, color: C.amber, fontWeight: 700, border: "1px solid " + C.border, flexShrink: 0 }}>{"#" + e.episode}</div>
           <div style={{ flex: 1 }}><div style={{ fontFamily: ft, fontSize: 14, fontWeight: 600, color: C.tx }}>{e.title}</div><div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>{e.guests}</div></div>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>{e.date}</div>
         </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <span style={{ fontFamily: mn, fontSize: 9, color: C.teal, padding: "2px 8px", background: C.teal + "15", borderRadius: 4 }}>Launch Kit</span>
-          {e.social && <span onClick={function() { exportDoc("Ep #" + e.episode + " Launch Rollout", [{ heading: "Social Kit", items: Object.keys(e.social).map(function(k) { return { label: k, content: e.social[k] }; }) }]); }} style={{ fontFamily: mn, fontSize: 9, color: C.amber, cursor: "pointer", padding: "2px 8px", background: C.amber + "15", borderRadius: 4 }}>Download .doc</span>}
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+          <span onClick={function() { setViewIdx(i); }} style={{ fontFamily: mn, fontSize: 9, color: C.teal, padding: "3px 10px", background: C.teal + "15", borderRadius: 4, cursor: "pointer" }}>View Launch Kit</span>
+          <span onClick={function() { downloadLaunchKit(e); }} style={{ fontFamily: mn, fontSize: 9, color: C.amber, cursor: "pointer", padding: "3px 10px", background: C.amber + "15", borderRadius: 4 }}>Download Launch Kit</span>
+          {e.social && <span onClick={function() { downloadSocialKit(e); }} style={{ fontFamily: mn, fontSize: 9, color: C.blue, cursor: "pointer", padding: "3px 10px", background: C.blue + "15", borderRadius: 4 }}>Download Social Kit</span>}
         </div>
       </div>); })}
+
+    {/* View Launch Kit Modal */}
+    {viewEntry && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }} onClick={function() { setViewIdx(null); }}>
+      <div onClick={function(e) { e.stopPropagation(); }} style={{ background: C.cardGrad, border: "1px solid " + C.border, borderRadius: 12, padding: 28, maxWidth: 640, width: "90%", maxHeight: "80vh", overflow: "auto", boxShadow: C.glow }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "2px" }}>{"Episode #" + viewEntry.episode + " // Launch Kit"}</div>
+          <span onClick={function() { setViewIdx(null); }} style={{ fontFamily: mn, fontSize: 11, color: C.txd, cursor: "pointer", padding: "4px 8px" }}>x</span>
+        </div>
+        <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: C.tx, marginBottom: 4 }}>{viewEntry.title}</div>
+        <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, marginBottom: 6 }}>{viewEntry.guests} // {viewEntry.date}</div>
+        {viewEntry.description && <div style={{ fontFamily: ft, fontSize: 13, color: C.tx, lineHeight: 1.7, whiteSpace: "pre-wrap", padding: "12px 14px", background: C.surface, borderRadius: 6, border: "1px solid " + C.border, marginBottom: 16, maxHeight: 160, overflow: "auto" }}>{viewEntry.description}</div>}
+        {viewEntry.social && <div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Social Captions</div>
+          {Object.keys(viewEntry.social).map(function(k) { return <div key={k} style={{ marginBottom: 10, padding: "10px 12px", background: C.surface, borderRadius: 6, border: "1px solid " + C.border }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{k.replace(/_/g, " ")}</div>
+            <div style={{ fontFamily: ft, fontSize: 12, color: C.tx, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{viewEntry.social[k]}</div>
+          </div>; })}
+        </div>}
+        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+          <Btn onClick={function() { downloadLaunchKit(viewEntry); }} sm sec>Download Launch Kit</Btn>
+          {viewEntry.social && <Btn onClick={function() { downloadSocialKit(viewEntry); }} sm sec>Download Social Kit</Btn>}
+        </div>
+      </div>
+    </div>}
   </div>);
 }
 
@@ -638,7 +698,7 @@ export default function App() {
 
   var handleComplete = function(data) {
     setLaunched(true);
-    var entry = { episode: ep.number, title: data.title, guests: gn, date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), social: data.social };
+    var entry = { episode: ep.number, title: data.title, description: data.description, guests: gn, date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), social: data.social };
     setLogData(function(prev) { return [entry].concat(prev); });
   };
 
@@ -667,7 +727,7 @@ export default function App() {
         {tab === "test" && <TestPage ep={ep} guests={guests} opts={opts} fin={fin} setFin={setFin} thumb={thumb} setThumb={setThumb} goLaunch={function() { setTab("launch"); }} />}
         {tab === "launch" && <LaunchRollout ep={ep} guests={guests} fin={fin} onComplete={handleComplete} />}
         {tab === "clips" && <ClipMgr />}
-        {tab === "log" && <LogTab logData={logData} />}
+        {tab === "log" && <LogTab logData={logData} setLogData={setLogData} />}
         </div>
       </div>
     </div>
