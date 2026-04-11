@@ -70,6 +70,18 @@ function Toast() {
   return <div onClick={function() { setMsg(null); }} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 10000, maxWidth: 420, padding: "14px 20px", background: C.coral + "20", border: "1px solid " + C.coral, borderRadius: 8, fontFamily: mn, fontSize: 11, color: C.coral, cursor: "pointer", boxShadow: "0 0 20px rgba(224,99,71,0.2)", lineHeight: 1.5 }}>{msg}</div>;
 }
 
+function ProgressBar({ label }) {
+  return <div style={{ margin: "20px 0" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+      <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, letterSpacing: "1px" }}>{label || "Generating..."}</div>
+      <div className="progress-dots" style={{ fontFamily: mn, fontSize: 10, color: C.txm }} />
+    </div>
+    <div style={{ width: "100%", height: 3, background: C.border, borderRadius: 2, overflow: "hidden", position: "relative" }}>
+      <div className="progress-slide" style={{ position: "absolute", top: 0, left: 0, height: "100%", width: "40%", borderRadius: 2, background: "linear-gradient(90deg, transparent, " + C.amber + ", transparent)" }} />
+    </div>
+  </div>;
+}
+
 function Label({ children }) { return <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 6 }}>{children}</div>; }
 function Field({ label, value, onChange, placeholder, isMono }) { return (<div style={{ marginBottom: 14 }}>{label && <Label>{label}</Label>}<input value={value} onChange={function(e) { onChange(e.target.value); }} placeholder={placeholder} style={{ width: "100%", padding: "10px 12px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: isMono ? mn : ft, fontSize: 13, outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} /></div>); }
 function Btn({ children, onClick, loading, sec, sm, off }) { return (<button onClick={onClick} disabled={loading || off} style={{ padding: sm ? "6px 13px" : "10px 24px", background: off ? C.surface : sec ? "transparent" : C.amber, color: off ? C.txd : sec ? C.amber : C.bg, border: sec ? "1px solid " + (off ? C.border : C.amber) : "none", borderRadius: 6, fontFamily: ft, fontSize: sm ? 11 : 13, fontWeight: 700, cursor: loading || off ? "not-allowed" : "pointer", opacity: loading ? 0.5 : 1 }}>{loading ? "Working..." : children}</button>); }
@@ -238,10 +250,12 @@ function EpisodeSetup({ ep, setEp, guests, setGuests, opts, setOpts, sel, setSel
       </div>
     </div>
 
-    <div style={{ display: "flex", gap: 10 }}>
+    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
       <Btn onClick={genAll} loading={loading} off={!ep.transcript}>Generate Options</Btn>
       {opts && <Btn onClick={genAll} loading={loading} sec sm>Full Regen</Btn>}
+      {!ep.transcript && <span style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>Paste or upload a transcript first</span>}
     </div>
+    {loading && <ProgressBar label="Generating titles, descriptions, and thumbnails" />}
 
     {opts && <div style={{ marginTop: 32 }}>
       <SecHead label="Select a Title" onRedoAll={function() { redoCat("titles"); }} rL={rL["all-titles"]} />
@@ -300,12 +314,14 @@ function TestPage({ ep, guests, opts, fin, setFin, thumb, setThumb, goLaunch }) 
     {thumb && <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 20 }}><span style={{ fontFamily: mn, fontSize: 10, color: C.teal }}>Thumbnail uploaded</span><span onClick={function() { setThumb(null); }} style={{ fontFamily: mn, fontSize: 9, color: C.txd, cursor: "pointer" }}>Remove</span></div>}
     <Divider />
     <div style={{ marginBottom: 24 }}><div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: C.tx, marginBottom: 8 }}>Double Check</div><Btn onClick={doubleCheck} loading={checkL} sec>Run Double Check</Btn>
+      {checkL && <ProgressBar label="Evaluating cohesion" />}
       {checkR && <div className="poast-card" style={{ background: C.cardGrad, border: "1px solid " + C.border, borderRadius: 8, padding: 18, marginTop: 14, boxShadow: C.glow }}><div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}><div style={{ width: 48, height: 48, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: (checkR.score >= 8 ? C.teal : checkR.score >= 5 ? C.amber : C.coral) + "20", border: "2px solid " + (checkR.score >= 8 ? C.teal : checkR.score >= 5 ? C.amber : C.coral), fontFamily: mn, fontSize: 18, fontWeight: 700, color: checkR.score >= 8 ? C.teal : checkR.score >= 5 ? C.amber : C.coral }}>{checkR.score}</div><div><div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx }}>Cohesion Score</div></div></div><div style={{ fontFamily: ft, fontSize: 13, color: C.tx, lineHeight: 1.6, marginBottom: 12 }}>{checkR.feedback}</div>{checkR.suggestions && checkR.suggestions.map(function(s, i) { return <div key={i} style={{ fontFamily: ft, fontSize: 12, color: C.txm, paddingLeft: 10, borderLeft: "2px solid " + C.border, marginBottom: 4 }}>{s}</div>; })}</div>}
     </div>
     <Divider />
     <div style={{ marginBottom: 24 }}><div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: C.tx, marginBottom: 8 }}>A/B Testing</div>
       <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>{[{ id: "title", l: "Title Only" }, { id: "thumbnail", l: "Thumbnail Only" }, { id: "both", l: "Title + Thumbnail" }].map(function(m) { var s2 = abM === m.id; return <div key={m.id} onClick={function() { setAbM(m.id); }} style={{ padding: "7px 14px", borderRadius: 5, cursor: "pointer", background: s2 ? C.amber + "15" : C.card, border: "1px solid " + (s2 ? C.amber : C.border), fontFamily: mn, fontSize: 10, color: s2 ? C.amber : C.txm }}>{m.l}</div>; })}</div>
       <div style={{ display: "flex", gap: 8 }}><Btn onClick={runAB} loading={abL} sec>Run A/B Test</Btn>{abR && <Btn onClick={function() { setAbR(null); runAB(); }} loading={abL} sec sm>Redo Fresh</Btn>}</div>
+      {abL && <ProgressBar label="Running A/B analysis" />}
       {abR && <div className="poast-card" style={{ background: C.cardGrad, border: "1px solid " + C.border, borderRadius: 8, padding: 18, marginTop: 14, boxShadow: C.glow }}><div style={{ display: "flex", gap: 20, marginBottom: 14 }}><div style={{ textAlign: "center" }}><div style={{ fontFamily: mn, fontSize: 9, color: C.txm }}>CURRENT</div><div style={{ fontFamily: mn, fontSize: 22, fontWeight: 700, color: C.txm }}>{abR.current_combo_score}</div></div><div style={{ fontFamily: ft, fontSize: 20, color: C.txd, alignSelf: "center" }}>&rarr;</div><div style={{ textAlign: "center" }}><div style={{ fontFamily: mn, fontSize: 9, color: C.amber }}>RECOMMENDED</div><div style={{ fontFamily: mn, fontSize: 22, fontWeight: 700, color: C.amber }}>{abR.recommended_combo_score}</div></div></div>{abR.is_change_recommended ? <div>{abR.recommended_title && <div style={{ marginBottom: 10 }}><div style={{ fontFamily: mn, fontSize: 9, color: C.txm }}>TITLE</div><div style={{ fontFamily: ft, fontSize: 14, color: C.tx, fontWeight: 600 }}>{abR.recommended_title}</div></div>}{abR.recommended_thumbnail_concept && <div style={{ marginBottom: 10 }}><div style={{ fontFamily: mn, fontSize: 9, color: C.txm }}>THUMBNAIL</div><div style={{ fontFamily: ft, fontSize: 13, color: C.tx }}>{abR.recommended_thumbnail_concept}</div></div>}<div style={{ fontFamily: ft, fontSize: 12, color: C.txm, marginBottom: 14 }}>{abR.reasoning}</div><Btn onClick={applyAB} sm>Apply</Btn></div> : <div style={{ fontFamily: ft, fontSize: 13, color: C.teal }}>Current combo is already strongest.</div>}</div>}
     </div>
     <Divider />
@@ -384,6 +400,7 @@ function LaunchRollout({ ep, guests, fin, onComplete }) {
       <Btn onClick={gen} loading={loading}>Generate Launch Rollout</Btn>
       {res && <Btn onClick={gen} loading={loading} sec sm>Regen All</Btn>}
     </div>
+    {loading && <ProgressBar label="Generating social captions for all platforms" />}
 
     {res && <div style={{ marginTop: 24 }}>
       <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.txm, marginBottom: 10 }}>Horizontal (X, LinkedIn, Facebook)</div>
@@ -563,7 +580,7 @@ export default function App() {
 
   return (<div style={{ background: C.bg, minHeight: "100vh" }}>
     <Toast />
-    <style dangerouslySetInnerHTML={{ __html: "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{background:" + C.bg + "}::selection{background:" + C.amber + "33;color:" + C.amber + "}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:" + C.bg + "}::-webkit-scrollbar-thumb{background:" + C.border + ";border-radius:3px}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}@keyframes fadeInUp{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}.poast-card{position:relative;overflow:hidden;transition:box-shadow 0.3s ease, border-color 0.3s ease, transform 0.2s ease}.poast-card::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(90deg,transparent 0%,rgba(247,176,65,0.03) 25%,rgba(247,176,65,0.06) 50%,rgba(247,176,65,0.03) 75%,transparent 100%);background-size:200% 100%;opacity:0;transition:opacity 0.3s ease;pointer-events:none;z-index:1}.poast-card:hover::before{opacity:1;animation:shimmer 2s ease-in-out infinite}.poast-card:hover{box-shadow:" + C.glowHover + ";border-color:#2A2A3C;transform:translateY(-1px)}.poast-fadein{animation:fadeInUp 0.4s ease forwards}" }} />
+    <style dangerouslySetInnerHTML={{ __html: "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{background:" + C.bg + "}::selection{background:" + C.amber + "33;color:" + C.amber + "}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:" + C.bg + "}::-webkit-scrollbar-thumb{background:" + C.border + ";border-radius:3px}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}@keyframes fadeInUp{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}.poast-card{position:relative;overflow:hidden;transition:box-shadow 0.3s ease, border-color 0.3s ease, transform 0.2s ease}.poast-card::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(90deg,transparent 0%,rgba(247,176,65,0.03) 25%,rgba(247,176,65,0.06) 50%,rgba(247,176,65,0.03) 75%,transparent 100%);background-size:200% 100%;opacity:0;transition:opacity 0.3s ease;pointer-events:none;z-index:1}.poast-card:hover::before{opacity:1;animation:shimmer 2s ease-in-out infinite}.poast-card:hover{box-shadow:" + C.glowHover + ";border-color:#2A2A3C;transform:translateY(-1px)}.poast-fadein{animation:fadeInUp 0.4s ease forwards}@keyframes progressSlide{0%{left:-40%}100%{left:100%}}.progress-slide{animation:progressSlide 1.5s ease-in-out infinite}@keyframes dotPulse{0%,80%,100%{opacity:0.2}40%{opacity:1}}.progress-dots::after{content:'...';display:inline-block;animation:dotPulse 1.4s ease-in-out infinite}" }} />
     <Sidebar active={sec} onNav={setSec} />
     <div style={{ marginLeft: 200 }} className="poast-fadein">
       <div style={{ padding: "16px 36px", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bg, position: "sticky", top: 0, zIndex: 50 }}>
