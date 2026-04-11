@@ -434,8 +434,68 @@ function saveState(state, log) {
   }, 1000);
 }
 
+// ═══ SPLASH ═══
+var splashCSS = [
+  "@keyframes splash-glow{0%{text-shadow:0 0 20px rgba(247,176,65,0),0 0 40px rgba(247,176,65,0);opacity:0;transform:scale(0.8)}40%{text-shadow:0 0 40px rgba(247,176,65,0.4),0 0 80px rgba(247,176,65,0.2);opacity:1;transform:scale(1.02)}100%{text-shadow:0 0 30px rgba(247,176,65,0.3),0 0 60px rgba(247,176,65,0.1);opacity:1;transform:scale(1)}}",
+  "@keyframes splash-sub{0%{opacity:0;transform:translateY(8px);filter:blur(4px)}100%{opacity:1;transform:translateY(0);filter:blur(0)}}",
+  "@keyframes splash-line{0%{transform:scaleX(0)}100%{transform:scaleX(1)}}",
+  "@keyframes splash-pulse{0%,100%{opacity:0.3}50%{opacity:0.8}}",
+  "@keyframes splash-out{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.05)}}",
+  "@keyframes splash-particles{0%{opacity:0;transform:translateY(0) scale(0)}30%{opacity:1;transform:translateY(-10px) scale(1)}100%{opacity:0;transform:translateY(-60px) scale(0.3)}}",
+  ".splash-container{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;overflow:hidden}",
+  ".splash-bg{position:absolute;inset:0;background:radial-gradient(ellipse at center,#10101E 0%,#0B0B12 70%)}",
+  ".splash-ring{position:absolute;width:300px;height:300px;border-radius:50%;border:1px solid rgba(247,176,65,0.06);animation:splash-pulse 2s ease-in-out infinite}",
+  ".splash-ring:nth-child(2){width:500px;height:500px;animation-delay:0.3s;border-color:rgba(247,176,65,0.04)}",
+  ".splash-ring:nth-child(3){width:700px;height:700px;animation-delay:0.6s;border-color:rgba(247,176,65,0.02)}",
+  ".splash-title{font-family:'Outfit',sans-serif;font-size:64px;font-weight:900;color:#F7B041;letter-spacing:6px;animation:splash-glow 1.2s cubic-bezier(0.16,1,0.3,1) forwards;opacity:0;position:relative;z-index:2}",
+  ".splash-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:#6A6674;letter-spacing:4px;text-transform:uppercase;margin-top:14px;animation:splash-sub 0.6s ease forwards;animation-delay:0.8s;opacity:0;position:relative;z-index:2}",
+  ".splash-line{width:60px;height:1px;background:linear-gradient(90deg,transparent,#F7B041,transparent);margin-top:20px;animation:splash-line 0.8s ease forwards;animation-delay:0.5s;transform:scaleX(0);transform-origin:center;position:relative;z-index:2}",
+  ".splash-dot{position:absolute;width:3px;height:3px;border-radius:50%;background:#F7B041}",
+  ".splash-exit{animation:splash-out 0.5s cubic-bezier(0.4,0,0.2,1) forwards}",
+].join("");
+
+function Splash({ onDone }) {
+  var _ph = useState(0), phase = _ph[0], setPhase = _ph[1];
+  var dots = useRef([]);
+
+  useEffect(function() {
+    if (dots.current.length === 0) {
+      var d = [];
+      for (var i = 0; i < 12; i++) {
+        d.push({
+          left: 45 + Math.random() * 10 + "%",
+          top: 40 + Math.random() * 20 + "%",
+          delay: 0.6 + Math.random() * 1.2 + "s",
+          dur: 1.5 + Math.random() * 1 + "s",
+        });
+      }
+      dots.current = d;
+    }
+    var t1 = setTimeout(function() { setPhase(1); }, 2400);
+    var t2 = setTimeout(function() { onDone(); }, 2900);
+    return function() { clearTimeout(t1); clearTimeout(t2); };
+  }, [onDone]);
+
+  return (
+    <div className={"splash-container" + (phase === 1 ? " splash-exit" : "")}>
+      <style dangerouslySetInnerHTML={{ __html: splashCSS }} />
+      <div className="splash-bg" />
+      <div className="splash-ring" />
+      <div className="splash-ring" />
+      <div className="splash-ring" />
+      {dots.current.map(function(d, i) {
+        return <div key={i} className="splash-dot" style={{ left: d.left, top: d.top, animation: "splash-particles " + d.dur + " ease-out " + d.delay + " infinite" }} />;
+      })}
+      <div className="splash-title">POAST</div>
+      <div className="splash-line" />
+      <div className="splash-sub">Content Command Center</div>
+    </div>
+  );
+}
+
 // ═══ APP ═══
 export default function App() {
+  var _sp = useState(true), showSplash = _sp[0], setShowSplash = _sp[1];
   var _s = useState("weekly"), sec = _s[0], setSec = _s[1];
   var _t = useState("setup"), tab = _t[0], setTab = _t[1];
   var _e = useState({ number: "008", link: "", transcript: "", timestamps: "", extra: "" }), ep = _e[0], setEp = _e[1];
@@ -484,10 +544,12 @@ export default function App() {
     setLogData(function(prev) { return [entry].concat(prev); });
   };
 
+  if (showSplash) return <Splash onDone={function() { setShowSplash(false); }} />;
+
   return (<div style={{ background: C.bg, minHeight: "100vh" }}>
-    <style dangerouslySetInnerHTML={{ __html: "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{background:" + C.bg + "}::selection{background:" + C.amber + "33;color:" + C.amber + "}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:" + C.bg + "}::-webkit-scrollbar-thumb{background:" + C.border + ";border-radius:3px}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}.poast-card{position:relative;overflow:hidden;transition:box-shadow 0.3s ease, border-color 0.3s ease, transform 0.2s ease}.poast-card::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(90deg,transparent 0%,rgba(247,176,65,0.03) 25%,rgba(247,176,65,0.06) 50%,rgba(247,176,65,0.03) 75%,transparent 100%);background-size:200% 100%;opacity:0;transition:opacity 0.3s ease;pointer-events:none;z-index:1}.poast-card:hover::before{opacity:1;animation:shimmer 2s ease-in-out infinite}.poast-card:hover{box-shadow:" + C.glowHover + ";border-color:#2A2A3C;transform:translateY(-1px)}" }} />
+    <style dangerouslySetInnerHTML={{ __html: "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{background:" + C.bg + "}::selection{background:" + C.amber + "33;color:" + C.amber + "}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:" + C.bg + "}::-webkit-scrollbar-thumb{background:" + C.border + ";border-radius:3px}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}@keyframes fadeInUp{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}.poast-card{position:relative;overflow:hidden;transition:box-shadow 0.3s ease, border-color 0.3s ease, transform 0.2s ease}.poast-card::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(90deg,transparent 0%,rgba(247,176,65,0.03) 25%,rgba(247,176,65,0.06) 50%,rgba(247,176,65,0.03) 75%,transparent 100%);background-size:200% 100%;opacity:0;transition:opacity 0.3s ease;pointer-events:none;z-index:1}.poast-card:hover::before{opacity:1;animation:shimmer 2s ease-in-out infinite}.poast-card:hover{box-shadow:" + C.glowHover + ";border-color:#2A2A3C;transform:translateY(-1px)}.poast-fadein{animation:fadeInUp 0.4s ease forwards}" }} />
     <Sidebar active={sec} onNav={setSec} />
-    <div style={{ marginLeft: 200 }}>
+    <div style={{ marginLeft: 200 }} className="poast-fadein">
       <div style={{ padding: "16px 36px", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bg, position: "sticky", top: 0, zIndex: 50 }}>
         <div><div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: C.tx }}>SemiAnalysis Weekly</div><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginTop: 1 }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div></div>
         <a href="https://youtube.com/@SemianalysisWeekly" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 9, color: C.txd, textDecoration: "none", padding: "5px 10px", border: "1px solid " + C.border, borderRadius: 5 }}>@SemianalysisWeekly</a>
