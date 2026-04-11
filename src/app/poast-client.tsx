@@ -123,7 +123,7 @@ function OutCard({ title, content, color, onRedo, rLoading }) {
 
 // ═══ SIDEBAR ═══
 function Sidebar({ active, onNav }) {
-  var nav = [{ id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99", on: true }, { id: "carousel", l: "IG Carousel", ic: "\uD83D\uDCD0", on: false }, { id: "news", l: "News Flow", ic: "\uD83D\uDCE1", on: false }];
+  var nav = [{ id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99", on: true }, { id: "captions", l: "Clip Captions", ic: "\uD83C\uDFAC", on: true }, { id: "carousel", l: "IG Carousel", ic: "\uD83D\uDCD0", on: false }, { id: "news", l: "News Flow", ic: "\uD83D\uDCE1", on: false }];
   return (<div style={{ width: 200, minHeight: "100vh", background: "linear-gradient(180deg, " + C.bg + " 0%, #0D0D18 100%)", borderRight: "1px solid " + C.border, display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
     <div style={{ padding: "26px 20px 18px", borderBottom: "1px solid " + C.border }}><div style={{ fontFamily: ft, fontSize: 21, fontWeight: 800, color: C.amber }}>POAST</div><div style={{ fontFamily: mn, fontSize: 8, color: C.txd, letterSpacing: "2px", marginTop: 3, textTransform: "uppercase" }}>Content Command Center</div></div>
     <div style={{ padding: "12px 8px", flex: 1 }}>{nav.map(function(n) { var s = active === n.id; return (<div key={n.id} onClick={function() { if (n.on) onNav(n.id); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px", borderRadius: 6, marginBottom: 2, cursor: n.on ? "pointer" : "not-allowed", background: s ? C.surface : "transparent", borderLeft: s ? "3px solid " + C.amber : "3px solid transparent", opacity: n.on ? 1 : 0.28 }}><span style={{ fontSize: 14 }}>{n.ic}</span><span style={{ fontFamily: ft, fontSize: 12, fontWeight: s ? 700 : 500, color: s ? C.amber : C.txm }}>{n.l}</span>{!n.on && <span style={{ fontFamily: mn, fontSize: 8, color: C.txd, marginLeft: "auto" }}>soon</span>}</div>); })}</div>
@@ -581,6 +581,170 @@ function LogTab({ logData, setLogData }) {
   </div>);
 }
 
+// ═══ CLIP CAPTIONS ═══
+var SYS_CLIP = "You are a social media strategist for SemiAnalysis. You write captions for short-form video clips pulled from longer podcast episodes. Rules: Never use em dashes. No emojis. No hashtags on X/Twitter ever. YT Shorts titles under 40 chars. Instagram: caption + Save this for later CTA + 5-8 hashtags + location San Francisco CA, point to youtube.com/@SemianalysisWeekly. TikTok: all lowercase 4-6 hashtags no on-screen text overlays. LinkedIn/Facebook: link in first comment end with Link in comments. X: Hook tweet no link. Include guest handles on every platform. RESPOND ONLY IN VALID JSON. No markdown fences. No preamble.";
+
+var CLIP_PLATFORMS = [
+  { key: "x", label: "X // Post", color: PL.x },
+  { key: "linkedin", label: "LinkedIn // Post", color: PL.li },
+  { key: "facebook", label: "Facebook // Post", color: PL.fb },
+  { key: "instagram", label: "Instagram Reels", color: PL.ig },
+  { key: "yt_shorts_title", label: "YouTube Shorts // Title", color: PL.yt },
+  { key: "yt_shorts_desc", label: "YouTube Shorts // Description", color: PL.yt },
+  { key: "tiktok", label: "TikTok", color: PL.tt },
+];
+
+function ClipCaptions() {
+  var _clips = useState([{ name: "", context: "", guests: "", platforms: ["x", "linkedin", "facebook", "instagram", "yt_shorts_title", "yt_shorts_desc", "tiktok"] }]);
+  var clips = _clips[0], setClips = _clips[1];
+  var _active = useState(0), active = _active[0], setActive = _active[1];
+  var _results = useState({}), results = _results[0], setResults = _results[1];
+  var _loading = useState({}), loading = _loading[0], setLoading = _loading[1];
+  var _redoL = useState({}), redoL = _redoL[0], setRedoL = _redoL[1];
+
+  var addClip = function() {
+    var c = clips.concat([{ name: "", context: "", guests: "", platforms: ["x", "linkedin", "facebook", "instagram", "yt_shorts_title", "yt_shorts_desc", "tiktok"] }]);
+    setClips(c);
+    setActive(c.length - 1);
+  };
+
+  var removeClip = function(idx) {
+    if (clips.length <= 1) return;
+    var c = clips.filter(function(_, i) { return i !== idx; });
+    setClips(c);
+    if (active >= c.length) setActive(c.length - 1);
+    var r = Object.assign({}, results); delete r[idx]; setResults(r);
+  };
+
+  var updateClip = function(idx, field, val) {
+    var c = clips.slice();
+    c[idx] = Object.assign({}, c[idx]);
+    c[idx][field] = val;
+    setClips(c);
+  };
+
+  var togglePlatform = function(idx, key) {
+    var c = clips.slice();
+    var p = c[idx].platforms.slice();
+    var i = p.indexOf(key);
+    if (i >= 0) p.splice(i, 1); else p.push(key);
+    c[idx] = Object.assign({}, c[idx], { platforms: p });
+    setClips(c);
+  };
+
+  var genCaptions = async function(idx) {
+    var clip = clips[idx];
+    if (!clip.context) return;
+    setLoading(function(p) { var o = Object.assign({}, p); o[idx] = true; return o; });
+    var platKeys = clip.platforms.join('","');
+    var data = await ask(SYS_CLIP, buildPrompt([
+      "Generate social captions for a short clip from SemiAnalysis Weekly.",
+      "Clip name: " + (clip.name || "Untitled"),
+      clip.guests ? "Guests with handles: " + clip.guests : "",
+      "Clip context/transcript: " + clip.context.slice(0, 6000),
+      "Channel: youtube.com/@SemianalysisWeekly",
+      "Generate captions ONLY for these platforms: " + clip.platforms.map(function(k) { var f = CLIP_PLATFORMS.find(function(p) { return p.key === k; }); return f ? f.label : k; }).join(", "),
+      'Return JSON with these exact keys: {"' + platKeys + '":"..."}. LinkedIn and Facebook posts should end with "Link in comments." X post should have no link. YT Shorts title must be under 40 characters.',
+    ]));
+    if (data) setResults(function(p) { var o = Object.assign({}, p); o[idx] = data; return o; });
+    setLoading(function(p) { var o = Object.assign({}, p); o[idx] = false; return o; });
+  };
+
+  var redoOne = async function(clipIdx, platKey) {
+    var rk = clipIdx + "-" + platKey;
+    setRedoL(function(p) { var o = Object.assign({}, p); o[rk] = true; return o; });
+    var clip = clips[clipIdx];
+    var cur = results[clipIdx] && results[clipIdx][platKey] || "";
+    var platLabel = (CLIP_PLATFORMS.find(function(p) { return p.key === platKey; }) || {}).label || platKey;
+    var data = await ask(SYS_CLIP, buildPrompt([
+      "Regenerate ONLY the " + platLabel + " caption for this SemiAnalysis clip.",
+      "Clip: " + (clip.name || "Untitled"),
+      clip.guests ? "Guests: " + clip.guests : "",
+      "Context: " + clip.context.slice(0, 3000),
+      "Current (be DIFFERENT): " + cur,
+      'Return JSON: {"result":"..."}',
+    ]));
+    if (data && data.result) {
+      setResults(function(p) {
+        var o = Object.assign({}, p);
+        o[clipIdx] = Object.assign({}, o[clipIdx]);
+        o[clipIdx][platKey] = data.result;
+        return o;
+      });
+    }
+    setRedoL(function(p) { var o = Object.assign({}, p); o[rk] = false; return o; });
+  };
+
+  var exportClip = function(idx) {
+    var clip = clips[idx];
+    var res = results[idx];
+    if (!res) return;
+    var sections = [{ heading: "Clip: " + (clip.name || "Untitled"), items: Object.keys(res).map(function(k) {
+      var f = CLIP_PLATFORMS.find(function(p) { return p.key === k; });
+      return { label: f ? f.label : k, content: res[k] };
+    })}];
+    exportDoc("Clip Captions - " + (clip.name || "Untitled"), sections);
+  };
+
+  var clip = clips[active] || {};
+  var res = results[active] || null;
+  var isLoading = loading[active] || false;
+
+  return (<div>
+    <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: C.tx, marginBottom: 4 }}>Clip Captions</div>
+    <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginBottom: 24 }}>Generate platform captions for individual clips from Opus/Riverside.</div>
+
+    {/* Clip tabs */}
+    <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
+      {clips.map(function(c, i) {
+        var s = active === i;
+        return <div key={i} style={{ display: "flex", alignItems: "center", gap: 0 }}>
+          <div onClick={function() { setActive(i); }} style={{ padding: "8px 14px", borderRadius: clips.length > 1 ? "6px 0 0 6px" : 6, cursor: "pointer", background: s ? C.amber + "15" : C.card, border: "1px solid " + (s ? C.amber : C.border), borderRight: clips.length > 1 ? "none" : undefined, fontFamily: ft, fontSize: 12, fontWeight: s ? 700 : 500, color: s ? C.amber : C.txm }}>{c.name || "Clip " + (i + 1)}</div>
+          {clips.length > 1 && <div onClick={function() { removeClip(i); }} style={{ padding: "8px 8px", borderRadius: "0 6px 6px 0", cursor: "pointer", background: s ? C.amber + "15" : C.card, border: "1px solid " + (s ? C.amber : C.border), fontFamily: mn, fontSize: 10, color: C.txd }}>x</div>}
+        </div>;
+      })}
+      <div onClick={addClip} style={{ padding: "8px 14px", borderRadius: 6, cursor: "pointer", background: C.card, border: "1px dashed " + C.border, fontFamily: mn, fontSize: 11, color: C.amber }}>+ Add Clip</div>
+    </div>
+
+    {/* Clip form */}
+    <Field label="Clip Name" value={clip.name} onChange={function(v) { updateClip(active, "name", v); }} placeholder="e.g. TSMC Arizona Update" />
+    <Field label="Guest Handles" value={clip.guests} onChange={function(v) { updateClip(active, "guests", v); }} placeholder="e.g. Jordan Nanos (@JordanNanos)" isMono />
+
+    <div style={{ marginBottom: 16 }}>
+      <Label>Clip Transcript / Context</Label>
+      <textarea value={clip.context} onChange={function(e) { updateClip(active, "context", e.target.value); }} rows={8} placeholder="Paste the clip transcript or describe what the clip covers..." style={{ width: "100%", padding: "12px 14px", background: C.card, border: "1px solid " + C.border, borderRadius: 7, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.6 }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+      {clip.context && <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 4 }}>{clip.context.length.toLocaleString()} chars</div>}
+    </div>
+
+    {/* Platform selector */}
+    <div style={{ marginBottom: 20 }}>
+      <Label>Platforms</Label>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {CLIP_PLATFORMS.map(function(p) {
+          var on = clip.platforms && clip.platforms.indexOf(p.key) >= 0;
+          return <div key={p.key} onClick={function() { togglePlatform(active, p.key); }} style={{ padding: "6px 12px", borderRadius: 5, cursor: "pointer", background: on ? p.color + "18" : C.card, border: "1px solid " + (on ? p.color + "60" : C.border), fontFamily: mn, fontSize: 10, color: on ? p.color : C.txd, transition: "all 0.2s ease" }}>{p.label.split(" // ")[0]}</div>;
+        })}
+      </div>
+    </div>
+
+    <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
+      <Btn onClick={function() { genCaptions(active); }} loading={isLoading} off={!clip.context}>Generate Captions</Btn>
+      {res && <Btn onClick={function() { genCaptions(active); }} loading={isLoading} sec sm>Regen All</Btn>}
+      {!clip.context && <span style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>Add transcript or context first</span>}
+    </div>
+    {isLoading && <ProgressBar label={"Generating captions for " + (clip.name || "clip")} />}
+
+    {/* Results */}
+    {res && <div style={{ marginTop: 24 }}>
+      {CLIP_PLATFORMS.filter(function(p) { return clip.platforms.indexOf(p.key) >= 0 && res[p.key]; }).map(function(p) {
+        return <OutCard key={p.key} title={p.label} content={res[p.key]} color={p.color} onRedo={function() { redoOne(active, p.key); }} rLoading={redoL[active + "-" + p.key]} />;
+      })}
+      <Divider />
+      <Btn onClick={function() { exportClip(active); }} sec>Download as .doc</Btn>
+    </div>}
+  </div>);
+}
+
 // ═══ PERSISTENCE ═══
 var saveTimer = null;
 function saveState(state, log) {
@@ -819,13 +983,14 @@ export default function App() {
             <a href="https://youtube.com/@SemianalysisWeekly" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 9, color: C.txd, textDecoration: "none", padding: "5px 10px", border: "1px solid " + C.border, borderRadius: 5 }}>@SemianalysisWeekly</a>
           </div>
         </div>
-        <TabBar items={tabs} active={tab} onPick={setTab} locks={locks} />
+        {sec === "weekly" && <TabBar items={tabs} active={tab} onPick={setTab} locks={locks} />}
         <div style={{ paddingBottom: 60 }}>
-        {tab === "setup" && <EpisodeSetup ep={ep} setEp={setEp} guests={guests} setGuests={setGuests} opts={opts} setOpts={setOpts} sel={sel} setSel={setSel} fin={fin} setFin={setFin} goTest={function() { setTab("test"); }} />}
-        {tab === "test" && <TestPage ep={ep} guests={guests} opts={opts} fin={fin} setFin={setFin} thumb={thumb} setThumb={setThumb} goLaunch={function() { setTab("launch"); }} />}
-        {tab === "launch" && <LaunchRollout ep={ep} guests={guests} fin={fin} onComplete={handleComplete} />}
-        {tab === "clips" && <ClipMgr />}
-        {tab === "log" && <LogTab logData={logData} setLogData={setLogData} />}
+        {sec === "weekly" && tab === "setup" && <EpisodeSetup ep={ep} setEp={setEp} guests={guests} setGuests={setGuests} opts={opts} setOpts={setOpts} sel={sel} setSel={setSel} fin={fin} setFin={setFin} goTest={function() { setTab("test"); }} />}
+        {sec === "weekly" && tab === "test" && <TestPage ep={ep} guests={guests} opts={opts} fin={fin} setFin={setFin} thumb={thumb} setThumb={setThumb} goLaunch={function() { setTab("launch"); }} />}
+        {sec === "weekly" && tab === "launch" && <LaunchRollout ep={ep} guests={guests} fin={fin} onComplete={handleComplete} />}
+        {sec === "weekly" && tab === "clips" && <ClipMgr />}
+        {sec === "weekly" && tab === "log" && <LogTab logData={logData} setLogData={setLogData} />}
+        {sec === "captions" && <ClipCaptions />}
         </div>
       </div>
     </div>
