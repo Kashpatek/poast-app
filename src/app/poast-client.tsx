@@ -123,7 +123,7 @@ function OutCard({ title, content, color, onRedo, rLoading }) {
 
 // ═══ SIDEBAR ═══
 function Sidebar({ active, onNav }) {
-  var nav = [{ id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99", on: true }, { id: "captions", l: "Clip Captions", ic: "\uD83C\uDFAC", on: true }, { id: "carousel", l: "IG Carousel", ic: "\uD83D\uDCD0", on: false }, { id: "news", l: "News Flow", ic: "\uD83D\uDCE1", on: false }];
+  var nav = [{ id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99", on: true }, { id: "captions", l: "Capper", ic: "\uD83C\uDFAC", on: true }, { id: "carousel", l: "IG Carousel", ic: "\uD83D\uDCD0", on: false }, { id: "news", l: "News Flow", ic: "\uD83D\uDCE1", on: false }];
   return (<div style={{ width: 200, minHeight: "100vh", background: "linear-gradient(180deg, " + C.bg + " 0%, #0D0D18 100%)", borderRight: "1px solid " + C.border, display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
     <div style={{ padding: "26px 20px 18px", borderBottom: "1px solid " + C.border }}><div style={{ fontFamily: ft, fontSize: 21, fontWeight: 800, color: C.amber }}>POAST</div><div style={{ fontFamily: mn, fontSize: 8, color: C.txd, letterSpacing: "2px", marginTop: 3, textTransform: "uppercase" }}>Content Command Center</div></div>
     <div style={{ padding: "12px 8px", flex: 1 }}>{nav.map(function(n) { var s = active === n.id; return (<div key={n.id} onClick={function() { if (n.on) onNav(n.id); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px", borderRadius: 6, marginBottom: 2, cursor: n.on ? "pointer" : "not-allowed", background: s ? C.surface : "transparent", borderLeft: s ? "3px solid " + C.amber : "3px solid transparent", opacity: n.on ? 1 : 0.28 }}><span style={{ fontSize: 14 }}>{n.ic}</span><span style={{ fontFamily: ft, fontSize: 12, fontWeight: s ? 700 : 500, color: s ? C.amber : C.txm }}>{n.l}</span>{!n.on && <span style={{ fontFamily: mn, fontSize: 8, color: C.txd, marginLeft: "auto" }}>soon</span>}</div>); })}</div>
@@ -691,7 +691,7 @@ function ClipCaptions() {
   var isLoading = loading[active] || false;
 
   return (<div>
-    <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: C.tx, marginBottom: 4 }}>Clip Captions</div>
+    <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: C.tx, marginBottom: 4 }}>Capper</div>
     <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginBottom: 24 }}>Generate platform captions for individual clips from Opus/Riverside.</div>
 
     {/* Clip tabs */}
@@ -812,7 +812,7 @@ var splashCSS = [
   ".splash-ring:nth-child(7){width:800px;height:800px;animation-delay:0.9s;border-color:rgba(247,176,65,0.015)}",
   ".splash-streak{position:absolute;height:1px;width:200px;background:linear-gradient(90deg,transparent,rgba(247,176,65,0.3),transparent);top:40%;animation:splash-streak 3s ease-in-out 0.5s}",
   ".splash-streak2{position:absolute;height:1px;width:150px;background:linear-gradient(90deg,transparent,rgba(11,134,209,0.2),transparent);top:55%;animation:splash-streak 4s ease-in-out 1.2s}",
-  ".splash-title{font-family:'Outfit',sans-serif;font-size:72px;font-weight:900;color:#F7B041;letter-spacing:8px;opacity:0;position:relative;z-index:2}",
+  ".splash-title{font-family:'Outfit',sans-serif;font-size:144px;font-weight:900;color:#F7B041;letter-spacing:12px;opacity:0;position:relative;z-index:2}",
   ".splash-title.active{animation:splash-glow 1.4s cubic-bezier(0.16,1,0.3,1) forwards}",
   ".splash-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:#6A6674;letter-spacing:8px;text-transform:uppercase;margin-top:16px;opacity:0;position:relative;z-index:2}",
   ".splash-sub.active{animation:splash-sub 0.8s ease forwards;animation-delay:0.6s}",
@@ -975,7 +975,7 @@ export default function App() {
     <style dangerouslySetInnerHTML={{ __html: "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{background:" + C.bg + "}::selection{background:" + C.amber + "33;color:" + C.amber + "}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:" + C.bg + "}::-webkit-scrollbar-thumb{background:" + C.border + ";border-radius:3px}@keyframes fadeInUp{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}.poast-card{position:relative;transition:box-shadow 0.35s ease, border-color 0.35s ease}.poast-card:hover{box-shadow:0 0 20px rgba(247,176,65,0.12), 0 0 40px rgba(247,176,65,0.05);border-color:#2A2A3C}.poast-fadein{animation:fadeInUp 0.4s ease forwards}@keyframes progressSlide{0%{left:-40%}100%{left:100%}}.progress-slide{animation:progressSlide 1.5s ease-in-out infinite}@keyframes dotPulse{0%,80%,100%{opacity:0.2}40%{opacity:1}}.progress-dots::after{content:'...';display:inline-block;animation:dotPulse 1.4s ease-in-out infinite}" }} />
     <Sidebar active={sec} onNav={setSec} />
     <div style={{ marginLeft: 200 }} className="poast-fadein">
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 40px" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 40px" }}>
         <div style={{ padding: "16px 0", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bg, position: "sticky", top: 0, zIndex: 50 }}>
           <div><div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: C.tx }}>SemiAnalysis Weekly</div><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginTop: 1 }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div></div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
