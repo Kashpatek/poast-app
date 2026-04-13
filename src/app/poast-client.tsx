@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import GTCFlow from "./gtc-flow";
 import NewsFlow from "./news-flow";
 import BufferSchedule from "./buffer-schedule";
+import PressToPremi from "./press-to-premier";
 
 var C = {
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
@@ -298,7 +299,7 @@ function AskPoast({ open, onToggle }) {
 
 // ═══ SIDEBAR ═══
 function Sidebar({ active, onNav, onAskPoast }) {
-  var nav = [{ id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99", on: true }, { id: "captions", l: "Capper", ic: "\uD83C\uDFAC", on: true }, { id: "gtc", l: "GTC Flow", ic: "\uD83D\uDCCA", on: true }, { id: "news", l: "News Flow", ic: "\uD83D\uDCE1", on: true }, { id: "schedule", l: "Schedule", ic: "\uD83D\uDCC6", on: true }, { id: "carousel", l: "IG Carousel", ic: "\uD83D\uDCD0", on: false }];
+  var nav = [{ id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99", on: true }, { id: "captions", l: "Capper", ic: "\uD83C\uDFAC", on: true }, { id: "gtc", l: "GTC Flow", ic: "\uD83D\uDCCA", on: true }, { id: "news", l: "News Flow", ic: "\uD83D\uDCE1", on: true }, { id: "p2p", l: "Press to Premier", ic: "\uD83C\uDFAC", on: true }, { id: "schedule", l: "Schedule", ic: "\uD83D\uDCC6", on: true }, { id: "carousel", l: "IG Carousel", ic: "\uD83D\uDCD0", on: false }];
   return (<div style={{ width: 200, minHeight: "100vh", background: "linear-gradient(180deg, " + C.bg + " 0%, #0D0D18 100%)", borderRight: "1px solid " + C.border, display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
     <div style={{ padding: "26px 20px 18px", borderBottom: "1px solid " + C.border }}><div style={{ fontFamily: ft, fontSize: 21, fontWeight: 800, color: C.amber }}>POAST</div><div style={{ fontFamily: mn, fontSize: 8, color: C.txd, letterSpacing: "2px", marginTop: 3, textTransform: "uppercase" }}>Content Command Center</div></div>
 
@@ -1188,7 +1189,7 @@ export default function App() {
     <Sidebar active={sec} onNav={setSec} onAskPoast={function() { setAskPoastOpen(!askPoastOpen); }} />
     <AskPoast open={askPoastOpen} onToggle={function() { setAskPoastOpen(false); }} />
     <div style={{ marginLeft: 200 }} className="poast-fadein">
-      <div style={{ maxWidth: sec === "news" || sec === "schedule" ? "none" : 1200, margin: "0 auto", padding: sec === "news" || sec === "schedule" ? "0 20px" : "0 40px" }}>
+      <div style={{ maxWidth: sec === "news" || sec === "schedule" || sec === "p2p" ? "none" : 1200, margin: "0 auto", padding: sec === "news" || sec === "schedule" || sec === "p2p" ? "0 20px" : "0 40px" }}>
         <div style={{ padding: "16px 0", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bg, position: "sticky", top: 0, zIndex: 50 }}>
           <div><div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: C.tx }}>SemiAnalysis Weekly</div><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginTop: 1 }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div></div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -1206,6 +1207,7 @@ export default function App() {
         {sec === "captions" && <ClipCaptions />}
         {sec === "gtc" && <GTCFlow />}
         {sec === "news" && <NewsFlow />}
+        {sec === "p2p" && <PressToPremi />}
         {sec === "schedule" && <BufferSchedule />}
         </div>
       </div>
