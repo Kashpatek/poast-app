@@ -224,7 +224,7 @@ function Notes({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontS
   var save = function(v) { setNotes(v); try { localStorage.setItem("poast-notes", v); } catch (e) {} };
   return (
     <W title="Notes" icon={"\uD83D\uDCDD"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
-      <textarea value={notes} onChange={function(e) { save(e.target.value); }} placeholder="Quick notes, links, ideas..." style={{ width: "100%", height: expanded ? 360 : 180, padding: 10, background: T.surface, border: "1px solid " + T.border, borderRadius: 6, color: T.tx, fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.7 }} />
+      <textarea value={notes} onChange={function(e) { save(e.target.value); }} placeholder="Quick notes, links, ideas..." style={{ width: "100%", height: gh > 1 ? 360 : 180, padding: 10, background: T.surface, border: "1px solid " + T.border, borderRadius: 6, color: T.tx, fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.7 }} />
     </W>
   );
 }
