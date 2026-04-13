@@ -283,9 +283,34 @@ function Step6({ data, setData, onNext, onBack }) {
       try {
         var clR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: shot.prompt, engine: "grok" }) });
         var clD = await clR.json();
-        if (clD.task) {
-          clips.push({ taskId: clD.task.task_id, provider: clD.task.provider || "grok", shot: i + 1 });
-          addLog("Shot " + (i + 1) + " submitted (ID: " + (clD.task.task_id || "").slice(0, 12) + "...)", "success");
+        if (clD.task && clD.task.task_id) {
+          addLog("Shot " + (i + 1) + " submitted, waiting for render...", "info");
+          // Poll for completion (up to 2 minutes per clip)
+          var taskId = clD.task.task_id;
+          var videoUrl = null;
+          var pollStart = Date.now();
+          while (Date.now() - pollStart < 120000 && !videoUrl) {
+            await new Promise(function(res) { setTimeout(res, 5000); });
+            try {
+              var stR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", taskId: taskId, engine: "grok" }) });
+              var stD = await stR.json();
+              if (stD.task && stD.task.task_status === "succeed" && stD.task.task_result && stD.task.task_result.videos) {
+                videoUrl = stD.task.task_result.videos[0].url;
+              } else if (stD.task && stD.task.task_status === "failed") {
+                addLog("Shot " + (i + 1) + " render failed", "error");
+                break;
+              } else {
+                addLog("Shot " + (i + 1) + " still rendering... (" + Math.round((Date.now() - pollStart) / 1000) + "s)", "dim");
+              }
+            } catch (pe) { /* keep polling */ }
+          }
+          if (videoUrl) {
+            clips.push({ taskId: taskId, videoUrl: videoUrl, shot: i + 1 });
+            addLog("Shot " + (i + 1) + " complete! Video ready.", "success");
+          } else {
+            clips.push({ taskId: taskId, shot: i + 1, pending: true });
+            addLog("Shot " + (i + 1) + " timed out after 2min. May still be rendering.", "warn");
+          }
         } else {
           addLog("Shot " + (i + 1) + " error: " + (clD.error || "Unknown"), "error");
           clips.push({ error: clD.error, shot: i + 1 });
@@ -296,13 +321,15 @@ function Step6({ data, setData, onNext, onBack }) {
       }
     }
     setAssets(function(p) { return Object.assign({}, p, { clips: clips }); });
-    addLog(clips.filter(function(c) { return c.taskId; }).length + " of " + brollShots.length + " clips submitted", "info");
+    var completed = clips.filter(function(c) { return c.videoUrl; }).length;
+    var pending = clips.filter(function(c) { return c.pending; }).length;
+    addLog(completed + " clips ready, " + pending + " still rendering", "info");
 
     // ═══ STEP 3: MUSIC ═══
     setPhase("music");
     addLog("Generating background music...", "info");
     try {
-      var muR = await fetch("/api/generate-music", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: "ambient tech background music, cinematic, minimal, dark tone, suitable for semiconductor industry video", duration: data.duration || 60 }) });
+      var muR = await fetch("/api/generate-music", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: "ambient tech background music, cinematic, minimal, dark tone, suitable for semiconductor industry video", duration: Math.min(30, data.duration || 30) }) });
       var muD = await muR.json();
       if (muD.audio) {
         setAssets(function(p) { return Object.assign({}, p, { music: muD.audio }); });
@@ -407,8 +434,9 @@ function Step7({ data, onPremier, onDraft }) {
       {assets.clips && assets.clips.length > 0 ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
         {assets.clips.map(function(clip, i) {
           return <div key={i} style={{ background: D.bg, border: "1px solid " + D.border, borderRadius: 8, padding: 12 }}>
-            <div style={{ aspectRatio: "16/9", background: D.elevated, borderRadius: 6, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ fontFamily: ft, fontSize: 11, fontWeight: 500, color: clip.taskId ? D.teal : D.coral }}>{clip.taskId ? "Submitted" : "Failed"}</span>
+            <div style={{ aspectRatio: "16/9", background: D.elevated, borderRadius: 6, marginBottom: 8, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {clip.videoUrl ? <video controls src={clip.videoUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              : <span style={{ fontFamily: ft, fontSize: 11, fontWeight: 500, color: clip.pending ? D.amber : clip.taskId ? D.teal : D.coral }}>{clip.pending ? "Rendering..." : clip.taskId ? "Submitted" : "Failed"}</span>}
             </div>
             <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 600, color: D.tx }}>Shot {clip.shot}</div>
             {clip.taskId && <div style={{ fontFamily: mn, fontSize: 9, color: D.txh, marginTop: 2 }}>ID: {clip.taskId.slice(0, 16)}...</div>}
