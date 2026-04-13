@@ -1099,6 +1099,12 @@ export default function App() {
   var _sp = useState(true), showSplash = _sp[0], setShowSplash = _sp[1];
   var _askPoast = useState(false), askPoastOpen = _askPoast[0], setAskPoastOpen = _askPoast[1];
   var _s = useState("weekly"), sec = _s[0], setSec = _s[1];
+  // Listen for nav events from other components (e.g. News Flow Draft -> P2P)
+  useEffect(function() {
+    var handler = function(e) { if (e.detail) setSec(e.detail); };
+    window.addEventListener("poast-nav", handler);
+    return function() { window.removeEventListener("poast-nav", handler); };
+  }, []);
   var _t = useState("setup"), tab = _t[0], setTab = _t[1];
   var _e = useState({ number: "008", link: "", transcript: "", timestamps: "", extra: "" }), ep = _e[0], setEp = _e[1];
   var _g = useState([]), guests = _g[0], setGuests = _g[1];

@@ -361,30 +361,58 @@ function DraftModal({ item, onClose }) {
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
   var _copied = useState(false), copied = _copied[0], setCopied = _copied[1];
 
+  var SYS = "You write content for SemiAnalysis, a semiconductor and AI infrastructure research firm. Brand rules:\n- Never use em dashes. Use commas or periods.\n- No emojis in any content.\n- No hashtags on X/Twitter. Ever.\n- Be direct and data-forward, no hype or vague language.\n- Lead with hard facts, not marketing language.\n- LinkedIn and Facebook: end with \"Link in comments.\"\n- Instagram: caption + \"Save this for later.\" CTA + 5-8 hashtags + San Francisco, CA\n- TikTok: all lowercase, 4-6 hashtags";
+
   var generate = async function() {
+    if (type === "recap") {
+      // Send to Press to Premier
+      try {
+        var p2p = JSON.parse(localStorage.getItem("p2p-projects") || "[]");
+        var proj = { id: "p" + Date.now(), title: item.title, status: "draft", step: 0, data: { mode: "url", url: item.link || "", text: item.snippet || "" }, ts: Date.now() };
+        p2p.unshift(proj);
+        localStorage.setItem("p2p-projects", JSON.stringify(p2p));
+      } catch (e) {}
+      onClose();
+      // Navigate to Press to Premier (trigger sidebar change)
+      window.dispatchEvent(new CustomEvent("poast-nav", { detail: "p2p" }));
+      return;
+    }
     setLoading(true);
     var prompt;
-    if (type === "social") prompt = "Draft social captions for X (hook, no hashtags) and LinkedIn (3-5 sentences).\n\nTitle: " + item.title + "\nSource: " + item.source + "\nSnippet: " + (item.snippet || "") + "\n\nFormat:\nX HOOK:\n[hook]\n\nLINKEDIN:\n[post]";
-    else if (type === "thread") prompt = "Draft a 5-tweet X thread. No hashtags. Each tweet its own point.\n\nTitle: " + item.title + "\nSnippet: " + (item.snippet || "") + "\n\nFormat as 1/5, 2/5, etc.";
-    else prompt = "Write a 60-second video recap script. Hook, 3 key points, CTA.\n\nTitle: " + item.title + "\nSnippet: " + (item.snippet || "");
+    if (type === "social") {
+      prompt = "Draft social captions for this article across platforms.\n\nArticle: " + item.title + "\nSource: " + item.source + "\nSnippet: " + (item.snippet || "") + "\n\nFormat your response as:\n\nX (HOOK TWEET):\n[1 sentence, no link, no hashtags, under 280 chars]\n\nX (REPLY):\n[link + brief context]\n\nLINKEDIN:\n[3-5 sentences, professional, data-forward. End with \"Link in comments.\"]\n\nFACEBOOK:\n[3-5 sentences, conversational. End with \"Link in comments.\"]\n\nINSTAGRAM:\n[Caption + \"Save this for later.\" + 5-8 hashtags + San Francisco, CA]\n\nTIKTOK:\n[all lowercase, 4-6 hashtags]";
+    } else if (type === "thread") {
+      prompt = "Draft a 5-tweet X thread about this article. Rules:\n- No hashtags. Ever.\n- No emojis.\n- No em dashes.\n- Lead tweet 1 with a hard fact or provocative question.\n- Each tweet should make one clear point.\n- Tweet 5 should be a CTA.\n- Number them 1/5, 2/5, etc.\n\nArticle: " + item.title + "\nSnippet: " + (item.snippet || "");
+    }
     try {
-      var r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: "You write content for SemiAnalysis. Never use em dashes. No emojis. Direct, informed, casual.", prompt: prompt }) });
+      var r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: SYS, prompt: prompt }) });
       var d = await r.json(); setResult((d.content || []).map(function(c) { return c.text || ""; }).join(""));
     } catch (e) { setResult("Error generating."); }
     setLoading(false);
   };
 
+  var options = [
+    { id: "social", l: "Social Post", desc: "X, LinkedIn, FB, IG, TikTok", on: true },
+    { id: "thread", l: "X Thread", desc: "5-tweet thread, data-forward", on: true },
+    { id: "recap", l: "Video Recap", desc: "Send to Press to Premier", on: true },
+    { id: "carousel", l: "IG Carousel", desc: "Coming soon", on: false },
+  ];
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }} onClick={onClose}>
       <div onClick={function(e) { e.stopPropagation(); }} style={{ background: "linear-gradient(135deg, " + T.card + ", " + T.surface + ")", border: "1px solid " + T.accent + "30", borderRadius: 12, padding: 24, maxWidth: 580, width: "90%", maxHeight: "80vh", overflow: "auto", boxShadow: T.glowAccent }}>
         <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: T.tx, marginBottom: 3 }}>{item.title}</div>
-        <div style={{ fontFamily: mn, fontSize: 9, color: T.txm, marginBottom: 14 }}>{item.source}</div>
-        <div style={{ display: "flex", gap: 5, marginBottom: 14 }}>
-          {[{ id: "social", l: "Social Post" }, { id: "thread", l: "X Thread" }, { id: "recap", l: "Video Recap" }].map(function(t) {
-            return <div key={t.id} onClick={function() { setType(t.id); setResult(""); }} style={{ padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: type === t.id ? T.accent + "18" : T.surface, border: "1px solid " + (type === t.id ? T.accent : T.border), fontFamily: mn, fontSize: 9, color: type === t.id ? T.accent : T.txm }}>{t.l}</div>;
+        <div style={{ fontFamily: mn, fontSize: 9, color: T.txm, marginBottom: 14 }}>{item.source} {item.link && <span>// <a href={item.link} target="_blank" rel="noopener noreferrer" style={{ color: T.accent, textDecoration: "none" }}>Open article</a></span>}</div>
+        <div style={{ display: "flex", gap: 5, marginBottom: 14, flexWrap: "wrap" }}>
+          {options.map(function(t) {
+            var on = type === t.id;
+            return <div key={t.id} onClick={function() { if (t.on) { setType(t.id); setResult(""); } }} style={{ padding: "6px 12px", borderRadius: 5, cursor: t.on ? "pointer" : "not-allowed", background: on ? T.accent + "18" : T.surface, border: "1px solid " + (on ? T.accent : T.border), fontFamily: ft, fontSize: 11, color: on ? T.accent : t.on ? T.txm : T.txd, opacity: t.on ? 1 : 0.35 }}>
+              <div style={{ fontWeight: on ? 700 : 500 }}>{t.l}</div>
+              <div style={{ fontFamily: mn, fontSize: 8, color: T.txd, marginTop: 1 }}>{t.desc}</div>
+            </div>;
           })}
         </div>
-        <button onClick={generate} disabled={loading} style={{ padding: "7px 18px", background: T.accent, color: "#fff", border: "none", borderRadius: 5, fontFamily: ft, fontSize: 11, fontWeight: 700, cursor: loading ? "wait" : "pointer", opacity: loading ? 0.5 : 1, marginBottom: 12 }}>{loading ? "Generating..." : "Generate"}</button>
+        <button onClick={generate} disabled={loading} style={{ padding: "8px 20px", background: T.accent, color: "#fff", border: "none", borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: loading ? "wait" : "pointer", opacity: loading ? 0.5 : 1, marginBottom: 12 }}>{type === "recap" ? "Send to Press to Premier" : loading ? "Generating..." : "Generate"}</button>
         {result && <div style={{ padding: 12, background: T.surface, borderRadius: 6, border: "1px solid " + T.border }}>
           <pre style={{ fontFamily: ft, fontSize: 11, color: T.tx, lineHeight: 1.7, whiteSpace: "pre-wrap", margin: 0 }}>{result}</pre>
           <span onClick={function() { navigator.clipboard.writeText(result); setCopied(true); setTimeout(function() { setCopied(false); }, 1500); }} style={{ fontFamily: mn, fontSize: 8, color: T.accent, cursor: "pointer", marginTop: 8, display: "inline-block" }}>{copied ? "Copied!" : "Copy"}</span>
