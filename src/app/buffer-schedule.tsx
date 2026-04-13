@@ -435,6 +435,107 @@ function ChannelsTab({ channels, data, onFilter }) {
   </div>);
 }
 
+// ═══ HOME HUB ═══
+function HomeTab({ data, onTab, onCompose }) {
+  var now = new Date();
+  var todayStr = now.toISOString().slice(0, 10);
+  var scheduled = data.scheduled || [];
+  var sent = data.sent || [];
+  var drafts = data.drafts || [];
+  var channels = data.channels || [];
+
+  // Today's posts
+  var todayPosts = scheduled.filter(function(p) { return p.dueAt && p.dueAt.slice(0, 10) === todayStr; });
+  // Next up (soonest 5 scheduled)
+  var nextUp = scheduled.filter(function(p) { return p.dueAt && new Date(p.dueAt) > now; }).sort(function(a, b) { return new Date(a.dueAt) - new Date(b.dueAt); }).slice(0, 5);
+  // Recent (last 5 sent)
+  var recent = sent.slice(0, 5);
+
+  return (<div>
+    {/* Quick actions */}
+    <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
+      <span onClick={onCompose} style={{ padding: "10px 20px", background: D.amber, color: D.bg, borderRadius: 8, fontFamily: ft, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>+ New Post</span>
+      <span onClick={function() { onTab("drafts"); }} style={{ padding: "10px 20px", background: D.card, border: "1px solid " + D.border, color: D.tx, borderRadius: 8, fontFamily: ft, fontSize: 13, cursor: "pointer" }}>Review Drafts {drafts.length > 0 && <span style={{ fontFamily: mn, fontSize: 10, color: D.amber, marginLeft: 4 }}>({drafts.length})</span>}</span>
+      <a href="https://publish.buffer.com" target="_blank" rel="noopener noreferrer" style={{ padding: "10px 20px", background: D.card, border: "1px solid " + D.border, color: D.txs, borderRadius: 8, fontFamily: ft, fontSize: 13, textDecoration: "none" }}>Open Buffer</a>
+    </div>
+
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+      {/* Today's Queue */}
+      <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: 20 }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>Today's Queue</div>
+        {todayPosts.length === 0 ? <div style={{ fontFamily: ft, fontSize: 12, color: D.txs, padding: "12px 0" }}>Nothing scheduled for today.</div>
+        : todayPosts.map(function(p, i) {
+          var pp = pl(p.channel ? p.channel.service : "");
+          var t = new Date(p.dueAt);
+          var diff = t - now;
+          var hrs = Math.floor(diff / 3600000);
+          var mins = Math.floor((diff % 3600000) / 60000);
+          var countdown = diff > 0 ? (hrs > 0 ? hrs + "h " : "") + mins + "m" : "Now";
+          return <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: i < todayPosts.length - 1 ? "1px solid " + D.border : "none" }}>
+            <div style={{ width: 28, height: 28, borderRadius: 6, background: pp.c + "15", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{pp.i}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: ft, fontSize: 11, color: D.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(p.text || "Media post").slice(0, 60)}</div>
+              <div style={{ fontFamily: mn, fontSize: 8, color: D.txs }}>{pp.s} // {t.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</div>
+            </div>
+            <span style={{ fontFamily: mn, fontSize: 10, color: diff > 0 ? D.amber : D.teal, fontWeight: 700 }}>{countdown}</span>
+          </div>;
+        })}
+      </div>
+
+      {/* Next Up */}
+      <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: 20 }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.blue, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>Next Up</div>
+        {nextUp.length === 0 ? <div style={{ fontFamily: ft, fontSize: 12, color: D.txs, padding: "12px 0" }}>Queue is empty.</div>
+        : nextUp.map(function(p, i) {
+          var pp = pl(p.channel ? p.channel.service : "");
+          return <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: i < nextUp.length - 1 ? "1px solid " + D.border : "none" }}>
+            <div style={{ width: 28, height: 28, borderRadius: 6, background: pp.c + "15", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{pp.i}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: ft, fontSize: 11, color: D.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(p.text || "Media post").slice(0, 60)}</div>
+              <div style={{ fontFamily: mn, fontSize: 8, color: D.txs }}>{pp.s} // {new Date(p.dueAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</div>
+            </div>
+          </div>;
+        })}
+      </div>
+    </div>
+
+    {/* Channel Health */}
+    <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: 20, marginBottom: 24 }}>
+      <div style={{ fontFamily: mn, fontSize: 10, color: D.violet, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>Channel Health</div>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        {channels.map(function(ch) {
+          var pp = pl(ch.service);
+          return <div key={ch.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: D.bg, borderRadius: 6, border: "1px solid " + D.border }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: ch.isDisconnected ? D.coral : D.teal }} />
+            <span style={{ fontSize: 12 }}>{pp.i}</span>
+            <span style={{ fontFamily: ft, fontSize: 11, color: D.tx }}>{ch.name}</span>
+          </div>;
+        })}
+      </div>
+    </div>
+
+    {/* Recent Activity */}
+    <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.teal, textTransform: "uppercase", letterSpacing: 1.5 }}>Recent Activity</div>
+        <span onClick={function() { onTab("sent"); }} style={{ fontFamily: mn, fontSize: 9, color: D.amber, cursor: "pointer" }}>View all</span>
+      </div>
+      {recent.length === 0 ? <div style={{ fontFamily: ft, fontSize: 12, color: D.txs }}>No recent posts.</div>
+      : recent.map(function(p, i) {
+        var pp = pl(p.channel ? p.channel.service : "");
+        return <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: i < recent.length - 1 ? "1px solid " + D.border : "none" }}>
+          <div style={{ width: 28, height: 28, borderRadius: 6, background: pp.c + "15", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{pp.i}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: ft, fontSize: 11, color: D.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(p.text || "Media post").slice(0, 70)}</div>
+          </div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: D.txs, flexShrink: 0 }}>{p.sentAt ? new Date(p.sentAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}</div>
+        </div>;
+      })}
+    </div>
+  </div>);
+}
+
+// ═══ STATS ═══
 function StatsTab({ data }) {
   var byPlat = {}; (data.sent || []).forEach(function(p) { var s = p.channel ? p.channel.service : ""; byPlat[s] = (byPlat[s] || 0) + 1; });
   var max = Math.max(1, ...Object.values(byPlat));
@@ -452,6 +553,89 @@ function StatsTab({ data }) {
         {Object.keys(byPlat).sort(function(a, b) { return byPlat[b] - byPlat[a]; }).map(function(s) { var pp = pl(s); return <div key={s} style={{ flex: 1, textAlign: "center" }}><div style={{ fontFamily: mn, fontSize: 12, fontWeight: 700, color: pp.c, marginBottom: 4 }}>{byPlat[s]}</div><div style={{ height: (byPlat[s] / max * 100) + "%", minHeight: 4, background: "linear-gradient(180deg, " + pp.c + ", " + pp.c + "60)", borderRadius: "4px 4px 0 0" }} /><div style={{ fontFamily: mn, fontSize: 8, color: D.txs, marginTop: 6 }}>{pp.s}</div></div>; })}
       </div>
     </div>
+    {/* Day-of-week heatmap */}
+    <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 14 }}>Posting by Day of Week</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8, marginBottom: 28 }}>
+      {(function() {
+        var days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        var counts = [0, 0, 0, 0, 0, 0, 0];
+        (data.sent || []).forEach(function(p) { if (p.sentAt) counts[new Date(p.sentAt).getDay()]++; });
+        var maxD = Math.max(1, Math.max.apply(null, counts));
+        return days.map(function(d, i) {
+          var pct = (counts[i] / maxD) * 100;
+          var isBest = counts[i] === maxD && counts[i] > 0;
+          return <div key={i} style={{ background: D.card, border: "1px solid " + (isBest ? D.amber + "40" : D.border), borderRadius: 8, padding: "12px 8px", textAlign: "center" }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: D.txs, marginBottom: 6 }}>{d}</div>
+            <div style={{ height: 60, display: "flex", alignItems: "flex-end", justifyContent: "center", marginBottom: 6 }}>
+              <div style={{ width: 20, height: pct + "%", minHeight: counts[i] > 0 ? 4 : 0, background: isBest ? D.amber : D.blue, borderRadius: "3px 3px 0 0" }} />
+            </div>
+            <div style={{ fontFamily: mn, fontSize: 14, fontWeight: 700, color: isBest ? D.amber : D.tx }}>{counts[i]}</div>
+          </div>;
+        });
+      })()}
+    </div>
+
+    {/* Time distribution */}
+    <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 14 }}>Posting by Hour</div>
+    <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: 20, marginBottom: 28 }}>
+      {(function() {
+        var hours = new Array(24).fill(0);
+        (data.sent || []).forEach(function(p) { if (p.sentAt) hours[new Date(p.sentAt).getHours()]++; });
+        var maxH2 = Math.max(1, Math.max.apply(null, hours));
+        return <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 80 }}>
+          {hours.map(function(c, i) {
+            var pct = (c / maxH2) * 100;
+            return <div key={i} style={{ flex: 1, textAlign: "center" }}>
+              <div style={{ height: pct + "%", minHeight: c > 0 ? 3 : 0, background: c > 0 ? "linear-gradient(180deg, " + D.amber + ", " + D.amber + "40)" : "transparent", borderRadius: "2px 2px 0 0" }} />
+              {i % 3 === 0 && <div style={{ fontFamily: mn, fontSize: 7, color: D.txs, marginTop: 4 }}>{i}h</div>}
+            </div>;
+          })}
+        </div>;
+      })()}
+    </div>
+
+    {/* Extra metrics row */}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 28 }}>
+      {(function() {
+        var allSent = data.sent || [];
+        // Avg content length
+        var totalLen = 0; var countLen = 0;
+        allSent.forEach(function(p) { if (p.text) { totalLen += p.text.length; countLen++; } });
+        var avgLen = countLen > 0 ? Math.round(totalLen / countLen) : 0;
+        // Queue depth (days of content)
+        var sched = data.scheduled || [];
+        var queueDays = 0;
+        if (sched.length > 0) {
+          var latest = sched.reduce(function(m, p) { var d = new Date(p.dueAt || 0); return d > m ? d : m; }, new Date(0));
+          queueDays = Math.max(0, Math.ceil((latest - new Date()) / 86400000));
+        }
+        // Streak
+        var streak = 0;
+        var daySet = new Set();
+        allSent.forEach(function(p) { if (p.sentAt) daySet.add(new Date(p.sentAt).toISOString().slice(0, 10)); });
+        var check = new Date(); check.setHours(0, 0, 0, 0);
+        while (daySet.has(check.toISOString().slice(0, 10))) { streak++; check.setDate(check.getDate() - 1); }
+        // Top day
+        var dayCounts = [0, 0, 0, 0, 0, 0, 0];
+        allSent.forEach(function(p) { if (p.sentAt) dayCounts[new Date(p.sentAt).getDay()]++; });
+        var topIdx = dayCounts.indexOf(Math.max.apply(null, dayCounts));
+        var dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+        return [
+          { l: "Avg Length", v: avgLen + " chars", c: D.blue },
+          { l: "Queue Depth", v: queueDays + " days", c: D.amber },
+          { l: "Posting Streak", v: streak + " days", c: D.teal },
+          { l: "Top Day", v: dayNames[topIdx], c: D.violet },
+        ].map(function(s, i) {
+          return <div key={i} style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: "16px 12px", textAlign: "center" }}>
+            <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: s.c }}>{s.v}</div>
+            <div style={{ fontFamily: mn, fontSize: 9, color: D.txs, textTransform: "uppercase", letterSpacing: 1, marginTop: 4 }}>{s.l}</div>
+          </div>;
+        });
+      })()}
+    </div>
+
+    {/* By platform */}
     <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 14 }}>By Platform</div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
       {Object.keys(byFull).sort().map(function(s) { var d2 = byFull[s]; var pp = pl(s); return <div key={s} style={{ padding: "14px 16px", background: D.card, borderRadius: 8, border: "1px solid " + D.border, borderLeft: "3px solid " + pp.c }}><div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}><span style={{ fontSize: 16 }}>{pp.i}</span><span style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: pp.c }}>{pp.n}</span></div><div style={{ display: "flex", gap: 16, fontFamily: mn }}><div><span style={{ color: D.blue, fontWeight: 700, fontSize: 18 }}>{d2.q}</span><div style={{ fontSize: 8, color: D.txs }}>Queued</div></div><div><span style={{ color: D.teal, fontWeight: 700, fontSize: 18 }}>{d2.s}</span><div style={{ fontSize: 8, color: D.txs }}>Sent</div></div></div></div>; })}
@@ -497,7 +681,7 @@ function ComposeModal({ channels, onClose, onRefresh }) {
 
 // ═══ MAIN ═══
 export default function BufferSchedule() {
-  var _tab = useState("calendar"), tab = _tab[0], setTab = _tab[1];
+  var _tab = useState("home"), tab = _tab[0], setTab = _tab[1];
   var _data = useState(null), data = _data[0], setData = _data[1];
   var _loading = useState(true), loading = _loading[0], setLoading = _loading[1];
   var _error = useState(null), error = _error[0], setError = _error[1];
@@ -532,6 +716,7 @@ export default function BufferSchedule() {
     <StatRow data={data} />
 
     <div style={{ display: "flex", borderBottom: "1px solid " + D.border, marginBottom: 24 }}>
+      <Tab label="Home" active={tab === "home"} onClick={function() { setTab("home"); setChanFilter(null); }} />
       <Tab label="Calendar" active={tab === "calendar"} onClick={function() { setTab("calendar"); setChanFilter(null); }} />
       <Tab label="Scheduled" active={tab === "scheduled"} onClick={function() { setTab("scheduled"); }} count={data ? (data.scheduled || []).length : 0} />
       <Tab label="Sent" active={tab === "sent"} onClick={function() { setTab("sent"); setChanFilter(null); }} count={data ? (data.sent || []).length : 0} />
@@ -544,6 +729,7 @@ export default function BufferSchedule() {
     {loading ? <div style={{ textAlign: "center", padding: 80 }}><style dangerouslySetInnerHTML={{ __html: "@keyframes bL{0%{opacity:0.3}50%{opacity:1}100%{opacity:0.3}}" }} /><div style={{ fontFamily: mn, fontSize: 12, color: D.amber, animation: "bL 1.5s ease-in-out infinite" }}>Loading Buffer...</div></div>
     : error ? <div style={{ textAlign: "center", padding: 50, maxWidth: 440, margin: "0 auto" }}><div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: D.tx, marginBottom: 8 }}>Connect Buffer</div><div style={{ fontFamily: ft, fontSize: 12, color: D.txs, lineHeight: 1.7, marginBottom: 16 }}>Generate an API key from your Buffer settings.</div><div style={{ padding: "14px 16px", background: D.card, borderRadius: 8, border: "1px solid " + D.border, textAlign: "left", marginBottom: 14, fontFamily: mn, fontSize: 10, color: D.tx, lineHeight: 2.2 }}><span style={{ color: D.amber }}>1.</span> Go to publish.buffer.com/settings/api{"\n"}<span style={{ color: D.amber }}>2.</span> Generate a key{"\n"}<span style={{ color: D.amber }}>3.</span> Add to Vercel as <span style={{ color: D.amber }}>BUFFER_API_KEY</span>{"\n"}<span style={{ color: D.amber }}>4.</span> Redeploy</div><a href="https://publish.buffer.com/settings/api" target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", fontFamily: ft, fontSize: 13, fontWeight: 700, color: D.bg, background: D.amber, padding: "10px 24px", borderRadius: 6, textDecoration: "none" }}>Get API Key</a>{error !== "BUFFER_API_KEY not configured" && <div style={{ fontFamily: mn, fontSize: 9, color: D.coral, marginTop: 14 }}>{error}</div>}</div>
     : <div>
+      {tab === "home" && <HomeTab data={data} onTab={setTab} onCompose={function() { setCompose(true); }} />}
       {tab === "calendar" && <CalendarTab posts={allPosts} channels={data.channels} />}
       {tab === "scheduled" && <PostList posts={chanFilter ? (data.scheduled || []).filter(function(p) { return (p.channel ? p.channel.service : "") === chanFilter; }) : data.scheduled || []} channels={data.channels} onDelete={deletePost} showEdit emptyLabel="No scheduled posts" />}
       {tab === "sent" && <PostList posts={data.sent || []} channels={data.channels} emptyLabel="No sent posts" showSearch />}
