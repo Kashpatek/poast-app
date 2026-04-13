@@ -9,17 +9,11 @@ function getToken() {
 async function gql(query: string, variables?: Record<string, unknown>) {
   const token = getToken();
   if (!token) throw new Error("BUFFER_API_KEY not set");
-
   const r = await fetch(BUFFER_API, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + token,
-    },
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
     body: JSON.stringify({ query, variables }),
-    next: { revalidate: 30 },
   });
-
   const data = await r.json();
   if (data.errors) throw new Error(data.errors[0]?.message || "GraphQL error");
   return data.data;
@@ -27,57 +21,70 @@ async function gql(query: string, variables?: Record<string, unknown>) {
 
 export async function GET(req: NextRequest) {
   const token = getToken();
-  if (!token) {
-    return NextResponse.json({ error: "BUFFER_API_KEY not configured" }, { status: 500 });
-  }
+  if (!token) return NextResponse.json({ error: "BUFFER_API_KEY not configured" }, { status: 500 });
 
   const type = req.nextUrl.searchParams.get("type");
 
   try {
-    if (type === "channels") {
-      // First get org ID
-      const acct = await gql(`query { account { organizations { id } } }`);
-      const orgId = acct?.account?.organizations?.[0]?.id;
-      if (!orgId) return NextResponse.json({ error: "No organization found" }, { status: 404 });
-
-      const data = await gql(`query GetChannels($input: ChannelsInput!) {
-        channels(input: $input) { id name service timezone avatar isDisconnected }
-      }`, { input: { organizationId: orgId } });
-
-      return NextResponse.json({ channels: data?.channels || [], ts: Date.now() });
-    }
-
-    if (type === "posts") {
-      const acct = await gql(`query { account { organizations { id } } }`);
-      const orgId = acct?.account?.organizations?.[0]?.id;
-      if (!orgId) return NextResponse.json({ error: "No organization found" }, { status: 404 });
-
-      const filter = req.nextUrl.searchParams.get("filter") || "scheduled";
-      const data = await gql(`query GetPosts($input: PostsInput!, $first: Int) {
-        posts(input: $input, first: $first) {
-          edges {
-            node {
-              id text status dueAt createdAt
-              channel { id name service }
-              tags { id name color }
-            }
-          }
-        }
-      }`, { input: { organizationId: orgId, filter: filter }, first: 50 });
-
-      const posts = (data?.posts?.edges || []).map((e: { node: unknown }) => e.node);
-      return NextResponse.json({ posts, ts: Date.now() });
-    }
-
-    // Default: get everything (org, channels, scheduled + sent posts)
+    // Get org ID first
     const acct = await gql(`query { account { organizations { id } } }`);
     const orgId = acct?.account?.organizations?.[0]?.id;
     if (!orgId) return NextResponse.json({ error: "No organization found" }, { status: 404 });
 
-    const [channels, scheduled, sent] = await Promise.all([
-      gql(`query($input: ChannelsInput!) { channels(input: $input) { id name service timezone avatar } }`, { input: { organizationId: orgId } }),
-      gql(`query($input: PostsInput!, $first: Int) { posts(input: $input, first: $first) { edges { node { id text status dueAt channel { name service } tags { name color } } } } }`, { input: { organizationId: orgId, filter: "scheduled" }, first: 30 }),
-      gql(`query($input: PostsInput!, $first: Int) { posts(input: $input, first: $first) { edges { node { id text status dueAt createdAt channel { name service } tags { name color } } } } }`, { input: { organizationId: orgId, filter: "sent" }, first: 30 }),
+    if (type === "channels") {
+      const data = await gql(`query($input: ChannelsInput!) {
+        channels(input: $input) { id name service timezone avatar isDisconnected }
+      }`, { input: { organizationId: orgId } });
+      return NextResponse.json({ channels: data?.channels || [], ts: Date.now() });
+    }
+
+    if (type === "scheduled") {
+      const data = await gql(`query($input: PostsInput!, $first: Int) {
+        posts(input: $input, first: $first) { edges { node {
+          id text status dueAt createdAt channelService
+          channel { id name service }
+          tags { id name color }
+          notes { id text createdAt author { name } }
+        } } }
+      }`, { input: { organizationId: orgId, filter: { status: ["scheduled"] } }, first: 50 });
+      return NextResponse.json({ posts: (data?.posts?.edges || []).map((e: { node: unknown }) => e.node), ts: Date.now() });
+    }
+
+    if (type === "sent") {
+      const data = await gql(`query($input: PostsInput!, $first: Int) {
+        posts(input: $input, first: $first) { edges { node {
+          id text status dueAt sentAt createdAt channelService
+          channel { id name service }
+          tags { id name color }
+        } } }
+      }`, { input: { organizationId: orgId, filter: { status: ["sent"] } }, first: 50 });
+      return NextResponse.json({ posts: (data?.posts?.edges || []).map((e: { node: unknown }) => e.node), ts: Date.now() });
+    }
+
+    if (type === "drafts") {
+      const data = await gql(`query($input: PostsInput!, $first: Int) {
+        posts(input: $input, first: $first) { edges { node {
+          id text status dueAt createdAt channelService
+          channel { id name service }
+          tags { id name color }
+        } } }
+      }`, { input: { organizationId: orgId, filter: { status: ["draft"] } }, first: 50 });
+      return NextResponse.json({ posts: (data?.posts?.edges || []).map((e: { node: unknown }) => e.node), ts: Date.now() });
+    }
+
+    if (type === "limits") {
+      const data = await gql(`query($input: DailyPostingLimitsInput!) {
+        dailyPostingLimits(input: $input) { channel { id name service } limit used }
+      }`, { input: { organizationId: orgId } });
+      return NextResponse.json({ limits: data?.dailyPostingLimits || [], ts: Date.now() });
+    }
+
+    // Default: everything
+    const [channels, scheduled, sent, drafts] = await Promise.all([
+      gql(`query($input: ChannelsInput!) { channels(input: $input) { id name service timezone avatar isDisconnected } }`, { input: { organizationId: orgId } }),
+      gql(`query($input: PostsInput!, $first: Int) { posts(input: $input, first: $first) { edges { node { id text status dueAt createdAt channelService channel { id name service } tags { id name color } } } } }`, { input: { organizationId: orgId, filter: { status: ["scheduled"] } }, first: 50 }),
+      gql(`query($input: PostsInput!, $first: Int) { posts(input: $input, first: $first) { edges { node { id text status dueAt sentAt createdAt channelService channel { id name service } tags { id name color } } } } }`, { input: { organizationId: orgId, filter: { status: ["sent"] } }, first: 50 }),
+      gql(`query($input: PostsInput!, $first: Int) { posts(input: $input, first: $first) { edges { node { id text status dueAt createdAt channelService channel { id name service } tags { id name color } } } } }`, { input: { organizationId: orgId, filter: { status: ["draft"] } }, first: 30 }),
     ]);
 
     return NextResponse.json({
@@ -85,6 +92,7 @@ export async function GET(req: NextRequest) {
       channels: channels?.channels || [],
       scheduled: (scheduled?.posts?.edges || []).map((e: { node: unknown }) => e.node),
       sent: (sent?.posts?.edges || []).map((e: { node: unknown }) => e.node),
+      drafts: (drafts?.posts?.edges || []).map((e: { node: unknown }) => e.node),
       ts: Date.now(),
     });
   } catch (error) {
@@ -93,32 +101,38 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// Create a post
 export async function POST(req: NextRequest) {
   const token = getToken();
-  if (!token) {
-    return NextResponse.json({ error: "BUFFER_API_KEY not configured" }, { status: 500 });
-  }
+  if (!token) return NextResponse.json({ error: "BUFFER_API_KEY not configured" }, { status: 500 });
 
   try {
     const body = await req.json();
-    const { channelId, text, dueAt, tagIds } = body;
+    const { action } = body;
 
-    const data = await gql(`mutation CreatePost($input: CreatePostInput!) {
-      createPost(input: $input) { id text status dueAt }
-    }`, {
-      input: {
-        channelId,
-        text,
-        dueAt: dueAt || undefined,
-        schedulingType: dueAt ? "scheduled" : "now",
-        tagIds: tagIds || [],
-      },
-    });
+    if (action === "createPost") {
+      const data = await gql(`mutation($input: CreatePostInput!) {
+        createPost(input: $input) { id text status dueAt channel { name service } }
+      }`, { input: body.input });
+      return NextResponse.json({ post: data?.createPost, ts: Date.now() });
+    }
 
-    return NextResponse.json({ post: data?.createPost, ts: Date.now() });
+    if (action === "deletePost") {
+      await gql(`mutation($input: DeletePostInput!) { deletePost(input: $input) { id } }`, { input: { postId: body.postId } });
+      return NextResponse.json({ ok: true, ts: Date.now() });
+    }
+
+    if (action === "createIdea") {
+      const acct = await gql(`query { account { organizations { id } } }`);
+      const orgId = acct?.account?.organizations?.[0]?.id;
+      const data = await gql(`mutation($input: CreateIdeaInput!) {
+        createIdea(input: $input) { id }
+      }`, { input: { organizationId: orgId, content: body.content } });
+      return NextResponse.json({ idea: data?.createIdea, ts: Date.now() });
+    }
+
+    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error) {
-    console.error("Buffer create post error:", error);
+    console.error("Buffer mutation error:", error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
