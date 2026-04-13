@@ -1,6 +1,7 @@
 // @ts-nocheck
 "use client";
 import { useState, useEffect, useRef } from "react";
+import GTCFlow from "./gtc-flow";
 
 var C = {
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
@@ -123,7 +124,7 @@ function OutCard({ title, content, color, onRedo, rLoading }) {
 
 // ═══ SIDEBAR ═══
 function Sidebar({ active, onNav }) {
-  var nav = [{ id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99", on: true }, { id: "captions", l: "Capper", ic: "\uD83C\uDFAC", on: true }, { id: "carousel", l: "IG Carousel", ic: "\uD83D\uDCD0", on: false }, { id: "news", l: "News Flow", ic: "\uD83D\uDCE1", on: false }];
+  var nav = [{ id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99", on: true }, { id: "captions", l: "Capper", ic: "\uD83C\uDFAC", on: true }, { id: "gtc", l: "GTC Flow", ic: "\uD83D\uDCCA", on: true }, { id: "carousel", l: "IG Carousel", ic: "\uD83D\uDCD0", on: false }, { id: "news", l: "News Flow", ic: "\uD83D\uDCE1", on: false }];
   return (<div style={{ width: 200, minHeight: "100vh", background: "linear-gradient(180deg, " + C.bg + " 0%, #0D0D18 100%)", borderRight: "1px solid " + C.border, display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
     <div style={{ padding: "26px 20px 18px", borderBottom: "1px solid " + C.border }}><div style={{ fontFamily: ft, fontSize: 21, fontWeight: 800, color: C.amber }}>POAST</div><div style={{ fontFamily: mn, fontSize: 8, color: C.txd, letterSpacing: "2px", marginTop: 3, textTransform: "uppercase" }}>Content Command Center</div></div>
     <div style={{ padding: "12px 8px", flex: 1 }}>{nav.map(function(n) { var s = active === n.id; return (<div key={n.id} onClick={function() { if (n.on) onNav(n.id); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px", borderRadius: 6, marginBottom: 2, cursor: n.on ? "pointer" : "not-allowed", background: s ? C.surface : "transparent", borderLeft: s ? "3px solid " + C.amber : "3px solid transparent", opacity: n.on ? 1 : 0.28 }}><span style={{ fontSize: 14 }}>{n.ic}</span><span style={{ fontFamily: ft, fontSize: 12, fontWeight: s ? 700 : 500, color: s ? C.amber : C.txm }}>{n.l}</span>{!n.on && <span style={{ fontFamily: mn, fontSize: 8, color: C.txd, marginLeft: "auto" }}>soon</span>}</div>); })}</div>
@@ -1018,6 +1019,7 @@ export default function App() {
         {sec === "weekly" && tab === "clips" && <ClipMgr />}
         {sec === "weekly" && tab === "log" && <LogTab logData={logData} setLogData={setLogData} />}
         {sec === "captions" && <ClipCaptions />}
+        {sec === "gtc" && <GTCFlow />}
         </div>
       </div>
     </div>
