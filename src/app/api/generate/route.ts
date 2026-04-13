@@ -28,6 +28,13 @@ export async function POST(req: NextRequest) {
     });
 
     const data = await response.json();
+    if (!response.ok) {
+      const msg = data?.error?.message || "Generation failed";
+      return NextResponse.json(
+        { error: { message: msg } },
+        { status: response.status }
+      );
+    }
     return NextResponse.json(data);
   } catch (error) {
     console.error("API route error:", error);

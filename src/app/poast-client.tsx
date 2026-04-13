@@ -19,8 +19,8 @@ var SYS_EP = "You are a content strategist for SemiAnalysis, a semiconductor and
 
 var SYS_SOC = "You are a social media strategist for SemiAnalysis Weekly. Rules: Never use em dashes. No emojis. No hashtags on X/Twitter ever. YT Shorts titles under 40 chars. Instagram: caption + Save this for later CTA + 5-8 hashtags + location San Francisco CA, point to youtube.com/@SemianalysisWeekly. TikTok: all lowercase 4-6 hashtags. LinkedIn/Facebook: link in first comment, end Link in comments. X: Hook tweet no link + reply-to-self with link. Mention all guests with handles on every platform. RESPOND ONLY IN VALID JSON. No markdown fences. No preamble.";
 
-var _toastMsg = { current: null };
 var _toastSet = { current: null };
+var _toastTimer = { current: null };
 function showToast(msg) { if (_toastSet.current) _toastSet.current(msg); }
 
 async function ask(sys, prompt) {
@@ -65,7 +65,7 @@ function exportDoc(title, sections) {
 // ═══ UI ═══
 function Toast() {
   var _s = useState(null), msg = _s[0], setMsg = _s[1];
-  _toastSet.current = function(m) { setMsg(m); setTimeout(function() { setMsg(null); }, 6000); };
+  _toastSet.current = function(m) { if (_toastTimer.current) clearTimeout(_toastTimer.current); setMsg(m); _toastTimer.current = setTimeout(function() { setMsg(null); }, 6000); };
   if (!msg) return null;
   return <div onClick={function() { setMsg(null); }} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 10000, maxWidth: 420, padding: "14px 20px", background: C.coral + "20", border: "1px solid " + C.coral, borderRadius: 8, fontFamily: mn, fontSize: 11, color: C.coral, cursor: "pointer", boxShadow: "0 0 20px rgba(224,99,71,0.2)", lineHeight: 1.5 }}>{msg}</div>;
 }
@@ -183,7 +183,7 @@ function EpisodeSetup({ ep, setEp, guests, setGuests, opts, setOpts, sel, setSel
   var suggestKW = async function(keywords) {
     setKwL(true);
     var existing = (opts && opts.titles || []).join(" | ");
-    var data = await ask(SYS_EP, buildPrompt(["Generate 3 NEW titles for SemiAnalysis Weekly Ep #" + ep.number + ".", "Keywords: " + keywords, "Guests: " + gStr(guests), "Different from: " + existing, "Transcript: " + ep.transcript.slice(0, 4000), 'Return JSON: {"titles":["t1","t2","t3"]}']));
+    var data = await ask(SYS_EP, buildPrompt(["Generate 3 NEW titles for SemiAnalysis Weekly Ep #" + ep.number + ".", "Keywords: " + keywords, "Guests: " + gStr(guests), "Different from: " + existing, "Transcript: " + (ep.transcript || "").slice(0, 4000), 'Return JSON: {"titles":["t1","t2","t3"]}']));
     if (data && data.titles) { setOpts(function(prev) { return Object.assign({}, prev, { titles: data.titles }); }); setSel(function(prev) { return Object.assign({}, prev, { title: 0 }); }); }
     setKwL(false);
   };
@@ -191,7 +191,7 @@ function EpisodeSetup({ ep, setEp, guests, setGuests, opts, setOpts, sel, setSel
   var redoOne = async function(cat, idx) {
     var k = cat + "-" + idx; setRL(function(p) { var o = Object.assign({}, p); o[k] = true; return o; });
     var cur = opts[cat][idx]; var curStr = typeof cur === "string" ? cur : cur.concept;
-    var gs = gStr(guests); var tx = ep.transcript.slice(0, 3000); var p2, parse;
+    var gs = gStr(guests); var tx = (ep.transcript || "").slice(0, 3000); var p2, parse;
     if (cat === "thumbnails") { p2 = buildPrompt(["ONE new thumbnail for SA Weekly Ep #" + ep.number + ". Different from: " + curStr, "Guests: " + gs, "Transcript: " + tx, 'Return JSON: {"concept":"...","text_overlay":"...","mood":"..."}']); parse = function(d) { return d; };
     } else { var dn = cat === "descriptions" ? " " + descInstr() : ""; var en = cat === "descriptions" && ep.extra ? " Context: " + ep.extra : ""; var tsn = cat === "descriptions" && ep.timestamps ? " Timestamps:\n" + ep.timestamps : ""; p2 = buildPrompt(["ONE new " + (cat === "titles" ? "title" : "description") + " for SA Weekly Ep #" + ep.number + ". Different from: " + curStr + "." + dn, "Guests: " + gs + en + tsn, "Transcript: " + tx, 'Return JSON: {"result":"..."}']); parse = function(d) { return d.result; }; }
     var data = await ask(SYS_EP, p2);
@@ -201,7 +201,7 @@ function EpisodeSetup({ ep, setEp, guests, setGuests, opts, setOpts, sel, setSel
 
   var redoCat = async function(cat) {
     var k = "all-" + cat; setRL(function(p) { var o = Object.assign({}, p); o[k] = true; return o; });
-    var gs = gStr(guests); var tx = ep.transcript.slice(0, 4000); var p2;
+    var gs = gStr(guests); var tx = (ep.transcript || "").slice(0, 4000); var p2;
     if (cat === "thumbnails") { p2 = buildPrompt(["3 NEW thumbnails for SA Weekly Ep #" + ep.number, "Guests: " + gs, "Transcript: " + tx, 'Return JSON: {"thumbnails":[{"concept":"c","text_overlay":"t","mood":"m"},{"concept":"c","text_overlay":"t","mood":"m"},{"concept":"c","text_overlay":"t","mood":"m"}]}']);
     } else { var dn = cat === "descriptions" ? ". " + descInstr() : ""; var en = cat === "descriptions" && ep.extra ? ". Context: " + ep.extra : ""; var tsn = cat === "descriptions" && ep.timestamps ? ". Timestamps:\n" + ep.timestamps : ""; p2 = buildPrompt(["3 NEW " + cat + " for SA Weekly Ep #" + ep.number + dn, "Guests: " + gs + en + tsn, "Transcript: " + tx, 'Return JSON: {"' + cat + '":["a","b","c"]}']); }
     var data = await ask(SYS_EP, p2);
@@ -613,7 +613,23 @@ function ClipCaptions() {
     var c = clips.filter(function(_, i) { return i !== idx; });
     setClips(c);
     if (active >= c.length) setActive(c.length - 1);
-    var r = Object.assign({}, results); delete r[idx]; setResults(r);
+    // Re-index results to match new clip positions
+    var nr = {};
+    Object.keys(results).forEach(function(k) {
+      var ki = parseInt(k);
+      if (ki < idx) nr[ki] = results[ki];
+      else if (ki > idx) nr[ki - 1] = results[ki];
+    });
+    setResults(nr);
+    // Re-index redo loading states too
+    var nrl = {};
+    Object.keys(redoL).forEach(function(k) {
+      var parts = k.split("-");
+      var ki = parseInt(parts[0]);
+      if (ki < idx) nrl[k] = redoL[k];
+      else if (ki > idx) nrl[(ki - 1) + "-" + parts.slice(1).join("-")] = redoL[k];
+    });
+    setRedoL(nrl);
   };
 
   var updateClip = function(idx, field, val) {
@@ -857,8 +873,10 @@ function Splash({ onDone }) {
     }
   }, []);
 
+  var clickedRef = useRef(false);
   var handleClick = function() {
-    if (phase !== 0) return;
+    if (phase !== 0 || clickedRef.current) return;
+    clickedRef.current = true;
     setPhase(1);
     try {
       var audio = new Audio("/splash-sound.mp3");
@@ -914,6 +932,7 @@ export default function App() {
   var _log = useState([]), logData = _log[0], setLogData = _log[1];
   var _loaded = useState(false), loaded = _loaded[0], setLoaded = _loaded[1];
   var _hasDraft = useState(false), hasDraft = _hasDraft[0], setHasDraft = _hasDraft[1];
+  var _interacted = useState(false), interacted = _interacted[0], setInteracted = _interacted[1];
   var draftRef = useRef(null);
 
   // Load only activity log on mount, check if draft exists
@@ -941,13 +960,21 @@ export default function App() {
     if (s.tab) setTab(s.tab);
     setHasDraft(false);
     draftRef.current = null;
+    setInteracted(true);
   };
 
-  // Auto-save on changes (after initial load)
+  // Auto-save only after user has interacted (not on initial load)
+  useEffect(function() {
+    if (!loaded || !interacted) return;
+    // Exclude base64 thumbnail from save to stay under Redis 1MB limit
+    saveState({ ep: ep, guests: guests, opts: opts, sel: sel, fin: fin, thumb: null, launched: launched, tab: tab }, logData);
+  }, [ep, guests, opts, sel, fin, thumb, launched, tab, logData, loaded, interacted]);
+
+  // Mark as interacted on any episode field change (after load)
   useEffect(function() {
     if (!loaded) return;
-    saveState({ ep: ep, guests: guests, opts: opts, sel: sel, fin: fin, thumb: thumb, launched: launched, tab: tab }, logData);
-  }, [ep, guests, opts, sel, fin, thumb, launched, tab, logData, loaded]);
+    if (ep.transcript || ep.link || guests.length > 0) setInteracted(true);
+  }, [ep, guests, loaded]);
 
   var tabs = [{ id: "setup", l: "Episode Setup" }, { id: "test", l: "Test Page" }, { id: "launch", l: "Launch Rollout" }, { id: "clips", l: "Clip Manager" }, { id: "log", l: "Activity Log" }];
   var locks = [];
