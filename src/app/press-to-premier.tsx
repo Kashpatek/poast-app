@@ -238,46 +238,203 @@ function Step5({ data, setData, onNext, onBack }) {
   </div>;
 }
 
-// ═══ STEP 6: PRODUCE ═══
-function Step6({ onNext, onBack }) {
-  var _producing = useState(true), producing = _producing[0], setProducing = _producing[1];
-  var _progress = useState([]), progress = _progress[0], setProgress = _progress[1];
-  var steps = ["Generating voiceover", "Generating b-roll clips", "Adding music", "Assembling video"];
-  useEffect(function() {
-    var i = 0; var iv = setInterval(function() { if (i < steps.length) { setProgress(function(p) { return p.concat([steps[i]]); }); i++; } else { clearInterval(iv); setProducing(false); } }, 2000);
-    return function() { clearInterval(iv); };
-  }, []);
+// ═══ STEP 6: PRODUCE (REAL API CALLS) ═══
+function Step6({ data, setData, onNext, onBack }) {
+  var _phase = useState("idle"), phase = _phase[0], setPhase = _phase[1]; // idle, vo, broll, music, done, error
+  var _log = useState([]), log = _log[0], setLog = _log[1];
+  var _assets = useState({ voiceover: null, clips: [], music: null }), assets = _assets[0], setAssets = _assets[1];
+  var logRef = useRef(null);
+  var started = useRef(false);
+
+  var addLog = function(msg, type) { setLog(function(p) { return p.concat([{ msg: msg, type: type || "info", ts: new Date().toLocaleTimeString() }]); }); };
+
+  useEffect(function() { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [log]);
+
+  var script = data.scripts && data.scripts[data.selScript || 0];
+  var fullScript = script ? (script.hook || "") + "\n\n" + (script.intro || "") + "\n\n" + (script.body || []).join("\n\n") + "\n\n" + (script.outro || "") : "";
+
+  var startProduction = async function() {
+    if (started.current) return;
+    started.current = true;
+
+    // ═══ STEP 1: VOICEOVER ═══
+    setPhase("vo");
+    addLog("Starting voiceover generation...", "info");
+    addLog("Script length: " + fullScript.length + " chars", "dim");
+    try {
+      var voR = await fetch("/api/generate-voiceover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: fullScript }) });
+      var voD = await voR.json();
+      if (voD.audio) {
+        setAssets(function(p) { return Object.assign({}, p, { voiceover: voD.audio }); });
+        addLog("Voiceover generated successfully (" + Math.round(voD.audio.length / 1024) + "KB)", "success");
+      } else {
+        addLog("Voiceover error: " + (voD.error || "Unknown"), "error");
+      }
+    } catch (e) { addLog("Voiceover failed: " + String(e).slice(0, 80), "error"); }
+
+    // ═══ STEP 2: B-ROLL ═══
+    setPhase("broll");
+    var brollShots = script && script.broll ? script.broll : [];
+    addLog("Generating " + brollShots.length + " b-roll clips via Grok...", "info");
+    var clips = [];
+    for (var i = 0; i < brollShots.length; i++) {
+      var shot = brollShots[i];
+      addLog("Shot " + (i + 1) + "/" + brollShots.length + ": " + (shot.description || "").slice(0, 50) + "...", "dim");
+      try {
+        var clR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: shot.prompt, engine: "grok" }) });
+        var clD = await clR.json();
+        if (clD.task) {
+          clips.push({ taskId: clD.task.task_id, provider: clD.task.provider || "grok", shot: i + 1 });
+          addLog("Shot " + (i + 1) + " submitted (ID: " + (clD.task.task_id || "").slice(0, 12) + "...)", "success");
+        } else {
+          addLog("Shot " + (i + 1) + " error: " + (clD.error || "Unknown"), "error");
+          clips.push({ error: clD.error, shot: i + 1 });
+        }
+      } catch (e) {
+        addLog("Shot " + (i + 1) + " failed: " + String(e).slice(0, 60), "error");
+        clips.push({ error: String(e), shot: i + 1 });
+      }
+    }
+    setAssets(function(p) { return Object.assign({}, p, { clips: clips }); });
+    addLog(clips.filter(function(c) { return c.taskId; }).length + " of " + brollShots.length + " clips submitted", "info");
+
+    // ═══ STEP 3: MUSIC ═══
+    setPhase("music");
+    addLog("Generating background music...", "info");
+    try {
+      var muR = await fetch("/api/generate-music", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: "ambient tech background music, cinematic, minimal, dark tone, suitable for semiconductor industry video", duration: data.duration || 60 }) });
+      var muD = await muR.json();
+      if (muD.audio) {
+        setAssets(function(p) { return Object.assign({}, p, { music: muD.audio }); });
+        addLog("Music generated (" + Math.round(muD.audio.length / 1024) + "KB)", "success");
+      } else {
+        addLog("Music: " + (muD.error || "Not available"), "warn");
+      }
+    } catch (e) { addLog("Music failed: " + String(e).slice(0, 60), "warn"); }
+
+    // ═══ DONE ═══
+    setPhase("done");
+    addLog("Production complete.", "success");
+
+    // Save assets to data
+    setData(function(p) { return Object.assign({}, p, { assets: { voiceover: assets.voiceover, clips: clips, music: assets.music } }); });
+  };
+
+  var stepList = [
+    { id: "vo", l: "Voiceover", sub: "ElevenLabs TTS" },
+    { id: "broll", l: "B-Roll Clips", sub: "Grok Imagine Video" },
+    { id: "music", l: "Background Music", sub: "ElevenLabs" },
+  ];
+  var phaseOrder = ["idle", "vo", "broll", "music", "done"];
+  var phaseIdx = phaseOrder.indexOf(phase);
+
   return <div>
     <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Producing</div>
-    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 32 }}>Your video is being assembled.</div>
+    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Generating assets for your video.</div>
+
     <style dangerouslySetInnerHTML={{ __html: "@keyframes pp{0%,100%{opacity:0.3}50%{opacity:1}}" }} />
-    {steps.map(function(s, i) {
-      var done = progress.length > i; var active = progress.length === i && producing;
-      return <div key={i} style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 0", borderBottom: "1px solid " + D.border }}>
-        <div style={{ width: 16, height: 16, borderRadius: "50%", background: done ? D.teal : active ? D.amber : D.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#fff", animation: active ? "pp 1.2s ease infinite" : "none", flexShrink: 0, boxShadow: done ? "0 0 8px " + D.teal + "40" : active ? "0 0 8px " + D.amber + "40" : "none" }}>{done ? "\u2713" : ""}</div>
-        <span style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: done ? D.teal : active ? D.amber : D.txl }}>{s}</span>
-      </div>;
-    })}
-    {!producing && <button onClick={onNext} style={{ width: "100%", height: 52, marginTop: 28, background: "linear-gradient(135deg, " + D.amber + ", #E8A020)", color: D.bg, border: "none", borderRadius: 10, fontFamily: ft, fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 20px " + D.amber + "30" }}>Review Output</button>}
+
+    {/* Steps */}
+    <div style={{ marginBottom: 24 }}>
+      {stepList.map(function(s, i) {
+        var stepPhaseIdx = i + 1; // vo=1, broll=2, music=3
+        var done = phaseIdx > stepPhaseIdx;
+        var active = phaseIdx === stepPhaseIdx;
+        var waiting = phaseIdx < stepPhaseIdx;
+        return <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 16, padding: "18px 20px", background: active ? D.surface : "transparent", border: active ? "1px solid " + D.amber + "20" : "1px solid transparent", borderRadius: 10, marginBottom: 8, transition: "all 0.2s" }}>
+          <div style={{ width: 20, height: 20, borderRadius: "50%", background: done ? D.teal : active ? D.amber : D.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff", animation: active ? "pp 1.2s ease infinite" : "none", flexShrink: 0, boxShadow: done ? "0 0 10px " + D.teal + "40" : active ? "0 0 10px " + D.amber + "40" : "none" }}>{done ? "\u2713" : ""}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 600, color: done ? D.teal : active ? D.amber : D.txl }}>{s.l}</div>
+            <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 500, color: D.txh }}>{s.sub}</div>
+          </div>
+          {done && <span style={{ fontFamily: ft, fontSize: 11, fontWeight: 600, color: D.teal }}>Complete</span>}
+          {active && <span style={{ fontFamily: ft, fontSize: 11, fontWeight: 600, color: D.amber }}>In progress...</span>}
+        </div>;
+      })}
+    </div>
+
+    {/* Start button or completion */}
+    {phase === "idle" && <button onClick={startProduction} style={{ width: "100%", height: 52, background: "linear-gradient(135deg, " + D.amber + ", #E8A020)", color: D.bg, border: "none", borderRadius: 10, fontFamily: ft, fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 20px " + D.amber + "30", marginBottom: 20 }}>Start Production</button>}
+
+    {phase === "done" && <button onClick={onNext} style={{ width: "100%", height: 52, background: "linear-gradient(135deg, " + D.amber + ", " + D.teal + ")", color: D.bg, border: "none", borderRadius: 10, fontFamily: ft, fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 20px " + D.teal + "30", marginBottom: 20 }}>Review Output</button>}
+
+    {/* Live log */}
+    <div style={{ background: D.bg, border: "1px solid " + D.border, borderRadius: 10, overflow: "hidden" }}>
+      <div style={{ padding: "10px 16px", borderBottom: "1px solid " + D.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txl, letterSpacing: 2, textTransform: "uppercase" }}>Production Log</span>
+        <span style={{ fontFamily: mn, fontSize: 9, color: D.txh }}>{log.length} entries</span>
+      </div>
+      <div ref={logRef} style={{ maxHeight: 240, overflow: "auto", padding: "8px 16px" }}>
+        {log.length === 0 && <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 500, color: D.txh, padding: "12px 0" }}>Click "Start Production" to begin.</div>}
+        {log.map(function(entry, i) {
+          var colors = { info: D.txb, success: D.teal, error: D.coral, warn: D.amber, dim: D.txl };
+          return <div key={i} style={{ display: "flex", gap: 8, padding: "4px 0", fontFamily: mn, fontSize: 11 }}>
+            <span style={{ color: D.txh, flexShrink: 0 }}>{entry.ts}</span>
+            <span style={{ color: colors[entry.type] || D.txb }}>{entry.msg}</span>
+          </div>;
+        })}
+      </div>
+    </div>
+
+    {phase !== "idle" && phase !== "done" && <div style={{ marginTop: 16, textAlign: "center" }}>
+      <span style={{ fontFamily: ft, fontSize: 12, fontWeight: 500, color: D.txh }}>Do not close this page. Production in progress.</span>
+    </div>}
   </div>;
 }
 
 // ═══ STEP 7: REVIEW ═══
 function Step7({ data, onPremier, onDraft }) {
   var aspect = data.aspect || "16:9";
+  var assets = data.assets || {};
+  var script = data.scripts && data.scripts[data.selScript || 0];
+
   return <div>
     <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Review</div>
-    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Preview, edit, or approve.</div>
-    <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 20 }}>
-      <div style={{ width: aspect === "9:16" ? "35%" : "100%", margin: "0 auto", aspectRatio: aspect === "9:16" ? "9/16" : aspect === "1:1" ? "1/1" : "16/9", background: D.bg, borderRadius: 10, border: "1px solid " + D.border, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txl }}>Preview ({aspect})</span>
-      </div>
+    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Preview generated assets, edit, or approve.</div>
+
+    {/* Voiceover */}
+    <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 16 }}>
+      <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.amber, letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>Voiceover</div>
+      {assets.voiceover ? <div>
+        <audio controls src={assets.voiceover} style={{ width: "100%", height: 44, borderRadius: 8 }} />
+        <a href={assets.voiceover} download="voiceover.mp3" style={{ display: "inline-block", marginTop: 8, fontFamily: ft, fontSize: 11, fontWeight: 500, color: D.amber, textDecoration: "none" }}>Download .mp3</a>
+      </div> : <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 500, color: D.txl }}>No voiceover generated. Run production again.</div>}
     </div>
+
+    {/* B-Roll Clips */}
+    <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 16 }}>
+      <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.blue, letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>B-Roll Clips</div>
+      {assets.clips && assets.clips.length > 0 ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+        {assets.clips.map(function(clip, i) {
+          return <div key={i} style={{ background: D.bg, border: "1px solid " + D.border, borderRadius: 8, padding: 12 }}>
+            <div style={{ aspectRatio: "16/9", background: D.elevated, borderRadius: 6, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontFamily: ft, fontSize: 11, fontWeight: 500, color: clip.taskId ? D.teal : D.coral }}>{clip.taskId ? "Submitted" : "Failed"}</span>
+            </div>
+            <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 600, color: D.tx }}>Shot {clip.shot}</div>
+            {clip.taskId && <div style={{ fontFamily: mn, fontSize: 9, color: D.txh, marginTop: 2 }}>ID: {clip.taskId.slice(0, 16)}...</div>}
+            {clip.error && <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 500, color: D.coral, marginTop: 2 }}>{String(clip.error).slice(0, 40)}</div>}
+            {script && script.broll && script.broll[i] && <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 500, color: D.txl, marginTop: 4 }}>{script.broll[i].description}</div>}
+          </div>;
+        })}
+      </div> : <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 500, color: D.txl }}>No clips generated.</div>}
+    </div>
+
+    {/* Music */}
+    <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 16 }}>
+      <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.violet, letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>Background Music</div>
+      {assets.music ? <div>
+        <audio controls src={assets.music} style={{ width: "100%", height: 44, borderRadius: 8 }} />
+        <a href={assets.music} download="music.mp3" style={{ display: "inline-block", marginTop: 8, fontFamily: ft, fontSize: 11, fontWeight: 500, color: D.violet, textDecoration: "none" }}>Download .mp3</a>
+      </div> : <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 500, color: D.txl }}>No music generated.</div>}
+    </div>
+
+    {/* Metadata */}
     {data.options && <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 20 }}>
       <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txl, letterSpacing: 3, textTransform: "uppercase", marginBottom: 8 }}>Metadata</div>
       <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: D.tx, marginBottom: 8 }}>{data.options.titles[data.selTitle || 0]}</div>
       <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 500, color: D.txb, lineHeight: 1.7 }}>{data.options.descriptions[data.selDesc || 0]}</div>
     </div>}
+
     <div style={{ display: "flex", gap: 12 }}>
       <button onClick={onDraft} style={{ padding: "14px 24px", background: "transparent", border: "1px solid " + D.border, color: D.txl, borderRadius: 10, fontFamily: ft, fontSize: 14, cursor: "pointer" }}>Save Draft</button>
       <button onClick={onPremier} style={{ flex: 1, height: 52, background: "linear-gradient(135deg, " + D.amber + ", " + D.teal + ")", color: D.bg, border: "none", borderRadius: 10, fontFamily: ft, fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 20px " + D.teal + "30" }}>Premier</button>
@@ -338,7 +495,7 @@ export default function PressToPremi() {
   var saveProject = function(status) {
     var title = data.options ? data.options.titles[data.selTitle || 0] : "Untitled";
     var proj = { id: active === "new" ? "p" + Date.now() : active, title: title, status: status, step: step, data: data, ts: Date.now() };
-    setProjects(function(p) { var f = p.filter(function(x) { return x.id !== proj.id; }); return [proj].concat(f); });
+    setProjects(function(p) { var f = p.filter(function(x) { return x.id !== proj.id; }); return [proj].concat(f).slice(0, 5); });
     if (status === "premiered" || status === "draft") { setActive(null); }
   };
 
@@ -383,7 +540,7 @@ export default function PressToPremi() {
     {!loading && step === 2 && <Step3 data={data} setData={setData} onNext={function() { setStep(3); }} onBack={function() { setStep(1); }} />}
     {!loading && step === 3 && <Step4 data={data} onNext={function() { setStep(4); }} onBack={function() { setStep(2); }} />}
     {!loading && step === 4 && <Step5 data={data} setData={setData} onNext={function() { setStep(5); saveProject("production"); }} onBack={function() { setStep(3); }} />}
-    {!loading && step === 5 && <Step6 onNext={function() { setStep(6); }} onBack={function() { setStep(4); }} />}
+    {!loading && step === 5 && <Step6 data={data} setData={setData} onNext={function() { setStep(6); }} onBack={function() { setStep(4); }} />}
     {!loading && step === 6 && <Step7 data={data} onPremier={function() { saveProject("premiered"); toast("Premiered!", "success"); }} onDraft={function() { saveProject("draft"); toast("Draft saved", "info"); }} />}
 
     {step > 0 && step < 6 && !loading && <div style={{ marginTop: 24, textAlign: "center" }}>
