@@ -8,12 +8,13 @@ import PressToPremi from "./press-to-premier";
 
 var C = {
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
-  violet: "#905CCB", bg: "#0B0B12", card: "#12121C", border: "#1C1C2C",
-  surface: "#181826", tx: "#F2EFE9", txm: "#A8A4B0", txd: "#6A6674",
-  glow: "0 0 20px rgba(247,176,65,0.08), 0 0 40px rgba(247,176,65,0.04)",
-  glowHover: "0 0 24px rgba(247,176,65,0.15), 0 0 48px rgba(247,176,65,0.06)",
-  cardGrad: "linear-gradient(135deg, #12121C 0%, #16162A 50%, #12121C 100%)",
-  surfGrad: "linear-gradient(135deg, #181826 0%, #1C1C34 50%, #181826 100%)",
+  violet: "#905CCB", cyan: "#26C9D8", crimson: "#D1334A",
+  bg: "#06060C", card: "#14141E", border: "#252535", hover: "#181824",
+  surface: "#101018", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
+  glow: "0 2px 12px rgba(0,0,0,0.4), 0 0 0 0 rgba(247,176,65,0)",
+  glowHover: "0 8px 30px rgba(0,0,0,0.5), 0 0 20px rgba(247,176,65,0.08)",
+  cardGrad: "linear-gradient(135deg, #14141E 0%, #101018 100%)",
+  surfGrad: "linear-gradient(135deg, #181824 0%, #14141E 100%)",
 };
 var PL = { x: "#1DA1F2", li: "#0A66C2", fb: "#1877F2", ig: "#E4405F", yt: "#FF0000", tt: "#00F2EA" };
 var ft = "'Outfit',sans-serif";
@@ -290,21 +291,75 @@ function AskPoast({ open, onToggle }) {
 }
 
 // ═══ SIDEBAR ═══
-function Sidebar({ active, onNav, onAskPoast }) {
-  var nav = [{ id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99", on: true }, { id: "captions", l: "Capper", ic: "\uD83C\uDFAC", on: true }, { id: "gtc", l: "GTC Flow", ic: "\uD83D\uDCCA", on: true }, { id: "news", l: "News Flow", ic: "\uD83D\uDCE1", on: true }, { id: "p2p", l: "Press to Premier", ic: "\uD83C\uDFAC", on: true }, { id: "schedule", l: "Schedule", ic: "\uD83D\uDCC6", on: true }, { id: "carousel", l: "IG Carousel", ic: "\uD83D\uDCD0", on: false }];
-  return (<div style={{ width: 200, minHeight: "100vh", background: "linear-gradient(180deg, " + C.bg + " 0%, #0D0D18 100%)", borderRight: "1px solid " + C.border, display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
-    <div style={{ padding: "26px 20px 18px", borderBottom: "1px solid " + C.border }}><div style={{ fontFamily: ft, fontSize: 21, fontWeight: 800, color: C.amber }}>POAST</div><div style={{ fontFamily: mn, fontSize: 8, color: C.txd, letterSpacing: "2px", marginTop: 3, textTransform: "uppercase" }}>Content Command Center</div></div>
+// ═══ SIDEBAR CATEGORIES ═══
+var SIDEBAR_CATS = {
+  produce: { label: "PRODUCE", color: C.amber, glow: "rgba(247,176,65,", items: [
+    { id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99" },
+    { id: "p2p", l: "Press to Premier", ic: "\uD83C\uDFAC" },
+    { id: "captions", l: "Capper", ic: "\uD83C\uDFAC" },
+  ]},
+  prepare: { label: "PREPARE", color: C.blue, glow: "rgba(11,134,209,", items: [
+    { id: "news", l: "News Flow", ic: "\uD83D\uDCE1" },
+    { id: "gtc", l: "GTC Flow", ic: "\uD83D\uDCCA" },
+  ]},
+  premier: { label: "PREMIER", color: C.teal, glow: "rgba(46,173,142,", items: [
+    { id: "schedule", l: "Schedule", ic: "\uD83D\uDCC6" },
+  ]},
+};
 
-    {/* Ask Poast button */}
-    <div style={{ padding: "12px 8px 0" }}>
-      <div className="ask-pulse" onClick={onAskPoast} style={{ padding: "14px 12px", borderRadius: 8, cursor: "pointer", background: "linear-gradient(135deg, " + C.amber + "15, " + C.amber + "08)", border: "1px solid " + C.amber + "30", display: "flex", alignItems: "center", gap: 10, marginBottom: 8, transition: "all 0.15s ease" }} onMouseEnter={function(e) { e.currentTarget.style.boxShadow = "0 0 16px " + C.amber + "20"; e.currentTarget.style.borderColor = C.amber + "60"; }} onMouseLeave={function(e) { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = C.amber + "30"; }}>
-        <div style={{ width: 32, height: 32, borderRadius: 8, background: C.amber + "20", border: "1px solid " + C.amber + "40", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 16, fontWeight: 900, color: C.amber }}>P</div>
-        <div><div style={{ fontFamily: ft, fontSize: 12, fontWeight: 700, color: C.amber }}>Ask Poast</div><div style={{ fontFamily: mn, fontSize: 8, color: C.txd }}>AI Assistant</div></div>
+function Sidebar({ active, onNav, onAskPoast }) {
+  // Determine active category
+  var activeCat = null;
+  Object.keys(SIDEBAR_CATS).forEach(function(k) { SIDEBAR_CATS[k].items.forEach(function(it) { if (it.id === active) activeCat = k; }); });
+
+  return (<div style={{ width: 240, minHeight: "100vh", background: "linear-gradient(180deg, #08080F 0%, #0A0A14 100%)", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
+    {/* Logo */}
+    <div style={{ padding: "28px 22px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div style={{ fontFamily: ft, fontSize: 24, fontWeight: 900, color: C.amber, letterSpacing: 2 }}>POAST</div>
+      <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.2)", letterSpacing: 3, marginTop: 4, textTransform: "uppercase" }}>Content Command Center</div>
+    </div>
+
+    {/* Ask Poast */}
+    <div style={{ padding: "16px 14px 0" }}>
+      <div className="ask-pulse" onClick={onAskPoast} style={{ padding: "14px 14px", borderRadius: 10, cursor: "pointer", background: "linear-gradient(135deg, " + C.amber + "15, " + C.amber + "06)", border: "1px solid " + C.amber + "25", display: "flex", alignItems: "center", gap: 10, transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.boxShadow = "0 0 20px " + C.amber + "18"; e.currentTarget.style.borderColor = C.amber + "50"; }} onMouseLeave={function(e) { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = C.amber + "25"; }}>
+        <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg, " + C.amber + "25, " + C.amber + "10)", border: "1px solid " + C.amber + "30", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 16, fontWeight: 900, color: C.amber, boxShadow: "0 0 14px " + C.amber + "15" }}>P</div>
+        <div>
+          <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.amber }}>Ask Poast</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 5, height: 5, borderRadius: "50%", background: C.teal, boxShadow: "0 0 6px " + C.teal + "60" }} /><span style={{ fontFamily: ft, fontSize: 9, color: "rgba(255,255,255,0.25)" }}>online</span></div>
+        </div>
       </div>
     </div>
 
-    <div style={{ padding: "4px 8px", flex: 1, overflow: "auto" }}>{nav.map(function(n) { var s = active === n.id; return (<div key={n.id} onClick={function() { if (n.on) onNav(n.id); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px", borderRadius: 6, marginBottom: 3, cursor: n.on ? "pointer" : "not-allowed", background: s ? C.surface : "transparent", borderLeft: s ? "3px solid " + C.amber : "3px solid transparent", opacity: n.on ? 1 : 0.28, boxShadow: s ? "inset 0 0 12px " + C.amber + "08" : "none", transition: "all 0.15s ease" }}><span style={{ fontSize: 14 }}>{n.ic}</span><span style={{ fontFamily: ft, fontSize: 12, fontWeight: s ? 700 : 500, color: s ? C.amber : C.txm }}>{n.l}</span>{!n.on && <span style={{ fontFamily: mn, fontSize: 8, color: C.txd, marginLeft: "auto" }}>soon</span>}</div>); })}</div>
-    <div style={{ padding: "12px 16px", borderTop: "1px solid " + C.border, fontFamily: mn, fontSize: 8, color: C.txd }}>v0.7 // SemiAnalysis</div>
+    {/* Categories */}
+    <div style={{ padding: "12px 10px", flex: 1, overflow: "auto" }}>
+      {Object.keys(SIDEBAR_CATS).map(function(catKey) {
+        var cat = SIDEBAR_CATS[catKey];
+        var isCatActive = activeCat === catKey;
+        return <div key={catKey} style={{ marginBottom: 8 }}>
+          {/* Category label */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px" }}>
+            <div style={{ width: 4, height: 18, borderRadius: 2, background: isCatActive ? cat.color : "rgba(255,255,255,0.08)", boxShadow: isCatActive ? "0 0 10px " + cat.color + "60, 0 0 20px " + cat.color + "20" : "none", transition: "all 0.25s" }} />
+            <span style={{ fontFamily: ft, fontSize: 12, fontWeight: 800, color: isCatActive ? cat.color : "rgba(255,255,255,0.25)", letterSpacing: 2, textTransform: "uppercase", transition: "all 0.25s", textShadow: isCatActive ? "0 0 16px " + cat.glow + "0.4), 0 0 30px " + cat.glow + "0.12)" : "none" }}>{cat.label}</span>
+          </div>
+          {/* Items */}
+          {cat.items.map(function(item) {
+            var isActive = active === item.id;
+            return <div key={item.id} onClick={function() { onNav(item.id); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px 11px 30px", borderRadius: 8, marginBottom: 2, cursor: "pointer", background: isActive ? cat.color + "0C" : "transparent", borderLeft: isActive ? "3px solid " + cat.color : "3px solid transparent", transition: "all 0.2s", position: "relative" }} onMouseEnter={function(e) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }} onMouseLeave={function(e) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
+              {isActive && <div style={{ position: "absolute", left: 0, top: "10%", width: 3, height: "80%", background: cat.color, borderRadius: 2, boxShadow: "0 0 12px " + cat.color + "70, 0 0 24px " + cat.color + "25" }} />}
+              {isActive && <div style={{ position: "absolute", left: 0, top: 0, width: "50%", height: "100%", background: "radial-gradient(ellipse at left center, " + cat.color + "08, transparent 70%)", pointerEvents: "none" }} />}
+              <span style={{ fontSize: 16, filter: isActive ? "brightness(1.3) saturate(1.2)" : "brightness(0.5) saturate(0.5)", transition: "filter 0.2s" }}>{item.ic}</span>
+              <span style={{ fontFamily: ft, fontSize: 14, fontWeight: isActive ? 800 : 500, color: isActive ? cat.color : "rgba(255,255,255,0.4)", transition: "all 0.2s", textShadow: isActive ? "0 0 20px " + cat.glow + "0.5), 0 0 40px " + cat.glow + "0.12)" : "none" }}>{item.l}</span>
+              {isActive && <div style={{ width: 6, height: 6, borderRadius: "50%", background: cat.color, marginLeft: "auto", boxShadow: "0 0 8px " + cat.color + "70, 0 0 16px " + cat.color + "30" }} />}
+            </div>;
+          })}
+        </div>;
+      })}
+    </div>
+
+    {/* Footer */}
+    <div style={{ padding: "14px 18px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <div style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v0.8 // SEMIANALYSIS</div>
+    </div>
   </div>);
 }
 
@@ -1184,70 +1239,73 @@ export default function App() {
       <div style={{ position: "absolute", top: "40%", left: "-10%", width: "40vw", height: "40vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(144,92,203,0.03) 0%, transparent 60%)", animation: "drift3 30s ease-in-out infinite" }} />
       <div style={{ position: "absolute", bottom: "10%", right: "5%", width: "35vw", height: "35vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(46,173,142,0.03) 0%, transparent 60%)", animation: "drift1 22s ease-in-out infinite reverse" }} />
     </div>
-    <style dangerouslySetInnerHTML={{ __html: "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');" +
-      "*{box-sizing:border-box;margin:0;padding:0}" +
-      "body{background:" + C.bg + "}" +
-      "::selection{background:" + C.amber + "33;color:" + C.amber + "}" +
-      /* Scrollbar */
-      "::-webkit-scrollbar{width:6px}" +
-      "::-webkit-scrollbar-track{background:transparent}" +
-      "::-webkit-scrollbar-thumb{background:" + C.border + ";border-radius:3px;transition:background 0.2s}" +
-      "::-webkit-scrollbar-thumb:hover{background:" + C.amber + "40}" +
-      /* Focus rings */
-      "input:focus,textarea:focus,select:focus{outline:none;border-color:" + C.amber + "!important;box-shadow:0 0 0 1px " + C.amber + "30!important}" +
-      /* Smooth scroll */
-      "html{scroll-behavior:smooth}" +
-      /* Card hover lift */
-      "@keyframes fadeInUp{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}" +
-      "@keyframes fadeIn{0%{opacity:0}100%{opacity:1}}" +
-      "@keyframes slideUp{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}" +
-      "@keyframes slideIn{0%{opacity:0;transform:translateX(-10px)}100%{opacity:1;transform:translateX(0)}}" +
-      "@keyframes breathe{0%,100%{opacity:0.4}50%{opacity:0.8}}" +
-      "@keyframes countUp{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}" +
-      /* Staggered children */
-      ".stagger>*{opacity:0;animation:slideUp 0.35s ease forwards}" +
-      ".stagger>*:nth-child(1){animation-delay:0s}" +
-      ".stagger>*:nth-child(2){animation-delay:0.05s}" +
-      ".stagger>*:nth-child(3){animation-delay:0.1s}" +
-      ".stagger>*:nth-child(4){animation-delay:0.15s}" +
-      ".stagger>*:nth-child(5){animation-delay:0.2s}" +
-      ".stagger>*:nth-child(6){animation-delay:0.25s}" +
-      ".stagger>*:nth-child(7){animation-delay:0.3s}" +
-      ".stagger>*:nth-child(8){animation-delay:0.35s}" +
-      ".stagger>*:nth-child(9){animation-delay:0.4s}" +
-      ".stagger>*:nth-child(10){animation-delay:0.45s}" +
-      /* Card system */
-      ".poast-card{position:relative;transition:box-shadow 0.25s ease,border-color 0.25s ease,transform 0.2s ease}" +
-      ".poast-card:hover{box-shadow:0 0 20px rgba(247,176,65,0.12),0 0 40px rgba(247,176,65,0.05);border-color:#2A2A3C;transform:translateY(-2px)}" +
-      /* Button system */
-      "button,.poast-btn{transition:all 0.15s ease}" +
-      "button:active,.poast-btn:active{transform:scale(0.97)}" +
-      /* Section transition */
-      ".poast-fadein{animation:fadeInUp 0.4s ease forwards}" +
-      ".poast-section{animation:fadeIn 0.3s ease}" +
-      /* Pulse for Ask Poast */
-      "@keyframes askPulse{0%,100%{box-shadow:0 0 0 0 rgba(247,176,65,0.15)}50%{box-shadow:0 0 12px 4px rgba(247,176,65,0.08)}}" +
-      ".ask-pulse{animation:askPulse 3s ease-in-out infinite}" +
-      /* Skeleton loader */
-      "@keyframes skeleton{0%{background-position:200% 0}100%{background-position:-200% 0}}" +
-      ".skeleton{background:linear-gradient(90deg," + C.card + " 25%," + C.surface + " 50%," + C.card + " 75%);background-size:200% 100%;animation:skeleton 1.5s ease-in-out infinite;border-radius:6px}" +
-      /* Active sidebar glow */
-      "@keyframes sideGlow{0%,100%{opacity:0.5}50%{opacity:1}}" +
-      /* Progress */
-      "@keyframes progressSlide{0%{left:-40%}100%{left:100%}}" +
-      ".progress-slide{animation:progressSlide 1.5s ease-in-out infinite}" +
-      "@keyframes dotPulse{0%,80%,100%{opacity:0.2}40%{opacity:1}}" +
-      ".progress-dots::after{content:'...';display:inline-block;animation:dotPulse 1.4s ease-in-out infinite}" +
-      /* Glow border on hover for interactive elements */
-      ".glow-hover{transition:all 0.15s ease}" +
-      ".glow-hover:hover{box-shadow:0 0 0 1px rgba(247,176,65,0.3)}"
-    }} />
+    {/* ═══ GLOBAL STYLES ═══ */}
+    <style dangerouslySetInnerHTML={{ __html: [
+      "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');",
+      "*{box-sizing:border-box;margin:0;padding:0}",
+      "body{background:#06060C}",
+      "html{scroll-behavior:smooth}",
+      "::selection{background:rgba(247,176,65,0.25);color:#F7B041}",
+      "::-webkit-scrollbar{width:6px}",
+      "::-webkit-scrollbar-track{background:transparent}",
+      "::-webkit-scrollbar-thumb{background:#252535;border-radius:3px}",
+      "::-webkit-scrollbar-thumb:hover{background:rgba(247,176,65,0.35)}",
+      "input:focus,textarea:focus,select:focus{outline:none;border-color:#F7B041!important;box-shadow:0 0 0 3px rgba(247,176,65,0.1),0 0 16px rgba(247,176,65,0.06)!important}",
+      "input::placeholder,textarea::placeholder{color:#4A4858}",
+      // Animations
+      "@keyframes fadeInUp{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}",
+      "@keyframes fadeIn{0%{opacity:0}100%{opacity:1}}",
+      "@keyframes slideUp{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}",
+      // Stagger
+      ".stagger>*{opacity:0;animation:slideUp 0.35s ease forwards}",
+      ".stagger>*:nth-child(1){animation-delay:0s}.stagger>*:nth-child(2){animation-delay:0.05s}.stagger>*:nth-child(3){animation-delay:0.1s}.stagger>*:nth-child(4){animation-delay:0.15s}.stagger>*:nth-child(5){animation-delay:0.2s}.stagger>*:nth-child(6){animation-delay:0.25s}.stagger>*:nth-child(7){animation-delay:0.3s}.stagger>*:nth-child(8){animation-delay:0.35s}",
+      // Cards — lifted, glowing
+      ".poast-card{position:relative;background:linear-gradient(135deg,#14141E,#101018);border:1px solid #252535;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.4);transition:all 0.2s ease}",
+      ".poast-card:hover{border-color:rgba(247,176,65,0.3);box-shadow:0 8px 30px rgba(0,0,0,0.5),0 0 20px rgba(247,176,65,0.08);transform:translateY(-2px)}",
+      // Buttons — gradient + glow
+      "button,.poast-btn{transition:all 0.15s ease;font-family:'Outfit',sans-serif}",
+      "button:active,.poast-btn:active{transform:scale(0.97)}",
+      // Primary btn class
+      ".btn-glow{background:linear-gradient(135deg,#F7B041,#E8A020);color:#06060C;border:none;border-radius:8px;font-weight:700;box-shadow:0 4px 14px rgba(247,176,65,0.25),0 0 20px rgba(247,176,65,0.1);cursor:pointer}",
+      ".btn-glow:hover{box-shadow:0 6px 24px rgba(247,176,65,0.4),0 0 40px rgba(247,176,65,0.15);transform:translateY(-1px)}",
+      // Ghost btn class
+      ".btn-ghost{background:rgba(255,255,255,0.02);color:#8A8690;border:1px solid #252535;border-radius:8px;cursor:pointer}",
+      ".btn-ghost:hover{border-color:rgba(247,176,65,0.4);color:#F7B041;background:rgba(247,176,65,0.04);box-shadow:0 0 12px rgba(247,176,65,0.08)}",
+      // Transitions
+      ".poast-fadein{animation:fadeInUp 0.4s ease forwards}",
+      ".poast-section{animation:fadeIn 0.3s ease}",
+      // Progress
+      "@keyframes progressSlide{0%{left:-40%}100%{left:100%}}",
+      ".progress-slide{animation:progressSlide 1.5s ease-in-out infinite}",
+      "@keyframes dotPulse{0%,80%,100%{opacity:0.2}40%{opacity:1}}",
+      ".progress-dots::after{content:'...';display:inline-block;animation:dotPulse 1.4s ease-in-out infinite}",
+      // Ask Poast pulse
+      "@keyframes askPulse{0%,100%{box-shadow:0 0 0 0 rgba(247,176,65,0.12)}50%{box-shadow:0 0 16px 4px rgba(247,176,65,0.08)}}",
+      ".ask-pulse{animation:askPulse 3s ease-in-out infinite}",
+      // Background orbs
+      "@keyframes od1{0%{transform:translate(0,0) scale(1) rotate(0)}25%{transform:translate(8vw,-6vh) scale(1.2) rotate(5deg)}50%{transform:translate(-4vw,8vh) scale(0.85) rotate(-3deg)}75%{transform:translate(6vw,3vh) scale(1.1) rotate(2deg)}100%{transform:translate(0,0) scale(1) rotate(0)}}",
+      "@keyframes od2{0%{transform:translate(0,0) scale(1)}25%{transform:translate(-10vw,5vh) scale(0.9)}50%{transform:translate(5vw,-7vh) scale(1.15)}75%{transform:translate(-3vw,10vh) scale(0.95)}100%{transform:translate(0,0) scale(1)}}",
+      "@keyframes od3{0%{transform:translate(0,0) scale(1)}33%{transform:translate(7vw,6vh) scale(1.3)}66%{transform:translate(-8vw,-4vh) scale(0.8)}100%{transform:translate(0,0) scale(1)}}",
+      "@keyframes pulse{0%,100%{opacity:0.6}50%{opacity:1}}",
+      ".bg-orb{position:absolute;border-radius:50%;filter:blur(100px);will-change:transform;pointer-events:none}",
+    ].join("") }} />
+
+    {/* ═══ ANIMATED BACKGROUND ═══ */}
+    <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
+      <div style={{ position: "absolute", inset: 0, background: C.bg }} />
+      <div className="bg-orb" style={{ width: "55vw", height: "55vw", top: "-15%", right: "-10%", background: "radial-gradient(ellipse, rgba(247,176,65,0.16) 0%, rgba(247,176,65,0.05) 35%, transparent 65%)", animation: "od1 22s ease-in-out infinite", borderRadius: "40% 60% 55% 45%" }} />
+      <div className="bg-orb" style={{ width: "45vw", height: "50vw", bottom: "-12%", left: "-5%", background: "radial-gradient(ellipse, rgba(11,134,209,0.12) 0%, rgba(11,134,209,0.04) 40%, transparent 65%)", animation: "od2 28s ease-in-out infinite", borderRadius: "55% 45% 50% 50%" }} />
+      <div className="bg-orb" style={{ width: "30vw", height: "35vw", top: "35%", left: "15%", background: "radial-gradient(ellipse, rgba(144,92,203,0.09) 0%, transparent 65%)", animation: "od3 20s ease-in-out infinite", borderRadius: "45% 55% 60% 40%" }} />
+      <div className="bg-orb" style={{ width: "20vw", height: "20vw", top: "15%", right: "25%", background: "radial-gradient(circle, rgba(247,176,65,0.12) 0%, transparent 55%)", animation: "pulse 4s ease-in-out infinite, od2 14s ease-in-out infinite", filter: "blur(60px)" }} />
+      <div className="bg-orb" style={{ width: "25vw", height: "30vw", bottom: "20%", right: "8%", background: "radial-gradient(ellipse, rgba(46,173,142,0.09) 0%, transparent 60%)", animation: "od1 24s ease-in-out infinite reverse", borderRadius: "60% 40% 45% 55%" }} />
+    </div>
+
     <Sidebar active={sec} onNav={setSec} onAskPoast={function() { setAskPoastOpen(!askPoastOpen); }} />
     <AskPoast open={askPoastOpen} onToggle={function() { setAskPoastOpen(false); }} />
-    <div style={{ marginLeft: 200 }} className="poast-fadein">
-      <div style={{ maxWidth: sec === "news" || sec === "schedule" || sec === "p2p" ? "none" : 1200, margin: "0 auto", padding: sec === "news" || sec === "schedule" || sec === "p2p" ? "0 20px" : "0 40px" }}>
-        <div style={{ padding: "20px 0", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", background: C.bg + "E8" }}>
-          <div><div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: C.tx, letterSpacing: -0.5 }}>SemiAnalysis Weekly</div><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginTop: 2 }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div></div>
+    <div style={{ marginLeft: 240, position: "relative", zIndex: 1 }} className="poast-fadein">
+      <div style={{ maxWidth: sec === "news" || sec === "schedule" || sec === "p2p" ? "none" : 1100, margin: "0 auto", padding: sec === "news" || sec === "schedule" || sec === "p2p" ? "0 24px" : "0 40px" }}>
+        <div style={{ padding: "20px 0", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", background: C.bg + "E0" }}>
+          <div><div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx, letterSpacing: -0.5 }}>SemiAnalysis Weekly</div><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginTop: 2 }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div></div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {hasDraft && <span onClick={loadDraft} style={{ fontFamily: mn, fontSize: 9, color: C.amber, cursor: "pointer", padding: "5px 10px", border: "1px solid " + C.amber + "40", borderRadius: 5, background: C.amber + "10" }}>Load from Draft</span>}
             <a href="https://youtube.com/@SemianalysisWeekly" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 9, color: C.txd, textDecoration: "none", padding: "5px 10px", border: "1px solid " + C.border, borderRadius: 5 }}>@SemianalysisWeekly</a>
