@@ -336,7 +336,7 @@ function PipelineTab({ hasElevenLabs, hasKling, hasGemini, hasGrok }) {
     { l: "Thumbnails", ic: "\uD83D\uDDBC", model: hasGrok ? "Grok Imagine" : "Gemini Imagen 3", status: hasGrok || hasGemini ? "ready" : "soon", desc: "3 cinematic thumbnail options // ~$0.04" },
     { l: "Voiceover", ic: "\uD83C\uDF99", model: "ElevenLabs TTS", status: hasElevenLabs ? "ready" : "soon", desc: "Script to audio .mp3 // ~$0.03/video" },
     { l: "B-Roll Generation", ic: "\uD83C\uDFA5", model: hasGrok ? "Grok Imagine Video" : "Kling AI", status: hasGrok || hasKling ? "ready" : "soon", desc: "5 cinematic clips // ~$1.50/video" },
-    { l: "Assembly", ic: "\uD83D\uDDC2", model: "Remotion + FFmpeg", status: "soon", desc: "Composite VO + b-roll + SA overlays + text animations" },
+    { l: "Assembly", ic: "\uD83D\uDDC2", model: "Remotion", status: "ready", desc: "Composite VO + b-roll + SA overlays + text animations" },
     { l: "Export", ic: "\u2B07\uFE0F", model: "MP4 // 16:9 // 9:16 // 1:1", status: "soon", desc: "Multi-format export, ready to post" },
   ];
   return (<div>
@@ -384,6 +384,141 @@ function LoadingSteps({ mode, step }) {
         <span style={{ fontFamily: ft, fontSize: 13, color: done ? D.teal : active ? D.amber : D.txs }}>{s}</span>
       </div>;
     })}
+  </div>);
+}
+
+// ═══ VIDEO PREVIEW ═══
+function VideoPreview({ brief }) {
+  var _showPreview = useState(false), showPreview = _showPreview[0], setShowPreview = _showPreview[1];
+  var _aspect = useState("16:9"), aspect = _aspect[0], setAspect = _aspect[1];
+  var _frame = useState(0), frame = _frame[0], setFrame = _frame[1];
+  var _playing = useState(false), playing = _playing[0], setPlaying = _playing[1];
+  var ivRef = useRef(null);
+
+  var fps = 30;
+  var dur = brief.duration || 60;
+  var totalFrames = dur * fps;
+  var sections = [];
+
+  // Build sections from brief
+  if (brief.hook) sections.push({ type: "hook", text: brief.hook, frames: Math.round(totalFrames * 0.12) });
+  if (brief.script && brief.script.intro) sections.push({ type: "intro", text: brief.script.intro, frames: Math.round(totalFrames * 0.15) });
+  if (brief.script && brief.script.body) brief.script.body.forEach(function(p, i) { sections.push({ type: "body", text: p, frames: Math.round(totalFrames * 0.5 / Math.max(1, brief.script.body.length)), idx: i }); });
+  if (brief.dataPoints && brief.dataPoints.length > 0) sections.push({ type: "data", frames: Math.round(totalFrames * 0.12) });
+  if (brief.script && brief.script.outro) sections.push({ type: "outro", text: brief.script.outro, frames: Math.round(totalFrames * 0.11) });
+
+  // Find current section
+  var currentSection = null; var sectionFrame = 0; var accum = 0;
+  for (var i = 0; i < sections.length; i++) {
+    if (frame < accum + sections[i].frames) { currentSection = sections[i]; sectionFrame = frame - accum; break; }
+    accum += sections[i].frames;
+  }
+  if (!currentSection && sections.length > 0) currentSection = sections[sections.length - 1];
+
+  var play = function() { setPlaying(true); ivRef.current = setInterval(function() { setFrame(function(f) { if (f >= totalFrames - 1) { setPlaying(false); clearInterval(ivRef.current); return 0; } return f + 1; }); }, 1000 / fps); };
+  var pause = function() { setPlaying(false); if (ivRef.current) clearInterval(ivRef.current); };
+  var reset = function() { pause(); setFrame(0); };
+
+  var dims = { "16:9": { w: "100%", pt: "56.25%" }, "9:16": { w: "40%", pt: "71.1%" }, "1:1": { w: "60%", pt: "60%" } };
+  var dm = dims[aspect] || dims["16:9"];
+
+  if (!showPreview) return (
+    <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16, padding: "12px 16px", background: D.card, border: "1px solid " + D.border, borderRadius: 8 }}>
+      <div style={{ display: "flex", gap: 6 }}>
+        {["16:9", "9:16", "1:1"].map(function(a) { var on = aspect === a; return <span key={a} onClick={function() { setAspect(a); }} style={{ padding: "4px 10px", borderRadius: 4, cursor: "pointer", background: on ? D.amber : "transparent", border: on ? "none" : "1px solid " + D.border, color: on ? D.bg : D.txs, fontFamily: mn, fontSize: 10 }}>{a}</span>; })}
+      </div>
+      <span onClick={function() { setShowPreview(true); }} style={{ padding: "8px 18px", background: D.amber, color: D.bg, borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: "pointer", marginLeft: "auto" }}>Preview Video</span>
+    </div>
+  );
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      {/* Preview player */}
+      <div style={{ width: dm.w, margin: "0 auto", position: "relative", borderRadius: 10, overflow: "hidden", border: "1px solid " + D.amber + "30", background: "#0B0B12" }}>
+        <div style={{ paddingTop: dm.pt, position: "relative" }}>
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "5%" }}>
+            {/* Ambient glow */}
+            <div style={{ position: "absolute", top: "-20%", right: "-10%", width: "60%", height: "60%", borderRadius: "50%", background: "radial-gradient(circle, rgba(247,176,65,0.06), transparent 60%)" }} />
+
+            {/* Content based on current section */}
+            {currentSection && currentSection.type === "hook" && <div style={{ textAlign: "center" }}>
+              <div style={{ fontFamily: ft, fontSize: "clamp(18px, 3vw, 42px)", fontWeight: 800, color: D.amber, lineHeight: 1.3, opacity: Math.min(1, sectionFrame / 15) }}>{brief.hook}</div>
+              <div style={{ fontFamily: ft, fontSize: "clamp(10px, 1.5vw, 16px)", color: D.txs, marginTop: 8, opacity: Math.min(1, Math.max(0, (sectionFrame - 20) / 10)) }}>{brief.thumbnail ? brief.thumbnail.headline : "SemiAnalysis"}</div>
+            </div>}
+
+            {currentSection && (currentSection.type === "intro" || currentSection.type === "body") && <div style={{ background: "#0B0B12CC", borderRadius: 12, padding: "4% 5%", border: "1px solid " + D.amber + "15", maxWidth: "85%" }}>
+              <div style={{ fontFamily: ft, fontSize: "clamp(10px, 1.8vw, 22px)", color: D.tx, lineHeight: 1.7, opacity: Math.min(1, sectionFrame / 12) }}>{currentSection.text}</div>
+            </div>}
+
+            {currentSection && currentSection.type === "data" && <div style={{ textAlign: "center" }}>
+              <div style={{ fontFamily: ft, fontSize: "clamp(10px, 1.5vw, 16px)", color: D.amber, fontWeight: 700, marginBottom: 12, opacity: Math.min(1, sectionFrame / 10) }}>Key Numbers</div>
+              <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+                {(brief.dataPoints || []).slice(0, 3).map(function(dp, di) {
+                  var dop = Math.min(1, Math.max(0, (sectionFrame - di * 8) / 10));
+                  return <div key={di} style={{ background: D.card, border: "1px solid " + D.amber + "25", borderRadius: 8, padding: "10px 16px", textAlign: "center", opacity: dop, transform: "scale(" + (0.8 + dop * 0.2) + ")" }}>
+                    <div style={{ fontFamily: mn, fontSize: "clamp(16px, 3vw, 36px)", fontWeight: 900, color: D.amber }}>{dp.value}</div>
+                    <div style={{ fontFamily: ft, fontSize: "clamp(8px, 1vw, 12px)", color: D.txs }}>{dp.label}</div>
+                  </div>;
+                })}
+              </div>
+            </div>}
+
+            {currentSection && currentSection.type === "outro" && <div style={{ textAlign: "center" }}>
+              <div style={{ background: "#0B0B12CC", borderRadius: 12, padding: "4% 5%", border: "1px solid " + D.amber + "15", marginBottom: 12 }}>
+                <div style={{ fontFamily: ft, fontSize: "clamp(10px, 1.8vw, 20px)", color: D.tx, lineHeight: 1.6, opacity: Math.min(1, sectionFrame / 10) }}>{currentSection.text}</div>
+              </div>
+              <div style={{ fontFamily: ft, fontSize: "clamp(10px, 1.5vw, 16px)", color: D.amber, fontWeight: 700, opacity: Math.min(1, Math.max(0, (sectionFrame - 15) / 10)) }}>semianalysis.com</div>
+            </div>}
+
+            {/* SA watermark */}
+            <div style={{ position: "absolute", bottom: "3%", right: "3%", display: "flex", alignItems: "center", gap: 6, opacity: 0.6 }}>
+              <div style={{ width: 20, height: 20, borderRadius: 4, background: D.amber + "30", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 10, fontWeight: 900, color: D.amber }}>SA</div>
+              <span style={{ fontFamily: mn, fontSize: 8, color: D.txs }}>SEMIANALYSIS</span>
+            </div>
+
+            {/* Progress bar */}
+            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: D.amber + "20" }}>
+              <div style={{ height: "100%", width: (frame / totalFrames * 100) + "%", background: D.amber }} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, justifyContent: "center" }}>
+        <span onClick={playing ? pause : play} style={{ padding: "6px 16px", background: D.amber, color: D.bg, borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{playing ? "Pause" : "Play"}</span>
+        <span onClick={reset} style={{ padding: "6px 12px", border: "1px solid " + D.border, color: D.txs, borderRadius: 6, fontFamily: mn, fontSize: 10, cursor: "pointer" }}>Reset</span>
+        <span style={{ fontFamily: mn, fontSize: 10, color: D.txs }}>{Math.floor(frame / fps)}s / {dur}s</span>
+        <input type="range" min={0} max={totalFrames - 1} value={frame} onChange={function(e) { setFrame(parseInt(e.target.value)); }} style={{ flex: 1, maxWidth: 200, accentColor: D.amber }} />
+        <div style={{ display: "flex", gap: 4 }}>
+          {["16:9", "9:16", "1:1"].map(function(a) { var on = aspect === a; return <span key={a} onClick={function() { setAspect(a); }} style={{ padding: "3px 8px", borderRadius: 3, cursor: "pointer", background: on ? D.amber : "transparent", border: on ? "none" : "1px solid " + D.border, color: on ? D.bg : D.txs, fontFamily: mn, fontSize: 9 }}>{a}</span>; })}
+        </div>
+        <span onClick={function() { setShowPreview(false); }} style={{ fontFamily: mn, fontSize: 9, color: D.txs, cursor: "pointer" }}>Close</span>
+      </div>
+
+      <div style={{ textAlign: "center", marginTop: 8 }}>
+        <span style={{ fontFamily: mn, fontSize: 9, color: D.dim }}>In-browser preview. Full MP4 export requires Remotion Lambda (AWS).</span>
+      </div>
+    </div>
+  );
+}
+
+// ═══ ASSEMBLE UI ═══
+function AssembleUI({ brief, tab, setTab }) {
+  return (<div>
+    <VideoPreview brief={brief} />
+    {/* Tabs */}
+    <div style={{ display: "flex", borderBottom: "1px solid " + D.border, marginBottom: 20 }}>
+      {["brief", "script", "broll", "social", "pipeline"].map(function(t) {
+        var labels = { brief: "Brief", script: "Script", broll: "B-Roll", social: "Social Kit", pipeline: "Pipeline" };
+        return <Tab key={t} l={labels[t]} active={tab === t} onClick={function() { setTab(t); }} />;
+      })}
+    </div>
+    {tab === "brief" && <BriefTab b={brief} />}
+    {tab === "script" && <ScriptTab b={brief} />}
+    {tab === "broll" && <BrollTab b={brief} />}
+    {tab === "social" && <SocialTab b={brief} />}
+    {tab === "pipeline" && <PipelineTab hasElevenLabs={true} hasKling={true} hasGemini={false} hasGrok={true} />}
   </div>);
 }
 
@@ -512,19 +647,7 @@ export default function PressToPremi() {
 
       {loading && <LoadingSteps mode={mode} step={step} />}
 
-      {brief && !loading && <div>
-        <div style={{ display: "flex", borderBottom: "1px solid " + D.border, marginBottom: 20 }}>
-          {["brief", "script", "broll", "social", "pipeline"].map(function(t) {
-            var labels = { brief: "Brief", script: "Script", broll: "B-Roll", social: "Social Kit", pipeline: "Pipeline" };
-            return <Tab key={t} l={labels[t]} active={tab === t} onClick={function() { setTab(t); }} />;
-          })}
-        </div>
-        {tab === "brief" && <BriefTab b={brief} />}
-        {tab === "script" && <ScriptTab b={brief} />}
-        {tab === "broll" && <BrollTab b={brief} />}
-        {tab === "social" && <SocialTab b={brief} />}
-        {tab === "pipeline" && <PipelineTab hasElevenLabs={true} hasKling={true} hasGemini={false} hasGrok={true} />}
-      </div>}
+      {brief && !loading && <AssembleUI brief={brief} tab={tab} setTab={setTab} />}
     </div>
   </div>);
 }
