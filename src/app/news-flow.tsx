@@ -14,21 +14,26 @@ var T = {
 var ft = "'Outfit',sans-serif";
 var mn = "'JetBrains Mono',monospace";
 
+// ═══ WIDGET SIZES: [colSpan, rowSpan] ═══
+var SIZE_PRESETS = { "1x1": [1, 1], "2x1": [2, 1], "1x2": [1, 2], "2x2": [2, 2] };
+var SIZE_CYCLE = ["1x1", "2x1", "1x2", "2x2"];
+
 // ═══ WIDGET WRAPPER ═══
-function W({ title, icon, children, expanded, onToggleExpand, actions, maxH }) {
+function W({ id, title, icon, children, gw, gh, onCycleSize, actions, onDragStart, onDragOver, onDrop, fontSize }) {
+  var fs = fontSize || 1;
   return (
-    <div style={{ background: "linear-gradient(135deg, " + T.card + " 0%, " + T.surface + " 100%)", border: "1px solid " + T.border, borderRadius: 12, boxShadow: T.glow, display: "flex", flexDirection: "column", maxHeight: expanded ? "none" : maxH || 480, gridColumn: expanded ? "1 / -1" : undefined, transition: "all 0.3s ease", overflow: "hidden" }}>
+    <div draggable onDragStart={function(e) { if (onDragStart) onDragStart(e, id); }} onDragOver={function(e) { e.preventDefault(); if (onDragOver) onDragOver(e, id); }} onDrop={function(e) { if (onDrop) onDrop(e, id); }} style={{ background: "linear-gradient(135deg, " + T.card + " 0%, " + T.surface + " 100%)", border: "1px solid " + T.border, borderRadius: 12, boxShadow: T.glow, display: "flex", flexDirection: "column", gridColumn: "span " + (gw || 1), gridRow: "span " + (gh || 1), minHeight: (gh || 1) * 200, transition: "box-shadow 0.3s ease, border-color 0.3s ease", overflow: "hidden", cursor: "grab" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid " + T.border, background: "linear-gradient(90deg, " + T.accent + "06, transparent)", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <span style={{ fontSize: 13 }}>{icon}</span>
-          <span style={{ fontFamily: ft, fontSize: 11, fontWeight: 700, color: T.tx }}>{title}</span>
+          <span style={{ fontSize: 13 * fs }}>{icon}</span>
+          <span style={{ fontFamily: ft, fontSize: 11 * fs, fontWeight: 700, color: T.tx }}>{title}</span>
         </div>
-        <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
           {actions}
-          <span onClick={onToggleExpand} style={{ fontFamily: mn, fontSize: 9, color: T.txd, cursor: "pointer", padding: "2px 5px", borderRadius: 3, border: "1px solid " + T.border }}>{expanded ? "\u25F4" : "\u25F0"}</span>
+          {onCycleSize && <span onClick={onCycleSize} style={{ fontFamily: mn, fontSize: 8, color: T.txd, cursor: "pointer", padding: "2px 5px", borderRadius: 3, border: "1px solid " + T.border }}>{gw + "x" + gh}</span>}
         </div>
       </div>
-      <div style={{ flex: 1, overflow: "auto", padding: "10px 14px" }}>{children}</div>
+      <div style={{ flex: 1, overflow: "auto", padding: "10px 14px", fontSize: 12 * fs + "px" }}>{children}</div>
     </div>
   );
 }
@@ -38,7 +43,7 @@ function SmBtn({ children, onClick, color, on }) {
 }
 
 // ═══ NEWS FEED ═══
-function NewsFeed({ expanded, onToggle, onDraft }) {
+function NewsFeed({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize, onDraft }) {
   var _d = useState({ items: [], categories: [], sources: [] }), data = _d[0], setData = _d[1];
   var _cat = useState("All"), cat = _cat[0], setCat = _cat[1];
   var _src = useState("All"), src = _src[0], setSrc = _src[1];
@@ -54,7 +59,7 @@ function NewsFeed({ expanded, onToggle, onDraft }) {
   var sourceColor = { "SemiAnalysis": T.accent, "Hacker News": "#FF6600", "TechCrunch": T.green, "The Verge": T.accent4, "Bloomberg": "#5C068C", "CNBC Tech": "#005E9E", "Tom's Hardware": "#E63946", "VideoCardz": "#F4A300", "ServeTheHome": "#2196F3", "Reuters": "#FF8000", "Wired": "#000", "Ars Technica": "#FF4400", "Next Platform": "#00BCD4" };
 
   return (
-    <W title="News Feed" icon={"\uD83D\uDCF0"} expanded={expanded} onToggleExpand={onToggle} maxH={560} actions={<SmBtn onClick={load}>Refresh</SmBtn>}>
+    <W title="News Feed" icon={"\uD83D\uDCF0"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize} actions={<SmBtn onClick={load}>Refresh</SmBtn>}>
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
         <select value={cat} onChange={function(e) { setCat(e.target.value); }} style={{ padding: "3px 6px", background: T.surface, border: "1px solid " + T.border, borderRadius: 4, color: T.accent, fontFamily: mn, fontSize: 9 }}>
           <option value="All">All Topics</option>
@@ -85,14 +90,14 @@ function NewsFeed({ expanded, onToggle, onDraft }) {
 }
 
 // ═══ SEMIANALYSIS RSS ═══
-function SAFeed({ expanded, onToggle, onDraft }) {
+function SAFeed({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize, onDraft }) {
   var _items = useState([]), items = _items[0], setItems = _items[1];
   useEffect(function() {
     var load = function() { fetch("/api/news?type=semianalysis").then(function(r) { return r.json(); }).then(function(d) { if (d.items) setItems(d.items); }); };
     load(); var iv = setInterval(load, 30000); return function() { clearInterval(iv); };
   }, []);
   return (
-    <W title="SemiAnalysis" icon={"\uD83D\uDD2C"} expanded={expanded} onToggleExpand={onToggle}>
+    <W title="SemiAnalysis" icon={"\uD83D\uDD2C"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
       {items.length === 0 ? <div style={{ color: T.txd, fontFamily: mn, fontSize: 10, padding: 20, textAlign: "center" }}>Loading...</div>
       : items.map(function(item, i) {
         return <div key={i} style={{ padding: "7px 0", borderBottom: "1px solid " + T.border }}>
@@ -108,7 +113,7 @@ function SAFeed({ expanded, onToggle, onDraft }) {
 }
 
 // ═══ STOCK TICKER ═══
-function StockTicker({ expanded, onToggle }) {
+function StockTicker({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }) {
   var _stocks = useState([]), stocks = _stocks[0], setStocks = _stocks[1];
   var _view = useState("grid"), view = _view[0], setView = _view[1];
   useEffect(function() {
@@ -116,7 +121,7 @@ function StockTicker({ expanded, onToggle }) {
     load(); var iv = setInterval(load, 15000); return function() { clearInterval(iv); };
   }, []);
   return (
-    <W title="Stocks" icon={"\uD83D\uDCC8"} expanded={expanded} onToggleExpand={onToggle} actions={<SmBtn onClick={function() { setView(view === "ticker" ? "grid" : "ticker"); }}>{view === "ticker" ? "Grid" : "Ticker"}</SmBtn>}>
+    <W title="Stocks" icon={"\uD83D\uDCC8"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize} actions={<SmBtn onClick={function() { setView(view === "ticker" ? "grid" : "ticker"); }}>{view === "ticker" ? "Grid" : "Ticker"}</SmBtn>}>
       {stocks.length === 0 ? <div style={{ color: T.txd, fontFamily: mn, fontSize: 10, padding: 20, textAlign: "center" }}>Loading stocks...</div>
       : view === "ticker" ? (
         <div style={{ overflow: "hidden" }}>
@@ -149,14 +154,14 @@ function StockTicker({ expanded, onToggle }) {
 }
 
 // ═══ EARNINGS CALENDAR ═══
-function EarningsCalendar({ expanded, onToggle }) {
+function EarningsCalendar({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }) {
   var _earn = useState([]), earn = _earn[0], setEarn = _earn[1];
   useEffect(function() {
     fetch("/api/news?type=earnings").then(function(r) { return r.json(); }).then(function(d) { if (d.earnings) setEarn(d.earnings); });
   }, []);
   var now = new Date();
   return (
-    <W title="Earnings Calendar" icon={"\uD83D\uDCC5"} expanded={expanded} onToggleExpand={onToggle}>
+    <W title="Earnings Calendar" icon={"\uD83D\uDCC5"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
       {earn.map(function(e, i) {
         var d = new Date(e.date);
         var past = d < now;
@@ -182,10 +187,10 @@ var STREAMS = [
   { id: "france24", name: "France 24", url: "https://www.youtube.com/watch?v=ULDJLFMzekc", embed: "https://www.youtube.com/embed/ULDJLFMzekc", schedule: "24/7", icon: "\uD83C\uDDEB\uD83C\uDDF7" },
 ];
 
-function LiveStreams({ expanded, onToggle }) {
+function LiveStreams({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }) {
   var _active = useState(null), active = _active[0], setActive = _active[1];
   return (
-    <W title="LIVE!" icon={"\uD83D\uDD34"} expanded={expanded} onToggleExpand={onToggle} maxH={expanded ? 800 : 480}>
+    <W title="LIVE!" icon={"\uD83D\uDD34"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
       <style dangerouslySetInnerHTML={{ __html: "@keyframes liveBlink{0%,100%{opacity:1}50%{opacity:0.3}}" }} />
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
         {STREAMS.map(function(s) {
@@ -213,19 +218,19 @@ function LiveStreams({ expanded, onToggle }) {
 }
 
 // ═══ NOTES ═══
-function Notes({ expanded, onToggle }) {
+function Notes({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }) {
   var _notes = useState(""), notes = _notes[0], setNotes = _notes[1];
   useEffect(function() { try { var s = localStorage.getItem("poast-notes"); if (s) setNotes(s); } catch (e) {} }, []);
   var save = function(v) { setNotes(v); try { localStorage.setItem("poast-notes", v); } catch (e) {} };
   return (
-    <W title="Notes" icon={"\uD83D\uDCDD"} expanded={expanded} onToggleExpand={onToggle}>
+    <W title="Notes" icon={"\uD83D\uDCDD"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
       <textarea value={notes} onChange={function(e) { save(e.target.value); }} placeholder="Quick notes, links, ideas..." style={{ width: "100%", height: expanded ? 360 : 180, padding: 10, background: T.surface, border: "1px solid " + T.border, borderRadius: 6, color: T.tx, fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.7 }} />
     </W>
   );
 }
 
 // ═══ TO-DO LIST ═══
-function TodoList({ expanded, onToggle }) {
+function TodoList({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }) {
   var _todos = useState([]), todos = _todos[0], setTodos = _todos[1];
   var _input = useState(""), input = _input[0], setInput = _input[1];
   var _deadline = useState(""), deadline = _deadline[0], setDeadline = _deadline[1];
@@ -241,7 +246,7 @@ function TodoList({ expanded, onToggle }) {
   var done = todos.filter(function(t) { return t.done; });
 
   return (
-    <W title="To-Do" icon={"\u2705"} expanded={expanded} onToggleExpand={onToggle}>
+    <W title="To-Do" icon={"\u2705"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
       <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
         <input value={input} onChange={function(e) { setInput(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") add(); }} placeholder="Add task..." style={{ flex: 1, padding: "6px 8px", background: T.surface, border: "1px solid " + T.border, borderRadius: 4, color: T.tx, fontFamily: mn, fontSize: 10, outline: "none" }} />
         <input type="date" value={deadline} onChange={function(e) { setDeadline(e.target.value); }} style={{ padding: "6px 6px", background: T.surface, border: "1px solid " + T.border, borderRadius: 4, color: T.txm, fontFamily: mn, fontSize: 9, outline: "none", width: 110 }} />
@@ -271,7 +276,7 @@ function TodoList({ expanded, onToggle }) {
 }
 
 // ═══ AI IDEAS ═══
-function AIIdeas({ expanded, onToggle, onDraft }) {
+function AIIdeas({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize, onDraft }) {
   var _ideas = useState([]), ideas = _ideas[0], setIdeas = _ideas[1];
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
   var _topic = useState(""), topic = _topic[0], setTopic = _topic[1];
@@ -297,7 +302,7 @@ function AIIdeas({ expanded, onToggle, onDraft }) {
   var fmtColor = function(f) { if (!f) return T.accent; if (f.includes("X")) return "#1DA1F2"; if (f.includes("LinkedIn")) return "#0A66C2"; if (f.includes("IG") || f.includes("carousel")) return "#E4405F"; if (f.includes("YouTube") || f.includes("video")) return "#FF0000"; return T.accent; };
 
   return (
-    <W title="AI Ideas" icon={"\uD83D\uDCA1"} expanded={expanded} onToggleExpand={onToggle} actions={<><SmBtn onClick={function() { setShowBuilder(!showBuilder); }} color={T.accent2} on={showBuilder}>Build</SmBtn><SmBtn onClick={function() { gen("Latest semiconductor, AI, and data center news"); }} color={T.accent}>Refresh</SmBtn></>}>
+    <W title="AI Ideas" icon={"\uD83D\uDCA1"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize} actions={<><SmBtn onClick={function() { setShowBuilder(!showBuilder); }} color={T.accent2} on={showBuilder}>Build</SmBtn><SmBtn onClick={function() { gen("Latest semiconductor, AI, and data center news"); }} color={T.accent}>Refresh</SmBtn></>}>
       {showBuilder && <div style={{ marginBottom: 12, padding: 10, background: T.surface, borderRadius: 6, border: "1px solid " + T.accent2 + "30" }}>
         <div style={{ fontFamily: mn, fontSize: 9, color: T.accent2, marginBottom: 6 }}>BUILD YOUR OWN IDEA</div>
         <input value={topic} onChange={function(e) { setTopic(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter" && topic.trim()) { gen(topic); setShowBuilder(false); } }} placeholder="Paste article, topic, or describe your idea..." style={{ width: "100%", padding: "8px 10px", background: T.card, border: "1px solid " + T.border, borderRadius: 5, color: T.tx, fontFamily: mn, fontSize: 10, outline: "none", boxSizing: "border-box", marginBottom: 6 }} />
@@ -324,7 +329,7 @@ function AIIdeas({ expanded, onToggle, onDraft }) {
 }
 
 // ═══ WATCHLIST ═══
-function Watchlist({ expanded, onToggle }) {
+function Watchlist({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }) {
   var _items = useState([
     { name: "NVIDIA", ticker: "NVDA", note: "Blackwell ramp, H200 demand" },
     { name: "TSMC", ticker: "TSM", note: "Arizona fab, CoWoS capacity" },
@@ -335,7 +340,7 @@ function Watchlist({ expanded, onToggle }) {
   ]);
   var items = _items[0];
   return (
-    <W title="Watchlist" icon={"\uD83D\uDC41"} expanded={expanded} onToggleExpand={onToggle}>
+    <W title="Watchlist" icon={"\uD83D\uDC41"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
       {items.map(function(item, i) {
         return <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid " + T.border }}>
           <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: T.accent, width: 40 }}>{item.ticker}</div>
@@ -391,14 +396,14 @@ function DraftModal({ item, onClose }) {
 }
 
 // ═══ ETF WIDGET ═══
-function ETFWidget({ expanded, onToggle }) {
+function ETFWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }) {
   var _etfs = useState([]), etfs = _etfs[0], setEtfs = _etfs[1];
   useEffect(function() {
     var load = function() { fetch("/api/news?type=etfs").then(function(r) { return r.json(); }).then(function(d) { if (d.etfs) setEtfs(d.etfs); }); };
     load(); var iv = setInterval(load, 15000); return function() { clearInterval(iv); };
   }, []);
   return (
-    <W title="ETFs" icon={"\uD83C\uDFE6"} expanded={expanded} onToggleExpand={onToggle}>
+    <W title="ETFs" icon={"\uD83C\uDFE6"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
       {etfs.length === 0 ? <div style={{ color: T.txd, fontFamily: mn, fontSize: 10, padding: 20, textAlign: "center" }}>Loading...</div>
       : <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 5 }}>
         {etfs.map(function(s, i) {
@@ -416,7 +421,7 @@ function ETFWidget({ expanded, onToggle }) {
 }
 
 // ═══ CRYPTO + COMMODITIES ═══
-function CryptoWidget({ expanded, onToggle }) {
+function CryptoWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }) {
   var _crypto = useState([]), crypto = _crypto[0], setCrypto = _crypto[1];
   var _commod = useState([]), commod = _commod[0], setCommod = _commod[1];
   var _view = useState("crypto"), view = _view[0], setView = _view[1];
@@ -427,7 +432,7 @@ function CryptoWidget({ expanded, onToggle }) {
   }, []);
   var items = view === "crypto" ? crypto : commod;
   return (
-    <W title="Crypto & Resources" icon={"\u20BF"} expanded={expanded} onToggleExpand={onToggle} actions={<><SmBtn onClick={function() { setView("crypto"); }} on={view === "crypto"}>Crypto</SmBtn><SmBtn onClick={function() { setView("resources"); }} on={view === "resources"}>Resources</SmBtn></>}>
+    <W title="Crypto & Resources" icon={"\u20BF"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize} actions={<><SmBtn onClick={function() { setView("crypto"); }} on={view === "crypto"}>Crypto</SmBtn><SmBtn onClick={function() { setView("resources"); }} on={view === "resources"}>Resources</SmBtn></>}>
       {items.length === 0 ? <div style={{ color: T.txd, fontFamily: mn, fontSize: 10, padding: 20, textAlign: "center" }}>Loading...</div>
       : <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 5 }}>
         {items.map(function(s, i) {
@@ -444,7 +449,7 @@ function CryptoWidget({ expanded, onToggle }) {
 }
 
 // ═══ POMODORO ═══
-function Pomodoro({ expanded, onToggle }) {
+function Pomodoro({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }) {
   var _time = useState(25 * 60), time = _time[0], setTime = _time[1];
   var _running = useState(false), running = _running[0], setRunning = _running[1];
   var _mode = useState("work"), mode = _mode[0], setMode = _mode[1];
@@ -474,7 +479,7 @@ function Pomodoro({ expanded, onToggle }) {
   var reset = function() { setRunning(false); setMode("work"); setTime(25 * 60); };
 
   return (
-    <W title="Pomodoro" icon={"\uD83C\uDF45"} expanded={expanded} onToggleExpand={onToggle}>
+    <W title="Pomodoro" icon={"\uD83C\uDF45"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
       <div style={{ textAlign: "center", padding: 10 }}>
         <div style={{ fontFamily: mn, fontSize: 9, color: mode === "work" ? T.accent : T.green, textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>{mode === "work" ? "Focus Time" : "Break Time"}</div>
         <div style={{ fontFamily: mn, fontSize: 36, fontWeight: 900, color: T.tx, marginBottom: 12 }}>{String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}</div>
@@ -494,7 +499,7 @@ function Pomodoro({ expanded, onToggle }) {
 // ═══ CHIP-KUN (Tamagotchi) ═══
 var CHIP_FACES = ["\u25A0\u203F\u25A0", "\u00B0\u25E1\u00B0", ">\u203F<", "\u00B0o\u00B0", "^\u203F^", "-\u203F-", "\u00D7\u203F\u00D7"];
 var CHIP_MOODS = ["happy", "curious", "excited", "sleepy", "focused"];
-function ChipKun({ expanded, onToggle }) {
+function ChipKun({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }) {
   var _mood = useState(0), mood = _mood[0], setMood = _mood[1];
   var _face = useState(0), face = _face[0], setFace = _face[1];
   var _msg = useState("Click me!"), msg = _msg[0], setMsg = _msg[1];
@@ -518,7 +523,7 @@ function ChipKun({ expanded, onToggle }) {
   }, []);
 
   return (
-    <W title="Chip-kun" icon={"\uD83E\uDEAB"} expanded={expanded} onToggleExpand={onToggle}>
+    <W title="Chip-kun" icon={"\uD83E\uDEAB"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
       <style dangerouslySetInnerHTML={{ __html: "@keyframes chipBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}@keyframes chipIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}" }} />
       <div style={{ textAlign: "center", padding: 10 }}>
         <div onClick={handleClick} style={{ display: "inline-block", cursor: "pointer", animation: bouncing ? "chipBounce 0.5s ease" : "chipIdle 2s ease-in-out infinite", userSelect: "none" }}>
@@ -537,7 +542,7 @@ function ChipKun({ expanded, onToggle }) {
 }
 
 // ═══ BOOKMARKS ═══
-function Bookmarks({ expanded, onToggle }) {
+function Bookmarks({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }) {
   var _bm = useState([]), bm = _bm[0], setBm = _bm[1];
   var _input = useState(""), input = _input[0], setInput = _input[1];
   useEffect(function() { try { var s = localStorage.getItem("poast-bookmarks"); if (s) setBm(JSON.parse(s)); } catch (e) {} }, []);
@@ -545,7 +550,7 @@ function Bookmarks({ expanded, onToggle }) {
   var add = function() { if (!input.trim()) return; setBm(function(p) { return [{ text: input.trim(), ts: Date.now() }].concat(p); }); setInput(""); };
   var remove = function(ts) { setBm(function(p) { return p.filter(function(b) { return b.ts !== ts; }); }); };
   return (
-    <W title="Bookmarks" icon={"\uD83D\uDD16"} expanded={expanded} onToggleExpand={onToggle}>
+    <W title="Bookmarks" icon={"\uD83D\uDD16"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
       <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
         <input value={input} onChange={function(e) { setInput(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") add(); }} placeholder="Save a link or note..." style={{ flex: 1, padding: "5px 8px", background: T.surface, border: "1px solid " + T.border, borderRadius: 4, color: T.tx, fontFamily: mn, fontSize: 10, outline: "none" }} />
         <span onClick={add} style={{ padding: "5px 8px", background: T.accent, color: "#fff", borderRadius: 4, cursor: "pointer", fontFamily: ft, fontSize: 10, fontWeight: 700 }}>+</span>
@@ -563,12 +568,12 @@ function Bookmarks({ expanded, onToggle }) {
 }
 
 // ═══ CALCULATOR ═══
-function CalcWidget({ expanded, onToggle }) {
+function CalcWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }) {
   var _expr = useState(""), expr = _expr[0], setExpr = _expr[1];
   var _result = useState(""), result = _result[0], setResult = _result[1];
   var calc = function() { try { setResult(String(Function('"use strict";return (' + expr + ')')())); } catch (e) { setResult("Error"); } };
   return (
-    <W title="Calculator" icon={"\uD83E\uDDEE"} expanded={expanded} onToggleExpand={onToggle}>
+    <W title="Calculator" icon={"\uD83E\uDDEE"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
       <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
         <input value={expr} onChange={function(e) { setExpr(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") calc(); }} placeholder="e.g. 1024 * 3.5" style={{ flex: 1, padding: "6px 8px", background: T.surface, border: "1px solid " + T.border, borderRadius: 4, color: T.tx, fontFamily: mn, fontSize: 11, outline: "none" }} />
         <span onClick={calc} style={{ padding: "6px 10px", background: T.accent, color: "#fff", borderRadius: 4, cursor: "pointer", fontFamily: mn, fontSize: 11 }}>=</span>
@@ -579,7 +584,7 @@ function CalcWidget({ expanded, onToggle }) {
 }
 
 // ═══ COUNTDOWN ═══
-function Countdown({ expanded, onToggle }) {
+function Countdown({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }) {
   var _events = useState([
     { name: "ASML Earnings", date: "2026-04-16T06:00:00" },
     { name: "TSMC Earnings", date: "2026-04-17T06:00:00" },
@@ -591,7 +596,7 @@ function Countdown({ expanded, onToggle }) {
   useEffect(function() { var iv = setInterval(function() { setNow(Date.now()); }, 1000); return function() { clearInterval(iv); }; }, []);
 
   return (
-    <W title="Countdown" icon={"\u23F3"} expanded={expanded} onToggleExpand={onToggle}>
+    <W title="Countdown" icon={"\u23F3"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
       {events.filter(function(e) { return new Date(e.date).getTime() > now; }).map(function(e, i) {
         var diff = new Date(e.date).getTime() - now;
         var d = Math.floor(diff / 86400000);
@@ -610,15 +615,29 @@ function Countdown({ expanded, onToggle }) {
 var WIDGET_IDS = ["news", "semianalysis", "stocks", "etfs", "crypto", "earnings", "live", "watchlist", "ideas", "notes", "todos", "pomodoro", "chipkun", "bookmarks", "calc", "countdown"];
 var WIDGET_META = { news: { l: "News Feed", i: "\uD83D\uDCF0" }, semianalysis: { l: "SemiAnalysis", i: "\uD83D\uDD2C" }, stocks: { l: "Stocks", i: "\uD83D\uDCC8" }, etfs: { l: "ETFs", i: "\uD83C\uDFE6" }, crypto: { l: "Crypto & Resources", i: "\u20BF" }, earnings: { l: "Earnings", i: "\uD83D\uDCC5" }, live: { l: "LIVE!", i: "\uD83D\uDD34" }, watchlist: { l: "Watchlist", i: "\uD83D\uDC41" }, ideas: { l: "AI Ideas", i: "\uD83D\uDCA1" }, notes: { l: "Notes", i: "\uD83D\uDCDD" }, todos: { l: "To-Do", i: "\u2705" }, pomodoro: { l: "Pomodoro", i: "\uD83C\uDF45" }, chipkun: { l: "Chip-kun", i: "\uD83E\uDEAB" }, bookmarks: { l: "Bookmarks", i: "\uD83D\uDD16" }, calc: { l: "Calculator", i: "\uD83E\uDDEE" }, countdown: { l: "Countdown", i: "\u23F3" } };
 
-function Settings({ order, setOrder, disabled, setDisabled, onClose }) {
+function Settings({ order, setOrder, disabled, setDisabled, fontSize, setFontSize, onClose }) {
   var toggle = function(id) { setDisabled(function(p) { var s = new Set(p); if (s.has(id)) s.delete(id); else s.add(id); return Array.from(s); }); };
   var move = function(idx, dir) { setOrder(function(p) { var a = p.slice(); var ni = idx + dir; if (ni < 0 || ni >= a.length) return a; var t = a[idx]; a[idx] = a[ni]; a[ni] = t; return a; }); };
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }} onClick={onClose}>
-      <div onClick={function(e) { e.stopPropagation(); }} style={{ background: "linear-gradient(135deg, " + T.card + ", " + T.surface + ")", border: "1px solid " + T.accent + "30", borderRadius: 12, padding: 24, maxWidth: 400, width: "90%", boxShadow: T.glowAccent }}>
+      <div onClick={function(e) { e.stopPropagation(); }} style={{ background: "linear-gradient(135deg, " + T.card + ", " + T.surface + ")", border: "1px solid " + T.accent + "30", borderRadius: 12, padding: 24, maxWidth: 420, width: "90%", maxHeight: "85vh", overflow: "auto", boxShadow: T.glowAccent }}>
         <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: T.tx, marginBottom: 16 }}>Dashboard Settings</div>
+
+        {/* Font Size */}
+        <div style={{ marginBottom: 16, padding: "10px 12px", background: T.surface, borderRadius: 6, border: "1px solid " + T.border }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: T.accent, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Font Size</div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {[{ l: "S", v: 0.85 }, { l: "M", v: 1 }, { l: "L", v: 1.15 }, { l: "XL", v: 1.3 }].map(function(s) {
+              var on = Math.abs(fontSize - s.v) < 0.05;
+              return <span key={s.l} onClick={function() { setFontSize(s.v); }} style={{ padding: "5px 12px", borderRadius: 4, cursor: "pointer", background: on ? T.accent + "18" : "transparent", border: "1px solid " + (on ? T.accent : T.border), fontFamily: mn, fontSize: 10, color: on ? T.accent : T.txm, fontWeight: on ? 700 : 400 }}>{s.l}</span>;
+            })}
+          </div>
+        </div>
+
+        {/* Widgets */}
+        <div style={{ fontFamily: mn, fontSize: 9, color: T.txd, marginBottom: 8 }}>Drag widgets to reorder in the grid. Click size badge to cycle (1x1, 2x1, 1x2, 2x2).</div>
         {order.map(function(id, i) {
-          var m = WIDGET_META[id]; var off = disabled.indexOf(id) >= 0;
+          var m = WIDGET_META[id]; if (!m) return null; var off = disabled.indexOf(id) >= 0;
           return <div key={id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", marginBottom: 3, background: off ? "transparent" : T.surface, borderRadius: 5, border: "1px solid " + (off ? "transparent" : T.border) }}>
             <span style={{ fontSize: 12 }}>{m.i}</span>
             <span style={{ flex: 1, fontFamily: ft, fontSize: 11, color: off ? T.txd : T.tx, fontWeight: 600 }}>{m.l}</span>
@@ -635,54 +654,87 @@ function Settings({ order, setOrder, disabled, setDisabled, onClose }) {
   );
 }
 
+// ═══ DEFAULT SIZES ═══
+var DEFAULT_SIZES = { news: "2x2", semianalysis: "1x2", stocks: "2x1", etfs: "1x1", crypto: "1x1", earnings: "1x1", live: "2x1", watchlist: "1x1", ideas: "1x2", notes: "1x1", todos: "1x1", pomodoro: "1x1", chipkun: "1x1", bookmarks: "1x1", calc: "1x1", countdown: "1x1" };
+
 // ═══ MAIN DASHBOARD ═══
 export default function NewsFlow() {
   var _order = useState(WIDGET_IDS), order = _order[0], setOrder = _order[1];
   var _disabled = useState([]), disabled = _disabled[0], setDisabled = _disabled[1];
+  var _sizes = useState(DEFAULT_SIZES), sizes = _sizes[0], setSizes = _sizes[1];
+  var _fontSize = useState(1), fontSize = _fontSize[0], setFontSize = _fontSize[1];
   var _showSettings = useState(false), showSettings = _showSettings[0], setShowSettings = _showSettings[1];
-  var _expanded = useState(null), expanded = _expanded[0], setExpanded = _expanded[1];
   var _draftItem = useState(null), draftItem = _draftItem[0], setDraftItem = _draftItem[1];
+  var _showAdd = useState(false), showAdd = _showAdd[0], setShowAdd = _showAdd[1];
+  var dragRef = useRef(null);
 
   useEffect(function() {
     try {
       var o = localStorage.getItem("nf-order");
-      if (o) {
-        var saved = JSON.parse(o);
-        // Append any new widgets not in saved order
-        var missing = WIDGET_IDS.filter(function(id) { return saved.indexOf(id) < 0; });
-        if (missing.length > 0) saved = saved.concat(missing);
-        setOrder(saved);
-      }
+      if (o) { var saved = JSON.parse(o); var missing = WIDGET_IDS.filter(function(id) { return saved.indexOf(id) < 0; }); if (missing.length > 0) saved = saved.concat(missing); setOrder(saved); }
     } catch (e) {}
     try { var d = localStorage.getItem("nf-disabled"); if (d) setDisabled(JSON.parse(d)); } catch (e) {}
+    try { var s = localStorage.getItem("nf-sizes"); if (s) setSizes(function(prev) { return Object.assign({}, prev, JSON.parse(s)); }); } catch (e) {}
+    try { var f = localStorage.getItem("nf-fontsize"); if (f) setFontSize(parseFloat(f)); } catch (e) {}
   }, []);
   useEffect(function() { try { localStorage.setItem("nf-order", JSON.stringify(order)); } catch (e) {} }, [order]);
   useEffect(function() { try { localStorage.setItem("nf-disabled", JSON.stringify(disabled)); } catch (e) {} }, [disabled]);
+  useEffect(function() { try { localStorage.setItem("nf-sizes", JSON.stringify(sizes)); } catch (e) {} }, [sizes]);
+  useEffect(function() { try { localStorage.setItem("nf-fontsize", String(fontSize)); } catch (e) {} }, [fontSize]);
 
-  var toggleExpand = function(id) { setExpanded(expanded === id ? null : id); };
+  var cycleSize = function(id) {
+    setSizes(function(prev) {
+      var cur = prev[id] || "1x1";
+      var idx = SIZE_CYCLE.indexOf(cur);
+      var next = SIZE_CYCLE[(idx + 1) % SIZE_CYCLE.length];
+      var n = Object.assign({}, prev); n[id] = next; return n;
+    });
+  };
 
-  var _showAdd = useState(false), showAdd = _showAdd[0], setShowAdd = _showAdd[1];
+  // Drag and drop
+  var handleDragStart = function(e, id) { dragRef.current = id; e.dataTransfer.effectAllowed = "move"; };
+  var handleDragOver = function(e) { e.preventDefault(); };
+  var handleDrop = function(e, targetId) {
+    e.preventDefault();
+    var srcId = dragRef.current;
+    if (!srcId || srcId === targetId) return;
+    setOrder(function(prev) {
+      var a = prev.slice();
+      var si = a.indexOf(srcId);
+      var ti = a.indexOf(targetId);
+      if (si < 0 || ti < 0) return a;
+      a.splice(si, 1);
+      a.splice(ti, 0, srcId);
+      return a;
+    });
+    dragRef.current = null;
+  };
+
+  var wProps = function(id) {
+    var sz = sizes[id] || "1x1";
+    var sp = SIZE_PRESETS[sz] || [1, 1];
+    return { id: id, gw: sp[0], gh: sp[1], onCycleSize: function() { cycleSize(id); }, onDragStart: handleDragStart, onDragOver: handleDragOver, onDrop: handleDrop, fontSize: fontSize };
+  };
 
   var renderWidget = function(id) {
     if (disabled.indexOf(id) >= 0) return null;
-    var ex = expanded === id;
-    var tog = function() { toggleExpand(id); };
-    if (id === "news") return <NewsFeed key={id} expanded={ex} onToggle={tog} onDraft={setDraftItem} />;
-    if (id === "semianalysis") return <SAFeed key={id} expanded={ex} onToggle={tog} onDraft={setDraftItem} />;
-    if (id === "stocks") return <StockTicker key={id} expanded={ex} onToggle={tog} />;
-    if (id === "etfs") return <ETFWidget key={id} expanded={ex} onToggle={tog} />;
-    if (id === "crypto") return <CryptoWidget key={id} expanded={ex} onToggle={tog} />;
-    if (id === "earnings") return <EarningsCalendar key={id} expanded={ex} onToggle={tog} />;
-    if (id === "live") return <LiveStreams key={id} expanded={ex} onToggle={tog} />;
-    if (id === "watchlist") return <Watchlist key={id} expanded={ex} onToggle={tog} />;
-    if (id === "ideas") return <AIIdeas key={id} expanded={ex} onToggle={tog} onDraft={setDraftItem} />;
-    if (id === "notes") return <Notes key={id} expanded={ex} onToggle={tog} />;
-    if (id === "todos") return <TodoList key={id} expanded={ex} onToggle={tog} />;
-    if (id === "pomodoro") return <Pomodoro key={id} expanded={ex} onToggle={tog} />;
-    if (id === "chipkun") return <ChipKun key={id} expanded={ex} onToggle={tog} />;
-    if (id === "bookmarks") return <Bookmarks key={id} expanded={ex} onToggle={tog} />;
-    if (id === "calc") return <CalcWidget key={id} expanded={ex} onToggle={tog} />;
-    if (id === "countdown") return <Countdown key={id} expanded={ex} onToggle={tog} />;
+    var p = wProps(id);
+    if (id === "news") return <NewsFeed key={id} {...p} onDraft={setDraftItem} />;
+    if (id === "semianalysis") return <SAFeed key={id} {...p} onDraft={setDraftItem} />;
+    if (id === "stocks") return <StockTicker key={id} {...p} />;
+    if (id === "etfs") return <ETFWidget key={id} {...p} />;
+    if (id === "crypto") return <CryptoWidget key={id} {...p} />;
+    if (id === "earnings") return <EarningsCalendar key={id} {...p} />;
+    if (id === "live") return <LiveStreams key={id} {...p} />;
+    if (id === "watchlist") return <Watchlist key={id} {...p} />;
+    if (id === "ideas") return <AIIdeas key={id} {...p} onDraft={setDraftItem} />;
+    if (id === "notes") return <Notes key={id} {...p} />;
+    if (id === "todos") return <TodoList key={id} {...p} />;
+    if (id === "pomodoro") return <Pomodoro key={id} {...p} />;
+    if (id === "chipkun") return <ChipKun key={id} {...p} />;
+    if (id === "bookmarks") return <Bookmarks key={id} {...p} />;
+    if (id === "calc") return <CalcWidget key={id} {...p} />;
+    if (id === "countdown") return <Countdown key={id} {...p} />;
     return null;
   };
 
@@ -714,11 +766,11 @@ export default function NewsFlow() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gridAutoRows: "200px", gap: 12 }}>
         {order.map(renderWidget)}
       </div>
 
-      {showSettings && <Settings order={order} setOrder={setOrder} disabled={disabled} setDisabled={setDisabled} onClose={function() { setShowSettings(false); }} />}
+      {showSettings && <Settings order={order} setOrder={setOrder} disabled={disabled} setDisabled={setDisabled} fontSize={fontSize} setFontSize={setFontSize} onClose={function() { setShowSettings(false); }} />}
       {draftItem && <DraftModal item={draftItem} onClose={function() { setDraftItem(null); }} />}
     </div>
   );

@@ -196,7 +196,18 @@ export default function BufferSchedule() {
       <TabBtn label="Analytics" active={tab === "analytics"} onClick={function() { setTab("analytics"); }} />
     </div>
     {loading ? <div style={{ textAlign: "center", padding: 60, fontFamily: mn, fontSize: 11, color: B.txd }}>Loading Buffer data...</div>
-    : !data ? <div style={{ textAlign: "center", padding: 60, fontFamily: ft, fontSize: 13, color: B.txd }}>Could not connect to Buffer. Check your BUFFER_ACCESS_TOKEN in Vercel env vars.</div>
+    : !data ? <div style={{ textAlign: "center", padding: 40, maxWidth: 500, margin: "0 auto" }}>
+      <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: B.tx, marginBottom: 10 }}>Buffer Setup Required</div>
+      <div style={{ fontFamily: ft, fontSize: 12, color: B.txm, lineHeight: 1.7, marginBottom: 16 }}>Your current token is an OIDC token which Buffer's API doesn't accept directly. You need a classic OAuth access token.</div>
+      <div style={{ fontFamily: mn, fontSize: 10, color: B.txd, lineHeight: 2, textAlign: "left", padding: "14px 16px", background: B.surface, borderRadius: 8, border: "1px solid " + B.border }}>
+        1. Go to buffer.com/developers/apps/create{"\n"}
+        2. Create an app (name: POAST, redirect: https://localhost){"\n"}
+        3. Authorize via the OAuth URL with your client_id{"\n"}
+        4. Exchange the code for an access_token{"\n"}
+        5. Add that token as BUFFER_ACCESS_TOKEN in Vercel
+      </div>
+      <a href="https://buffer.com/developers/apps/create" target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 14, fontFamily: ft, fontSize: 12, fontWeight: 700, color: B.accent, textDecoration: "none", padding: "8px 16px", border: "1px solid " + B.accent + "40", borderRadius: 6 }}>Go to Buffer Developer Portal</a>
+    </div>
     : <div>
       {tab === "calendar" && <CalendarView profiles={data.profiles} />}
       {tab === "queue" && <ScheduleView profiles={data.profiles} />}
