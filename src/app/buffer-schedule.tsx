@@ -196,17 +196,43 @@ export default function BufferSchedule() {
       <TabBtn label="Analytics" active={tab === "analytics"} onClick={function() { setTab("analytics"); }} />
     </div>
     {loading ? <div style={{ textAlign: "center", padding: 60, fontFamily: mn, fontSize: 11, color: B.txd }}>Loading Buffer data...</div>
-    : !data ? <div style={{ textAlign: "center", padding: 40, maxWidth: 500, margin: "0 auto" }}>
-      <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: B.tx, marginBottom: 10 }}>Buffer Setup Required</div>
-      <div style={{ fontFamily: ft, fontSize: 12, color: B.txm, lineHeight: 1.7, marginBottom: 16 }}>Your current token is an OIDC token which Buffer's API doesn't accept directly. You need a classic OAuth access token.</div>
-      <div style={{ fontFamily: mn, fontSize: 10, color: B.txd, lineHeight: 2, textAlign: "left", padding: "14px 16px", background: B.surface, borderRadius: 8, border: "1px solid " + B.border }}>
-        1. Go to buffer.com/developers/apps/create{"\n"}
-        2. Create an app (name: POAST, redirect: https://localhost){"\n"}
-        3. Authorize via the OAuth URL with your client_id{"\n"}
-        4. Exchange the code for an access_token{"\n"}
-        5. Add that token as BUFFER_ACCESS_TOKEN in Vercel
+    : !data ? <div style={{ textAlign: "center", padding: 40, maxWidth: 560, margin: "0 auto" }}>
+      <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: B.tx, marginBottom: 8 }}>Connect Buffer</div>
+      <div style={{ fontFamily: ft, fontSize: 12, color: B.txm, lineHeight: 1.7, marginBottom: 20 }}>Buffer requires a classic OAuth access token. Their newer dashboard tokens (OIDC) don't work with the API. Follow these steps once to get connected:</div>
+
+      <div style={{ textAlign: "left", padding: "18px 20px", background: B.surface, borderRadius: 10, border: "1px solid " + B.border, marginBottom: 16 }}>
+        <div style={{ fontFamily: mn, fontSize: 9, color: B.accent, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>Step 1: Create a Buffer App</div>
+        <div style={{ fontFamily: ft, fontSize: 11, color: B.tx, lineHeight: 1.8, marginBottom: 12 }}>
+          Go to Buffer's developer portal and create a new app:{"\n"}
+          - Name: <span style={{ color: B.accent }}>POAST</span>{"\n"}
+          - Description: anything{"\n"}
+          - Website: your Vercel URL{"\n"}
+          - Redirect URI: <span style={{ fontFamily: mn, color: B.accent }}>https://your-app.vercel.app/api/buffer/callback</span>
+        </div>
+        <a href="https://buffer.com/developers/apps/create" target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", fontFamily: ft, fontSize: 11, fontWeight: 700, color: B.accent, textDecoration: "none", padding: "6px 14px", border: "1px solid " + B.accent + "40", borderRadius: 5 }}>Open Buffer Developer Portal</a>
       </div>
-      <a href="https://buffer.com/developers/apps/create" target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 14, fontFamily: ft, fontSize: 12, fontWeight: 700, color: B.accent, textDecoration: "none", padding: "8px 16px", border: "1px solid " + B.accent + "40", borderRadius: 6 }}>Go to Buffer Developer Portal</a>
+
+      <div style={{ textAlign: "left", padding: "18px 20px", background: B.surface, borderRadius: 10, border: "1px solid " + B.border, marginBottom: 16 }}>
+        <div style={{ fontFamily: mn, fontSize: 9, color: B.accent, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>Step 2: Add Keys to Vercel</div>
+        <div style={{ fontFamily: ft, fontSize: 11, color: B.tx, lineHeight: 1.8 }}>
+          After creating the app, Buffer gives you a Client ID and Client Secret. Add these to Vercel env vars:{"\n"}
+          - <span style={{ fontFamily: mn, color: B.accent }}>BUFFER_CLIENT_ID</span>{"\n"}
+          - <span style={{ fontFamily: mn, color: B.accent }}>BUFFER_CLIENT_SECRET</span>{"\n"}
+          - <span style={{ fontFamily: mn, color: B.accent }}>BUFFER_REDIRECT_URI</span> = your callback URL above{"\n"}
+          Then redeploy.
+        </div>
+      </div>
+
+      <div style={{ textAlign: "left", padding: "18px 20px", background: B.surface, borderRadius: 10, border: "1px solid " + B.border }}>
+        <div style={{ fontFamily: mn, fontSize: 9, color: B.accent, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>Step 3: Authorize</div>
+        <div style={{ fontFamily: ft, fontSize: 11, color: B.tx, lineHeight: 1.8, marginBottom: 10 }}>
+          Once the env vars are set, click the button below to authorize POAST with your Buffer account. This only needs to happen once.
+        </div>
+        <span onClick={function() { window.location.href = "/api/buffer/auth"; }} style={{ display: "inline-block", fontFamily: ft, fontSize: 12, fontWeight: 700, color: "#fff", background: B.accent, textDecoration: "none", padding: "8px 20px", borderRadius: 6, cursor: "pointer" }}>Connect to Buffer</span>
+      </div>
+
+      <div style={{ fontFamily: mn, fontSize: 9, color: B.txd, marginTop: 16 }}>For now, you can use Buffer directly at publish.buffer.com</div>
+      <a href="https://publish.buffer.com" target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 6, fontFamily: mn, fontSize: 10, color: B.accent, textDecoration: "none" }}>Open Buffer</a>
     </div>
     : <div>
       {tab === "calendar" && <CalendarView profiles={data.profiles} />}
