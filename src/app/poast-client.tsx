@@ -1038,120 +1038,124 @@ function Confetti() {
   </div>;
 }
 
-// ═══ SPLASH ═══
-var splashCSS = [
-  "@keyframes splash-glow{0%{text-shadow:0 0 20px rgba(247,176,65,0),0 0 40px rgba(247,176,65,0);opacity:0;transform:scale(0.7) translateY(10px)}30%{opacity:1;transform:scale(1.04) translateY(-2px)}60%{text-shadow:0 0 60px rgba(247,176,65,0.5),0 0 120px rgba(247,176,65,0.25),0 0 200px rgba(247,176,65,0.1);transform:scale(1.01) translateY(0)}100%{text-shadow:0 0 30px rgba(247,176,65,0.3),0 0 60px rgba(247,176,65,0.1);opacity:1;transform:scale(1) translateY(0)}}",
-  "@keyframes splash-sub{0%{opacity:0;transform:translateY(12px);filter:blur(6px);letter-spacing:8px}100%{opacity:1;transform:translateY(0);filter:blur(0);letter-spacing:4px}}",
-  "@keyframes splash-line{0%{transform:scaleX(0);opacity:0}50%{opacity:1}100%{transform:scaleX(1);opacity:1}}",
-  "@keyframes splash-pulse{0%,100%{opacity:0.15;transform:scale(1)}50%{opacity:0.5;transform:scale(1.02)}}",
-  "@keyframes splash-out{0%{opacity:1;transform:scale(1);filter:blur(0)}100%{opacity:0;transform:scale(1.08);filter:blur(4px)}}",
-  "@keyframes splash-particles{0%{opacity:0;transform:translateY(0) scale(0)}20%{opacity:0.8;transform:translateY(-15px) scale(1)}100%{opacity:0;transform:translateY(-80px) scale(0.2)}}",
-  "@keyframes splash-streak{0%{transform:translateX(-100%) scaleY(0.5);opacity:0}20%{opacity:0.6;scaleY:1}80%{opacity:0.3}100%{transform:translateX(100vw) scaleY(0.5);opacity:0}}",
-  "@keyframes splash-breathe{0%,100%{opacity:0.03;transform:scale(1)}50%{opacity:0.08;transform:scale(1.1)}}",
-  "@keyframes splash-enter-hint{0%,70%{opacity:0;transform:translateY(6px)}100%{opacity:0.5;transform:translateY(0)}}",
-  ".splash-container{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;overflow:hidden;cursor:pointer}",
-  ".splash-bg{position:absolute;inset:0;background:radial-gradient(ellipse at center,#10101E 0%,#0B0B12 50%,#080810 100%)}",
-  ".splash-aura{position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(247,176,65,0.06) 0%,rgba(247,176,65,0.02) 40%,transparent 70%);animation:splash-breathe 3s ease-in-out infinite}",
-  ".splash-aura2{position:absolute;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(11,134,209,0.04) 0%,transparent 60%);animation:splash-breathe 4s ease-in-out infinite;animation-delay:1s}",
-  ".splash-ring{position:absolute;border-radius:50%;border:1px solid rgba(247,176,65,0.06);animation:splash-pulse 2.5s ease-in-out infinite}",
-  ".splash-ring:nth-child(4){width:250px;height:250px}",
-  ".splash-ring:nth-child(5){width:400px;height:400px;animation-delay:0.3s;border-color:rgba(247,176,65,0.04)}",
-  ".splash-ring:nth-child(6){width:600px;height:600px;animation-delay:0.6s;border-color:rgba(247,176,65,0.025)}",
-  ".splash-ring:nth-child(7){width:800px;height:800px;animation-delay:0.9s;border-color:rgba(247,176,65,0.015)}",
-  ".splash-streak{position:absolute;height:1px;width:200px;background:linear-gradient(90deg,transparent,rgba(247,176,65,0.3),transparent);top:40%;animation:splash-streak 3s ease-in-out 0.5s}",
-  ".splash-streak2{position:absolute;height:1px;width:150px;background:linear-gradient(90deg,transparent,rgba(11,134,209,0.2),transparent);top:55%;animation:splash-streak 4s ease-in-out 1.2s}",
-  ".splash-title{font-family:'Outfit',sans-serif;font-size:144px;font-weight:900;color:#F7B041;letter-spacing:12px;opacity:0;position:relative;z-index:2}",
-  ".splash-title.active{animation:splash-glow 1.4s cubic-bezier(0.16,1,0.3,1) forwards}",
-  ".splash-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:#6A6674;letter-spacing:8px;text-transform:uppercase;margin-top:16px;opacity:0;position:relative;z-index:2}",
-  ".splash-sub.active{animation:splash-sub 0.8s ease forwards;animation-delay:0.6s}",
-  ".splash-line{width:80px;height:1px;background:linear-gradient(90deg,transparent,#F7B041,transparent);margin-top:24px;transform:scaleX(0);transform-origin:center;position:relative;z-index:2}",
-  ".splash-line.active{animation:splash-line 1s ease forwards;animation-delay:0.3s}",
-  ".splash-dot{position:absolute;width:3px;height:3px;border-radius:50%;background:#F7B041}",
-  ".splash-dot2{position:absolute;width:2px;height:2px;border-radius:50%;background:#0B86D1}",
-  ".splash-hint{font-family:'JetBrains Mono',monospace;font-size:9px;color:#4E4B56;letter-spacing:2px;text-transform:uppercase;margin-top:40px;position:relative;z-index:2;animation:splash-enter-hint 2s ease forwards}",
-  ".splash-exit{animation:splash-out 0.6s cubic-bezier(0.4,0,0.2,1) forwards}",
-].join("");
-
-function Splash({ onDone }) {
-  var _ph = useState(0), phase = _ph[0], setPhase = _ph[1];
-  var dots = useRef([]);
-  var dots2 = useRef([]);
-  var audioRef = useRef(null);
-
-  useEffect(function() {
-    if (dots.current.length === 0) {
-      var d = [];
-      for (var i = 0; i < 20; i++) {
-        d.push({
-          left: 40 + Math.random() * 20 + "%",
-          top: 35 + Math.random() * 30 + "%",
-          delay: 0.4 + Math.random() * 1.5 + "s",
-          dur: 1.5 + Math.random() * 1.5 + "s",
-        });
-      }
-      dots.current = d;
-    }
-    if (dots2.current.length === 0) {
-      var d2 = [];
-      for (var j = 0; j < 10; j++) {
-        d2.push({
-          left: 30 + Math.random() * 40 + "%",
-          top: 30 + Math.random() * 40 + "%",
-          delay: 0.8 + Math.random() * 2 + "s",
-          dur: 2 + Math.random() * 2 + "s",
-        });
-      }
-      dots2.current = d2;
-    }
-  }, []);
-
-  var clickedRef = useRef(false);
-  var handleClick = function() {
-    if (phase !== 0 || clickedRef.current) return;
-    clickedRef.current = true;
-    setPhase(1);
-    try {
-      var audio = new Audio("/splash-sound.mp3");
-      audio.volume = 0.7;
-      audioRef.current = audio;
-      audio.play().catch(function() {});
-    } catch (e) {}
-    setTimeout(function() { setPhase(2); }, 3200);
-    setTimeout(function() {
-      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-      onDone();
-    }, 3800);
-  };
-
-  return (
-    <div className={"splash-container" + (phase === 2 ? " splash-exit" : "")} onClick={handleClick}>
-      <style dangerouslySetInnerHTML={{ __html: splashCSS }} />
-      <div className="splash-bg" />
-      <div className="splash-aura" />
-      <div className="splash-aura2" />
-      <div className="splash-ring" />
-      <div className="splash-ring" />
-      <div className="splash-ring" />
-      <div className="splash-ring" />
-      <div className="splash-streak" />
-      <div className="splash-streak2" />
-      {dots.current.map(function(d, i) {
-        return <div key={"a" + i} className="splash-dot" style={{ left: d.left, top: d.top, opacity: 0, animation: phase >= 1 ? "splash-particles " + d.dur + " ease-out " + d.delay + " infinite" : "none" }} />;
+// ═══ INTRO: USER SELECT → BOOT → GLITCH → SPLASH ═══
+function UserSelect({ onSelect }) {
+  var _h = useState(null), h = _h[0], sh = _h[1];
+  return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes ufi{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}" }} />
+    <div style={{ position: "absolute", width: "50vw", height: "50vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(247,176,65,0.03), transparent 60%)" }} />
+    <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.amber, letterSpacing: 4, marginBottom: 6, animation: "ufi 0.4s ease forwards", opacity: 0 }}>POAST</div>
+    <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.2)", letterSpacing: 2, marginBottom: 40, animation: "ufi 0.4s ease 0.1s forwards", opacity: 0 }}>SELECT USER</div>
+    <div style={{ display: "flex", gap: 20 }}>
+      {["Akash", "Vansh"].map(function(name, i) {
+        var on = h === i;
+        return <div key={name} onClick={function() { onSelect(name); }} onMouseEnter={function() { sh(i); }} onMouseLeave={function() { sh(null); }} style={{ width: 160, padding: "28px 20px", borderRadius: 12, cursor: "pointer", background: on ? "#111118" : "#0A0A14", border: on ? "1px solid " + C.amber + "60" : "1px solid rgba(255,255,255,0.06)", textAlign: "center", transition: "all 0.15s", boxShadow: on ? "0 0 20px " + C.amber + "15" : "none", animation: "ufi 0.4s ease " + (0.2 + i * 0.1) + "s forwards", opacity: 0 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: on ? C.amber + "20" : "#111118", border: "1px solid " + (on ? C.amber + "40" : "rgba(255,255,255,0.06)"), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontFamily: ft, fontSize: 20, fontWeight: 900, color: on ? C.amber : "rgba(255,255,255,0.25)" }}>{name[0]}</div>
+          <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: on ? C.amber : "#E8E4DD" }}>{name}</div>
+          <div style={{ fontFamily: ft, fontSize: 9, color: "rgba(255,255,255,0.2)", marginTop: 4 }}>{name === "Akash" ? "Producer" : "Analyst"}</div>
+        </div>;
       })}
-      {dots2.current.map(function(d, i) {
-        return <div key={"b" + i} className="splash-dot2" style={{ left: d.left, top: d.top, opacity: 0, animation: phase >= 1 ? "splash-particles " + d.dur + " ease-out " + d.delay + " infinite" : "none" }} />;
-      })}
-      <div className={"splash-title" + (phase >= 1 ? " active" : "")}>POAST</div>
-      <div className={"splash-line" + (phase >= 1 ? " active" : "")} />
-      <div className={"splash-sub" + (phase >= 1 ? " active" : "")}>Content Command Center</div>
-      {phase === 0 && <div className="splash-hint">Click anywhere to enter</div>}
     </div>
-  );
+  </div>;
+}
+
+function TerminalBoot({ user, onDone }) {
+  var _lines = useState([]), lines = _lines[0], setLines = _lines[1];
+  var bootLines = [
+    { t: "POAST OS v0.8 // SemiAnalysis", c: "rgba(255,255,255,0.2)" },
+    { t: "Auth: " + user, c: "rgba(255,255,255,0.2)" }, { t: "  [OK] identity", c: "#2EAD8E" },
+    { t: "Loading modules...", c: "rgba(255,255,255,0.2)" },
+    { t: "  [OK] content-engine", c: "#2EAD8E" }, { t: "  [OK] claude-sonnet-4.brain", c: "#2EAD8E" },
+    { t: "  [OK] grok-imagine.gpu", c: "#2EAD8E" }, { t: "  [OK] elevenlabs-voice", c: "#2EAD8E" },
+    user === "Vansh" ? { t: "  [ALERT] vansh-just-farted.exe", c: "#E06347" } : { t: "  [WARN] max-charisma-detected", c: C.amber },
+    { t: "  [FAIL] sleep-schedule: not found", c: "#E06347" },
+    { t: "  [OK] vibes.essential", c: "#2EAD8E" },
+    { t: "", c: "rgba(255,255,255,0.2)" }, { t: "Systems nominal. Welcome, " + user + ".", c: C.amber },
+  ];
+  useEffect(function() {
+    var d = 0;
+    bootLines.forEach(function(l) { d += 50; setTimeout(function() { setLines(function(p) { return p.concat([l]); }); }, d); });
+    setTimeout(onDone, d + 400);
+  }, []);
+  return <div style={{ position: "fixed", inset: 0, background: "#06060C", zIndex: 9999, padding: "30px 40px", fontFamily: mn, fontSize: 12, lineHeight: 1.9 }}>
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes cb{0%,100%{opacity:1}50%{opacity:0}}" }} />
+    {lines.map(function(l, i) { return <div key={i} style={{ color: l.c }}>{l.t || "\u00A0"}</div>; })}
+    <span style={{ display: "inline-block", width: 7, height: 14, background: C.amber, animation: "cb 0.8s step-end infinite" }} />
+  </div>;
+}
+
+function GlitchTransition({ onDone }) {
+  useEffect(function() { setTimeout(onDone, 350); }, []);
+  return <div style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}>
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes gShake{0%{transform:translate(0)}25%{transform:translate(-3px,2px)}50%{transform:translate(3px,-2px)}75%{transform:translate(-2px,3px)}100%{transform:translate(0)}}@keyframes gFade{to{opacity:0}}" }} />
+    <div style={{ position: "absolute", inset: 0, background: "white", opacity: 0.06, animation: "gFade 0.2s ease forwards" }} />
+    <div style={{ position: "absolute", inset: 0, animation: "gShake 0.25s linear" }}>
+      {[20, 45, 70, 85].map(function(t, i) { return <div key={i} style={{ position: "absolute", left: 0, right: 0, top: t + "%", height: 2 + Math.random() * 3, background: i % 2 === 0 ? "#ff000030" : "#00ff0030" }} />; })}
+    </div>
+  </div>;
+}
+
+function SplashScreen({ onNavigate }) {
+  var _h = useState(null), h = _h[0], sh = _h[1];
+  var sections = {
+    PRODUCE: [{ l: "SA Weekly", ic: "\uD83C\uDF99", id: "weekly" }, { l: "Press to Premier", ic: "\uD83C\uDFAC", id: "p2p" }, { l: "Capper", ic: "\uD83C\uDFAC", id: "captions" }],
+    PREPARE: [{ l: "News Flow", ic: "\uD83D\uDCE1", id: "news" }, { l: "GTC Flow", ic: "\uD83D\uDCCA", id: "gtc" }],
+    PREMIER: [{ l: "Schedule", ic: "\uD83D\uDCC6", id: "schedule" }],
+  };
+  var words = ["PRODUCE", "PREPARE", "PREMIER"];
+  var colors = [C.amber, C.blue, C.teal];
+  var glows = ["rgba(247,176,65,", "rgba(11,134,209,", "rgba(46,173,142,"];
+
+  return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "0 8vw" }}>
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes bIn{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}@keyframes bLine{0%{transform:scaleX(0)}100%{transform:scaleX(1)}}@keyframes itemReveal{0%{opacity:0;transform:translateY(-8px) scale(0.95)}100%{opacity:1;transform:translateY(0) scale(1)}}" }} />
+    <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.amber, letterSpacing: 5, marginBottom: 50, animation: "bIn 0.5s ease forwards", opacity: 0 }}>POAST</div>
+    <div style={{ width: "100%", textAlign: "center" }}>
+      {words.map(function(w, i) {
+        var isH = h === i; var items = sections[w];
+        return <div key={i} onMouseEnter={function() { sh(i); }} onMouseLeave={function() { sh(null); }} style={{ animation: "bIn 0.6s ease " + (0.1 + i * 0.15) + "s forwards", opacity: 0, marginBottom: isH ? 8 : 0, transition: "margin 0.25s ease" }}>
+          <div style={{ fontFamily: ft, fontSize: "min(12vw, 140px)", fontWeight: 900, color: isH ? colors[i] : "#E8E4DD", letterSpacing: "-0.03em", lineHeight: 0.95, position: "relative", display: "inline-block", cursor: "pointer", transition: "color 0.2s" }}>
+            {w}
+            <span style={{ position: "absolute", left: -20, top: "50%", transform: "translateY(-50%)", width: 4, height: isH ? "80%" : "60%", background: colors[i], borderRadius: 2, transition: "all 0.2s", boxShadow: isH ? "0 0 12px " + colors[i] + "40" : "none" }} />
+          </div>
+          <div style={{ overflow: "hidden", maxHeight: isH ? 60 : 0, opacity: isH ? 1 : 0, transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)", marginTop: isH ? 6 : 0 }}>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", padding: "4px 0" }}>
+              {items.map(function(item, ii) {
+                return <div key={ii} onClick={function() { onNavigate(item.id); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 6, background: "#0A0A14", border: "1px solid " + colors[i] + "25", cursor: "pointer", transition: "all 0.15s", animation: "itemReveal 0.25s ease " + (ii * 0.06) + "s forwards", opacity: 0 }} onMouseEnter={function(e) { e.currentTarget.style.background = "#111120"; e.currentTarget.style.borderColor = colors[i] + "50"; e.currentTarget.style.boxShadow = "0 0 12px " + colors[i] + "15"; }} onMouseLeave={function(e) { e.currentTarget.style.background = "#0A0A14"; e.currentTarget.style.borderColor = colors[i] + "25"; e.currentTarget.style.boxShadow = "none"; }}>
+                  <span style={{ fontSize: 13 }}>{item.ic}</span>
+                  <span style={{ fontFamily: ft, fontSize: 12, color: "#E8E4DD", fontWeight: 500 }}>{item.l}</span>
+                  <span style={{ fontFamily: ft, fontSize: 8, color: colors[i], marginLeft: 2 }}>&rarr;</span>
+                </div>;
+              })}
+            </div>
+          </div>
+        </div>;
+      })}
+    </div>
+    <div style={{ width: 60, height: 1, background: "linear-gradient(90deg, transparent, " + C.amber + ", transparent)", margin: "40px auto", animation: "bLine 0.6s ease 0.7s forwards", transform: "scaleX(0)", transformOrigin: "center" }} />
+    <div style={{ fontFamily: ft, fontSize: 12, color: "rgba(255,255,255,0.2)", letterSpacing: 3, animation: "bIn 0.4s ease 0.9s forwards", opacity: 0 }}>SEMIANALYSIS // CONTENT COMMAND CENTER</div>
+  </div>;
+}
+
+function Intro({ onDone }) {
+  var _phase = useState("select"), phase = _phase[0], setPhase = _phase[1];
+  var _user = useState(null), user = _user[0], setUser = _user[1];
+  var _glitch = useState(false), glitch = _glitch[0], setGlitch = _glitch[1];
+
+  var handleUserSelect = function(name) { setUser(name); setPhase("boot"); try { var audio = new Audio("/splash-sound.mp3"); audio.volume = 0.7; audio.play().catch(function() {}); } catch (e) {} };
+  var handleBootDone = function() { setGlitch(true); setTimeout(function() { setGlitch(false); setPhase("splash"); }, 350); };
+  var handleNavigate = function(id) { onDone(id); };
+
+  return <div>
+    {phase === "select" && <UserSelect onSelect={handleUserSelect} />}
+    {phase === "boot" && <TerminalBoot user={user} onDone={handleBootDone} />}
+    {glitch && <GlitchTransition onDone={function() {}} />}
+    {phase === "splash" && <SplashScreen onNavigate={handleNavigate} />}
+  </div>;
 }
 
 // ═══ APP ═══
 export default function App() {
-  var _sp = useState(true), showSplash = _sp[0], setShowSplash = _sp[1];
+  var _sp = useState(true), showIntro = _sp[0], setShowIntro = _sp[1];
   var _askPoast = useState(false), askPoastOpen = _askPoast[0], setAskPoastOpen = _askPoast[1];
   var _s = useState("weekly"), sec = _s[0], setSec = _s[1];
   // Listen for nav events from other components (e.g. News Flow Draft -> P2P)
@@ -1227,7 +1231,7 @@ export default function App() {
     setLogData(function(prev) { return [entry].concat(prev); });
   };
 
-  if (showSplash) return <><Toast /><Splash onDone={function() { setShowSplash(false); }} /></>;
+  if (showIntro) return <><Toast /><Intro onDone={function(id) { if (id) setSec(id); setShowIntro(false); }} /></>;
 
   return (<div style={{ background: C.bg, minHeight: "100vh", position: "relative" }}>
     <Toast />
