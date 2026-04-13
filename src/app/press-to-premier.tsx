@@ -289,8 +289,8 @@ function Step6({ data, setData, onNext, onBack }) {
           var taskId = clD.task.task_id;
           var videoUrl = null;
           var pollStart = Date.now();
-          while (Date.now() - pollStart < 120000 && !videoUrl) {
-            await new Promise(function(res) { setTimeout(res, 5000); });
+          while (Date.now() - pollStart < 300000 && !videoUrl) {
+            await new Promise(function(res) { setTimeout(res, 8000); });
             try {
               var stR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", taskId: taskId, engine: "grok" }) });
               var stD = await stR.json();
@@ -308,8 +308,8 @@ function Step6({ data, setData, onNext, onBack }) {
             clips.push({ taskId: taskId, videoUrl: videoUrl, shot: i + 1 });
             addLog("Shot " + (i + 1) + " complete! Video ready.", "success");
           } else {
-            clips.push({ taskId: taskId, shot: i + 1, pending: true });
-            addLog("Shot " + (i + 1) + " timed out after 2min. May still be rendering.", "warn");
+            clips.push({ taskId: taskId, shot: i + 1, pending: true, provider: "grok" });
+            addLog("Shot " + (i + 1) + " timed out after 5min. Can retry in Review.", "warn");
           }
         } else {
           addLog("Shot " + (i + 1) + " error: " + (clD.error || "Unknown"), "error");
@@ -409,6 +409,65 @@ function Step6({ data, setData, onNext, onBack }) {
   </div>;
 }
 
+// ═══ CLIP GRID WITH RETRY ═══
+function ClipGrid({ clips, script, onUpdate }) {
+  var _checking = useState({}), checking = _checking[0], setChecking = _checking[1];
+
+  var checkClip = async function(idx) {
+    var clip = clips[idx];
+    if (!clip.taskId) return;
+    setChecking(function(p) { var n = Object.assign({}, p); n[idx] = true; return n; });
+    try {
+      var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", taskId: clip.taskId, engine: clip.provider || "grok" }) });
+      var d = await r.json();
+      if (d.task && d.task.task_status === "succeed" && d.task.task_result && d.task.task_result.videos) {
+        var updated = clips.slice();
+        updated[idx] = Object.assign({}, clip, { videoUrl: d.task.task_result.videos[0].url, pending: false });
+        onUpdate(updated);
+        toast("Shot " + clip.shot + " ready!", "success");
+      } else if (d.task && d.task.task_status === "failed") {
+        toast("Shot " + clip.shot + " failed to render", "error");
+      } else {
+        toast("Shot " + clip.shot + " still rendering...", "info");
+      }
+    } catch (e) { toast("Check failed: " + String(e).slice(0, 50), "error"); }
+    setChecking(function(p) { var n = Object.assign({}, p); n[idx] = false; return n; });
+  };
+
+  var checkAll = async function() {
+    for (var i = 0; i < clips.length; i++) {
+      if (clips[i].pending || (clips[i].taskId && !clips[i].videoUrl)) await checkClip(i);
+    }
+  };
+
+  var pendingCount = clips.filter(function(c) { return c.pending || (c.taskId && !c.videoUrl && !c.error); }).length;
+
+  return <div>
+    {pendingCount > 0 && <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+      <span style={{ fontFamily: ft, fontSize: 12, fontWeight: 500, color: D.amber }}>{pendingCount} clip{pendingCount > 1 ? "s" : ""} still rendering</span>
+      <button onClick={checkAll} style={{ padding: "8px 16px", background: "transparent", border: "1px solid " + D.amber + "30", color: D.amber, borderRadius: 8, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Check All</button>
+    </div>}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+      {clips.map(function(clip, i) {
+        var isChecking = checking[i];
+        return <div key={i} style={{ background: D.bg, border: "1px solid " + D.border, borderRadius: 8, padding: 12, transition: "all 0.2s" }}>
+          <div style={{ aspectRatio: "16/9", background: D.elevated, borderRadius: 6, marginBottom: 8, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {clip.videoUrl ? <video controls src={clip.videoUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            : <span style={{ fontFamily: ft, fontSize: 11, fontWeight: 500, color: clip.pending ? D.amber : clip.error ? D.coral : D.teal }}>{clip.pending ? "Rendering..." : clip.error ? "Failed" : "Submitted"}</span>}
+          </div>
+          <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 600, color: D.tx }}>Shot {clip.shot}</div>
+          {clip.taskId && <div style={{ fontFamily: mn, fontSize: 9, color: D.txh, marginTop: 2 }}>ID: {clip.taskId.slice(0, 16)}...</div>}
+          {clip.error && <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 500, color: D.coral, marginTop: 2 }}>{String(clip.error).slice(0, 40)}</div>}
+          {script && script.broll && script.broll[i] && <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 500, color: D.txl, marginTop: 4 }}>{script.broll[i].description}</div>}
+          {/* Retry/Check button for pending or submitted clips */}
+          {(clip.pending || (clip.taskId && !clip.videoUrl)) && <button onClick={function() { checkClip(i); }} disabled={isChecking} style={{ marginTop: 8, width: "100%", padding: "6px", background: "transparent", border: "1px solid " + D.amber + "30", color: D.amber, borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: isChecking ? "wait" : "pointer", opacity: isChecking ? 0.5 : 1 }}>{isChecking ? "Checking..." : "Check Status"}</button>}
+          {clip.videoUrl && <a href={clip.videoUrl} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginTop: 8, textAlign: "center", padding: "6px", background: "transparent", border: "1px solid " + D.teal + "30", color: D.teal, borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, textDecoration: "none" }}>Download</a>}
+        </div>;
+      })}
+    </div>
+  </div>;
+}
+
 // ═══ STEP 7: REVIEW ═══
 function Step7({ data, onPremier, onDraft }) {
   var aspect = data.aspect || "16:9";
@@ -431,20 +490,7 @@ function Step7({ data, onPremier, onDraft }) {
     {/* B-Roll Clips */}
     <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 16 }}>
       <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.blue, letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>B-Roll Clips</div>
-      {assets.clips && assets.clips.length > 0 ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
-        {assets.clips.map(function(clip, i) {
-          return <div key={i} style={{ background: D.bg, border: "1px solid " + D.border, borderRadius: 8, padding: 12 }}>
-            <div style={{ aspectRatio: "16/9", background: D.elevated, borderRadius: 6, marginBottom: 8, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {clip.videoUrl ? <video controls src={clip.videoUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              : <span style={{ fontFamily: ft, fontSize: 11, fontWeight: 500, color: clip.pending ? D.amber : clip.taskId ? D.teal : D.coral }}>{clip.pending ? "Rendering..." : clip.taskId ? "Submitted" : "Failed"}</span>}
-            </div>
-            <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 600, color: D.tx }}>Shot {clip.shot}</div>
-            {clip.taskId && <div style={{ fontFamily: mn, fontSize: 9, color: D.txh, marginTop: 2 }}>ID: {clip.taskId.slice(0, 16)}...</div>}
-            {clip.error && <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 500, color: D.coral, marginTop: 2 }}>{String(clip.error).slice(0, 40)}</div>}
-            {script && script.broll && script.broll[i] && <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 500, color: D.txl, marginTop: 4 }}>{script.broll[i].description}</div>}
-          </div>;
-        })}
-      </div> : <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 500, color: D.txl }}>No clips generated.</div>}
+      {assets.clips && assets.clips.length > 0 ? <ClipGrid clips={assets.clips} script={script} onUpdate={function(updated) { setData(function(p) { var a = Object.assign({}, p.assets || {}, { clips: updated }); return Object.assign({}, p, { assets: a }); }); }} /> : <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 500, color: D.txl }}>No clips generated.</div>}
     </div>
 
     {/* Music */}
