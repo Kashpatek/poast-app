@@ -133,7 +133,7 @@ function BufferPanel() {
 
   useEffect(function() {
     fetch("/api/buffer").then(function(r) { return r.json(); }).then(function(d) {
-      if (d.profiles) setData(d);
+      if (d.channels) setData(d);
       setLoading(false);
     }).catch(function() { setLoading(false); });
   }, []);
@@ -142,51 +142,43 @@ function BufferPanel() {
   var platformIcon = { twitter: "\uD83D\uDC26", facebook: "\uD83D\uDCD8", linkedin: "\uD83D\uDCBC", instagram: "\uD83D\uDCF7" };
 
   if (loading) return <div style={{ padding: "8px 12px" }}><div style={{ fontFamily: mn, fontSize: 8, color: C.txd }}>Loading Buffer...</div></div>;
-  if (!data || !data.profiles) return null;
+  if (!data || !data.channels) return null;
 
-  var allPending = [];
-  (data.profiles || []).forEach(function(p) {
-    (p.pending || []).forEach(function(u) {
-      allPending.push(Object.assign({}, u, { service: p.service, username: p.username }));
-    });
-  });
-  allPending.sort(function(a, b) { return (a.due_at || 0) - (b.due_at || 0); });
+  var scheduled = data.scheduled || [];
+  var channels = data.channels || [];
 
   return (<div style={{ borderTop: "1px solid " + C.border, padding: "10px 12px" }}>
     <div onClick={function() { setExpanded(!expanded); }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", marginBottom: expanded ? 8 : 0 }}>
       <div style={{ fontFamily: mn, fontSize: 8, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px" }}>Buffer</div>
-      <span style={{ fontFamily: mn, fontSize: 8, color: C.txd }}>{expanded ? "\u25B2" : "\u25BC"}</span>
+      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+        <span style={{ fontFamily: mn, fontSize: 8, color: C.teal }}>{scheduled.length} queued</span>
+        <span style={{ fontFamily: mn, fontSize: 8, color: C.txd }}>{expanded ? "\u25B2" : "\u25BC"}</span>
+      </div>
     </div>
     {expanded && <div>
-      {/* Stats */}
-      {(data.profiles || []).map(function(p, i) {
-        var pc = platformColor[p.service] || C.txm;
-        var a = p.analytics || {};
-        return <div key={i} style={{ marginBottom: 6, padding: "6px 8px", background: C.surface, borderRadius: 4, border: "1px solid " + C.border }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
-            <span style={{ fontSize: 9 }}>{platformIcon[p.service] || "\uD83D\uDCE2"}</span>
-            <span style={{ fontFamily: mn, fontSize: 8, fontWeight: 700, color: pc }}>{p.username}</span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, fontFamily: mn, fontSize: 7 }}>
-            <div><span style={{ color: C.txd }}>Posts </span><span style={{ color: C.tx }}>{a.posts || 0}</span></div>
-            <div><span style={{ color: C.txd }}>Clicks </span><span style={{ color: C.tx }}>{a.clicks || 0}</span></div>
-            <div><span style={{ color: C.txd }}>Reach </span><span style={{ color: C.tx }}>{a.reach || 0}</span></div>
-            <div><span style={{ color: C.txd }}>Likes </span><span style={{ color: C.tx }}>{a.likes || 0}</span></div>
-          </div>
+      {/* Channels */}
+      {channels.map(function(ch, i) {
+        var pc = platformColor[ch.service] || C.txm;
+        return <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 0" }}>
+          <span style={{ width: 5, height: 5, borderRadius: "50%", background: ch.isDisconnected ? C.coral : C.teal }} />
+          <span style={{ fontSize: 9 }}>{platformIcon[ch.service] || "\uD83D\uDCE2"}</span>
+          <span style={{ fontFamily: mn, fontSize: 7, color: pc }}>{ch.name}</span>
         </div>;
       })}
       {/* Upcoming */}
-      {allPending.length > 0 && <div style={{ marginTop: 6 }}>
+      {scheduled.length > 0 && <div style={{ marginTop: 6 }}>
         <div style={{ fontFamily: mn, fontSize: 7, color: C.teal, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Upcoming</div>
-        {allPending.slice(0, 8).map(function(u, i) {
-          var pc = platformColor[u.service] || C.txm;
-          return <div key={i} style={{ padding: "4px 0", borderBottom: "1px solid " + C.border }}>
+        {scheduled.slice(0, 6).map(function(p, i) {
+          var svc = p.channel ? p.channel.service : "";
+          var pc = platformColor[svc] || C.txm;
+          var time = p.dueAt ? new Date(p.dueAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
+          return <div key={i} style={{ padding: "3px 0", borderBottom: "1px solid " + C.border }}>
             <div style={{ display: "flex", alignItems: "center", gap: 3, marginBottom: 1 }}>
               <span style={{ width: 5, height: 5, borderRadius: "50%", background: pc }} />
-              <span style={{ fontFamily: mn, fontSize: 7, color: pc }}>{u.service}</span>
-              <span style={{ fontFamily: mn, fontSize: 7, color: C.txd }}>{u.day} {u.time}</span>
+              <span style={{ fontFamily: mn, fontSize: 7, color: pc }}>{svc}</span>
+              <span style={{ fontFamily: mn, fontSize: 7, color: C.txd }}>{time}</span>
             </div>
-            <div style={{ fontFamily: ft, fontSize: 9, color: C.tx, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.text}</div>
+            <div style={{ fontFamily: ft, fontSize: 8, color: C.tx, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(p.text || "").slice(0, 40)}</div>
           </div>;
         })}
       </div>}
@@ -305,13 +297,13 @@ function Sidebar({ active, onNav, onAskPoast }) {
 
     {/* Ask Poast button */}
     <div style={{ padding: "12px 8px 0" }}>
-      <div onClick={onAskPoast} style={{ padding: "14px 12px", borderRadius: 8, cursor: "pointer", background: "linear-gradient(135deg, " + C.amber + "15, " + C.amber + "08)", border: "1px solid " + C.amber + "30", display: "flex", alignItems: "center", gap: 10, marginBottom: 8, transition: "all 0.15s ease" }} onMouseEnter={function(e) { e.currentTarget.style.boxShadow = "0 0 16px " + C.amber + "20"; e.currentTarget.style.borderColor = C.amber + "60"; }} onMouseLeave={function(e) { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = C.amber + "30"; }}>
+      <div className="ask-pulse" onClick={onAskPoast} style={{ padding: "14px 12px", borderRadius: 8, cursor: "pointer", background: "linear-gradient(135deg, " + C.amber + "15, " + C.amber + "08)", border: "1px solid " + C.amber + "30", display: "flex", alignItems: "center", gap: 10, marginBottom: 8, transition: "all 0.15s ease" }} onMouseEnter={function(e) { e.currentTarget.style.boxShadow = "0 0 16px " + C.amber + "20"; e.currentTarget.style.borderColor = C.amber + "60"; }} onMouseLeave={function(e) { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = C.amber + "30"; }}>
         <div style={{ width: 32, height: 32, borderRadius: 8, background: C.amber + "20", border: "1px solid " + C.amber + "40", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 16, fontWeight: 900, color: C.amber }}>P</div>
         <div><div style={{ fontFamily: ft, fontSize: 12, fontWeight: 700, color: C.amber }}>Ask Poast</div><div style={{ fontFamily: mn, fontSize: 8, color: C.txd }}>AI Assistant</div></div>
       </div>
     </div>
 
-    <div style={{ padding: "4px 8px", flex: 1, overflow: "auto" }}>{nav.map(function(n) { var s = active === n.id; return (<div key={n.id} onClick={function() { if (n.on) onNav(n.id); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px", borderRadius: 6, marginBottom: 2, cursor: n.on ? "pointer" : "not-allowed", background: s ? C.surface : "transparent", borderLeft: s ? "3px solid " + C.amber : "3px solid transparent", opacity: n.on ? 1 : 0.28 }}><span style={{ fontSize: 14 }}>{n.ic}</span><span style={{ fontFamily: ft, fontSize: 12, fontWeight: s ? 700 : 500, color: s ? C.amber : C.txm }}>{n.l}</span>{!n.on && <span style={{ fontFamily: mn, fontSize: 8, color: C.txd, marginLeft: "auto" }}>soon</span>}</div>); })}</div>
+    <div style={{ padding: "4px 8px", flex: 1, overflow: "auto" }}>{nav.map(function(n) { var s = active === n.id; return (<div key={n.id} onClick={function() { if (n.on) onNav(n.id); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px", borderRadius: 6, marginBottom: 3, cursor: n.on ? "pointer" : "not-allowed", background: s ? C.surface : "transparent", borderLeft: s ? "3px solid " + C.amber : "3px solid transparent", opacity: n.on ? 1 : 0.28, boxShadow: s ? "inset 0 0 12px " + C.amber + "08" : "none", transition: "all 0.15s ease" }}><span style={{ fontSize: 14 }}>{n.ic}</span><span style={{ fontFamily: ft, fontSize: 12, fontWeight: s ? 700 : 500, color: s ? C.amber : C.txm }}>{n.l}</span>{!n.on && <span style={{ fontFamily: mn, fontSize: 8, color: C.txd, marginLeft: "auto" }}>soon</span>}</div>); })}</div>
     <div style={{ padding: "12px 16px", borderTop: "1px solid " + C.border, fontFamily: mn, fontSize: 8, color: C.txd }}>v0.7 // SemiAnalysis</div>
   </div>);
 }
@@ -1178,27 +1170,85 @@ export default function App() {
 
   return (<div style={{ background: C.bg, minHeight: "100vh", position: "relative" }}>
     <Toast />
-    {/* Background brand glows */}
-    <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0 }}>
-      <div style={{ position: "absolute", top: "-10%", right: "-5%", width: "50vw", height: "50vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(247,176,65,0.04) 0%, transparent 60%)" }} />
-      <div style={{ position: "absolute", bottom: "-15%", left: "10%", width: "60vw", height: "60vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(11,134,209,0.04) 0%, transparent 60%)" }} />
-      <div style={{ position: "absolute", top: "40%", left: "-10%", width: "40vw", height: "40vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(144,92,203,0.03) 0%, transparent 60%)" }} />
-      <div style={{ position: "absolute", bottom: "10%", right: "5%", width: "35vw", height: "35vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(46,173,142,0.03) 0%, transparent 60%)" }} />
+    {/* Background ambient glow orbs */}
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes drift1{0%{transform:translate(0,0)}50%{transform:translate(30px,-20px)}100%{transform:translate(0,0)}}@keyframes drift2{0%{transform:translate(0,0)}50%{transform:translate(-25px,15px)}100%{transform:translate(0,0)}}@keyframes drift3{0%{transform:translate(0,0)}50%{transform:translate(20px,25px)}100%{transform:translate(0,0)}}" }} />
+    <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, overflow: "hidden" }}>
+      <div style={{ position: "absolute", top: "-10%", right: "-5%", width: "50vw", height: "50vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(247,176,65,0.04) 0%, transparent 60%)", animation: "drift1 20s ease-in-out infinite" }} />
+      <div style={{ position: "absolute", bottom: "-15%", left: "10%", width: "60vw", height: "60vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(11,134,209,0.04) 0%, transparent 60%)", animation: "drift2 25s ease-in-out infinite" }} />
+      <div style={{ position: "absolute", top: "40%", left: "-10%", width: "40vw", height: "40vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(144,92,203,0.03) 0%, transparent 60%)", animation: "drift3 30s ease-in-out infinite" }} />
+      <div style={{ position: "absolute", bottom: "10%", right: "5%", width: "35vw", height: "35vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(46,173,142,0.03) 0%, transparent 60%)", animation: "drift1 22s ease-in-out infinite reverse" }} />
     </div>
-    <style dangerouslySetInnerHTML={{ __html: "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{background:" + C.bg + "}::selection{background:" + C.amber + "33;color:" + C.amber + "}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:" + C.bg + "}::-webkit-scrollbar-thumb{background:" + C.border + ";border-radius:3px}@keyframes fadeInUp{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}.poast-card{position:relative;transition:box-shadow 0.35s ease, border-color 0.35s ease}.poast-card:hover{box-shadow:0 0 20px rgba(247,176,65,0.12), 0 0 40px rgba(247,176,65,0.05);border-color:#2A2A3C}.poast-fadein{animation:fadeInUp 0.4s ease forwards}@keyframes progressSlide{0%{left:-40%}100%{left:100%}}.progress-slide{animation:progressSlide 1.5s ease-in-out infinite}@keyframes dotPulse{0%,80%,100%{opacity:0.2}40%{opacity:1}}.progress-dots::after{content:'...';display:inline-block;animation:dotPulse 1.4s ease-in-out infinite}" }} />
+    <style dangerouslySetInnerHTML={{ __html: "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');" +
+      "*{box-sizing:border-box;margin:0;padding:0}" +
+      "body{background:" + C.bg + "}" +
+      "::selection{background:" + C.amber + "33;color:" + C.amber + "}" +
+      /* Scrollbar */
+      "::-webkit-scrollbar{width:6px}" +
+      "::-webkit-scrollbar-track{background:transparent}" +
+      "::-webkit-scrollbar-thumb{background:" + C.border + ";border-radius:3px;transition:background 0.2s}" +
+      "::-webkit-scrollbar-thumb:hover{background:" + C.amber + "40}" +
+      /* Focus rings */
+      "input:focus,textarea:focus,select:focus{outline:none;border-color:" + C.amber + "!important;box-shadow:0 0 0 1px " + C.amber + "30!important}" +
+      /* Smooth scroll */
+      "html{scroll-behavior:smooth}" +
+      /* Card hover lift */
+      "@keyframes fadeInUp{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}" +
+      "@keyframes fadeIn{0%{opacity:0}100%{opacity:1}}" +
+      "@keyframes slideUp{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}" +
+      "@keyframes slideIn{0%{opacity:0;transform:translateX(-10px)}100%{opacity:1;transform:translateX(0)}}" +
+      "@keyframes breathe{0%,100%{opacity:0.4}50%{opacity:0.8}}" +
+      "@keyframes countUp{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}" +
+      /* Staggered children */
+      ".stagger>*{opacity:0;animation:slideUp 0.35s ease forwards}" +
+      ".stagger>*:nth-child(1){animation-delay:0s}" +
+      ".stagger>*:nth-child(2){animation-delay:0.05s}" +
+      ".stagger>*:nth-child(3){animation-delay:0.1s}" +
+      ".stagger>*:nth-child(4){animation-delay:0.15s}" +
+      ".stagger>*:nth-child(5){animation-delay:0.2s}" +
+      ".stagger>*:nth-child(6){animation-delay:0.25s}" +
+      ".stagger>*:nth-child(7){animation-delay:0.3s}" +
+      ".stagger>*:nth-child(8){animation-delay:0.35s}" +
+      ".stagger>*:nth-child(9){animation-delay:0.4s}" +
+      ".stagger>*:nth-child(10){animation-delay:0.45s}" +
+      /* Card system */
+      ".poast-card{position:relative;transition:box-shadow 0.25s ease,border-color 0.25s ease,transform 0.2s ease}" +
+      ".poast-card:hover{box-shadow:0 0 20px rgba(247,176,65,0.12),0 0 40px rgba(247,176,65,0.05);border-color:#2A2A3C;transform:translateY(-2px)}" +
+      /* Button system */
+      "button,.poast-btn{transition:all 0.15s ease}" +
+      "button:active,.poast-btn:active{transform:scale(0.97)}" +
+      /* Section transition */
+      ".poast-fadein{animation:fadeInUp 0.4s ease forwards}" +
+      ".poast-section{animation:fadeIn 0.3s ease}" +
+      /* Pulse for Ask Poast */
+      "@keyframes askPulse{0%,100%{box-shadow:0 0 0 0 rgba(247,176,65,0.15)}50%{box-shadow:0 0 12px 4px rgba(247,176,65,0.08)}}" +
+      ".ask-pulse{animation:askPulse 3s ease-in-out infinite}" +
+      /* Skeleton loader */
+      "@keyframes skeleton{0%{background-position:200% 0}100%{background-position:-200% 0}}" +
+      ".skeleton{background:linear-gradient(90deg," + C.card + " 25%," + C.surface + " 50%," + C.card + " 75%);background-size:200% 100%;animation:skeleton 1.5s ease-in-out infinite;border-radius:6px}" +
+      /* Active sidebar glow */
+      "@keyframes sideGlow{0%,100%{opacity:0.5}50%{opacity:1}}" +
+      /* Progress */
+      "@keyframes progressSlide{0%{left:-40%}100%{left:100%}}" +
+      ".progress-slide{animation:progressSlide 1.5s ease-in-out infinite}" +
+      "@keyframes dotPulse{0%,80%,100%{opacity:0.2}40%{opacity:1}}" +
+      ".progress-dots::after{content:'...';display:inline-block;animation:dotPulse 1.4s ease-in-out infinite}" +
+      /* Glow border on hover for interactive elements */
+      ".glow-hover{transition:all 0.15s ease}" +
+      ".glow-hover:hover{box-shadow:0 0 0 1px rgba(247,176,65,0.3)}"
+    }} />
     <Sidebar active={sec} onNav={setSec} onAskPoast={function() { setAskPoastOpen(!askPoastOpen); }} />
     <AskPoast open={askPoastOpen} onToggle={function() { setAskPoastOpen(false); }} />
     <div style={{ marginLeft: 200 }} className="poast-fadein">
       <div style={{ maxWidth: sec === "news" || sec === "schedule" || sec === "p2p" ? "none" : 1200, margin: "0 auto", padding: sec === "news" || sec === "schedule" || sec === "p2p" ? "0 20px" : "0 40px" }}>
-        <div style={{ padding: "16px 0", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bg, position: "sticky", top: 0, zIndex: 50 }}>
-          <div><div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: C.tx }}>SemiAnalysis Weekly</div><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginTop: 1 }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div></div>
+        <div style={{ padding: "20px 0", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", background: C.bg + "E8" }}>
+          <div><div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: C.tx, letterSpacing: -0.5 }}>SemiAnalysis Weekly</div><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginTop: 2 }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div></div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {hasDraft && <span onClick={loadDraft} style={{ fontFamily: mn, fontSize: 9, color: C.amber, cursor: "pointer", padding: "5px 10px", border: "1px solid " + C.amber + "40", borderRadius: 5, background: C.amber + "10" }}>Load from Draft</span>}
             <a href="https://youtube.com/@SemianalysisWeekly" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 9, color: C.txd, textDecoration: "none", padding: "5px 10px", border: "1px solid " + C.border, borderRadius: 5 }}>@SemianalysisWeekly</a>
           </div>
         </div>
         {sec === "weekly" && <TabBar items={tabs} active={tab} onPick={setTab} locks={locks} />}
-        <div style={{ paddingBottom: 60 }}>
+        <div key={sec} className="poast-section" style={{ paddingBottom: 60 }}>
         {sec === "weekly" && tab === "setup" && <EpisodeSetup ep={ep} setEp={setEp} guests={guests} setGuests={setGuests} opts={opts} setOpts={setOpts} sel={sel} setSel={setSel} fin={fin} setFin={setFin} goTest={function() { setTab("test"); }} />}
         {sec === "weekly" && tab === "test" && <TestPage ep={ep} guests={guests} opts={opts} fin={fin} setFin={setFin} thumb={thumb} setThumb={setThumb} goLaunch={function() { setTab("launch"); }} />}
         {sec === "weekly" && tab === "launch" && <LaunchRollout ep={ep} guests={guests} fin={fin} onComplete={handleComplete} />}
