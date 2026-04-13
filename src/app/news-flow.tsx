@@ -671,7 +671,15 @@ export default function NewsFlow() {
   useEffect(function() {
     try {
       var o = localStorage.getItem("nf-order");
-      if (o) { var saved = JSON.parse(o); var missing = WIDGET_IDS.filter(function(id) { return saved.indexOf(id) < 0; }); if (missing.length > 0) saved = saved.concat(missing); setOrder(saved); }
+      if (o) {
+        var saved = JSON.parse(o);
+        // Remove stale IDs that no longer exist
+        saved = saved.filter(function(id) { return WIDGET_IDS.indexOf(id) >= 0; });
+        // Append any new widgets not in saved order
+        var missing = WIDGET_IDS.filter(function(id) { return saved.indexOf(id) < 0; });
+        if (missing.length > 0) saved = saved.concat(missing);
+        setOrder(saved);
+      }
     } catch (e) {}
     try { var d = localStorage.getItem("nf-disabled"); if (d) setDisabled(JSON.parse(d)); } catch (e) {}
     try { var s = localStorage.getItem("nf-sizes"); if (s) setSizes(function(prev) { return Object.assign({}, prev, JSON.parse(s)); }); } catch (e) {}
@@ -766,7 +774,8 @@ export default function NewsFlow() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gridAutoRows: "200px", gap: 12 }}>
+      <style dangerouslySetInnerHTML={{ __html: ".nf-grid{display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:200px;gap:12px}@media(max-width:1400px){.nf-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:1000px){.nf-grid{grid-template-columns:repeat(2,1fr)}}" }} />
+      <div className="nf-grid">
         {order.map(renderWidget)}
       </div>
 
