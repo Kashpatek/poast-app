@@ -1,104 +1,124 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BUFFER_API = "https://api.bufferapp.com/1";
+const BUFFER_API = "https://api.buffer.com";
 
 function getToken() {
-  return process.env.BUFFER_ACCESS_TOKEN || "";
+  return process.env.BUFFER_API_KEY || "";
 }
 
-// Get all profiles
-async function getProfiles(token: string) {
-  const r = await fetch(`${BUFFER_API}/profiles.json?access_token=${token}`);
-  return r.json();
-}
+async function gql(query: string, variables?: Record<string, unknown>) {
+  const token = getToken();
+  if (!token) throw new Error("BUFFER_API_KEY not set");
 
-// Get pending (scheduled) updates for a profile
-async function getPending(token: string, profileId: string) {
-  const r = await fetch(`${BUFFER_API}/profiles/${profileId}/updates/pending.json?access_token=${token}&count=25`);
-  return r.json();
-}
+  const r = await fetch(BUFFER_API, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + token,
+    },
+    body: JSON.stringify({ query, variables }),
+    next: { revalidate: 30 },
+  });
 
-// Get sent updates for a profile
-async function getSent(token: string, profileId: string) {
-  const r = await fetch(`${BUFFER_API}/profiles/${profileId}/updates/sent.json?access_token=${token}&count=25`);
-  return r.json();
-}
-
-// Get analytics for a profile
-async function getAnalytics(token: string, profileId: string) {
-  // Buffer v1 doesn't have a dedicated analytics endpoint,
-  // but sent updates contain engagement metrics
-  const sent = await getSent(token, profileId);
-  const updates = sent?.updates || [];
-  let totalClicks = 0, totalReach = 0, totalLikes = 0, totalShares = 0, totalComments = 0;
-  for (const u of updates) {
-    const s = u.statistics || {};
-    totalClicks += s.clicks || 0;
-    totalReach += s.reach || s.impressions || 0;
-    totalLikes += s.likes || s.favorites || 0;
-    totalShares += s.shares || s.retweets || s.repins || 0;
-    totalComments += s.comments || s.replies || 0;
-  }
-  return {
-    posts: updates.length,
-    clicks: totalClicks,
-    reach: totalReach,
-    likes: totalLikes,
-    shares: totalShares,
-    comments: totalComments,
-  };
+  const data = await r.json();
+  if (data.errors) throw new Error(data.errors[0]?.message || "GraphQL error");
+  return data.data;
 }
 
 export async function GET(req: NextRequest) {
   const token = getToken();
   if (!token) {
-    return NextResponse.json({ error: "BUFFER_ACCESS_TOKEN not configured" }, { status: 500 });
+    return NextResponse.json({ error: "BUFFER_API_KEY not configured" }, { status: 500 });
   }
 
   const type = req.nextUrl.searchParams.get("type");
 
   try {
-    if (type === "profiles") {
-      const profiles = await getProfiles(token);
-      return NextResponse.json({ profiles, ts: Date.now() });
+    if (type === "channels") {
+      // First get org ID
+      const acct = await gql(`query { account { organizations { id } } }`);
+      const orgId = acct?.account?.organizations?.[0]?.id;
+      if (!orgId) return NextResponse.json({ error: "No organization found" }, { status: 404 });
+
+      const data = await gql(`query GetChannels($input: ChannelsInput!) {
+        channels(input: $input) { id name service timezone avatar isDisconnected }
+      }`, { input: { organizationId: orgId } });
+
+      return NextResponse.json({ channels: data?.channels || [], ts: Date.now() });
     }
 
-    // Default: get all profiles with their pending posts and stats
-    const profiles = await getProfiles(token);
-    if (!Array.isArray(profiles)) {
-      return NextResponse.json({ error: "Failed to fetch profiles", detail: profiles }, { status: 500 });
+    if (type === "posts") {
+      const acct = await gql(`query { account { organizations { id } } }`);
+      const orgId = acct?.account?.organizations?.[0]?.id;
+      if (!orgId) return NextResponse.json({ error: "No organization found" }, { status: 404 });
+
+      const filter = req.nextUrl.searchParams.get("filter") || "scheduled";
+      const data = await gql(`query GetPosts($input: PostsInput!, $first: Int) {
+        posts(input: $input, first: $first) {
+          edges {
+            node {
+              id text status dueAt createdAt
+              channel { id name service }
+              tags { id name color }
+            }
+          }
+        }
+      }`, { input: { organizationId: orgId, filter: filter }, first: 50 });
+
+      const posts = (data?.posts?.edges || []).map((e: { node: unknown }) => e.node);
+      return NextResponse.json({ posts, ts: Date.now() });
     }
 
-    const results = await Promise.allSettled(
-      profiles.map(async (p: { id: string; service: string; formatted_username: string; avatar_https: string }) => {
-        const [pending, analytics] = await Promise.all([
-          getPending(token, p.id),
-          getAnalytics(token, p.id),
-        ]);
-        return {
-          id: p.id,
-          service: p.service,
-          username: p.formatted_username,
-          avatar: p.avatar_https,
-          pending: (pending?.updates || []).map((u: { id: string; text: string; due_at: number; day: string; due_time: string }) => ({
-            id: u.id,
-            text: u.text,
-            due_at: u.due_at,
-            day: u.day,
-            time: u.due_time,
-          })),
-          analytics,
-        };
-      })
-    );
+    // Default: get everything (org, channels, scheduled + sent posts)
+    const acct = await gql(`query { account { organizations { id } } }`);
+    const orgId = acct?.account?.organizations?.[0]?.id;
+    if (!orgId) return NextResponse.json({ error: "No organization found" }, { status: 404 });
 
-    const data = results
-      .filter(r => r.status === "fulfilled")
-      .map(r => (r as PromiseFulfilledResult<unknown>).value);
+    const [channels, scheduled, sent] = await Promise.all([
+      gql(`query($input: ChannelsInput!) { channels(input: $input) { id name service timezone avatar } }`, { input: { organizationId: orgId } }),
+      gql(`query($input: PostsInput!, $first: Int) { posts(input: $input, first: $first) { edges { node { id text status dueAt channel { name service } tags { name color } } } } }`, { input: { organizationId: orgId, filter: "scheduled" }, first: 30 }),
+      gql(`query($input: PostsInput!, $first: Int) { posts(input: $input, first: $first) { edges { node { id text status dueAt createdAt channel { name service } tags { name color } } } } }`, { input: { organizationId: orgId, filter: "sent" }, first: 30 }),
+    ]);
 
-    return NextResponse.json({ profiles: data, ts: Date.now() });
+    return NextResponse.json({
+      orgId,
+      channels: channels?.channels || [],
+      scheduled: (scheduled?.posts?.edges || []).map((e: { node: unknown }) => e.node),
+      sent: (sent?.posts?.edges || []).map((e: { node: unknown }) => e.node),
+      ts: Date.now(),
+    });
   } catch (error) {
     console.error("Buffer API error:", error);
-    return NextResponse.json({ error: "Buffer API failed" }, { status: 500 });
+    return NextResponse.json({ error: String(error) }, { status: 500 });
+  }
+}
+
+// Create a post
+export async function POST(req: NextRequest) {
+  const token = getToken();
+  if (!token) {
+    return NextResponse.json({ error: "BUFFER_API_KEY not configured" }, { status: 500 });
+  }
+
+  try {
+    const body = await req.json();
+    const { channelId, text, dueAt, tagIds } = body;
+
+    const data = await gql(`mutation CreatePost($input: CreatePostInput!) {
+      createPost(input: $input) { id text status dueAt }
+    }`, {
+      input: {
+        channelId,
+        text,
+        dueAt: dueAt || undefined,
+        schedulingType: dueAt ? "scheduled" : "now",
+        tagIds: tagIds || [],
+      },
+    });
+
+    return NextResponse.json({ post: data?.createPost, ts: Date.now() });
+  } catch (error) {
+    console.error("Buffer create post error:", error);
+    return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
