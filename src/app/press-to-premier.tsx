@@ -275,17 +275,19 @@ function Step6({ data, setData, onNext, onBack }) {
     // ═══ STEP 2: B-ROLL ═══
     setPhase("broll");
     var brollShots = script && script.broll ? script.broll : [];
-    addLog("Generating " + brollShots.length + " b-roll clips via Grok...", "info");
+    addLog("Generating " + brollShots.length + " b-roll shots (2 variations each) via Grok...", "info");
     var clips = [];
     for (var i = 0; i < brollShots.length; i++) {
       var shot = brollShots[i];
-      addLog("Shot " + (i + 1) + "/" + brollShots.length + ": " + (shot.description || "").slice(0, 50) + "...", "dim");
+      // Generate 2 variations per shot
+      for (var v = 0; v < 2; v++) {
+      var varPrompt = v === 0 ? shot.prompt : shot.prompt + ", alternative angle, different composition";
+      addLog("Shot " + (i + 1) + " variation " + (v + 1) + ": " + (shot.description || "").slice(0, 40) + "...", "dim");
       try {
-        var clR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: shot.prompt, engine: "grok" }) });
+        var clR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: varPrompt, engine: "grok" }) });
         var clD = await clR.json();
         if (clD.task && clD.task.task_id) {
-          addLog("Shot " + (i + 1) + " submitted, waiting for render...", "info");
-          // Poll for completion (up to 2 minutes per clip)
+          addLog("Shot " + (i + 1) + "v" + (v + 1) + " submitted, polling...", "info");
           var taskId = clD.task.task_id;
           var videoUrl = null;
           var pollStart = Date.now();
@@ -297,28 +299,28 @@ function Step6({ data, setData, onNext, onBack }) {
               if (stD.task && stD.task.task_status === "succeed" && stD.task.task_result && stD.task.task_result.videos) {
                 videoUrl = stD.task.task_result.videos[0].url;
               } else if (stD.task && stD.task.task_status === "failed") {
-                addLog("Shot " + (i + 1) + " render failed", "error");
-                break;
+                addLog("Shot " + (i + 1) + "v" + (v + 1) + " failed", "error"); break;
               } else {
-                addLog("Shot " + (i + 1) + " still rendering... (" + Math.round((Date.now() - pollStart) / 1000) + "s)", "dim");
+                addLog("Shot " + (i + 1) + "v" + (v + 1) + " rendering... (" + Math.round((Date.now() - pollStart) / 1000) + "s)", "dim");
               }
             } catch (pe) { /* keep polling */ }
           }
           if (videoUrl) {
-            clips.push({ taskId: taskId, videoUrl: videoUrl, shot: i + 1 });
-            addLog("Shot " + (i + 1) + " complete! Video ready.", "success");
+            clips.push({ taskId: taskId, videoUrl: videoUrl, shot: i + 1, variation: v + 1 });
+            addLog("Shot " + (i + 1) + "v" + (v + 1) + " ready!", "success");
           } else {
-            clips.push({ taskId: taskId, shot: i + 1, pending: true, provider: "grok" });
-            addLog("Shot " + (i + 1) + " timed out after 5min. Can retry in Review.", "warn");
+            clips.push({ taskId: taskId, shot: i + 1, variation: v + 1, pending: true, provider: "grok" });
+            addLog("Shot " + (i + 1) + "v" + (v + 1) + " timed out. Retry in Select.", "warn");
           }
         } else {
-          addLog("Shot " + (i + 1) + " error: " + (clD.error || "Unknown"), "error");
-          clips.push({ error: clD.error, shot: i + 1 });
+          addLog("Shot " + (i + 1) + "v" + (v + 1) + " error: " + (clD.error || "Unknown"), "error");
+          clips.push({ error: clD.error, shot: i + 1, variation: v + 1 });
         }
       } catch (e) {
-        addLog("Shot " + (i + 1) + " failed: " + String(e).slice(0, 60), "error");
-        clips.push({ error: String(e), shot: i + 1 });
+        addLog("Shot " + (i + 1) + "v" + (v + 1) + " failed: " + String(e).slice(0, 60), "error");
+        clips.push({ error: String(e), shot: i + 1, variation: v + 1 });
       }
+      } // end variation loop
     }
     setAssets(function(p) { return Object.assign({}, p, { clips: clips }); });
     var completed = clips.filter(function(c) { return c.videoUrl; }).length;
@@ -468,38 +470,104 @@ function ClipGrid({ clips, script, onUpdate }) {
   </div>;
 }
 
-// ═══ STEP 7: REVIEW ═══
-function Step7({ data, onPremier, onDraft }) {
-  var aspect = data.aspect || "16:9";
+// ═══ STEP 7: SELECT CLIPS ═══
+function Step7({ data, setData, onNext, onBack }) {
   var assets = data.assets || {};
+  var clips = assets.clips || [];
   var script = data.scripts && data.scripts[data.selScript || 0];
+  var brollShots = script && script.broll ? script.broll : [];
+
+  // Group clips by shot number
+  var shotGroups = {};
+  clips.forEach(function(c) { var s = c.shot || 1; if (!shotGroups[s]) shotGroups[s] = []; shotGroups[s].push(c); });
+
+  var _sel = useState(data.selectedClips || {}), sel = _sel[0], setSel = _sel[1];
+
+  var selectClip = function(shotNum, clipIdx) {
+    setSel(function(p) { var n = Object.assign({}, p); n[shotNum] = clipIdx; return n; });
+    setData(function(p) { var n = Object.assign({}, p); n.selectedClips = Object.assign({}, sel, {}); n.selectedClips[shotNum] = clipIdx; return n; });
+  };
 
   return <div>
-    <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Review</div>
-    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Preview generated assets, edit, or approve.</div>
+    <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Select Clips</div>
+    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Choose which variation to use for each shot.</div>
 
     {/* Voiceover */}
-    <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 16 }}>
-      <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.amber, letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>Voiceover</div>
-      {assets.voiceover ? <div>
-        <audio controls src={assets.voiceover} style={{ width: "100%", height: 44, borderRadius: 8 }} />
-        <a href={assets.voiceover} download="voiceover.mp3" style={{ display: "inline-block", marginTop: 8, fontFamily: ft, fontSize: 11, fontWeight: 500, color: D.amber, textDecoration: "none" }}>Download .mp3</a>
-      </div> : <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 500, color: D.txl }}>No voiceover generated. Run production again.</div>}
-    </div>
+    {assets.voiceover && <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 20, marginBottom: 20 }}>
+      <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.amber, letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>Voiceover</div>
+      <audio controls src={assets.voiceover} style={{ width: "100%", height: 44 }} />
+    </div>}
 
-    {/* B-Roll Clips */}
-    <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 16 }}>
-      <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.blue, letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>B-Roll Clips</div>
-      {assets.clips && assets.clips.length > 0 ? <ClipGrid clips={assets.clips} script={script} onUpdate={function(updated) { setData(function(p) { var a = Object.assign({}, p.assets || {}, { clips: updated }); return Object.assign({}, p, { assets: a }); }); }} /> : <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 500, color: D.txl }}>No clips generated.</div>}
-    </div>
+    {/* Clips grouped by shot */}
+    {Object.keys(shotGroups).sort(function(a, b) { return a - b; }).map(function(shotNum) {
+      var group = shotGroups[shotNum];
+      var shotIdx = parseInt(shotNum) - 1;
+      var shotInfo = brollShots[shotIdx];
+      var selected = sel[shotNum] !== undefined ? sel[shotNum] : 0;
+
+      return <div key={shotNum} style={{ marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <span style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Shot {shotNum}</span>
+          {shotInfo && <span style={{ fontFamily: ft, fontSize: 12, fontWeight: 500, color: D.txl }}>// {shotInfo.description}</span>}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(" + group.length + ", 1fr)", gap: 10 }}>
+          {group.map(function(clip, ci) {
+            var isSelected = selected === ci;
+            return <div key={ci} onClick={function() { selectClip(shotNum, ci); }} style={{ background: isSelected ? D.elevated : D.surface, border: isSelected ? "2px solid " + D.amber : "1px solid " + D.border, borderRadius: 10, padding: 10, cursor: "pointer", transition: "all 0.2s", boxShadow: isSelected ? "0 0 16px " + D.amber + "10" : "none" }}>
+              <div style={{ aspectRatio: "16/9", background: D.bg, borderRadius: 6, marginBottom: 8, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {clip.videoUrl ? <video src={clip.videoUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} onMouseEnter={function(e) { e.target.play(); }} onMouseLeave={function(e) { e.target.pause(); e.target.currentTime = 0; }} muted />
+                : <span style={{ fontFamily: ft, fontSize: 11, color: clip.pending ? D.amber : D.coral }}>{clip.pending ? "Rendering..." : "Failed"}</span>}
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontFamily: ft, fontSize: 11, fontWeight: 600, color: isSelected ? D.amber : D.txl }}>V{clip.variation || ci + 1}</span>
+                {isSelected && <span style={{ fontFamily: ft, fontSize: 9, fontWeight: 700, color: D.amber, padding: "2px 6px", background: D.amber + "15", borderRadius: 4 }}>Selected</span>}
+              </div>
+            </div>;
+          })}
+        </div>
+      </div>;
+    })}
 
     {/* Music */}
-    <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 16 }}>
-      <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.violet, letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>Background Music</div>
-      {assets.music ? <div>
-        <audio controls src={assets.music} style={{ width: "100%", height: 44, borderRadius: 8 }} />
-        <a href={assets.music} download="music.mp3" style={{ display: "inline-block", marginTop: 8, fontFamily: ft, fontSize: 11, fontWeight: 500, color: D.violet, textDecoration: "none" }}>Download .mp3</a>
-      </div> : <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 500, color: D.txl }}>No music generated.</div>}
+    {assets.music && <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 20, marginBottom: 20 }}>
+      <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.violet, letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>Background Music</div>
+      <audio controls src={assets.music} style={{ width: "100%", height: 44 }} />
+    </div>}
+
+    <div style={{ display: "flex", gap: 12 }}>
+      <button onClick={onBack} style={{ padding: "14px 24px", background: "transparent", border: "1px solid " + D.border, color: D.txl, borderRadius: 10, fontFamily: ft, fontSize: 14, cursor: "pointer" }}>Back</button>
+      <button onClick={onNext} style={{ flex: 1, height: 52, background: "linear-gradient(135deg, " + D.amber + ", #E8A020)", color: D.bg, border: "none", borderRadius: 10, fontFamily: ft, fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 20px " + D.amber + "30" }}>Preview Video</button>
+    </div>
+  </div>;
+}
+
+// ═══ STEP 8: PREVIEW ═══
+function Step8({ data, onNext, onBack }) {
+  var assets = data.assets || {};
+  var script = data.scripts && data.scripts[data.selScript || 0];
+  var aspect = data.aspect || "16:9";
+
+  return <div>
+    <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Preview</div>
+    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Watch your assembled video.</div>
+
+    {/* Assembled preview */}
+    <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 20 }}>
+      <div style={{ width: aspect === "9:16" ? "35%" : "100%", margin: "0 auto", aspectRatio: aspect === "9:16" ? "9/16" : aspect === "1:1" ? "1/1" : "16/9", background: D.bg, borderRadius: 10, border: "1px solid " + D.border, overflow: "hidden", position: "relative" }}>
+        {/* Show first selected clip as preview */}
+        {assets.clips && assets.clips[0] && assets.clips[0].videoUrl ? <video controls src={assets.clips[0].videoUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+          <span style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txl }}>Preview ({aspect})</span>
+        </div>}
+      </div>
+      {assets.voiceover && <div style={{ marginTop: 16 }}>
+        <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txl, letterSpacing: 2, marginBottom: 6 }}>VOICEOVER</div>
+        <audio controls src={assets.voiceover} style={{ width: "100%", height: 40 }} />
+      </div>}
+      {assets.music && <div style={{ marginTop: 12 }}>
+        <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txl, letterSpacing: 2, marginBottom: 6 }}>MUSIC</div>
+        <audio controls src={assets.music} style={{ width: "100%", height: 40 }} />
+      </div>}
     </div>
 
     {/* Metadata */}
@@ -510,8 +578,77 @@ function Step7({ data, onPremier, onDraft }) {
     </div>}
 
     <div style={{ display: "flex", gap: 12 }}>
-      <button onClick={onDraft} style={{ padding: "14px 24px", background: "transparent", border: "1px solid " + D.border, color: D.txl, borderRadius: 10, fontFamily: ft, fontSize: 14, cursor: "pointer" }}>Save Draft</button>
-      <button onClick={onPremier} style={{ flex: 1, height: 52, background: "linear-gradient(135deg, " + D.amber + ", " + D.teal + ")", color: D.bg, border: "none", borderRadius: 10, fontFamily: ft, fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 20px " + D.teal + "30" }}>Premier</button>
+      <button onClick={onBack} style={{ padding: "14px 24px", background: "transparent", border: "1px solid " + D.border, color: D.txl, borderRadius: 10, fontFamily: ft, fontSize: 14, cursor: "pointer" }}>Back to Select</button>
+      <button onClick={onNext} style={{ flex: 1, height: 52, background: "linear-gradient(135deg, " + D.amber + ", " + D.teal + ")", color: D.bg, border: "none", borderRadius: 10, fontFamily: ft, fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 20px " + D.teal + "30" }}>Premier</button>
+    </div>
+  </div>;
+}
+
+// ═══ STEP 9: PREMIER ═══
+function Step9({ data, onPremier, onDraft }) {
+  var assets = data.assets || {};
+  var title = data.options ? data.options.titles[data.selTitle || 0] : "Untitled";
+
+  var downloadAll = function() {
+    // Download voiceover
+    if (assets.voiceover) { var a = document.createElement("a"); a.href = assets.voiceover; a.download = "voiceover.mp3"; a.click(); }
+    // Download music
+    if (assets.music) { setTimeout(function() { var a = document.createElement("a"); a.href = assets.music; a.download = "music.mp3"; a.click(); }, 500); }
+    // Download clips
+    (assets.clips || []).forEach(function(c, i) {
+      if (c.videoUrl) { setTimeout(function() { var a = document.createElement("a"); a.href = c.videoUrl; a.download = "shot-" + c.shot + "-v" + (c.variation || 1) + ".mp4"; a.target = "_blank"; a.click(); }, 1000 + i * 500); }
+    });
+    toast("Downloading all assets...", "info");
+  };
+
+  var sendToBuffer = function() {
+    var desc = data.options ? data.options.descriptions[data.selDesc || 0] : "";
+    // Save to localStorage for Buffer schedule to pick up
+    try {
+      var bufferDraft = { text: title + "\n\n" + desc, source: "Press to Premier", ts: Date.now() };
+      localStorage.setItem("p2p-to-buffer", JSON.stringify(bufferDraft));
+    } catch (e) {}
+    toast("Saved for Buffer. Go to Schedule to post.", "success");
+  };
+
+  return <div>
+    <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Premier</div>
+    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Finalize and launch your video.</div>
+
+    {/* Summary card */}
+    <div style={{ background: "linear-gradient(135deg, " + D.elevated + ", " + D.surface + ")", border: "1px solid " + D.amber + "20", borderRadius: 12, padding: 28, marginBottom: 24 }}>
+      <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.amber, letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>Project Summary</div>
+      <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: D.tx, marginBottom: 8 }}>{title}</div>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        {[
+          { l: "Duration", v: (data.duration || 60) + "s" },
+          { l: "Format", v: data.aspect || "16:9" },
+          { l: "VO", v: assets.voiceover ? "Ready" : "Missing", c: assets.voiceover ? D.teal : D.coral },
+          { l: "Clips", v: (assets.clips || []).filter(function(c) { return c.videoUrl; }).length + " ready", c: D.teal },
+          { l: "Music", v: assets.music ? "Ready" : "Missing", c: assets.music ? D.teal : D.coral },
+        ].map(function(s, i) {
+          return <div key={i} style={{ padding: "8px 14px", background: D.bg, borderRadius: 8, border: "1px solid " + D.border }}>
+            <div style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: D.txh, letterSpacing: 1 }}>{s.l}</div>
+            <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: s.c || D.tx }}>{s.v}</div>
+          </div>;
+        })}
+      </div>
+      {data.options && <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 500, color: D.txb, lineHeight: 1.7 }}>{data.options.descriptions[data.selDesc || 0]}</div>}
+    </div>
+
+    {/* Actions */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
+      <button onClick={downloadAll} style={{ width: "100%", height: 52, background: D.surface, border: "1px solid " + D.border, borderRadius: 10, fontFamily: ft, fontSize: 15, fontWeight: 700, color: D.tx, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = D.amber + "40"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; }}>
+        Download All Assets
+      </button>
+      <button onClick={sendToBuffer} style={{ width: "100%", height: 52, background: D.surface, border: "1px solid " + D.border, borderRadius: 10, fontFamily: ft, fontSize: 15, fontWeight: 700, color: D.tx, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = D.blue + "40"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; }}>
+        Send to Buffer Schedule
+      </button>
+    </div>
+
+    <div style={{ display: "flex", gap: 12 }}>
+      <button onClick={onDraft} style={{ padding: "14px 24px", background: "transparent", border: "1px solid " + D.border, color: D.txl, borderRadius: 10, fontFamily: ft, fontSize: 14, cursor: "pointer" }}>Save as Draft</button>
+      <button onClick={onPremier} style={{ flex: 1, height: 52, background: "linear-gradient(135deg, " + D.amber + ", " + D.teal + ")", color: D.bg, border: "none", borderRadius: 10, fontFamily: ft, fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 20px " + D.teal + "30" }}>Confirm Premier</button>
     </div>
   </div>;
 }
@@ -563,7 +700,7 @@ export default function PressToPremi() {
   useEffect(function() { try { var p = localStorage.getItem("p2p-projects"); if (p) setProjects(JSON.parse(p)); } catch (e) {} }, []);
   useEffect(function() { try { localStorage.setItem("p2p-projects", JSON.stringify(projects)); } catch (e) {} }, [projects]);
 
-  var stepNames = ["Input", "Options", "Script", "Review", "Format", "Produce", "Refine"];
+  var stepNames = ["Input", "Options", "Script", "Review", "Format", "Produce", "Select", "Preview", "Premier"];
   var startNew = function() { setActive("new"); setStep(0); setData({ mode: "url" }); };
   var openProject = function(p) { setActive(p.id); setStep(p.step || 0); setData(p.data || {}); };
   var saveProject = function(status) {
@@ -615,9 +752,11 @@ export default function PressToPremi() {
     {!loading && step === 3 && <Step4 data={data} onNext={function() { setStep(4); }} onBack={function() { setStep(2); }} />}
     {!loading && step === 4 && <Step5 data={data} setData={setData} onNext={function() { setStep(5); saveProject("production"); }} onBack={function() { setStep(3); }} />}
     {!loading && step === 5 && <Step6 data={data} setData={setData} onNext={function() { setStep(6); }} onBack={function() { setStep(4); }} />}
-    {!loading && step === 6 && <Step7 data={data} onPremier={function() { saveProject("premiered"); toast("Premiered!", "success"); }} onDraft={function() { saveProject("draft"); toast("Draft saved", "info"); }} />}
+    {!loading && step === 6 && <Step7 data={data} setData={setData} onNext={function() { setStep(7); }} onBack={function() { setStep(5); }} />}
+    {!loading && step === 7 && <Step8 data={data} onNext={function() { setStep(8); }} onBack={function() { setStep(6); }} />}
+    {!loading && step === 8 && <Step9 data={data} onPremier={function() { saveProject("premiered"); toast("Premiered! Project archived.", "success"); }} onDraft={function() { saveProject("draft"); toast("Draft saved", "info"); }} />}
 
-    {step > 0 && step < 6 && !loading && <div style={{ marginTop: 24, textAlign: "center" }}>
+    {step > 0 && step < 8 && !loading && <div style={{ marginTop: 24, textAlign: "center" }}>
       <span onClick={function() { saveProject("draft"); toast("Draft saved", "info"); }} style={{ fontFamily: ft, fontSize: 12, fontWeight: 500, color: D.txl, cursor: "pointer", padding: "8px 16px", borderRadius: 8, border: "1px solid " + D.border }}>Save Draft & Exit</span>
     </div>}
   </div>;
