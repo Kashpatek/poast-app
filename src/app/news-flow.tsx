@@ -611,9 +611,95 @@ function Countdown({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, f
   );
 }
 
+// ═══ MINI BUFFER CALENDAR HEATMAP ═══
+function BufferCalWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }) {
+  var _posts = useState([]), posts = _posts[0], setPosts = _posts[1];
+  useEffect(function() {
+    fetch("/api/buffer").then(function(r) { return r.json(); }).then(function(d) {
+      if (d.scheduled) setPosts(d.scheduled.concat(d.sent || []));
+    }).catch(function() {});
+  }, []);
+
+  var now = new Date();
+  var year = now.getFullYear();
+  var month = now.getMonth();
+  var daysInMonth = new Date(year, month + 1, 0).getDate();
+  var firstDay = new Date(year, month, 1).getDay();
+
+  var countOnDay = function(day) {
+    return posts.filter(function(p) {
+      if (!p.dueAt) return false;
+      var d = new Date(p.dueAt);
+      return d.getDate() === day && d.getMonth() === month;
+    }).length;
+  };
+
+  var cells = [];
+  for (var i = 0; i < firstDay; i++) cells.push(null);
+  for (var d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  return (
+    <W id={id} title="Post Calendar" icon={"\uD83D\uDDD3"} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
+      <div style={{ fontFamily: mn, fontSize: 9, color: T.txm, marginBottom: 6 }}>{new Date(year, month).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+        {["S", "M", "T", "W", "T", "F", "S"].map(function(d, i) { return <div key={i} style={{ textAlign: "center", fontFamily: mn, fontSize: 7, color: T.txd }}>{d}</div>; })}
+        {cells.map(function(day, ci) {
+          if (!day) return <div key={"e" + ci} />;
+          var count = countOnDay(day);
+          var isToday = day === now.getDate();
+          var heat = count === 0 ? "transparent" : count <= 1 ? T.accent + "20" : count <= 3 ? T.accent + "40" : count <= 5 ? T.accent + "60" : T.accent + "90";
+          return <div key={ci} style={{ width: "100%", aspectRatio: "1", borderRadius: 3, background: heat, border: isToday ? "1px solid " + T.accent : "1px solid transparent", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 8, color: count > 0 ? "#fff" : T.txd, fontWeight: isToday ? 700 : 400 }}>{day}</div>;
+        })}
+      </div>
+      <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 6 }}>
+        {[{ l: "0", c: "transparent" }, { l: "1", c: T.accent + "20" }, { l: "2-3", c: T.accent + "40" }, { l: "4+", c: T.accent + "90" }].map(function(h, i) {
+          return <div key={i} style={{ display: "flex", alignItems: "center", gap: 3 }}>
+            <div style={{ width: 8, height: 8, borderRadius: 2, background: h.c, border: "1px solid " + T.border }} />
+            <span style={{ fontFamily: mn, fontSize: 7, color: T.txd }}>{h.l}</span>
+          </div>;
+        })}
+      </div>
+    </W>
+  );
+}
+
+// ═══ WALKTHROUGH ═══
+function Walkthrough({ onDismiss }) {
+  var _step = useState(0), step = _step[0], setStep = _step[1];
+  var steps = [
+    { title: "Welcome to News Flow", desc: "Your personal command center for news, markets, and content creation. Everything is a widget you can customize." },
+    { title: "Resize Widgets", desc: "Click the size badge (1x1, 2x1, etc.) on any widget header to cycle through sizes. Make important widgets bigger." },
+    { title: "Drag to Reorder", desc: "Grab any widget and drag it to a new position. Your layout saves automatically." },
+    { title: "Add More Widgets", desc: "Click '+ Add Widget' to activate hidden widgets like Pomodoro, Calculator, Bookmarks, and more." },
+    { title: "Draft Content", desc: "Click 'Draft' on any news article to generate a social post, X thread, or video recap script instantly." },
+    { title: "Settings", desc: "Hit the gear icon to toggle widgets, change font size, and reorder your dashboard." },
+  ];
+  var s = steps[step];
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
+      <div style={{ background: "linear-gradient(135deg, " + T.card + ", " + T.surface + ")", border: "1px solid " + T.accent + "30", borderRadius: 14, padding: 32, maxWidth: 420, width: "90%", textAlign: "center", boxShadow: "0 0 40px " + T.accent + "15" }}>
+        <div style={{ fontFamily: mn, fontSize: 9, color: T.accent, textTransform: "uppercase", letterSpacing: 2, marginBottom: 10 }}>Step {step + 1} of {steps.length}</div>
+        <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: T.tx, marginBottom: 8 }}>{s.title}</div>
+        <div style={{ fontFamily: ft, fontSize: 13, color: T.txm, lineHeight: 1.7, marginBottom: 24 }}>{s.desc}</div>
+        <div style={{ width: "100%", height: 3, background: T.border, borderRadius: 2, marginBottom: 20 }}>
+          <div style={{ height: "100%", width: ((step + 1) / steps.length * 100) + "%", background: T.accent, borderRadius: 2, transition: "width 0.3s ease" }} />
+        </div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+          {step > 0 && <span onClick={function() { setStep(step - 1); }} style={{ padding: "7px 16px", fontFamily: ft, fontSize: 12, color: T.txm, cursor: "pointer" }}>Back</span>}
+          {step < steps.length - 1 ? <span onClick={function() { setStep(step + 1); }} style={{ padding: "7px 20px", background: T.accent, color: "#fff", borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Next</span>
+          : <span onClick={onDismiss} style={{ padding: "7px 20px", background: T.accent, color: "#fff", borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Get Started</span>}
+          <span onClick={onDismiss} style={{ padding: "7px 12px", fontFamily: mn, fontSize: 10, color: T.txd, cursor: "pointer" }}>Skip</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ═══ SETTINGS ═══
-var WIDGET_IDS = ["news", "semianalysis", "stocks", "etfs", "crypto", "earnings", "live", "watchlist", "ideas", "notes", "todos", "pomodoro", "chipkun", "bookmarks", "calc", "countdown"];
-var WIDGET_META = { news: { l: "News Feed", i: "\uD83D\uDCF0" }, semianalysis: { l: "SemiAnalysis", i: "\uD83D\uDD2C" }, stocks: { l: "Stocks", i: "\uD83D\uDCC8" }, etfs: { l: "ETFs", i: "\uD83C\uDFE6" }, crypto: { l: "Crypto & Resources", i: "\u20BF" }, earnings: { l: "Earnings", i: "\uD83D\uDCC5" }, live: { l: "LIVE!", i: "\uD83D\uDD34" }, watchlist: { l: "Watchlist", i: "\uD83D\uDC41" }, ideas: { l: "AI Ideas", i: "\uD83D\uDCA1" }, notes: { l: "Notes", i: "\uD83D\uDCDD" }, todos: { l: "To-Do", i: "\u2705" }, pomodoro: { l: "Pomodoro", i: "\uD83C\uDF45" }, chipkun: { l: "Chip-kun", i: "\uD83E\uDEAB" }, bookmarks: { l: "Bookmarks", i: "\uD83D\uDD16" }, calc: { l: "Calculator", i: "\uD83E\uDDEE" }, countdown: { l: "Countdown", i: "\u23F3" } };
+var WIDGET_IDS = ["news", "semianalysis", "stocks", "etfs", "crypto", "earnings", "live", "watchlist", "ideas", "notes", "todos", "bufcal", "pomodoro", "chipkun", "bookmarks", "calc", "countdown"];
+var WIDGET_META = { news: { l: "News Feed", i: "\uD83D\uDCF0" }, semianalysis: { l: "SemiAnalysis", i: "\uD83D\uDD2C" }, stocks: { l: "Stocks", i: "\uD83D\uDCC8" }, etfs: { l: "ETFs", i: "\uD83C\uDFE6" }, crypto: { l: "Crypto & Resources", i: "\u20BF" }, earnings: { l: "Earnings", i: "\uD83D\uDCC5" }, live: { l: "LIVE!", i: "\uD83D\uDD34" }, watchlist: { l: "Watchlist", i: "\uD83D\uDC41" }, ideas: { l: "AI Ideas", i: "\uD83D\uDCA1" }, notes: { l: "Notes", i: "\uD83D\uDCDD" }, todos: { l: "To-Do", i: "\u2705" }, bufcal: { l: "Post Calendar", i: "\uD83D\uDDD3" }, pomodoro: { l: "Pomodoro", i: "\uD83C\uDF45" }, chipkun: { l: "Chip-kun", i: "\uD83E\uDEAB" }, bookmarks: { l: "Bookmarks", i: "\uD83D\uDD16" }, calc: { l: "Calculator", i: "\uD83E\uDDEE" }, countdown: { l: "Countdown", i: "\u23F3" } };
+// Preloaded: news, stocks, semianalysis, bufcal, todos, notes. Rest hidden until user adds them.
+var DEFAULT_DISABLED = ["etfs", "crypto", "earnings", "live", "watchlist", "ideas", "pomodoro", "chipkun", "bookmarks", "calc", "countdown"];
 
 function Settings({ order, setOrder, disabled, setDisabled, fontSize, setFontSize, onClose }) {
   var toggle = function(id) { setDisabled(function(p) { var s = new Set(p); if (s.has(id)) s.delete(id); else s.add(id); return Array.from(s); }); };
@@ -655,12 +741,13 @@ function Settings({ order, setOrder, disabled, setDisabled, fontSize, setFontSiz
 }
 
 // ═══ DEFAULT SIZES ═══
-var DEFAULT_SIZES = { news: "2x2", semianalysis: "1x2", stocks: "2x1", etfs: "1x1", crypto: "1x1", earnings: "1x1", live: "2x1", watchlist: "1x1", ideas: "1x2", notes: "1x1", todos: "1x1", pomodoro: "1x1", chipkun: "1x1", bookmarks: "1x1", calc: "1x1", countdown: "1x1" };
+var DEFAULT_SIZES = { news: "2x2", semianalysis: "1x2", stocks: "2x1", etfs: "1x1", crypto: "1x1", earnings: "1x1", live: "2x1", watchlist: "1x1", ideas: "1x2", notes: "1x1", todos: "1x1", bufcal: "1x1", pomodoro: "1x1", chipkun: "1x1", bookmarks: "1x1", calc: "1x1", countdown: "1x1" };
 
 // ═══ MAIN DASHBOARD ═══
 export default function NewsFlow() {
   var _order = useState(WIDGET_IDS), order = _order[0], setOrder = _order[1];
-  var _disabled = useState([]), disabled = _disabled[0], setDisabled = _disabled[1];
+  var _disabled = useState(DEFAULT_DISABLED), disabled = _disabled[0], setDisabled = _disabled[1];
+  var _showWalkthrough = useState(false), showWalkthrough = _showWalkthrough[0], setShowWalkthrough = _showWalkthrough[1];
   var _sizes = useState(DEFAULT_SIZES), sizes = _sizes[0], setSizes = _sizes[1];
   var _fontSize = useState(1), fontSize = _fontSize[0], setFontSize = _fontSize[1];
   var _showSettings = useState(false), showSettings = _showSettings[0], setShowSettings = _showSettings[1];
@@ -684,6 +771,8 @@ export default function NewsFlow() {
     try { var d = localStorage.getItem("nf-disabled"); if (d) setDisabled(JSON.parse(d)); } catch (e) {}
     try { var s = localStorage.getItem("nf-sizes"); if (s) setSizes(function(prev) { return Object.assign({}, prev, JSON.parse(s)); }); } catch (e) {}
     try { var f = localStorage.getItem("nf-fontsize"); if (f) setFontSize(parseFloat(f)); } catch (e) {}
+    // Show walkthrough on first visit
+    try { if (!localStorage.getItem("nf-welcomed")) setShowWalkthrough(true); } catch (e) {}
   }, []);
   useEffect(function() { try { localStorage.setItem("nf-order", JSON.stringify(order)); } catch (e) {} }, [order]);
   useEffect(function() { try { localStorage.setItem("nf-disabled", JSON.stringify(disabled)); } catch (e) {} }, [disabled]);
@@ -743,6 +832,7 @@ export default function NewsFlow() {
     if (id === "bookmarks") return <Bookmarks key={id} {...p} />;
     if (id === "calc") return <CalcWidget key={id} {...p} />;
     if (id === "countdown") return <Countdown key={id} {...p} />;
+    if (id === "bufcal") return <BufferCalWidget key={id} {...p} />;
     return null;
   };
 
@@ -774,11 +864,12 @@ export default function NewsFlow() {
         </div>
       </div>
 
-      <style dangerouslySetInnerHTML={{ __html: ".nf-grid{display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:200px;gap:12px}@media(max-width:1400px){.nf-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:1000px){.nf-grid{grid-template-columns:repeat(2,1fr)}}" }} />
+      <style dangerouslySetInnerHTML={{ __html: ".nf-grid{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:200px;gap:10px}@media(max-width:2000px){.nf-grid{grid-template-columns:repeat(4,1fr);gap:12px}}@media(max-width:1200px){.nf-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:900px){.nf-grid{grid-template-columns:repeat(2,1fr);grid-auto-rows:180px;gap:8px}}@media(max-width:600px){.nf-grid{grid-template-columns:1fr;grid-auto-rows:auto}}" }} />
       <div className="nf-grid">
         {order.map(renderWidget)}
       </div>
 
+      {showWalkthrough && <Walkthrough onDismiss={function() { setShowWalkthrough(false); try { localStorage.setItem("nf-welcomed", "1"); } catch (e) {} }} />}
       {showSettings && <Settings order={order} setOrder={setOrder} disabled={disabled} setDisabled={setDisabled} fontSize={fontSize} setFontSize={setFontSize} onClose={function() { setShowSettings(false); }} />}
       {draftItem && <DraftModal item={draftItem} onClose={function() { setDraftItem(null); }} />}
     </div>
