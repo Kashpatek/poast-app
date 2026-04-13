@@ -193,13 +193,125 @@ function BufferPanel() {
   </div>);
 }
 
+// ═══ ASK POAST ═══
+var POAST_SYS = "You are Poast, the AI assistant for SemiAnalysis. You help with content creation, social media strategy, semiconductor industry analysis, and media operations.\n\nBrand rules: Never use em dashes. No emojis in content. No hashtags on X/Twitter. Direct, informed, casual tone.\n\nYou can help with:\n- Writing social posts, threads, captions for any platform\n- Generating video scripts, episode descriptions, titles\n- Brainstorming content ideas and angles\n- Drafting documents, outreach emails, pitches\n- Semiconductor industry analysis and talking points\n- Scheduling strategy and content calendar planning\n- Repurposing content across formats\n\nPlatform rules:\n- X: Hook tweet no link, reply-to-self with link. No hashtags ever.\n- LinkedIn/Facebook: Link in first comment, end with 'Link in comments.'\n- Instagram: Caption + 'Save this for later.' CTA + 5-8 hashtags + San Francisco CA location\n- TikTok: All lowercase, 4-6 hashtags\n- YouTube Shorts: Titles under 40 chars\n\nChannel: youtube.com/@SemianalysisWeekly\n\nWhen asked to create a document, format it clearly with headers and sections. When giving ideas, provide 3-5 options. Be concise but thorough.";
+
+function AskPoast({ open, onToggle }) {
+  var _msgs = useState([]), msgs = _msgs[0], setMsgs = _msgs[1];
+  var _input = useState(""), input = _input[0], setInput = _input[1];
+  var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
+  var scrollRef = useRef(null);
+
+  useEffect(function() {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [msgs]);
+
+  var send = async function() {
+    if (!input.trim() || loading) return;
+    var userMsg = input.trim();
+    setInput("");
+    setMsgs(function(p) { return p.concat([{ role: "user", text: userMsg }]); });
+    setLoading(true);
+    try {
+      // Build conversation for context
+      var history = msgs.concat([{ role: "user", text: userMsg }]);
+      var prompt = history.map(function(m) { return (m.role === "user" ? "User: " : "Poast: ") + m.text; }).join("\n\n");
+      var r = await fetch("/api/generate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ system: POAST_SYS, prompt: prompt }),
+      });
+      var d = await r.json();
+      var reply = (d.content || []).map(function(c) { return c.text || ""; }).join("");
+      setMsgs(function(p) { return p.concat([{ role: "assistant", text: reply }]); });
+    } catch (e) {
+      setMsgs(function(p) { return p.concat([{ role: "assistant", text: "Something went wrong. Try again." }]); });
+    }
+    setLoading(false);
+  };
+
+  var exportDoc = function() {
+    var content = msgs.map(function(m) { return (m.role === "user" ? "YOU:\n" : "POAST:\n") + m.text; }).join("\n\n---\n\n");
+    var blob = new Blob([content], { type: "text/plain" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a"); a.href = url; a.download = "poast-conversation.txt"; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  };
+
+  if (!open) return null;
+
+  return (
+    <div style={{ position: "fixed", right: 20, bottom: 20, width: 420, height: 560, background: C.card, border: "1px solid " + C.amber + "30", borderRadius: 14, boxShadow: "0 0 40px rgba(247,176,65,0.1), 0 8px 32px rgba(0,0,0,0.5)", display: "flex", flexDirection: "column", zIndex: 9998, overflow: "hidden" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid " + C.border, background: "linear-gradient(90deg, " + C.amber + "08, transparent)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: C.amber + "20", border: "1px solid " + C.amber + "40", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 14, fontWeight: 900, color: C.amber }}>P</div>
+          <div>
+            <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: C.tx }}>Ask Poast</div>
+            <div style={{ fontFamily: mn, fontSize: 8, color: C.txd }}>SA Content AI</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {msgs.length > 0 && <span onClick={exportDoc} style={{ fontFamily: mn, fontSize: 8, color: C.txd, cursor: "pointer", padding: "3px 6px", borderRadius: 3, border: "1px solid " + C.border }}>Export</span>}
+          {msgs.length > 0 && <span onClick={function() { setMsgs([]); }} style={{ fontFamily: mn, fontSize: 8, color: C.txd, cursor: "pointer", padding: "3px 6px", borderRadius: 3, border: "1px solid " + C.border }}>Clear</span>}
+          <span onClick={onToggle} style={{ fontFamily: mn, fontSize: 14, color: C.txd, cursor: "pointer", padding: "2px 6px" }}>&times;</span>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div ref={scrollRef} style={{ flex: 1, overflow: "auto", padding: "12px 16px" }}>
+        {msgs.length === 0 && <div style={{ textAlign: "center", padding: "40px 10px" }}>
+          <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 8 }}>What can I help with?</div>
+          <div style={{ fontFamily: ft, fontSize: 11, color: C.txm, lineHeight: 1.7, marginBottom: 16 }}>I know SemiAnalysis brand rules, all platform formats, and can create content, docs, and ideas.</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {["Write an X thread about NVIDIA earnings", "Draft a LinkedIn post for our latest episode", "Give me 5 content ideas about AI infrastructure", "Create an outreach email template for podcast guests"].map(function(s, i) {
+              return <span key={i} onClick={function() { setInput(s); }} style={{ fontFamily: ft, fontSize: 11, color: C.amber, cursor: "pointer", padding: "8px 12px", background: C.surface, borderRadius: 6, border: "1px solid " + C.border, textAlign: "left" }}>{s}</span>;
+            })}
+          </div>
+        </div>}
+        {msgs.map(function(m, i) {
+          var isUser = m.role === "user";
+          return <div key={i} style={{ marginBottom: 12, display: "flex", flexDirection: "column", alignItems: isUser ? "flex-end" : "flex-start" }}>
+            <div style={{ maxWidth: "85%", padding: "10px 14px", borderRadius: isUser ? "12px 12px 2px 12px" : "12px 12px 12px 2px", background: isUser ? C.amber + "18" : C.surface, border: "1px solid " + (isUser ? C.amber + "25" : C.border) }}>
+              <div style={{ fontFamily: ft, fontSize: 12, color: C.tx, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{m.text}</div>
+            </div>
+          </div>;
+        })}
+        {loading && <div style={{ display: "flex", alignItems: "flex-start", marginBottom: 12 }}>
+          <div style={{ padding: "10px 14px", borderRadius: "12px 12px 12px 2px", background: C.surface, border: "1px solid " + C.border }}>
+            <style dangerouslySetInnerHTML={{ __html: "@keyframes poastDot{0%,80%,100%{opacity:0.2}40%{opacity:1}}" }} />
+            <span style={{ fontFamily: mn, fontSize: 12, color: C.amber }}>
+              <span style={{ animation: "poastDot 1.4s ease-in-out infinite" }}>.</span>
+              <span style={{ animation: "poastDot 1.4s ease-in-out 0.2s infinite" }}>.</span>
+              <span style={{ animation: "poastDot 1.4s ease-in-out 0.4s infinite" }}>.</span>
+            </span>
+          </div>
+        </div>}
+      </div>
+
+      {/* Input */}
+      <div style={{ padding: "10px 12px", borderTop: "1px solid " + C.border, display: "flex", gap: 8 }}>
+        <input value={input} onChange={function(e) { setInput(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Ask anything..." style={{ flex: 1, padding: "10px 12px", background: C.surface, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 12, outline: "none" }} />
+        <span onClick={send} style={{ padding: "10px 14px", background: C.amber, color: C.bg, borderRadius: 8, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: loading ? "wait" : "pointer", opacity: loading ? 0.5 : 1, display: "flex", alignItems: "center" }}>Send</span>
+      </div>
+    </div>
+  );
+}
+
 // ═══ SIDEBAR ═══
-function Sidebar({ active, onNav }) {
+function Sidebar({ active, onNav, onAskPoast }) {
   var nav = [{ id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99", on: true }, { id: "captions", l: "Capper", ic: "\uD83C\uDFAC", on: true }, { id: "gtc", l: "GTC Flow", ic: "\uD83D\uDCCA", on: true }, { id: "news", l: "News Flow", ic: "\uD83D\uDCE1", on: true }, { id: "schedule", l: "Schedule", ic: "\uD83D\uDCC6", on: true }, { id: "carousel", l: "IG Carousel", ic: "\uD83D\uDCD0", on: false }];
   return (<div style={{ width: 200, minHeight: "100vh", background: "linear-gradient(180deg, " + C.bg + " 0%, #0D0D18 100%)", borderRight: "1px solid " + C.border, display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
     <div style={{ padding: "26px 20px 18px", borderBottom: "1px solid " + C.border }}><div style={{ fontFamily: ft, fontSize: 21, fontWeight: 800, color: C.amber }}>POAST</div><div style={{ fontFamily: mn, fontSize: 8, color: C.txd, letterSpacing: "2px", marginTop: 3, textTransform: "uppercase" }}>Content Command Center</div></div>
-    <div style={{ padding: "12px 8px", flex: 1, overflow: "auto" }}>{nav.map(function(n) { var s = active === n.id; return (<div key={n.id} onClick={function() { if (n.on) onNav(n.id); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px", borderRadius: 6, marginBottom: 2, cursor: n.on ? "pointer" : "not-allowed", background: s ? C.surface : "transparent", borderLeft: s ? "3px solid " + C.amber : "3px solid transparent", opacity: n.on ? 1 : 0.28 }}><span style={{ fontSize: 14 }}>{n.ic}</span><span style={{ fontFamily: ft, fontSize: 12, fontWeight: s ? 700 : 500, color: s ? C.amber : C.txm }}>{n.l}</span>{!n.on && <span style={{ fontFamily: mn, fontSize: 8, color: C.txd, marginLeft: "auto" }}>soon</span>}</div>); })}</div>
-    <div style={{ padding: "12px 16px", borderTop: "1px solid " + C.border, fontFamily: mn, fontSize: 8, color: C.txd }}>v0.6 // SemiAnalysis</div>
+
+    {/* Ask Poast button */}
+    <div style={{ padding: "12px 8px 0" }}>
+      <div onClick={onAskPoast} style={{ padding: "14px 12px", borderRadius: 8, cursor: "pointer", background: "linear-gradient(135deg, " + C.amber + "15, " + C.amber + "08)", border: "1px solid " + C.amber + "30", display: "flex", alignItems: "center", gap: 10, marginBottom: 8, transition: "all 0.15s ease" }} onMouseEnter={function(e) { e.currentTarget.style.boxShadow = "0 0 16px " + C.amber + "20"; e.currentTarget.style.borderColor = C.amber + "60"; }} onMouseLeave={function(e) { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = C.amber + "30"; }}>
+        <div style={{ width: 32, height: 32, borderRadius: 8, background: C.amber + "20", border: "1px solid " + C.amber + "40", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 16, fontWeight: 900, color: C.amber }}>P</div>
+        <div><div style={{ fontFamily: ft, fontSize: 12, fontWeight: 700, color: C.amber }}>Ask Poast</div><div style={{ fontFamily: mn, fontSize: 8, color: C.txd }}>AI Assistant</div></div>
+      </div>
+    </div>
+
+    <div style={{ padding: "4px 8px", flex: 1, overflow: "auto" }}>{nav.map(function(n) { var s = active === n.id; return (<div key={n.id} onClick={function() { if (n.on) onNav(n.id); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px", borderRadius: 6, marginBottom: 2, cursor: n.on ? "pointer" : "not-allowed", background: s ? C.surface : "transparent", borderLeft: s ? "3px solid " + C.amber : "3px solid transparent", opacity: n.on ? 1 : 0.28 }}><span style={{ fontSize: 14 }}>{n.ic}</span><span style={{ fontFamily: ft, fontSize: 12, fontWeight: s ? 700 : 500, color: s ? C.amber : C.txm }}>{n.l}</span>{!n.on && <span style={{ fontFamily: mn, fontSize: 8, color: C.txd, marginLeft: "auto" }}>soon</span>}</div>); })}</div>
+    <div style={{ padding: "12px 16px", borderTop: "1px solid " + C.border, fontFamily: mn, fontSize: 8, color: C.txd }}>v0.7 // SemiAnalysis</div>
   </div>);
 }
 
@@ -992,6 +1104,7 @@ function Splash({ onDone }) {
 // ═══ APP ═══
 export default function App() {
   var _sp = useState(true), showSplash = _sp[0], setShowSplash = _sp[1];
+  var _askPoast = useState(false), askPoastOpen = _askPoast[0], setAskPoastOpen = _askPoast[1];
   var _s = useState("weekly"), sec = _s[0], setSec = _s[1];
   var _t = useState("setup"), tab = _t[0], setTab = _t[1];
   var _e = useState({ number: "008", link: "", transcript: "", timestamps: "", extra: "" }), ep = _e[0], setEp = _e[1];
@@ -1072,7 +1185,8 @@ export default function App() {
       <div style={{ position: "absolute", bottom: "10%", right: "5%", width: "35vw", height: "35vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(46,173,142,0.03) 0%, transparent 60%)" }} />
     </div>
     <style dangerouslySetInnerHTML={{ __html: "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{background:" + C.bg + "}::selection{background:" + C.amber + "33;color:" + C.amber + "}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:" + C.bg + "}::-webkit-scrollbar-thumb{background:" + C.border + ";border-radius:3px}@keyframes fadeInUp{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}.poast-card{position:relative;transition:box-shadow 0.35s ease, border-color 0.35s ease}.poast-card:hover{box-shadow:0 0 20px rgba(247,176,65,0.12), 0 0 40px rgba(247,176,65,0.05);border-color:#2A2A3C}.poast-fadein{animation:fadeInUp 0.4s ease forwards}@keyframes progressSlide{0%{left:-40%}100%{left:100%}}.progress-slide{animation:progressSlide 1.5s ease-in-out infinite}@keyframes dotPulse{0%,80%,100%{opacity:0.2}40%{opacity:1}}.progress-dots::after{content:'...';display:inline-block;animation:dotPulse 1.4s ease-in-out infinite}" }} />
-    <Sidebar active={sec} onNav={setSec} />
+    <Sidebar active={sec} onNav={setSec} onAskPoast={function() { setAskPoastOpen(!askPoastOpen); }} />
+    <AskPoast open={askPoastOpen} onToggle={function() { setAskPoastOpen(false); }} />
     <div style={{ marginLeft: 200 }} className="poast-fadein">
       <div style={{ maxWidth: sec === "news" || sec === "schedule" ? "none" : 1200, margin: "0 auto", padding: sec === "news" || sec === "schedule" ? "0 20px" : "0 40px" }}>
         <div style={{ padding: "16px 0", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bg, position: "sticky", top: 0, zIndex: 50 }}>
