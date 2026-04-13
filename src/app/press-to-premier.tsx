@@ -279,14 +279,14 @@ function Step6({ data, setData, onNext, onBack }) {
     // ═══ STEP 2: B-ROLL ═══
     setPhase("broll");
     var brollShots = script && script.broll ? script.broll : [];
-    addLog("Generating " + brollShots.length + " b-roll shots (2 variations each) via Grok...", "info");
+    addLog("Generating " + brollShots.length + " b-roll shots via Grok...", "info");
     var clips = [];
     for (var i = 0; i < brollShots.length; i++) {
       var shot = brollShots[i];
-      // Generate 2 variations per shot
-      for (var v = 0; v < 2; v++) {
-      var varPrompt = v === 0 ? shot.prompt : shot.prompt + ", alternative angle, different composition";
-      addLog("Shot " + (i + 1) + " variation " + (v + 1) + ": " + (shot.description || "").slice(0, 40) + "...", "dim");
+      // 1 clip per shot (Grok polling not yet reliable for multi-variation)
+      var v = 0;
+      var varPrompt = shot.prompt;
+      addLog("Shot " + (i + 1) + "/" + brollShots.length + ": " + (shot.description || "").slice(0, 40) + "...", "dim");
       try {
         var clR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: varPrompt, engine: "grok" }) });
         var clD = await clR.json();
@@ -295,8 +295,8 @@ function Step6({ data, setData, onNext, onBack }) {
           var taskId = clD.task.task_id;
           var videoUrl = null;
           var pollStart = Date.now();
-          while (Date.now() - pollStart < 300000 && !videoUrl) {
-            await new Promise(function(res) { setTimeout(res, 8000); });
+          while (Date.now() - pollStart < 120000 && !videoUrl) {
+            await new Promise(function(res) { setTimeout(res, 10000); });
             try {
               var stR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", taskId: taskId, engine: "grok" }) });
               var stD = await stR.json();
@@ -314,7 +314,7 @@ function Step6({ data, setData, onNext, onBack }) {
             addLog("Shot " + (i + 1) + "v" + (v + 1) + " ready!", "success");
           } else {
             clips.push({ taskId: taskId, shot: i + 1, variation: v + 1, pending: true, provider: "grok" });
-            addLog("Shot " + (i + 1) + "v" + (v + 1) + " timed out. Retry in Select.", "warn");
+            addLog("Shot " + (i + 1) + " submitted but polling unavailable. Check Grok dashboard.", "warn");
           }
         } else {
           addLog("Shot " + (i + 1) + "v" + (v + 1) + " error: " + (clD.error || "Unknown"), "error");
@@ -324,7 +324,6 @@ function Step6({ data, setData, onNext, onBack }) {
         addLog("Shot " + (i + 1) + "v" + (v + 1) + " failed: " + String(e).slice(0, 60), "error");
         clips.push({ error: String(e), shot: i + 1, variation: v + 1 });
       }
-      } // end variation loop
     }
     setAssets(function(p) { return Object.assign({}, p, { clips: clips }); });
     var completed = clips.filter(function(c) { return c.videoUrl; }).length;
