@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import GTCFlow from "./gtc-flow";
 import NewsFlow from "./news-flow";
+import BufferSchedule from "./buffer-schedule";
 
 var C = {
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
@@ -194,12 +195,11 @@ function BufferPanel() {
 
 // ═══ SIDEBAR ═══
 function Sidebar({ active, onNav }) {
-  var nav = [{ id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99", on: true }, { id: "captions", l: "Capper", ic: "\uD83C\uDFAC", on: true }, { id: "gtc", l: "GTC Flow", ic: "\uD83D\uDCCA", on: true }, { id: "news", l: "News Flow", ic: "\uD83D\uDCE1", on: true }, { id: "carousel", l: "IG Carousel", ic: "\uD83D\uDCD0", on: false }];
+  var nav = [{ id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99", on: true }, { id: "captions", l: "Capper", ic: "\uD83C\uDFAC", on: true }, { id: "gtc", l: "GTC Flow", ic: "\uD83D\uDCCA", on: true }, { id: "news", l: "News Flow", ic: "\uD83D\uDCE1", on: true }, { id: "schedule", l: "Schedule", ic: "\uD83D\uDCC6", on: true }, { id: "carousel", l: "IG Carousel", ic: "\uD83D\uDCD0", on: false }];
   return (<div style={{ width: 200, minHeight: "100vh", background: "linear-gradient(180deg, " + C.bg + " 0%, #0D0D18 100%)", borderRight: "1px solid " + C.border, display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
     <div style={{ padding: "26px 20px 18px", borderBottom: "1px solid " + C.border }}><div style={{ fontFamily: ft, fontSize: 21, fontWeight: 800, color: C.amber }}>POAST</div><div style={{ fontFamily: mn, fontSize: 8, color: C.txd, letterSpacing: "2px", marginTop: 3, textTransform: "uppercase" }}>Content Command Center</div></div>
     <div style={{ padding: "12px 8px", flex: 1, overflow: "auto" }}>{nav.map(function(n) { var s = active === n.id; return (<div key={n.id} onClick={function() { if (n.on) onNav(n.id); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px", borderRadius: 6, marginBottom: 2, cursor: n.on ? "pointer" : "not-allowed", background: s ? C.surface : "transparent", borderLeft: s ? "3px solid " + C.amber : "3px solid transparent", opacity: n.on ? 1 : 0.28 }}><span style={{ fontSize: 14 }}>{n.ic}</span><span style={{ fontFamily: ft, fontSize: 12, fontWeight: s ? 700 : 500, color: s ? C.amber : C.txm }}>{n.l}</span>{!n.on && <span style={{ fontFamily: mn, fontSize: 8, color: C.txd, marginLeft: "auto" }}>soon</span>}</div>); })}</div>
-    <BufferPanel />
-    <div style={{ padding: "12px 16px", borderTop: "1px solid " + C.border, fontFamily: mn, fontSize: 8, color: C.txd }}>v0.5 // SemiAnalysis</div>
+    <div style={{ padding: "12px 16px", borderTop: "1px solid " + C.border, fontFamily: mn, fontSize: 8, color: C.txd }}>v0.6 // SemiAnalysis</div>
   </div>);
 }
 
@@ -1074,7 +1074,7 @@ export default function App() {
     <style dangerouslySetInnerHTML={{ __html: "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{background:" + C.bg + "}::selection{background:" + C.amber + "33;color:" + C.amber + "}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:" + C.bg + "}::-webkit-scrollbar-thumb{background:" + C.border + ";border-radius:3px}@keyframes fadeInUp{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}.poast-card{position:relative;transition:box-shadow 0.35s ease, border-color 0.35s ease}.poast-card:hover{box-shadow:0 0 20px rgba(247,176,65,0.12), 0 0 40px rgba(247,176,65,0.05);border-color:#2A2A3C}.poast-fadein{animation:fadeInUp 0.4s ease forwards}@keyframes progressSlide{0%{left:-40%}100%{left:100%}}.progress-slide{animation:progressSlide 1.5s ease-in-out infinite}@keyframes dotPulse{0%,80%,100%{opacity:0.2}40%{opacity:1}}.progress-dots::after{content:'...';display:inline-block;animation:dotPulse 1.4s ease-in-out infinite}" }} />
     <Sidebar active={sec} onNav={setSec} />
     <div style={{ marginLeft: 200 }} className="poast-fadein">
-      <div style={{ maxWidth: sec === "news" ? "none" : 1200, margin: "0 auto", padding: sec === "news" ? "0 20px" : "0 40px" }}>
+      <div style={{ maxWidth: sec === "news" || sec === "schedule" ? "none" : 1200, margin: "0 auto", padding: sec === "news" || sec === "schedule" ? "0 20px" : "0 40px" }}>
         <div style={{ padding: "16px 0", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bg, position: "sticky", top: 0, zIndex: 50 }}>
           <div><div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: C.tx }}>SemiAnalysis Weekly</div><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginTop: 1 }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div></div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -1092,6 +1092,7 @@ export default function App() {
         {sec === "captions" && <ClipCaptions />}
         {sec === "gtc" && <GTCFlow />}
         {sec === "news" && <NewsFlow />}
+        {sec === "schedule" && <BufferSchedule />}
         </div>
       </div>
     </div>

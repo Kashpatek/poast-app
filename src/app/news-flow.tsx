@@ -110,7 +110,7 @@ function SAFeed({ expanded, onToggle, onDraft }) {
 // ═══ STOCK TICKER ═══
 function StockTicker({ expanded, onToggle }) {
   var _stocks = useState([]), stocks = _stocks[0], setStocks = _stocks[1];
-  var _view = useState("ticker"), view = _view[0], setView = _view[1];
+  var _view = useState("grid"), view = _view[0], setView = _view[1];
   useEffect(function() {
     var load = function() { fetch("/api/news?type=stocks").then(function(r) { return r.json(); }).then(function(d) { if (d.stocks) setStocks(d.stocks); }); };
     load(); var iv = setInterval(load, 15000); return function() { clearInterval(iv); };
@@ -390,9 +390,225 @@ function DraftModal({ item, onClose }) {
   );
 }
 
+// ═══ ETF WIDGET ═══
+function ETFWidget({ expanded, onToggle }) {
+  var _etfs = useState([]), etfs = _etfs[0], setEtfs = _etfs[1];
+  useEffect(function() {
+    var load = function() { fetch("/api/news?type=etfs").then(function(r) { return r.json(); }).then(function(d) { if (d.etfs) setEtfs(d.etfs); }); };
+    load(); var iv = setInterval(load, 15000); return function() { clearInterval(iv); };
+  }, []);
+  return (
+    <W title="ETFs" icon={"\uD83C\uDFE6"} expanded={expanded} onToggleExpand={onToggle}>
+      {etfs.length === 0 ? <div style={{ color: T.txd, fontFamily: mn, fontSize: 10, padding: 20, textAlign: "center" }}>Loading...</div>
+      : <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 5 }}>
+        {etfs.map(function(s, i) {
+          var up = s.changePct >= 0;
+          return <div key={i} style={{ padding: "6px 8px", borderRadius: 5, background: up ? T.green + "08" : T.red + "08", border: "1px solid " + (up ? T.green : T.red) + "18" }}>
+            <div style={{ fontFamily: mn, fontSize: 9, fontWeight: 700, color: T.tx }}>{s.symbol}</div>
+            <div style={{ fontFamily: mn, fontSize: 12, fontWeight: 700, color: T.tx }}>${s.price.toFixed(2)}</div>
+            <div style={{ fontFamily: mn, fontSize: 9, color: up ? T.green : T.red }}>{up ? "+" : ""}{s.changePct.toFixed(2)}%</div>
+            <div style={{ fontFamily: ft, fontSize: 7, color: T.txd, marginTop: 1 }}>{s.name}</div>
+          </div>;
+        })}
+      </div>}
+    </W>
+  );
+}
+
+// ═══ CRYPTO + COMMODITIES ═══
+function CryptoWidget({ expanded, onToggle }) {
+  var _crypto = useState([]), crypto = _crypto[0], setCrypto = _crypto[1];
+  var _commod = useState([]), commod = _commod[0], setCommod = _commod[1];
+  var _view = useState("crypto"), view = _view[0], setView = _view[1];
+  useEffect(function() {
+    var loadC = function() { fetch("/api/news?type=crypto").then(function(r) { return r.json(); }).then(function(d) { if (d.crypto) setCrypto(d.crypto); }); };
+    var loadR = function() { fetch("/api/news?type=commodities").then(function(r) { return r.json(); }).then(function(d) { if (d.commodities) setCommod(d.commodities); }); };
+    loadC(); loadR(); var iv1 = setInterval(loadC, 15000); var iv2 = setInterval(loadR, 30000); return function() { clearInterval(iv1); clearInterval(iv2); };
+  }, []);
+  var items = view === "crypto" ? crypto : commod;
+  return (
+    <W title="Crypto & Resources" icon={"\u20BF"} expanded={expanded} onToggleExpand={onToggle} actions={<><SmBtn onClick={function() { setView("crypto"); }} on={view === "crypto"}>Crypto</SmBtn><SmBtn onClick={function() { setView("resources"); }} on={view === "resources"}>Resources</SmBtn></>}>
+      {items.length === 0 ? <div style={{ color: T.txd, fontFamily: mn, fontSize: 10, padding: 20, textAlign: "center" }}>Loading...</div>
+      : <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 5 }}>
+        {items.map(function(s, i) {
+          var up = s.changePct >= 0;
+          return <div key={i} style={{ padding: "8px 10px", borderRadius: 5, background: up ? T.green + "08" : T.red + "08", border: "1px solid " + (up ? T.green : T.red) + "18" }}>
+            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: T.tx }}>{s.symbol || s.name}</div>
+            <div style={{ fontFamily: mn, fontSize: 14, fontWeight: 700, color: T.tx }}>${s.price < 1 ? s.price.toFixed(4) : s.price.toFixed(2)}</div>
+            <div style={{ fontFamily: mn, fontSize: 9, color: up ? T.green : T.red }}>{up ? "+" : ""}{s.changePct.toFixed(2)}%</div>
+          </div>;
+        })}
+      </div>}
+    </W>
+  );
+}
+
+// ═══ POMODORO ═══
+function Pomodoro({ expanded, onToggle }) {
+  var _time = useState(25 * 60), time = _time[0], setTime = _time[1];
+  var _running = useState(false), running = _running[0], setRunning = _running[1];
+  var _mode = useState("work"), mode = _mode[0], setMode = _mode[1];
+  var _sessions = useState(0), sessions = _sessions[0], setSessions = _sessions[1];
+  var ivRef = useRef(null);
+
+  useEffect(function() {
+    if (running) {
+      ivRef.current = setInterval(function() {
+        setTime(function(t) {
+          if (t <= 1) {
+            setRunning(false);
+            try { new Audio("data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1").play(); } catch (e) {}
+            if (mode === "work") { setSessions(function(s) { return s + 1; }); setMode("break"); return 5 * 60; }
+            else { setMode("work"); return 25 * 60; }
+          }
+          return t - 1;
+        });
+      }, 1000);
+    }
+    return function() { if (ivRef.current) clearInterval(ivRef.current); };
+  }, [running, mode]);
+
+  var mins = Math.floor(time / 60);
+  var secs = time % 60;
+  var pct = mode === "work" ? ((25 * 60 - time) / (25 * 60)) * 100 : ((5 * 60 - time) / (5 * 60)) * 100;
+  var reset = function() { setRunning(false); setMode("work"); setTime(25 * 60); };
+
+  return (
+    <W title="Pomodoro" icon={"\uD83C\uDF45"} expanded={expanded} onToggleExpand={onToggle}>
+      <div style={{ textAlign: "center", padding: 10 }}>
+        <div style={{ fontFamily: mn, fontSize: 9, color: mode === "work" ? T.accent : T.green, textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>{mode === "work" ? "Focus Time" : "Break Time"}</div>
+        <div style={{ fontFamily: mn, fontSize: 36, fontWeight: 900, color: T.tx, marginBottom: 12 }}>{String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}</div>
+        <div style={{ width: "100%", height: 4, background: T.border, borderRadius: 2, marginBottom: 12 }}>
+          <div style={{ height: "100%", width: pct + "%", background: mode === "work" ? T.accent : T.green, borderRadius: 2, transition: "width 1s linear" }} />
+        </div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+          <span onClick={function() { setRunning(!running); }} style={{ padding: "6px 16px", background: running ? T.red : T.accent, color: "#fff", borderRadius: 5, cursor: "pointer", fontFamily: ft, fontSize: 11, fontWeight: 700 }}>{running ? "Pause" : "Start"}</span>
+          <span onClick={reset} style={{ padding: "6px 12px", background: T.surface, border: "1px solid " + T.border, color: T.txm, borderRadius: 5, cursor: "pointer", fontFamily: mn, fontSize: 10 }}>Reset</span>
+        </div>
+        <div style={{ fontFamily: mn, fontSize: 9, color: T.txd, marginTop: 10 }}>Sessions: {sessions}</div>
+      </div>
+    </W>
+  );
+}
+
+// ═══ CHIP-KUN (Tamagotchi) ═══
+var CHIP_FACES = ["\u25A0\u203F\u25A0", "\u00B0\u25E1\u00B0", ">\u203F<", "\u00B0o\u00B0", "^\u203F^", "-\u203F-", "\u00D7\u203F\u00D7"];
+var CHIP_MOODS = ["happy", "curious", "excited", "sleepy", "focused"];
+function ChipKun({ expanded, onToggle }) {
+  var _mood = useState(0), mood = _mood[0], setMood = _mood[1];
+  var _face = useState(0), face = _face[0], setFace = _face[1];
+  var _msg = useState("Click me!"), msg = _msg[0], setMsg = _msg[1];
+  var _bouncing = useState(false), bouncing = _bouncing[0], setBouncing = _bouncing[1];
+  var _clicks = useState(0), clicks = _clicks[0], setClicks = _clicks[1];
+
+  var msgs = ["I love semiconductors!", "Did you check NVDA today?", "Time for a pomodoro?", "Ship that content!", "CoWoS capacity is wild.", "3nm is the future.", "Don't forget to post!", "I'm a chip off the old block.", "TSMC earnings soon...", "Need more GPU compute!", "Cache me if you can.", "Fab-ulous day!"];
+
+  var handleClick = function() {
+    setBouncing(true);
+    setFace(Math.floor(Math.random() * CHIP_FACES.length));
+    setMood(Math.floor(Math.random() * CHIP_MOODS.length));
+    setMsg(msgs[Math.floor(Math.random() * msgs.length)]);
+    setClicks(function(c) { return c + 1; });
+    setTimeout(function() { setBouncing(false); }, 500);
+  };
+
+  useEffect(function() {
+    var iv = setInterval(function() { setFace(function(f) { return (f + 1) % CHIP_FACES.length; }); }, 4000);
+    return function() { clearInterval(iv); };
+  }, []);
+
+  return (
+    <W title="Chip-kun" icon={"\uD83E\uDEAB"} expanded={expanded} onToggleExpand={onToggle}>
+      <style dangerouslySetInnerHTML={{ __html: "@keyframes chipBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}@keyframes chipIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}" }} />
+      <div style={{ textAlign: "center", padding: 10 }}>
+        <div onClick={handleClick} style={{ display: "inline-block", cursor: "pointer", animation: bouncing ? "chipBounce 0.5s ease" : "chipIdle 2s ease-in-out infinite", userSelect: "none" }}>
+          <div style={{ width: 64, height: 64, borderRadius: 10, background: "linear-gradient(135deg, #2A2A4A, #1A1A30)", border: "2px solid " + T.accent + "40", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 8px", boxShadow: "0 0 20px " + T.accent + "20", position: "relative" }}>
+            {/* Pins */}
+            {[0, 1, 2, 3].map(function(p) { return <div key={p} style={{ position: "absolute", bottom: -4, left: 12 + p * 12, width: 4, height: 6, background: "#888", borderRadius: "0 0 1px 1px" }} />; })}
+            {[0, 1, 2, 3].map(function(p) { return <div key={"t" + p} style={{ position: "absolute", top: -4, left: 12 + p * 12, width: 4, height: 6, background: "#888", borderRadius: "1px 1px 0 0" }} />; })}
+            <div style={{ fontFamily: mn, fontSize: 16, color: T.accent }}>{CHIP_FACES[face]}</div>
+          </div>
+        </div>
+        <div style={{ fontFamily: ft, fontSize: 11, color: T.tx, marginBottom: 4 }}>{msg}</div>
+        <div style={{ fontFamily: mn, fontSize: 8, color: T.txd }}>Mood: {CHIP_MOODS[mood]} // Clicks: {clicks}</div>
+      </div>
+    </W>
+  );
+}
+
+// ═══ BOOKMARKS ═══
+function Bookmarks({ expanded, onToggle }) {
+  var _bm = useState([]), bm = _bm[0], setBm = _bm[1];
+  var _input = useState(""), input = _input[0], setInput = _input[1];
+  useEffect(function() { try { var s = localStorage.getItem("poast-bookmarks"); if (s) setBm(JSON.parse(s)); } catch (e) {} }, []);
+  useEffect(function() { try { localStorage.setItem("poast-bookmarks", JSON.stringify(bm)); } catch (e) {} }, [bm]);
+  var add = function() { if (!input.trim()) return; setBm(function(p) { return [{ text: input.trim(), ts: Date.now() }].concat(p); }); setInput(""); };
+  var remove = function(ts) { setBm(function(p) { return p.filter(function(b) { return b.ts !== ts; }); }); };
+  return (
+    <W title="Bookmarks" icon={"\uD83D\uDD16"} expanded={expanded} onToggleExpand={onToggle}>
+      <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+        <input value={input} onChange={function(e) { setInput(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") add(); }} placeholder="Save a link or note..." style={{ flex: 1, padding: "5px 8px", background: T.surface, border: "1px solid " + T.border, borderRadius: 4, color: T.tx, fontFamily: mn, fontSize: 10, outline: "none" }} />
+        <span onClick={add} style={{ padding: "5px 8px", background: T.accent, color: "#fff", borderRadius: 4, cursor: "pointer", fontFamily: ft, fontSize: 10, fontWeight: 700 }}>+</span>
+      </div>
+      {bm.map(function(b) {
+        var isUrl = b.text.startsWith("http");
+        return <div key={b.ts} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 0", borderBottom: "1px solid " + T.border }}>
+          {isUrl ? <a href={b.text} target="_blank" rel="noopener noreferrer" style={{ flex: 1, fontFamily: mn, fontSize: 10, color: T.accent4, textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.text}</a>
+          : <span style={{ flex: 1, fontFamily: ft, fontSize: 10, color: T.tx }}>{b.text}</span>}
+          <span onClick={function() { remove(b.ts); }} style={{ fontFamily: mn, fontSize: 9, color: T.txd, cursor: "pointer" }}>x</span>
+        </div>;
+      })}
+    </W>
+  );
+}
+
+// ═══ CALCULATOR ═══
+function CalcWidget({ expanded, onToggle }) {
+  var _expr = useState(""), expr = _expr[0], setExpr = _expr[1];
+  var _result = useState(""), result = _result[0], setResult = _result[1];
+  var calc = function() { try { setResult(String(Function('"use strict";return (' + expr + ')')())); } catch (e) { setResult("Error"); } };
+  return (
+    <W title="Calculator" icon={"\uD83E\uDDEE"} expanded={expanded} onToggleExpand={onToggle}>
+      <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+        <input value={expr} onChange={function(e) { setExpr(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") calc(); }} placeholder="e.g. 1024 * 3.5" style={{ flex: 1, padding: "6px 8px", background: T.surface, border: "1px solid " + T.border, borderRadius: 4, color: T.tx, fontFamily: mn, fontSize: 11, outline: "none" }} />
+        <span onClick={calc} style={{ padding: "6px 10px", background: T.accent, color: "#fff", borderRadius: 4, cursor: "pointer", fontFamily: mn, fontSize: 11 }}>=</span>
+      </div>
+      {result && <div style={{ fontFamily: mn, fontSize: 18, fontWeight: 700, color: T.green, textAlign: "right", padding: "4px 8px" }}>{result}</div>}
+    </W>
+  );
+}
+
+// ═══ COUNTDOWN ═══
+function Countdown({ expanded, onToggle }) {
+  var _events = useState([
+    { name: "ASML Earnings", date: "2026-04-16T06:00:00" },
+    { name: "TSMC Earnings", date: "2026-04-17T06:00:00" },
+    { name: "Intel Earnings", date: "2026-04-24T16:00:00" },
+    { name: "NVDA Earnings", date: "2026-05-28T16:00:00" },
+  ]);
+  var events = _events[0];
+  var _now = useState(Date.now()), now = _now[0], setNow = _now[1];
+  useEffect(function() { var iv = setInterval(function() { setNow(Date.now()); }, 1000); return function() { clearInterval(iv); }; }, []);
+
+  return (
+    <W title="Countdown" icon={"\u23F3"} expanded={expanded} onToggleExpand={onToggle}>
+      {events.filter(function(e) { return new Date(e.date).getTime() > now; }).map(function(e, i) {
+        var diff = new Date(e.date).getTime() - now;
+        var d = Math.floor(diff / 86400000);
+        var h = Math.floor((diff % 86400000) / 3600000);
+        var m = Math.floor((diff % 3600000) / 60000);
+        return <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid " + T.border }}>
+          <span style={{ fontFamily: ft, fontSize: 11, color: T.tx, fontWeight: 600 }}>{e.name}</span>
+          <span style={{ fontFamily: mn, fontSize: 10, color: d <= 3 ? T.red : T.accent }}>{d}d {h}h {m}m</span>
+        </div>;
+      })}
+    </W>
+  );
+}
+
 // ═══ SETTINGS ═══
-var WIDGET_IDS = ["news", "semianalysis", "stocks", "earnings", "live", "watchlist", "ideas", "notes", "todos"];
-var WIDGET_META = { news: { l: "News Feed", i: "\uD83D\uDCF0" }, semianalysis: { l: "SemiAnalysis", i: "\uD83D\uDD2C" }, stocks: { l: "Stocks", i: "\uD83D\uDCC8" }, earnings: { l: "Earnings", i: "\uD83D\uDCC5" }, live: { l: "LIVE!", i: "\uD83D\uDD34" }, watchlist: { l: "Watchlist", i: "\uD83D\uDC41" }, ideas: { l: "AI Ideas", i: "\uD83D\uDCA1" }, notes: { l: "Notes", i: "\uD83D\uDCDD" }, todos: { l: "To-Do", i: "\u2705" } };
+var WIDGET_IDS = ["news", "semianalysis", "stocks", "etfs", "crypto", "earnings", "live", "watchlist", "ideas", "notes", "todos", "pomodoro", "chipkun", "bookmarks", "calc", "countdown"];
+var WIDGET_META = { news: { l: "News Feed", i: "\uD83D\uDCF0" }, semianalysis: { l: "SemiAnalysis", i: "\uD83D\uDD2C" }, stocks: { l: "Stocks", i: "\uD83D\uDCC8" }, etfs: { l: "ETFs", i: "\uD83C\uDFE6" }, crypto: { l: "Crypto & Resources", i: "\u20BF" }, earnings: { l: "Earnings", i: "\uD83D\uDCC5" }, live: { l: "LIVE!", i: "\uD83D\uDD34" }, watchlist: { l: "Watchlist", i: "\uD83D\uDC41" }, ideas: { l: "AI Ideas", i: "\uD83D\uDCA1" }, notes: { l: "Notes", i: "\uD83D\uDCDD" }, todos: { l: "To-Do", i: "\u2705" }, pomodoro: { l: "Pomodoro", i: "\uD83C\uDF45" }, chipkun: { l: "Chip-kun", i: "\uD83E\uDEAB" }, bookmarks: { l: "Bookmarks", i: "\uD83D\uDD16" }, calc: { l: "Calculator", i: "\uD83E\uDDEE" }, countdown: { l: "Countdown", i: "\u23F3" } };
 
 function Settings({ order, setOrder, disabled, setDisabled, onClose }) {
   var toggle = function(id) { setDisabled(function(p) { var s = new Set(p); if (s.has(id)) s.delete(id); else s.add(id); return Array.from(s); }); };
@@ -436,6 +652,8 @@ export default function NewsFlow() {
 
   var toggleExpand = function(id) { setExpanded(expanded === id ? null : id); };
 
+  var _showAdd = useState(false), showAdd = _showAdd[0], setShowAdd = _showAdd[1];
+
   var renderWidget = function(id) {
     if (disabled.indexOf(id) >= 0) return null;
     var ex = expanded === id;
@@ -443,14 +661,24 @@ export default function NewsFlow() {
     if (id === "news") return <NewsFeed key={id} expanded={ex} onToggle={tog} onDraft={setDraftItem} />;
     if (id === "semianalysis") return <SAFeed key={id} expanded={ex} onToggle={tog} onDraft={setDraftItem} />;
     if (id === "stocks") return <StockTicker key={id} expanded={ex} onToggle={tog} />;
+    if (id === "etfs") return <ETFWidget key={id} expanded={ex} onToggle={tog} />;
+    if (id === "crypto") return <CryptoWidget key={id} expanded={ex} onToggle={tog} />;
     if (id === "earnings") return <EarningsCalendar key={id} expanded={ex} onToggle={tog} />;
     if (id === "live") return <LiveStreams key={id} expanded={ex} onToggle={tog} />;
     if (id === "watchlist") return <Watchlist key={id} expanded={ex} onToggle={tog} />;
     if (id === "ideas") return <AIIdeas key={id} expanded={ex} onToggle={tog} onDraft={setDraftItem} />;
     if (id === "notes") return <Notes key={id} expanded={ex} onToggle={tog} />;
     if (id === "todos") return <TodoList key={id} expanded={ex} onToggle={tog} />;
+    if (id === "pomodoro") return <Pomodoro key={id} expanded={ex} onToggle={tog} />;
+    if (id === "chipkun") return <ChipKun key={id} expanded={ex} onToggle={tog} />;
+    if (id === "bookmarks") return <Bookmarks key={id} expanded={ex} onToggle={tog} />;
+    if (id === "calc") return <CalcWidget key={id} expanded={ex} onToggle={tog} />;
+    if (id === "countdown") return <Countdown key={id} expanded={ex} onToggle={tog} />;
     return null;
   };
+
+  var hiddenWidgets = WIDGET_IDS.filter(function(id) { return disabled.indexOf(id) >= 0; });
+  var activateWidget = function(id) { setDisabled(function(p) { return p.filter(function(d) { return d !== id; }); }); if (order.indexOf(id) < 0) setOrder(function(p) { return p.concat([id]); }); setShowAdd(false); };
 
   return (
     <div>
@@ -460,7 +688,21 @@ export default function NewsFlow() {
           <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 900, color: T.tx }}>News Flow</div>
           <div style={{ fontFamily: mn, fontSize: 9, color: T.txm, marginTop: 1 }}>Live feeds, stocks, streams, ideas. Draft from any article.</div>
         </div>
-        <span onClick={function() { setShowSettings(true); }} style={{ width: 30, height: 30, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: T.surface, border: "1px solid " + T.border, fontSize: 15, color: T.txm }}>{"\u2699"}</span>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", position: "relative" }}>
+          <div style={{ position: "relative" }}>
+            <span onClick={function() { setShowAdd(!showAdd); }} style={{ padding: "5px 12px", borderRadius: 6, cursor: "pointer", background: T.accent + "15", border: "1px solid " + T.accent + "30", fontFamily: mn, fontSize: 9, color: T.accent, fontWeight: 700 }}>+ Add Widget</span>
+            {showAdd && <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: T.card, border: "1px solid " + T.border, borderRadius: 8, padding: 6, zIndex: 100, minWidth: 180, boxShadow: T.glowAccent }}>
+              {hiddenWidgets.length === 0 ? <div style={{ fontFamily: mn, fontSize: 9, color: T.txd, padding: 8 }}>All widgets active</div>
+              : hiddenWidgets.map(function(id) {
+                var m = WIDGET_META[id];
+                return <div key={id} onClick={function() { activateWidget(id); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", borderRadius: 4, cursor: "pointer", fontFamily: ft, fontSize: 11, color: T.tx }}>
+                  <span style={{ fontSize: 12 }}>{m.i}</span>{m.l}
+                </div>;
+              })}
+            </div>}
+          </div>
+          <span onClick={function() { setShowSettings(true); }} style={{ width: 30, height: 30, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: T.surface, border: "1px solid " + T.border, fontSize: 15, color: T.txm }}>{"\u2699"}</span>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))", gap: 12 }}>
