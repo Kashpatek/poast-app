@@ -21,36 +21,35 @@ export async function POST(req: NextRequest) {
 
     let articleText = text || "";
 
-    // Step 1: If URL mode, use Gemini to fetch article
+    // Step 1: If URL mode, fetch the page and extract text
     if (mode === "url" && url) {
-      const geminiKey = process.env.GEMINI_API_KEY;
-      if (!geminiKey) {
-        return NextResponse.json({ error: "GEMINI_API_KEY not configured" }, { status: 500 });
-      }
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        const pageRes = await fetch(url, {
+          headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" },
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        const html = await pageRes.text();
+        // Strip HTML tags, scripts, styles to get raw text
+        articleText = html
+          .replace(/<script[\s\S]*?<\/script>/gi, "")
+          .replace(/<style[\s\S]*?<\/style>/gi, "")
+          .replace(/<nav[\s\S]*?<\/nav>/gi, "")
+          .replace(/<footer[\s\S]*?<\/footer>/gi, "")
+          .replace(/<header[\s\S]*?<\/header>/gi, "")
+          .replace(/<[^>]*>/g, " ")
+          .replace(/&[^;]+;/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 15000);
 
-      const geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: `Fetch the article at this URL and return ONLY the raw article text with no commentary, no formatting, no preamble. Just the article text. URL: ${url}`
-              }]
-            }]
-          })
+        if (articleText.length < 100) {
+          return NextResponse.json({ error: "Could not extract meaningful text from URL. Try pasting the article text directly." }, { status: 400 });
         }
-      );
-
-      const geminiData = await geminiRes.json();
-      if (geminiData.error) {
-        return NextResponse.json({ error: "Gemini error: " + (geminiData.error.message || "Failed to fetch article") }, { status: 500 });
-      }
-
-      articleText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      if (!articleText) {
-        return NextResponse.json({ error: "Gemini returned empty response. Check the URL." }, { status: 400 });
+      } catch (e) {
+        return NextResponse.json({ error: "Failed to fetch URL: " + String(e).slice(0, 100) }, { status: 400 });
       }
     }
 

@@ -331,7 +331,7 @@ function SocialTab({ b }) {
 // ═══ PIPELINE TAB ═══
 function PipelineTab({ hasElevenLabs, hasKling, hasGemini, hasGrok }) {
   var steps = [
-    { l: "Article Fetch", ic: "\uD83C\uDF10", model: "Gemini 2.0 Flash", status: hasGemini ? "complete" : "ready", desc: "Fetches and extracts article content" },
+    { l: "Article Fetch", ic: "\uD83C\uDF10", model: "Direct fetch + Claude", status: "complete", desc: "Fetches page and extracts article text" },
     { l: "Brief + Script", ic: "\uD83D\uDCC4", model: "Claude Sonnet 4", status: "complete", desc: "Generates hook, script, b-roll prompts, social captions" },
     { l: "Thumbnails", ic: "\uD83D\uDDBC", model: hasGrok ? "Grok Imagine" : "Gemini Imagen 3", status: hasGrok || hasGemini ? "ready" : "soon", desc: "3 cinematic thumbnail options // ~$0.04" },
     { l: "Voiceover", ic: "\uD83C\uDF99", model: "ElevenLabs TTS", status: hasElevenLabs ? "ready" : "soon", desc: "Script to audio .mp3 // ~$0.03/video" },
@@ -370,7 +370,7 @@ function PipelineTab({ hasElevenLabs, hasKling, hasGemini, hasGrok }) {
 // ═══ LOADING STEPS ═══
 function LoadingSteps({ mode, step }) {
   var steps = mode === "url" ? [
-    "Fetching article with Gemini", "Extracting key data points", "Writing script with Claude", "Generating b-roll prompts", "Building social captions"
+    "Fetching article", "Extracting key data points", "Writing script with Claude", "Generating b-roll prompts", "Building social captions"
   ] : [
     "Extracting key data points", "Writing script with Claude", "Generating b-roll prompts", "Building social captions"
   ];
@@ -457,7 +457,7 @@ export default function PressToPremi() {
       {/* Input */}
       {mode === "url" ? <div style={{ marginBottom: 16 }}>
         <input value={url} onChange={function(e) { setUrl(e.target.value); }} placeholder="https://semianalysis.com/article..." style={{ width: "100%", padding: "10px 14px", background: D.card, border: "1px solid " + D.border, borderRadius: 8, color: D.tx, fontFamily: ft, fontSize: 13, outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = D.amber; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
-        <div style={{ fontFamily: mn, fontSize: 11, color: D.txs, marginTop: 6 }}>Gemini fetches the article. Claude writes everything else.</div>
+        <div style={{ fontFamily: mn, fontSize: 11, color: D.txs, marginTop: 6 }}>We fetch the page and Claude writes everything.</div>
       </div>
       : <div style={{ marginBottom: 16 }}>
         <textarea value={text} onChange={function(e) { setText(e.target.value); }} placeholder="Paste the full article text here..." rows={8} style={{ width: "100%", minHeight: 160, maxHeight: 280, padding: "10px 14px", background: D.card, border: "1px solid " + D.border, borderRadius: 8, color: D.tx, fontFamily: ft, fontSize: 13, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.6 }} onFocus={function(e) { e.target.style.borderColor = D.amber; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
@@ -487,7 +487,7 @@ export default function PressToPremi() {
 
       {/* Generate */}
       <button onClick={generate} disabled={!hasInput || loading} style={{ width: "100%", height: 44, borderRadius: 8, border: "none", background: D.amber, color: D.bg, fontFamily: ft, fontSize: 14, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", cursor: !hasInput || loading ? "not-allowed" : "pointer", opacity: !hasInput || loading ? 0.4 : 1, transition: "all 0.15s" }}>{loading ? "Generating..." : "Generate Brief"}</button>
-      <div style={{ fontFamily: mn, fontSize: 11, color: D.dim, textAlign: "center", marginTop: 8 }}>~$0.02 per brief // Claude + Gemini</div>
+      <div style={{ fontFamily: mn, fontSize: 11, color: D.dim, textAlign: "center", marginTop: 8 }}>~$0.02 per brief // Claude</div>
 
       {/* History */}
       {history.length > 0 && <div style={{ marginTop: 20 }}>
