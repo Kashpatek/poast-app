@@ -131,7 +131,7 @@ function VoiceGen({ scriptText }) {
 }
 
 // ═══ CLIP GENERATOR (per shot) ═══
-function ClipGen({ prompt }) {
+function ClipGen({ prompt, engine }) {
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
   var _taskId = useState(null), taskId = _taskId[0], setTaskId = _taskId[1];
   var _video = useState(null), video = _video[0], setVideo = _video[1];
@@ -140,7 +140,7 @@ function ClipGen({ prompt }) {
   var gen = async function() {
     setLoading(true); setVideo(null); setStatus("submitting");
     try {
-      var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: prompt, duration: "5", aspectRatio: "16:9" }) });
+      var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: prompt, duration: "5", aspectRatio: "16:9", engine: engine || "grok" }) });
       var d = await r.json();
       if (d.error) { toast(d.error, "error"); setLoading(false); setStatus(null); return; }
       if (d.task && d.task.task_id) {
@@ -271,7 +271,7 @@ function BrollTab({ b }) {
       <span onClick={function() { copy(allPrompts); }} style={{ fontFamily: mn, fontSize: 9, color: D.txs, cursor: "pointer", padding: "3px 8px", borderRadius: 4, border: "1px solid " + D.border }}>Copy All Prompts</span>
     </div>
     {(b.broll || []).map(function(shot, i) {
-      var _model = useState("kling"); var model = _model[0]; var setModel = _model[1];
+      var _model = useState("grok"); var model = _model[0]; var setModel = _model[1];
       return <div key={i} style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: "16px 20px", marginBottom: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -279,7 +279,7 @@ function BrollTab({ b }) {
             <span style={{ fontFamily: mn, fontSize: 9, background: D.border, padding: "2px 6px", borderRadius: 4, color: D.txs }}>{shot.timing}</span>
           </div>
           <div style={{ display: "flex", gap: 4 }}>
-            {["kling", "veo", "fal"].map(function(m) { return <span key={m} onClick={function() { setModel(m); }} style={{ fontFamily: mn, fontSize: 9, padding: "2px 8px", borderRadius: 4, cursor: "pointer", background: model === m ? D.amber : "transparent", color: model === m ? D.bg : D.txs, border: model === m ? "none" : "1px solid " + D.border, textTransform: "capitalize" }}>{m}</span>; })}
+            {["grok", "kling"].map(function(m) { return <span key={m} onClick={function() { setModel(m); }} style={{ fontFamily: mn, fontSize: 9, padding: "2px 8px", borderRadius: 4, cursor: "pointer", background: model === m ? D.amber : "transparent", color: model === m ? D.bg : D.txs, border: model === m ? "none" : "1px solid " + D.border, textTransform: "capitalize" }}>{m === "grok" ? "Grok" : "Kling"}</span>; })}
           </div>
         </div>
         <div style={{ fontFamily: ft, fontSize: 13, color: D.txs, fontStyle: "italic", marginBottom: 8 }}>{shot.description}</div>
@@ -288,7 +288,7 @@ function BrollTab({ b }) {
           <div style={{ position: "absolute", top: 8, right: 8 }}><CopyBtn text={shot.prompt} /></div>
         </div>
         {shot.camera && <div style={{ fontFamily: mn, fontSize: 10, color: D.dim, marginTop: 6 }}>CAMERA: {shot.camera}</div>}
-        <ClipGen prompt={shot.prompt} />
+        <ClipGen prompt={shot.prompt} engine={model} />
       </div>;
     })}
   </div>);
@@ -329,12 +329,13 @@ function SocialTab({ b }) {
 }
 
 // ═══ PIPELINE TAB ═══
-function PipelineTab({ hasElevenLabs, hasKling, hasGemini }) {
+function PipelineTab({ hasElevenLabs, hasKling, hasGemini, hasGrok }) {
   var steps = [
     { l: "Article Fetch", ic: "\uD83C\uDF10", model: "Gemini 2.0 Flash", status: hasGemini ? "complete" : "ready", desc: "Fetches and extracts article content" },
     { l: "Brief + Script", ic: "\uD83D\uDCC4", model: "Claude Sonnet 4", status: "complete", desc: "Generates hook, script, b-roll prompts, social captions" },
+    { l: "Thumbnails", ic: "\uD83D\uDDBC", model: hasGrok ? "Grok Imagine" : "Gemini Imagen 3", status: hasGrok || hasGemini ? "ready" : "soon", desc: "3 cinematic thumbnail options // ~$0.04" },
     { l: "Voiceover", ic: "\uD83C\uDF99", model: "ElevenLabs TTS", status: hasElevenLabs ? "ready" : "soon", desc: "Script to audio .mp3 // ~$0.03/video" },
-    { l: "B-Roll Generation", ic: "\uD83C\uDFA5", model: "Kling AI", status: hasKling ? "ready" : "soon", desc: "5 cinematic clips // ~$1.50/video" },
+    { l: "B-Roll Generation", ic: "\uD83C\uDFA5", model: hasGrok ? "Grok Imagine Video" : "Kling AI", status: hasGrok || hasKling ? "ready" : "soon", desc: "5 cinematic clips // ~$1.50/video" },
     { l: "Assembly", ic: "\uD83D\uDDC2", model: "Remotion + FFmpeg", status: "soon", desc: "Composite VO + b-roll + SA overlays + text animations" },
     { l: "Export", ic: "\u2B07\uFE0F", model: "MP4 // 16:9 // 9:16 // 1:1", status: "soon", desc: "Multi-format export, ready to post" },
   ];
@@ -522,7 +523,7 @@ export default function PressToPremi() {
         {tab === "script" && <ScriptTab b={brief} />}
         {tab === "broll" && <BrollTab b={brief} />}
         {tab === "social" && <SocialTab b={brief} />}
-        {tab === "pipeline" && <PipelineTab hasElevenLabs={true} hasKling={true} hasGemini={false} />}
+        {tab === "pipeline" && <PipelineTab hasElevenLabs={true} hasKling={true} hasGemini={false} hasGrok={true} />}
       </div>}
     </div>
   </div>);
