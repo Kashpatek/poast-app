@@ -399,7 +399,7 @@ function CalendarTab({ posts, channels }) {
         if (!day) return <div key={"e" + ci} />;
         var dp = onDay(day); var isToday = day === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear();
         var svcs = {}; dp.forEach(function(p) { var s = p.channel ? p.channel.service : ""; svcs[s] = (svcs[s] || 0) + 1; });
-        return <div key={ci} onMouseEnter={function(e) { if (dp.length > 0) { setHoverDay(day); setHp({ x: e.clientX, y: e.clientY }); } }} onMouseLeave={function() { setHoverDay(null); }} style={{ minHeight: 90, padding: "6px 8px", borderRadius: 8, background: D.card, border: isToday ? "2px solid " + D.amber : "1px solid " + D.border, boxShadow: isToday ? "0 0 12px " + D.amber + "20" : "none" }}>
+        return <div key={ci} onMouseEnter={function(e) { if (dp.length > 0) { setHoverDay(day); setHp({ x: e.clientX, y: e.clientY }); } }} onMouseMove={function(e) { if (dp.length > 0) setHp({ x: e.clientX, y: e.clientY }); }} onMouseLeave={function() { setHoverDay(null); }} style={{ minHeight: 90, padding: "6px 8px", borderRadius: 8, background: D.card, border: isToday ? "2px solid " + D.amber : "1px solid " + D.border, boxShadow: isToday ? "0 0 12px " + D.amber + "20" : "none" }}>
           <div style={{ fontFamily: mn, fontSize: 11, fontWeight: isToday ? 800 : 500, color: isToday ? D.amber : D.tx, marginBottom: 4 }}>{day}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
             {Object.keys(svcs).map(function(s) { var pp = pl(s); return <div key={s} style={{ display: "flex", alignItems: "center", gap: 2, padding: "1px 5px", borderRadius: 4, background: pp.c + "15", border: "1px solid " + pp.c + "25" }}><span style={{ fontSize: 9 }}>{pp.i}</span><span style={{ fontFamily: mn, fontSize: 8, color: pp.c, fontWeight: 700 }}>{svcs[s]}</span></div>; })}
@@ -407,7 +407,7 @@ function CalendarTab({ posts, channels }) {
         </div>;
       })}
     </div>
-    {hoverDay && <div style={{ position: "fixed", left: hp.x + 12, top: hp.y - 10, background: D.card, border: "1px solid " + D.amber + "30", borderRadius: 8, padding: "10px 14px", zIndex: 1000, maxWidth: 320, boxShadow: "0 4px 24px rgba(0,0,0,0.6)", pointerEvents: "none" }}>
+    {hoverDay && <div style={{ position: "fixed", left: hp.x + 8, top: hp.y + 16, background: D.card, border: "1px solid " + D.amber + "30", borderRadius: 8, padding: "10px 14px", zIndex: 1000, maxWidth: 320, boxShadow: "0 4px 24px rgba(0,0,0,0.6)", pointerEvents: "none", transition: "left 0.05s ease, top 0.05s ease" }}>
       {onDay(hoverDay).slice(0, 5).map(function(p, i) { var pp = pl(p.channel ? p.channel.service : ""); var t = p.dueAt ? new Date(p.dueAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : ""; return <div key={i} style={{ display: "flex", gap: 6, padding: "3px 0", borderBottom: i < 4 ? "1px solid " + D.border : "none" }}><span style={{ fontSize: 10 }}>{pp.i}</span><div style={{ flex: 1 }}><div style={{ fontFamily: ft, fontSize: 10, color: D.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(p.text || "Media post").slice(0, 50)}</div><div style={{ fontFamily: mn, fontSize: 8, color: D.txs }}>{pp.n} // {t}</div></div></div>; })}
     </div>}
   </div>);
