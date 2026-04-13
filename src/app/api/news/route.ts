@@ -3,8 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 // ═══ RSS PARSER ═══
 async function fetchRSS(url: string, source: string, category: string) {
   try {
-    const r = await fetch(url, { next: { revalidate: 15 } });
-    const xml = await r.text();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const r = await fetch(url, { next: { revalidate: 60 }, signal: controller.signal });
+    clearTimeout(timeout);
+    // Limit read to 500KB to avoid Vercel memory issues
+    const xml = (await r.text()).slice(0, 500000);
     const items: Array<{title: string; link: string; date: string; source: string; category: string; snippet: string}> = [];
     const itemRegex = /<(?:item|entry)>([\s\S]*?)<\/(?:item|entry)>/g;
     let match;
@@ -28,10 +32,14 @@ async function fetchQuotes(symbols: string[]) {
   const results: Array<{symbol: string; price: number; change: number; changePct: number; name: string}> = [];
   const promises = symbols.map(async (sym) => {
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4000);
       const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=1d`, {
         headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" },
-        next: { revalidate: 15 },
+        next: { revalidate: 30 },
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       const d = await r.json();
       const meta = d?.chart?.result?.[0]?.meta;
       if (meta) {
@@ -54,9 +62,13 @@ async function fetchQuotes(symbols: string[]) {
 // ═══ CRYPTO (CoinGecko, free, no key) ═══
 async function fetchCrypto() {
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
     const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,ripple,cardano&vs_currencies=usd&include_24hr_change=true", {
-      next: { revalidate: 15 },
+      next: { revalidate: 30 },
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
     const d = await r.json();
     const map: Record<string, string> = { bitcoin: "BTC", ethereum: "ETH", solana: "SOL", ripple: "XRP", cardano: "ADA" };
     return Object.entries(d).map(([id, v]: [string, any]) => ({

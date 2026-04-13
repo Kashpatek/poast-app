@@ -54,7 +54,7 @@ function NewsFeed({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fo
     fetch("/api/news" + q).then(function(r) { return r.json(); }).then(function(d) { setData(d); setLoading(false); }).catch(function() { setLoading(false); });
   }, [cat, src]);
 
-  useEffect(function() { load(); var iv = setInterval(load, 15000); return function() { clearInterval(iv); }; }, [load]);
+  useEffect(function() { load(); var iv = setInterval(load, 60000); return function() { clearInterval(iv); }; }, [load]);
 
   var sourceColor = { "SemiAnalysis": T.accent, "Hacker News": "#FF6600", "TechCrunch": T.green, "The Verge": T.accent4, "Bloomberg": "#5C068C", "CNBC Tech": "#005E9E", "Tom's Hardware": "#E63946", "VideoCardz": "#F4A300", "ServeTheHome": "#2196F3", "Reuters": "#FF8000", "Wired": "#000", "Ars Technica": "#FF4400", "Next Platform": "#00BCD4" };
 
@@ -94,7 +94,7 @@ function SAFeed({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, font
   var _items = useState([]), items = _items[0], setItems = _items[1];
   useEffect(function() {
     var load = function() { fetch("/api/news?type=semianalysis").then(function(r) { return r.json(); }).then(function(d) { if (d.items) setItems(d.items); }); };
-    load(); var iv = setInterval(load, 30000); return function() { clearInterval(iv); };
+    setTimeout(load, 2000); var iv = setInterval(load, 90000); return function() { clearInterval(iv); };
   }, []);
   return (
     <W title="SemiAnalysis" icon={"\uD83D\uDD2C"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
@@ -117,8 +117,8 @@ function StockTicker({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop,
   var _stocks = useState([]), stocks = _stocks[0], setStocks = _stocks[1];
   var _view = useState("grid"), view = _view[0], setView = _view[1];
   useEffect(function() {
-    var load = function() { fetch("/api/news?type=stocks").then(function(r) { return r.json(); }).then(function(d) { if (d.stocks) setStocks(d.stocks); }); };
-    load(); var iv = setInterval(load, 15000); return function() { clearInterval(iv); };
+    var load = function() { fetch("/api/news?type=stocks").then(function(r) { return r.json(); }).then(function(d) { if (d.stocks) setStocks(d.stocks); }).catch(function() {}); };
+    setTimeout(load, 1000); var iv = setInterval(load, 60000); return function() { clearInterval(iv); };
   }, []);
   return (
     <W title="Stocks" icon={"\uD83D\uDCC8"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize} actions={<SmBtn onClick={function() { setView(view === "ticker" ? "grid" : "ticker"); }}>{view === "ticker" ? "Grid" : "Ticker"}</SmBtn>}>
@@ -399,8 +399,8 @@ function DraftModal({ item, onClose }) {
 function ETFWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }) {
   var _etfs = useState([]), etfs = _etfs[0], setEtfs = _etfs[1];
   useEffect(function() {
-    var load = function() { fetch("/api/news?type=etfs").then(function(r) { return r.json(); }).then(function(d) { if (d.etfs) setEtfs(d.etfs); }); };
-    load(); var iv = setInterval(load, 15000); return function() { clearInterval(iv); };
+    var load = function() { fetch("/api/news?type=etfs").then(function(r) { return r.json(); }).then(function(d) { if (d.etfs) setEtfs(d.etfs); }).catch(function() {}); };
+    setTimeout(load, 3000); var iv = setInterval(load, 60000); return function() { clearInterval(iv); };
   }, []);
   return (
     <W title="ETFs" icon={"\uD83C\uDFE6"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
@@ -426,9 +426,9 @@ function CryptoWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop
   var _commod = useState([]), commod = _commod[0], setCommod = _commod[1];
   var _view = useState("crypto"), view = _view[0], setView = _view[1];
   useEffect(function() {
-    var loadC = function() { fetch("/api/news?type=crypto").then(function(r) { return r.json(); }).then(function(d) { if (d.crypto) setCrypto(d.crypto); }); };
-    var loadR = function() { fetch("/api/news?type=commodities").then(function(r) { return r.json(); }).then(function(d) { if (d.commodities) setCommod(d.commodities); }); };
-    loadC(); loadR(); var iv1 = setInterval(loadC, 15000); var iv2 = setInterval(loadR, 30000); return function() { clearInterval(iv1); clearInterval(iv2); };
+    var loadC = function() { fetch("/api/news?type=crypto").then(function(r) { return r.json(); }).then(function(d) { if (d.crypto) setCrypto(d.crypto); }).catch(function() {}); };
+    var loadR = function() { fetch("/api/news?type=commodities").then(function(r) { return r.json(); }).then(function(d) { if (d.commodities) setCommod(d.commodities); }).catch(function() {}); };
+    setTimeout(loadC, 4000); setTimeout(loadR, 5000); var iv1 = setInterval(loadC, 60000); var iv2 = setInterval(loadR, 90000); return function() { clearInterval(iv1); clearInterval(iv2); };
   }, []);
   var items = view === "crypto" ? crypto : commod;
   return (
