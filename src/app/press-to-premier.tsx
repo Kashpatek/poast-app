@@ -766,9 +766,9 @@ export default function PressToPremi() {
     setLoading(false);
   };
 
-  if (!active) return <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 20px" }}><Toasts /><ProjectList projects={projects} onOpen={openProject} onNew={startNew} /></div>;
+  if (!active) return <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 32px" }}><Toasts /><ProjectList projects={projects} onOpen={openProject} onNew={startNew} /></div>;
 
-  return <div style={{ maxWidth: 720, margin: "0 auto", padding: "40px 20px" }}>
+  return <div style={{ maxWidth: 960, margin: "0 auto", padding: "40px 32px" }}>
     <Toasts />
     <StepTracker current={step} steps={stepNames} />
 

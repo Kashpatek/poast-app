@@ -1307,7 +1307,7 @@ export default function App() {
     <Sidebar active={sec} onNav={setSec} onAskPoast={function() { setAskPoastOpen(!askPoastOpen); }} />
     <AskPoast open={askPoastOpen} onToggle={function() { setAskPoastOpen(false); }} />
     <div style={{ marginLeft: 240, position: "relative", zIndex: 1 }} className="poast-fadein">
-      <div style={{ maxWidth: sec === "news" || sec === "schedule" || sec === "p2p" ? "none" : 1100, margin: "0 auto", padding: sec === "news" || sec === "schedule" || sec === "p2p" ? "0 24px" : "0 40px" }}>
+      <div style={{ maxWidth: sec === "news" || sec === "schedule" || sec === "p2p" ? "none" : "none", margin: "0 auto", padding: "0 32px" }}>
         <div style={{ padding: "20px 0", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", background: C.bg + "E0" }}>
           <div><div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx, letterSpacing: -0.5 }}>SemiAnalysis Weekly</div><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginTop: 2 }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div></div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
