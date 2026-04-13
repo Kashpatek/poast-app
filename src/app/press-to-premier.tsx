@@ -245,6 +245,9 @@ function Step6({ data, setData, onNext, onBack }) {
   var _assets = useState({ voiceover: null, clips: [], music: null }), assets = _assets[0], setAssets = _assets[1];
   var logRef = useRef(null);
   var started = useRef(false);
+  // Use refs to track final values since setState is async
+  var voRef = useRef(null);
+  var musicRef = useRef(null);
 
   var addLog = function(msg, type) { setLog(function(p) { return p.concat([{ msg: msg, type: type || "info", ts: new Date().toLocaleTimeString() }]); }); };
 
@@ -265,6 +268,7 @@ function Step6({ data, setData, onNext, onBack }) {
       var voR = await fetch("/api/generate-voiceover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: fullScript }) });
       var voD = await voR.json();
       if (voD.audio) {
+        voRef.current = voD.audio;
         setAssets(function(p) { return Object.assign({}, p, { voiceover: voD.audio }); });
         addLog("Voiceover generated successfully (" + Math.round(voD.audio.length / 1024) + "KB)", "success");
       } else {
@@ -334,6 +338,7 @@ function Step6({ data, setData, onNext, onBack }) {
       var muR = await fetch("/api/generate-music", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: "ambient tech background music, cinematic, minimal, dark tone, suitable for semiconductor industry video", duration: Math.min(30, data.duration || 30) }) });
       var muD = await muR.json();
       if (muD.audio) {
+        musicRef.current = muD.audio;
         setAssets(function(p) { return Object.assign({}, p, { music: muD.audio }); });
         addLog("Music generated (" + Math.round(muD.audio.length / 1024) + "KB)", "success");
       } else {
@@ -345,8 +350,8 @@ function Step6({ data, setData, onNext, onBack }) {
     setPhase("done");
     addLog("Production complete.", "success");
 
-    // Save assets to data
-    setData(function(p) { return Object.assign({}, p, { assets: { voiceover: assets.voiceover, clips: clips, music: assets.music } }); });
+    // Save assets to data using refs (state may not be updated yet)
+    setData(function(p) { return Object.assign({}, p, { assets: { voiceover: voRef.current, clips: clips, music: musicRef.current } }); });
   };
 
   var stepList = [
@@ -640,6 +645,33 @@ function Step9({ data, onPremier, onDraft }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
       <button onClick={downloadAll} style={{ width: "100%", height: 52, background: D.surface, border: "1px solid " + D.border, borderRadius: 10, fontFamily: ft, fontSize: 15, fontWeight: 700, color: D.tx, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = D.amber + "40"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; }}>
         Download All Assets
+      </button>
+      <button onClick={function() {
+        toast("Submitting render job to GitHub Actions...", "info");
+        var script = data.scripts && data.scripts[data.selScript || 0];
+        var selectedClips = data.selectedClips || {};
+        var clipUrls = [];
+        if (assets.clips) {
+          var shotGroups = {};
+          assets.clips.forEach(function(c) { var s = c.shot || 1; if (!shotGroups[s]) shotGroups[s] = []; shotGroups[s].push(c); });
+          Object.keys(shotGroups).sort().forEach(function(s) { var sel = selectedClips[s] || 0; var clip = shotGroups[s][sel]; if (clip && clip.videoUrl) clipUrls.push(clip.videoUrl); });
+        }
+        fetch("/api/render-video", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+          hook: data.options ? data.options.hooks[data.selHook || 0] : "",
+          scriptSections: script ? [{ label: "INTRO", text: script.intro }].concat((script.body || []).map(function(b, i) { return { label: "BODY " + (i + 1), text: b }; })).concat([{ label: "OUTRO", text: script.outro }]) : [],
+          dataPoints: [],
+          thumbnailHeadline: data.options ? data.options.titles[data.selTitle || 0] : "",
+          audioUrl: assets.voiceover || "",
+          clipUrls: clipUrls,
+          musicUrl: assets.music || "",
+          duration: data.duration || 60,
+          aspectRatio: data.aspect || "16:9",
+        }) }).then(function(r) { return r.json(); }).then(function(d) {
+          if (d.renderId) toast("Render submitted! ID: " + d.renderId + ". Check GitHub Actions.", "success");
+          else toast("Render error: " + (d.error || "Unknown"), "error");
+        }).catch(function(e) { toast("Render failed: " + String(e).slice(0, 60), "error"); });
+      }} style={{ width: "100%", height: 52, background: D.surface, border: "1px solid " + D.border, borderRadius: 10, fontFamily: ft, fontSize: 15, fontWeight: 700, color: D.tx, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = D.violet + "40"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; }}>
+        Render MP4 (GitHub Actions)
       </button>
       <button onClick={sendToBuffer} style={{ width: "100%", height: 52, background: D.surface, border: "1px solid " + D.border, borderRadius: 10, fontFamily: ft, fontSize: 15, fontWeight: 700, color: D.tx, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = D.blue + "40"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; }}>
         Send to Buffer Schedule
