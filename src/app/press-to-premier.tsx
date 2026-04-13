@@ -32,6 +32,155 @@ function CopyBtn({ text }) {
 
 function Tab({ l, active, onClick }) { return <div onClick={onClick} style={{ padding: "10px 16px", cursor: "pointer", fontFamily: ft, fontSize: 12, fontWeight: active ? 700 : 500, color: active ? D.amber : D.txs, borderBottom: active ? "2px solid " + D.amber : "2px solid transparent", transition: "all 0.15s" }}>{l}</div>; }
 
+// ═══ THUMBNAIL GENERATOR ═══
+function ThumbGen({ concept, headline, subtext }) {
+  var _style = useState("cinematic"), style = _style[0], setStyle = _style[1];
+  var _images = useState([]), images = _images[0], setImages = _images[1];
+  var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
+
+  var gen = async function() {
+    setLoading(true);
+    try {
+      var r = await fetch("/api/generate-thumbnail", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ concept: concept, style: style }) });
+      var d = await r.json();
+      if (d.images) { setImages(d.images); toast("Thumbnails generated", "success"); }
+      else toast(d.error || "Thumbnail generation failed", "error");
+    } catch (e) { toast("Thumbnail generation failed", "error"); }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: "16px 20px", marginBottom: 16 }}>
+      <div style={{ fontFamily: mn, fontSize: 10, color: D.txs, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>THUMBNAIL CONCEPT</div>
+      <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
+        <div style={{ width: 200, aspectRatio: "16/9", background: D.bg, borderRadius: 8, border: "1px solid " + D.border, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 12, flexShrink: 0 }}>
+          <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: D.amber, textAlign: "center", marginBottom: 4 }}>{headline}</div>
+          <div style={{ fontFamily: ft, fontSize: 9, color: D.tx, textAlign: "center" }}>{subtext}</div>
+          <div style={{ fontFamily: mn, fontSize: 7, color: D.amber, marginTop: "auto" }}>SA</div>
+        </div>
+        <div>
+          <div style={{ marginBottom: 6 }}><div style={{ fontFamily: mn, fontSize: 9, color: D.txs }}>Headline</div><div style={{ fontFamily: ft, fontSize: 13, color: D.tx }}>{headline}</div><CopyBtn text={headline} /></div>
+          <div style={{ marginBottom: 6 }}><div style={{ fontFamily: mn, fontSize: 9, color: D.txs }}>Subtext</div><div style={{ fontFamily: ft, fontSize: 13, color: D.tx }}>{subtext}</div><CopyBtn text={subtext} /></div>
+          <div><div style={{ fontFamily: mn, fontSize: 9, color: D.txs }}>Concept</div><div style={{ fontFamily: ft, fontSize: 12, color: D.txs }}>{concept}</div></div>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
+        {[{ id: "cinematic", l: "Cinematic" }, { id: "photorealistic", l: "Photorealistic" }, { id: "abstract", l: "Abstract" }, { id: "dataviz", l: "Data Viz" }].map(function(s) {
+          var on = style === s.id;
+          return <span key={s.id} onClick={function() { setStyle(s.id); }} style={{ padding: "4px 10px", borderRadius: 5, cursor: "pointer", background: on ? D.amber : "transparent", border: on ? "none" : "1px solid " + D.border, color: on ? D.bg : D.txs, fontFamily: mn, fontSize: 10, transition: "all 0.15s" }}>{s.l}</span>;
+        })}
+        <span onClick={gen} style={{ padding: "6px 14px", background: loading ? D.border : D.amber, color: D.bg, borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 700, cursor: loading ? "wait" : "pointer", marginLeft: "auto" }}>{loading ? "Generating..." : "Generate Thumbnail"}</span>
+      </div>
+      {images.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 10 }}>
+        {images.map(function(img, i) {
+          return <div key={i} style={{ borderRadius: 8, overflow: "hidden", border: "1px solid " + D.border, position: "relative" }}>
+            <img src={img} alt={"Thumbnail " + (i + 1)} style={{ width: "100%", display: "block" }} />
+            <div style={{ display: "flex", gap: 4, padding: "6px", background: D.card }}>
+              <a href={img} download={"thumbnail-" + (i + 1) + ".png"} style={{ fontFamily: mn, fontSize: 8, color: D.amber, textDecoration: "none", padding: "2px 6px", borderRadius: 3, border: "1px solid " + D.amber + "30" }}>Download</a>
+            </div>
+          </div>;
+        })}
+      </div>}
+    </div>
+  );
+}
+
+// ═══ VOICEOVER GENERATOR ═══
+function VoiceGen({ scriptText }) {
+  var _voices = useState([]), voices = _voices[0], setVoices = _voices[1];
+  var _voice = useState("JBFqnCBsd6RMkjVDRZzb"), voice = _voice[0], setVoice = _voice[1];
+  var _audio = useState(null), audio = _audio[0], setAudio = _audio[1];
+  var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
+
+  useEffect(function() {
+    fetch("/api/generate-voiceover").then(function(r) { return r.json(); }).then(function(d) { if (d.voices) setVoices(d.voices); }).catch(function() {});
+  }, []);
+
+  var gen = async function() {
+    setLoading(true);
+    try {
+      var r = await fetch("/api/generate-voiceover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: scriptText, voiceId: voice }) });
+      var d = await r.json();
+      if (d.audio) { setAudio(d.audio); toast("Voiceover generated", "success"); }
+      else toast(d.error || "Voiceover failed", "error");
+    } catch (e) { toast("Voiceover failed", "error"); }
+    setLoading(false);
+  };
+
+  var topVoices = voices.slice(0, 8);
+
+  return (
+    <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: "16px 20px", marginTop: 16 }}>
+      <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>GENERATE VOICEOVER</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 12 }}>
+        {topVoices.map(function(v) {
+          var on = voice === v.id;
+          return <div key={v.id} onClick={function() { setVoice(v.id); }} style={{ padding: "8px 6px", borderRadius: 6, cursor: "pointer", textAlign: "center", background: on ? D.amber + "15" : D.bg, border: on ? "1px solid " + D.amber : "1px solid " + D.border, transition: "all 0.15s" }}>
+            <div style={{ fontFamily: ft, fontSize: 11, fontWeight: on ? 700 : 500, color: on ? D.amber : D.tx }}>{v.name.split(" - ")[0]}</div>
+            <div style={{ fontFamily: mn, fontSize: 8, color: D.txs }}>{(v.name.split(" - ")[1] || "").slice(0, 25)}</div>
+          </div>;
+        })}
+      </div>
+      <span onClick={gen} style={{ padding: "8px 18px", background: loading ? D.border : D.amber, color: D.bg, borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: loading ? "wait" : "pointer" }}>{loading ? "Generating..." : "Generate Voiceover"}</span>
+      {audio && <div style={{ marginTop: 12 }}>
+        <audio controls src={audio} style={{ width: "100%", height: 40 }} />
+        <a href={audio} download="voiceover.mp3" style={{ fontFamily: mn, fontSize: 9, color: D.amber, textDecoration: "none", marginTop: 6, display: "inline-block" }}>Download .mp3</a>
+      </div>}
+    </div>
+  );
+}
+
+// ═══ CLIP GENERATOR (per shot) ═══
+function ClipGen({ prompt }) {
+  var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
+  var _taskId = useState(null), taskId = _taskId[0], setTaskId = _taskId[1];
+  var _video = useState(null), video = _video[0], setVideo = _video[1];
+  var _status = useState(null), status = _status[0], setStatus = _status[1];
+
+  var gen = async function() {
+    setLoading(true); setVideo(null); setStatus("submitting");
+    try {
+      var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: prompt, duration: "5", aspectRatio: "16:9" }) });
+      var d = await r.json();
+      if (d.error) { toast(d.error, "error"); setLoading(false); setStatus(null); return; }
+      if (d.task && d.task.task_id) {
+        setTaskId(d.task.task_id); setStatus("processing");
+        toast("Clip submitted, processing...", "info");
+        // Poll for completion
+        var poll = setInterval(async function() {
+          try {
+            var sr = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", taskId: d.task.task_id }) });
+            var sd = await sr.json();
+            if (sd.task && sd.task.task_status === "succeed" && sd.task.task_result && sd.task.task_result.videos) {
+              setVideo(sd.task.task_result.videos[0].url);
+              setStatus("done"); setLoading(false); clearInterval(poll);
+              toast("Clip generated!", "success");
+            } else if (sd.task && sd.task.task_status === "failed") {
+              setStatus("failed"); setLoading(false); clearInterval(poll);
+              toast("Clip generation failed", "error");
+            }
+          } catch (e) { /* keep polling */ }
+        }, 5000);
+        // Stop polling after 3 minutes
+        setTimeout(function() { clearInterval(poll); if (!video) { setLoading(false); setStatus("timeout"); } }, 180000);
+      }
+    } catch (e) { toast("Clip generation failed", "error"); setLoading(false); setStatus(null); }
+  };
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <span onClick={gen} style={{ padding: "5px 12px", background: loading ? D.border : D.amber, color: D.bg, borderRadius: 5, fontFamily: ft, fontSize: 10, fontWeight: 700, cursor: loading ? "wait" : "pointer" }}>{loading ? (status === "processing" ? "Processing..." : "Submitting...") : "Generate Clip"}</span>
+        {status && status !== "done" && <span style={{ fontFamily: mn, fontSize: 9, color: D.txs }}>{status}</span>}
+      </div>
+      {video && <div style={{ marginTop: 8, borderRadius: 6, overflow: "hidden", border: "1px solid " + D.border }}>
+        <video controls src={video} style={{ width: "100%", display: "block" }} />
+        <a href={video} target="_blank" rel="noopener noreferrer" style={{ display: "block", padding: "6px 10px", fontFamily: mn, fontSize: 9, color: D.amber, textDecoration: "none", background: D.card }}>Download clip</a>
+      </div>}
+    </div>
+  );
+}
+
 // ═══ BRIEF TAB ═══
 function BriefTab({ b }) {
   return (<div>
@@ -60,22 +209,8 @@ function BriefTab({ b }) {
       })}
     </div>
 
-    {/* Thumbnail concept */}
-    {b.thumbnail && <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: "16px 20px", marginBottom: 16 }}>
-      <div style={{ fontFamily: mn, fontSize: 10, color: D.txs, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>THUMBNAIL CONCEPT</div>
-      <div style={{ display: "flex", gap: 16 }}>
-        <div style={{ width: 200, aspectRatio: "16/9", background: D.bg, borderRadius: 8, border: "1px solid " + D.border, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 12, flexShrink: 0 }}>
-          <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: D.amber, textAlign: "center", marginBottom: 4 }}>{b.thumbnail.headline}</div>
-          <div style={{ fontFamily: ft, fontSize: 9, color: D.tx, textAlign: "center" }}>{b.thumbnail.subtext}</div>
-          <div style={{ fontFamily: mn, fontSize: 7, color: D.amber, marginTop: "auto" }}>SA</div>
-        </div>
-        <div>
-          <div style={{ marginBottom: 8 }}><div style={{ fontFamily: mn, fontSize: 9, color: D.txs }}>Headline</div><div style={{ fontFamily: ft, fontSize: 13, color: D.tx }}>{b.thumbnail.headline}</div><CopyBtn text={b.thumbnail.headline} /></div>
-          <div style={{ marginBottom: 8 }}><div style={{ fontFamily: mn, fontSize: 9, color: D.txs }}>Subtext</div><div style={{ fontFamily: ft, fontSize: 13, color: D.tx }}>{b.thumbnail.subtext}</div><CopyBtn text={b.thumbnail.subtext} /></div>
-          <div><div style={{ fontFamily: mn, fontSize: 9, color: D.txs }}>Concept</div><div style={{ fontFamily: ft, fontSize: 12, color: D.txs }}>{b.thumbnail.concept}</div></div>
-        </div>
-      </div>
-    </div>}
+    {/* Thumbnail concept + generation */}
+    {b.thumbnail && <ThumbGen concept={b.thumbnail.concept} headline={b.thumbnail.headline} subtext={b.thumbnail.subtext} />}
 
     {/* Data points */}
     {b.dataPoints && b.dataPoints.length > 0 && <div>
@@ -123,6 +258,7 @@ function ScriptTab({ b }) {
         <div style={{ fontFamily: ft, fontSize: 15, color: D.tx, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{s.t}</div>
       </div>;
     })}
+    <VoiceGen scriptText={full} />
   </div>);
 }
 
@@ -152,6 +288,7 @@ function BrollTab({ b }) {
           <div style={{ position: "absolute", top: 8, right: 8 }}><CopyBtn text={shot.prompt} /></div>
         </div>
         {shot.camera && <div style={{ fontFamily: mn, fontSize: 10, color: D.dim, marginTop: 6 }}>CAMERA: {shot.camera}</div>}
+        <ClipGen prompt={shot.prompt} />
       </div>;
     })}
   </div>);
@@ -192,12 +329,12 @@ function SocialTab({ b }) {
 }
 
 // ═══ PIPELINE TAB ═══
-function PipelineTab() {
+function PipelineTab({ hasElevenLabs, hasKling, hasGemini }) {
   var steps = [
-    { l: "Article Fetch", ic: "\uD83C\uDF10", model: "Gemini 2.0 Flash", status: "complete", desc: "Fetches and extracts article content" },
+    { l: "Article Fetch", ic: "\uD83C\uDF10", model: "Gemini 2.0 Flash", status: hasGemini ? "complete" : "ready", desc: "Fetches and extracts article content" },
     { l: "Brief + Script", ic: "\uD83D\uDCC4", model: "Claude Sonnet 4", status: "complete", desc: "Generates hook, script, b-roll prompts, social captions" },
-    { l: "Voiceover", ic: "\uD83C\uDF99", model: "ElevenLabs TTS", status: "soon", desc: "Script to audio .mp3 // ~$0.15/video" },
-    { l: "B-Roll Generation", ic: "\uD83C\uDFA5", model: "FAL.ai (Kling / Veo)", status: "soon", desc: "5 cinematic clips // ~$0.75-2.00/video" },
+    { l: "Voiceover", ic: "\uD83C\uDF99", model: "ElevenLabs TTS", status: hasElevenLabs ? "ready" : "soon", desc: "Script to audio .mp3 // ~$0.03/video" },
+    { l: "B-Roll Generation", ic: "\uD83C\uDFA5", model: "Kling AI", status: hasKling ? "ready" : "soon", desc: "5 cinematic clips // ~$1.50/video" },
     { l: "Assembly", ic: "\uD83D\uDDC2", model: "Remotion + FFmpeg", status: "soon", desc: "Composite VO + b-roll + SA overlays + text animations" },
     { l: "Export", ic: "\u2B07\uFE0F", model: "MP4 // 16:9 // 9:16 // 1:1", status: "soon", desc: "Multi-format export, ready to post" },
   ];
@@ -205,14 +342,16 @@ function PipelineTab() {
     <div style={{ fontFamily: mn, fontSize: 10, color: D.txs, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>AUTOMATION PIPELINE</div>
     <div style={{ fontFamily: ft, fontSize: 13, color: D.txs, marginBottom: 20 }}>Full article to video for ~$1.50</div>
     {steps.map(function(s, i) {
-      var done = s.status === "complete";
+      var done = s.status === "complete"; var ready = s.status === "ready";
+      var sc = done ? D.teal : ready ? D.blue : D.amber;
+      var sl = done ? "Complete" : ready ? "Ready" : "Coming Soon";
       return <div key={i}>
         <div style={{ display: "flex", gap: 14, padding: "14px 16px", background: D.card, border: "1px solid " + D.border, borderRadius: 8, marginBottom: 0 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: done ? D.teal + "15" : D.amber + "10", border: "1px solid " + (done ? D.teal + "30" : D.amber + "20"), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{s.ic}</div>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: sc + "15", border: "1px solid " + sc + "30", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{s.ic}</div>
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
               <span style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: D.tx }}>{s.l}</span>
-              <span style={{ fontFamily: mn, fontSize: 8, color: done ? D.teal : D.amber, padding: "1px 6px", borderRadius: 3, background: (done ? D.teal : D.amber) + "12", textTransform: "uppercase" }}>{done ? "Complete" : "Coming Soon"}</span>
+              <span style={{ fontFamily: mn, fontSize: 8, color: sc, padding: "1px 6px", borderRadius: 3, background: sc + "12", textTransform: "uppercase" }}>{sl}</span>
             </div>
             <div style={{ fontFamily: mn, fontSize: 10, color: D.txs }}>{s.model}</div>
             <div style={{ fontFamily: ft, fontSize: 11, color: D.dim, marginTop: 2 }}>{s.desc}</div>
@@ -383,7 +522,7 @@ export default function PressToPremi() {
         {tab === "script" && <ScriptTab b={brief} />}
         {tab === "broll" && <BrollTab b={brief} />}
         {tab === "social" && <SocialTab b={brief} />}
-        {tab === "pipeline" && <PipelineTab />}
+        {tab === "pipeline" && <PipelineTab hasElevenLabs={true} hasKling={true} hasGemini={false} />}
       </div>}
     </div>
   </div>);
