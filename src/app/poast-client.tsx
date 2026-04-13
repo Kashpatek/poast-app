@@ -123,13 +123,83 @@ function OutCard({ title, content, color, onRedo, rLoading }) {
   </div>);
 }
 
+// ═══ BUFFER SIDEBAR SECTION ═══
+function BufferPanel() {
+  var _data = useState(null), data = _data[0], setData = _data[1];
+  var _loading = useState(true), loading = _loading[0], setLoading = _loading[1];
+  var _expanded = useState(false), expanded = _expanded[0], setExpanded = _expanded[1];
+
+  useEffect(function() {
+    fetch("/api/buffer").then(function(r) { return r.json(); }).then(function(d) {
+      if (d.profiles) setData(d);
+      setLoading(false);
+    }).catch(function() { setLoading(false); });
+  }, []);
+
+  var platformColor = { twitter: "#1DA1F2", facebook: "#1877F2", linkedin: "#0A66C2", instagram: "#E4405F" };
+  var platformIcon = { twitter: "\uD83D\uDC26", facebook: "\uD83D\uDCD8", linkedin: "\uD83D\uDCBC", instagram: "\uD83D\uDCF7" };
+
+  if (loading) return <div style={{ padding: "8px 12px" }}><div style={{ fontFamily: mn, fontSize: 8, color: C.txd }}>Loading Buffer...</div></div>;
+  if (!data || !data.profiles) return null;
+
+  var allPending = [];
+  (data.profiles || []).forEach(function(p) {
+    (p.pending || []).forEach(function(u) {
+      allPending.push(Object.assign({}, u, { service: p.service, username: p.username }));
+    });
+  });
+  allPending.sort(function(a, b) { return (a.due_at || 0) - (b.due_at || 0); });
+
+  return (<div style={{ borderTop: "1px solid " + C.border, padding: "10px 12px" }}>
+    <div onClick={function() { setExpanded(!expanded); }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", marginBottom: expanded ? 8 : 0 }}>
+      <div style={{ fontFamily: mn, fontSize: 8, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px" }}>Buffer</div>
+      <span style={{ fontFamily: mn, fontSize: 8, color: C.txd }}>{expanded ? "\u25B2" : "\u25BC"}</span>
+    </div>
+    {expanded && <div>
+      {/* Stats */}
+      {(data.profiles || []).map(function(p, i) {
+        var pc = platformColor[p.service] || C.txm;
+        var a = p.analytics || {};
+        return <div key={i} style={{ marginBottom: 6, padding: "6px 8px", background: C.surface, borderRadius: 4, border: "1px solid " + C.border }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
+            <span style={{ fontSize: 9 }}>{platformIcon[p.service] || "\uD83D\uDCE2"}</span>
+            <span style={{ fontFamily: mn, fontSize: 8, fontWeight: 700, color: pc }}>{p.username}</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, fontFamily: mn, fontSize: 7 }}>
+            <div><span style={{ color: C.txd }}>Posts </span><span style={{ color: C.tx }}>{a.posts || 0}</span></div>
+            <div><span style={{ color: C.txd }}>Clicks </span><span style={{ color: C.tx }}>{a.clicks || 0}</span></div>
+            <div><span style={{ color: C.txd }}>Reach </span><span style={{ color: C.tx }}>{a.reach || 0}</span></div>
+            <div><span style={{ color: C.txd }}>Likes </span><span style={{ color: C.tx }}>{a.likes || 0}</span></div>
+          </div>
+        </div>;
+      })}
+      {/* Upcoming */}
+      {allPending.length > 0 && <div style={{ marginTop: 6 }}>
+        <div style={{ fontFamily: mn, fontSize: 7, color: C.teal, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Upcoming</div>
+        {allPending.slice(0, 8).map(function(u, i) {
+          var pc = platformColor[u.service] || C.txm;
+          return <div key={i} style={{ padding: "4px 0", borderBottom: "1px solid " + C.border }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 3, marginBottom: 1 }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: pc }} />
+              <span style={{ fontFamily: mn, fontSize: 7, color: pc }}>{u.service}</span>
+              <span style={{ fontFamily: mn, fontSize: 7, color: C.txd }}>{u.day} {u.time}</span>
+            </div>
+            <div style={{ fontFamily: ft, fontSize: 9, color: C.tx, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.text}</div>
+          </div>;
+        })}
+      </div>}
+    </div>}
+  </div>);
+}
+
 // ═══ SIDEBAR ═══
 function Sidebar({ active, onNav }) {
   var nav = [{ id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99", on: true }, { id: "captions", l: "Capper", ic: "\uD83C\uDFAC", on: true }, { id: "gtc", l: "GTC Flow", ic: "\uD83D\uDCCA", on: true }, { id: "news", l: "News Flow", ic: "\uD83D\uDCE1", on: true }, { id: "carousel", l: "IG Carousel", ic: "\uD83D\uDCD0", on: false }];
   return (<div style={{ width: 200, minHeight: "100vh", background: "linear-gradient(180deg, " + C.bg + " 0%, #0D0D18 100%)", borderRight: "1px solid " + C.border, display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
     <div style={{ padding: "26px 20px 18px", borderBottom: "1px solid " + C.border }}><div style={{ fontFamily: ft, fontSize: 21, fontWeight: 800, color: C.amber }}>POAST</div><div style={{ fontFamily: mn, fontSize: 8, color: C.txd, letterSpacing: "2px", marginTop: 3, textTransform: "uppercase" }}>Content Command Center</div></div>
-    <div style={{ padding: "12px 8px", flex: 1 }}>{nav.map(function(n) { var s = active === n.id; return (<div key={n.id} onClick={function() { if (n.on) onNav(n.id); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px", borderRadius: 6, marginBottom: 2, cursor: n.on ? "pointer" : "not-allowed", background: s ? C.surface : "transparent", borderLeft: s ? "3px solid " + C.amber : "3px solid transparent", opacity: n.on ? 1 : 0.28 }}><span style={{ fontSize: 14 }}>{n.ic}</span><span style={{ fontFamily: ft, fontSize: 12, fontWeight: s ? 700 : 500, color: s ? C.amber : C.txm }}>{n.l}</span>{!n.on && <span style={{ fontFamily: mn, fontSize: 8, color: C.txd, marginLeft: "auto" }}>soon</span>}</div>); })}</div>
-    <div style={{ padding: "12px 16px", borderTop: "1px solid " + C.border, fontFamily: mn, fontSize: 8, color: C.txd }}>v0.4 // SemiAnalysis</div>
+    <div style={{ padding: "12px 8px", flex: 1, overflow: "auto" }}>{nav.map(function(n) { var s = active === n.id; return (<div key={n.id} onClick={function() { if (n.on) onNav(n.id); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px", borderRadius: 6, marginBottom: 2, cursor: n.on ? "pointer" : "not-allowed", background: s ? C.surface : "transparent", borderLeft: s ? "3px solid " + C.amber : "3px solid transparent", opacity: n.on ? 1 : 0.28 }}><span style={{ fontSize: 14 }}>{n.ic}</span><span style={{ fontFamily: ft, fontSize: 12, fontWeight: s ? 700 : 500, color: s ? C.amber : C.txm }}>{n.l}</span>{!n.on && <span style={{ fontFamily: mn, fontSize: 8, color: C.txd, marginLeft: "auto" }}>soon</span>}</div>); })}</div>
+    <BufferPanel />
+    <div style={{ padding: "12px 16px", borderTop: "1px solid " + C.border, fontFamily: mn, fontSize: 8, color: C.txd }}>v0.5 // SemiAnalysis</div>
   </div>);
 }
 
@@ -1004,7 +1074,7 @@ export default function App() {
     <style dangerouslySetInnerHTML={{ __html: "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{background:" + C.bg + "}::selection{background:" + C.amber + "33;color:" + C.amber + "}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:" + C.bg + "}::-webkit-scrollbar-thumb{background:" + C.border + ";border-radius:3px}@keyframes fadeInUp{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}.poast-card{position:relative;transition:box-shadow 0.35s ease, border-color 0.35s ease}.poast-card:hover{box-shadow:0 0 20px rgba(247,176,65,0.12), 0 0 40px rgba(247,176,65,0.05);border-color:#2A2A3C}.poast-fadein{animation:fadeInUp 0.4s ease forwards}@keyframes progressSlide{0%{left:-40%}100%{left:100%}}.progress-slide{animation:progressSlide 1.5s ease-in-out infinite}@keyframes dotPulse{0%,80%,100%{opacity:0.2}40%{opacity:1}}.progress-dots::after{content:'...';display:inline-block;animation:dotPulse 1.4s ease-in-out infinite}" }} />
     <Sidebar active={sec} onNav={setSec} />
     <div style={{ marginLeft: 200 }} className="poast-fadein">
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 40px" }}>
+      <div style={{ maxWidth: sec === "news" ? "none" : 1200, margin: "0 auto", padding: sec === "news" ? "0 20px" : "0 40px" }}>
         <div style={{ padding: "16px 0", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bg, position: "sticky", top: 0, zIndex: 50 }}>
           <div><div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: C.tx }}>SemiAnalysis Weekly</div><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginTop: 1 }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div></div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

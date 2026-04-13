@@ -419,76 +419,6 @@ function Settings({ order, setOrder, disabled, setDisabled, onClose }) {
   );
 }
 
-// ═══ LEFT SIDEBAR: BUFFER CALENDAR + STATS ═══
-function BufferSidebar() {
-  var _data = useState(null), data = _data[0], setData = _data[1];
-  var _loading = useState(true), loading = _loading[0], setLoading = _loading[1];
-
-  useEffect(function() {
-    fetch("/api/buffer").then(function(r) { return r.json(); }).then(function(d) {
-      if (d.profiles) setData(d);
-      setLoading(false);
-    }).catch(function() { setLoading(false); });
-  }, []);
-
-  var platformIcon = { twitter: "\uD83D\uDC26", facebook: "\uD83D\uDCD8", linkedin: "\uD83D\uDCBC", instagram: "\uD83D\uDCF7", pinterest: "\uD83D\uDCCC" };
-  var platformColor = { twitter: "#1DA1F2", facebook: "#1877F2", linkedin: "#0A66C2", instagram: "#E4405F" };
-
-  if (loading) return <div style={{ width: 220, flexShrink: 0, padding: "0 12px" }}><div style={{ fontFamily: mn, fontSize: 9, color: T.txd, padding: 20, textAlign: "center" }}>Loading Buffer...</div></div>;
-  if (!data || !data.profiles) return <div style={{ width: 220, flexShrink: 0, padding: "0 12px" }}><div style={{ fontFamily: mn, fontSize: 9, color: T.txd, padding: 20, textAlign: "center" }}>Buffer not connected</div></div>;
-
-  // Aggregate all pending posts into a timeline
-  var allPending = [];
-  (data.profiles || []).forEach(function(p) {
-    (p.pending || []).forEach(function(u) {
-      allPending.push(Object.assign({}, u, { service: p.service, username: p.username }));
-    });
-  });
-  allPending.sort(function(a, b) { return (a.due_at || 0) - (b.due_at || 0); });
-
-  return (
-    <div style={{ width: 220, flexShrink: 0, paddingLeft: 14, borderLeft: "1px solid " + T.border }}>
-      {/* Stats */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontFamily: mn, fontSize: 9, color: T.accent, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>Platform Stats</div>
-        {(data.profiles || []).map(function(p, i) {
-          var pc = platformColor[p.service] || T.txm;
-          var a = p.analytics || {};
-          return <div key={i} style={{ marginBottom: 10, padding: "8px 10px", background: T.surface, borderRadius: 6, border: "1px solid " + T.border }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
-              <span style={{ fontSize: 11 }}>{platformIcon[p.service] || "\uD83D\uDCE2"}</span>
-              <span style={{ fontFamily: mn, fontSize: 9, fontWeight: 700, color: pc }}>{p.username}</span>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3, fontFamily: mn, fontSize: 8 }}>
-              <div><span style={{ color: T.txd }}>Posts </span><span style={{ color: T.tx }}>{a.posts || 0}</span></div>
-              <div><span style={{ color: T.txd }}>Clicks </span><span style={{ color: T.tx }}>{a.clicks || 0}</span></div>
-              <div><span style={{ color: T.txd }}>Reach </span><span style={{ color: T.tx }}>{a.reach || 0}</span></div>
-              <div><span style={{ color: T.txd }}>Likes </span><span style={{ color: T.tx }}>{a.likes || 0}</span></div>
-            </div>
-          </div>;
-        })}
-      </div>
-
-      {/* Upcoming Schedule */}
-      <div>
-        <div style={{ fontFamily: mn, fontSize: 9, color: T.accent2, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>Upcoming Posts</div>
-        {allPending.length === 0 ? <div style={{ fontFamily: mn, fontSize: 9, color: T.txd }}>No scheduled posts</div>
-        : allPending.slice(0, 15).map(function(u, i) {
-          var pc = platformColor[u.service] || T.txm;
-          return <div key={i} style={{ padding: "6px 0", borderBottom: "1px solid " + T.border }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: pc }} />
-              <span style={{ fontFamily: mn, fontSize: 8, color: pc }}>{u.service}</span>
-              <span style={{ fontFamily: mn, fontSize: 8, color: T.txd }}>{u.day} {u.time}</span>
-            </div>
-            <div style={{ fontFamily: ft, fontSize: 10, color: T.tx, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{u.text}</div>
-          </div>;
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ═══ MAIN DASHBOARD ═══
 export default function NewsFlow() {
   var _order = useState(WIDGET_IDS), order = _order[0], setOrder = _order[1];
@@ -533,13 +463,8 @@ export default function NewsFlow() {
         <span onClick={function() { setShowSettings(true); }} style={{ width: 30, height: 30, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: T.surface, border: "1px solid " + T.border, fontSize: 15, color: T.txm }}>{"\u2699"}</span>
       </div>
 
-      <div style={{ display: "flex", gap: 14 }}>
-        {/* Main grid */}
-        <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {order.map(renderWidget)}
-        </div>
-        {/* Buffer sidebar */}
-        <BufferSidebar />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(420px, 1fr))", gap: 12 }}>
+        {order.map(renderWidget)}
       </div>
 
       {showSettings && <Settings order={order} setOrder={setOrder} disabled={disabled} setDisabled={setDisabled} onClose={function() { setShowSettings(false); }} />}
