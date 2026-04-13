@@ -644,7 +644,16 @@ export default function NewsFlow() {
   var _draftItem = useState(null), draftItem = _draftItem[0], setDraftItem = _draftItem[1];
 
   useEffect(function() {
-    try { var o = localStorage.getItem("nf-order"); if (o) setOrder(JSON.parse(o)); } catch (e) {}
+    try {
+      var o = localStorage.getItem("nf-order");
+      if (o) {
+        var saved = JSON.parse(o);
+        // Append any new widgets not in saved order
+        var missing = WIDGET_IDS.filter(function(id) { return saved.indexOf(id) < 0; });
+        if (missing.length > 0) saved = saved.concat(missing);
+        setOrder(saved);
+      }
+    } catch (e) {}
     try { var d = localStorage.getItem("nf-disabled"); if (d) setDisabled(JSON.parse(d)); } catch (e) {}
   }, []);
   useEffect(function() { try { localStorage.setItem("nf-order", JSON.stringify(order)); } catch (e) {} }, [order]);
