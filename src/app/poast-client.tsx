@@ -1294,15 +1294,26 @@ export default function App() {
       ".bg-orb{position:absolute;border-radius:50%;filter:blur(100px);will-change:transform;pointer-events:none}",
     ].join("") }} />
 
-    {/* ═══ ANIMATED BACKGROUND ═══ */}
-    <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
-      <div style={{ position: "absolute", inset: 0, background: C.bg }} />
-      <div className="bg-orb" style={{ width: "55vw", height: "55vw", top: "-15%", right: "-10%", background: "radial-gradient(ellipse, rgba(247,176,65,0.16) 0%, rgba(247,176,65,0.05) 35%, transparent 65%)", animation: "od1 22s ease-in-out infinite", borderRadius: "40% 60% 55% 45%" }} />
-      <div className="bg-orb" style={{ width: "45vw", height: "50vw", bottom: "-12%", left: "-5%", background: "radial-gradient(ellipse, rgba(11,134,209,0.12) 0%, rgba(11,134,209,0.04) 40%, transparent 65%)", animation: "od2 28s ease-in-out infinite", borderRadius: "55% 45% 50% 50%" }} />
-      <div className="bg-orb" style={{ width: "30vw", height: "35vw", top: "35%", left: "15%", background: "radial-gradient(ellipse, rgba(144,92,203,0.09) 0%, transparent 65%)", animation: "od3 20s ease-in-out infinite", borderRadius: "45% 55% 60% 40%" }} />
-      <div className="bg-orb" style={{ width: "20vw", height: "20vw", top: "15%", right: "25%", background: "radial-gradient(circle, rgba(247,176,65,0.12) 0%, transparent 55%)", animation: "pulse 4s ease-in-out infinite, od2 14s ease-in-out infinite", filter: "blur(60px)" }} />
-      <div className="bg-orb" style={{ width: "25vw", height: "30vw", bottom: "20%", right: "8%", background: "radial-gradient(ellipse, rgba(46,173,142,0.09) 0%, transparent 60%)", animation: "od1 24s ease-in-out infinite reverse", borderRadius: "60% 40% 45% 55%" }} />
-    </div>
+    {/* ═══ ANIMATED BACKGROUND (color shifts with category) ═══ */}
+    {(function() {
+      // Determine active category color
+      var catGlow = "rgba(247,176,65,"; // default amber
+      var catGlow2 = "rgba(144,92,203,"; // accent
+      var produceIds = ["weekly", "p2p", "captions"];
+      var prepareIds = ["news", "gtc"];
+      var premierIds = ["schedule"];
+      if (produceIds.indexOf(sec) >= 0) { catGlow = "rgba(247,176,65,"; catGlow2 = "rgba(224,99,71,"; }
+      else if (prepareIds.indexOf(sec) >= 0) { catGlow = "rgba(11,134,209,"; catGlow2 = "rgba(144,92,203,"; }
+      else if (premierIds.indexOf(sec) >= 0) { catGlow = "rgba(46,173,142,"; catGlow2 = "rgba(11,134,209,"; }
+      return <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, background: C.bg }} />
+        <div className="bg-orb" style={{ width: "55vw", height: "55vw", top: "-15%", right: "-10%", background: "radial-gradient(ellipse, " + catGlow + "0.18) 0%, " + catGlow + "0.06) 35%, transparent 65%)", animation: "od1 22s ease-in-out infinite", borderRadius: "40% 60% 55% 45%", transition: "background 1.5s ease" }} />
+        <div className="bg-orb" style={{ width: "45vw", height: "50vw", bottom: "-12%", left: "-5%", background: "radial-gradient(ellipse, " + catGlow + "0.14) 0%, " + catGlow + "0.04) 40%, transparent 65%)", animation: "od2 28s ease-in-out infinite", borderRadius: "55% 45% 50% 50%", transition: "background 1.5s ease" }} />
+        <div className="bg-orb" style={{ width: "30vw", height: "35vw", top: "35%", left: "15%", background: "radial-gradient(ellipse, " + catGlow2 + "0.09) 0%, transparent 65%)", animation: "od3 20s ease-in-out infinite", borderRadius: "45% 55% 60% 40%", transition: "background 1.5s ease" }} />
+        <div className="bg-orb" style={{ width: "20vw", height: "20vw", top: "15%", right: "25%", background: "radial-gradient(circle, " + catGlow + "0.14) 0%, transparent 55%)", animation: "pulse 4s ease-in-out infinite, od2 14s ease-in-out infinite", filter: "blur(60px)", transition: "background 1.5s ease" }} />
+        <div className="bg-orb" style={{ width: "25vw", height: "30vw", bottom: "20%", right: "8%", background: "radial-gradient(ellipse, " + catGlow2 + "0.09) 0%, transparent 60%)", animation: "od1 24s ease-in-out infinite reverse", borderRadius: "60% 40% 45% 55%", transition: "background 1.5s ease" }} />
+      </div>;
+    })()}
 
     <Sidebar active={sec} onNav={setSec} onAskPoast={function() { setAskPoastOpen(!askPoastOpen); }} />
     <AskPoast open={askPoastOpen} onToggle={function() { setAskPoastOpen(false); }} />
