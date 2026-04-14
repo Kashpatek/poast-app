@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     response_type: "code",
     client_id: clientId,
     redirect_uri: redirectUri,
-    scope: "design:content:read design:content:write design:meta:read asset:read asset:write brandtemplate:content:read brandtemplate:meta:read folder:read folder:write",
+    scope: "design:content:read design:content:write design:meta:read asset:read asset:write brandtemplate:content:read brandtemplate:meta:read",
     state,
     code_challenge_method: "S256",
     code_challenge: codeChallenge,
