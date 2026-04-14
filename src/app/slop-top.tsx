@@ -44,6 +44,49 @@ var BRAINROT_PRESETS = [
   { label: "\uD83E\uDEE1 mewing", text: "mewing arc, looksmaxxing, jawline check" },
 ];
 
+var ITALIAN_BRAINROT_PRESETS = [
+  { label: "\uD83D\uDC0A Bombardino Coccodrillo", text: "bombardino crocodile, cursed 3D Italian brainrot creature, Spore energy" },
+  { label: "\uD83D\uDD7A Tralalero Tralala", text: "tralalero tralala, Italian shitpost creature, dancing cursed 3D animal" },
+  { label: "\uD83E\uDD41 Tung Tung Sahur", text: "tung tung sahur, drumming brainrot creature, chaotic 3D energy" },
+  { label: "\u2744\uFE0F Brr Brr Patapim", text: "brr brr patapim, freezing Italian meme creature, cursed vibes" },
+  { label: "\uD83C\uDFA4 Lirili Larila", text: "lirili larila, singing cursed creature, Italian internet fever dream" },
+  { label: "\u2615 Cappuccino Assassino", text: "cappuccino assassino, coffee-themed Italian brainrot, espresso violence" },
+  { label: "\uD83C\uDF5D Spaghettino Serpentino", text: "spaghetti snake, cursed Italian pasta creature, noodle arms" },
+  { label: "\uD83D\uDC4B Bonjourno Cocaino", text: "bonjourno italian brainrot greeting, chaotic 3D character energy" },
+  { label: "\uD83D\uDC04 La Vacca Saturno", text: "la vacca saturno, saturn cow, Italian space creature brainrot" },
+  { label: "\uD83E\uDEBF Bombombini Gusini", text: "bombombini gusini, explosive goose, Italian chaos creature" },
+  { label: "\uD83D\uDC12 Chimpanzini Bananini", text: "chimpanzini bananini, monkey banana Italian brainrot, primate chaos" },
+  { label: "\uD83D\uDC7E Glorbo", text: "glorbo, the legendary cursed creature, peak brainrot form" },
+];
+
+var BRAINROT_LEVEL_LABELS = {
+  1: "sane", 2: "quirky", 3: "weird", 4: "cursed", 5: "brainrot",
+  6: "cooked", 7: "COOKED", 8: "brain damage", 9: "lobotomy", 10: "BOMBARDINO",
+};
+
+var BRAINROT_LEVEL_PROMPTS = {
+  1: "slightly unhinged, a little weird",
+  2: "slightly unhinged, a little weird",
+  3: "slightly unhinged, a little weird",
+  4: "definitely brainrotted, cursed energy, chaotic",
+  5: "definitely brainrotted, cursed energy, chaotic",
+  6: "definitely brainrotted, cursed energy, chaotic",
+  7: "maximum brainrot, completely unhinged, looks like it was made by someone having a stroke",
+  8: "maximum brainrot, completely unhinged, looks like it was made by someone having a stroke",
+  9: "maximum brainrot, completely unhinged, looks like it was made by someone having a stroke",
+  10: "peak brain damage, this should not exist, cursed beyond comprehension, Italian Spore creature energy, bombardino core",
+};
+
+var SUCCESS_MESSAGES = [
+  "BOMBARDINO ACQUIRED \uD83D\uDC0A",
+  "the creature has been born",
+  "what have we created",
+  "this is peak content",
+  "certified Italian moment",
+  "\uD83D\uDD25 this goes HARD \uD83D\uDCAF",
+  "\uD83D\uDC80 slop acquired",
+];
+
 var LOADING_PHRASES = [
   "cooking rn...",
   "hold up this boutta go crazy...",
@@ -51,6 +94,15 @@ var LOADING_PHRASES = [
   "the slopification is in progress...",
   "brainrot loading...",
   "sigma grindset activating...",
+  "summoning the bombardino...",
+  "the creature is forming...",
+  "italiano brainrot loading...",
+  "spore creature detected...",
+  "this should not exist...",
+  "we've gone too far...",
+  "the slop is slopping...",
+  "tralalero intensifies...",
+  "maximum cursed energy...",
 ];
 
 var NEON_HUES = [
@@ -326,6 +378,9 @@ export default function SlopTop() {
     return function() { clearInterval(interval); };
   }, []);
 
+  // Brainrot level state
+  var _brainrotLevel = useState(5), brainrotLevel = _brainrotLevel[0], setBrainrotLevel = _brainrotLevel[1];
+
   // Link-to-slop state
   var _slopUrl = useState(""), slopUrl = _slopUrl[0], setSlopUrl = _slopUrl[1];
   var _slopLoading = useState(false), slopLoading = _slopLoading[0], setSlopLoading = _slopLoading[1];
@@ -369,7 +424,7 @@ export default function SlopTop() {
     fetch("/api/slob-top", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "link-to-slop", url: slopUrl.trim() }),
+      body: JSON.stringify({ action: "link-to-slop", url: slopUrl.trim(), brainrotLevel: brainrotLevel, brainrotModifier: BRAINROT_LEVEL_PROMPTS[brainrotLevel] }),
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -451,7 +506,7 @@ export default function SlopTop() {
     } else return;
 
     var styleInfo = MEME_STYLES.find(function(s) { return s.id === memeStyle; });
-    var fullPrompt = prompt + ". Style: " + (styleInfo ? styleInfo.prompt : "meme format");
+    var fullPrompt = prompt + ". Style: " + (styleInfo ? styleInfo.prompt : "meme format") + ". Brainrot energy: " + BRAINROT_LEVEL_PROMPTS[brainrotLevel];
 
     setMemeImgLoading(true);
     setMemeImg(null);
@@ -476,7 +531,7 @@ export default function SlopTop() {
     } else return;
 
     var styleInfo = MEME_STYLES.find(function(s) { return s.id === memeStyle; });
-    var fullPrompt = prompt + ". Style: " + (styleInfo ? styleInfo.prompt : "meme format");
+    var fullPrompt = prompt + ". Style: " + (styleInfo ? styleInfo.prompt : "meme format") + ". Brainrot energy: " + BRAINROT_LEVEL_PROMPTS[brainrotLevel];
 
     setVideoLoading(true);
     setVideoUrl(null);
@@ -555,6 +610,15 @@ export default function SlopTop() {
     "@keyframes buttonGlow{0%,100%{box-shadow:0 4px 20px rgba(247,176,65,0.25)}50%{box-shadow:0 4px 30px rgba(247,176,65,0.5),0 0 60px rgba(144,92,203,0.3)}}",
     "@keyframes neonFlicker{0%,100%{opacity:1}92%{opacity:1}93%{opacity:0.8}94%{opacity:1}96%{opacity:0.9}97%{opacity:1}}",
     "@keyframes successPop{0%{transform:scale(0.8);opacity:0}50%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}",
+    "@keyframes italianShimmer{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}",
+    "@keyframes brainrotPulse{0%,100%{opacity:0.4;transform:scale(1)}50%{opacity:0.8;transform:scale(1.01)}}",
+    "@keyframes cursedPulse{0%,100%{box-shadow:0 0 8px rgba(224,99,71,0.1)}50%{box-shadow:0 0 24px rgba(224,99,71,0.3),0 0 48px rgba(144,92,203,0.2)}}",
+    "@keyframes sliderThumbPulse{0%,100%{transform:scale(1);box-shadow:0 0 6px rgba(247,176,65,0.5)}50%{transform:scale(1.15);box-shadow:0 0 16px rgba(247,176,65,0.9),0 0 32px rgba(144,92,203,0.5)}}",
+    "@keyframes level10Pulse{0%,100%{background-color:rgba(224,99,71,0.02)}50%{background-color:rgba(224,99,71,0.06)}}",
+    "input[type=range].brainrot-slider{-webkit-appearance:none;appearance:none;width:100%;height:8px;border-radius:4px;background:linear-gradient(90deg,#2EAD8E,#F7B041,#E06347,#905CCB,#FF00FF,#00BFFF,#FF6347,#C471ED,#12FFF7,#FF6B9D);outline:none;opacity:0.9;transition:opacity 0.2s}",
+    "input[type=range].brainrot-slider:hover{opacity:1}",
+    "input[type=range].brainrot-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#F7B041,#E06347);cursor:pointer;border:2px solid #fff;animation:sliderThumbPulse 1.5s ease-in-out infinite}",
+    "input[type=range].brainrot-slider::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#F7B041,#E06347);cursor:pointer;border:2px solid #fff;animation:sliderThumbPulse 1.5s ease-in-out infinite}",
   ].join("\n");
 
   return <div style={{
@@ -636,7 +700,11 @@ export default function SlopTop() {
     </div>
 
     {/* ═══ TAB: MEME MAKER ═══ */}
-    {tab === "meme" && <div>
+    {tab === "meme" && <div style={{
+      animation: brainrotLevel >= 10 ? "level10Pulse 2.5s ease-in-out infinite" : "none",
+      borderRadius: 16, padding: brainrotLevel >= 10 ? 4 : 0,
+      transition: "all 0.3s",
+    }}>
       {/* Mode toggle: Link to Slop / Idea to Meme */}
       <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
         <div onClick={function() { setMemeMode("link"); }} style={{
@@ -677,6 +745,96 @@ export default function SlopTop() {
             }}>{preset.label}</button>;
           })}
         </div>
+
+        {/* Italian Brainrot Divider */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "18px 0 12px" }}>
+          <div style={{ flex: 1, height: 1, background: "linear-gradient(90deg, #009246, #fff, #CE2B37)" }} />
+          <span style={{
+            fontFamily: ft, fontSize: 12, fontWeight: 900, letterSpacing: 2,
+            background: "linear-gradient(90deg, #009246, #ffffff, #CE2B37)",
+            backgroundSize: "200% 200%",
+            animation: "italianShimmer 3s ease infinite",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+            whiteSpace: "nowrap",
+          }}>ITALIAN BRAINROT \uD83C\uDDEE\uD83C\uDDF9\uD83D\uDC0A</span>
+          <div style={{ flex: 1, height: 1, background: "linear-gradient(90deg, #CE2B37, #fff, #009246)" }} />
+        </div>
+
+        {/* Italian Brainrot Presets */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {ITALIAN_BRAINROT_PRESETS.map(function(preset, idx) {
+            var italianColors = ["#009246", "#CE2B37", "#009246", "#CE2B37", "#009246", "#CE2B37"];
+            var ic = italianColors[idx % italianColors.length];
+            return <button key={"it-" + idx} onClick={function() { handlePresetClick(preset.text); }} style={{
+              padding: "6px 14px", borderRadius: 20, cursor: "pointer",
+              background: "linear-gradient(135deg, rgba(0,146,70,0.10), rgba(255,255,255,0.03), rgba(206,43,55,0.10))",
+              backgroundSize: "200% 200%",
+              border: "1px solid " + ic + "60",
+              color: "#E8E4DD",
+              fontFamily: ft, fontSize: 11, fontWeight: 700,
+              transition: "all 0.2s",
+              animation: "neonFlicker 3s ease-in-out infinite",
+              animationDelay: (idx * 0.15) + "s",
+              whiteSpace: "nowrap",
+              position: "relative",
+              boxShadow: "0 0 8px " + ic + "20, inset 0 0 12px rgba(0,146,70,0.06), inset 0 0 12px rgba(206,43,55,0.06)",
+              textShadow: "0 0 8px " + ic + "40",
+            }}>{preset.label}</button>;
+          })}
+        </div>
+      </div>
+
+      {/* ═══ BRAINROT LEVEL SLIDER ═══ */}
+      <div style={{
+        marginBottom: 24, padding: "20px 24px", borderRadius: 12,
+        background: brainrotLevel >= 10
+          ? "linear-gradient(135deg, rgba(224,99,71,0.08), rgba(144,92,203,0.06), rgba(224,99,71,0.08))"
+          : brainrotLevel >= 7
+          ? "linear-gradient(135deg, rgba(224,99,71,0.05), rgba(144,92,203,0.04))"
+          : "linear-gradient(135deg, rgba(46,173,142,0.04), rgba(247,176,65,0.04))",
+        border: "1px solid " + (brainrotLevel >= 7 ? D.coral + "30" : D.border),
+        animation: brainrotLevel >= 10
+          ? "cursedPulse 1.5s ease-in-out infinite"
+          : brainrotLevel >= 7
+          ? "cursedPulse 3s ease-in-out infinite"
+          : "none",
+        transition: "all 0.3s",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ fontFamily: mn, fontSize: 10, color: brainrotLevel >= 7 ? D.coral : D.amber, letterSpacing: 2, textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6 }}>
+            <span>{brainrotLevel >= 7 ? "\uD83D\uDC80" : brainrotLevel >= 4 ? "\uD83E\uDDE0" : "\uD83D\uDE36"}</span> Brainrot Level
+          </div>
+          <div style={{
+            fontFamily: ft, fontSize: 16, fontWeight: 900,
+            color: brainrotLevel >= 10 ? D.coral : brainrotLevel >= 7 ? "#FF6B9D" : brainrotLevel >= 4 ? D.amber : D.teal,
+            animation: brainrotLevel >= 7 ? "textGlow 1.5s ease-in-out infinite" : "none",
+            textTransform: "uppercase",
+            letterSpacing: 1,
+          }}>
+            {brainrotLevel} / 10 — {BRAINROT_LEVEL_LABELS[brainrotLevel]}
+          </div>
+        </div>
+        <input
+          type="range"
+          className="brainrot-slider"
+          min={1}
+          max={10}
+          value={brainrotLevel}
+          onChange={function(e) { setBrainrotLevel(Number(e.target.value)); }}
+          style={{ width: "100%", marginBottom: 8 }}
+        />
+        <div style={{
+          fontFamily: mn, fontSize: 9, color: brainrotLevel >= 7 ? D.coral + "CC" : D.txd,
+          textAlign: "center", marginTop: 4,
+          animation: brainrotLevel >= 8 ? "slopPulse 2s ease-in-out infinite" : "none",
+        }}>
+          {brainrotLevel <= 3 ? "// mildly unhinged, a little weird"
+          : brainrotLevel <= 6 ? "// definitely brainrotted, cursed energy"
+          : brainrotLevel <= 9 ? "// MAXIMUM BRAINROT, COMPLETELY UNHINGED"
+          : "// PEAK BRAIN DAMAGE. THIS SHOULD NOT EXIST. BOMBARDINO CORE."}
+        </div>
       </div>
 
       {/* Link to Meme mode */}
@@ -713,7 +871,7 @@ export default function SlopTop() {
 
         {slopResults && <div style={{ marginBottom: 24, animation: "successPop 0.4s ease-out" }}>
           <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 700, color: D.teal, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-            <span>\uD83D\uDD25</span> slop acquired <span>\uD83D\uDCAF</span>
+            {SUCCESS_MESSAGES[Math.floor(Math.random() * SUCCESS_MESSAGES.length)]}
           </div>
           {/* Meme Captions */}
           {slopResults.meme_captions && slopResults.meme_captions.length > 0 && <div style={{ marginBottom: 20 }}>
@@ -809,7 +967,7 @@ export default function SlopTop() {
 
       {memeImg && <div style={{ marginTop: 24, animation: "successPop 0.4s ease-out" }}>
         <div style={{ fontFamily: mn, fontSize: 10, color: D.teal, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-          <span>\uD83D\uDD25</span> this goes HARD <span>\uD83D\uDCAF</span>
+          {SUCCESS_MESSAGES[Math.floor(Math.random() * SUCCESS_MESSAGES.length)]}
         </div>
         <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 16, textAlign: "center" }}>
           <img src={memeImg} style={{ maxWidth: "100%", maxHeight: 500, borderRadius: 8 }} />
