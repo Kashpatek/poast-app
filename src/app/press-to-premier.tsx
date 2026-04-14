@@ -101,13 +101,41 @@ function Step2({ data, setData, onNext, onBack }) {
   </div>;
 }
 
+// ═══ CHOP SENTENCES HELPER ═══
+function chopSentences(text) {
+  if (!text) return [];
+  return text.split(/(?<=[.!?])\s+/).filter(function(s) { return s.trim().length > 0; });
+}
+
+function ChoppedText({ text, chopped, color }) {
+  if (!chopped) return <span>{text}</span>;
+  var sentences = chopSentences(text);
+  if (sentences.length <= 1) return <span>{text}</span>;
+  return <span>{sentences.map(function(s, i) {
+    return <span key={i}>
+      {i > 0 && <br />}
+      <span style={{ display: "inline", borderLeft: i > 0 ? "2px solid " + (color || D.amber) + "30" : "none", paddingLeft: i > 0 ? 8 : 0, marginLeft: i > 0 ? 4 : 0 }}>{s}</span>
+    </span>;
+  })}</span>;
+}
+
 // ═══ STEP 3: SCRIPT (SCREENPLAY FORMAT) ═══
 function Step3({ data, setData, onNext, onBack }) {
   var _dur = useState(data.duration || 60), dur = _dur[0], setDur = _dur[1];
+  var _chopped = useState(false), chopped = _chopped[0], setChopped = _chopped[1];
   if (!data.scripts) return <div style={{ textAlign: "center", padding: 60, color: D.txl, fontFamily: ft, fontSize: 15 }}>Writing scripts...</div>;
   return <div>
-    <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Script</div>
-    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 24 }}>Choose duration and pick a script version.</div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+      <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2 }}>Script</div>
+      {/* Chop toggle */}
+      <div onClick={function() { setChopped(!chopped); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 8, cursor: "pointer", background: chopped ? D.coral + "12" : D.surface, border: "1px solid " + (chopped ? D.coral + "40" : D.border), transition: "all 0.2s" }}>
+        <div style={{ width: 32, height: 18, borderRadius: 9, background: chopped ? D.coral : D.border, position: "relative", transition: "all 0.2s" }}>
+          <div style={{ width: 14, height: 14, borderRadius: 7, background: "#fff", position: "absolute", top: 2, left: chopped ? 16 : 2, transition: "all 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+        </div>
+        <span style={{ fontFamily: mn, fontSize: 10, color: chopped ? D.coral : D.txl, textTransform: "uppercase", letterSpacing: 1 }}>Chop</span>
+      </div>
+    </div>
+    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 24 }}>Choose duration and pick a script version.{chopped ? " Sentences are split for punchier delivery." : ""}</div>
     {/* Duration */}
     <div style={{ display: "flex", gap: 10, marginBottom: 28 }}>
       {[{ v: 30, l: "30s", sub: "Short" }, { v: 60, l: "60s", sub: "Standard" }, { v: 120, l: "120s", sub: "Long" }].map(function(d) {
@@ -132,19 +160,19 @@ function Step3({ data, setData, onNext, onBack }) {
           <div style={{ color: D.txl, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>INT. VIDEO - HOOK</div>
           <div style={{ paddingLeft: 0, marginBottom: 16 }}>
             <div style={{ color: D.amber, fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: 2, marginBottom: 2 }}>NARRATOR (V.O.)</div>
-            <div style={{ paddingLeft: 20, color: D.tx, fontWeight: 500, fontFamily: ft, fontSize: 15 }}>{s.hook}</div>
+            <div style={{ paddingLeft: 20, color: D.tx, fontWeight: 500, fontFamily: ft, fontSize: 15, lineHeight: chopped ? 1.8 : undefined }}><ChoppedText text={s.hook} chopped={chopped} color={D.amber} /></div>
           </div>
           <div style={{ color: D.txl, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>INT. VIDEO - INTRO</div>
           <div style={{ paddingLeft: 0, marginBottom: 16 }}>
             <div style={{ color: D.amber, fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: 2, marginBottom: 2 }}>NARRATOR (V.O.)</div>
-            <div style={{ paddingLeft: 20, color: D.txb, fontFamily: ft, fontSize: 14 }}>{s.intro}</div>
+            <div style={{ paddingLeft: 20, color: D.txb, fontFamily: ft, fontSize: 14, lineHeight: chopped ? 1.8 : undefined }}><ChoppedText text={s.intro} chopped={chopped} color={D.amber} /></div>
           </div>
           {(s.body || []).map(function(b, bi) {
             return <div key={bi}>
               <div style={{ color: D.txl, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>INT. VIDEO - BODY {bi + 1}</div>
               <div style={{ paddingLeft: 0, marginBottom: 16 }}>
                 <div style={{ color: D.blue, fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: 2, marginBottom: 2 }}>NARRATOR (V.O.)</div>
-                <div style={{ paddingLeft: 20, color: D.txb, fontFamily: ft, fontSize: 14 }}>{b}</div>
+                <div style={{ paddingLeft: 20, color: D.txb, fontFamily: ft, fontSize: 14, lineHeight: chopped ? 1.8 : undefined }}><ChoppedText text={b} chopped={chopped} color={D.blue} /></div>
                 {s.broll && s.broll[bi] && <div style={{ paddingLeft: 20, marginTop: 6 }}>
                   <span style={{ fontFamily: mn, fontSize: 10, color: D.txh, fontStyle: "italic" }}>B-ROLL: {s.broll[bi].description}</span>
                 </div>}
@@ -154,7 +182,7 @@ function Step3({ data, setData, onNext, onBack }) {
           <div style={{ color: D.txl, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>INT. VIDEO - OUTRO</div>
           <div style={{ paddingLeft: 0 }}>
             <div style={{ color: D.teal, fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: 2, marginBottom: 2 }}>NARRATOR (V.O.)</div>
-            <div style={{ paddingLeft: 20, color: D.txb, fontFamily: ft, fontSize: 14 }}>{s.outro}</div>
+            <div style={{ paddingLeft: 20, color: D.txb, fontFamily: ft, fontSize: 14, lineHeight: chopped ? 1.8 : undefined }}><ChoppedText text={s.outro} chopped={chopped} color={D.teal} /></div>
           </div>
         </div>
       </div>;
@@ -211,16 +239,37 @@ function Step4({ data, onNext, onBack }) {
 }
 
 // ═══ STEP 5: FORMAT ═══
+var CAPTION_STYLES = [
+  { id: "overlay", l: "Overlay Cards", desc: "Text on dark cards over b-roll", icon: "\u25A3" },
+  { id: "subtitles", l: "Subtitles", desc: "Bottom-of-screen, word-by-word", icon: "\u2261" },
+  { id: "minimal", l: "Minimal", desc: "Hook and outro only, no mid-video text", icon: "\u25AB" },
+];
+var FONT_OPTIONS = [
+  { id: "outfit", l: "Outfit", family: "'Outfit',sans-serif" },
+  { id: "inter", l: "Inter", family: "'Inter',sans-serif" },
+  { id: "jetbrains", l: "JetBrains Mono", family: "'JetBrains Mono',monospace" },
+  { id: "roboto", l: "Roboto", family: "'Roboto',sans-serif" },
+  { id: "poppins", l: "Poppins", family: "'Poppins',sans-serif" },
+  { id: "space-grotesk", l: "Space Grotesk", family: "'Space Grotesk',sans-serif" },
+];
+
 function Step5({ data, setData, onNext, onBack }) {
   var _aspect = useState(data.aspect || "16:9"), aspect = _aspect[0], setAspect = _aspect[1];
+  var _captionStyle = useState(data.captionStyle || "overlay"), captionStyle = _captionStyle[0], setCaptionStyle = _captionStyle[1];
+  var _fontId = useState(data.fontId || "outfit"), fontId = _fontId[0], setFontId = _fontId[1];
+  var _fontSize = useState(data.fontSize || 48), fontSize = _fontSize[0], setFontSize = _fontSize[1];
   var formats = [
     { id: "16:9", l: "Landscape", sub: "YouTube, LinkedIn, X", w: 160, h: 90 },
     { id: "9:16", l: "Vertical", sub: "Shorts, Reels, TikTok", w: 56, h: 100 },
     { id: "1:1", l: "Square", sub: "Instagram, Facebook", w: 100, h: 100 },
   ];
+  var currentFont = FONT_OPTIONS.find(function(f) { return f.id === fontId; }) || FONT_OPTIONS[0];
   return <div>
     <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Format</div>
-    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Select aspect ratio.</div>
+    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Aspect ratio, caption style, and font.</div>
+
+    {/* Aspect Ratio */}
+    <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, textTransform: "uppercase", letterSpacing: 2, marginBottom: 10 }}>Aspect Ratio</div>
     <div style={{ display: "flex", gap: 16, marginBottom: 32 }}>
       {formats.map(function(f) {
         var on = aspect === f.id;
@@ -231,6 +280,56 @@ function Step5({ data, setData, onNext, onBack }) {
         </div>;
       })}
     </div>
+
+    {/* Caption Style */}
+    <div style={{ fontFamily: mn, fontSize: 10, color: D.blue, textTransform: "uppercase", letterSpacing: 2, marginBottom: 10 }}>Caption Style</div>
+    <div style={{ display: "flex", gap: 12, marginBottom: 32 }}>
+      {CAPTION_STYLES.map(function(cs) {
+        var on = captionStyle === cs.id;
+        return <div key={cs.id} onClick={function() { setCaptionStyle(cs.id); setData(function(p) { return Object.assign({}, p, { captionStyle: cs.id }); }); }} style={{ flex: 1, padding: "18px 16px", borderRadius: 10, cursor: "pointer", background: on ? D.blue + "0C" : D.surface, border: "1px solid " + (on ? D.blue + "40" : D.border), transition: "all 0.2s", boxShadow: on ? "0 0 16px " + D.blue + "10" : "none" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <span style={{ fontSize: 18, opacity: on ? 1 : 0.4 }}>{cs.icon}</span>
+            <span style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: on ? D.blue : D.tx }}>{cs.l}</span>
+          </div>
+          <div style={{ fontFamily: ft, fontSize: 11, color: D.txl }}>{cs.desc}</div>
+        </div>;
+      })}
+    </div>
+
+    {/* Font Controls */}
+    <div style={{ fontFamily: mn, fontSize: 10, color: D.teal, textTransform: "uppercase", letterSpacing: 2, marginBottom: 10 }}>Font</div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+      {/* Font Family */}
+      <div>
+        <div style={{ fontFamily: mn, fontSize: 9, color: D.txl, marginBottom: 6 }}>Family</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {FONT_OPTIONS.map(function(f) {
+            var on = fontId === f.id;
+            return <div key={f.id} onClick={function() { setFontId(f.id); setData(function(p) { return Object.assign({}, p, { fontId: f.id, fontFamily: f.family }); }); }} style={{ padding: "10px 12px", borderRadius: 8, cursor: "pointer", background: on ? D.teal + "0C" : D.surface, border: "1px solid " + (on ? D.teal + "40" : D.border), display: "flex", alignItems: "center", justifyContent: "space-between", transition: "all 0.15s" }}>
+              <span style={{ fontFamily: f.family, fontSize: 13, color: on ? D.teal : D.tx }}>{f.l}</span>
+              {on && <div style={{ width: 8, height: 8, borderRadius: "50%", background: D.teal, boxShadow: "0 0 6px " + D.teal + "60" }} />}
+            </div>;
+          })}
+        </div>
+      </div>
+      {/* Font Size + Preview */}
+      <div>
+        <div style={{ fontFamily: mn, fontSize: 9, color: D.txl, marginBottom: 6 }}>Size: {fontSize}px</div>
+        <input type="range" min={24} max={72} value={fontSize} onChange={function(e) { var v = parseInt(e.target.value); setFontSize(v); setData(function(p) { return Object.assign({}, p, { fontSize: v }); }); }} style={{ width: "100%", accentColor: D.teal, marginBottom: 14 }} />
+        {/* Preview */}
+        <div style={{ background: D.bg, border: "1px solid " + D.border, borderRadius: 10, padding: "20px 16px", textAlign: "center", minHeight: 140, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div>
+            <div style={{ fontFamily: currentFont.family, fontSize: Math.min(fontSize * 0.55, 36), fontWeight: 700, color: D.tx, lineHeight: 1.3, marginBottom: 8 }}>Sample Heading</div>
+            <div style={{ fontFamily: currentFont.family, fontSize: Math.min(fontSize * 0.35, 20), color: D.txb, lineHeight: 1.5 }}>This is how your captions will look in the final video.</div>
+            {captionStyle === "subtitles" && <div style={{ marginTop: 12, padding: "6px 12px", background: "rgba(0,0,0,0.7)", borderRadius: 4, display: "inline-block" }}>
+              <span style={{ fontFamily: currentFont.family, fontSize: Math.min(fontSize * 0.35, 20), color: "#fff", fontWeight: 600 }}>Subtitle preview</span>
+            </div>}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style={{ height: 20 }} />
     <div style={{ display: "flex", gap: 12 }}>
       <button onClick={onBack} style={{ padding: "14px 24px", background: "transparent", border: "1px solid " + D.border, color: D.txl, borderRadius: 10, fontFamily: ft, fontSize: 14, cursor: "pointer" }}>Back</button>
       <button onClick={onNext} style={{ flex: 1, height: 52, background: "linear-gradient(135deg, " + D.amber + ", #E8A020)", color: D.bg, border: "none", borderRadius: 10, fontFamily: ft, fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 20px " + D.amber + "30" }}>Produce</button>
