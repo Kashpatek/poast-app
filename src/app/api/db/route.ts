@@ -36,7 +36,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ data });
     }
 
-    const { data, error } = await supabase.from(table).select("*").order("created_at", { ascending: false });
+    let query = supabase.from(table).select("*");
+    // Only order by created_at if the table has it
+    const noCreatedAt = ["archive"];
+    if (!noCreatedAt.includes(table)) query = query.order("created_at", { ascending: false });
+    const { data, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ data, count: (data || []).length });
   } catch (err) {
