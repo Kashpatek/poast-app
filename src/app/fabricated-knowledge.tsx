@@ -52,7 +52,26 @@ function ss(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e
 function dbFetch(table) {
   return fetch("/api/db?table=" + encodeURIComponent(table))
     .then(function(r) { if (!r.ok) throw new Error("API " + r.status); return r.json(); })
-    .then(function(d) { return d.data && d.data.length > 0 ? d.data : null; });
+    .then(function(d) {
+      if (!d.data || d.data.length === 0) return null;
+      // Map Supabase snake_case to component camelCase
+      if (table === "prospects") {
+        return d.data.map(function(r) {
+          return { id: r.id, name: r.name, company: r.company, role: r.role, topics: Array.isArray(r.topics) ? r.topics.join(", ") : (r.topics || ""), tier: r.tier, status: r.status, channel: (r.outreach && r.outreach.channel) || "", dateContacted: (r.outreach && r.outreach.dateContacted) || "", followUp: (r.outreach && r.outreach.followUp) || "", response: (r.outreach && r.outreach.response) || "", added: new Date(r.created_at).getTime() };
+        });
+      }
+      if (table === "episodes") {
+        return d.data.map(function(r) {
+          return { id: r.id, number: String(r.number || ""), guestId: "", guestName: r.guest_name || "", topic: r.topic || "", recordDate: r.record_date || "", releaseDate: r.release_date || "", status: r.status || "", notes: r.notes || "", added: new Date(r.created_at).getTime() };
+        });
+      }
+      if (table === "archive") {
+        return d.data.map(function(r) {
+          return { id: r.id, number: String(r.episode_number || ""), guest: r.guest || "", company: r.company || "", topic: r.topic || "", category: r.category || "", releaseDate: r.release_date || "", plays: r.plays || 0 };
+        });
+      }
+      return d.data;
+    });
 }
 
 function dbUpsert(table, row) {
