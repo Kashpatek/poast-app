@@ -1,9 +1,13 @@
 import { type NextRequest } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-const supabase = supabaseUrl ? createClient(supabaseUrl, supabaseAnonKey) : null;
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  // Dynamic import avoids build-time validation of empty URL
+  const { createClient } = require("@supabase/supabase-js");
+  return createClient(url, key);
+}
 
 // Tables the POAST app supports
 const VALID_TABLES = [
@@ -49,6 +53,7 @@ function invalidTableResponse(table: string) {
  * GET /api/db?table=prospects&id=xyz  -- fetch a single row by ID
  */
 export async function GET(request: NextRequest) {
+  const supabase = getSupabase();
   if (!supabase) return notConfiguredResponse();
 
   const searchParams = request.nextUrl.searchParams;
@@ -85,6 +90,7 @@ export async function GET(request: NextRequest) {
  * Upserts the row (inserts if new, updates if the ID already exists).
  */
 export async function POST(request: Request) {
+  const supabase = getSupabase();
   if (!supabase) return notConfiguredResponse();
 
   let body: { table?: string; data?: Record<string, unknown> };
@@ -126,6 +132,7 @@ export async function POST(request: Request) {
  * Body: { table: "prospects", id: "some-uuid" }
  */
 export async function DELETE(request: Request) {
+  const supabase = getSupabase();
   if (!supabase) return notConfiguredResponse();
 
   let body: { table?: string; id?: string };
