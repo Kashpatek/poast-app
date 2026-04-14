@@ -40,7 +40,7 @@ function StepTracker({ current, steps }) {
     <div style={{ display: "flex", gap: 0 }}>
       {steps.map(function(s, i) {
         var done = i < current; var active = i === current; var future = i > current;
-        return <div key={i} style={{ flex: 1, textAlign: "center", cursor: done ? "pointer" : "default", opacity: future ? 0.3 : 1, transition: "opacity 0.2s" }}>
+        return <div key={i} style={{ flex: 1, textAlign: "center", cursor: "default", opacity: future ? 0.3 : 1, transition: "opacity 0.2s" }}>
           <div style={{ fontFamily: mn, fontSize: 24, fontWeight: 900, color: done ? D.teal : active ? D.amber : D.txl, transition: "color 0.3s", textShadow: active ? "0 0 20px " + D.amber + "40" : "none" }}>{done ? "\u2713" : i + 1}</div>
           <div style={{ fontFamily: ft, fontSize: 12, fontWeight: active ? 700 : 500, color: active ? D.tx : D.txl, marginTop: 4, letterSpacing: active ? 0.5 : 0 }}>{s}</div>
         </div>;
@@ -771,7 +771,7 @@ function AudioMixer({ videoRef, voRef, musicRef, assets, onMixChange }) {
     {tracks.map(function(t) {
       return <div key={t.l} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, opacity: t.has ? 1 : 0.3 }}>
         {/* Mute toggle */}
-        <span onClick={function() { if (t.has) t.setMuted(!t.muted); }} style={{ width: 28, height: 28, borderRadius: 6, background: t.muted ? D.coral + "20" : D.surface, border: "1px solid " + (t.muted ? D.coral + "40" : D.border), display: "flex", alignItems: "center", justifyContent: "center", cursor: t.has ? "pointer" : "default", fontFamily: ft, fontSize: 10, color: t.muted ? D.coral : D.txl, transition: "all 0.15s" }}>{t.muted ? "M" : "\uD83D\uDD0A"}</span>
+        <span onClick={function() { if (t.has) t.setMuted(!t.muted); }} style={{ width: 28, height: 28, borderRadius: 6, background: t.muted ? D.coral + "20" : D.surface, border: "1px solid " + (t.muted ? D.coral + "40" : D.border), display: "flex", alignItems: "center", justifyContent: "center", cursor: t.has ? "pointer" : "default", fontFamily: ft, fontSize: 10, color: t.muted ? D.coral : D.txl, transition: "all 0.15s" }}>{t.muted ? "M" : "V"}</span>
         {/* Label */}
         <div style={{ width: 80, fontFamily: ft, fontSize: 11, fontWeight: 600, color: t.color }}>{t.l}</div>
         {/* Slider */}
@@ -1286,7 +1286,7 @@ function ProjectList({ projects, onOpen, onNew }) {
           return <div key={i} onClick={function() { onOpen(p); }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "18px 22px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, marginBottom: 10, cursor: "pointer", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = D.borderHover; e.currentTarget.style.background = D.elevated; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.background = D.surface; }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: D.tx }}>{p.title || "Untitled"}</div>
-              <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 500, color: D.txl, marginTop: 2 }}>{new Date(p.ts).toLocaleDateString("en-US", { month: "short", day: "numeric" })} // Step {(p.step || 0) + 1} of 7</div>
+              <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 500, color: D.txl, marginTop: 2 }}>{new Date(p.ts).toLocaleDateString("en-US", { month: "short", day: "numeric" })} // Step {(p.step || 0) + 1} of 9</div>
             </div>
             <span style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: sec.c, padding: "4px 10px", borderRadius: 8, background: sec.c + "12", letterSpacing: 1 }}>{p.status}</span>
           </div>;
@@ -1294,7 +1294,7 @@ function ProjectList({ projects, onOpen, onNew }) {
       </div>;
     })}
     {projects.length === 0 && <div style={{ textAlign: "center", padding: 80 }}>
-      <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.15 }}>{"\uD83C\uDFAC"}</div>
+      <div style={{ fontFamily: mn, fontSize: 48, marginBottom: 16, opacity: 0.15 }}>//</div>
       <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 700, color: D.txl }}>No projects yet.</div>
       <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 500, color: D.txh, marginTop: 6 }}>Click "New Project" to start your first video.</div>
     </div>}
@@ -1434,4 +1434,3 @@ export default function PressToPremi() {
     </div>}
   </div>;
 }
-// force rebuild 1776125949

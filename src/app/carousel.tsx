@@ -1,11 +1,11 @@
 // @ts-nocheck
 "use client";
-import { useState, useRef } from "react";
+import { useState } from "react";
 
 var C = {
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
   violet: "#905CCB", cyan: "#26C9D8", crimson: "#D1334A",
-  bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)", hover: "#0D0D12",
+  bg: "#06060C", card: "#09090D", border: "rgba(255,255,255,0.06)", hover: "#0D0D12",
   surface: "#0D0D12", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
 };
 var ft = "'Outfit',sans-serif";
@@ -126,7 +126,7 @@ function InputStep({ state, setState, onNext }) {
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 24 }}>
       {CATEGORIES.map(function(cat) {
         var sel = state.category === cat.id;
-        return <div key={cat.id} onClick={function() { setState(function(s) { return Object.assign({}, s, { category: cat.id }); }); }} style={{ padding: "14px 16px", borderRadius: 10, cursor: "pointer", background: sel ? cat.color + "10" : C.card, border: "1px solid " + (sel ? cat.color : C.border), transition: "all 0.2s" }}>
+        return <div key={cat.id} onClick={function() { setState(function(s) { return Object.assign({}, s, { category: cat.id }); }); }} style={{ padding: "14px 16px", borderRadius: 10, cursor: "pointer", background: sel ? cat.color + "10" : C.card, border: "1px solid " + (sel ? cat.color : C.border), transition: "all 0.2s" }} onMouseEnter={function(e) { if (!sel) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.3)"; } }} onMouseLeave={function(e) { if (!sel) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; } }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 10, height: 10, borderRadius: "50%", background: sel ? cat.color : C.border, boxShadow: sel ? "0 0 8px " + cat.color + "60" : "none" }} />
             <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: sel ? cat.color : C.tx }}>{cat.label}</div>
@@ -139,11 +139,11 @@ function InputStep({ state, setState, onNext }) {
     {/* Slide count */}
     <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Slide Count</div>
     <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
-      <div onClick={function() { setState(function(s) { return Object.assign({}, s, { mode: "auto" }); }); }} style={{ flex: 1, padding: "12px 14px", borderRadius: 8, cursor: "pointer", background: state.mode === "auto" ? C.amber + "10" : C.card, border: "1px solid " + (state.mode === "auto" ? C.amber : C.border) }}>
+      <div onClick={function() { setState(function(s) { return Object.assign({}, s, { mode: "auto" }); }); }} style={{ flex: 1, padding: "12px 14px", borderRadius: 8, cursor: "pointer", background: state.mode === "auto" ? C.amber + "10" : C.card, border: "1px solid " + (state.mode === "auto" ? C.amber : C.border), transition: "all 0.2s" }} onMouseEnter={function(e) { if (state.mode !== "auto") { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; } }} onMouseLeave={function(e) { if (state.mode !== "auto") { e.currentTarget.style.borderColor = C.border; } }}>
         <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: state.mode === "auto" ? C.amber : C.tx }}>Auto</div>
         <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>AI decides (3-6 slides)</div>
       </div>
-      <div onClick={function() { setState(function(s) { return Object.assign({}, s, { mode: "manual" }); }); }} style={{ flex: 1, padding: "12px 14px", borderRadius: 8, cursor: "pointer", background: state.mode === "manual" ? C.amber + "10" : C.card, border: "1px solid " + (state.mode === "manual" ? C.amber : C.border) }}>
+      <div onClick={function() { setState(function(s) { return Object.assign({}, s, { mode: "manual" }); }); }} style={{ flex: 1, padding: "12px 14px", borderRadius: 8, cursor: "pointer", background: state.mode === "manual" ? C.amber + "10" : C.card, border: "1px solid " + (state.mode === "manual" ? C.amber : C.border), transition: "all 0.2s" }} onMouseEnter={function(e) { if (state.mode !== "manual") { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; } }} onMouseLeave={function(e) { if (state.mode !== "manual") { e.currentTarget.style.borderColor = C.border; } }}>
         <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: state.mode === "manual" ? C.amber : C.tx }}>Manual</div>
         <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>Set exact total count</div>
       </div>
@@ -154,14 +154,14 @@ function InputStep({ state, setState, onNext }) {
     </div>}
 
     {/* Image URLs + Upload */}
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 8 }}>Images: URL or Upload</div>
+    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 8 }}>Images: URL or Upload</div>
     <textarea value={state.imageUrls || ""} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { imageUrls: e.target.value }); }); }} placeholder="https://cdn.semianalysis.com/images/example.png" rows={3} style={{ width: "100%", padding: "10px 14px", background: C.card, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: mn, fontSize: 12, lineHeight: 1.6, resize: "none", outline: "none", boxSizing: "border-box", marginBottom: 10 }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
     <div onDragOver={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = C.amber; e.currentTarget.style.background = C.amber + "08"; }} onDragLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.card; }} onDrop={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.card; var files = Array.prototype.slice.call(e.dataTransfer.files); files.forEach(function(file) { if (!file.type.match(/^image\/(png|jpeg|jpg)$/)) return; var reader = new FileReader(); reader.onload = function(ev) { setState(function(s) { var existing = s.imageUrls || ""; var sep = existing && !existing.endsWith("\n") ? "\n" : ""; return Object.assign({}, s, { imageUrls: existing + sep + ev.target.result }); }); }; reader.readAsDataURL(file); }); }} style={{ padding: "16px", background: C.card, border: "2px dashed " + C.border, borderRadius: 8, textAlign: "center", cursor: "pointer", marginBottom: 10, transition: "all 0.2s" }} onClick={function() { document.getElementById("sa-img-upload").click(); }}>
       <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, marginBottom: 4 }}>Drag & drop PNG/JPG here or click to browse</div>
       <div style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>Images will be converted to data URLs</div>
       <input id="sa-img-upload" type="file" accept="image/png,image/jpeg" multiple onChange={function(e) { var files = Array.prototype.slice.call(e.target.files); files.forEach(function(file) { var reader = new FileReader(); reader.onload = function(ev) { setState(function(s) { var existing = s.imageUrls || ""; var sep = existing && !existing.endsWith("\n") ? "\n" : ""; return Object.assign({}, s, { imageUrls: existing + sep + ev.target.result }); }); }; reader.readAsDataURL(file); }); e.target.value = ""; }} style={{ display: "none" }} />
     </div>
-    {(function() { var urls = (state.imageUrls || "").split("\n").filter(function(u) { return u.trim().match(/^data:image\//); }); if (urls.length === 0) return null; return <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>{urls.map(function(url, i) { return <div key={i} style={{ position: "relative", width: 56, height: 56, borderRadius: 6, overflow: "hidden", border: "1px solid " + C.border }}><img src={url.trim()} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><div onClick={function(e) { e.stopPropagation(); setState(function(s) { var lines = (s.imageUrls || "").split("\n").filter(function(l) { return l.trim() !== url.trim(); }); return Object.assign({}, s, { imageUrls: lines.join("\n") }); }); }} style={{ position: "absolute", top: 2, right: 2, width: 16, height: 16, borderRadius: "50%", background: "rgba(0,0,0,0.7)", color: "#fff", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", lineHeight: 1 }}>{"\u00D7"}</div></div>; })}</div>; })()}
+    {(function() { var urls = (state.imageUrls || "").split("\n").filter(function(u) { return u.trim().match(/^data:image\//); }); if (urls.length === 0) return null; return <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>{urls.map(function(url, i) { return <div key={i} style={{ position: "relative", width: 56, height: 56, borderRadius: 6, overflow: "hidden", border: "1px solid " + C.border }}><img src={url.trim()} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><div onClick={function(e) { e.stopPropagation(); setState(function(s) { var lines = (s.imageUrls || "").split("\n").filter(function(l) { return l.trim() !== url.trim(); }); return Object.assign({}, s, { imageUrls: lines.join("\n") }); }); }} style={{ position: "absolute", top: 2, right: 2, width: 16, height: 16, borderRadius: "50%", background: "rgba(0,0,0,0.7)", color: "#fff", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", lineHeight: 1, transition: "background 0.15s" }} onMouseEnter={function(ev) { ev.currentTarget.style.background = "rgba(224,99,71,0.9)"; }} onMouseLeave={function(ev) { ev.currentTarget.style.background = "rgba(0,0,0,0.7)"; }}>{"\u00D7"}</div></div>; })}</div>; })()}
     <div style={{ marginBottom: 20 }} />
 
     {/* Content / Context */}
@@ -177,7 +177,7 @@ function InputStep({ state, setState, onNext }) {
     </div>
 
     {/* Source URL */}
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 8 }}>Source URL (optional)</div>
+    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 8 }}>Source URL (optional)</div>
     <input value={state.url || ""} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { url: e.target.value }); }); }} placeholder="https://semianalysis.com/..." style={{ width: "100%", padding: "10px 14px", background: C.card, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 24 }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
 
     <button onClick={onNext} disabled={!(state.text || "").trim()} style={{ width: "100%", padding: "14px 0", background: (state.text || "").trim() ? C.amber : C.surface, color: (state.text || "").trim() ? C.bg : C.txd, border: "none", borderRadius: 8, fontFamily: ft, fontSize: 15, fontWeight: 800, cursor: (state.text || "").trim() ? "pointer" : "not-allowed" }}>Generate Carousel Variants</button>
@@ -215,7 +215,7 @@ function SelectStep({ variants, selected, setSelected, onNext, onRegenerate, reg
       var isSel = selected === k;
       var color = varColors[k] || C.amber;
 
-      return <div key={k} onClick={function() { setSelected(k); }} style={{ marginBottom: 16, background: isSel ? color + "08" : C.card, border: "1px solid " + (isSel ? color : C.border), borderRadius: 12, padding: "20px", cursor: "pointer", transition: "all 0.25s", boxShadow: isSel ? "0 0 24px " + color + "12" : "none" }}>
+      return <div key={k} onClick={function() { setSelected(k); }} style={{ marginBottom: 16, background: isSel ? color + "08" : C.card, border: "1px solid " + (isSel ? color : C.border), borderRadius: 12, padding: "20px", cursor: "pointer", transition: "all 0.25s", boxShadow: isSel ? "0 0 24px " + color + "12" : "none" }} onMouseEnter={function(e) { if (!isSel) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.4)"; } }} onMouseLeave={function(e) { if (!isSel) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; } }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -408,19 +408,19 @@ function ExportStep({ state, caption, selectedVariant, variants }) {
     {/* Export actions */}
     <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 12 }}>Export Options</div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-      <button onClick={sendToCanva} disabled={rendering} style={{ padding: "16px", background: C.violet + "10", border: "1px solid " + C.violet + "30", borderRadius: 10, cursor: rendering ? "wait" : "pointer", textAlign: "left" }}>
+      <button onClick={sendToCanva} disabled={rendering} style={{ padding: "16px", background: C.violet + "10", border: "1px solid " + C.violet + "30", borderRadius: 10, cursor: rendering ? "wait" : "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.violet + "60"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(144,92,203,0.1)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.violet + "30"; e.currentTarget.style.boxShadow = "none"; }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.violet, marginBottom: 4 }}>Send to Canva</div>
         <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>Autofill TEMPLATES folder via API</div>
       </button>
-      <button onClick={exportJSON} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left" }}>
+      <button onClick={exportJSON} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.transform = "translateY(-1px)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 4 }}>Download JSON</div>
         <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>SA Schema v1.0 export</div>
       </button>
-      <button onClick={copyAll} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left" }}>
+      <button onClick={copyAll} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.transform = "translateY(-1px)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 4 }}>Copy to Clipboard</div>
         <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>All slide text + caption</div>
       </button>
-      <button onClick={function() { window.open("https://publish.buffer.com", "_blank"); }} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left" }}>
+      <button onClick={function() { window.open("https://publish.buffer.com", "_blank"); }} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.transform = "translateY(-1px)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 4 }}>Open Buffer</div>
         <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>Schedule in Buffer</div>
       </button>

@@ -4,7 +4,7 @@ import { useState } from "react";
 
 // ═══ DESIGN ═══
 var D = {
-  bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)", hover: "#0D0D12",
+  bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)",
   surface: "#0D0D12", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
   violet: "#905CCB", cyan: "#26C9D8",
@@ -28,11 +28,11 @@ var LABELS = ["A", "B", "C"];
 // ═══ SPINNER ═══
 function Spinner() {
   return <div style={{ display: "inline-block", position: "relative" }}>
-    <style dangerouslySetInnerHTML={{ __html: "@keyframes slobSpin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}" }} />
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes slopSpin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}" }} />
     <div style={{
       width: 18, height: 18, border: "2px solid " + D.border,
       borderTop: "2px solid " + D.amber, borderRadius: "50%",
-      animation: "slobSpin 0.8s linear infinite",
+      animation: "slopSpin 0.8s linear infinite",
     }} />
   </div>;
 }
@@ -90,7 +90,7 @@ function BriefCard({ brief, label, selected, onSelect, assetSwapUrl }) {
     onMouseLeave={function() { setHov(false); }}
     style={{
       background: isOn ? D.card : D.surface,
-      border: "1px solid " + (isOn ? D.amber + "60" : hov ? D.border : D.border),
+      border: "1px solid " + (isOn ? D.amber + "60" : hov ? "rgba(255,255,255,0.1)" : D.border),
       borderLeft: isOn ? "3px solid " + D.amber : "1px solid " + (hov ? D.amber + "30" : D.border),
       borderRadius: 12, padding: 24, transition: "all 0.2s",
       boxShadow: isOn ? "0 0 24px " + D.amber + "10" : "none",
@@ -266,7 +266,7 @@ function SlopCard({ title, content, onCopy, copyLabel, extraButton }) {
 }
 
 // ═══ MAIN COMPONENT ═══
-export default function SlobTop() {
+export default function SlopTop() {
   // Link-to-slop state
   var _slopUrl = useState(""), slopUrl = _slopUrl[0], setSlopUrl = _slopUrl[1];
   var _slopLoading = useState(false), slopLoading = _slopLoading[0], setSlopLoading = _slopLoading[1];
@@ -286,11 +286,6 @@ export default function SlobTop() {
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
   var _error = useState(null), error = _error[0], setError = _error[1];
   var _selected = useState(null), selected = _selected[0], setSelected = _selected[1];
-
-  // Image creator state
-  var _imgPrompt = useState(""), imgPrompt = _imgPrompt[0], setImgPrompt = _imgPrompt[1];
-  var _imgLoading = useState(false), imgLoading = _imgLoading[0], setImgLoading = _imgLoading[1];
-  var _imgUrl = useState(null), imgUrl = _imgUrl[0], setImgUrl = _imgUrl[1];
 
   function handleSlopGenerate() {
     if (!slopUrl.trim()) return;
@@ -321,10 +316,7 @@ export default function SlobTop() {
   }
 
   function sendToImageCreator(prompt) {
-    setImgPrompt(prompt);
-    // Scroll down to the image creator section
-    var el = document.getElementById("image-creator-panel");
-    if (el) el.scrollIntoView({ behavior: "smooth" });
+    copyText(prompt);
   }
 
   function handleGenerate() {
@@ -365,7 +357,7 @@ export default function SlobTop() {
   }}>
     {/* Header */}
     <div style={{ marginBottom: 32 }}>
-      <div style={{ fontFamily: ft, fontSize: 28, fontWeight: 900, color: D.tx, letterSpacing: -1 }}>Slob Top</div>
+      <div style={{ fontFamily: ft, fontSize: 28, fontWeight: 900, color: D.tx, letterSpacing: -1 }}>Slop Top</div>
       <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginTop: 4, letterSpacing: 1 }}>
         Content brief generator // Tell the team what to make
       </div>
@@ -375,7 +367,7 @@ export default function SlobTop() {
     <div style={{
       background: "linear-gradient(135deg, " + D.amber + "08 0%, " + D.card + " 40%, " + D.violet + "06 100%)",
       border: "1px solid " + D.amber + "25",
-      borderRadius: 16, padding: 32, marginBottom: 32,
+      borderRadius: 12, padding: 32, marginBottom: 32,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
         <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: D.amber }}>Link to Slop</div>
@@ -418,6 +410,7 @@ export default function SlobTop() {
             display: "flex", alignItems: "center", gap: 10,
             opacity: !slopUrl.trim() ? 0.4 : 1,
             flexShrink: 0,
+            boxShadow: slopUrl.trim() && !slopLoading ? "0 4px 20px " + D.amber + "30" : "none",
           }}
         >
           {slopLoading && <Spinner />}
@@ -552,7 +545,7 @@ export default function SlobTop() {
                 color: D.teal,
                 cursor: "pointer", fontFamily: ft, fontSize: 10, fontWeight: 700,
                 transition: "all 0.15s",
-              }}>Generate Image</button>
+              }}>Copy Prompt</button>
             }
           />
         </div>}
@@ -566,7 +559,7 @@ export default function SlobTop() {
       <div style={{
         width: "40%", flexShrink: 0,
         background: D.card, border: "1px solid " + D.border,
-        borderRadius: 14, padding: 28,
+        borderRadius: 12, padding: 28,
       }}>
         {/* Topic */}
         <div style={{ marginBottom: 22 }}>
@@ -711,10 +704,10 @@ export default function SlobTop() {
       <div style={{ flex: 1, minWidth: 0 }}>
         {/* Empty state */}
         {!briefs && !loading && <div style={{
-          background: D.card, border: "1px solid " + D.border, borderRadius: 14,
+          background: D.card, border: "1px solid " + D.border, borderRadius: 12,
           padding: "80px 40px", textAlign: "center",
         }}>
-          <div style={{ fontFamily: ft, fontSize: 48, color: D.border, marginBottom: 16 }}>{ }</div>
+          <div style={{ fontFamily: mn, fontSize: 48, color: D.border, marginBottom: 16, opacity: 0.4 }}>//</div>
           <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 600, color: D.txd }}>No briefs generated yet</div>
           <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginTop: 8 }}>
             Fill in the inputs and hit Generate Brief
@@ -723,15 +716,15 @@ export default function SlobTop() {
 
         {/* Loading state */}
         {loading && <div style={{
-          background: D.card, border: "1px solid " + D.border, borderRadius: 14,
+          background: D.card, border: "1px solid " + D.border, borderRadius: 12,
           padding: "80px 40px", textAlign: "center",
         }}>
-          <style dangerouslySetInnerHTML={{ __html: "@keyframes slobPulse{0%,100%{opacity:0.3}50%{opacity:1}}" }} />
+          <style dangerouslySetInnerHTML={{ __html: "@keyframes slopPulse{0%,100%{opacity:0.3}50%{opacity:1}}" }} />
           <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 20 }}>
             {[0, 1, 2].map(function(i) {
               return <div key={i} style={{
                 width: 8, height: 8, borderRadius: "50%", background: D.amber,
-                animation: "slobPulse 1.4s ease-in-out infinite",
+                animation: "slopPulse 1.4s ease-in-out infinite",
                 animationDelay: i * 0.2 + "s",
               }} />;
             })}

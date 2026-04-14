@@ -118,7 +118,7 @@ function TrendCard({ item, sourceKey }) {
         {/* Tags */}
         {item.tags && item.tags.length > 0 && <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
           {item.tags.slice(0, 2).map(function(tag, i) {
-            return <span key={i} style={{ fontFamily: mn, fontSize: 8, color: D.txd, padding: "1px 6px", borderRadius: 8, background: D.surface, border: "1px solid " + D.border }}>{tag}</span>;
+            return <span key={i} style={{ fontFamily: mn, fontSize: 9, color: D.txm, padding: "2px 7px", borderRadius: 8, background: D.surface, border: "1px solid " + D.border }}>{tag}</span>;
           })}
         </div>}
       </div>
@@ -141,11 +141,11 @@ function ManualTrendCard({ trend, onRemove }) {
     onMouseLeave={function() { setHov(false); }}
     style={{ width: 240, minWidth: 240, height: 180, background: hov ? D.hover : D.card, border: "1px solid " + (hov ? c + "40" : D.border), borderRadius: 12, overflow: "hidden", transition: "all 0.2s ease", transform: hov ? "translateY(-2px)" : "translateY(0)", boxShadow: hov ? "0 8px 24px rgba(0,0,0,0.4)" : "none", flexShrink: 0, display: "flex", flexDirection: "column" }}
   >
-    <div style={{ height: 3, background: D.amber, flexShrink: 0 }} />
+    <div style={{ height: 3, background: c, flexShrink: 0 }} />
     <div style={{ padding: "12px 14px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-          <span style={{ fontFamily: mn, fontSize: 8, color: D.amber, padding: "2px 6px", borderRadius: 8, background: D.amber + "15", border: "1px solid " + D.amber + "30" }}>Manual</span>
+          <span style={{ fontFamily: mn, fontSize: 8, color: c, padding: "2px 6px", borderRadius: 8, background: c + "15", border: "1px solid " + c + "30" }}>Manual</span>
           <span style={{ fontFamily: mn, fontSize: 8, color: D.txd }}>{pc ? pc.name : trend.platform}</span>
         </div>
         <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 600, color: D.tx, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{trend.saAngle || truncText(trend.url, 50)}</div>
@@ -232,18 +232,18 @@ function WizardOverlay({ visible, onClose, feedData }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
           <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: D.amber }}>Content Wizard</div>
-          <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, marginTop: 2 }}>AI-powered trend-based content ideation</div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: D.txm, marginTop: 2 }}>AI-powered trend-based content ideation</div>
         </div>
-        <span onClick={handleClose} style={{ fontFamily: mn, fontSize: 18, color: D.txm, cursor: "pointer", userSelect: "none", padding: "4px 8px" }}>x</span>
+        <span onClick={handleClose} style={{ fontFamily: mn, fontSize: 18, color: D.txm, cursor: "pointer", userSelect: "none", padding: "4px 8px", borderRadius: 6, background: D.surface, border: "1px solid " + D.border, transition: "all 0.15s", lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32 }}>x</span>
       </div>
       <div style={{ marginBottom: 18 }}>
-        <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>What type of content?</div>
+        <div style={{ fontFamily: mn, fontSize: 9, color: D.txm, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>What type of content?</div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {CONTENT_FORMATS.map(function(f) { return <Pill key={f} label={f} active={contentType === f} onClick={function() { setContentType(contentType === f ? "" : f); }} color={D.amber} />; })}
         </div>
       </div>
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Topic area?</div>
+        <div style={{ fontFamily: mn, fontSize: 9, color: D.txm, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Topic area?</div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {TOPIC_AREAS.map(function(t) { return <Pill key={t} label={t} active={topic === t} onClick={function() { setTopic(topic === t ? "" : t); }} color={D.blue} />; })}
         </div>
@@ -290,7 +290,7 @@ function ManualAddForm({ onAdd, onClose }) {
 
   function InputField({ label, value, onChange, placeholder, mono }) {
     return <div style={{ marginBottom: 10 }}>
-      <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>{label}</div>
+      <div style={{ fontFamily: mn, fontSize: 9, color: D.txm, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>{label}</div>
       <input value={value} onChange={function(e) { onChange(e.target.value); }} placeholder={placeholder || ""} style={{ width: "100%", background: D.surface, border: "1px solid " + D.border, borderRadius: 6, padding: "8px 10px", color: D.tx, fontFamily: mono ? mn : ft, fontSize: 12, outline: "none", boxSizing: "border-box" }} />
     </div>;
   }
@@ -299,11 +299,11 @@ function ManualAddForm({ onAdd, onClose }) {
     <div style={{ background: D.bg, border: "1px solid " + D.border, borderRadius: 16, width: "100%", maxWidth: 560, maxHeight: "85vh", overflowY: "auto", padding: 24 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: D.tx }}>Add Manual Trend</div>
-        <span onClick={onClose} style={{ fontFamily: mn, fontSize: 14, color: D.txm, cursor: "pointer", userSelect: "none" }}>x</span>
+        <span onClick={onClose} style={{ fontFamily: mn, fontSize: 14, color: D.txm, cursor: "pointer", userSelect: "none", borderRadius: 6, background: D.surface, border: "1px solid " + D.border, transition: "all 0.15s", lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28 }}>x</span>
       </div>
       <InputField label="URL" value={url} onChange={setUrl} placeholder="https://..." mono />
       <div style={{ marginBottom: 10 }}>
-        <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>PLATFORM</div>
+        <div style={{ fontFamily: mn, fontSize: 9, color: D.txm, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>PLATFORM</div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {Object.keys(PLATFORMS_MANUAL).map(function(pk) {
             var p = PLATFORMS_MANUAL[pk]; var active = platform === pk;
@@ -315,15 +315,15 @@ function ManualAddForm({ onAdd, onClose }) {
       <InputField label="AUDIO" value={audio} onChange={setAudio} placeholder="Trending sound name" />
       <InputField label="VISUAL" value={visual} onChange={setVisual} placeholder="Color grade, text placement" />
       <div style={{ marginBottom: 10 }}>
-        <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>SENTIMENT</div>
+        <div style={{ fontFamily: mn, fontSize: 9, color: D.txm, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>SENTIMENT</div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{SENTIMENTS.map(function(s) { return <Pill key={s} label={s} active={sentiment === s} onClick={function() { setSentiment(sentiment === s ? "" : s); }} />; })}</div>
       </div>
       <div style={{ marginBottom: 10 }}>
-        <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>AUDIENCE</div>
+        <div style={{ fontFamily: mn, fontSize: 9, color: D.txm, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>AUDIENCE</div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{AUDIENCES.map(function(a) { return <Pill key={a} label={a} active={audience === a} onClick={function() { setAudience(audience === a ? "" : a); }} />; })}</div>
       </div>
       <div style={{ marginBottom: 10 }}>
-        <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>RELEVANCE</div>
+        <div style={{ fontFamily: mn, fontSize: 9, color: D.txm, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>RELEVANCE</div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <input type="range" min={0} max={10} value={relevance} onChange={function(e) { setRelevance(Number(e.target.value)); }} style={{ flex: 1, accentColor: D.blue }} />
           <span style={{ fontFamily: mn, fontSize: 14, fontWeight: 700, color: relevance <= 3 ? D.coral : relevance <= 6 ? D.amber : D.teal }}>{relevance}</span>
@@ -420,9 +420,10 @@ export default function Trends() {
     }
 
     if (!hasAny && !loading) {
-      return <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: "48px 20px", textAlign: "center", marginTop: 8 }}>
-        <div style={{ fontFamily: ft, fontSize: 14, color: D.txm, marginBottom: 4 }}>No data for this tab yet</div>
-        <div style={{ fontFamily: mn, fontSize: 10, color: D.txd }}>Sources may not have returned data -- try refreshing</div>
+      return <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: "48px 24px", textAlign: "center", marginTop: 8 }}>
+        <div style={{ fontSize: 28, marginBottom: 12, opacity: 0.3 }}>&#128225;</div>
+        <div style={{ fontFamily: ft, fontSize: 14, color: D.txm, marginBottom: 6 }}>No data for this tab yet</div>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, lineHeight: 1.6 }}>API keys may not be configured, or sources have not returned data.<br />Try refreshing or add trends manually with the + button.</div>
       </div>;
     }
 

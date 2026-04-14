@@ -245,7 +245,7 @@ export default function Outreach() {
     return filtered.filter(function(o) { return o.status === status; });
   }
 
-  var tierColors = { S: D.coral, A: D.amber, B: D.blue, C: D.txm };
+  var tierColors = { S: D.amber, A: D.blue, B: D.teal, C: D.txm };
 
   // ═══ INPUT STYLE ═══
   var inputStyle = {
@@ -256,6 +256,7 @@ export default function Outreach() {
 
   return (
     <div style={{ minHeight: "100vh", background: D.bg, color: D.tx, fontFamily: ft, padding: "32px 40px" }}>
+      <style dangerouslySetInnerHTML={{ __html: ".kanban-scroll::-webkit-scrollbar{display:none}.kanban-scroll{-ms-overflow-style:none;scrollbar-width:none}" }} />
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontSize: 28, fontWeight: 900, fontFamily: ft, color: D.tx, letterSpacing: -1 }}>Outreach</div>
@@ -281,8 +282,8 @@ export default function Outreach() {
       {tab === "matching" && (
         <div>
           {/* Team Members */}
-          <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 2, textTransform: "uppercase", marginBottom: 14 }}>Team Members</div>
-          <div style={{ display: "flex", gap: 14, marginBottom: 36, overflowX: "auto", paddingBottom: 8 }}>
+          <div style={{ fontFamily: mn, fontSize: 10, color: D.txm, letterSpacing: 2, textTransform: "uppercase", marginBottom: 14 }}>Team Members</div>
+          <div className="kanban-scroll" style={{ display: "flex", gap: 14, marginBottom: 36, overflowX: "auto", paddingBottom: 8 }}>
             {TEAM.map(function(m) {
               var sel = selMember === m.id;
               return (
@@ -318,7 +319,7 @@ export default function Outreach() {
 
           {/* Add Opportunity */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 2, textTransform: "uppercase" }}>Podcast Opportunities</div>
+            <div style={{ fontFamily: mn, fontSize: 10, color: D.txm, letterSpacing: 2, textTransform: "uppercase" }}>Podcast Opportunities</div>
             <div onClick={function() { setShowForm(!showForm); }}
               style={{
                 padding: "8px 18px", background: D.coral + "18", border: "1px solid " + D.coral + "40", borderRadius: 8,
@@ -381,7 +382,7 @@ export default function Outreach() {
 
           {/* Opportunity List */}
           {getSortedOpps().length === 0 && !showForm && (
-            <div style={{ padding: 40, textAlign: "center", color: D.txd, fontFamily: mn, fontSize: 12 }}>No opportunities yet. Click "+ Add Opportunity" to get started.</div>
+            <div style={{ padding: 40, textAlign: "center", color: D.txm, fontFamily: mn, fontSize: 12 }}>No opportunities yet. Click "+ Add Opportunity" to get started.</div>
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {getSortedOpps().map(function(opp) {
@@ -405,7 +406,7 @@ export default function Outreach() {
                         {opp.hostName && opp.audience && <span style={{ margin: "0 8px", color: D.txd }}>|</span>}
                         {opp.audience && <span>Audience: ~{opp.audience}</span>}
                       </div>
-                      {opp.topicFocus && <div style={{ fontFamily: ft, fontSize: 12, color: D.txd, marginTop: 6 }}>Topics: {opp.topicFocus}</div>}
+                      {opp.topicFocus && <div style={{ fontFamily: ft, fontSize: 12, color: D.txm, marginTop: 6 }}>Topics: {opp.topicFocus}</div>}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       {/* Assign dropdown */}
@@ -418,7 +419,7 @@ export default function Outreach() {
                         {TEAM.map(function(m) { return <option key={m.id} value={m.id}>{m.name}</option>; })}
                       </select>
                       <div onClick={function() { deleteOpp(opp.id); }}
-                        style={{ width: 28, height: 28, borderRadius: 6, background: D.coral + "15", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: D.coral, fontSize: 14, fontWeight: 700 }}>x</div>
+                        style={{ width: 28, height: 28, borderRadius: 6, background: D.coral + "15", border: "1px solid " + D.coral + "30", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: D.coral, fontSize: 14, fontWeight: 700, transition: "all 0.15s" }}>x</div>
                     </div>
                   </div>
 
@@ -482,7 +483,7 @@ export default function Outreach() {
           </div>
 
           {/* Kanban columns */}
-          <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 20, minHeight: 400 }}>
+          <div className="kanban-scroll" style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 20, minHeight: 400 }}>
             {PIPELINE_COLS.map(function(col) {
               var colOpps = oppsByStatus(col.key);
               var colIdx = PIPELINE_COLS.findIndex(function(c) { return c.key === col.key; });
@@ -502,7 +503,7 @@ export default function Outreach() {
                       return (
                         <div key={opp.id} style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 10, padding: 14, transition: "all 0.15s" }}>
                           <div style={{ fontSize: 13, fontWeight: 700, color: D.tx, marginBottom: 4 }}>{opp.showName}</div>
-                          <div style={{ fontFamily: mn, fontSize: 10, color: D.txm, marginBottom: 8 }}>{opp.hostName || "No host"}</div>
+                          <div style={{ fontFamily: mn, fontSize: 10, color: opp.hostName ? D.txm : D.txd, marginBottom: 8, fontStyle: opp.hostName ? "normal" : "italic" }}>{opp.hostName || "No host"}</div>
 
                           {/* Assigned member */}
                           {assigned && (

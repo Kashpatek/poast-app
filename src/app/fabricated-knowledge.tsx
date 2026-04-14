@@ -16,7 +16,7 @@ var TABS = ["Prospects", "Development", "Scheduled", "Post-Production", "Release
 var DEV_STATUSES = ["Contacted", "Confirmed", "Scheduled"];
 var DEV_STATUS_C = { Contacted: D.blue, Confirmed: D.amber, Scheduled: D.teal };
 var TIERS = ["S", "A", "B", "C"];
-var TIER_C = { S: D.amber, A: D.blue, B: D.teal, C: D.txd };
+var TIER_C = { S: D.amber, A: D.blue, B: D.teal, C: D.txm };
 var CATEGORIES = ["Semiconductors", "AI Infra", "Data Center", "Memory", "Geopolitics", "Compute", "Other"];
 var HOST = "Doug O'Laughlin";
 
@@ -150,7 +150,7 @@ function Card(p) {
 }
 
 function SectionLabel(p) {
-  return <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txd, letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>{p.children}</div>;
+  return <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txm, letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>{p.children}</div>;
 }
 
 // ═══ TAB 1: PROSPECTS ═══
@@ -270,7 +270,7 @@ function ProspectsTab({ prospects, setProspects, setTab }) {
         </Card>;
       })}
     </div>
-    {filtered.length === 0 && <div style={{ textAlign: "center", padding: 60, color: D.txd, fontFamily: ft, fontSize: 14 }}>No prospects found. Add your first guest prospect above.</div>}
+    {filtered.length === 0 && <div style={{ textAlign: "center", padding: 60, color: D.txm, fontFamily: ft, fontSize: 14 }}>No prospects found. Add your first guest prospect above.</div>}
   </div>;
 }
 
@@ -327,7 +327,7 @@ function DevelopmentTab({ prospects, setProspects, setTab }) {
           <Badge bg={DEV_STATUS_C[status]}>{status}</Badge>
           <span style={{ fontFamily: mn, fontSize: 11, color: D.txm }}>{group.length} prospect{group.length !== 1 ? "s" : ""}</span>
         </div>
-        {group.length === 0 && <div style={{ fontFamily: ft, fontSize: 13, color: D.txd, padding: "16px 0" }}>No prospects at this stage. Move someone from the Prospects tab.</div>}
+        {group.length === 0 && <div style={{ fontFamily: ft, fontSize: 13, color: D.txm, padding: "16px 0" }}>No prospects at this stage. Move someone from the Prospects tab.</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {group.map(function(p) {
             var topics = (p.topics || "").split(",").map(function(t) { return t.trim(); }).filter(Boolean);
@@ -351,15 +351,15 @@ function DevelopmentTab({ prospects, setProspects, setTab }) {
               {/* Email composer UI */}
               {isEmailOpen && <div style={{ marginTop: 14, padding: 16, background: D.surface, borderRadius: 10, border: "1px solid " + D.border }}>
                 <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txd, marginBottom: 4 }}>TO</div>
+                  <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 600, color: D.txm, letterSpacing: 1, marginBottom: 4 }}>TO</div>
                   <div style={{ fontFamily: ft, fontSize: 13, color: D.txm, padding: "8px 12px", background: D.bg, borderRadius: 6, border: "1px solid " + D.border }}>{p.name} &lt;{(p.name || "").toLowerCase().replace(/\s+/g, ".") + "@" + (p.company || "company").toLowerCase().replace(/\s+/g, "") + ".com"}&gt;</div>
                 </div>
                 <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txd, marginBottom: 4 }}>SUBJECT</div>
+                  <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 600, color: D.txm, letterSpacing: 1, marginBottom: 4 }}>SUBJECT</div>
                   <Input value={emailData.subject} onChange={function(v) { setEmailData({ ...emailData, subject: v }); }} />
                 </div>
                 <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txd, marginBottom: 4 }}>BODY</div>
+                  <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 600, color: D.txm, letterSpacing: 1, marginBottom: 4 }}>BODY</div>
                   <TextArea value={emailData.body} onChange={function(v) { setEmailData({ ...emailData, body: v }); }} rows={10} />
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
@@ -499,7 +499,7 @@ function PostProductionTab({ episodes, prospects }) {
 
   return <div>
     <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 24 }}>
-      <SectionLabel>Episode</SectionLabel>
+      <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txm, letterSpacing: 3, textTransform: "uppercase" }}>Episode</div>
       <Select value={selId} onChange={setSelId} options={[{ value: "", label: "Select released episode..." }].concat(releasedEpisodes.map(function(e) { return { value: e.id, label: epLabel(e) }; }))} sx={{ minWidth: 300 }} />
     </div>
 
@@ -561,13 +561,13 @@ function PostProductionTab({ episodes, prospects }) {
           </div>
           <div style={{ display: "flex", gap: 8, marginLeft: 12, flexShrink: 0 }}>
             <CopyBtn text={c.timestamp + " - " + c.text} />
-            <Btn small onClick={function() { toggleFlag(c.id); }} sx={{ borderColor: c.flagged ? D.amber : D.coral, color: c.flagged ? D.amber : D.coral }}>{c.flagged ? "Flagged" : "Flag for Slob Top"}</Btn>
+            <Btn small onClick={function() { toggleFlag(c.id); }} sx={{ borderColor: c.flagged ? D.amber : D.coral, color: c.flagged ? D.amber : D.coral }}>{c.flagged ? "Flagged" : "Flag for Slop Top"}</Btn>
           </div>
         </div>;
       })}
     </Card>}
 
-    {!transcript.trim() && titles.length === 0 && <div style={{ textAlign: "center", padding: 40, color: D.txd, fontFamily: ft, fontSize: 14 }}>Select an episode and paste a transcript to begin post-production.</div>}
+    {!transcript.trim() && titles.length === 0 && <div style={{ textAlign: "center", padding: 40, color: D.txm, fontFamily: ft, fontSize: 14 }}>Select an episode and paste a transcript to begin post-production.</div>}
   </div>;
 }
 
@@ -670,8 +670,8 @@ function ReleasedTab({ episodes, prospects, archive, setArchive }) {
         </Card>;
       })}
     </div>
-    {filtered.length === 0 && archive.length === 0 && <div style={{ textAlign: "center", padding: 60, color: D.txd, fontFamily: ft, fontSize: 14 }}>No archived episodes yet. Add released episodes to build your library.</div>}
-    {filtered.length === 0 && archive.length > 0 && <div style={{ textAlign: "center", padding: 40, color: D.txd, fontFamily: ft, fontSize: 14 }}>No episodes match your search.</div>}
+    {filtered.length === 0 && archive.length === 0 && <div style={{ textAlign: "center", padding: 60, color: D.txm, fontFamily: ft, fontSize: 14 }}>No archived episodes yet. Add released episodes to build your library.</div>}
+    {filtered.length === 0 && archive.length > 0 && <div style={{ textAlign: "center", padding: 40, color: D.txm, fontFamily: ft, fontSize: 14 }}>No episodes match your search.</div>}
   </div>;
 }
 

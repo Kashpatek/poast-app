@@ -17,12 +17,12 @@ import BRollLibrary from "./broll-library";
 var C = {
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
   violet: "#905CCB", cyan: "#26C9D8", crimson: "#D1334A",
-  bg: "#06060C", card: "#14141E", border: "#252535", hover: "#181824",
-  surface: "#101018", tx: "#E8E4DD", txm: "#9A969F", txd: "#5A5766",
+  bg: "#06060C", card: "#09090D", border: "rgba(255,255,255,0.06)", hover: "#0D0D12",
+  surface: "#0D0D12", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
   glow: "0 2px 12px rgba(0,0,0,0.4), 0 0 0 0 rgba(247,176,65,0)",
   glowHover: "0 8px 30px rgba(0,0,0,0.5), 0 0 20px rgba(247,176,65,0.08)",
-  cardGrad: "linear-gradient(135deg, #14141E 0%, #101018 100%)",
-  surfGrad: "linear-gradient(135deg, #181824 0%, #14141E 100%)",
+  cardGrad: "linear-gradient(135deg, #09090D 0%, #0D0D12 100%)",
+  surfGrad: "linear-gradient(135deg, #0D0D12 0%, #09090D 100%)",
 };
 var PL = { x: "#1DA1F2", li: "#0A66C2", fb: "#1877F2", ig: "#E4405F", yt: "#FF0000", tt: "#00F2EA" };
 var ft = "'Outfit',sans-serif";
@@ -83,7 +83,7 @@ function Pick({ text, picked, onPick, onRedo, rLoading }) {
   return (<div className="poast-card" onClick={onPick} style={{ background: picked ? "linear-gradient(135deg, " + C.amber + "0A 0%, " + C.amber + "05 100%)" : "#0D0D12", border: "1px solid " + (picked ? C.amber + "60" : "rgba(255,255,255,0.06)"), borderRadius: 12, padding: "16px 20px", marginBottom: 8, cursor: "pointer", boxShadow: picked ? "0 0 24px rgba(247,176,65,0.06)" : "none", transition: "all 0.2s ease" }}>
     <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
       <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, marginTop: 2, border: "2px solid " + (picked ? C.amber : "rgba(255,255,255,0.12)"), background: picked ? C.amber : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s ease" }}>{picked && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#060608" }} />}</div>
-      <div style={{ flex: 1, fontFamily: ft, fontSize: 14, color: picked ? "#ffffff" : "rgba(255,255,255,0.55)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{text}</div>
+      <div style={{ flex: 1, fontFamily: ft, fontSize: 14, color: picked ? "#ffffff" : "rgba(255,255,255,0.65)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{text}</div>
       <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
         <CopyBtn text={text} />
         {onRedo && <span onClick={function(e) { e.stopPropagation(); if (!rLoading) onRedo(); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: rLoading ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)", opacity: rLoading ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>&#x21bb;</span>}
@@ -108,7 +108,7 @@ function OutCard({ title, content, color, onRedo, rLoading }) {
         {onRedo && <span onClick={function() { if (!rLoading) onRedo(); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: rLoading ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)", opacity: rLoading ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>&#x21bb;</span>}
       </div>
     </div>
-    <div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{content}</div>
+    <div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.65)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{content}</div>
   </div>);
 }
 
@@ -329,7 +329,6 @@ function ChippySidebar({ onAsk }) {
 }
 
 // ═══ SIDEBAR ═══
-// ═══ SIDEBAR CATEGORIES ═══
 var SIDEBAR_CATS = {
   produce: { label: "PRODUCE", color: C.amber, glow: "rgba(247,176,65,", items: [
     { id: "sloptop", l: "Slop Top", ic: "\uD83D\uDCA5" },
@@ -400,7 +399,7 @@ function Sidebar({ active, onNav, onAskPoast }) {
 
     {/* Footer */}
     <div style={{ padding: "14px 18px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-      <div style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v2.0 // SEMIANALYSIS</div>
+      <div style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v2.8 // SEMIANALYSIS</div>
     </div>
   </div>);
 }
@@ -557,7 +556,7 @@ function ClipCaptions() {
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {CAPPER_PLATFORMS.map(function(p) {
           var on = platforms.indexOf(p.key) > -1;
-          return <div key={p.key} onClick={function() { togglePlatform(p.key); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: on ? p.color + "18" : cardBg, border: "1px solid " + (on ? p.color + "60" : borderC), fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? p.color : C.txd, transition: "all 0.2s ease", display: "flex", alignItems: "center", gap: 6 }}>
+          return <div key={p.key} onClick={function() { togglePlatform(p.key); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: on ? p.color + "18" : cardBg, border: "1px solid " + (on ? p.color + "60" : borderC), fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? p.color : C.txd, transition: "all 0.2s ease", display: "flex", alignItems: "center", gap: 6 }} onMouseEnter={function(e) { if (!on) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; } }} onMouseLeave={function(e) { if (!on) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.background = cardBg; } }}>
             <span style={{ fontFamily: mn, fontSize: 9, opacity: 0.7 }}>{p.icon}</span>
             {p.label}
             {on && <span style={{ width: 6, height: 6, borderRadius: "50%", background: p.color, boxShadow: "0 0 6px " + p.color + "60", marginLeft: 2 }} />}
@@ -573,7 +572,7 @@ function ClipCaptions() {
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {CAPPER_LENGTHS.map(function(l) {
           var on = length === l.key;
-          return <div key={l.key} onClick={function() { setLength(l.key); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: on ? (l.thread ? C.violet + "15" : C.amber + "15") : cardBg, border: "1px solid " + (on ? (l.thread ? C.violet + "60" : C.amber + "60") : borderC), fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? (l.thread ? C.violet : C.amber) : C.txd, transition: "all 0.2s ease" }}>
+          return <div key={l.key} onClick={function() { setLength(l.key); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: on ? (l.thread ? C.violet + "15" : C.amber + "15") : cardBg, border: "1px solid " + (on ? (l.thread ? C.violet + "60" : C.amber + "60") : borderC), fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? (l.thread ? C.violet : C.amber) : C.txd, transition: "all 0.2s ease" }} onMouseEnter={function(e) { if (!on) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; } }} onMouseLeave={function(e) { if (!on) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.background = cardBg; } }}>
             {l.label}
             <span style={{ fontFamily: mn, fontSize: 9, marginLeft: 6, opacity: 0.5 }}>{l.desc}</span>
           </div>;
@@ -588,7 +587,7 @@ function ClipCaptions() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         {CAPPER_TONES.map(function(t) {
           var on = tone === t.key;
-          return <div key={t.key} onClick={function() { setTone(t.key); }} style={{ padding: "14px 16px", borderRadius: 10, cursor: "pointer", background: on ? C.amber + "0C" : cardBg, border: "1px solid " + (on ? C.amber + "50" : borderC), boxShadow: on ? "0 0 20px rgba(247,176,65,0.06)" : "none", transition: "all 0.2s ease" }}>
+          return <div key={t.key} onClick={function() { setTone(t.key); }} style={{ padding: "14px 16px", borderRadius: 10, cursor: "pointer", background: on ? C.amber + "0C" : cardBg, border: "1px solid " + (on ? C.amber + "50" : borderC), boxShadow: on ? "0 0 20px rgba(247,176,65,0.06)" : "none", transition: "all 0.2s ease" }} onMouseEnter={function(e) { if (!on) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.3)"; } }} onMouseLeave={function(e) { if (!on) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; } }}>
             <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: on ? C.amber : C.tx, marginBottom: 4 }}>{t.label}</div>
             <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, lineHeight: 1.5 }}>{t.desc}</div>
             {t.hook && <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6, fontStyle: "italic" }}>"{t.hook}"</div>}
@@ -639,7 +638,7 @@ function ClipCaptions() {
               /* Thread / multi-post output */
               var posts = r.posts || [];
               var fullText = posts.map(function(p) { return "Post " + p.number + ": " + p.text; }).join("\n\n");
-              return <div key={i} style={{ background: cardBg, border: "1px solid " + borderC, borderLeft: "3px solid " + platObj.color, borderRadius: 12, padding: "18px 20px", marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.3)", transition: "all 0.2s ease" }}>
+              return <div key={i} style={{ background: cardBg, border: "1px solid " + borderC, borderLeft: "3px solid " + platObj.color, borderRadius: 12, padding: "18px 20px", marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.3)", transition: "all 0.2s ease" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = platObj.color + "40"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.4), 0 0 12px " + platObj.color + "08"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.borderLeftColor = platObj.color; e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.3)"; }}>
                 {/* Header */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -655,7 +654,7 @@ function ClipCaptions() {
                 {posts.map(function(post) {
                   return <div key={post.number} style={{ marginBottom: 10, padding: "12px 14px", background: "rgba(255,255,255,0.02)", borderRadius: 8, border: "1px solid " + borderC }}>
                     <div style={{ fontFamily: mn, fontSize: 9, color: platObj.color, fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: "1px" }}>Post {post.number}/{posts.length}</div>
-                    <div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.6)", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>{post.text}</div>
+                    <div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.7)", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>{post.text}</div>
                   </div>;
                 })}
               </div>;
@@ -663,7 +662,7 @@ function ClipCaptions() {
 
             /* Standard single-post output */
             var cap = r.caption || "";
-            return <div key={i} style={{ background: cardBg, border: "1px solid " + borderC, borderLeft: "3px solid " + platObj.color, borderRadius: 12, padding: "18px 20px", marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.3)", transition: "all 0.2s ease" }}>
+            return <div key={i} style={{ background: cardBg, border: "1px solid " + borderC, borderLeft: "3px solid " + platObj.color, borderRadius: 12, padding: "18px 20px", marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.3)", transition: "all 0.2s ease" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = platObj.color + "40"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.4), 0 0 12px " + platObj.color + "08"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.borderLeftColor = platObj.color; e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.3)"; }}>
               {/* Header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -683,12 +682,12 @@ function ClipCaptions() {
               </div>}
 
               {/* Caption body */}
-              <div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.6)", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>{cap}</div>
+              <div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.7)", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>{cap}</div>
 
               {/* X reply format */}
               {platKey === "x" && r.reply && <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed " + borderC }}>
                 <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4, textTransform: "uppercase", letterSpacing: "1px" }}>Reply</div>
-                <div style={{ fontFamily: ft, fontSize: 13, color: "rgba(255,255,255,0.45)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{r.reply}</div>
+                <div style={{ fontFamily: ft, fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{r.reply}</div>
               </div>}
             </div>;
           })}
@@ -790,15 +789,15 @@ function GlitchTransition({ onDone }) {
 function SplashScreen({ onNavigate }) {
   var _h = useState(null), h = _h[0], sh = _h[1];
   var sections = {
-    PRODUCE: [{ l: "Slop Top", ic: "\uD83D\uDCA5", id: "sloptop" }, { l: "Carousel", ic: "\uD83D\uDCD0", id: "carousel" }, { l: "Capper", ic: "\uD83C\uDFAC", id: "captions" }, { l: "P2P", ic: "\uD83C\uDFAC", id: "p2p" }],
+    PRODUCE: [{ l: "Slop Top", ic: "\uD83D\uDCA5", id: "sloptop" }, { l: "Carousel", ic: "\uD83D\uDCD0", id: "carousel" }, { l: "Capper", ic: "\uD83C\uDFAC", id: "captions" }, { l: "P2P", ic: "\uD83C\uDFAC", id: "p2p" }, { l: "B-Roll", ic: "\uD83C\uDFA5", id: "broll" }],
     PODCAST: [{ l: "Fab Knowledge", ic: "\uD83C\uDFA7", id: "fk" }, { l: "SA Weekly", ic: "\uD83C\uDF99", id: "weekly" }, { l: "Outreach", ic: "\uD83D\uDCE4", id: "outreach" }],
-    PREPARE: [{ l: "Trends", ic: "\uD83D\uDD25", id: "trends" }, { l: "News Flow", ic: "\uD83D\uDCE1", id: "news" }, { l: "GTC Flow", ic: "\uD83D\uDCCA", id: "gtc" }],
+    PREPARE: [{ l: "Trends", ic: "\uD83D\uDD25", id: "trends" }, { l: "IdeationNation", ic: "\uD83D\uDCA1", id: "ideation" }, { l: "News Flow", ic: "\uD83D\uDCE1", id: "news" }, { l: "GTC Flow", ic: "\uD83D\uDCCA", id: "gtc" }],
     PREMIER: [{ l: "Schedule", ic: "\uD83D\uDCC6", id: "schedule" }],
   };
   var words = ["PRODUCE", "PODCAST", "PREPARE", "PREMIER"];
   var colors = [C.amber, C.coral, C.blue, C.teal];
   var glows = ["rgba(247,176,65,", "rgba(224,99,71,", "rgba(11,134,209,", "rgba(46,173,142,"];
-  var appNames = { PRODUCE: "Slop Top, Carousel, Capper, P2P", PODCAST: "Fab Knowledge, SA Weekly, Outreach", PREPARE: "Trends, News Flow, GTC Flow", PREMIER: "Schedule" };
+  var appNames = { PRODUCE: "Slop Top, Carousel, Capper, P2P, B-Roll", PODCAST: "Fab Knowledge, SA Weekly, Outreach", PREPARE: "Trends, IdeationNation, News Flow, GTC Flow", PREMIER: "Schedule" };
 
   return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "0 8vw" }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes bIn{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}@keyframes bLine{0%{transform:scaleX(0)}100%{transform:scaleX(1)}}@keyframes itemReveal{0%{opacity:0;transform:translateY(-8px) scale(0.95)}100%{opacity:1;transform:translateY(0) scale(1)}}" }} />
@@ -889,7 +888,7 @@ export default function App() {
       "::selection{background:rgba(247,176,65,0.25);color:#F7B041}",
       "::-webkit-scrollbar{width:6px}",
       "::-webkit-scrollbar-track{background:transparent}",
-      "::-webkit-scrollbar-thumb{background:#252535;border-radius:3px}",
+      "::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px}",
       "::-webkit-scrollbar-thumb:hover{background:rgba(247,176,65,0.35)}",
       "input:focus,textarea:focus,select:focus{outline:none;border-color:#F7B041!important;box-shadow:0 0 0 3px rgba(247,176,65,0.1),0 0 16px rgba(247,176,65,0.06)!important}",
       "input::placeholder,textarea::placeholder{color:#4A4858}",
@@ -901,7 +900,7 @@ export default function App() {
       ".stagger>*{opacity:0;animation:slideUp 0.35s ease forwards}",
       ".stagger>*:nth-child(1){animation-delay:0s}.stagger>*:nth-child(2){animation-delay:0.05s}.stagger>*:nth-child(3){animation-delay:0.1s}.stagger>*:nth-child(4){animation-delay:0.15s}.stagger>*:nth-child(5){animation-delay:0.2s}.stagger>*:nth-child(6){animation-delay:0.25s}.stagger>*:nth-child(7){animation-delay:0.3s}.stagger>*:nth-child(8){animation-delay:0.35s}",
       // Cards — lifted, glowing
-      ".poast-card{position:relative;background:linear-gradient(135deg,#14141E,#101018);border:1px solid #252535;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.4);transition:all 0.2s ease}",
+      ".poast-card{position:relative;background:linear-gradient(135deg,#09090D,#0D0D12);border:1px solid rgba(255,255,255,0.06);border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.4);transition:all 0.2s ease}",
       ".poast-card:hover{border-color:rgba(247,176,65,0.3);box-shadow:0 8px 30px rgba(0,0,0,0.5),0 0 20px rgba(247,176,65,0.08);transform:translateY(-2px)}",
       // Buttons — gradient + glow
       "button,.poast-btn{transition:all 0.15s ease;font-family:'Outfit',sans-serif}",
@@ -910,7 +909,7 @@ export default function App() {
       ".btn-glow{background:linear-gradient(135deg,#F7B041,#E8A020);color:#06060C;border:none;border-radius:8px;font-weight:700;box-shadow:0 4px 14px rgba(247,176,65,0.25),0 0 20px rgba(247,176,65,0.1);cursor:pointer}",
       ".btn-glow:hover{box-shadow:0 6px 24px rgba(247,176,65,0.4),0 0 40px rgba(247,176,65,0.15);transform:translateY(-1px)}",
       // Ghost btn class
-      ".btn-ghost{background:rgba(255,255,255,0.02);color:#8A8690;border:1px solid #252535;border-radius:8px;cursor:pointer}",
+      ".btn-ghost{background:rgba(255,255,255,0.02);color:#8A8690;border:1px solid rgba(255,255,255,0.06);border-radius:8px;cursor:pointer}",
       ".btn-ghost:hover{border-color:rgba(247,176,65,0.4);color:#F7B041;background:rgba(247,176,65,0.04);box-shadow:0 0 12px rgba(247,176,65,0.08)}",
       // Transitions
       ".poast-fadein{animation:fadeInUp 0.4s ease forwards}",
@@ -957,7 +956,7 @@ export default function App() {
     <Sidebar active={sec} onNav={setSec} onAskPoast={function() { setAskPoastOpen(!askPoastOpen); }} />
     <AskPoast open={askPoastOpen} onToggle={function() { setAskPoastOpen(false); }} />
     <div style={{ marginLeft: 240, position: "relative", zIndex: 1 }} className="poast-fadein">
-      <div style={{ maxWidth: sec === "news" || sec === "schedule" || sec === "p2p" ? "none" : "none", margin: "0 auto", padding: "0 32px" }}>
+      <div style={{ margin: "0 auto", padding: "0 32px" }}>
         <div key={sec} className="poast-section" style={{ paddingBottom: 60 }}>
         {sec === "weekly" && <SAWeekly />}
         {sec === "captions" && <ClipCaptions />}
@@ -976,7 +975,7 @@ export default function App() {
         </div>
       </div>
     </div>
-    <div style={{ position: "fixed", bottom: 8, right: 12, zIndex: 2, fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.12)", letterSpacing: 1, pointerEvents: "none" }}>v2.0</div>
+    <div style={{ position: "fixed", bottom: 8, right: 12, zIndex: 2, fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.12)", letterSpacing: 1, pointerEvents: "none" }}>v2.8</div>
     {/* Mobile warning */}
     <style dangerouslySetInnerHTML={{ __html: "@media(min-width:769px){.mobile-warn{display:none!important}}" }} />
     <div className="mobile-warn" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9999, padding: "14px 20px", background: "#111118", borderTop: "1px solid " + C.amber + "30", display: "flex", alignItems: "center", gap: 10 }}>

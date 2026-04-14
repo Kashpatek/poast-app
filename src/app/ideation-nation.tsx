@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 
 // ═══ DESIGN ═══
 var D = {
-  bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)", hover: "#0D0D12",
+  bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)",
   surface: "#0D0D12", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
   violet: "#905CCB", cyan: "#26C9D8",
@@ -238,7 +238,7 @@ function WizardOverlay({ open, onClose, onGenerate, loading }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {CONTENT_TYPES.map(function(ct) {
             var on = types.indexOf(ct.key) > -1;
-            return <div key={ct.key} onClick={function() { toggleType(ct.key); }} style={{ padding: "18px 20px", borderRadius: 14, cursor: "pointer", background: on ? ct.color + "12" : D.card, border: "1px solid " + (on ? ct.color + "50" : D.border), boxShadow: on ? "0 0 24px " + ct.color + "18" : "none", transition: "all 0.25s ease" }}>
+            return <div key={ct.key} onClick={function() { toggleType(ct.key); }} style={{ padding: "18px 20px", borderRadius: 12, cursor: "pointer", background: on ? ct.color + "12" : D.card, border: "1px solid " + (on ? ct.color + "50" : D.border), boxShadow: on ? "0 0 24px " + ct.color + "18" : "none", transition: "all 0.25s ease" }}>
               <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: on ? ct.color : D.tx }}>{ct.label}</div>
             </div>;
           })}
@@ -254,7 +254,7 @@ function WizardOverlay({ open, onClose, onGenerate, loading }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {TOPIC_AREAS.map(function(ta) {
             var on = topics.indexOf(ta.key) > -1;
-            return <div key={ta.key} onClick={function() { toggleTopic(ta.key); }} style={{ padding: "16px 20px", borderRadius: 14, cursor: "pointer", background: on ? D.blue + "12" : D.card, border: "1px solid " + (on ? D.blue + "50" : D.border), boxShadow: on ? "0 0 20px " + D.blue + "15" : "none", transition: "all 0.25s ease" }}>
+            return <div key={ta.key} onClick={function() { toggleTopic(ta.key); }} style={{ padding: "16px 20px", borderRadius: 12, cursor: "pointer", background: on ? D.blue + "12" : D.card, border: "1px solid " + (on ? D.blue + "50" : D.border), boxShadow: on ? "0 0 20px " + D.blue + "15" : "none", transition: "all 0.25s ease" }}>
               <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: on ? D.blue : D.tx }}>{ta.label}</div>
             </div>;
           })}
@@ -280,7 +280,7 @@ function WizardOverlay({ open, onClose, onGenerate, loading }) {
         <div style={{ fontFamily: mn, fontSize: 11, color: D.amber, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 20 }}>Ready to generate</div>
 
         {/* Summary */}
-        <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 14, padding: "20px 22px", marginBottom: 24 }}>
+        <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: "20px 22px", marginBottom: 24 }}>
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Content Types</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -342,7 +342,7 @@ function IdeaCard({ idea, onSendSlopTop, onSendCapper, onExport, onDismiss }) {
     style={{
       background: hovered ? "linear-gradient(135deg, #0F0F18 0%, #0C0C14 100%)" : D.card,
       border: "1px solid " + (hovered ? badgeColor + "35" : D.border),
-      borderRadius: 14,
+      borderRadius: 12,
       padding: 0,
       marginBottom: 14,
       transition: "all 0.3s ease",
@@ -353,11 +353,11 @@ function IdeaCard({ idea, onSendSlopTop, onSendCapper, onExport, onDismiss }) {
       transform: hovered ? "translateY(-2px)" : "translateY(0)",
     }}>
     {/* Left color gradient border */}
-    <div style={{ width: 4, minHeight: "100%", background: borderGrad, borderRadius: "14px 0 0 14px", flexShrink: 0 }} />
+    <div style={{ width: 4, minHeight: "100%", background: borderGrad, borderRadius: "12px 0 0 12px", flexShrink: 0 }} />
 
     <div style={{ flex: 1, padding: "22px 24px", position: "relative" }}>
       {/* Gradient border glow on hover */}
-      {hovered && <div style={{ position: "absolute", top: -1, left: -1, right: -1, bottom: -1, borderRadius: 15, background: "linear-gradient(135deg, " + badgeColor + "15, transparent 40%, " + D.violet + "08 80%, transparent)", pointerEvents: "none", zIndex: 0 }} />}
+      {hovered && <div style={{ position: "absolute", top: -1, left: -1, right: -1, bottom: -1, borderRadius: 13, background: "linear-gradient(135deg, " + badgeColor + "15, transparent 40%, " + D.violet + "08 80%, transparent)", pointerEvents: "none", zIndex: 0 }} />}
 
       <div style={{ position: "relative", zIndex: 1 }}>
         {/* Top row: badge + platforms */}
@@ -389,7 +389,7 @@ function IdeaCard({ idea, onSendSlopTop, onSendCapper, onExport, onDismiss }) {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <div onClick={function() { onSendSlopTop(idea); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: D.coral + "12", border: "1px solid " + D.coral + "30", fontFamily: ft, fontSize: 11, fontWeight: 700, color: D.coral, transition: "all 0.2s" }}>Send to Slop Top</div>
           <div onClick={function() { onSendCapper(idea); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: D.blue + "12", border: "1px solid " + D.blue + "30", fontFamily: ft, fontSize: 11, fontWeight: 700, color: D.blue, transition: "all 0.2s" }}>Send to Capper</div>
-          <div onClick={function() { onExport(idea); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: D.teal + "12", border: "1px solid " + D.teal + "30", fontFamily: ft, fontSize: 11, fontWeight: 700, color: D.teal, transition: "all 0.2s" }}>Export (.docx)</div>
+          <div onClick={function() { onExport(idea); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: D.teal + "12", border: "1px solid " + D.teal + "30", fontFamily: ft, fontSize: 11, fontWeight: 700, color: D.teal, transition: "all 0.2s" }}>Export (.txt)</div>
           <div onClick={function() { onDismiss(idea); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid " + D.border, fontFamily: ft, fontSize: 11, fontWeight: 600, color: D.txd, transition: "all 0.2s", marginLeft: "auto" }}>Dismiss</div>
         </div>
       </div>
