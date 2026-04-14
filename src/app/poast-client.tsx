@@ -6,6 +6,10 @@ import NewsFlow from "./news-flow";
 import BufferSchedule from "./buffer-schedule";
 import PressToPremi from "./press-to-premier";
 import Carousel from "./carousel";
+import FabricatedKnowledge from "./fabricated-knowledge";
+import Trends from "./trends";
+import SlobTop from "./slob-top";
+import Outreach from "./outreach";
 
 var C = {
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
@@ -296,12 +300,18 @@ function AskPoast({ open, onToggle }) {
 // ═══ SIDEBAR CATEGORIES ═══
 var SIDEBAR_CATS = {
   produce: { label: "PRODUCE", color: C.amber, glow: "rgba(247,176,65,", items: [
-    { id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99" },
-    { id: "p2p", l: "Press to Premier", ic: "\uD83C\uDFAC" },
-    { id: "captions", l: "Capper", ic: "\uD83C\uDFAC" },
+    { id: "slobtop", l: "Slob Top", ic: "\uD83D\uDCA5" },
     { id: "carousel", l: "Carousel", ic: "\uD83D\uDCD0" },
+    { id: "captions", l: "Capper", ic: "\uD83C\uDFAC" },
+    { id: "p2p", l: "Press to Premier", ic: "\uD83C\uDFAC" },
+  ]},
+  podcast: { label: "PODCAST", color: C.violet, glow: "rgba(144,92,203,", items: [
+    { id: "fk", l: "Fabricated Knowledge", ic: "\uD83C\uDFA7" },
+    { id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99" },
+    { id: "outreach", l: "Outreach", ic: "\uD83D\uDCE4" },
   ]},
   prepare: { label: "PREPARE", color: C.blue, glow: "rgba(11,134,209,", items: [
+    { id: "trends", l: "Trends", ic: "\uD83D\uDD25" },
     { id: "news", l: "News Flow", ic: "\uD83D\uDCE1" },
     { id: "gtc", l: "GTC Flow", ic: "\uD83D\uDCCA" },
   ]},
@@ -1352,6 +1362,10 @@ export default function App() {
         {sec === "weekly" && tab === "log" && <LogTab logData={logData} setLogData={setLogData} />}
         {sec === "captions" && <ClipCaptions />}
         {sec === "carousel" && <Carousel />}
+        {sec === "slobtop" && <SlobTop />}
+        {sec === "fk" && <FabricatedKnowledge />}
+        {sec === "outreach" && <Outreach />}
+        {sec === "trends" && <Trends />}
         {sec === "gtc" && <GTCFlow />}
         {sec === "news" && <NewsFlow />}
         {/* P2P stays mounted but hidden so production doesn't stop */}
@@ -1360,7 +1374,7 @@ export default function App() {
         </div>
       </div>
     </div>
-    <div style={{ position: "fixed", bottom: 8, right: 12, zIndex: 2, fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.08)", letterSpacing: 1, pointerEvents: "none" }}>v1.2</div>
+    <div style={{ position: "fixed", bottom: 8, right: 12, zIndex: 2, fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.08)", letterSpacing: 1, pointerEvents: "none" }}>v2.0</div>
     {/* Mobile warning */}
     <style dangerouslySetInnerHTML={{ __html: "@media(min-width:769px){.mobile-warn{display:none!important}}" }} />
     <div className="mobile-warn" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9999, padding: "14px 20px", background: "#111118", borderTop: "1px solid " + C.amber + "30", display: "flex", alignItems: "center", gap: 10 }}>
