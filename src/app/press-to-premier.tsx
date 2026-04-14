@@ -544,31 +544,74 @@ function Step7({ data, setData, onNext, onBack }) {
   clips.forEach(function(c) { var s = c.shot || 1; if (!shotGroups[s]) shotGroups[s] = []; shotGroups[s].push(c); });
 
   var _sel = useState(data.selectedClips || {}), sel = _sel[0], setSel = _sel[1];
+  var _regen = useState({}), regen = _regen[0], setRegen = _regen[1]; // { shotNum: { loading, progress } }
 
   var selectClip = function(shotNum, clipIdx) {
     setSel(function(p) { var n = Object.assign({}, p); n[shotNum] = clipIdx; return n; });
     setData(function(p) { var n = Object.assign({}, p); n.selectedClips = Object.assign({}, sel, {}); n.selectedClips[shotNum] = clipIdx; return n; });
   };
 
+  var repromptShot = async function(shotNum) {
+    var shotIdx = parseInt(shotNum) - 1;
+    var shotInfo = brollShots[shotIdx];
+    if (!shotInfo) return;
+    setRegen(function(p) { var n = Object.assign({}, p); n[shotNum] = { loading: true, progress: 0 }; return n; });
+
+    try {
+      // Submit
+      var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: shotInfo.prompt + ", alternative creative interpretation", engine: "grok" }) });
+      var d = await r.json();
+      if (!d.task || !d.task.task_id) { toast("Shot " + shotNum + " submit failed", "error"); setRegen(function(p) { var n = Object.assign({}, p); delete n[shotNum]; return n; }); return; }
+
+      // Poll
+      var taskId = d.task.task_id;
+      var pollStart = Date.now();
+      while (Date.now() - pollStart < 180000) {
+        await new Promise(function(res) { setTimeout(res, 8000); });
+        try {
+          var stR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", taskId: taskId, engine: "grok" }) });
+          var stD = await stR.json();
+          if (stD.task && stD.task.task_status === "succeed" && stD.task.task_result && stD.task.task_result.videos) {
+            var newClip = { taskId: taskId, videoUrl: stD.task.task_result.videos[0].url, shot: parseInt(shotNum), provider: "grok" };
+            setData(function(p) { var a = Object.assign({}, p.assets || {}); a.clips = (a.clips || []).concat([newClip]); return Object.assign({}, p, { assets: a }); });
+            toast("Shot " + shotNum + " new version ready!", "success");
+            setRegen(function(p) { var n = Object.assign({}, p); delete n[shotNum]; return n; });
+            return;
+          } else if (stD.task && stD.task.task_status === "failed") {
+            toast("Shot " + shotNum + " failed", "error"); break;
+          } else {
+            var pct = stD.task && stD.task.progress ? stD.task.progress : 0;
+            setRegen(function(p) { var n = Object.assign({}, p); n[shotNum] = { loading: true, progress: pct }; return n; });
+          }
+        } catch (pe) { /* keep polling */ }
+      }
+    } catch (e) { toast("Reprompt failed", "error"); }
+    setRegen(function(p) { var n = Object.assign({}, p); delete n[shotNum]; return n; });
+  };
+
   return <div>
     <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Select Clips</div>
-    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Choose which variation to use for each shot.</div>
+    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Choose clips, swap voices, or regenerate shots.</div>
 
-    {/* Voiceover with voice swap */}
-    <VoiceSelector assets={assets} data={data} setData={setData} addLog={function() {}} />
+    <VoiceSelector assets={assets} data={data} setData={setData} />
 
-    {/* Clips grouped by shot */}
     {Object.keys(shotGroups).sort(function(a, b) { return a - b; }).map(function(shotNum) {
       var group = shotGroups[shotNum];
       var shotIdx = parseInt(shotNum) - 1;
       var shotInfo = brollShots[shotIdx];
       var selected = sel[shotNum] !== undefined ? sel[shotNum] : 0;
+      var regenState = regen[shotNum];
 
       return <div key={shotNum} style={{ marginBottom: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
           <span style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Shot {shotNum}</span>
           {shotInfo && <span style={{ fontFamily: ft, fontSize: 12, fontWeight: 500, color: D.txl }}>// {shotInfo.description}</span>}
+          <button onClick={function() { repromptShot(shotNum); }} disabled={regenState && regenState.loading} style={{ marginLeft: "auto", padding: "4px 12px", background: "transparent", border: "1px solid " + D.amber + "25", color: D.amber, borderRadius: 6, fontFamily: ft, fontSize: 10, fontWeight: 600, cursor: regenState ? "wait" : "pointer", opacity: regenState ? 0.5 : 1 }}>{regenState ? "Rendering..." : "Regenerate"}</button>
         </div>
+        {/* Progress bar for regenerating shot */}
+        {regenState && regenState.loading && <div style={{ height: 3, background: D.border, borderRadius: 2, marginBottom: 8, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: (regenState.progress || 5) + "%", background: D.amber, borderRadius: 2, transition: "width 0.5s ease" }} />
+        </div>}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(" + group.length + ", 1fr)", gap: 10 }}>
           {group.map(function(clip, ci) {
             var isSelected = selected === ci;
