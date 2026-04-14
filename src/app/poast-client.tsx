@@ -358,7 +358,7 @@ function Sidebar({ active, onNav, onAskPoast }) {
 
     {/* Footer */}
     <div style={{ padding: "14px 18px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-      <div style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v0.8 // SEMIANALYSIS</div>
+      <div style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v1.1 // SEMIANALYSIS</div>
     </div>
   </div>);
 }
@@ -1341,5 +1341,6 @@ export default function App() {
         </div>
       </div>
     </div>
+    <div style={{ position: "fixed", bottom: 8, right: 12, zIndex: 2, fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.08)", letterSpacing: 1, pointerEvents: "none" }}>v1.1</div>
   </div>);
 }

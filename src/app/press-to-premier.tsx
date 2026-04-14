@@ -341,7 +341,7 @@ function Step6({ data, setData, onNext, onBack }) {
     setPhase("music");
     addLog("Generating background music...", "info");
     try {
-      var muR = await fetch("/api/generate-music", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: "ambient tech background music, cinematic, minimal, dark tone, suitable for semiconductor industry video", duration: Math.min(30, data.duration || 30) }) });
+      var muR = await fetch("/api/generate-music", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: "seamless loopable ambient tech background music, cinematic, minimal, dark tone, smooth fade in and fade out for perfect loop, suitable for semiconductor industry video", duration: 30 }) });
       var muD = await muR.json();
       if (muD.audio) {
         musicRef.current = muD.audio;
@@ -481,6 +481,53 @@ function ClipGrid({ clips, script, onUpdate }) {
   </div>;
 }
 
+// ═══ VOICE SELECTOR ═══
+function VoiceSelector({ assets, data, setData }) {
+  var _voices = useState([]), voices = _voices[0], setVoices = _voices[1];
+  var _selVoice = useState("JBFqnCBsd6RMkjVDRZzb"), selVoice = _selVoice[0], setSelVoice = _selVoice[1];
+  var _regenning = useState(false), regenning = _regenning[0], setRegenning = _regenning[1];
+
+  useEffect(function() {
+    fetch("/api/generate-voiceover").then(function(r) { return r.json(); }).then(function(d) { if (d.voices) setVoices(d.voices.slice(0, 8)); });
+  }, []);
+
+  var regen = async function() {
+    setRegenning(true);
+    var script = data.scripts && data.scripts[data.selScript || 0];
+    var fullScript = script ? (script.hook || "") + "\n\n" + (script.intro || "") + "\n\n" + (script.body || []).join("\n\n") + "\n\n" + (script.outro || "") : "";
+    try {
+      var r = await fetch("/api/generate-voiceover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: fullScript, voiceId: selVoice }) });
+      var d = await r.json();
+      if (d.audio) {
+        setData(function(p) { var a = Object.assign({}, p.assets || {}, { voiceover: d.audio }); return Object.assign({}, p, { assets: a }); });
+        toast("Voiceover regenerated!", "success");
+      } else { toast(d.error || "Failed", "error"); }
+    } catch (e) { toast("Failed: " + String(e).slice(0, 50), "error"); }
+    setRegenning(false);
+  };
+
+  return <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 20, marginBottom: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+      <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.amber, letterSpacing: 3, textTransform: "uppercase" }}>Voiceover</div>
+      <button onClick={regen} disabled={regenning} style={{ padding: "6px 14px", background: "transparent", border: "1px solid " + D.amber + "30", color: D.amber, borderRadius: 8, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: regenning ? "wait" : "pointer", opacity: regenning ? 0.5 : 1 }}>{regenning ? "Regenerating..." : "Regenerate"}</button>
+    </div>
+    {assets.voiceover ? <audio controls src={assets.voiceover} style={{ width: "100%", height: 44, marginBottom: 12 }} />
+    : <div style={{ fontFamily: ft, fontSize: 13, color: D.txl, marginBottom: 12 }}>No voiceover yet.</div>}
+    {voices.length > 0 && <div>
+      <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txl, letterSpacing: 2, marginBottom: 8 }}>CHANGE VOICE</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+        {voices.map(function(v) {
+          var on = selVoice === v.id;
+          return <div key={v.id} onClick={function() { setSelVoice(v.id); }} style={{ padding: "8px 6px", borderRadius: 8, cursor: "pointer", textAlign: "center", background: on ? D.amber + "12" : D.bg, border: on ? "1px solid " + D.amber + "40" : "1px solid " + D.border, transition: "all 0.15s" }}>
+            <div style={{ fontFamily: ft, fontSize: 11, fontWeight: on ? 700 : 500, color: on ? D.amber : D.txb }}>{v.name.split(" - ")[0]}</div>
+            <div style={{ fontFamily: ft, fontSize: 8, color: D.txl }}>{(v.name.split(" - ")[1] || "").slice(0, 20)}</div>
+          </div>;
+        })}
+      </div>
+    </div>}
+  </div>;
+}
+
 // ═══ STEP 7: SELECT CLIPS ═══
 function Step7({ data, setData, onNext, onBack }) {
   var assets = data.assets || {};
@@ -503,11 +550,8 @@ function Step7({ data, setData, onNext, onBack }) {
     <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Select Clips</div>
     <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Choose which variation to use for each shot.</div>
 
-    {/* Voiceover */}
-    {assets.voiceover && <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 20, marginBottom: 20 }}>
-      <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.amber, letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>Voiceover</div>
-      <audio controls src={assets.voiceover} style={{ width: "100%", height: 44 }} />
-    </div>}
+    {/* Voiceover with voice swap */}
+    <VoiceSelector assets={assets} data={data} setData={setData} addLog={function() {}} />
 
     {/* Clips grouped by shot */}
     {Object.keys(shotGroups).sort(function(a, b) { return a - b; }).map(function(shotNum) {
@@ -542,7 +586,7 @@ function Step7({ data, setData, onNext, onBack }) {
     {/* Music */}
     {assets.music && <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 20, marginBottom: 20 }}>
       <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.violet, letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>Background Music</div>
-      <audio controls src={assets.music} style={{ width: "100%", height: 44 }} />
+      <audio controls loop src={assets.music} style={{ width: "100%", height: 44 }} />
     </div>}
 
     <div style={{ display: "flex", gap: 12 }}>
@@ -577,7 +621,7 @@ function Step8({ data, onNext, onBack }) {
       </div>}
       {assets.music && <div style={{ marginTop: 12 }}>
         <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txl, letterSpacing: 2, marginBottom: 6 }}>MUSIC</div>
-        <audio controls src={assets.music} style={{ width: "100%", height: 40 }} />
+        <audio controls loop src={assets.music} style={{ width: "100%", height: 40 }} />
       </div>}
     </div>
 
