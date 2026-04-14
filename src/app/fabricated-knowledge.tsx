@@ -12,26 +12,23 @@ var D = {
 var ft = "'Outfit',sans-serif";
 var mn = "'JetBrains Mono',monospace";
 
-var TABS = ["Prospects", "Episodes", "Development", "Post-Production", "Archive"];
-var STATUSES = ["Prospect", "Contacted", "Confirmed", "Recorded", "Released"];
-var STATUS_C = { Prospect: D.txd, Contacted: D.blue, Confirmed: D.amber, Recorded: D.teal, Released: D.violet };
+var TABS = ["Prospects", "Development", "Scheduled", "Post-Production", "Released"];
+var DEV_STATUSES = ["Contacted", "Confirmed", "Scheduled"];
+var DEV_STATUS_C = { Contacted: D.blue, Confirmed: D.amber, Scheduled: D.teal };
 var TIERS = ["S", "A", "B", "C"];
 var TIER_C = { S: D.amber, A: D.blue, B: D.teal, C: D.txd };
-var EP_STATUSES = ["Planning", "Scheduled", "Recorded", "Editing", "Released"];
-var EP_STATUS_C = { Planning: D.txd, Scheduled: D.blue, Recorded: D.teal, Editing: D.amber, Released: D.violet };
 var CATEGORIES = ["Semiconductors", "AI Infra", "Data Center", "Memory", "Geopolitics", "Compute", "Other"];
-var CHANNELS = ["email", "LinkedIn", "intro"];
 var HOST = "Doug O'Laughlin";
 
 // ═══ DEFAULT DATA ═══
 var DEFAULT_PROSPECTS = [
-  { id: "fk-default-val", name: "Val Bercovici", company: "WEKA", role: "Executive", topics: "KV Cache, Disaggregated Inference, Memory Architecture, Memory Markets, HBM Pricing, Agentic Demand", tier: "S", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736899200000 },
-  { id: "fk-default-rajesh", name: "Rajesh Vashist", company: "SiTime", role: "CEO", topics: "MEMS Timing, Precision Oscillators, Semiconductor Clocks", tier: "S", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736812800000 },
-  { id: "fk-default-tony", name: "Tony Pialis", company: "Alphawave", role: "CEO", topics: "Connectivity IP, SerDes, Chiplets, High-Speed Interfaces", tier: "A", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736726400000 },
-  { id: "fk-default-dan", name: "Dan Kim", company: "CHIPS Program", role: "Executive", topics: "CHIPS Act, Semiconductor Policy, US Fab Investment", tier: "A", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736640000000 },
-  { id: "fk-default-hasan", name: "Hasan Khan", company: "CHIPS Program", role: "Executive", topics: "CHIPS Act, Semiconductor Policy, US Fab Investment", tier: "A", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736553600000 },
-  { id: "fk-default-wes", name: "Wes Cummins", company: "Applied Digital", role: "CEO", topics: "GPU Cloud, AI Infrastructure, Datacenter Development", tier: "A", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736467200000 },
-  { id: "fk-default-will", name: "Will Eatherton", company: "Cisco", role: "SVP Engineering", topics: "AI Networking, Datacenter Infrastructure, Modular Systems", tier: "A", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736380800000 },
+  { id: "fk-default-val", name: "Val Bercovici", company: "WEKA", role: "Executive", topics: "KV Cache, Disaggregated Inference, Memory Architecture, Memory Markets, HBM Pricing, Agentic Demand", tier: "S", bio: "", devStatus: "", added: 1736899200000 },
+  { id: "fk-default-rajesh", name: "Rajesh Vashist", company: "SiTime", role: "CEO", topics: "MEMS Timing, Precision Oscillators, Semiconductor Clocks", tier: "S", bio: "", devStatus: "", added: 1736812800000 },
+  { id: "fk-default-tony", name: "Tony Pialis", company: "Alphawave", role: "CEO", topics: "Connectivity IP, SerDes, Chiplets, High-Speed Interfaces", tier: "A", bio: "", devStatus: "", added: 1736726400000 },
+  { id: "fk-default-dan", name: "Dan Kim", company: "CHIPS Program", role: "Executive", topics: "CHIPS Act, Semiconductor Policy, US Fab Investment", tier: "A", bio: "", devStatus: "", added: 1736640000000 },
+  { id: "fk-default-hasan", name: "Hasan Khan", company: "CHIPS Program", role: "Executive", topics: "CHIPS Act, Semiconductor Policy, US Fab Investment", tier: "A", bio: "", devStatus: "", added: 1736553600000 },
+  { id: "fk-default-wes", name: "Wes Cummins", company: "Applied Digital", role: "CEO", topics: "GPU Cloud, AI Infrastructure, Datacenter Development", tier: "A", bio: "", devStatus: "", added: 1736467200000 },
+  { id: "fk-default-will", name: "Will Eatherton", company: "Cisco", role: "SVP Engineering", topics: "AI Networking, Datacenter Infrastructure, Modular Systems", tier: "A", bio: "", devStatus: "", added: 1736380800000 },
 ];
 
 var DEFAULT_EPISODES = [
@@ -66,10 +63,9 @@ function dbFetch(table) {
     .then(function(r) { if (!r.ok) throw new Error("API " + r.status); return r.json(); })
     .then(function(d) {
       if (!d.data || d.data.length === 0) return null;
-      // Map Supabase snake_case to component camelCase
       if (table === "prospects") {
         return d.data.map(function(r) {
-          return { id: r.id, name: r.name, company: r.company, role: r.role, topics: Array.isArray(r.topics) ? r.topics.join(", ") : (r.topics || ""), tier: r.tier, status: r.status, channel: (r.outreach && r.outreach.channel) || "", dateContacted: (r.outreach && r.outreach.dateContacted) || "", followUp: (r.outreach && r.outreach.followUp) || "", response: (r.outreach && r.outreach.response) || "", added: new Date(r.created_at).getTime() };
+          return { id: r.id, name: r.name, company: r.company, role: r.role, topics: Array.isArray(r.topics) ? r.topics.join(", ") : (r.topics || ""), tier: r.tier, bio: r.bio || "", devStatus: r.dev_status || "", recordDate: r.record_date || "", added: new Date(r.created_at).getTime() };
         });
       }
       if (table === "episodes") {
@@ -157,110 +153,120 @@ function SectionLabel(p) {
   return <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txd, letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>{p.children}</div>;
 }
 
-// ═══ TAB: PROSPECTS ═══
-function ProspectsTab({ prospects, setProspects }) {
+// ═══ TAB 1: PROSPECTS ═══
+function ProspectsTab({ prospects, setProspects, setTab }) {
   var _show = useState(false), showForm = _show[0], setShowForm = _show[1];
-  var _filt = useState("All"), filtStatus = _filt[0], setFiltStatus = _filt[1];
   var _filtTier = useState("All"), filtTier = _filtTier[0], setFiltTier = _filtTier[1];
-  var _filtTopic = useState(""), filtTopic = _filtTopic[0], setFiltTopic = _filtTopic[1];
-  var _sort = useState("date"), sortBy = _sort[0], setSortBy = _sort[1];
-  var _form = useState({ name: "", company: "", role: "", topics: "", tier: "B", status: "Prospect", channel: "email", dateContacted: "", followUp: "", response: "" }), form = _form[0], setForm = _form[1];
+  var _search = useState(""), search = _search[0], setSearch = _search[1];
+  var _expanded = useState(null), expanded = _expanded[0], setExpanded = _expanded[1];
+  var _bioLoading = useState(null), bioLoading = _bioLoading[0], setBioLoading = _bioLoading[1];
+  var _form = useState({ name: "", company: "", role: "", topics: "", tier: "B" }), form = _form[0], setForm = _form[1];
 
+  // Only show prospects NOT in development pipeline
   var filtered = prospects.filter(function(p) {
-    if (filtStatus !== "All" && p.status !== filtStatus) return false;
+    if (p.devStatus) return false;
     if (filtTier !== "All" && p.tier !== filtTier) return false;
-    if (filtTopic && !(p.topics || "").toLowerCase().includes(filtTopic.toLowerCase())) return false;
+    if (search && !(p.name || "").toLowerCase().includes(search.toLowerCase()) && !(p.company || "").toLowerCase().includes(search.toLowerCase())) return false;
     return true;
-  }).sort(function(a, b) {
-    if (sortBy === "name") return (a.name || "").localeCompare(b.name || "");
-    if (sortBy === "tier") return TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier);
-    return (b.added || 0) - (a.added || 0);
-  });
+  }).sort(function(a, b) { return TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier); });
 
   function addProspect() {
     if (!form.name.trim()) { toast("Name required", "error"); return; }
-    var p = { id: uid(), ...form, topics: form.topics, added: Date.now() };
+    var p = { id: uid(), name: form.name, company: form.company, role: form.role, topics: form.topics, tier: form.tier, bio: "", devStatus: "", added: Date.now() };
     setProspects(function(prev) { return [p].concat(prev); });
-    setForm({ name: "", company: "", role: "", topics: "", tier: "B", status: "Prospect", channel: "email", dateContacted: "", followUp: "", response: "" });
+    setForm({ name: "", company: "", role: "", topics: "", tier: "B" });
     setShowForm(false);
     toast("Prospect added");
-    dbUpsert("prospects", p).catch(function() { toast("Saved locally only (API unavailable)", "info"); });
+    dbUpsert("prospects", p).catch(function() { toast("Saved locally only", "info"); });
   }
 
-  function updateField(id, field, val) {
-    setProspects(function(prev) { return prev.map(function(p) { return p.id === id ? { ...p, [field]: val } : p; }); });
-    // Find the full prospect and upsert to Supabase
+  function developProspect(id) {
+    setProspects(function(prev) { return prev.map(function(p) { return p.id === id ? { ...p, devStatus: "Contacted" } : p; }); });
     var target = prospects.find(function(p) { return p.id === id; });
-    if (target) {
-      var updated = { ...target, [field]: val };
-      dbUpsert("prospects", updated).catch(function() {});
-    }
+    if (target) dbUpsert("prospects", { ...target, devStatus: "Contacted" }).catch(function() {});
+    toast("Moved to Development");
+    setTab(1);
+  }
+
+  function generateBio(id) {
+    var p = prospects.find(function(x) { return x.id === id; });
+    if (!p) return;
+    setBioLoading(id);
+    fetch("/api/fk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "generate-bio", guestName: p.name, guestCompany: p.company, guestRole: p.role, guestTopics: p.topics }),
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      var bio = d.bio || (p.name + " is " + p.role + " at " + p.company + ", working on " + (p.topics || "semiconductor technology") + ".");
+      setProspects(function(prev) { return prev.map(function(x) { return x.id === id ? { ...x, bio: bio } : x; }); });
+      dbUpsert("prospects", { ...p, bio: bio }).catch(function() {});
+      setBioLoading(null);
+      toast("Bio generated");
+    }).catch(function() {
+      var bio = p.name + " is " + p.role + " at " + p.company + ". " + (p.topics ? "Their expertise spans " + p.topics.split(",").slice(0, 3).join(", ") + "." : "");
+      setProspects(function(prev) { return prev.map(function(x) { return x.id === id ? { ...x, bio: bio } : x; }); });
+      setBioLoading(null);
+      toast("Generated locally", "info");
+    });
   }
 
   return <div>
-    {/* Filter bar */}
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20, alignItems: "center" }}>
-      <Select value={filtStatus} onChange={setFiltStatus} options={["All"].concat(STATUSES)} />
-      <Select value={filtTier} onChange={setFiltTier} options={["All"].concat(TIERS)} />
-      <Input value={filtTopic} onChange={setFiltTopic} placeholder="Filter by topic..." sx={{ width: 180 }} />
-      <Select value={sortBy} onChange={setSortBy} options={[{ value: "date", label: "Sort: Date Added" }, { value: "name", label: "Sort: Name" }, { value: "tier", label: "Sort: Tier" }]} />
+      <Input value={search} onChange={setSearch} placeholder="Search by name or company..." sx={{ width: 240 }} />
+      <Select value={filtTier} onChange={setFiltTier} options={["All", "S", "A", "B", "C"]} />
       <div style={{ flex: 1 }} />
       <Btn primary onClick={function() { setShowForm(!showForm); }}>{showForm ? "Cancel" : "+ Add Prospect"}</Btn>
     </div>
 
-    {/* Add form */}
     {showForm && <Card sx={{ marginBottom: 20, borderColor: D.coral + "40" }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
         <div><SectionLabel>Name</SectionLabel><Input value={form.name} onChange={function(v) { setForm({ ...form, name: v }); }} placeholder="Guest name" /></div>
         <div><SectionLabel>Company</SectionLabel><Input value={form.company} onChange={function(v) { setForm({ ...form, company: v }); }} placeholder="Company" /></div>
         <div><SectionLabel>Role</SectionLabel><Input value={form.role} onChange={function(v) { setForm({ ...form, role: v }); }} placeholder="Title / Role" /></div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 16 }}>
         <div><SectionLabel>Topics (comma-separated)</SectionLabel><Input value={form.topics} onChange={function(v) { setForm({ ...form, topics: v }); }} placeholder="e.g. DRAM, HBM, AI" /></div>
         <div><SectionLabel>Tier</SectionLabel><Select value={form.tier} onChange={function(v) { setForm({ ...form, tier: v }); }} options={TIERS} sx={{ width: "100%" }} /></div>
-        <div><SectionLabel>Channel</SectionLabel><Select value={form.channel} onChange={function(v) { setForm({ ...form, channel: v }); }} options={CHANNELS} sx={{ width: "100%" }} /></div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
-        <div><SectionLabel>Date Contacted</SectionLabel><Input value={form.dateContacted} onChange={function(v) { setForm({ ...form, dateContacted: v }); }} placeholder="YYYY-MM-DD" /></div>
-        <div><SectionLabel>Follow-up Date</SectionLabel><Input value={form.followUp} onChange={function(v) { setForm({ ...form, followUp: v }); }} placeholder="YYYY-MM-DD" /></div>
-        <div><SectionLabel>Response Status</SectionLabel><Input value={form.response} onChange={function(v) { setForm({ ...form, response: v }); }} placeholder="e.g. Awaiting, Replied" /></div>
       </div>
       <Btn primary onClick={addProspect}>Save Prospect</Btn>
     </Card>}
 
-    {/* Cards */}
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
       {filtered.map(function(p) {
+        var isExp = expanded === p.id;
         var topics = (p.topics || "").split(",").map(function(t) { return t.trim(); }).filter(Boolean);
-        return <Card key={p.id}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+        return <Card key={p.id} onClick={function() { setExpanded(isExp ? null : p.id); }} sx={{ borderColor: isExp ? D.coral + "40" : D.border, cursor: "pointer" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
             <div>
               <div style={{ fontFamily: ft, fontSize: 17, fontWeight: 800, color: D.tx }}>{p.name}</div>
               <div style={{ fontFamily: ft, fontSize: 12, color: D.txm }}>{p.role}{p.company ? " @ " + p.company : ""}</div>
             </div>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <Badge bg={TIER_C[p.tier]}>{p.tier}</Badge>
-              <Select value={p.status} onChange={function(v) { updateField(p.id, "status", v); }} options={STATUSES} sx={{ fontSize: 11, padding: "4px 8px" }} />
+            <Badge bg={TIER_C[p.tier]}>{p.tier}</Badge>
+          </div>
+          {topics.length > 0 && <div style={{ marginBottom: 8 }}>{topics.slice(0, 4).map(function(t) { return <Tag key={t}>{t}</Tag>; })}{topics.length > 4 && <Tag>+{topics.length - 4}</Tag>}</div>}
+
+          {isExp && <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid " + D.border }} onClick={function(ev) { ev.stopPropagation(); }}>
+            {/* Bio */}
+            <div style={{ marginBottom: 12 }}>
+              <SectionLabel>Bio</SectionLabel>
+              {p.bio ? <div style={{ fontFamily: ft, fontSize: 13, color: D.txm, lineHeight: 1.6 }}>{p.bio}</div>
+                : <Btn small onClick={function() { generateBio(p.id); }} disabled={bioLoading === p.id}>{bioLoading === p.id ? "Generating..." : "Generate Bio"}</Btn>}
             </div>
-          </div>
-          {topics.length > 0 && <div style={{ marginBottom: 10 }}>{topics.map(function(t) { return <Tag key={t}>{t}</Tag>; })}</div>}
-          {/* Pipeline dots */}
-          <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 10 }}>
-            {STATUSES.map(function(s) {
-              var active = STATUSES.indexOf(p.status) >= STATUSES.indexOf(s);
-              return <div key={s} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: active ? STATUS_C[s] : D.txd + "40", transition: "background 0.2s" }} />
-                <span style={{ fontFamily: mn, fontSize: 9, color: active ? STATUS_C[s] : D.txd }}>{s.slice(0, 3)}</span>
-              </div>;
-            })}
-          </div>
-          {/* Outreach info */}
-          <div style={{ display: "flex", gap: 16, fontFamily: mn, fontSize: 10, color: D.txm }}>
-            {p.channel && <span>via {p.channel}</span>}
-            {p.dateContacted && <span>contacted {p.dateContacted}</span>}
-            {p.followUp && <span>follow-up {p.followUp}</span>}
-            {p.response && <span style={{ color: D.teal }}>{p.response}</span>}
-          </div>
+            {/* All topic tags */}
+            {topics.length > 0 && <div style={{ marginBottom: 12 }}>
+              <SectionLabel>Topic Expertise</SectionLabel>
+              <div>{topics.map(function(t) { return <Tag key={t}>{t}</Tag>; })}</div>
+            </div>}
+            {/* Why they'd be good */}
+            <div style={{ marginBottom: 14 }}>
+              <SectionLabel>Why they would be a great FK guest</SectionLabel>
+              <div style={{ fontFamily: ft, fontSize: 12, color: D.txm, lineHeight: 1.5 }}>
+                {p.name} brings deep expertise in {topics.slice(0, 2).join(" and ") || "their field"}, relevant to SemiAnalysis readers.
+                {p.company ? " As " + p.role + " at " + p.company + ", they have a front-row seat to industry dynamics." : ""}
+              </div>
+            </div>
+            <Btn primary onClick={function() { developProspect(p.id); }}>Develop</Btn>
+          </div>}
         </Card>;
       })}
     </div>
@@ -268,237 +274,171 @@ function ProspectsTab({ prospects, setProspects }) {
   </div>;
 }
 
-// ═══ TAB: EPISODES ═══
-function EpisodesTab({ episodes, setEpisodes, prospects, setTab }) {
-  var _show = useState(false), showForm = _show[0], setShowForm = _show[1];
-  var _exp = useState(null), expanded = _exp[0], setExpanded = _exp[1];
-  var _form = useState({ number: "", guestId: "", topic: "", recordDate: "", releaseDate: "", status: "Planning", notes: "" }), form = _form[0], setForm = _form[1];
+// ═══ TAB 2: DEVELOPMENT ═══
+function DevelopmentTab({ prospects, setProspects, setTab }) {
+  var _emailTarget = useState(null), emailTarget = _emailTarget[0], setEmailTarget = _emailTarget[1];
+  var _emailData = useState(null), emailData = _emailData[0], setEmailData = _emailData[1];
+  var _emailLoading = useState(false), emailLoading = _emailLoading[0], setEmailLoading = _emailLoading[1];
 
-  function addEpisode() {
-    if (!form.number) { toast("Episode number required", "error"); return; }
-    var ep = { id: uid(), ...form, added: Date.now() };
-    setEpisodes(function(prev) { return [ep].concat(prev); });
-    setForm({ number: "", guestId: "", topic: "", recordDate: "", releaseDate: "", status: "Planning", notes: "" });
-    setShowForm(false);
-    toast("Episode created");
-    dbUpsert("episodes", ep).catch(function() { toast("Saved locally only (API unavailable)", "info"); });
+  var devProspects = prospects.filter(function(p) { return p.devStatus && p.devStatus !== ""; });
+  var grouped = {};
+  DEV_STATUSES.forEach(function(s) { grouped[s] = devProspects.filter(function(p) { return p.devStatus === s; }); });
+
+  function updateDevStatus(id, newStatus) {
+    setProspects(function(prev) { return prev.map(function(p) { return p.id === id ? { ...p, devStatus: newStatus } : p; }); });
+    var target = prospects.find(function(p) { return p.id === id; });
+    if (target) dbUpsert("prospects", { ...target, devStatus: newStatus }).catch(function() {});
+    if (newStatus === "Scheduled") toast("Moved to Scheduled");
+    else toast("Status updated");
   }
 
-  function updateEp(id, field, val) {
-    setEpisodes(function(prev) { return prev.map(function(e) { return e.id === id ? { ...e, [field]: val } : e; }); });
-    var target = episodes.find(function(e) { return e.id === id; });
-    if (target) {
-      var updated = { ...target, [field]: val };
-      dbUpsert("episodes", updated).catch(function() {});
-    }
+  function generateColdEmail(p) {
+    setEmailTarget(p.id);
+    setEmailLoading(true);
+    setEmailData(null);
+    fetch("/api/fk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "cold-email", guestName: p.name, guestCompany: p.company, guestRole: p.role, guestTopics: p.topics }),
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      setEmailData(d.email || { subject: "Fabricated Knowledge: Interview with " + p.name, body: "Hi " + p.name.split(" ")[0] + ",\n\nI'm Doug O'Laughlin, host of Fabricated Knowledge, the audio interview series from SemiAnalysis. We cover the deepest corners of semiconductors, AI infrastructure, and compute.\n\nI've been following your work at " + p.company + " on " + (p.topics || "your area of expertise") + ", and I think our listeners would love to hear your perspective.\n\nWould you be open to a 45-60 minute conversation? We record remotely via Riverside, audio only, totally conversational.\n\nLooking forward to hearing from you.\n\nBest,\nDoug O'Laughlin\nSemiAnalysis / Fabricated Knowledge" });
+      setEmailLoading(false);
+      toast("Cold email generated");
+    }).catch(function() {
+      setEmailData({ subject: "Fabricated Knowledge: Interview with " + p.name, body: "Hi " + p.name.split(" ")[0] + ",\n\nI'm Doug O'Laughlin, host of Fabricated Knowledge, the audio interview series from SemiAnalysis. We cover the deepest corners of semiconductors, AI infrastructure, and compute.\n\nI've been following your work at " + p.company + " on " + (p.topics || "your area of expertise") + ", and I think our listeners would love to hear your perspective.\n\nWould you be open to a 45-60 minute conversation? We record remotely via Riverside, audio only, totally conversational.\n\nLooking forward to hearing from you.\n\nBest,\nDoug O'Laughlin\nSemiAnalysis / Fabricated Knowledge" });
+      setEmailLoading(false);
+      toast("Generated locally", "info");
+    });
   }
 
-  function guestName(gid) {
-    var g = prospects.find(function(p) { return p.id === gid; });
-    return g ? g.name : "TBD";
+  function openInGmail() {
+    if (!emailData) return;
+    var target = prospects.find(function(p) { return p.id === emailTarget; });
+    var mailto = "mailto:?subject=" + encodeURIComponent(emailData.subject) + "&body=" + encodeURIComponent(emailData.body);
+    window.open(mailto);
   }
-
-  // Filter out Released episodes - those belong in Archive only
-  var activeEpisodes = episodes.filter(function(e) { return e.status !== "Released"; });
-
-  // Calendar: upcoming episodes sorted by record date
-  var upcoming = activeEpisodes.filter(function(e) { return e.recordDate; }).sort(function(a, b) { return a.recordDate.localeCompare(b.recordDate); });
 
   return <div>
-    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-      <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: D.txm }}>
-        {activeEpisodes.length} upcoming episode{activeEpisodes.length !== 1 ? "s" : ""}
-      </div>
-      <Btn primary onClick={function() { setShowForm(!showForm); }}>{showForm ? "Cancel" : "+ New Episode"}</Btn>
-    </div>
-
-    {showForm && <Card sx={{ marginBottom: 20, borderColor: D.coral + "40" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr", gap: 12, marginBottom: 12 }}>
-        <div><SectionLabel>EP #</SectionLabel><Input value={form.number} onChange={function(v) { setForm({ ...form, number: v }); }} placeholder="#" /></div>
-        <div><SectionLabel>Guest</SectionLabel>
-          <Select value={form.guestId} onChange={function(v) { setForm({ ...form, guestId: v }); }} options={[{ value: "", label: "Select guest..." }].concat(prospects.map(function(p) { return { value: p.id, label: p.name }; }))} sx={{ width: "100%" }} />
+    {DEV_STATUSES.map(function(status) {
+      var group = grouped[status] || [];
+      if (group.length === 0 && status !== "Contacted") return null;
+      return <div key={status} style={{ marginBottom: 28 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+          <Badge bg={DEV_STATUS_C[status]}>{status}</Badge>
+          <span style={{ fontFamily: mn, fontSize: 11, color: D.txm }}>{group.length} prospect{group.length !== 1 ? "s" : ""}</span>
         </div>
-        <div><SectionLabel>Topic</SectionLabel><Input value={form.topic} onChange={function(v) { setForm({ ...form, topic: v }); }} placeholder="Episode topic" /></div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
-        <div><SectionLabel>Record Date</SectionLabel><Input value={form.recordDate} onChange={function(v) { setForm({ ...form, recordDate: v }); }} placeholder="YYYY-MM-DD" /></div>
-        <div><SectionLabel>Release Date</SectionLabel><Input value={form.releaseDate} onChange={function(v) { setForm({ ...form, releaseDate: v }); }} placeholder="YYYY-MM-DD" /></div>
-        <div><SectionLabel>Status</SectionLabel><Select value={form.status} onChange={function(v) { setForm({ ...form, status: v }); }} options={EP_STATUSES} sx={{ width: "100%" }} /></div>
-      </div>
-      <div style={{ marginBottom: 16 }}><SectionLabel>Notes</SectionLabel><TextArea value={form.notes} onChange={function(v) { setForm({ ...form, notes: v }); }} rows={3} placeholder="Internal notes..." /></div>
-      <Btn primary onClick={addEpisode}>Create Episode</Btn>
-    </Card>}
-
-    {/* Upcoming calendar */}
-    {upcoming.length > 0 && <div style={{ marginBottom: 24 }}>
-      <SectionLabel>Upcoming Recordings</SectionLabel>
-      <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8 }}>
-        {upcoming.slice(0, 8).map(function(e) {
-          return <div key={e.id} style={{ minWidth: 140, padding: "12px 14px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, color: D.coral, marginBottom: 4 }}>EP {e.number}</div>
-            <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: D.tx, marginBottom: 4 }}>{guestName(e.guestId)}</div>
-            <div style={{ fontFamily: mn, fontSize: 10, color: D.txm }}>{e.recordDate}</div>
-          </div>;
-        })}
-      </div>
-    </div>}
-
-    {/* Episode list */}
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {activeEpisodes.map(function(e) {
-        var isExp = expanded === e.id;
-        return <Card key={e.id} onClick={function() { setExpanded(isExp ? null : e.id); }} sx={{ borderColor: isExp ? D.coral + "40" : D.border, cursor: "pointer" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <span style={{ fontFamily: mn, fontSize: 14, fontWeight: 900, color: D.coral }}>#{e.number}</span>
-              <div>
-                <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: D.tx }}>{guestName(e.guestId)}</div>
-                <div style={{ fontFamily: ft, fontSize: 12, color: D.txm }}>{e.topic || "No topic set"}</div>
+        {group.length === 0 && <div style={{ fontFamily: ft, fontSize: 13, color: D.txd, padding: "16px 0" }}>No prospects at this stage. Move someone from the Prospects tab.</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {group.map(function(p) {
+            var topics = (p.topics || "").split(",").map(function(t) { return t.trim(); }).filter(Boolean);
+            var isEmailOpen = emailTarget === p.id && emailData;
+            return <Card key={p.id}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 800, color: D.tx }}>{p.name}</div>
+                  <div style={{ fontFamily: ft, fontSize: 12, color: D.txm }}>{p.role}{p.company ? " @ " + p.company : ""}</div>
+                  {topics.length > 0 && <div style={{ marginTop: 6 }}>{topics.slice(0, 4).map(function(t) { return <Tag key={t}>{t}</Tag>; })}</div>}
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <Badge bg={TIER_C[p.tier]}>{p.tier}</Badge>
+                  <Select value={p.devStatus} onChange={function(v) { updateDevStatus(p.id, v); }} options={DEV_STATUSES} sx={{ fontSize: 11, padding: "4px 8px" }} />
+                </div>
               </div>
-            </div>
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              {e.recordDate && <span style={{ fontFamily: mn, fontSize: 10, color: D.txm }}>rec {e.recordDate}</span>}
-              {e.releaseDate && <span style={{ fontFamily: mn, fontSize: 10, color: D.txm }}>rel {e.releaseDate}</span>}
-              <Badge bg={EP_STATUS_C[e.status]}>{e.status}</Badge>
-            </div>
-          </div>
-          {isExp && <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid " + D.border }} onClick={function(ev) { ev.stopPropagation(); }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
-              <div><SectionLabel>Record Date</SectionLabel><Input value={e.recordDate || ""} onChange={function(v) { updateEp(e.id, "recordDate", v); }} /></div>
-              <div><SectionLabel>Release Date</SectionLabel><Input value={e.releaseDate || ""} onChange={function(v) { updateEp(e.id, "releaseDate", v); }} /></div>
-              <div><SectionLabel>Status</SectionLabel><Select value={e.status} onChange={function(v) { updateEp(e.id, "status", v); }} options={EP_STATUSES} sx={{ width: "100%" }} /></div>
-            </div>
-            <div><SectionLabel>Notes</SectionLabel><TextArea value={e.notes || ""} onChange={function(v) { updateEp(e.id, "notes", v); }} rows={3} /></div>
-          </div>}
-        </Card>;
-      })}
-    </div>
-    {activeEpisodes.length === 0 && <div style={{ textAlign: "center", padding: 60 }}>
-      <div style={{ fontFamily: ft, fontSize: 15, color: D.txm, marginBottom: 16 }}>No upcoming episodes scheduled. Head to Prospects to book your next guest.</div>
+              {/* Cold email action */}
+              <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                <Btn small onClick={function() { generateColdEmail(p); }} disabled={emailLoading && emailTarget === p.id}>{emailLoading && emailTarget === p.id ? "Generating..." : "Generate Cold Email"}</Btn>
+              </div>
+              {/* Email composer UI */}
+              {isEmailOpen && <div style={{ marginTop: 14, padding: 16, background: D.surface, borderRadius: 10, border: "1px solid " + D.border }}>
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txd, marginBottom: 4 }}>TO</div>
+                  <div style={{ fontFamily: ft, fontSize: 13, color: D.txm, padding: "8px 12px", background: D.bg, borderRadius: 6, border: "1px solid " + D.border }}>{p.name} &lt;{(p.name || "").toLowerCase().replace(/\s+/g, ".") + "@" + (p.company || "company").toLowerCase().replace(/\s+/g, "") + ".com"}&gt;</div>
+                </div>
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txd, marginBottom: 4 }}>SUBJECT</div>
+                  <Input value={emailData.subject} onChange={function(v) { setEmailData({ ...emailData, subject: v }); }} />
+                </div>
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txd, marginBottom: 4 }}>BODY</div>
+                  <TextArea value={emailData.body} onChange={function(v) { setEmailData({ ...emailData, body: v }); }} rows={10} />
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Btn small onClick={function() { generateColdEmail(p); }}>Regenerate</Btn>
+                  <CopyBtn text={emailData.subject + "\n\n" + emailData.body} />
+                  <Btn small onClick={openInGmail} sx={{ borderColor: D.blue, color: D.blue }}>Open in Gmail</Btn>
+                  <div style={{ flex: 1 }} />
+                  <Btn small onClick={function() { setEmailTarget(null); setEmailData(null); }} sx={{ borderColor: D.txd, color: D.txd }}>Close</Btn>
+                </div>
+              </div>}
+            </Card>;
+          })}
+        </div>
+      </div>;
+    })}
+    {devProspects.length === 0 && <div style={{ textAlign: "center", padding: 60 }}>
+      <div style={{ fontFamily: ft, fontSize: 15, color: D.txm, marginBottom: 16 }}>No prospects in development. Head to Prospects to find your next guest.</div>
       <Btn primary onClick={function() { setTab(0); }}>Go to Prospects</Btn>
     </div>}
   </div>;
 }
 
-// ═══ TAB: DEVELOPMENT ═══
-function DevelopmentTab({ episodes, prospects }) {
-  var _sel = useState(""), selId = _sel[0], setSelId = _sel[1];
-  var _briefing = useState(""), briefing = _briefing[0], setBriefing = _briefing[1];
-  var _prepKit = useState(""), prepKit = _prepKit[0], setPrepKit = _prepKit[1];
-  var _riverside = useState(""), riverside = _riverside[0], setRiverside = _riverside[1];
-  var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
-  var _loadingPrep = useState(false), loadingPrep = _loadingPrep[0], setLoadingPrep = _loadingPrep[1];
+// ═══ TAB 3: SCHEDULED ═══
+function ScheduledTab({ prospects, setProspects, setTab }) {
+  var scheduled = prospects.filter(function(p) { return p.devStatus === "Scheduled"; });
 
-  var ep = episodes.find(function(e) { return e.id === selId; });
-  var guest = ep ? prospects.find(function(p) { return p.id === ep.guestId; }) : null;
-
-  function genBriefing() {
-    if (!ep || !guest) { toast("Select an episode with a guest first", "error"); return; }
-    setLoading(true);
-    fetch("/api/fk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "briefing", guest: { name: guest.name, company: guest.company, role: guest.role, topics: guest.topics }, host: HOST, episodeTopic: ep.topic }),
-    }).then(function(r) { return r.json(); }).then(function(d) {
-      setBriefing(d.briefing || d.content || "Briefing generated. Edit below.");
-      setLoading(false);
-      toast("Briefing generated");
-    }).catch(function() {
-      setBriefing("# Briefing: " + guest.name + " (" + guest.company + ")\n\n## Guest Bio\n" + guest.name + " is " + guest.role + " at " + guest.company + ".\nTopics: " + (guest.topics || "N/A") + "\n\n## Recent Company News\n- [Research recent developments at " + guest.company + "]\n\n## SemiAnalysis Research Angles\n- How does " + guest.company + "'s work connect to current semiconductor trends?\n- What unique perspective can " + guest.name + " bring?\n\n## Suggested Talking Points\n1. Background and journey to " + guest.company + "\n2. Current work and vision\n3. Industry landscape and competitive dynamics\n4. Technical deep-dive on " + (ep.topic || "core topics") + "\n5. Forward-looking predictions");
-      setLoading(false);
-      toast("Generated locally (API unavailable)", "info");
-    });
+  function updateRecordDate(id, val) {
+    setProspects(function(prev) { return prev.map(function(p) { return p.id === id ? { ...p, recordDate: val } : p; }); });
+    var target = prospects.find(function(p) { return p.id === id; });
+    if (target) dbUpsert("prospects", { ...target, recordDate: val }).catch(function() {});
   }
 
-  function genPrepKit() {
-    if (!ep || !guest) { toast("Select an episode with a guest first", "error"); return; }
-    setLoadingPrep(true);
-    fetch("/api/fk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "prepkit", guest: { name: guest.name, company: guest.company, role: guest.role, topics: guest.topics }, host: HOST, episodeTopic: ep.topic }),
-    }).then(function(r) { return r.json(); }).then(function(d) {
-      setPrepKit(d.prepKit || d.content || "Prep kit generated.");
-      setLoadingPrep(false);
-      toast("Prep kit generated");
-    }).catch(function() {
-      setPrepKit("FABRICATED KNOWLEDGE // Guest Prep Kit\nHost: " + HOST + "\n─────────────────────────────────\nGuest: " + guest.name + "\nCompany: " + guest.company + "\nRole: " + guest.role + "\nEpisode Topic: " + (ep.topic || "TBD") + "\nRecord Date: " + (ep.recordDate || "TBD") + "\n\nFORMAT\n- Conversational, ~60-90 min\n- Audio only via Riverside\n- Focus on deep technical insight\n\nTOPICS WE'LL COVER\n- Your background and path to " + guest.company + "\n- The core thesis behind your work\n- Technical architecture / approach\n- Market dynamics and competition\n- What's next / predictions\n\nPREP NOTES\n- Please have a stable internet connection\n- Quiet environment preferred\n- We'll send the Riverside link before recording");
-      setLoadingPrep(false);
-      toast("Generated locally (API unavailable)", "info");
-    });
-  }
-
-  function downloadDoc(content, filename) {
-    var blob = new Blob([content], { type: "text/plain" });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.href = url; a.download = filename; a.click();
-    URL.revokeObjectURL(url);
-    toast("Downloaded " + filename);
-  }
+  var sorted = scheduled.sort(function(a, b) {
+    if (!a.recordDate && !b.recordDate) return 0;
+    if (!a.recordDate) return 1;
+    if (!b.recordDate) return -1;
+    return a.recordDate.localeCompare(b.recordDate);
+  });
 
   return <div>
-    <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 24 }}>
-      <SectionLabel>Episode</SectionLabel>
-      <Select value={selId} onChange={setSelId} options={[{ value: "", label: "Select episode..." }].concat(episodes.map(function(e) { var g = prospects.find(function(p) { return p.id === e.guestId; }); return { value: e.id, label: "EP " + e.number + " - " + (g ? g.name : "TBD") }; }))} sx={{ minWidth: 260 }} />
-    </div>
-
-    {ep && <div>
-      {/* Guest info summary */}
-      <Card sx={{ marginBottom: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 800, color: D.tx }}>{guest ? guest.name : "No guest assigned"}</div>
-            <div style={{ fontFamily: ft, fontSize: 12, color: D.txm }}>{guest ? guest.role + " @ " + guest.company : ""}</div>
-          </div>
-          <Badge bg={EP_STATUS_C[ep.status]}>{ep.status}</Badge>
-        </div>
-      </Card>
-
-      {/* Riverside link */}
-      <div style={{ marginBottom: 20 }}>
-        <SectionLabel>Riverside Session Link</SectionLabel>
-        <Input value={riverside} onChange={setRiverside} placeholder="https://riverside.fm/studio/..." />
+    {sorted.length > 0 && <div>
+      <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: D.txm, marginBottom: 20 }}>
+        {sorted.length} upcoming recording{sorted.length !== 1 ? "s" : ""}
       </div>
-
-      {/* Briefing doc */}
-      <Card sx={{ marginBottom: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Briefing Document</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Btn primary onClick={genBriefing} disabled={loading}>{loading ? "Generating..." : "Generate Briefing Doc"}</Btn>
-          </div>
-        </div>
-        {briefing && <div>
-          <TextArea value={briefing} onChange={setBriefing} rows={14} mono />
-          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <CopyBtn text={briefing} />
-            <Btn small onClick={function() { downloadDoc(briefing, "briefing-ep" + ep.number + ".txt"); }}>Download</Btn>
-          </div>
-        </div>}
-      </Card>
-
-      {/* Prep kit */}
-      <Card>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Guest Prep Kit</div>
-          <Btn primary onClick={genPrepKit} disabled={loadingPrep}>{loadingPrep ? "Generating..." : "Generate Guest Prep Kit"}</Btn>
-        </div>
-        {prepKit && <div>
-          <TextArea value={prepKit} onChange={setPrepKit} rows={12} mono />
-          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <CopyBtn text={prepKit} />
-            <Btn small onClick={function() { downloadDoc(prepKit, "prepkit-ep" + ep.number + ".txt"); }}>Download</Btn>
-          </div>
-        </div>}
-      </Card>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {sorted.map(function(p) {
+          var topics = (p.topics || "").split(",").map(function(t) { return t.trim(); }).filter(Boolean);
+          return <Card key={p.id}>
+            <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+              {/* Date block */}
+              <div style={{ minWidth: 80, textAlign: "center", padding: "10px 12px", background: D.surface, borderRadius: 10, border: "1px solid " + D.border }}>
+                {p.recordDate ? <div>
+                  <div style={{ fontFamily: mn, fontSize: 20, fontWeight: 900, color: D.coral }}>{p.recordDate.split("-")[2] || "--"}</div>
+                  <div style={{ fontFamily: mn, fontSize: 10, color: D.txm }}>{(function() { var m = parseInt(p.recordDate.split("-")[1]); var months = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]; return months[m] || "---"; })()}</div>
+                </div> : <div style={{ fontFamily: mn, fontSize: 10, color: D.txd }}>No date</div>}
+              </div>
+              {/* Info */}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: ft, fontSize: 17, fontWeight: 800, color: D.tx }}>{p.name}</div>
+                <div style={{ fontFamily: ft, fontSize: 12, color: D.txm }}>{p.role}{p.company ? " @ " + p.company : ""}</div>
+                {topics.length > 0 && <div style={{ marginTop: 6 }}>{topics.slice(0, 3).map(function(t) { return <Tag key={t}>{t}</Tag>; })}</div>}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                <Badge bg={D.teal}>Scheduled</Badge>
+                <Input value={p.recordDate || ""} onChange={function(v) { updateRecordDate(p.id, v); }} placeholder="YYYY-MM-DD" sx={{ width: 130, fontSize: 11, padding: "6px 10px" }} />
+              </div>
+            </div>
+          </Card>;
+        })}
+      </div>
     </div>}
-
-    {!ep && <div style={{ textAlign: "center", padding: 60, color: D.txd, fontFamily: ft, fontSize: 14 }}>Select an episode above to begin development prep.</div>}
+    {sorted.length === 0 && <div style={{ textAlign: "center", padding: 60 }}>
+      <div style={{ fontFamily: ft, fontSize: 15, color: D.txm, marginBottom: 16 }}>No upcoming recordings. Head to Prospects to find your next guest.</div>
+      <Btn primary onClick={function() { setTab(0); }}>Go to Prospects</Btn>
+    </div>}
   </div>;
 }
 
-// ═══ TAB: POST-PRODUCTION ═══
+// ═══ TAB 4: POST-PRODUCTION ═══
 function PostProductionTab({ episodes, prospects }) {
   var _sel = useState(""), selId = _sel[0], setSelId = _sel[1];
   var _transcript = useState(""), transcript = _transcript[0], setTranscript = _transcript[1];
@@ -524,18 +464,13 @@ function PostProductionTab({ episodes, prospects }) {
       if (d.longDesc) setLongDesc(d.longDesc);
       if (d.shortDesc) setShortDesc(d.shortDesc);
       if (d.chapters) setChapters(d.chapters);
-      if (d.clips) setClips(d.clips.map(function(c, i) { return { ...c, id: uid(), flagged: false }; }));
+      if (d.clips) setClips(d.clips.map(function(c) { return { ...c, id: uid(), flagged: false }; }));
       setLoading(false);
       toast("Transcript processed");
     }).catch(function() {
-      // Fallback local generation
       var gn = guest ? guest.name : "Guest";
       var co = guest ? guest.company : "Company";
-      setTitles([
-        gn + " on the Future of " + (ep ? ep.topic || co : co),
-        "Inside " + co + ": " + gn + " Breaks It Down",
-        "The " + co + " Deep Dive with " + gn,
-      ]);
+      setTitles([gn + " on the Future of " + (ep ? ep.topic || co : co), "Inside " + co + ": " + gn + " Breaks It Down", "The " + co + " Deep Dive with " + gn]);
       setLongDesc("In this episode of Fabricated Knowledge, " + HOST + " sits down with " + gn + " from " + co + " to discuss " + (ep ? ep.topic || "the latest developments" : "the latest developments") + " in the semiconductor and AI infrastructure space.\n\nTopics covered include the current state of " + co + "'s technology, competitive landscape, and where the industry is heading. " + gn + " shares unique insights from the trenches.\n\nFabricated Knowledge is an audio interview series hosted by " + HOST + " exploring the deepest corners of semiconductors, AI infrastructure, and compute.");
       setShortDesc(HOST + " talks to " + gn + " (" + co + ") about " + (ep ? ep.topic || "the latest in semis and AI" : "the latest in semis and AI") + ". Deep technical conversation.");
       setChapters("00:00 - Introduction\n05:00 - " + gn + "'s Background\n15:00 - " + co + " Overview\n30:00 - Technical Deep Dive\n50:00 - Industry Landscape\n65:00 - Predictions & Closing");
@@ -554,7 +489,6 @@ function PostProductionTab({ episodes, prospects }) {
     setClips(function(prev) { return prev.map(function(c) { return c.id === clipId ? { ...c, flagged: !c.flagged } : c; }); });
   }
 
-  // Show released episodes in the dropdown (post-production works on released content)
   var releasedEpisodes = episodes.filter(function(e) { return e.status === "Released"; });
 
   function epLabel(e) {
@@ -569,7 +503,6 @@ function PostProductionTab({ episodes, prospects }) {
       <Select value={selId} onChange={setSelId} options={[{ value: "", label: "Select released episode..." }].concat(releasedEpisodes.map(function(e) { return { value: e.id, label: epLabel(e) }; }))} sx={{ minWidth: 300 }} />
     </div>
 
-    {/* Transcript input */}
     <Card sx={{ marginBottom: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Transcript</div>
@@ -578,7 +511,6 @@ function PostProductionTab({ episodes, prospects }) {
       <TextArea value={transcript} onChange={setTranscript} rows={12} mono placeholder="Paste Riverside transcript export here..." />
     </Card>
 
-    {/* Title options */}
     {titles.length > 0 && <Card sx={{ marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Title Options</div>
@@ -592,7 +524,6 @@ function PostProductionTab({ episodes, prospects }) {
       })}
     </Card>}
 
-    {/* Long description */}
     {longDesc && <Card sx={{ marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Long Description</div>
@@ -601,7 +532,6 @@ function PostProductionTab({ episodes, prospects }) {
       <TextArea value={longDesc} onChange={setLongDesc} rows={6} />
     </Card>}
 
-    {/* Short description */}
     {shortDesc && <Card sx={{ marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Short Description</div>
@@ -610,7 +540,6 @@ function PostProductionTab({ episodes, prospects }) {
       <TextArea value={shortDesc} onChange={setShortDesc} rows={3} />
     </Card>}
 
-    {/* Chapters */}
     {chapters && <Card sx={{ marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Chapter Markers</div>
@@ -619,7 +548,6 @@ function PostProductionTab({ episodes, prospects }) {
       <TextArea value={chapters} onChange={setChapters} rows={6} mono />
     </Card>}
 
-    {/* Clip highlights */}
     {clips.length > 0 && <Card>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Clip Highlights</div>
@@ -643,8 +571,8 @@ function PostProductionTab({ episodes, prospects }) {
   </div>;
 }
 
-// ═══ TAB: ARCHIVE ═══
-function ArchiveTab({ episodes, prospects, archive, setArchive }) {
+// ═══ TAB 5: RELEASED (ARCHIVE) ═══
+function ReleasedTab({ episodes, prospects, archive, setArchive }) {
   var _search = useState(""), search = _search[0], setSearch = _search[1];
   var _catFilt = useState("All"), catFilt = _catFilt[0], setCatFilt = _catFilt[1];
   var _showAdd = useState(false), showAdd = _showAdd[0], setShowAdd = _showAdd[1];
@@ -664,25 +592,20 @@ function ArchiveTab({ episodes, prospects, archive, setArchive }) {
     setForm({ number: "", guest: "", company: "", topic: "", category: "Other", releaseDate: "", plays: "" });
     setShowAdd(false);
     toast("Episode archived");
-    dbUpsert("archive", entry).catch(function() { toast("Saved locally only (API unavailable)", "info"); });
+    dbUpsert("archive", entry).catch(function() { toast("Saved locally only", "info"); });
   }
 
   function updatePlays(id, val) {
     setArchive(function(prev) { return prev.map(function(a) { return a.id === id ? { ...a, plays: parseInt(val) || 0 } : a; }); });
     var target = archive.find(function(a) { return a.id === id; });
-    if (target) {
-      var updated = { ...target, plays: parseInt(val) || 0 };
-      dbUpsert("archive", updated).catch(function() {});
-    }
+    if (target) dbUpsert("archive", { ...target, plays: parseInt(val) || 0 }).catch(function() {});
   }
 
-  // Analytics
   var catCounts = {};
   archive.forEach(function(a) { var c = a.category || "Other"; catCounts[c] = (catCounts[c] || 0) + 1; });
   var maxCount = Math.max.apply(null, Object.values(catCounts).concat([1]));
 
   return <div>
-    {/* Search and filter */}
     <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "center" }}>
       <Input value={search} onChange={setSearch} placeholder="Search guest, topic, category..." sx={{ flex: 1 }} />
       <Select value={catFilt} onChange={setCatFilt} options={["All"].concat(CATEGORIES)} />
@@ -704,7 +627,6 @@ function ArchiveTab({ episodes, prospects, archive, setArchive }) {
       <Btn primary onClick={addArchiveEntry}>Add to Archive</Btn>
     </Card>}
 
-    {/* Analytics */}
     {archive.length > 0 && <Card sx={{ marginBottom: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Analytics</div>
@@ -726,7 +648,6 @@ function ArchiveTab({ episodes, prospects, archive, setArchive }) {
       </div>
     </Card>}
 
-    {/* Episode cards */}
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
       {filtered.map(function(a) {
         return <Card key={a.id}>
@@ -762,7 +683,6 @@ export default function FabricatedKnowledge() {
   var _archive = useState([]), archive = _archive[0], setArchive = _archive[1];
   var _loaded = useState(false), loaded = _loaded[0], setLoaded = _loaded[1];
 
-  // Load from Supabase first, fall back to localStorage, then defaults
   useEffect(function() {
     var settled = false;
     function loadFallback() {
@@ -785,30 +705,18 @@ export default function FabricatedKnowledge() {
       if (settled) return;
       settled = true;
       var p = results[0], e = results[1], a = results[2];
-
-      // Prospects: Supabase -> localStorage -> defaults
       if (p && p.length > 0) { setProspects(p); }
       else { var lp = ls("fk-prospects"); if (lp && lp.length > 0) { setProspects(lp); } else { setProspects(DEFAULT_PROSPECTS); } }
-
-      // Episodes: Supabase -> localStorage -> defaults
       if (e && e.length > 0) { setEpisodes(e); }
       else { var le = ls("fk-episodes"); if (le && le.length > 0) { setEpisodes(le); } else { setEpisodes(DEFAULT_EPISODES); } }
-
-      // Archive: Supabase -> localStorage -> defaults
       if (a && a.length > 0) { setArchive(a); }
       else { var la = ls("fk-archive"); if (la && la.length > 0) { setArchive(la); } else { setArchive(DEFAULT_ARCHIVE); } }
-
       setLoaded(true);
-    }).catch(function() {
-      loadFallback();
-    });
+    }).catch(function() { loadFallback(); });
 
-    // If API takes too long, fall back to localStorage after 3 seconds
     setTimeout(function() { loadFallback(); }, 3000);
   }, []);
 
-  // Persist to localStorage as fallback cache
-  // (Individual add/update/delete functions handle Supabase writes directly)
   useEffect(function() { if (loaded) ss("fk-prospects", prospects); }, [prospects, loaded]);
   useEffect(function() { if (loaded) ss("fk-episodes", episodes); }, [episodes, loaded]);
   useEffect(function() { if (loaded) ss("fk-archive", archive); }, [archive, loaded]);
@@ -816,13 +724,11 @@ export default function FabricatedKnowledge() {
   return <div style={{ minHeight: "100vh", background: D.bg, color: D.tx, fontFamily: ft, padding: "0 0 60px 0" }}>
     <Toasts />
 
-    {/* Header */}
     <div style={{ padding: "36px 40px 0 40px" }}>
       <div style={{ fontFamily: ft, fontSize: 28, fontWeight: 900, color: D.tx, letterSpacing: -1 }}>Fabricated Knowledge</div>
       <div style={{ fontFamily: mn, fontSize: 10, color: D.txm, letterSpacing: 2, textTransform: "uppercase", marginTop: 4 }}>Doug O'Laughlin // Audio Interview Series</div>
     </div>
 
-    {/* Tab bar */}
     <div style={{ display: "flex", gap: 0, padding: "20px 40px 0 40px", borderBottom: "1px solid " + D.border, marginBottom: 28 }}>
       {TABS.map(function(t, i) {
         var active = tab === i;
@@ -830,13 +736,12 @@ export default function FabricatedKnowledge() {
       })}
     </div>
 
-    {/* Content */}
     <div style={{ padding: "0 40px" }}>
-      {tab === 0 && <ProspectsTab prospects={prospects} setProspects={setProspects} />}
-      {tab === 1 && <EpisodesTab episodes={episodes} setEpisodes={setEpisodes} prospects={prospects} setTab={setTab} />}
-      {tab === 2 && <DevelopmentTab episodes={episodes} prospects={prospects} />}
+      {tab === 0 && <ProspectsTab prospects={prospects} setProspects={setProspects} setTab={setTab} />}
+      {tab === 1 && <DevelopmentTab prospects={prospects} setProspects={setProspects} setTab={setTab} />}
+      {tab === 2 && <ScheduledTab prospects={prospects} setProspects={setProspects} setTab={setTab} />}
       {tab === 3 && <PostProductionTab episodes={episodes} prospects={prospects} />}
-      {tab === 4 && <ArchiveTab episodes={episodes} prospects={prospects} archive={archive} setArchive={setArchive} />}
+      {tab === 4 && <ReleasedTab episodes={episodes} prospects={prospects} archive={archive} setArchive={setArchive} />}
     </div>
   </div>;
 }

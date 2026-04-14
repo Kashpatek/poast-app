@@ -127,6 +127,85 @@ Return JSON:
       }
     }
 
+    if (action === "cold-email") {
+      const { guestName, guestCompany, guestRole, guestTopics } = body;
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1500,
+          system: FK_SYS,
+          messages: [{ role: "user", content: `Generate a personalized cold outreach email from Doug O'Laughlin to a potential podcast guest for Fabricated Knowledge.
+
+Guest: ${guestName}
+Company: ${guestCompany}
+Role: ${guestRole}
+Topic Areas: ${guestTopics}
+
+Doug runs SemiAnalysis and hosts Fabricated Knowledge, an audio interview podcast covering semiconductors, AI infrastructure, data centers, memory, compute, and geopolitics.
+
+The email should:
+- Be professional but warm
+- Introduce Doug and Fabricated Knowledge briefly
+- Explain why this guest is a perfect fit
+- Reference their recent work or area of expertise
+- Mention format: conversational, 45-60 min, audio-only via Riverside
+- End with a clear ask
+
+Return JSON:
+{
+  "subject": "email subject line",
+  "body": "full email body text"
+}` }],
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) return NextResponse.json({ error: data?.error?.message || "Failed" }, { status: r.status });
+      const rawText = (data.content || []).map((c: { text?: string }) => c.text || "").join("");
+      try {
+        const email = JSON.parse(rawText.replace(/```json|```/g, "").trim());
+        return NextResponse.json({ email, ts: Date.now() });
+      } catch {
+        return NextResponse.json({ error: "Failed to parse email", raw: rawText.slice(0, 300) }, { status: 500 });
+      }
+    }
+
+    if (action === "generate-bio") {
+      const { guestName, guestCompany, guestRole, guestTopics } = body;
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 500,
+          system: FK_SYS,
+          messages: [{ role: "user", content: `Write a brief 2-3 sentence professional bio for a potential Fabricated Knowledge podcast guest.
+
+Name: ${guestName}
+Company: ${guestCompany}
+Role: ${guestRole}
+Topic Areas: ${guestTopics}
+
+The bio should highlight their role, company, and area of expertise relevant to semiconductors, AI infrastructure, or related fields.
+
+Return JSON:
+{
+  "bio": "the 2-3 sentence bio"
+}` }],
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) return NextResponse.json({ error: data?.error?.message || "Failed" }, { status: r.status });
+      const rawText = (data.content || []).map((c: { text?: string }) => c.text || "").join("");
+      try {
+        const parsed = JSON.parse(rawText.replace(/```json|```/g, "").trim());
+        return NextResponse.json({ bio: parsed.bio, ts: Date.now() });
+      } catch {
+        return NextResponse.json({ error: "Failed to parse bio" }, { status: 500 });
+      }
+    }
+
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
