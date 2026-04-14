@@ -246,6 +246,7 @@ var CAPTION_STYLES = [
 ];
 var FONT_OPTIONS = [
   { id: "outfit", l: "Outfit", family: "'Outfit',sans-serif" },
+  { id: "grift", l: "Grift", family: "'Grift',sans-serif" },
   { id: "inter", l: "Inter", family: "'Inter',sans-serif" },
   { id: "jetbrains", l: "JetBrains Mono", family: "'JetBrains Mono',monospace" },
   { id: "roboto", l: "Roboto", family: "'Roboto',sans-serif" },
@@ -1049,6 +1050,9 @@ function RenderButton({ data, assets, onComplete }) {
         musicUrl: musicUrl,
         duration: data.duration || 60,
         aspectRatio: data.aspect || "16:9",
+        fontFamily: data.fontFamily || "'Outfit',sans-serif",
+        fontSize: data.fontSize || 48,
+        captionStyle: data.captionStyle || "overlay",
       }) });
       var d3 = await r3.json();
       if (d3.renderId) {

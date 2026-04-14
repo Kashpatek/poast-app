@@ -20,6 +20,9 @@ const Root: React.FC = () => {
         clipUrls: [],
         musicUrl: "",
         duration: 60,
+        fontFamily: "'Outfit',sans-serif",
+        fontSize: 48,
+        captionStyle: "overlay" as const,
       }}
     />
   );

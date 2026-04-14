@@ -9,6 +9,7 @@ import Carousel from "./carousel";
 import FabricatedKnowledge from "./fabricated-knowledge";
 import Trends from "./trends";
 import SlobTop from "./slob-top";
+import { exportDocx } from "./docx-export";
 import Outreach from "./outreach";
 
 var C = {
@@ -23,6 +24,7 @@ var C = {
 };
 var PL = { x: "#1DA1F2", li: "#0A66C2", fb: "#1877F2", ig: "#E4405F", yt: "#FF0000", tt: "#00F2EA" };
 var ft = "'Outfit',sans-serif";
+var gf = "'Grift','Outfit',sans-serif";
 var mn = "'JetBrains Mono',monospace";
 
 var SYS_EP = "You are a content strategist for SemiAnalysis, a semiconductor and AI infrastructure research firm. Rules: Never use em dashes, use commas or periods. No emojis. Be direct, not clickbait. When mentioning guests in descriptions, include their social handle in parentheses on first mention, e.g. Jordan Nanos (@JordanNanos). RESPOND ONLY IN VALID JSON. No markdown fences. No preamble.";
@@ -59,17 +61,7 @@ function gStr(guests) { return guests.filter(function(g) { return g.name; }).map
 function thTxt(th) { if (!th) return ""; if (typeof th === "string") return th; return th.concept + '\nText: "' + th.text_overlay + '"\nMood: ' + th.mood; }
 
 function exportDoc(title, sections) {
-  var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;font-size:13px;color:#1a1a1a;padding:40px}h1{font-size:22px;color:#E8A830;border-bottom:2px solid #E8A830;padding-bottom:8px}h2{font-size:16px;color:#1A84C6;margin-top:24px}h3{font-size:13px;color:#333;margin-top:16px}.card{background:#f5f5f5;border-left:3px solid #E8A830;padding:12px 16px;margin:8px 0;white-space:pre-wrap}.meta{color:#888;font-size:11px;font-family:monospace}</style></head><body>';
-  html += '<h1>SemiAnalysis Weekly - ' + title + '</h1>';
-  sections.forEach(function(s) {
-    html += '<h2>' + s.heading + '</h2>';
-    if (s.items) s.items.forEach(function(it) { html += '<h3>' + it.label + '</h3><div class="card">' + (it.content || "").replace(/\n/g, "<br>") + '</div>'; });
-    if (s.text) html += '<div class="card">' + s.text.replace(/\n/g, "<br>") + '</div>';
-  });
-  html += '</body></html>';
-  var blob = new Blob([html], { type: "application/msword" });
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement("a"); a.href = url; a.download = "SA_Weekly_Launch_Rollout.doc"; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  exportDocx(title, sections);
 }
 
 // ═══ UI ═══
@@ -305,7 +297,7 @@ var SIDEBAR_CATS = {
     { id: "captions", l: "Capper", ic: "\uD83C\uDFAC" },
     { id: "p2p", l: "Press to Premier", ic: "\uD83C\uDFAC" },
   ]},
-  podcast: { label: "PODCAST", color: C.violet, glow: "rgba(144,92,203,", items: [
+  podcast: { label: "PODCAST", color: C.coral, glow: "rgba(224,99,71,", items: [
     { id: "fk", l: "Fab Knowledge", ic: "\uD83C\uDFA7" },
     { id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99" },
     { id: "outreach", l: "Outreach", ic: "\uD83D\uDCE4" },
@@ -330,7 +322,7 @@ function Sidebar({ active, onNav, onAskPoast }) {
     <div style={{ padding: "18px 18px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10 }}>
       <img src="/poast-logo.png" style={{ width: 32, height: 32, borderRadius: 7 }} />
       <div>
-        <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 900, color: C.amber, letterSpacing: 2 }}>POAST</div>
+        <div style={{ fontFamily: gf, fontSize: 18, fontWeight: 900, color: C.amber, letterSpacing: 2 }}>POAST</div>
         <div style={{ fontFamily: ft, fontSize: 7, fontWeight: 600, color: "rgba(255,255,255,0.15)", letterSpacing: 2, textTransform: "uppercase" }}>Content Command Center</div>
       </div>
     </div>
@@ -1122,19 +1114,21 @@ function GlitchTransition({ onDone }) {
 function SplashScreen({ onNavigate }) {
   var _h = useState(null), h = _h[0], sh = _h[1];
   var sections = {
-    PRODUCE: [{ l: "SA Weekly", ic: "\uD83C\uDF99", id: "weekly" }, { l: "Press to Premier", ic: "\uD83C\uDFAC", id: "p2p" }, { l: "Capper", ic: "\uD83C\uDFAC", id: "captions" }],
-    PREPARE: [{ l: "News Flow", ic: "\uD83D\uDCE1", id: "news" }, { l: "GTC Flow", ic: "\uD83D\uDCCA", id: "gtc" }],
+    PRODUCE: [{ l: "Slob Top", ic: "\uD83D\uDCA5", id: "slobtop" }, { l: "Carousel", ic: "\uD83D\uDCD0", id: "carousel" }, { l: "Capper", ic: "\uD83C\uDFAC", id: "captions" }, { l: "P2P", ic: "\uD83C\uDFAC", id: "p2p" }],
+    PODCAST: [{ l: "Fab Knowledge", ic: "\uD83C\uDFA7", id: "fk" }, { l: "SA Weekly", ic: "\uD83C\uDF99", id: "weekly" }, { l: "Outreach", ic: "\uD83D\uDCE4", id: "outreach" }],
+    PREPARE: [{ l: "Trends", ic: "\uD83D\uDD25", id: "trends" }, { l: "News Flow", ic: "\uD83D\uDCE1", id: "news" }, { l: "GTC Flow", ic: "\uD83D\uDCCA", id: "gtc" }],
     PREMIER: [{ l: "Schedule", ic: "\uD83D\uDCC6", id: "schedule" }],
   };
-  var words = ["PRODUCE", "PREPARE", "PREMIER"];
-  var colors = [C.amber, C.blue, C.teal];
-  var glows = ["rgba(247,176,65,", "rgba(11,134,209,", "rgba(46,173,142,"];
+  var words = ["PRODUCE", "PODCAST", "PREPARE", "PREMIER"];
+  var colors = [C.amber, C.coral, C.blue, C.teal];
+  var glows = ["rgba(247,176,65,", "rgba(224,99,71,", "rgba(11,134,209,", "rgba(46,173,142,"];
+  var appNames = { PRODUCE: "Slob Top, Carousel, Capper, P2P", PODCAST: "Fab Knowledge, SA Weekly, Outreach", PREPARE: "Trends, News Flow, GTC Flow", PREMIER: "Schedule" };
 
   return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "0 8vw" }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes bIn{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}@keyframes bLine{0%{transform:scaleX(0)}100%{transform:scaleX(1)}}@keyframes itemReveal{0%{opacity:0;transform:translateY(-8px) scale(0.95)}100%{opacity:1;transform:translateY(0) scale(1)}}" }} />
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 50, animation: "bIn 0.5s ease forwards", opacity: 0 }}>
       <img src="/poast-logo.png" style={{ width: 36, height: 36, borderRadius: 8 }} />
-      <span style={{ fontFamily: ft, fontSize: 16, fontWeight: 900, color: C.amber, letterSpacing: 5 }}>POAST</span>
+      <span style={{ fontFamily: gf, fontSize: 16, fontWeight: 900, color: C.amber, letterSpacing: 5 }}>POAST</span>
     </div>
     <div style={{ width: "100%", textAlign: "center" }}>
       {words.map(function(w, i) {
@@ -1144,6 +1138,7 @@ function SplashScreen({ onNavigate }) {
             {w}
             <span style={{ position: "absolute", left: -20, top: "50%", transform: "translateY(-50%)", width: 4, height: isH ? "80%" : "60%", background: colors[i], borderRadius: 2, transition: "all 0.2s", boxShadow: isH ? "0 0 12px " + colors[i] + "40" : "none" }} />
           </div>
+          <div style={{ fontFamily: ft, fontSize: 9, color: "rgba(255,255,255,0.18)", letterSpacing: 2, marginTop: 4 }}>{appNames[w]}</div>
           <div style={{ overflow: "hidden", maxHeight: isH ? 60 : 0, opacity: isH ? 1 : 0, transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)", marginTop: isH ? 6 : 0 }}>
             <div style={{ display: "flex", gap: 8, justifyContent: "center", padding: "4px 0" }}>
               {items.map(function(item, ii) {
@@ -1273,6 +1268,12 @@ export default function App() {
     {/* ═══ GLOBAL STYLES ═══ */}
     <style dangerouslySetInnerHTML={{ __html: [
       "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');",
+      "@font-face{font-family:'Grift';src:url('/fonts/Grift-Regular.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}",
+      "@font-face{font-family:'Grift';src:url('/fonts/Grift-Medium.woff2') format('woff2');font-weight:500;font-style:normal;font-display:swap}",
+      "@font-face{font-family:'Grift';src:url('/fonts/Grift-SemiBold.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}",
+      "@font-face{font-family:'Grift';src:url('/fonts/Grift-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}",
+      "@font-face{font-family:'Grift';src:url('/fonts/Grift-ExtraBold.woff2') format('woff2');font-weight:800;font-style:normal;font-display:swap}",
+      "@font-face{font-family:'Grift';src:url('/fonts/Grift-Black.woff2') format('woff2');font-weight:900;font-style:normal;font-display:swap}",
       "*{box-sizing:border-box;margin:0;padding:0}",
       "body{background:#06060C}",
       "html{scroll-behavior:smooth}",

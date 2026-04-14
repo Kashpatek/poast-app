@@ -23,6 +23,27 @@ var CATEGORIES = ["Semiconductors", "AI Infra", "Data Center", "Memory", "Geopol
 var CHANNELS = ["email", "LinkedIn", "intro"];
 var HOST = "Doug O'Laughlin";
 
+// ═══ DEFAULT DATA ═══
+var DEFAULT_PROSPECTS = [
+  { id: "fk-default-val", name: "Val Bercovici", company: "WEKA", role: "Executive", topics: "KV Cache, Disaggregated Inference, Memory Architecture, Memory Markets, HBM Pricing, Agentic Demand", tier: "S", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736899200000 },
+  { id: "fk-default-will", name: "Will Eatherton", company: "Cisco", role: "SVP Engineering", topics: "AI Networking, Datacenter Infrastructure, Modular Systems", tier: "A", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736812800000 },
+  { id: "fk-default-wes", name: "Wes Cummins", company: "Applied Digital", role: "CEO", topics: "GPU Cloud, AI Infrastructure, Datacenter Development", tier: "A", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736726400000 },
+];
+
+var DEFAULT_EPISODES = [
+  { id: "fk-ep-default-1", number: "1", guestId: "fk-default-val", topic: "KV Cache, Disaggregated Inference, Memory Architecture", recordDate: "", releaseDate: "2025-07-07", status: "Released", notes: "A Conversation with Val Bercovici about Disaggregated Prefill / Decode", added: 1751846400000 },
+  { id: "fk-ep-default-2", number: "2", guestId: "fk-default-will", topic: "AI Networking, Datacenter Infrastructure, Modular Systems", recordDate: "", releaseDate: "2025-10-27", status: "Released", notes: "Will Eatherton: How Cisco Plans to Compete in the AI Datacenter", added: 1761523200000 },
+  { id: "fk-ep-default-3", number: "3", guestId: "fk-default-val", topic: "Memory Markets, HBM Pricing, Agentic Demand", recordDate: "", releaseDate: "2025-02-16", status: "Released", notes: "Another Conversation with Val Bercovici Memory Markets", added: 1739664000000 },
+  { id: "fk-ep-default-4", number: "4", guestId: "fk-default-wes", topic: "GPU Cloud, AI Infrastructure, Datacenter Development", recordDate: "", releaseDate: "2025-01-15", status: "Released", notes: "An Interview with Wes Cummins, CEO of Applied Digital", added: 1736899200000 },
+];
+
+var DEFAULT_ARCHIVE = [
+  { id: "fk-arc-default-1", number: "1", guest: "Val Bercovici", company: "WEKA", topic: "KV Cache, Disaggregated Inference, Memory Architecture", category: "AI Infra", releaseDate: "2025-07-07", plays: 0 },
+  { id: "fk-arc-default-2", number: "2", guest: "Will Eatherton", company: "Cisco", topic: "AI Networking, Datacenter Infrastructure, Modular Systems", category: "Data Center", releaseDate: "2025-10-27", plays: 0 },
+  { id: "fk-arc-default-3", number: "3", guest: "Val Bercovici", company: "WEKA", topic: "Memory Markets, HBM Pricing, Agentic Demand", category: "Memory", releaseDate: "2025-02-16", plays: 0 },
+  { id: "fk-arc-default-4", number: "4", guest: "Wes Cummins", company: "Applied Digital", topic: "GPU Cloud, AI Infrastructure, Datacenter Development", category: "Compute", releaseDate: "2025-01-15", plays: 0 },
+];
+
 function uid() { return "fk-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8); }
 function ls(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 function ss(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
@@ -648,11 +669,14 @@ export default function FabricatedKnowledge() {
   var _archive = useState([]), archive = _archive[0], setArchive = _archive[1];
   var _loaded = useState(false), loaded = _loaded[0], setLoaded = _loaded[1];
 
-  // Load from localStorage
+  // Load from localStorage, seed defaults if empty
   useEffect(function() {
-    var p = ls("fk-prospects"); if (p) setProspects(p);
-    var e = ls("fk-episodes"); if (e) setEpisodes(e);
-    var a = ls("fk-archive"); if (a) setArchive(a);
+    var p = ls("fk-prospects");
+    if (p && p.length > 0) { setProspects(p); } else { setProspects(DEFAULT_PROSPECTS); }
+    var e = ls("fk-episodes");
+    if (e && e.length > 0) { setEpisodes(e); } else { setEpisodes(DEFAULT_EPISODES); }
+    var a = ls("fk-archive");
+    if (a && a.length > 0) { setArchive(a); } else { setArchive(DEFAULT_ARCHIVE); }
     setLoaded(true);
   }, []);
 
