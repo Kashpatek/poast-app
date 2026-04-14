@@ -1095,7 +1095,7 @@ export default function SlopTop() {
       {/* ═══ BRAINROT PRESETS ═══ */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontFamily: mn, fontSize: 10, color: D.cyan, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-          <span>\uD83E\uDDE0</span> Brainrot Presets <span style={{ fontSize: 8, color: D.txd }}>(click to add to prompt)</span>
+          <span>{"\uD83E\uDDE0"}</span> Brainrot Presets <span style={{ fontSize: 8, color: D.txd }}>(click to add to prompt)</span>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {BRAINROT_PRESETS.map(function(preset, idx) {
@@ -1123,7 +1123,7 @@ export default function SlopTop() {
             WebkitTextFillColor: "transparent",
             backgroundClip: "text",
             whiteSpace: "nowrap",
-          }}>ITALIAN BRAINROT \uD83C\uDDEE\uD83C\uDDF9\uD83D\uDC0A</span>
+          }}>{"ITALIAN BRAINROT \uD83C\uDDEE\uD83C\uDDF9\uD83D\uDC0A"}</span>
           <div style={{ flex: 1, height: 1, background: "linear-gradient(90deg, #CE2B37, #fff, #009246)" }} />
         </div>
 
@@ -1169,7 +1169,7 @@ export default function SlopTop() {
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontFamily: mn, fontSize: 10, color: brainrotLevel >= 7 ? D.coral : D.amber, letterSpacing: 2, textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6 }}>
-            <span>{brainrotLevel >= 7 ? "\uD83D\uDC80" : brainrotLevel >= 4 ? "\uD83E\uDDE0" : "\uD83D\uDE36"}</span> Brainrot Level
+            <span>{brainrotLevel >= 7 ? "\uD83D\uDC80" : brainrotLevel >= 4 ? "\uD83E\uDDE0" : "\uD83D\uDE36"}</span>{" Brainrot Level"}
           </div>
           <div style={{
             fontFamily: ft, fontSize: 16, fontWeight: 900,
@@ -1210,7 +1210,7 @@ export default function SlopTop() {
           border: "1px solid " + D.amber + "25", borderRadius: 12, padding: 28, marginBottom: 24,
         }}>
           <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-            <span>\uD83D\uDD17</span> Paste Link <span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// drop the url bro</span>
+            <span>{"\uD83D\uDD17"}</span>{" Paste Link "}<span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// drop the url bro</span>
           </div>
           <div style={{ display: "flex", gap: 12 }}>
             <input type="text" value={slopUrl} onChange={function(e) { setSlopUrl(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") handleSlopGenerate(); }} placeholder="Paste any link to get slop..." style={{
@@ -1240,17 +1240,17 @@ export default function SlopTop() {
           </div>
           {/* Meme Captions */}
           {slopResults.meme_captions && slopResults.meme_captions.length > 0 && <div style={{ marginBottom: 20 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>\uD83D\uDC80 Meme Captions</div>
+            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>{"\uD83D\uDC80 Meme Captions"}</div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>{slopResults.meme_captions.map(function(cap, i) { return <SlopCard key={i} title={"Caption " + (i + 1)} content={cap} />; })}</div>
           </div>}
           {/* Video Hooks */}
           {slopResults.video_hooks && slopResults.video_hooks.length > 0 && <div style={{ marginBottom: 20 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.cyan, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>\u26A1 Video Hooks</div>
+            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.cyan, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>{"\u26A1 Video Hooks"}</div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>{slopResults.video_hooks.map(function(hook, i) { return <SlopCard key={i} title={"Hook " + (i + 1)} content={hook} />; })}</div>
           </div>}
           {/* Thread Idea */}
           {slopResults.thread_idea && <div style={{ marginBottom: 20 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.violet, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>\uD83E\uDDE0 Thread Idea</div>
+            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.violet, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>{"\uD83E\uDDE0 Thread Idea"}</div>
             <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 18 }}>
               {(Array.isArray(slopResults.thread_idea) ? slopResults.thread_idea : [slopResults.thread_idea]).map(function(post, i) {
                 return <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8 }}>
@@ -1262,7 +1262,7 @@ export default function SlopTop() {
           </div>}
           {/* Image Prompt */}
           {slopResults.image_prompt && <div style={{ marginBottom: 20 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.teal, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>\uD83D\uDD25 Image Prompt</div>
+            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.teal, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>{"\uD83D\uDD25 Image Prompt"}</div>
             <SlopCard content={slopResults.image_prompt} />
           </div>}
         </div>}
@@ -1274,7 +1274,7 @@ export default function SlopTop() {
         border: "1px solid " + D.violet + "25", borderRadius: 12, padding: 28, marginBottom: 24,
       }}>
         <div style={{ fontFamily: mn, fontSize: 10, color: D.violet, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-          <span>\uD83D\uDE24</span> What's the prompt bro <span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// describe your masterpiece</span>
+          <span>{"\uD83D\uDE24"}</span>{" What's the prompt bro "}<span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// describe your masterpiece</span>
         </div>
         <textarea value={memeIdea} onChange={function(e) { setMemeIdea(e.target.value); }} placeholder="e.g. Jensen Huang holding a GPU like it's the holy grail, NVIDIA cathedral lighting... \uD83D\uDD25" rows={4} style={{
           width: "100%", padding: "14px 16px", borderRadius: 10, background: D.surface, border: "1px solid " + D.border,
@@ -1285,7 +1285,7 @@ export default function SlopTop() {
       {/* Vibe Check (Style selector) - both modes */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-          <span>\uD83D\uDCAF</span> Vibe Check <span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// pick your aesthetic</span>
+          <span>{"\uD83D\uDCAF"}</span>{" Vibe Check "}<span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// pick your aesthetic</span>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {MEME_STYLES.map(function(s) {
@@ -1340,11 +1340,11 @@ export default function SlopTop() {
             <a href={memeImg} download="slop-meme.png" style={{
               padding: "10px 20px", borderRadius: 8, background: D.teal + "18", border: "1px solid " + D.teal + "40",
               color: D.teal, fontFamily: ft, fontSize: 12, fontWeight: 700, textDecoration: "none", cursor: "pointer",
-            }}>Download \uD83D\uDC80</a>
+            }}>{"Download \uD83D\uDC80"}</a>
             <button onClick={handleMemeGenerate} style={{
               padding: "10px 20px", borderRadius: 8, background: "transparent", border: "1px solid " + D.border,
               color: D.txm, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer",
-            }}>Regenerate \uD83D\uDD04</button>
+            }}>{"Regenerate \uD83D\uDD04"}</button>
           </div>
         </div>
       </div>}
@@ -1361,7 +1361,7 @@ export default function SlopTop() {
 
       {videoUrl && <div style={{ marginTop: 24, animation: "successPop 0.4s ease-out" }}>
         <div style={{ fontFamily: mn, fontSize: 10, color: D.cyan, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-          <span>\uD83C\uDFA5</span> absolute cinema <span>\uD83D\uDD25</span>
+          <span>{"\uD83C\uDFA5"}</span>{" absolute cinema "}<span>{"\uD83D\uDD25"}</span>
         </div>
         <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 16, textAlign: "center" }}>
           <video src={videoUrl} controls style={{ maxWidth: "100%", maxHeight: 500, borderRadius: 8 }} />
@@ -1369,11 +1369,11 @@ export default function SlopTop() {
             <a href={videoUrl} download="slop-video.mp4" style={{
               padding: "10px 20px", borderRadius: 8, background: D.cyan + "18", border: "1px solid " + D.cyan + "40",
               color: D.cyan, fontFamily: ft, fontSize: 12, fontWeight: 700, textDecoration: "none", cursor: "pointer",
-            }}>Download \uD83C\uDFA5</a>
+            }}>{"Download \uD83C\uDFA5"}</a>
             <button onClick={handleVideoGenerate} style={{
               padding: "10px 20px", borderRadius: 8, background: "transparent", border: "1px solid " + D.border,
               color: D.txm, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer",
-            }}>Regenerate \uD83D\uDD04</button>
+            }}>{"Regenerate \uD83D\uDD04"}</button>
           </div>
         </div>
       </div>}

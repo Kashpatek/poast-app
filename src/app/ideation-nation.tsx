@@ -69,6 +69,7 @@ var CSS_ANIMATIONS = [
   "@keyframes toastFadeIn { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }",
   "@keyframes ideaSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }",
   "@keyframes heroShimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }",
+  "@media (max-width: 900px) { .ideation-hero { height: 250px !important; } }",
 ].join("\n");
 
 // ═══ HELPERS ═══
@@ -198,12 +199,12 @@ function WizardOverlay({ open, onClose, onGenerate, loading }) {
   var stepLabels = ["Content Type", "Topic Area", "Angle", "Generate"];
   var stepColors = [D.coral, D.blue, D.teal, D.amber];
 
-  return <div style={{ position: "fixed", inset: 0, zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+  return <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
     {/* Backdrop */}
-    <div onClick={handleClose} style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(144,92,203,0.08) 0%, rgba(6,6,8,0.96) 60%)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)" }} />
+    <div onClick={handleClose} style={{ position: "fixed", inset: 0, background: "radial-gradient(ellipse at center, rgba(144,92,203,0.08) 0%, rgba(6,6,8,0.96) 60%)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)" }} />
 
     {/* Wizard card */}
-    <div style={{ position: "relative", width: 560, maxHeight: "82vh", overflow: "auto", background: "linear-gradient(135deg, #0F0F18 0%, #0A0A12 100%)", borderRadius: 18, padding: "36px 40px", boxShadow: "0 0 80px rgba(144,92,203,0.08), 0 0 120px rgba(247,176,65,0.04), 0 24px 60px rgba(0,0,0,0.7)" }}>
+    <div style={{ position: "relative", width: 560, maxWidth: "100%", maxHeight: "80vh", overflow: "auto", background: "linear-gradient(135deg, #0F0F18 0%, #0A0A12 100%)", borderRadius: 18, padding: "36px 40px", boxShadow: "0 0 80px rgba(144,92,203,0.08), 0 0 120px rgba(247,176,65,0.04), 0 24px 60px rgba(0,0,0,0.7)" }}>
       {/* Gradient border effect */}
       <div style={{ position: "absolute", inset: -1, borderRadius: 19, background: "linear-gradient(135deg, " + D.amber + "40, " + D.violet + "30, " + D.blue + "20, " + D.teal + "30)", zIndex: -1, padding: 1 }}>
         <div style={{ width: "100%", height: "100%", borderRadius: 18, background: "linear-gradient(135deg, #0F0F18 0%, #0A0A12 100%)" }} />
@@ -321,8 +322,58 @@ function WizardOverlay({ open, onClose, onGenerate, loading }) {
   </div>;
 }
 
+// ═══ TYPE CONFIG ═══
+var TYPE_CONFIG = {
+  "Video": { section: "p2p", label: "Send to Press to Premier", icon: "\uD83C\uDFA5", color: D.coral },
+  "Short Video": { section: "p2p", label: "Send to Press to Premier", icon: "\uD83C\uDFA5", color: D.coral },
+  "Meme": { section: "sloptop", label: "Send to Slop Top", icon: "\u2728", color: D.violet },
+  "Meme / Image": { section: "sloptop", label: "Send to Slop Top", icon: "\u2728", color: D.violet },
+  "Thread": { section: "capper", label: "Send to Capper", icon: "\uD83D\uDD17", color: D.blue },
+  "Carousel": { section: "carousel", label: "Send to Carousel", icon: "\uD83D\uDDC2", color: D.cyan },
+  "Article": { section: "export", label: "Export as .txt", icon: "\uD83D\uDCC4", color: D.teal },
+  "Long-form Article": { section: "export", label: "Export as .txt", icon: "\uD83D\uDCC4", color: D.teal },
+  "Podcast": { section: "fabknowledge", label: "Send to Fab Knowledge", icon: "\uD83C\uDF99", color: D.amber },
+  "Podcast Topic": { section: "fabknowledge", label: "Send to Fab Knowledge", icon: "\uD83C\uDF99", color: D.amber },
+};
+
+function routeIdeaToTool(idea, showToast) {
+  var cfg = TYPE_CONFIG[idea.content_type];
+  if (!cfg) {
+    showToast("Unknown content type: " + idea.content_type);
+    return;
+  }
+  var payload = { prompt: idea.title + ": " + idea.description };
+  if (cfg.section === "export") {
+    var content = idea.title + "\n\nType: " + idea.content_type + "\nPlatforms: " + (idea.platforms || []).join(", ") + "\n\n" + idea.description + "\n\nBased on: " + (idea.based_on || "N/A");
+    var blob = new Blob([content], { type: "text/plain" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = idea.title.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 40) + ".txt";
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("Exported '" + idea.title + "' as .txt");
+    return;
+  }
+  if (cfg.section === "capper") {
+    payload.threadLength = "auto";
+    payload.content = idea.title + "\n\n" + idea.description;
+  }
+  if (cfg.section === "carousel") {
+    payload.articleText = idea.title + "\n\n" + idea.description;
+  }
+  if (cfg.section === "fabknowledge") {
+    payload.topicSuggestion = idea.title + ": " + idea.description;
+  }
+  try {
+    localStorage.setItem("poast-route-to", JSON.stringify({ section: cfg.section, data: payload }));
+  } catch (e) {}
+  window.location.hash = "#" + cfg.section;
+  showToast("Idea sent to " + cfg.label.replace("Send to ", "") + "! Switch to that section.");
+}
+
 // ═══ IDEA CARD ═══
-function IdeaCard({ idea, onSendSlopTop, onSendCapper, onExport, onDismiss }) {
+function IdeaCard({ idea, onSendSlopTop, onSendCapper, onExport, onDismiss, onSave, showToast }) {
   var _hovered = useState(false), hovered = _hovered[0], setHovered = _hovered[1];
   var _copied = useState(false), copied = _copied[0], setCopied = _copied[1];
 
@@ -363,7 +414,7 @@ function IdeaCard({ idea, onSendSlopTop, onSendCapper, onExport, onDismiss }) {
         {/* Top row: badge + platforms */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: ft, fontSize: 10, fontWeight: 800, color: badgeColor, background: badgeColor + "18", padding: "4px 12px", borderRadius: 8, letterSpacing: 0.5, border: "1px solid " + badgeColor + "25" }}>{idea.content_type}</span>
+            <span style={{ fontFamily: ft, fontSize: 10, fontWeight: 800, color: badgeColor, background: badgeColor + "18", padding: "4px 12px", borderRadius: 8, letterSpacing: 0.5, border: "1px solid " + badgeColor + "25", display: "inline-flex", alignItems: "center", gap: 5 }}>{(TYPE_CONFIG[idea.content_type] || {}).icon || ""} {idea.content_type}</span>
             {idea.platforms && idea.platforms.map(function(p) {
               var pt = PLATFORM_TAGS.find(function(t) { return t.key === p || t.label.toLowerCase() === p.toLowerCase(); });
               var c = pt ? pt.color : D.txd;
@@ -386,12 +437,18 @@ function IdeaCard({ idea, onSendSlopTop, onSendCapper, onExport, onDismiss }) {
         </div>}
 
         {/* Action buttons */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <div onClick={function() { onSendSlopTop(idea); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: D.coral + "12", border: "1px solid " + D.coral + "30", fontFamily: ft, fontSize: 11, fontWeight: 700, color: D.coral, transition: "all 0.2s" }}>Send to Slop Top</div>
-          <div onClick={function() { onSendCapper(idea); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: D.blue + "12", border: "1px solid " + D.blue + "30", fontFamily: ft, fontSize: 11, fontWeight: 700, color: D.blue, transition: "all 0.2s" }}>Send to Capper</div>
-          <div onClick={function() { onExport(idea); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: D.teal + "12", border: "1px solid " + D.teal + "30", fontFamily: ft, fontSize: 11, fontWeight: 700, color: D.teal, transition: "all 0.2s" }}>Export (.txt)</div>
-          <div onClick={function() { onDismiss(idea); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid " + D.border, fontFamily: ft, fontSize: 11, fontWeight: 600, color: D.txd, transition: "all 0.2s", marginLeft: "auto" }}>Dismiss</div>
-        </div>
+        {(function() {
+          var cfg = TYPE_CONFIG[idea.content_type] || { label: "Send to Slop Top", color: D.amber, icon: "", section: "sloptop" };
+          var primaryColor = cfg.color;
+          return <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <div onClick={function() { routeIdeaToTool(idea, showToast); }} style={{ padding: "8px 18px", borderRadius: 8, cursor: "pointer", background: "linear-gradient(135deg, " + primaryColor + ", " + primaryColor + "CC)", fontFamily: ft, fontSize: 11, fontWeight: 800, color: "#fff", transition: "all 0.2s", boxShadow: "0 0 16px " + primaryColor + "30", display: "flex", alignItems: "center", gap: 6 }}>
+              <span>{cfg.icon}</span> {cfg.label}
+            </div>
+            {onSave && <div onClick={function() { onSave(idea); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: D.violet + "12", border: "1px solid " + D.violet + "30", fontFamily: ft, fontSize: 11, fontWeight: 700, color: D.violet, transition: "all 0.2s" }}>Save</div>}
+            <div onClick={function() { onExport(idea); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: D.teal + "12", border: "1px solid " + D.teal + "30", fontFamily: ft, fontSize: 11, fontWeight: 700, color: D.teal, transition: "all 0.2s" }}>Export .txt</div>
+            <div onClick={function() { onDismiss(idea); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid " + D.border, fontFamily: ft, fontSize: 11, fontWeight: 600, color: D.txd, transition: "all 0.2s", marginLeft: "auto" }}>Dismiss</div>
+          </div>;
+        })()}
       </div>
     </div>
   </div>;
@@ -530,7 +587,7 @@ export default function IdeationNation() {
     <style dangerouslySetInnerHTML={{ __html: CSS_ANIMATIONS }} />
 
     {/* ═══ IMMERSIVE HERO HEADER ═══ */}
-    <div style={{
+    <div className="ideation-hero" style={{
       position: "relative", width: "calc(100% + 48px)", marginLeft: -24, marginTop: -24,
       height: 300, overflow: "hidden",
       background: "linear-gradient(135deg, #0B1A2E 0%, #1A0B2E 30%, #0B2E1A 60%, #2E1A0B 100%)",
@@ -659,6 +716,8 @@ export default function IdeationNation() {
             onSendCapper={handleSendCapper}
             onExport={handleExport}
             onDismiss={view === "saved" ? handleUnsave : handleDismiss}
+            onSave={view === "feed" ? handleSave : null}
+            showToast={showToast}
           />
         </div>;
       })}
