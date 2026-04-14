@@ -83,14 +83,15 @@ async function main() {
   const fps = 30;
   const duration = props.duration || 60;
 
+  // Use the original remote URLs -- Remotion can fetch them directly
   const inputProps = {
     hook: props.hook || "",
     scriptSections: props.scriptSections || [],
     dataPoints: props.dataPoints || [],
     thumbnailHeadline: props.thumbnailHeadline || "",
-    audioUrl: localAudioUrl ? "file://" + path.resolve(localAudioUrl) : "",
-    clipUrls: localClipUrls.map(c => "file://" + path.resolve(c)),
-    musicUrl: localMusicUrl ? "file://" + path.resolve(localMusicUrl) : "",
+    audioUrl: props.audioUrl || "",
+    clipUrls: props.clipUrls || [],
+    musicUrl: props.musicUrl || "",
     duration: duration,
   };
 
