@@ -643,6 +643,48 @@ function Step7({ data, setData, onNext, onBack }) {
   </div>;
 }
 
+// ═══ AUDIO MIXER ═══
+function AudioMixer({ videoRef, voRef, musicRef, assets }) {
+  var _clipVol = useState(30), clipVol = _clipVol[0], setClipVol = _clipVol[1];
+  var _voVol = useState(100), voVol = _voVol[0], setVoVol = _voVol[1];
+  var _musicVol = useState(15), musicVol = _musicVol[0], setMusicVol = _musicVol[1];
+  var _clipMuted = useState(false), clipMuted = _clipMuted[0], setClipMuted = _clipMuted[1];
+  var _voMuted = useState(false), voMuted = _voMuted[0], setVoMuted = _voMuted[1];
+  var _musicMuted = useState(false), musicMuted = _musicMuted[0], setMusicMuted = _musicMuted[1];
+
+  // Apply volumes in real time
+  useEffect(function() { if (videoRef.current) videoRef.current.volume = clipMuted ? 0 : clipVol / 100; }, [clipVol, clipMuted]);
+  useEffect(function() { if (voRef.current) voRef.current.volume = voMuted ? 0 : voVol / 100; }, [voVol, voMuted]);
+  useEffect(function() { if (musicRef.current) musicRef.current.volume = musicMuted ? 0 : musicVol / 100; }, [musicVol, musicMuted]);
+
+  var tracks = [
+    { l: "B-Roll Audio", vol: clipVol, setVol: setClipVol, muted: clipMuted, setMuted: setClipMuted, color: D.blue, has: true },
+    { l: "Voiceover", vol: voVol, setVol: setVoVol, muted: voMuted, setMuted: setVoMuted, color: D.amber, has: !!assets.voiceover },
+    { l: "Music", vol: musicVol, setVol: setMusicVol, muted: musicMuted, setMuted: setMusicMuted, color: D.violet, has: !!assets.music },
+  ];
+
+  return <div style={{ marginTop: 16, padding: "16px 18px", background: D.bg, border: "1px solid " + D.border, borderRadius: 10 }}>
+    <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txl, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>Audio Mixer</div>
+    {tracks.map(function(t) {
+      return <div key={t.l} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, opacity: t.has ? 1 : 0.3 }}>
+        {/* Mute toggle */}
+        <span onClick={function() { if (t.has) t.setMuted(!t.muted); }} style={{ width: 28, height: 28, borderRadius: 6, background: t.muted ? D.coral + "20" : D.surface, border: "1px solid " + (t.muted ? D.coral + "40" : D.border), display: "flex", alignItems: "center", justifyContent: "center", cursor: t.has ? "pointer" : "default", fontFamily: ft, fontSize: 10, color: t.muted ? D.coral : D.txl, transition: "all 0.15s" }}>{t.muted ? "M" : "\uD83D\uDD0A"}</span>
+        {/* Label */}
+        <div style={{ width: 80, fontFamily: ft, fontSize: 11, fontWeight: 600, color: t.color }}>{t.l}</div>
+        {/* Slider */}
+        <div style={{ flex: 1, position: "relative", height: 24, display: "flex", alignItems: "center" }}>
+          <div style={{ position: "absolute", left: 0, right: 0, height: 4, background: D.border, borderRadius: 2 }}>
+            <div style={{ height: "100%", width: (t.muted ? 0 : t.vol) + "%", background: t.muted ? D.coral + "40" : t.color, borderRadius: 2, transition: "width 0.1s" }} />
+          </div>
+          <input type="range" min={0} max={100} value={t.vol} onChange={function(e) { t.setVol(parseInt(e.target.value)); }} disabled={!t.has} style={{ position: "absolute", left: 0, right: 0, width: "100%", height: 24, opacity: 0, cursor: t.has ? "pointer" : "default", margin: 0 }} />
+        </div>
+        {/* Value */}
+        <span style={{ fontFamily: mn, fontSize: 10, color: t.muted ? D.coral : D.txl, width: 32, textAlign: "right" }}>{t.muted ? "OFF" : t.vol + "%"}</span>
+      </div>;
+    })}
+  </div>;
+}
+
 // ═══ STEP 8: ASSEMBLED PREVIEW ═══
 function Step8({ data, onNext, onBack }) {
   var assets = data.assets || {};
@@ -745,8 +787,10 @@ function Step8({ data, onNext, onBack }) {
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
         <button onClick={playing ? stopAll : playAll} disabled={assembling || orderedClips.length === 0} style={{ padding: "10px 24px", background: playing ? D.surface : "linear-gradient(135deg, " + D.amber + ", #E8A020)", color: playing ? D.tx : D.bg, border: playing ? "1px solid " + D.border : "none", borderRadius: 8, fontFamily: ft, fontSize: 14, fontWeight: 700, cursor: assembling ? "wait" : "pointer", opacity: assembling ? 0.4 : 1, boxShadow: playing ? "none" : "0 4px 14px " + D.amber + "25" }}>{assembling ? "Assembling..." : playing ? "Stop" : "Play Preview"}</button>
         <span style={{ fontFamily: mn, fontSize: 11, color: D.txl }}>Shot {currentClip + 1} / {orderedClips.length}</span>
-        <span style={{ fontFamily: mn, fontSize: 11, color: D.txh, marginLeft: "auto" }}>{orderedClips.length} clips // {assets.voiceover ? "VO" : "no VO"} // {assets.music ? "music" : "no music"}</span>
       </div>
+
+      {/* Audio mixer */}
+      <AudioMixer videoRef={videoRef} voRef={voRef} musicRef={musicRef} assets={assets} />
 
       {/* Hidden audio elements */}
       {assets.voiceover && <audio ref={voRef} src={assets.voiceover} />}
