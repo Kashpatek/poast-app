@@ -35,9 +35,18 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ task: { task_id: data.request_id, provider: "grok" }, ts: Date.now() });
       }
 
-      // Grok video polling not yet documented -- return pending
       if (action === "status") {
-        return NextResponse.json({ task: { task_status: "processing", provider: "grok" }, ts: Date.now() });
+        const r = await fetch("https://api.x.ai/v1/videos/" + body.taskId, {
+          headers: { "Authorization": "Bearer " + xaiKey },
+        });
+        const data = await r.json();
+        if (data.status === "done" && data.video) {
+          return NextResponse.json({ task: { task_status: "succeed", task_result: { videos: [{ url: data.video.url }] }, progress: 100, provider: "grok" }, ts: Date.now() });
+        } else if (data.status === "failed") {
+          return NextResponse.json({ task: { task_status: "failed", provider: "grok" }, ts: Date.now() });
+        } else {
+          return NextResponse.json({ task: { task_status: "processing", progress: data.progress || 0, provider: "grok" }, ts: Date.now() });
+        }
       }
     }
 

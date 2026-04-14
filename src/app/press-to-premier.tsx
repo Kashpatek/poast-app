@@ -279,56 +279,63 @@ function Step6({ data, setData, onNext, onBack }) {
     // ═══ STEP 2: B-ROLL ═══
     setPhase("broll");
     var brollShots = script && script.broll ? script.broll : [];
-    addLog("Generating " + brollShots.length + " b-roll shots via Grok...", "info");
-    var clips = [];
-    for (var i = 0; i < brollShots.length; i++) {
-      var shot = brollShots[i];
-      // 1 clip per shot (Grok polling not yet reliable for multi-variation)
-      var v = 0;
-      var varPrompt = shot.prompt;
-      addLog("Shot " + (i + 1) + "/" + brollShots.length + ": " + (shot.description || "").slice(0, 40) + "...", "dim");
+    addLog("Submitting all " + brollShots.length + " b-roll shots in parallel...", "info");
+
+    // Submit ALL clips at once (parallel)
+    var clips = await Promise.all(brollShots.map(async function(shot, idx) {
       try {
-        var clR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: varPrompt, engine: "grok" }) });
-        var clD = await clR.json();
-        if (clD.task && clD.task.task_id) {
-          addLog("Shot " + (i + 1) + "v" + (v + 1) + " submitted, polling...", "info");
-          var taskId = clD.task.task_id;
-          var videoUrl = null;
-          var pollStart = Date.now();
-          while (Date.now() - pollStart < 120000 && !videoUrl) {
-            await new Promise(function(res) { setTimeout(res, 10000); });
-            try {
-              var stR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", taskId: taskId, engine: "grok" }) });
-              var stD = await stR.json();
-              if (stD.task && stD.task.task_status === "succeed" && stD.task.task_result && stD.task.task_result.videos) {
-                videoUrl = stD.task.task_result.videos[0].url;
-              } else if (stD.task && stD.task.task_status === "failed") {
-                addLog("Shot " + (i + 1) + "v" + (v + 1) + " failed", "error"); break;
-              } else {
-                addLog("Shot " + (i + 1) + "v" + (v + 1) + " rendering... (" + Math.round((Date.now() - pollStart) / 1000) + "s)", "dim");
-              }
-            } catch (pe) { /* keep polling */ }
-          }
-          if (videoUrl) {
-            clips.push({ taskId: taskId, videoUrl: videoUrl, shot: i + 1, variation: v + 1 });
-            addLog("Shot " + (i + 1) + "v" + (v + 1) + " ready!", "success");
-          } else {
-            clips.push({ taskId: taskId, shot: i + 1, variation: v + 1, pending: true, provider: "grok" });
-            addLog("Shot " + (i + 1) + " submitted but polling unavailable. Check Grok dashboard.", "warn");
-          }
-        } else {
-          addLog("Shot " + (i + 1) + "v" + (v + 1) + " error: " + (clD.error || "Unknown"), "error");
-          clips.push({ error: clD.error, shot: i + 1, variation: v + 1 });
+        var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: shot.prompt, engine: "grok" }) });
+        var d = await r.json();
+        if (d.task && d.task.task_id) {
+          addLog("Shot " + (idx + 1) + " submitted (ID: " + d.task.task_id.slice(0, 10) + "...)", "success");
+          return { taskId: d.task.task_id, shot: idx + 1, pending: true, provider: "grok", progress: 0 };
         }
+        addLog("Shot " + (idx + 1) + " error: " + (d.error || "Unknown"), "error");
+        return { error: d.error, shot: idx + 1 };
       } catch (e) {
-        addLog("Shot " + (i + 1) + "v" + (v + 1) + " failed: " + String(e).slice(0, 60), "error");
-        clips.push({ error: String(e), shot: i + 1, variation: v + 1 });
+        addLog("Shot " + (idx + 1) + " failed: " + String(e).slice(0, 50), "error");
+        return { error: String(e), shot: idx + 1 };
       }
+    }));
+
+    addLog(clips.filter(function(c) { return c.taskId; }).length + " shots submitted. Polling...", "info");
+
+    // Poll ALL clips together until done or 3 min timeout
+    var pollStart = Date.now();
+    while (Date.now() - pollStart < 180000) {
+      var stillPending = clips.filter(function(c) { return c.pending; });
+      if (stillPending.length === 0) break;
+
+      await new Promise(function(res) { setTimeout(res, 8000); });
+
+      for (var pi = 0; pi < clips.length; pi++) {
+        if (!clips[pi].pending) continue;
+        try {
+          var stR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", taskId: clips[pi].taskId, engine: "grok" }) });
+          var stD = await stR.json();
+          if (stD.task && stD.task.task_status === "succeed" && stD.task.task_result && stD.task.task_result.videos) {
+            clips[pi] = Object.assign({}, clips[pi], { videoUrl: stD.task.task_result.videos[0].url, pending: false, progress: 100 });
+            addLog("Shot " + clips[pi].shot + " ready!", "success");
+          } else if (stD.task && stD.task.task_status === "failed") {
+            clips[pi] = Object.assign({}, clips[pi], { pending: false, error: "Failed" });
+            addLog("Shot " + clips[pi].shot + " failed.", "error");
+          } else {
+            var pct = stD.task && stD.task.progress ? stD.task.progress : 0;
+            clips[pi] = Object.assign({}, clips[pi], { progress: pct });
+          }
+        } catch (pe) { /* keep polling */ }
+      }
+
+      var done = clips.filter(function(c) { return c.videoUrl; }).length;
+      var left = clips.filter(function(c) { return c.pending; }).length;
+      var elapsed = Math.round((Date.now() - pollStart) / 1000);
+      if (left > 0) addLog(done + "/" + clips.length + " done, " + left + " rendering... (" + elapsed + "s)", "dim");
     }
-    setAssets(function(p) { return Object.assign({}, p, { clips: clips }); });
+
     var completed = clips.filter(function(c) { return c.videoUrl; }).length;
-    var pending = clips.filter(function(c) { return c.pending; }).length;
-    addLog(completed + " clips ready, " + pending + " still rendering", "info");
+    var pendingLeft = clips.filter(function(c) { return c.pending; }).length;
+    addLog(completed + " clips ready" + (pendingLeft > 0 ? ", " + pendingLeft + " still rendering" : " -- all done!"), completed === clips.length ? "success" : "warn");
+    setAssets(function(p) { return Object.assign({}, p, { clips: clips }); });
 
     // ═══ STEP 3: MUSIC ═══
     setPhase("music");
