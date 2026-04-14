@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCanvaAccessToken, forceRefreshCanvaToken } from "../token";
 
-// Canva Connect API - Autofill with SA Carousel Schema v1.0
 const CANVA_API = "https://api.canva.com/rest/v1";
 
 const TEMPLATE_MAP: Record<string, string> = {
@@ -35,34 +34,31 @@ function buildAutofillData(slide: Record<string, string>) {
   return data;
 }
 
-// Helper: make a Canva API request with auto-refresh on 401 or invalid token
+// Make Canva API request, auto-refresh on auth failure
 async function canvaFetch(url: string, options: RequestInit = {}): Promise<Response> {
   let token = await getCanvaAccessToken();
-  if (!token) throw new Error("No Canva token available. Authorize at /api/canva/auth");
+  if (!token) throw new Error("No Canva token. Authorize at /api/canva/auth");
 
-  const headers = { ...options.headers as Record<string, string>, "Authorization": `Bearer ${token}` };
-  let r = await fetch(url, { ...options, headers });
+  const makeReq = async (t: string) => {
+    const headers = { ...options.headers as Record<string, string>, "Authorization": `Bearer ${t}` };
+    return fetch(url, { ...options, headers });
+  };
 
-  // If 401 or invalid token error, try refreshing once
+  let r = await makeReq(token);
+
+  // Check if we need to refresh (401 or error in body)
   if (r.status === 401 || r.status === 403) {
     const newToken = await forceRefreshCanvaToken();
-    if (newToken) {
-      headers["Authorization"] = `Bearer ${newToken}`;
-      r = await fetch(url, { ...options, headers });
-    }
-  } else {
-    // Canva sometimes returns 200 with error body, or other codes
-    const cloned = r.clone();
+    if (newToken) r = await makeReq(newToken);
+  } else if (!r.ok) {
     try {
+      const cloned = r.clone();
       const body = await cloned.json();
       if (body?.code === "invalid_access_token" || body?.code === "token_expired") {
         const newToken = await forceRefreshCanvaToken();
-        if (newToken) {
-          headers["Authorization"] = `Bearer ${newToken}`;
-          r = await fetch(url, { ...options, headers });
-        }
+        if (newToken) r = await makeReq(newToken);
       }
-    } catch { /* not JSON, that's fine */ }
+    } catch { /* not JSON */ }
   }
 
   return r;
@@ -71,7 +67,7 @@ async function canvaFetch(url: string, options: RequestInit = {}): Promise<Respo
 export async function POST(req: NextRequest) {
   const token = await getCanvaAccessToken();
   if (!token) {
-    return NextResponse.json({ error: "Canva not authenticated. Visit /api/canva/auth first.", needsAuth: true }, { status: 401 });
+    return NextResponse.json({ error: "Canva not authenticated. Visit /api/canva/auth", needsAuth: true }, { status: 401 });
   }
 
   try {
@@ -104,11 +100,7 @@ export async function POST(req: NextRequest) {
         });
 
         const result = await r.json();
-        if (!r.ok) {
-          jobs.push({ index: i, type: slide.type, error: result?.message || "Autofill failed", status: r.status });
-        } else {
-          jobs.push({ index: i, type: slide.type, job: result });
-        }
+        jobs.push(r.ok ? { index: i, type: slide.type, job: result } : { index: i, type: slide.type, error: result?.message || "Failed", status: r.status });
       } catch (err) {
         jobs.push({ index: i, type: slide.type, error: String(err) });
       }
@@ -123,14 +115,14 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const token = await getCanvaAccessToken();
   if (!token) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    return NextResponse.json({ error: "Not authenticated. Visit /api/canva/auth", needsAuth: true }, { status: 401 });
   }
 
   const action = req.nextUrl.searchParams.get("action");
 
   if (action === "templates") {
     try {
-      const r = await canvaFetch(`${CANVA_API}/brand-templates?query=sa_research&ownership=owned`);
+      const r = await canvaFetch(`${CANVA_API}/brand-templates?ownership=owned`);
       const result = await r.json();
       return NextResponse.json(result);
     } catch (error) {

@@ -1,34 +1,45 @@
-// Canva token management with auto-refresh
-// Tokens are stored in memory (resets on cold start) with env var fallback
-// On cold start, reads from CANVA_ACCESS_TOKEN / CANVA_REFRESH_TOKEN env vars
-// After a refresh, the new tokens live in memory until the next cold start
+// Canva token management for serverless (cookie-based persistence)
+// Tokens are stored in httpOnly cookies so they survive across function instances
+// Auto-refreshes when access token expires
+
+import { cookies } from "next/headers";
 
 const CANVA_TOKEN_URL = "https://api.canva.com/rest/v1/oauth/token";
+const COOKIE_ACCESS = "canva_at";
+const COOKIE_REFRESH = "canva_rt";
+const COOKIE_EXPIRES = "canva_exp";
 
-let memoryTokens: {
-  accessToken: string | null;
-  refreshToken: string | null;
-  expiresAt: number; // unix ms
-} = {
-  accessToken: null,
-  refreshToken: null,
-  expiresAt: 0,
-};
+export async function getCanvaAccessToken(): Promise<string | null> {
+  const cookieStore = await cookies();
 
-function getEnvTokens() {
-  return {
-    accessToken: process.env.CANVA_ACCESS_TOKEN || null,
-    refreshToken: process.env.CANVA_REFRESH_TOKEN || null,
-  };
+  // Check cookie first
+  const accessToken = cookieStore.get(COOKIE_ACCESS)?.value;
+  const expiresAt = parseInt(cookieStore.get(COOKIE_EXPIRES)?.value || "0");
+
+  if (accessToken && Date.now() < expiresAt) {
+    return accessToken;
+  }
+
+  // Token expired or missing -- try refresh
+  const refreshToken = cookieStore.get(COOKIE_REFRESH)?.value || process.env.CANVA_REFRESH_TOKEN;
+  if (refreshToken) {
+    const result = await refreshAccessToken(refreshToken);
+    if (result) return result.accessToken;
+  }
+
+  // Fall back to env var (might be expired but worth trying)
+  const envToken = process.env.CANVA_ACCESS_TOKEN;
+  if (envToken) return envToken;
+
+  return null;
 }
 
-async function refreshAccessToken(): Promise<string | null> {
+async function refreshAccessToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string; expiresIn: number } | null> {
   const clientId = process.env.CANVA_CLIENT_ID;
   const clientSecret = process.env.CANVA_CLIENT_SECRET;
-  const refreshToken = memoryTokens.refreshToken || getEnvTokens().refreshToken;
 
-  if (!clientId || !clientSecret || !refreshToken) {
-    console.error("[Canva] Cannot refresh: missing client credentials or refresh token");
+  if (!clientId || !clientSecret) {
+    console.error("[Canva] Cannot refresh: missing client credentials");
     return null;
   }
 
@@ -52,60 +63,50 @@ async function refreshAccessToken(): Promise<string | null> {
       return null;
     }
 
-    // Store new tokens in memory
-    memoryTokens = {
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token || refreshToken, // Canva may or may not return a new refresh token
-      expiresAt: Date.now() + (data.expires_in * 1000) - 60000, // Refresh 1 min early
-    };
+    console.log("[Canva] Token refreshed, expires in", data.expires_in, "seconds");
 
-    console.log("[Canva] Token refreshed successfully, expires in", data.expires_in, "seconds");
-    return data.access_token;
+    return {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token || refreshToken,
+      expiresIn: data.expires_in || 14400,
+    };
   } catch (err) {
-    console.error("[Canva] Token refresh network error:", err);
+    console.error("[Canva] Token refresh error:", err);
     return null;
   }
 }
 
-export async function getCanvaAccessToken(): Promise<string | null> {
-  // Check memory first
-  if (memoryTokens.accessToken && Date.now() < memoryTokens.expiresAt) {
-    return memoryTokens.accessToken;
-  }
+export async function forceRefreshCanvaToken(): Promise<string | null> {
+  const cookieStore = await cookies();
+  const refreshToken = cookieStore.get(COOKIE_REFRESH)?.value || process.env.CANVA_REFRESH_TOKEN;
 
-  // Try env var (cold start)
-  const env = getEnvTokens();
-  if (env.accessToken && !memoryTokens.accessToken) {
-    // First request after cold start -- use env token but we don't know when it expires
-    // Assume it might be expired, try it, and if it fails we'll refresh
-    memoryTokens = {
-      accessToken: env.accessToken,
-      refreshToken: env.refreshToken,
-      expiresAt: Date.now() + 300000, // Assume valid for 5 min, will refresh on 401
-    };
-    return env.accessToken;
-  }
+  if (!refreshToken) return null;
 
-  // Token expired or missing -- try refresh
-  if (memoryTokens.refreshToken || env.refreshToken) {
-    const newToken = await refreshAccessToken();
-    if (newToken) return newToken;
+  const result = await refreshAccessToken(refreshToken);
+  if (result) {
+    setCanvaTokenCookies(result.accessToken, result.refreshToken, result.expiresIn);
+    return result.accessToken;
   }
-
   return null;
 }
 
-// Call this when a Canva API request returns 401 to force a refresh
-export async function forceRefreshCanvaToken(): Promise<string | null> {
-  memoryTokens.expiresAt = 0; // Force expiry
-  return refreshAccessToken();
+export function setCanvaTokenCookies(accessToken: string, refreshToken: string | null, expiresIn: number) {
+  // This is called from route handlers that can set cookies on the response
+  // We use a different approach -- return the cookie values to be set by the caller
 }
 
-// Store tokens from OAuth callback
-export function setCanvaTokens(accessToken: string, refreshToken: string | null, expiresIn: number) {
-  memoryTokens = {
-    accessToken,
-    refreshToken,
-    expiresAt: Date.now() + (expiresIn * 1000) - 60000,
-  };
+// Helper for route handlers to set cookies on a NextResponse
+export function applyCanvaTokens(
+  response: { cookies: { set: (name: string, value: string, opts: Record<string, unknown>) => void } },
+  accessToken: string,
+  refreshToken: string | null,
+  expiresIn: number
+) {
+  const opts = { httpOnly: true, secure: true, sameSite: "lax" as const, path: "/" };
+
+  response.cookies.set(COOKIE_ACCESS, accessToken, { ...opts, maxAge: expiresIn });
+  if (refreshToken) {
+    response.cookies.set(COOKIE_REFRESH, refreshToken, { ...opts, maxAge: 60 * 60 * 24 * 30 }); // 30 days
+  }
+  response.cookies.set(COOKIE_EXPIRES, String(Date.now() + (expiresIn * 1000) - 60000), { ...opts, maxAge: expiresIn });
 }
