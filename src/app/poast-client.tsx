@@ -5,6 +5,7 @@ import GTCFlow from "./gtc-flow";
 import NewsFlow from "./news-flow";
 import BufferSchedule from "./buffer-schedule";
 import PressToPremi from "./press-to-premier";
+import Carousel from "./carousel";
 
 var C = {
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
@@ -298,6 +299,7 @@ var SIDEBAR_CATS = {
     { id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99" },
     { id: "p2p", l: "Press to Premier", ic: "\uD83C\uDFAC" },
     { id: "captions", l: "Capper", ic: "\uD83C\uDFAC" },
+    { id: "carousel", l: "Carousel", ic: "\uD83D\uDCD0" },
   ]},
   prepare: { label: "PREPARE", color: C.blue, glow: "rgba(11,134,209,", items: [
     { id: "news", l: "News Flow", ic: "\uD83D\uDCE1" },
@@ -1054,7 +1056,8 @@ function UserSelect({ onSelect }) {
     {/* Ambient orb that follows hover */}
     {h !== null && <div style={{ position: "absolute", width: "60vw", height: "60vw", borderRadius: "50%", background: "radial-gradient(circle, " + users[h].glow + "0.08), transparent 50%)", transition: "background 0.5s ease", animation: "orbPulse 3s ease-in-out infinite", pointerEvents: "none" }} />}
     {h === null && <div style={{ position: "absolute", width: "50vw", height: "50vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(247,176,65,0.03), transparent 60%)" }} />}
-    <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.amber, letterSpacing: 4, marginBottom: 6, animation: "ufi 0.4s ease forwards", opacity: 0 }}>POAST</div>
+    <img src="/poast-logo.png" style={{ width: 48, height: 48, borderRadius: 12, marginBottom: 8, animation: "ufi 0.4s ease forwards", opacity: 0 }} />
+    <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 900, color: C.amber, letterSpacing: 4, marginBottom: 6, animation: "ufi 0.4s ease 0.05s forwards", opacity: 0 }}>POAST</div>
     <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.2)", letterSpacing: 2, marginBottom: 40, animation: "ufi 0.4s ease 0.1s forwards", opacity: 0 }}>SELECT USER</div>
     <div style={{ display: "flex", gap: 20 }}>
       {users.map(function(user, i) {
@@ -1119,7 +1122,10 @@ function SplashScreen({ onNavigate }) {
 
   return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "0 8vw" }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes bIn{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}@keyframes bLine{0%{transform:scaleX(0)}100%{transform:scaleX(1)}}@keyframes itemReveal{0%{opacity:0;transform:translateY(-8px) scale(0.95)}100%{opacity:1;transform:translateY(0) scale(1)}}" }} />
-    <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.amber, letterSpacing: 5, marginBottom: 50, animation: "bIn 0.5s ease forwards", opacity: 0 }}>POAST</div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 50, animation: "bIn 0.5s ease forwards", opacity: 0 }}>
+      <img src="/poast-logo.png" style={{ width: 36, height: 36, borderRadius: 8 }} />
+      <span style={{ fontFamily: ft, fontSize: 16, fontWeight: 900, color: C.amber, letterSpacing: 5 }}>POAST</span>
+    </div>
     <div style={{ width: "100%", textAlign: "center" }}>
       {words.map(function(w, i) {
         var isH = h === i; var items = sections[w];
@@ -1330,13 +1336,13 @@ export default function App() {
     <AskPoast open={askPoastOpen} onToggle={function() { setAskPoastOpen(false); }} />
     <div style={{ marginLeft: 240, position: "relative", zIndex: 1 }} className="poast-fadein">
       <div style={{ maxWidth: sec === "news" || sec === "schedule" || sec === "p2p" ? "none" : "none", margin: "0 auto", padding: "0 32px" }}>
-        <div style={{ padding: "20px 0", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", background: C.bg + "E0" }}>
+        {sec === "weekly" && <div style={{ padding: "20px 0", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", background: C.bg + "E0" }}>
           <div><div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx, letterSpacing: -0.5 }}>SemiAnalysis Weekly</div><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginTop: 2 }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div></div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {hasDraft && <span onClick={loadDraft} style={{ fontFamily: mn, fontSize: 9, color: C.amber, cursor: "pointer", padding: "5px 10px", border: "1px solid " + C.amber + "40", borderRadius: 5, background: C.amber + "10" }}>Load from Draft</span>}
             <a href="https://youtube.com/@SemianalysisWeekly" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 9, color: C.txd, textDecoration: "none", padding: "5px 10px", border: "1px solid " + C.border, borderRadius: 5 }}>@SemianalysisWeekly</a>
           </div>
-        </div>
+        </div>}
         {sec === "weekly" && <TabBar items={tabs} active={tab} onPick={setTab} locks={locks} />}
         <div key={sec} className="poast-section" style={{ paddingBottom: 60 }}>
         {sec === "weekly" && tab === "setup" && <EpisodeSetup ep={ep} setEp={setEp} guests={guests} setGuests={setGuests} opts={opts} setOpts={setOpts} sel={sel} setSel={setSel} fin={fin} setFin={setFin} goTest={function() { setTab("test"); }} />}
@@ -1345,9 +1351,11 @@ export default function App() {
         {sec === "weekly" && tab === "clips" && <ClipMgr />}
         {sec === "weekly" && tab === "log" && <LogTab logData={logData} setLogData={setLogData} />}
         {sec === "captions" && <ClipCaptions />}
+        {sec === "carousel" && <Carousel />}
         {sec === "gtc" && <GTCFlow />}
         {sec === "news" && <NewsFlow />}
-        {sec === "p2p" && <PressToPremi />}
+        {/* P2P stays mounted but hidden so production doesn't stop */}
+        <div style={{ display: sec === "p2p" ? "block" : "none" }}><PressToPremi /></div>
         {sec === "schedule" && <BufferSchedule />}
         </div>
       </div>
