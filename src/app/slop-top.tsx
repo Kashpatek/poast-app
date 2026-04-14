@@ -351,206 +351,231 @@ export default function SlopTop() {
     });
   }
 
+  // Tab state
+  var _tab = useState("meme"), tab = _tab[0], setTab = _tab[1];
+  // Meme maker state
+  var _memeMode = useState("link"), memeMode = _memeMode[0], setMemeMode = _memeMode[1];
+  var _memeIdea = useState(""), memeIdea = _memeIdea[0], setMemeIdea = _memeIdea[1];
+  var _memeStyle = useState("meme"), memeStyle = _memeStyle[0], setMemeStyle = _memeStyle[1];
+  var _memeImg = useState(null), memeImg = _memeImg[0], setMemeImg = _memeImg[1];
+  var _memeImgLoading = useState(false), memeImgLoading = _memeImgLoading[0], setMemeImgLoading = _memeImgLoading[1];
+
+  var MEME_STYLES = [
+    { id: "meme", l: "Classic Meme", prompt: "internet meme format, bold impact font, funny" },
+    { id: "infographic", l: "Infographic", prompt: "clean infographic, data visualization, professional" },
+    { id: "reaction", l: "Reaction", prompt: "reaction image, expressive, social media ready" },
+    { id: "screenshot", l: "Fake Screenshot", prompt: "fake tweet or post screenshot, realistic UI mockup" },
+    { id: "chart", l: "Chart Meme", prompt: "funny chart or graph, data humor, tech satire" },
+    { id: "sa-branded", l: "SA Branded", prompt: "SemiAnalysis branded, dark theme, amber accents, professional tech" },
+  ];
+
+  var handleMemeGenerate = function() {
+    var prompt = "";
+    if (memeMode === "link" && slopResults && slopResults.image_prompt) {
+      prompt = slopResults.image_prompt;
+    } else if (memeMode === "idea" && memeIdea.trim()) {
+      prompt = memeIdea.trim();
+    } else return;
+
+    var styleInfo = MEME_STYLES.find(function(s) { return s.id === memeStyle; });
+    var fullPrompt = prompt + ". Style: " + (styleInfo ? styleInfo.prompt : "meme format");
+
+    setMemeImgLoading(true);
+    setMemeImg(null);
+    fetch("/api/generate-thumbnail", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ concept: fullPrompt, style: "cinematic" }),
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (d.url) setMemeImg(d.url);
+      else if (d.error) setSlopError(d.error);
+      setMemeImgLoading(false);
+    }).catch(function(e) { setSlopError(String(e)); setMemeImgLoading(false); });
+  };
+
+  var TABS = [
+    { id: "meme", l: "Meme Maker", ic: "\uD83D\uDD25" },
+    { id: "brief", l: "Brief Generator", ic: "\uD83D\uDCCB" },
+  ];
+
   return <div style={{
     minHeight: "100vh", background: D.bg, padding: "32px 40px",
     fontFamily: ft, color: D.tx,
   }}>
     {/* Header */}
-    <div style={{ marginBottom: 32 }}>
-      <div style={{ fontFamily: ft, fontSize: 28, fontWeight: 900, color: D.tx, letterSpacing: -1 }}>Slop Top</div>
-      <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginTop: 4, letterSpacing: 1 }}>
-        Content brief generator // Tell the team what to make
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24 }}>
+      <div>
+        <div style={{ fontFamily: ft, fontSize: 28, fontWeight: 900, color: D.tx, letterSpacing: -1 }}>Slop Top</div>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginTop: 4, letterSpacing: 1 }}>
+          Meme machine // Content brief generator // Image creator
+        </div>
       </div>
     </div>
 
-    {/* ═══ LINK-TO-SLOP SECTION ═══ */}
-    <div style={{
-      background: "linear-gradient(135deg, " + D.amber + "08 0%, " + D.card + " 40%, " + D.violet + "06 100%)",
-      border: "1px solid " + D.amber + "25",
-      borderRadius: 12, padding: 32, marginBottom: 32,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-        <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: D.amber }}>Link to Slop</div>
+    {/* Tabs */}
+    <div style={{ display: "flex", gap: 0, marginBottom: 28, borderBottom: "1px solid " + D.border }}>
+      {TABS.map(function(t) {
+        var on = tab === t.id;
+        return <div key={t.id} onClick={function() { setTab(t.id); }} style={{
+          padding: "12px 24px", cursor: "pointer", fontFamily: ft, fontSize: 14, fontWeight: on ? 800 : 500,
+          color: on ? D.amber : D.txm, borderBottom: on ? "2px solid " + D.amber : "2px solid transparent",
+          transition: "all 0.2s", display: "flex", alignItems: "center", gap: 6,
+        }}>
+          <span style={{ fontSize: 14 }}>{t.ic}</span>
+          {t.l}
+        </div>;
+      })}
+    </div>
+
+    {/* ═══ TAB: MEME MAKER ═══ */}
+    {tab === "meme" && <div>
+      {/* Mode toggle: Link to Meme / Idea to Meme */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
+        <div onClick={function() { setMemeMode("link"); }} style={{
+          flex: 1, padding: "16px 20px", borderRadius: 12, cursor: "pointer",
+          background: memeMode === "link" ? D.amber + "10" : D.card,
+          border: "1px solid " + (memeMode === "link" ? D.amber + "40" : D.border),
+          transition: "all 0.2s",
+        }}>
+          <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: memeMode === "link" ? D.amber : D.tx }}>Link to Meme</div>
+          <div style={{ fontFamily: ft, fontSize: 11, color: D.txm, marginTop: 2 }}>Paste a URL, get meme content + image</div>
+        </div>
+        <div onClick={function() { setMemeMode("idea"); }} style={{
+          flex: 1, padding: "16px 20px", borderRadius: 12, cursor: "pointer",
+          background: memeMode === "idea" ? D.violet + "10" : D.card,
+          border: "1px solid " + (memeMode === "idea" ? D.violet + "40" : D.border),
+          transition: "all 0.2s",
+        }}>
+          <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: memeMode === "idea" ? D.violet : D.tx }}>Idea to Meme</div>
+          <div style={{ fontFamily: ft, fontSize: 11, color: D.txm, marginTop: 2 }}>Describe an idea, generate a meme image directly</div>
+        </div>
+      </div>
+
+      {/* Link to Meme mode */}
+      {memeMode === "link" && <div>
+        {/* Link input */}
         <div style={{
-          fontFamily: mn, fontSize: 9, fontWeight: 700, color: D.bg,
-          background: D.amber, padding: "3px 10px", borderRadius: 20,
-          letterSpacing: 1, textTransform: "uppercase",
-        }}>NEW</div>
-      </div>
-      <div style={{ fontFamily: mn, fontSize: 11, color: D.txm, marginBottom: 20 }}>
-        Paste any link. Get meme captions, video hooks, thread ideas, and image prompts.
-      </div>
-
-      {/* Input bar + button */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 0 }}>
-        <input
-          type="text"
-          value={slopUrl}
-          onChange={function(e) { setSlopUrl(e.target.value); }}
-          onKeyDown={function(e) { if (e.key === "Enter") handleSlopGenerate(); }}
-          placeholder="Paste any link to get slop..."
-          style={{
-            flex: 1, padding: "14px 20px", borderRadius: 12,
-            background: D.surface, border: "2px solid " + D.border,
-            color: D.tx, fontFamily: ft, fontSize: 16,
-            outline: "none", boxSizing: "border-box", transition: "border 0.2s",
-          }}
-          onFocus={function(e) { e.target.style.borderColor = D.amber; }}
-          onBlur={function(e) { e.target.style.borderColor = D.border; }}
-        />
-        <button
-          onClick={handleSlopGenerate}
-          disabled={slopLoading || !slopUrl.trim()}
-          style={{
-            padding: "14px 32px", borderRadius: 12,
-            border: "none", cursor: slopLoading || !slopUrl.trim() ? "not-allowed" : "pointer",
-            background: !slopUrl.trim() ? D.border : slopLoading ? D.amber + "80" : "linear-gradient(135deg, " + D.amber + " 0%, #E09520 100%)",
-            color: D.bg, fontFamily: ft, fontSize: 15, fontWeight: 800,
-            letterSpacing: 0.5, transition: "all 0.2s",
-            display: "flex", alignItems: "center", gap: 10,
-            opacity: !slopUrl.trim() ? 0.4 : 1,
-            flexShrink: 0,
-            boxShadow: slopUrl.trim() && !slopLoading ? "0 4px 20px " + D.amber + "30" : "none",
-          }}
-        >
-          {slopLoading && <Spinner />}
-          {slopLoading ? "Generating..." : "Generate Slop"}
-        </button>
-      </div>
-
-      {/* Error */}
-      {slopError && <div style={{
-        marginTop: 16, padding: "12px 16px", borderRadius: 8,
-        background: D.coral + "12", border: "1px solid " + D.coral + "30",
-        fontFamily: mn, fontSize: 11, color: D.coral, lineHeight: 1.5,
-        wordBreak: "break-word",
-      }}>{slopError}</div>}
-
-      {/* Loading state */}
-      {slopLoading && <div style={{
-        marginTop: 24, padding: "40px 20px", textAlign: "center",
-        background: D.card, borderRadius: 12, border: "1px solid " + D.border,
-      }}>
-        <style dangerouslySetInnerHTML={{ __html: "@keyframes slopPulse{0%,100%{opacity:0.3}50%{opacity:1}}" }} />
-        <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 16 }}>
-          {[0, 1, 2].map(function(i) {
-            return <div key={i} style={{
-              width: 8, height: 8, borderRadius: "50%", background: D.amber,
-              animation: "slopPulse 1.4s ease-in-out infinite",
-              animationDelay: i * 0.2 + "s",
-            }} />;
-          })}
-        </div>
-        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 600, color: D.txm }}>Generating slop...</div>
-        <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginTop: 6 }}>
-          Fetching content and generating meme captions, video hooks, threads, and image prompts
-        </div>
-      </div>}
-
-      {/* ═══ SLOP RESULTS ═══ */}
-      {slopResults && <div style={{ marginTop: 24 }}>
-
-        {/* Meme Captions */}
-        {slopResults.meme_captions && slopResults.meme_captions.length > 0 && <div style={{ marginBottom: 24 }}>
-          <div style={{
-            fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.amber,
-            letterSpacing: 2, textTransform: "uppercase", marginBottom: 12,
-            display: "flex", alignItems: "center", gap: 8,
-          }}>
-            <span style={{ display: "inline-block", width: 16, height: 2, background: D.amber, borderRadius: 1 }} />
-            Meme Captions
+          background: "linear-gradient(135deg, " + D.amber + "08, " + D.card + ", " + D.violet + "06)",
+          border: "1px solid " + D.amber + "25", borderRadius: 12, padding: 28, marginBottom: 24,
+        }}>
+          <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>Paste Link</div>
+          <div style={{ display: "flex", gap: 12 }}>
+            <input type="text" value={slopUrl} onChange={function(e) { setSlopUrl(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") handleSlopGenerate(); }} placeholder="Paste any link to get slop..." style={{
+              flex: 1, padding: "14px 20px", borderRadius: 10, background: D.surface, border: "2px solid " + D.border,
+              color: D.tx, fontFamily: ft, fontSize: 15, outline: "none", boxSizing: "border-box", transition: "border 0.2s",
+            }} onFocus={function(e) { e.target.style.borderColor = D.amber; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
+            <button onClick={handleSlopGenerate} disabled={slopLoading || !slopUrl.trim()} style={{
+              padding: "14px 28px", borderRadius: 10, border: "none", cursor: slopLoading || !slopUrl.trim() ? "not-allowed" : "pointer",
+              background: !slopUrl.trim() ? D.border : "linear-gradient(135deg, " + D.amber + ", #E09520)",
+              color: D.bg, fontFamily: ft, fontSize: 14, fontWeight: 800, opacity: !slopUrl.trim() ? 0.4 : 1, flexShrink: 0,
+              boxShadow: slopUrl.trim() && !slopLoading ? "0 4px 16px " + D.amber + "30" : "none",
+            }}>{slopLoading ? "Generating..." : "Generate Slop"}</button>
           </div>
-          <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-            {slopResults.meme_captions.map(function(cap, i) {
-              return <SlopCard key={i} title={"Caption " + (i + 1)} content={cap} />;
-            })}
-          </div>
+          {slopError && <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, background: D.coral + "12", border: "1px solid " + D.coral + "30", fontFamily: mn, fontSize: 11, color: D.coral }}>{slopError}</div>}
+        </div>
+
+        {/* Slop results */}
+        {slopLoading && <div style={{ padding: 40, textAlign: "center", background: D.card, borderRadius: 12, border: "1px solid " + D.border, marginBottom: 24 }}>
+          <style dangerouslySetInnerHTML={{ __html: "@keyframes slopPulse{0%,100%{opacity:0.3}50%{opacity:1}}" }} />
+          <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 16 }}>{[0, 1, 2].map(function(i) { return <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: D.amber, animation: "slopPulse 1.4s ease-in-out infinite", animationDelay: i * 0.2 + "s" }} />; })}</div>
+          <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 600, color: D.txm }}>Generating slop...</div>
         </div>}
 
-        {/* Video Hooks */}
-        {slopResults.video_hooks && slopResults.video_hooks.length > 0 && <div style={{ marginBottom: 24 }}>
-          <div style={{
-            fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.cyan,
-            letterSpacing: 2, textTransform: "uppercase", marginBottom: 12,
-            display: "flex", alignItems: "center", gap: 8,
-          }}>
-            <span style={{ display: "inline-block", width: 16, height: 2, background: D.cyan, borderRadius: 1 }} />
-            Video Hooks (first 3 seconds)
-          </div>
-          <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-            {slopResults.video_hooks.map(function(hook, i) {
-              return <SlopCard key={i} title={"Hook " + (i + 1)} content={hook} />;
-            })}
-          </div>
-        </div>}
-
-        {/* Thread Idea */}
-        {slopResults.thread_idea && <div style={{ marginBottom: 24 }}>
-          <div style={{
-            fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.violet,
-            letterSpacing: 2, textTransform: "uppercase", marginBottom: 12,
-            display: "flex", alignItems: "center", gap: 8,
-          }}>
-            <span style={{ display: "inline-block", width: 16, height: 2, background: D.violet, borderRadius: 1 }} />
-            Thread Idea
-          </div>
-          <div style={{
-            background: D.card, border: "1px solid " + D.border,
-            borderRadius: 12, padding: 20,
-          }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {slopResults && <div style={{ marginBottom: 24 }}>
+          {/* Meme Captions */}
+          {slopResults.meme_captions && slopResults.meme_captions.length > 0 && <div style={{ marginBottom: 20 }}>
+            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Meme Captions</div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>{slopResults.meme_captions.map(function(cap, i) { return <SlopCard key={i} title={"Caption " + (i + 1)} content={cap} />; })}</div>
+          </div>}
+          {/* Video Hooks */}
+          {slopResults.video_hooks && slopResults.video_hooks.length > 0 && <div style={{ marginBottom: 20 }}>
+            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.cyan, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Video Hooks</div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>{slopResults.video_hooks.map(function(hook, i) { return <SlopCard key={i} title={"Hook " + (i + 1)} content={hook} />; })}</div>
+          </div>}
+          {/* Thread Idea */}
+          {slopResults.thread_idea && <div style={{ marginBottom: 20 }}>
+            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.violet, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Thread Idea</div>
+            <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 18 }}>
               {(Array.isArray(slopResults.thread_idea) ? slopResults.thread_idea : [slopResults.thread_idea]).map(function(post, i) {
-                return <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <div style={{
-                    width: 24, height: 24, borderRadius: "50%", flexShrink: 0,
-                    background: D.violet + "20", border: "1px solid " + D.violet + "40",
-                    color: D.violet, display: "flex", alignItems: "center", justifyContent: "center",
-                    fontFamily: mn, fontSize: 10, fontWeight: 800,
-                  }}>{i + 1}</div>
-                  <div style={{ fontFamily: ft, fontSize: 13, color: D.tx, lineHeight: 1.7 }}>{post}</div>
+                return <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, background: D.violet + "20", border: "1px solid " + D.violet + "40", color: D.violet, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 9, fontWeight: 800 }}>{i + 1}</div>
+                  <div style={{ fontFamily: ft, fontSize: 13, color: D.tx, lineHeight: 1.6 }}>{post}</div>
                 </div>;
               })}
             </div>
-            <div style={{ marginTop: 14 }}>
-              <button onClick={function() {
-                var text = (Array.isArray(slopResults.thread_idea) ? slopResults.thread_idea : [slopResults.thread_idea]).map(function(p, i) { return (i + 1) + ". " + p; }).join("\n\n");
-                copyText(text);
-              }} style={{
-                padding: "6px 14px", borderRadius: 8, border: "1px solid " + D.border,
-                background: "transparent", color: D.txm,
-                cursor: "pointer", fontFamily: mn, fontSize: 10, fontWeight: 600,
-                transition: "all 0.15s",
-              }}>Copy Thread</button>
-            </div>
-          </div>
-        </div>}
-
-        {/* Image Prompt */}
-        {slopResults.image_prompt && <div style={{ marginBottom: 0 }}>
-          <div style={{
-            fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.teal,
-            letterSpacing: 2, textTransform: "uppercase", marginBottom: 12,
-            display: "flex", alignItems: "center", gap: 8,
-          }}>
-            <span style={{ display: "inline-block", width: 16, height: 2, background: D.teal, borderRadius: 1 }} />
-            Image Prompt (for Grok)
-          </div>
-          <SlopCard
-            content={slopResults.image_prompt}
-            extraButton={
-              <button onClick={function() { sendToImageCreator(slopResults.image_prompt); }} style={{
-                padding: "6px 14px", borderRadius: 8,
-                border: "1px solid " + D.teal + "50",
-                background: D.teal + "18",
-                color: D.teal,
-                cursor: "pointer", fontFamily: ft, fontSize: 10, fontWeight: 700,
-                transition: "all 0.15s",
-              }}>Copy Prompt</button>
-            }
-          />
+          </div>}
+          {/* Image Prompt */}
+          {slopResults.image_prompt && <div style={{ marginBottom: 20 }}>
+            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.teal, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Image Prompt</div>
+            <SlopCard content={slopResults.image_prompt} />
+          </div>}
         </div>}
       </div>}
-    </div>
+
+      {/* Idea to Meme mode */}
+      {memeMode === "idea" && <div style={{
+        background: "linear-gradient(135deg, " + D.violet + "08, " + D.card + ", " + D.cyan + "06)",
+        border: "1px solid " + D.violet + "25", borderRadius: 12, padding: 28, marginBottom: 24,
+      }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.violet, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>Describe Your Meme</div>
+        <textarea value={memeIdea} onChange={function(e) { setMemeIdea(e.target.value); }} placeholder="e.g. Jensen Huang holding a GPU like it's the holy grail, NVIDIA cathedral lighting..." rows={4} style={{
+          width: "100%", padding: "14px 16px", borderRadius: 10, background: D.surface, border: "1px solid " + D.border,
+          color: D.tx, fontFamily: ft, fontSize: 14, lineHeight: 1.6, resize: "vertical", outline: "none", boxSizing: "border-box",
+        }} onFocus={function(e) { e.target.style.borderColor = D.violet; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
+      </div>}
+
+      {/* Style selector (both modes) */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Meme Style</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {MEME_STYLES.map(function(s) {
+            var on = memeStyle === s.id;
+            return <div key={s.id} onClick={function() { setMemeStyle(s.id); }} style={{
+              padding: "8px 16px", borderRadius: 8, cursor: "pointer",
+              background: on ? D.amber + "14" : D.card, border: "1px solid " + (on ? D.amber + "50" : D.border),
+              fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? D.amber : D.txm,
+              transition: "all 0.15s",
+            }}>{s.l}</div>;
+          })}
+        </div>
+      </div>
+
+      {/* Generate Meme Image button */}
+      <button onClick={handleMemeGenerate} disabled={memeImgLoading || (memeMode === "link" ? !slopResults : !memeIdea.trim())} style={{
+        padding: "14px 32px", borderRadius: 10, border: "none", fontFamily: ft, fontSize: 15, fontWeight: 800,
+        background: memeImgLoading ? D.amber + "60" : "linear-gradient(135deg, " + D.amber + ", " + D.violet + ")",
+        color: "#fff", cursor: memeImgLoading ? "wait" : "pointer", letterSpacing: 0.5,
+        boxShadow: "0 4px 20px " + D.amber + "25", transition: "all 0.2s",
+        opacity: (memeMode === "link" ? !slopResults : !memeIdea.trim()) ? 0.4 : 1,
+      }}>{memeImgLoading ? "Generating Image..." : "Generate Meme Image"}</button>
+
+      {/* Generated meme image */}
+      {memeImgLoading && <div style={{ marginTop: 24, padding: 40, textAlign: "center", background: D.card, borderRadius: 12, border: "1px solid " + D.border }}>
+        <style dangerouslySetInnerHTML={{ __html: "@keyframes slopSpin{to{transform:rotate(360deg)}}" }} />
+        <div style={{ width: 40, height: 40, borderRadius: "50%", border: "3px solid " + D.border, borderTopColor: D.violet, margin: "0 auto 16px", animation: "slopSpin 1s linear infinite" }} />
+        <div style={{ fontFamily: ft, fontSize: 14, color: D.txm }}>Grok is creating your meme...</div>
+      </div>}
+
+      {memeImg && <div style={{ marginTop: 24 }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.teal, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Generated Meme</div>
+        <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 16, textAlign: "center" }}>
+          <img src={memeImg} style={{ maxWidth: "100%", maxHeight: 500, borderRadius: 8 }} />
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 16 }}>
+            <a href={memeImg} download="slop-meme.png" style={{
+              padding: "10px 20px", borderRadius: 8, background: D.teal + "18", border: "1px solid " + D.teal + "40",
+              color: D.teal, fontFamily: ft, fontSize: 12, fontWeight: 700, textDecoration: "none", cursor: "pointer",
+            }}>Download</a>
+            <button onClick={handleMemeGenerate} style={{
+              padding: "10px 20px", borderRadius: 8, background: "transparent", border: "1px solid " + D.border,
+              color: D.txm, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer",
+            }}>Regenerate</button>
+          </div>
+        </div>
+      </div>}
+    </div>}
+
+    {/* ═══ TAB: BRIEF GENERATOR ═══ */}
+    {tab === "brief" && <div>
 
     {/* Two-Panel Layout */}
     <div style={{ display: "flex", gap: 28, alignItems: "flex-start" }}>
@@ -772,5 +797,6 @@ export default function SlopTop() {
         </div>}
       </div>
     </div>
+    </div>}
   </div>;
 }
