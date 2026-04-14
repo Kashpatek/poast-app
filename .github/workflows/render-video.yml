@@ -7,24 +7,23 @@ jobs:
   render:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install dependencies
-        run: npm ci
-
-      - name: Install Remotion renderer + Chrome
         run: |
-          npm install @remotion/renderer @remotion/bundler
+          npm ci
+          npm install @remotion/renderer @remotion/bundler @remotion/cli remotion react react-dom
           npx remotion browser ensure
 
       - name: Render video
-        run: |
-          node scripts/render.mjs
+        run: node scripts/render.mjs
         env:
           RENDER_PROPS: ${{ toJson(github.event.client_payload.props) }}
           RENDER_ID: ${{ github.event.client_payload.renderId }}
