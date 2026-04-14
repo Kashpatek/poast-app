@@ -928,64 +928,160 @@ function Step8({ data, onNext, onBack }) {
   </div>;
 }
 
-// ═══ RENDER POLL (watches for finished MP4) ═══
+// ═══ RENDER POLL (progressive status: queued -> in_progress -> uploading -> complete) ═══
 function RenderPoll({ renderId, onComplete }) {
   var _status = useState("polling"), status = _status[0], setStatus = _status[1];
   var _video = useState(null), video = _video[0], setVideo = _video[1];
   var _elapsed = useState(0), elapsed = _elapsed[0], setElapsed = _elapsed[1];
   var _runStatus = useState("queued"), runStatus = _runStatus[0], setRunStatus = _runStatus[1];
+  var _progressPct = useState(-1), progressPct = _progressPct[0], setProgressPct = _progressPct[1];
+  var _runUrl = useState(""), runUrl = _runUrl[0], setRunUrl = _runUrl[1];
+  var _message = useState("Dispatched, waiting for workflow..."), message = _message[0], setMessage = _message[1];
 
   useEffect(function() {
     if (!renderId) return;
     var start = Date.now();
-    var iv = setInterval(function() {
-      setElapsed(Math.round((Date.now() - start) / 1000));
+    var dead = false;
 
-      // Check for finished release
+    // Tick elapsed every second for a responsive timer
+    var tick = setInterval(function() {
+      if (!dead) setElapsed(Math.round((Date.now() - start) / 1000));
+    }, 1000);
+
+    // Poll the unified API every 5 seconds
+    var poll = function() {
+      if (dead) return;
       fetch("/api/render-video?id=" + renderId).then(function(r) { return r.json(); }).then(function(d) {
+        if (dead) return;
+
+        if (d.runStatus) setRunStatus(d.runStatus);
+        if (d.message) setMessage(d.message);
+        if (d.runUrl) setRunUrl(d.runUrl);
+        if (typeof d.progressPct === "number") setProgressPct(d.progressPct);
+
         if (d.status === "complete" && d.assets && d.assets.length > 0) {
+          dead = true;
           setStatus("done");
           setVideo(d.assets[0]);
           setRunStatus("complete");
-          clearInterval(iv);
+          clearInterval(tick);
           toast("MP4 ready!", "success");
           if (onComplete) onComplete(d.assets[0]);
+          return;
         }
-      }).catch(function() {});
 
-      // Also check GitHub Actions run status for progress
-      fetch("https://api.github.com/repos/Kashpatek/poast-app/actions/runs?event=repository_dispatch&per_page=1", {
-        headers: { "Accept": "application/vnd.github.v3+json" }
-      }).then(function(r) { return r.json(); }).then(function(d) {
-        if (d.workflow_runs && d.workflow_runs[0]) {
-          var run = d.workflow_runs[0];
-          if (run.status === "in_progress") setRunStatus("rendering");
-          else if (run.status === "queued") setRunStatus("queued");
-          else if (run.status === "completed" && run.conclusion === "success") setRunStatus("uploading");
-          else if (run.status === "completed" && run.conclusion === "failure") { setRunStatus("failed"); setStatus("error"); clearInterval(iv); toast("Render failed on GitHub.", "error"); }
+        if (d.status === "failure") {
+          dead = true;
+          setStatus("error");
+          setRunStatus("failure");
+          clearInterval(tick);
+          toast("Render failed: " + (d.message || "unknown error"), "error");
+          return;
         }
-      }).catch(function() {});
-    }, 12000);
-    return function() { clearInterval(iv); };
+
+        // Schedule next poll
+        setTimeout(poll, 5000);
+      }).catch(function() {
+        if (!dead) setTimeout(poll, 5000);
+      });
+    };
+
+    // First poll immediately, then every 5s
+    poll();
+
+    return function() { dead = true; clearInterval(tick); };
   }, [renderId]);
 
   if (!renderId) return null;
 
+  // Determine bar color and style per status
+  var barColor = runStatus === "queued" ? D.amber
+    : runStatus === "in_progress" ? D.violet
+    : runStatus === "uploading" ? D.blue
+    : runStatus === "complete" ? D.teal
+    : runStatus === "failure" ? D.coral
+    : D.txl;
+
+  var statusLabel = runStatus === "queued" ? "Queued"
+    : runStatus === "in_progress" ? (progressPct >= 0 ? "Rendering " + progressPct + "%" : "In Progress")
+    : runStatus === "uploading" ? "Uploading"
+    : runStatus === "complete" ? "Complete"
+    : runStatus === "failure" ? "Failed"
+    : "Waiting";
+
+  var showIndeterminate = runStatus === "queued" || (runStatus === "in_progress" && progressPct < 0) || runStatus === "uploading";
+  var showDeterminate = runStatus === "in_progress" && progressPct >= 0;
+
+  var formatElapsed = function(s) {
+    var m = Math.floor(s / 60);
+    var sec = s % 60;
+    return m > 0 ? m + "m " + sec + "s" : sec + "s";
+  };
+
   return <div style={{ marginTop: 12 }}>
-    {status === "polling" && <div style={{ padding: "14px 18px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10 }}>
-      <style dangerouslySetInnerHTML={{ __html: "@keyframes renderSpin{to{transform:rotate(360deg)}}" }} />
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-        <div style={{ width: 16, height: 16, border: "2px solid " + D.border, borderTopColor: D.violet, borderRadius: "50%", animation: "renderSpin 0.8s linear infinite" }} />
-        <span style={{ fontFamily: ft, fontSize: 13, fontWeight: 600, color: D.tx }}>Rendering on GitHub Actions...</span>
+    <style dangerouslySetInnerHTML={{ __html: [
+      "@keyframes rpSpin{to{transform:rotate(360deg)}}",
+      "@keyframes rpPulse{0%,100%{opacity:0.4}50%{opacity:1}}",
+      "@keyframes rpSlide{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}",
+      "@keyframes rpGlow{0%,100%{box-shadow:0 0 8px " + barColor + "40}50%{box-shadow:0 0 20px " + barColor + "60}}",
+    ].join("") }} />
+
+    {/* Active polling state */}
+    {status === "polling" && <div style={{ padding: "18px 20px", background: D.surface, border: "1px solid " + barColor + "30", borderLeft: "3px solid " + barColor, borderRadius: 10, animation: "rpGlow 2s ease-in-out infinite" }}>
+
+      {/* Header row: spinner + status label */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        <div style={{ width: 18, height: 18, border: "2px solid " + D.border, borderTopColor: barColor, borderRadius: "50%", animation: "rpSpin 0.8s linear infinite", flexShrink: 0 }} />
+        <span style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>{statusLabel}</span>
+        <span style={{ fontFamily: mn, fontSize: 10, color: D.txl, marginLeft: "auto" }}>{formatElapsed(elapsed)}</span>
       </div>
-      <div style={{ fontFamily: mn, fontSize: 10, color: D.txl }}>{elapsed}s elapsed // Status: {runStatus}</div>
-      <div style={{ height: 3, background: D.border, borderRadius: 2, marginTop: 8, overflow: "hidden" }}>
-        <style dangerouslySetInnerHTML={{ __html: "@keyframes renderSlide{0%{transform:translateX(-100%)}100%{transform:translateX(200%)}}" }} />
-        <div style={{ width: "40%", height: "100%", background: "linear-gradient(90deg, transparent, " + D.violet + ", transparent)", animation: "renderSlide 1.5s ease-in-out infinite" }} />
+
+      {/* Message */}
+      <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 500, color: D.txb, marginBottom: 12 }}>{message}</div>
+
+      {/* Progress bar */}
+      <div style={{ height: 4, background: D.border, borderRadius: 2, overflow: "hidden", marginBottom: 10 }}>
+        {showIndeterminate && <div style={{ width: "35%", height: "100%", background: "linear-gradient(90deg, transparent, " + barColor + ", transparent)", borderRadius: 2, animation: "rpSlide 1.5s ease-in-out infinite" }} />}
+        {showDeterminate && <div style={{ width: progressPct + "%", height: "100%", background: "linear-gradient(90deg, " + D.violet + ", " + D.teal + ")", borderRadius: 2, transition: "width 0.5s ease" }} />}
+        {runStatus === "complete" && <div style={{ width: "100%", height: "100%", background: D.teal, borderRadius: 2 }} />}
+        {runStatus === "failure" && <div style={{ width: "100%", height: "100%", background: D.coral, borderRadius: 2 }} />}
       </div>
-      <a href={"https://github.com/Kashpatek/poast-app/actions"} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", fontFamily: mn, fontSize: 10, color: D.violet, textDecoration: "none", marginTop: 8 }}>Watch on GitHub</a>
+
+      {/* Status steps indicator */}
+      <div style={{ display: "flex", gap: 0, marginBottom: 10 }}>
+        {[
+          { key: "queued", l: "Queued" },
+          { key: "in_progress", l: "Rendering" },
+          { key: "uploading", l: "Uploading" },
+          { key: "complete", l: "Complete" },
+        ].map(function(phase, i) {
+          var order = ["queued", "in_progress", "uploading", "complete"];
+          var currentIdx = order.indexOf(runStatus);
+          var phaseIdx = order.indexOf(phase.key);
+          var isDone = phaseIdx < currentIdx;
+          var isActive = phaseIdx === currentIdx;
+          return <div key={phase.key} style={{ flex: 1, textAlign: "center", padding: "6px 0" }}>
+            <div style={{ fontFamily: mn, fontSize: 9, fontWeight: isActive ? 700 : 500, color: isDone ? D.teal : isActive ? barColor : D.txh, letterSpacing: 0.5, transition: "color 0.3s", animation: isActive ? "rpPulse 1.5s ease-in-out infinite" : "none" }}>{isDone ? "\u2713 " : ""}{phase.l}</div>
+            <div style={{ height: 2, background: isDone ? D.teal : isActive ? barColor : D.border, borderRadius: 1, marginTop: 4, transition: "background 0.3s" }} />
+          </div>;
+        })}
+      </div>
+
+      {/* Link to GitHub */}
+      <a href={runUrl || "https://github.com/Kashpatek/poast-app/actions"} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", fontFamily: mn, fontSize: 10, color: D.violet, textDecoration: "none" }}>Watch on GitHub Actions</a>
     </div>}
 
+    {/* Error state */}
+    {status === "error" && <div style={{ padding: "18px 20px", background: D.surface, border: "1px solid " + D.coral + "30", borderLeft: "3px solid " + D.coral, borderRadius: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+        <span style={{ fontFamily: ft, fontSize: 16, fontWeight: 900, color: D.coral }}>x</span>
+        <span style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.coral }}>Render Failed</span>
+      </div>
+      <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 500, color: D.txb, marginBottom: 8 }}>{message}</div>
+      <a href={runUrl || "https://github.com/Kashpatek/poast-app/actions"} target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 10, color: D.coral, textDecoration: "none" }}>View logs on GitHub</a>
+    </div>}
+
+    {/* Done state */}
     {status === "done" && video && <div style={{ padding: "18px", background: D.surface, border: "1px solid " + D.teal + "30", borderRadius: 10 }}>
       <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.teal, letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>MP4 Ready</div>
       <video controls src={video.url} style={{ width: "100%", borderRadius: 8, marginBottom: 10 }} />
