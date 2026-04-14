@@ -43,6 +43,9 @@ interface Props {
   fontFamily?: string;
   fontSize?: number;
   captionStyle?: "overlay" | "subtitles" | "minimal";
+  clipVolume?: number;
+  voVolume?: number;
+  musicVolume?: number;
 }
 
 // ═══ Grift font registration ═══
@@ -110,6 +113,9 @@ export var SAVideo: React.FC<Props> = function (props) {
   var fontFamily = props.fontFamily || DEFAULT_FONT;
   var fontSize = props.fontSize || DEFAULT_FONT_SIZE;
   var captionStyle = props.captionStyle || "overlay";
+  var clipVolume = typeof props.clipVolume === "number" ? props.clipVolume : 0.3;
+  var voVolume = typeof props.voVolume === "number" ? props.voVolume : 1.0;
+  var musicVolume = typeof props.musicVolume === "number" ? props.musicVolume : 0.15;
 
   var needsGrift = fontFamily.toLowerCase().indexOf("grift") !== -1;
 
@@ -138,10 +144,10 @@ export var SAVideo: React.FC<Props> = function (props) {
       {needsGrift && <GriftFontFaces />}
 
       {/* Voiceover */}
-      {audioUrl && <Audio src={audioUrl} />}
+      {audioUrl && <Audio src={audioUrl} volume={voVolume} />}
       {/* Music -- looped */}
       {musicUrl && <Loop durationInFrames={musicDurationFrames}>
-        <Audio src={musicUrl} volume={0.12} />
+        <Audio src={musicUrl} volume={musicVolume} />
       </Loop>}
 
       {/* Ambient glow */}
@@ -169,7 +175,7 @@ export var SAVideo: React.FC<Props> = function (props) {
             <Sequence key={i} from={f} durationInFrames={sectionFrames}>
               <AbsoluteFill>
                 {clipUrl && (
-                  <Video src={clipUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <Video src={clipUrl} volume={clipVolume} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 )}
                 <Watermark />
               </AbsoluteFill>
@@ -183,7 +189,7 @@ export var SAVideo: React.FC<Props> = function (props) {
             <Sequence key={i} from={f} durationInFrames={sectionFrames}>
               <AbsoluteFill>
                 {clipUrl && (
-                  <Video src={clipUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <Video src={clipUrl} volume={clipVolume} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 )}
                 {/* Bottom subtitle strip */}
                 <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(0,0,0,0.75)", padding: "20px 60px 28px" }}>
@@ -201,7 +207,7 @@ export var SAVideo: React.FC<Props> = function (props) {
             <AbsoluteFill>
               {/* B-Roll background -- full bleed */}
               {clipUrl && (
-                <Video src={clipUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <Video src={clipUrl} volume={clipVolume} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               )}
               {/* Dark overlay for readability */}
               <div style={{ position: "absolute", inset: 0, background: "linear-gradient(transparent 30%, rgba(0,0,0,0.7) 100%)" }} />

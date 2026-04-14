@@ -744,10 +744,13 @@ function Step7({ data, setData, onNext, onBack }) {
 }
 
 // ═══ AUDIO MIXER ═══
-function AudioMixer({ videoRef, voRef, musicRef, assets }) {
+function AudioMixer({ videoRef, voRef, musicRef, assets, onMixChange }) {
   var _clipVol = useState(30), clipVol = _clipVol[0], setClipVol = _clipVol[1];
   var _voVol = useState(100), voVol = _voVol[0], setVoVol = _voVol[1];
   var _musicVol = useState(15), musicVol = _musicVol[0], setMusicVol = _musicVol[1];
+
+  // Report mix levels up to parent for render export
+  useEffect(function() { if (onMixChange) onMixChange({ clipVol: clipVol, voVol: voVol, musicVol: musicVol }); }, [clipVol, voVol, musicVol]);
   var _clipMuted = useState(false), clipMuted = _clipMuted[0], setClipMuted = _clipMuted[1];
   var _voMuted = useState(false), voMuted = _voMuted[0], setVoMuted = _voMuted[1];
   var _musicMuted = useState(false), musicMuted = _musicMuted[0], setMusicMuted = _musicMuted[1];
@@ -786,7 +789,7 @@ function AudioMixer({ videoRef, voRef, musicRef, assets }) {
 }
 
 // ═══ STEP 8: ASSEMBLED PREVIEW ═══
-function Step8({ data, onNext, onBack }) {
+function Step8({ data, setData, onNext, onBack }) {
   var assets = data.assets || {};
   var script = data.scripts && data.scripts[data.selScript || 0];
   var aspect = data.aspect || "16:9";
@@ -890,7 +893,7 @@ function Step8({ data, onNext, onBack }) {
       </div>
 
       {/* Audio mixer */}
-      <AudioMixer videoRef={videoRef} voRef={voRef} musicRef={musicRef} assets={assets} />
+      <AudioMixer videoRef={videoRef} voRef={voRef} musicRef={musicRef} assets={assets} onMixChange={function(mix) { setData(function(p) { return Object.assign({}, p, { audioMix: mix }); }); }} />
 
       {/* Hidden audio elements */}
       {assets.voiceover && <audio ref={voRef} src={assets.voiceover} />}
@@ -1149,6 +1152,9 @@ function RenderButton({ data, assets, onComplete }) {
         fontFamily: data.fontFamily || "'Outfit',sans-serif",
         fontSize: data.fontSize || 48,
         captionStyle: data.captionStyle || "overlay",
+        clipVolume: data.audioMix ? data.audioMix.clipVol / 100 : 0.3,
+        voVolume: data.audioMix ? data.audioMix.voVol / 100 : 1.0,
+        musicVolume: data.audioMix ? data.audioMix.musicVol / 100 : 0.15,
       }) });
       var d3 = await r3.json();
       if (d3.renderId) {
@@ -1369,7 +1375,7 @@ export default function PressToPremi() {
     {!loading && step === 4 && <Step5 data={data} setData={setData} onNext={function() { setStep(5); saveProject("production"); }} onBack={function() { setStep(3); }} />}
     {!loading && step === 5 && <Step6 data={data} setData={setData} onNext={function() { setStep(6); }} onBack={function() { setStep(4); }} />}
     {!loading && step === 6 && <Step7 data={data} setData={setData} onNext={function() { setStep(7); }} onBack={function() { setStep(5); }} />}
-    {!loading && step === 7 && <Step8 data={data} onNext={function() { setStep(8); }} onBack={function() { setStep(6); }} />}
+    {!loading && step === 7 && <Step8 data={data} setData={setData} onNext={function() { setStep(8); }} onBack={function() { setStep(6); }} />}
     {!loading && step === 8 && <Step9 data={data} onPremier={function() { saveProject("premiered"); toast("Premiered! Project archived.", "success"); }} onDraft={function() { saveProject("draft"); toast("Draft saved", "info"); }} />}
 
     {step > 0 && step < 8 && !loading && <div style={{ marginTop: 24, textAlign: "center" }}>
