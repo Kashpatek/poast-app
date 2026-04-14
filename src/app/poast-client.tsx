@@ -194,100 +194,101 @@ function AskPoast({ open, onToggle }) {
   var _msgs = useState([]), msgs = _msgs[0], setMsgs = _msgs[1];
   var _input = useState(""), input = _input[0], setInput = _input[1];
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
+  var _ready = useState(false), ready = _ready[0], setReady = _ready[1];
   var scrollRef = useRef(null);
+  var SUGGESTIONS = ["Write an X thread about NVIDIA earnings", "Draft a LinkedIn post for our latest episode", "5 content ideas about AI infrastructure", "Create an outreach email for podcast guests"];
 
-  useEffect(function() {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [msgs]);
+  useEffect(function() { if (open) setTimeout(function() { setReady(true); }, 50); else setReady(false); }, [open]);
+  useEffect(function() { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [msgs]);
 
   var send = async function() {
     if (!input.trim() || loading) return;
-    var userMsg = input.trim();
-    setInput("");
+    var userMsg = input.trim(); setInput("");
     setMsgs(function(p) { return p.concat([{ role: "user", text: userMsg }]); });
     setLoading(true);
     try {
-      // Build conversation for context
       var history = msgs.concat([{ role: "user", text: userMsg }]);
       var prompt = history.map(function(m) { return (m.role === "user" ? "User: " : "Poast: ") + m.text; }).join("\n\n");
-      var r = await fetch("/api/generate", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ system: POAST_SYS, prompt: prompt }),
-      });
+      var r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: POAST_SYS, prompt: prompt }) });
       var d = await r.json();
-      var reply = (d.content || []).map(function(c) { return c.text || ""; }).join("");
-      setMsgs(function(p) { return p.concat([{ role: "assistant", text: reply }]); });
-    } catch (e) {
-      setMsgs(function(p) { return p.concat([{ role: "assistant", text: "Something went wrong. Try again." }]); });
-    }
+      setMsgs(function(p) { return p.concat([{ role: "assistant", text: (d.content || []).map(function(c) { return c.text || ""; }).join("") }]); });
+    } catch (e) { setMsgs(function(p) { return p.concat([{ role: "assistant", text: "Something went wrong. Try again." }]); }); }
     setLoading(false);
-  };
-
-  var exportDoc = function() {
-    var content = msgs.map(function(m) { return (m.role === "user" ? "YOU:\n" : "POAST:\n") + m.text; }).join("\n\n---\n\n");
-    var blob = new Blob([content], { type: "text/plain" });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a"); a.href = url; a.download = "poast-conversation.txt"; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   };
 
   if (!open) return null;
 
-  return (
-    <div style={{ position: "fixed", right: 20, bottom: 20, width: 420, height: 560, background: C.card, border: "1px solid " + C.amber + "30", borderRadius: 14, boxShadow: "0 0 40px rgba(247,176,65,0.1), 0 8px 32px rgba(0,0,0,0.5)", display: "flex", flexDirection: "column", zIndex: 9998, overflow: "hidden" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid " + C.border, background: "linear-gradient(90deg, " + C.amber + "08, transparent)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: C.amber + "20", border: "1px solid " + C.amber + "40", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 14, fontWeight: 900, color: C.amber }}>P</div>
-          <div>
-            <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: C.tx }}>Ask Poast</div>
-            <div style={{ fontFamily: mn, fontSize: 8, color: C.txd }}>SA Content AI</div>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          {msgs.length > 0 && <span onClick={exportDoc} style={{ fontFamily: mn, fontSize: 8, color: C.txd, cursor: "pointer", padding: "3px 6px", borderRadius: 3, border: "1px solid " + C.border }}>Export</span>}
-          {msgs.length > 0 && <span onClick={function() { setMsgs([]); }} style={{ fontFamily: mn, fontSize: 8, color: C.txd, cursor: "pointer", padding: "3px 6px", borderRadius: 3, border: "1px solid " + C.border }}>Clear</span>}
-          <span onClick={onToggle} style={{ fontFamily: mn, fontSize: 14, color: C.txd, cursor: "pointer", padding: "2px 6px" }}>&times;</span>
+  return <div style={{ position: "fixed", bottom: 24, right: 24, width: 460, height: 600, zIndex: 9998, borderRadius: 20, display: "flex", flexDirection: "column", transform: ready ? "translateY(0) scale(1)" : "translateY(30px) scale(0.92)", opacity: ready ? 1 : 0, transition: "all 0.45s cubic-bezier(0.16, 1, 0.3, 1)", overflow: "hidden" }}>
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes orbFloat{0%{transform:translate(0,0) scale(1)}50%{transform:translate(10px,-10px) scale(1.15)}100%{transform:translate(0,0) scale(1)}}@keyframes dotWave{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}@keyframes msgSlide{0%{opacity:0;transform:translateY(10px) scale(0.98)}100%{opacity:1;transform:translateY(0) scale(1)}}@keyframes borderGlow{0%,100%{border-color:rgba(247,176,65,0.15)}50%{border-color:rgba(247,176,65,0.3)}}@keyframes logoPulse{0%,100%{box-shadow:0 0 16px rgba(247,176,65,0.15)}50%{box-shadow:0 0 28px rgba(247,176,65,0.25),0 0 48px rgba(247,176,65,0.08)}}@keyframes inputGlow{0%,100%{box-shadow:0 0 0 0 rgba(247,176,65,0)}50%{box-shadow:0 0 12px rgba(247,176,65,0.06)}}@keyframes suggIn{0%{opacity:0;transform:translateY(6px)}100%{opacity:1;transform:translateY(0)}}" }} />
+
+    {/* Outer glow */}
+    <div style={{ position: "absolute", inset: -1, borderRadius: 21, background: "linear-gradient(135deg, " + C.amber + "20, transparent 40%, " + C.amber + "10)", zIndex: 0, animation: "borderGlow 4s ease-in-out infinite" }} />
+    {/* Glass body */}
+    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(160deg, rgba(12,12,22,0.95), rgba(8,8,14,0.97), rgba(10,10,18,0.96))", backdropFilter: "blur(30px)", WebkitBackdropFilter: "blur(30px)", borderRadius: 20, boxShadow: "0 0 50px rgba(247,176,65,0.06), 0 24px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.03)", zIndex: 1 }} />
+    {/* Inner orbs */}
+    <div style={{ position: "absolute", top: -30, right: -30, width: 140, height: 140, borderRadius: "50%", background: "radial-gradient(circle, " + C.amber + "12, transparent 70%)", filter: "blur(30px)", animation: "orbFloat 8s ease-in-out infinite", zIndex: 1, pointerEvents: "none" }} />
+    <div style={{ position: "absolute", bottom: 40, left: -20, width: 100, height: 100, borderRadius: "50%", background: "radial-gradient(circle, rgba(11,134,209,0.08), transparent 70%)", filter: "blur(25px)", animation: "orbFloat 10s ease-in-out infinite reverse", zIndex: 1, pointerEvents: "none" }} />
+
+    {/* Header */}
+    <div style={{ position: "relative", zIndex: 2, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid rgba(247,176,65,0.08)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg, " + C.amber + "30, " + C.amber + "10)", border: "1px solid " + C.amber + "30", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 16, fontWeight: 900, color: C.amber, animation: "logoPulse 3s ease-in-out infinite" }}>P</div>
+        <div>
+          <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: "#E8E4DD" }}>Poast</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 5, height: 5, borderRadius: "50%", background: C.teal, boxShadow: "0 0 6px " + C.teal + "60" }} /><span style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.25)" }}>online // sonnet-4</span></div>
         </div>
       </div>
-
-      {/* Messages */}
-      <div ref={scrollRef} style={{ flex: 1, overflow: "auto", padding: "12px 16px" }}>
-        {msgs.length === 0 && <div style={{ textAlign: "center", padding: "40px 10px" }}>
-          <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 8 }}>What can I help with?</div>
-          <div style={{ fontFamily: ft, fontSize: 11, color: C.txm, lineHeight: 1.7, marginBottom: 16 }}>I know SemiAnalysis brand rules, all platform formats, and can create content, docs, and ideas.</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {["Write an X thread about NVIDIA earnings", "Draft a LinkedIn post for our latest episode", "Give me 5 content ideas about AI infrastructure", "Create an outreach email template for podcast guests"].map(function(s, i) {
-              return <span key={i} onClick={function() { setInput(s); }} style={{ fontFamily: ft, fontSize: 11, color: C.amber, cursor: "pointer", padding: "8px 12px", background: C.surface, borderRadius: 6, border: "1px solid " + C.border, textAlign: "left" }}>{s}</span>;
-            })}
-          </div>
-        </div>}
-        {msgs.map(function(m, i) {
-          var isUser = m.role === "user";
-          return <div key={i} style={{ marginBottom: 12, display: "flex", flexDirection: "column", alignItems: isUser ? "flex-end" : "flex-start" }}>
-            <div style={{ maxWidth: "85%", padding: "10px 14px", borderRadius: isUser ? "12px 12px 2px 12px" : "12px 12px 12px 2px", background: isUser ? C.amber + "18" : C.surface, border: "1px solid " + (isUser ? C.amber + "25" : C.border) }}>
-              <div style={{ fontFamily: ft, fontSize: 12, color: C.tx, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{m.text}</div>
-            </div>
-          </div>;
-        })}
-        {loading && <div style={{ display: "flex", alignItems: "flex-start", marginBottom: 12 }}>
-          <div style={{ padding: "10px 14px", borderRadius: "12px 12px 12px 2px", background: C.surface, border: "1px solid " + C.border }}>
-            <style dangerouslySetInnerHTML={{ __html: "@keyframes poastDot{0%,80%,100%{opacity:0.2}40%{opacity:1}}" }} />
-            <span style={{ fontFamily: mn, fontSize: 12, color: C.amber }}>
-              <span style={{ animation: "poastDot 1.4s ease-in-out infinite" }}>.</span>
-              <span style={{ animation: "poastDot 1.4s ease-in-out 0.2s infinite" }}>.</span>
-              <span style={{ animation: "poastDot 1.4s ease-in-out 0.4s infinite" }}>.</span>
-            </span>
-          </div>
-        </div>}
-      </div>
-
-      {/* Input */}
-      <div style={{ padding: "10px 12px", borderTop: "1px solid " + C.border, display: "flex", gap: 8 }}>
-        <input value={input} onChange={function(e) { setInput(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Ask anything..." style={{ flex: 1, padding: "10px 12px", background: C.surface, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 12, outline: "none" }} />
-        <span onClick={send} style={{ padding: "10px 14px", background: C.amber, color: C.bg, borderRadius: 8, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: loading ? "wait" : "pointer", opacity: loading ? 0.5 : 1, display: "flex", alignItems: "center" }}>Send</span>
+      <div style={{ display: "flex", gap: 5 }}>
+        {msgs.length > 0 && <span onClick={function() { var c = msgs.map(function(m) { return (m.role === "user" ? "YOU:\n" : "POAST:\n") + m.text; }).join("\n\n---\n\n"); var b = new Blob([c], { type: "text/plain" }); var u = URL.createObjectURL(b); var a = document.createElement("a"); a.href = u; a.download = "poast.txt"; a.click(); URL.revokeObjectURL(u); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.25)", padding: "4px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }}>Export</span>}
+        {msgs.length > 0 && <span onClick={function() { setMsgs([]); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.25)", padding: "4px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }}>Clear</span>}
+        <span onClick={onToggle} style={{ fontFamily: mn, fontSize: 16, color: "rgba(255,255,255,0.2)", cursor: "pointer", padding: "2px 6px" }}>&times;</span>
       </div>
     </div>
-  );
+
+    {/* Messages */}
+    <div ref={scrollRef} style={{ position: "relative", zIndex: 2, flex: 1, overflow: "auto", padding: "18px 20px" }}>
+      {msgs.length === 0 && <div style={{ textAlign: "center", padding: "40px 16px" }}>
+        <div style={{ width: 52, height: 52, borderRadius: 16, background: "linear-gradient(135deg, " + C.amber + "22, " + C.amber + "0A)", border: "1px solid " + C.amber + "20", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontFamily: ft, fontSize: 24, fontWeight: 900, color: C.amber, animation: "logoPulse 3s ease-in-out infinite" }}>P</div>
+        <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: "#E8E4DD", marginBottom: 6 }}>How can I help?</div>
+        <div style={{ fontFamily: ft, fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 22, lineHeight: 1.6 }}>SA brand rules, platform formats, content drafts, ideas, and more.</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {SUGGESTIONS.map(function(s, i) {
+            return <span key={i} onClick={function() { setInput(s); }} style={{ fontFamily: ft, fontSize: 11, color: "rgba(255,255,255,0.45)", padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", textAlign: "left", transition: "all 0.2s", animation: "suggIn 0.3s ease " + (i * 0.08) + "s forwards", opacity: 0 }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.amber + "30"; e.currentTarget.style.color = "#E8E4DD"; e.currentTarget.style.background = C.amber + "06"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; e.currentTarget.style.color = "rgba(255,255,255,0.45)"; e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}>{s}</span>;
+          })}
+        </div>
+      </div>}
+      {msgs.map(function(m, i) {
+        var isUser = m.role === "user";
+        return <div key={i} style={{ marginBottom: 16, display: "flex", flexDirection: "column", alignItems: isUser ? "flex-end" : "flex-start", animation: "msgSlide 0.3s ease" }}>
+          {!isUser && <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+            <div style={{ width: 20, height: 20, borderRadius: 6, background: C.amber + "18", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 9, fontWeight: 900, color: C.amber }}>P</div>
+            <span style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.2)" }}>Poast</span>
+          </div>}
+          <div style={{ maxWidth: "88%", padding: "12px 16px", borderRadius: isUser ? "16px 16px 4px 16px" : "4px 16px 16px 16px", background: isUser ? "linear-gradient(135deg, " + C.amber + "15, " + C.amber + "08)" : "linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))", border: "1px solid " + (isUser ? C.amber + "20" : "rgba(255,255,255,0.06)"), boxShadow: isUser ? "0 2px 12px " + C.amber + "08" : "0 2px 8px rgba(0,0,0,0.2)" }}>
+            <div style={{ fontFamily: ft, fontSize: 13, color: "#E8E4DD", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{m.text}</div>
+          </div>
+          {!isUser && <div style={{ display: "flex", gap: 4, marginTop: 6, marginLeft: 26 }}>
+            <span onClick={function() { navigator.clipboard.writeText(m.text); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.2)", padding: "3px 7px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.color = C.amber; e.currentTarget.style.borderColor = C.amber + "25"; }} onMouseLeave={function(e) { e.currentTarget.style.color = "rgba(255,255,255,0.2)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }}>Copy</span>
+            <span onClick={function() { setInput("Regenerate the above but different"); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.2)", padding: "3px 7px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.color = C.amber; e.currentTarget.style.borderColor = C.amber + "25"; }} onMouseLeave={function(e) { e.currentTarget.style.color = "rgba(255,255,255,0.2)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }}>Regenerate</span>
+          </div>}
+        </div>;
+      })}
+      {loading && <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 0" }}>
+        <div style={{ width: 20, height: 20, borderRadius: 6, background: C.amber + "18", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 9, fontWeight: 900, color: C.amber }}>P</div>
+        <div style={{ display: "flex", gap: 4 }}>
+          {[0, 1, 2].map(function(i) { return <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: C.amber, opacity: 0.6, animation: "dotWave 1.2s ease-in-out " + (i * 0.15) + "s infinite" }} />; })}
+        </div>
+      </div>}
+    </div>
+
+    {/* Input */}
+    <div style={{ position: "relative", zIndex: 2, padding: "14px 16px 16px", borderTop: "1px solid rgba(247,176,65,0.06)" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", background: "linear-gradient(135deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01))", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "5px 5px 5px 16px", transition: "all 0.25s", animation: "inputGlow 4s ease-in-out infinite" }}>
+        <input value={input} onChange={function(e) { setInput(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Ask anything..." style={{ flex: 1, padding: "10px 0", background: "transparent", border: "none", color: "#E8E4DD", fontFamily: ft, fontSize: 13, outline: "none" }} />
+        <span onClick={send} style={{ padding: "9px 16px", background: input.trim() ? "linear-gradient(135deg, " + C.amber + ", #E8A020)" : "rgba(255,255,255,0.06)", color: input.trim() ? C.bg : "rgba(255,255,255,0.2)", borderRadius: 8, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: input.trim() ? "pointer" : "default", transition: "all 0.2s", boxShadow: input.trim() ? "0 4px 14px " + C.amber + "30, 0 0 20px " + C.amber + "10" : "none" }}>Send</span>
+      </div>
+    </div>
+  </div>;
 }
 
 // ═══ SIDEBAR ═══
