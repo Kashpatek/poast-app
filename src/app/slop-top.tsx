@@ -224,8 +224,55 @@ function BriefCard({ brief, label, selected, onSelect, assetSwapUrl }) {
   </div>;
 }
 
+// ═══ COPY TEXT HELPER ═══
+function copyText(text) {
+  navigator.clipboard.writeText(text);
+}
+
+// ═══ SLOP RESULT CARD ═══
+function SlopCard({ title, content, onCopy, copyLabel, extraButton }) {
+  var _h = useState(false), hov = _h[0], setHov = _h[1];
+  var _copied = useState(false), copied = _copied[0], setCopied = _copied[1];
+
+  function handleCopy() {
+    if (onCopy) onCopy();
+    else copyText(content);
+    setCopied(true);
+    setTimeout(function() { setCopied(false); }, 2000);
+  }
+
+  return <div
+    onMouseEnter={function() { setHov(true); }}
+    onMouseLeave={function() { setHov(false); }}
+    style={{
+      background: D.card, border: "1px solid " + (hov ? D.amber + "40" : D.border),
+      borderRadius: 12, padding: 20, transition: "all 0.2s",
+      flex: "1 1 280px", minWidth: 0,
+    }}
+  >
+    {title && <div style={{ fontFamily: mn, fontSize: 9, fontWeight: 600, color: D.txd, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>{title}</div>}
+    <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 500, color: D.tx, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{content}</div>
+    <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+      <button onClick={handleCopy} style={{
+        padding: "6px 14px", borderRadius: 8, border: "1px solid " + D.border,
+        background: copied ? D.teal + "20" : "transparent",
+        color: copied ? D.teal : D.txm,
+        cursor: "pointer", fontFamily: mn, fontSize: 10, fontWeight: 600,
+        transition: "all 0.15s",
+      }}>{copied ? "Copied" : (copyLabel || "Copy")}</button>
+      {extraButton}
+    </div>
+  </div>;
+}
+
 // ═══ MAIN COMPONENT ═══
 export default function SlobTop() {
+  // Link-to-slop state
+  var _slopUrl = useState(""), slopUrl = _slopUrl[0], setSlopUrl = _slopUrl[1];
+  var _slopLoading = useState(false), slopLoading = _slopLoading[0], setSlopLoading = _slopLoading[1];
+  var _slopError = useState(null), slopError = _slopError[0], setSlopError = _slopError[1];
+  var _slopResults = useState(null), slopResults = _slopResults[0], setSlopResults = _slopResults[1];
+
   // Input state
   var _topic = useState(""), topic = _topic[0], setTopic = _topic[1];
   var _platform = useState("multi"), platform = _platform[0], setPlatform = _platform[1];
@@ -239,6 +286,46 @@ export default function SlobTop() {
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
   var _error = useState(null), error = _error[0], setError = _error[1];
   var _selected = useState(null), selected = _selected[0], setSelected = _selected[1];
+
+  // Image creator state
+  var _imgPrompt = useState(""), imgPrompt = _imgPrompt[0], setImgPrompt = _imgPrompt[1];
+  var _imgLoading = useState(false), imgLoading = _imgLoading[0], setImgLoading = _imgLoading[1];
+  var _imgUrl = useState(null), imgUrl = _imgUrl[0], setImgUrl = _imgUrl[1];
+
+  function handleSlopGenerate() {
+    if (!slopUrl.trim()) return;
+    setSlopLoading(true);
+    setSlopError(null);
+    setSlopResults(null);
+
+    fetch("/api/slob-top", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "link-to-slop", url: slopUrl.trim() }),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) {
+        setSlopError(data.error + (data.raw ? " // " + data.raw : ""));
+      } else if (data.results) {
+        setSlopResults(data.results);
+      } else {
+        setSlopError("Unexpected response format");
+      }
+      setSlopLoading(false);
+    })
+    .catch(function(err) {
+      setSlopError(String(err));
+      setSlopLoading(false);
+    });
+  }
+
+  function sendToImageCreator(prompt) {
+    setImgPrompt(prompt);
+    // Scroll down to the image creator section
+    var el = document.getElementById("image-creator-panel");
+    if (el) el.scrollIntoView({ behavior: "smooth" });
+  }
 
   function handleGenerate() {
     if (!topic.trim()) return;
@@ -282,6 +369,194 @@ export default function SlobTop() {
       <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginTop: 4, letterSpacing: 1 }}>
         Content brief generator // Tell the team what to make
       </div>
+    </div>
+
+    {/* ═══ LINK-TO-SLOP SECTION ═══ */}
+    <div style={{
+      background: "linear-gradient(135deg, " + D.amber + "08 0%, " + D.card + " 40%, " + D.violet + "06 100%)",
+      border: "1px solid " + D.amber + "25",
+      borderRadius: 16, padding: 32, marginBottom: 32,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+        <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: D.amber }}>Link to Slop</div>
+        <div style={{
+          fontFamily: mn, fontSize: 9, fontWeight: 700, color: D.bg,
+          background: D.amber, padding: "3px 10px", borderRadius: 20,
+          letterSpacing: 1, textTransform: "uppercase",
+        }}>NEW</div>
+      </div>
+      <div style={{ fontFamily: mn, fontSize: 11, color: D.txm, marginBottom: 20 }}>
+        Paste any link. Get meme captions, video hooks, thread ideas, and image prompts.
+      </div>
+
+      {/* Input bar + button */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 0 }}>
+        <input
+          type="text"
+          value={slopUrl}
+          onChange={function(e) { setSlopUrl(e.target.value); }}
+          onKeyDown={function(e) { if (e.key === "Enter") handleSlopGenerate(); }}
+          placeholder="Paste any link to get slop..."
+          style={{
+            flex: 1, padding: "14px 20px", borderRadius: 12,
+            background: D.surface, border: "2px solid " + D.border,
+            color: D.tx, fontFamily: ft, fontSize: 16,
+            outline: "none", boxSizing: "border-box", transition: "border 0.2s",
+          }}
+          onFocus={function(e) { e.target.style.borderColor = D.amber; }}
+          onBlur={function(e) { e.target.style.borderColor = D.border; }}
+        />
+        <button
+          onClick={handleSlopGenerate}
+          disabled={slopLoading || !slopUrl.trim()}
+          style={{
+            padding: "14px 32px", borderRadius: 12,
+            border: "none", cursor: slopLoading || !slopUrl.trim() ? "not-allowed" : "pointer",
+            background: !slopUrl.trim() ? D.border : slopLoading ? D.amber + "80" : "linear-gradient(135deg, " + D.amber + " 0%, #E09520 100%)",
+            color: D.bg, fontFamily: ft, fontSize: 15, fontWeight: 800,
+            letterSpacing: 0.5, transition: "all 0.2s",
+            display: "flex", alignItems: "center", gap: 10,
+            opacity: !slopUrl.trim() ? 0.4 : 1,
+            flexShrink: 0,
+          }}
+        >
+          {slopLoading && <Spinner />}
+          {slopLoading ? "Generating..." : "Generate Slop"}
+        </button>
+      </div>
+
+      {/* Error */}
+      {slopError && <div style={{
+        marginTop: 16, padding: "12px 16px", borderRadius: 8,
+        background: D.coral + "12", border: "1px solid " + D.coral + "30",
+        fontFamily: mn, fontSize: 11, color: D.coral, lineHeight: 1.5,
+        wordBreak: "break-word",
+      }}>{slopError}</div>}
+
+      {/* Loading state */}
+      {slopLoading && <div style={{
+        marginTop: 24, padding: "40px 20px", textAlign: "center",
+        background: D.card, borderRadius: 12, border: "1px solid " + D.border,
+      }}>
+        <style dangerouslySetInnerHTML={{ __html: "@keyframes slopPulse{0%,100%{opacity:0.3}50%{opacity:1}}" }} />
+        <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 16 }}>
+          {[0, 1, 2].map(function(i) {
+            return <div key={i} style={{
+              width: 8, height: 8, borderRadius: "50%", background: D.amber,
+              animation: "slopPulse 1.4s ease-in-out infinite",
+              animationDelay: i * 0.2 + "s",
+            }} />;
+          })}
+        </div>
+        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 600, color: D.txm }}>Generating slop...</div>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginTop: 6 }}>
+          Fetching content and generating meme captions, video hooks, threads, and image prompts
+        </div>
+      </div>}
+
+      {/* ═══ SLOP RESULTS ═══ */}
+      {slopResults && <div style={{ marginTop: 24 }}>
+
+        {/* Meme Captions */}
+        {slopResults.meme_captions && slopResults.meme_captions.length > 0 && <div style={{ marginBottom: 24 }}>
+          <div style={{
+            fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.amber,
+            letterSpacing: 2, textTransform: "uppercase", marginBottom: 12,
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <span style={{ display: "inline-block", width: 16, height: 2, background: D.amber, borderRadius: 1 }} />
+            Meme Captions
+          </div>
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+            {slopResults.meme_captions.map(function(cap, i) {
+              return <SlopCard key={i} title={"Caption " + (i + 1)} content={cap} />;
+            })}
+          </div>
+        </div>}
+
+        {/* Video Hooks */}
+        {slopResults.video_hooks && slopResults.video_hooks.length > 0 && <div style={{ marginBottom: 24 }}>
+          <div style={{
+            fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.cyan,
+            letterSpacing: 2, textTransform: "uppercase", marginBottom: 12,
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <span style={{ display: "inline-block", width: 16, height: 2, background: D.cyan, borderRadius: 1 }} />
+            Video Hooks (first 3 seconds)
+          </div>
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+            {slopResults.video_hooks.map(function(hook, i) {
+              return <SlopCard key={i} title={"Hook " + (i + 1)} content={hook} />;
+            })}
+          </div>
+        </div>}
+
+        {/* Thread Idea */}
+        {slopResults.thread_idea && <div style={{ marginBottom: 24 }}>
+          <div style={{
+            fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.violet,
+            letterSpacing: 2, textTransform: "uppercase", marginBottom: 12,
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <span style={{ display: "inline-block", width: 16, height: 2, background: D.violet, borderRadius: 1 }} />
+            Thread Idea
+          </div>
+          <div style={{
+            background: D.card, border: "1px solid " + D.border,
+            borderRadius: 12, padding: 20,
+          }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {(Array.isArray(slopResults.thread_idea) ? slopResults.thread_idea : [slopResults.thread_idea]).map(function(post, i) {
+                return <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <div style={{
+                    width: 24, height: 24, borderRadius: "50%", flexShrink: 0,
+                    background: D.violet + "20", border: "1px solid " + D.violet + "40",
+                    color: D.violet, display: "flex", alignItems: "center", justifyContent: "center",
+                    fontFamily: mn, fontSize: 10, fontWeight: 800,
+                  }}>{i + 1}</div>
+                  <div style={{ fontFamily: ft, fontSize: 13, color: D.tx, lineHeight: 1.7 }}>{post}</div>
+                </div>;
+              })}
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <button onClick={function() {
+                var text = (Array.isArray(slopResults.thread_idea) ? slopResults.thread_idea : [slopResults.thread_idea]).map(function(p, i) { return (i + 1) + ". " + p; }).join("\n\n");
+                copyText(text);
+              }} style={{
+                padding: "6px 14px", borderRadius: 8, border: "1px solid " + D.border,
+                background: "transparent", color: D.txm,
+                cursor: "pointer", fontFamily: mn, fontSize: 10, fontWeight: 600,
+                transition: "all 0.15s",
+              }}>Copy Thread</button>
+            </div>
+          </div>
+        </div>}
+
+        {/* Image Prompt */}
+        {slopResults.image_prompt && <div style={{ marginBottom: 0 }}>
+          <div style={{
+            fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.teal,
+            letterSpacing: 2, textTransform: "uppercase", marginBottom: 12,
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <span style={{ display: "inline-block", width: 16, height: 2, background: D.teal, borderRadius: 1 }} />
+            Image Prompt (for Grok)
+          </div>
+          <SlopCard
+            content={slopResults.image_prompt}
+            extraButton={
+              <button onClick={function() { sendToImageCreator(slopResults.image_prompt); }} style={{
+                padding: "6px 14px", borderRadius: 8,
+                border: "1px solid " + D.teal + "50",
+                background: D.teal + "18",
+                color: D.teal,
+                cursor: "pointer", fontFamily: ft, fontSize: 10, fontWeight: 700,
+                transition: "all 0.15s",
+              }}>Generate Image</button>
+            }
+          />
+        </div>}
+      </div>}
     </div>
 
     {/* Two-Panel Layout */}

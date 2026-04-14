@@ -771,6 +771,15 @@ function Settings({ order, setOrder, disabled, setDisabled, fontSize, setFontSiz
 // ═══ DEFAULT SIZES ═══
 var DEFAULT_SIZES = { news: "2x2", semianalysis: "1x2", stocks: "2x1", etfs: "1x1", crypto: "1x1", earnings: "1x1", live: "2x1", watchlist: "1x1", ideas: "1x2", notes: "1x1", todos: "1x1", bufcal: "1x1", pomodoro: "1x1", chipkun: "1x1", bookmarks: "1x1", calc: "1x1", countdown: "1x1" };
 
+// ═══ SUPABASE SYNC ═══
+function dbSyncNewsflow(config) {
+  fetch("/api/db", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ table: "projects", data: { id: "newsflow-master", name: "News Flow Config", data: config, type: "newsflow", updated_at: new Date().toISOString() } }),
+  }).catch(function() {});
+}
+
 // ═══ MAIN DASHBOARD ═══
 export default function NewsFlow() {
   var _order = useState(WIDGET_IDS), order = _order[0], setOrder = _order[1];
@@ -781,16 +790,16 @@ export default function NewsFlow() {
   var _showSettings = useState(false), showSettings = _showSettings[0], setShowSettings = _showSettings[1];
   var _draftItem = useState(null), draftItem = _draftItem[0], setDraftItem = _draftItem[1];
   var _showAdd = useState(false), showAdd = _showAdd[0], setShowAdd = _showAdd[1];
+  var _loaded = useState(false), loaded = _loaded[0], setLoaded = _loaded[1];
   var dragRef = useRef(null);
 
-  useEffect(function() {
+  // Load from localStorage helper
+  function loadFromLS() {
     try {
       var o = localStorage.getItem("nf-order");
       if (o) {
         var saved = JSON.parse(o);
-        // Remove stale IDs that no longer exist
         saved = saved.filter(function(id) { return WIDGET_IDS.indexOf(id) >= 0; });
-        // Append any new widgets not in saved order
         var missing = WIDGET_IDS.filter(function(id) { return saved.indexOf(id) < 0; });
         if (missing.length > 0) saved = saved.concat(missing);
         setOrder(saved);
@@ -799,13 +808,62 @@ export default function NewsFlow() {
     try { var d = localStorage.getItem("nf-disabled"); if (d) setDisabled(JSON.parse(d)); } catch (e) {}
     try { var s = localStorage.getItem("nf-sizes"); if (s) setSizes(function(prev) { return Object.assign({}, prev, JSON.parse(s)); }); } catch (e) {}
     try { var f = localStorage.getItem("nf-fontsize"); if (f) setFontSize(parseFloat(f)); } catch (e) {}
-    // Show walkthrough on first visit
     try { if (!localStorage.getItem("nf-welcomed")) setShowWalkthrough(true); } catch (e) {}
+  }
+
+  // On mount: fetch from Supabase, fall back to localStorage
+  useEffect(function() {
+    var settled = false;
+    var timer = setTimeout(function() {
+      if (settled) return;
+      settled = true;
+      loadFromLS();
+      setLoaded(true);
+    }, 800);
+
+    fetch("/api/db?table=projects").then(function(r) { return r.json(); }).then(function(res) {
+      if (settled) return;
+      clearTimeout(timer);
+      settled = true;
+      if (res.data && res.data.length > 0) {
+        var row = res.data.find(function(r) { return r.type === "newsflow" && r.id === "newsflow-master"; });
+        if (row && row.data) {
+          var cfg = row.data;
+          if (cfg.order && cfg.order.length > 0) {
+            var saved = cfg.order.filter(function(id) { return WIDGET_IDS.indexOf(id) >= 0; });
+            var missing = WIDGET_IDS.filter(function(id) { return saved.indexOf(id) < 0; });
+            if (missing.length > 0) saved = saved.concat(missing);
+            setOrder(saved);
+          }
+          if (cfg.disabled) setDisabled(cfg.disabled);
+          if (cfg.sizes) setSizes(function(prev) { return Object.assign({}, prev, cfg.sizes); });
+          if (cfg.fontSize) setFontSize(cfg.fontSize);
+          setLoaded(true);
+          return;
+        }
+      }
+      loadFromLS();
+      setLoaded(true);
+    }).catch(function() {
+      if (settled) return;
+      clearTimeout(timer);
+      settled = true;
+      loadFromLS();
+      setLoaded(true);
+    });
+
+    return function() { clearTimeout(timer); };
   }, []);
-  useEffect(function() { try { localStorage.setItem("nf-order", JSON.stringify(order)); } catch (e) {} }, [order]);
-  useEffect(function() { try { localStorage.setItem("nf-disabled", JSON.stringify(disabled)); } catch (e) {} }, [disabled]);
-  useEffect(function() { try { localStorage.setItem("nf-sizes", JSON.stringify(sizes)); } catch (e) {} }, [sizes]);
-  useEffect(function() { try { localStorage.setItem("nf-fontsize", String(fontSize)); } catch (e) {} }, [fontSize]);
+
+  // Persist on change: localStorage + Supabase fire-and-forget
+  useEffect(function() {
+    if (!loaded) return;
+    try { localStorage.setItem("nf-order", JSON.stringify(order)); } catch (e) {}
+    try { localStorage.setItem("nf-disabled", JSON.stringify(disabled)); } catch (e) {}
+    try { localStorage.setItem("nf-sizes", JSON.stringify(sizes)); } catch (e) {}
+    try { localStorage.setItem("nf-fontsize", String(fontSize)); } catch (e) {}
+    dbSyncNewsflow({ order: order, disabled: disabled, sizes: sizes, fontSize: fontSize });
+  }, [order, disabled, sizes, fontSize, loaded]);
 
   var cycleSize = function(id) {
     setSizes(function(prev) {

@@ -42,6 +42,15 @@ var SAIL_EPS=[
 {guest:"Caia Costello",company:"Lambda AI",host:"Caithrin Rintoul"},
 ];
 
+// ═══ SUPABASE SYNC ═══
+function dbSyncGtc(config) {
+  fetch("/api/db", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ table: "projects", data: { id: "gtc-master", name: "GTC Flow", data: config, type: "gtc", updated_at: new Date().toISOString() } }),
+  }).catch(function() {});
+}
+
 function Badge(p){return <span style={{display:"inline-block",fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:6,background:p.bg,color:p.c||"#fff",letterSpacing:.5,fontFamily:FONT}}>{p.children}</span>}
 function Btn(p){return <button onClick={p.onClick} style={{padding:"8px 16px",border:p.on?"1px solid "+AMB+"50":"1px solid "+BDR,borderRadius:8,background:p.on?AMB+"12":"rgba(255,255,255,0.02)",color:p.on?AMB:"rgba(255,255,255,0.4)",cursor:"pointer",fontFamily:FONT,fontSize:13,fontWeight:p.on?700:500,transition:"all 0.15s",...(p.sx||{})}}>{p.children}</button>}
 function Chk(p){return <span onClick={p.onClick} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:6,border:"2px solid "+(p.on?GRN:BDR),background:p.on?GRN+"20":"transparent",cursor:"pointer",fontSize:12,color:p.on?GRN:"rgba(255,255,255,0.25)",userSelect:"none",fontWeight:700,transition:"all 0.15s"}}>{p.on?"\u2713":""}</span>}
@@ -60,24 +69,54 @@ export default function GTCFlow(){
   var [subV,setSubV]=useState("timeline");
   var [loaded,setLoaded]=useState(false);
 
+  // Load from localStorage helper
+  function loadFromLS(){
+    try{var s=localStorage.getItem("pv4");if(s)setEps(JSON.parse(s));}catch(e){}
+    try{var c=localStorage.getItem("pv4c");if(c)setCadIdx(JSON.parse(c));}catch(e){}
+  }
+
+  // On mount: fetch from Supabase, fall back to localStorage
   useEffect(function(){
-    // Load: try API first, fall back to localStorage
-    fetch("/api/gtc-state").then(function(r){return r.json()}).then(function(d){
-      if(d.eps)setEps(d.eps);
-      if(d.cadIdx!==undefined)setCadIdx(d.cadIdx);
+    var settled=false;
+    var timer=setTimeout(function(){
+      if(settled)return;
+      settled=true;
+      loadFromLS();
+      setLoaded(true);
+    },800);
+
+    fetch("/api/db?table=projects").then(function(r){return r.json()}).then(function(res){
+      if(settled)return;
+      clearTimeout(timer);
+      settled=true;
+      if(res.data&&res.data.length>0){
+        var row=res.data.find(function(r){return r.type==="gtc"&&r.id==="gtc-master"});
+        if(row&&row.data){
+          var cfg=row.data;
+          if(cfg.eps&&cfg.eps.length>0)setEps(cfg.eps);
+          if(cfg.cadIdx!==undefined)setCadIdx(cfg.cadIdx);
+          setLoaded(true);
+          return;
+        }
+      }
+      loadFromLS();
       setLoaded(true);
     }).catch(function(){
-      try{var s=localStorage.getItem("pv4");if(s)setEps(JSON.parse(s));var c=localStorage.getItem("pv4c");if(c)setCadIdx(JSON.parse(c));}catch(e){}
+      if(settled)return;
+      clearTimeout(timer);
+      settled=true;
+      loadFromLS();
       setLoaded(true);
     });
+
+    return function(){clearTimeout(timer)};
   },[]);
 
+  // Persist on change: localStorage + Supabase fire-and-forget
   useEffect(function(){
     if(!loaded)return;
-    // Save: API + localStorage
-    var payload=JSON.stringify({eps:eps,cadIdx:cadIdx});
     try{localStorage.setItem("pv4",JSON.stringify(eps));localStorage.setItem("pv4c",JSON.stringify(cadIdx));}catch(e){}
-    fetch("/api/state",{method:"POST",headers:{"Content-Type":"application/json"},body:payload}).catch(function(){});
+    dbSyncGtc({eps:eps,cadIdx:cadIdx});
   },[eps,cadIdx,loaded]);
 
   var cad=CADENCES[cadIdx];

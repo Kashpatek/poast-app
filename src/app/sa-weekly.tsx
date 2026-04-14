@@ -197,6 +197,13 @@ function KeywordBar({ onSuggest, loading }) {
 
 // ═══ PERSISTENCE ═══
 var saveTimer = null;
+function weeklyDbSync(state, log) {
+  fetch("/api/db", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ table: "projects", data: { id: "weekly-master", name: "SA Weekly", data: { state: state, log: log }, type: "weekly", updated_at: new Date().toISOString() } }),
+  }).catch(function() {});
+}
 function saveState(state, log) {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(function() {
@@ -204,6 +211,7 @@ function saveState(state, log) {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ state: state, log: log }),
     }).catch(function(e) { console.error("Auto-save failed:", e); });
+    weeklyDbSync(state, log);
   }, 1000);
 }
 
@@ -745,16 +753,46 @@ export default function SAWeekly() {
   var _interacted = useState(false), interacted = _interacted[0], setInteracted = _interacted[1];
   var draftRef = useRef(null);
 
-  // Load state on mount
+  // Load state on mount: try Supabase first (800ms timeout), fall back to Redis
   useEffect(function() {
-    fetch("/api/state").then(function(r) { return r.json(); }).then(function(d) {
+    var settled = false;
+    var applyData = function(d) {
       if (d.log && Array.isArray(d.log)) setLogData(d.log);
       if (d.state && (d.state.ep && d.state.ep.transcript || d.state.opts || d.state.fin)) {
         draftRef.current = d.state;
         setHasDraft(true);
       }
       setLoaded(true);
-    }).catch(function() { setLoaded(true); });
+    };
+    var redisFallback = function() {
+      fetch("/api/state").then(function(r) { return r.json(); }).then(function(d) {
+        if (settled) return;
+        settled = true;
+        applyData(d);
+      }).catch(function() { if (!settled) { settled = true; setLoaded(true); } });
+    };
+    var timer = setTimeout(function() {
+      if (settled) return;
+      redisFallback();
+    }, 800);
+    fetch("/api/db?table=projects").then(function(r) { return r.json(); }).then(function(res) {
+      if (settled) return;
+      clearTimeout(timer);
+      if (res.data && res.data.length > 0) {
+        var row = res.data.find(function(r) { return r.type === "weekly" && r.id === "weekly-master"; });
+        if (row && row.data) {
+          settled = true;
+          applyData({ state: row.data.state || null, log: row.data.log || [] });
+          return;
+        }
+      }
+      redisFallback();
+    }).catch(function() {
+      if (settled) return;
+      clearTimeout(timer);
+      redisFallback();
+    });
+    return function() { clearTimeout(timer); };
   }, []);
 
   var loadDraft = function() {
