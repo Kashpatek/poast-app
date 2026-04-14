@@ -1041,18 +1041,25 @@ function Confetti() {
 // ═══ INTRO: USER SELECT → BOOT → GLITCH → SPLASH ═══
 function UserSelect({ onSelect }) {
   var _h = useState(null), h = _h[0], sh = _h[1];
-  return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
-    <style dangerouslySetInnerHTML={{ __html: "@keyframes ufi{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}" }} />
-    <div style={{ position: "absolute", width: "50vw", height: "50vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(247,176,65,0.03), transparent 60%)" }} />
+  var users = [
+    { name: "Akash", role: "Producer", color: "#0B86D1", glow: "rgba(11,134,209," },
+    { name: "Vansh", role: "Analyst", color: "#2EAD8E", glow: "rgba(46,173,142," },
+  ];
+  return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, overflow: "hidden" }}>
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes ufi{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}@keyframes orbPulse{0%,100%{transform:scale(1);opacity:0.5}50%{transform:scale(1.1);opacity:0.8}}" }} />
+    {/* Ambient orb that follows hover */}
+    {h !== null && <div style={{ position: "absolute", width: "60vw", height: "60vw", borderRadius: "50%", background: "radial-gradient(circle, " + users[h].glow + "0.08), transparent 50%)", transition: "background 0.5s ease", animation: "orbPulse 3s ease-in-out infinite", pointerEvents: "none" }} />}
+    {h === null && <div style={{ position: "absolute", width: "50vw", height: "50vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(247,176,65,0.03), transparent 60%)" }} />}
     <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.amber, letterSpacing: 4, marginBottom: 6, animation: "ufi 0.4s ease forwards", opacity: 0 }}>POAST</div>
     <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.2)", letterSpacing: 2, marginBottom: 40, animation: "ufi 0.4s ease 0.1s forwards", opacity: 0 }}>SELECT USER</div>
     <div style={{ display: "flex", gap: 20 }}>
-      {["Akash", "Vansh"].map(function(name, i) {
+      {users.map(function(user, i) {
         var on = h === i;
-        return <div key={name} onClick={function() { onSelect(name); }} onMouseEnter={function() { sh(i); }} onMouseLeave={function() { sh(null); }} style={{ width: 160, padding: "28px 20px", borderRadius: 12, cursor: "pointer", background: on ? "#111118" : "#0A0A14", border: on ? "1px solid " + C.amber + "60" : "1px solid rgba(255,255,255,0.06)", textAlign: "center", transition: "all 0.15s", boxShadow: on ? "0 0 20px " + C.amber + "15" : "none", animation: "ufi 0.4s ease " + (0.2 + i * 0.1) + "s forwards", opacity: 0 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 12, background: on ? C.amber + "20" : "#111118", border: "1px solid " + (on ? C.amber + "40" : "rgba(255,255,255,0.06)"), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontFamily: ft, fontSize: 20, fontWeight: 900, color: on ? C.amber : "rgba(255,255,255,0.25)" }}>{name[0]}</div>
-          <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: on ? C.amber : "#E8E4DD" }}>{name}</div>
-          <div style={{ fontFamily: ft, fontSize: 9, color: "rgba(255,255,255,0.2)", marginTop: 4 }}>{name === "Akash" ? "Producer" : "Analyst"}</div>
+        var uc = user.color;
+        return <div key={user.name} onClick={function() { onSelect(user.name); }} onMouseEnter={function() { sh(i); }} onMouseLeave={function() { sh(null); }} style={{ width: 160, padding: "28px 20px", borderRadius: 12, cursor: "pointer", background: on ? uc + "08" : "#0A0A14", border: on ? "1px solid " + uc + "50" : "1px solid rgba(255,255,255,0.06)", textAlign: "center", transition: "all 0.2s", boxShadow: on ? "0 0 30px " + uc + "18, 0 0 60px " + uc + "06" : "none", animation: "ufi 0.4s ease " + (0.2 + i * 0.1) + "s forwards", opacity: 0 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: on ? uc + "20" : "#111118", border: "1px solid " + (on ? uc + "40" : "rgba(255,255,255,0.06)"), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontFamily: ft, fontSize: 20, fontWeight: 900, color: on ? uc : "rgba(255,255,255,0.25)", transition: "all 0.2s", boxShadow: on ? "0 0 16px " + uc + "25" : "none" }}>{user.name[0]}</div>
+          <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: on ? uc : "#E8E4DD", transition: "color 0.2s", textShadow: on ? "0 0 20px " + user.glow + "0.4)" : "none" }}>{user.name}</div>
+          <div style={{ fontFamily: ft, fontSize: 9, color: on ? uc + "80" : "rgba(255,255,255,0.2)", marginTop: 4, transition: "color 0.2s" }}>{user.role}</div>
         </div>;
       })}
     </div>
