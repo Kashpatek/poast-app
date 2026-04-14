@@ -542,20 +542,20 @@ export default function SlopTop() {
     fetch("/api/generate-clip", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: fullPrompt, engine: "grok" }),
+      body: JSON.stringify({ action: "generate", prompt: fullPrompt, engine: "grok" }),
     }).then(function(r) { return r.json(); }).then(function(d) {
       if (d.video && d.video.url) {
         setVideoUrl(d.video.url);
         setVideoStatus(null);
         setVideoLoading(false);
-      } else if (d.status === "processing" || d.status === "pending") {
-        setVideoStatus("still cooking... " + (d.status || ""));
-        // Poll for completion
+      } else if (d.task && d.task.task_id) {
+        setVideoStatus("still cooking... video submitted");
+        var taskId = d.task.task_id;
         var pollInterval = setInterval(function() {
           fetch("/api/generate-clip", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt: fullPrompt, engine: "grok" }),
+            body: JSON.stringify({ action: "status", taskId: taskId, engine: "grok" }),
           }).then(function(r2) { return r2.json(); }).then(function(d2) {
             if (d2.video && d2.video.url) {
               setVideoUrl(d2.video.url);
@@ -566,6 +566,8 @@ export default function SlopTop() {
               setVideoError(d2.error);
               setVideoLoading(false);
               clearInterval(pollInterval);
+            } else {
+              setVideoStatus("still cooking... " + (d2.status || d2.progress || ""));
             }
           }).catch(function(e2) {
             setVideoError(String(e2));
@@ -654,7 +656,10 @@ export default function SlopTop() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ system: systemPrompt, prompt: userPrompt }),
     }).then(function(r) { return r.json(); }).then(function(d) {
+      if (d.error) throw new Error(d.error.message || d.error || "API ERROR");
       var text = (d.content || []).map(function(c) { return c.text || ""; }).join("");
+      if (!text && d.text) text = d.text;
+      if (!text && typeof d === "string") text = d;
       if (!text) throw new Error("THE MACHINE RETURNED NOTHING. TRY AGAIN.");
       return text;
     });
@@ -737,7 +742,7 @@ export default function SlopTop() {
     fetch("/api/generate-clip", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: factoryVideoPrompt, engine: "grok" }),
+      body: JSON.stringify({ action: "generate", prompt: factoryVideoPrompt, engine: "grok" }),
     }).then(function(r) { return r.json(); }).then(function(d) {
       if (d.video && d.video.url) {
         clearInterval(progInterval);
@@ -745,12 +750,13 @@ export default function SlopTop() {
         setFactoryVideoUrl(d.video.url);
         setFactoryCredits(function(c) { return c + 3; });
         setFactoryPhase("video_done");
-      } else if (d.status === "processing" || d.status === "pending") {
+      } else if (d.task && d.task.task_id) {
+        var factoryTaskId = d.task.task_id;
         var pollInterval = setInterval(function() {
           fetch("/api/generate-clip", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt: factoryVideoPrompt, engine: "grok" }),
+            body: JSON.stringify({ action: "status", taskId: factoryTaskId, engine: "grok" }),
           }).then(function(r2) { return r2.json(); }).then(function(d2) {
             if (d2.video && d2.video.url) {
               clearInterval(progInterval);
