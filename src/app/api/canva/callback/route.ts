@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Canva Connect API - OAuth2 Callback
-// Exchanges the authorization code for an access token
+// Canva Connect API - OAuth2 Callback with PKCE
+// Exchanges authorization code + code_verifier for access token
 
 const CANVA_TOKEN_URL = "https://api.canva.com/rest/v1/oauth/token";
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
+  const state = req.nextUrl.searchParams.get("state");
   const error = req.nextUrl.searchParams.get("error");
 
   if (error) {
@@ -15,6 +16,18 @@ export async function GET(req: NextRequest) {
 
   if (!code) {
     return NextResponse.json({ error: "No authorization code received" }, { status: 400 });
+  }
+
+  // Verify state matches
+  const savedState = req.cookies.get("canva_state")?.value;
+  if (!savedState || savedState !== state) {
+    return NextResponse.json({ error: "State mismatch. Possible CSRF attack." }, { status: 400 });
+  }
+
+  // Get code_verifier from cookie
+  const codeVerifier = req.cookies.get("canva_code_verifier")?.value;
+  if (!codeVerifier) {
+    return NextResponse.json({ error: "Code verifier not found. Try authorizing again at /api/canva/auth" }, { status: 400 });
   }
 
   const clientId = process.env.CANVA_CLIENT_ID;
@@ -27,7 +40,7 @@ export async function GET(req: NextRequest) {
   const redirectUri = `${origin}/api/canva/callback`;
 
   try {
-    // Exchange code for token
+    // Exchange code for token with PKCE code_verifier
     const r = await fetch(CANVA_TOKEN_URL, {
       method: "POST",
       headers: {
@@ -38,28 +51,41 @@ export async function GET(req: NextRequest) {
         grant_type: "authorization_code",
         code,
         redirect_uri: redirectUri,
+        code_verifier: codeVerifier,
       }).toString(),
     });
 
     const data = await r.json();
+
     if (!r.ok) {
-      return NextResponse.redirect(new URL("/?canva_error=token_exchange_failed", req.nextUrl.origin));
+      console.error("[Canva OAuth] Token exchange failed:", JSON.stringify(data));
+      return NextResponse.json({
+        error: "Token exchange failed",
+        details: data,
+        hint: "Check that CANVA_CLIENT_ID and CANVA_CLIENT_SECRET are correct in Vercel env vars",
+      }, { status: 400 });
     }
 
-    // Store tokens - in production use a database
-    // For now, return them so the user can add to .env
-    // The access_token and refresh_token are in data
-    const successUrl = new URL("/", req.nextUrl.origin);
-    successUrl.searchParams.set("canva_connected", "true");
+    // Success -- show the token so user can add to Vercel env vars
+    // In production, save to database instead
+    console.log("[Canva OAuth] Success! Tokens received.");
 
-    // In a real setup, save to database. For now log it.
-    console.log("[Canva OAuth] Access token received. Set CANVA_ACCESS_TOKEN in .env.local:");
-    console.log("[Canva OAuth] access_token:", data.access_token?.slice(0, 20) + "...");
-    console.log("[Canva OAuth] refresh_token:", data.refresh_token?.slice(0, 20) + "...");
-    console.log("[Canva OAuth] expires_in:", data.expires_in);
+    // Clean up cookies
+    const response = NextResponse.json({
+      success: true,
+      message: "Canva connected. Add these to your Vercel environment variables:",
+      CANVA_ACCESS_TOKEN: data.access_token,
+      CANVA_REFRESH_TOKEN: data.refresh_token || null,
+      expires_in: data.expires_in,
+      hint: "Go to Vercel Dashboard > poast-app > Settings > Environment Variables and add CANVA_ACCESS_TOKEN, then redeploy.",
+    });
 
-    return NextResponse.redirect(successUrl.toString());
-  } catch (error) {
-    return NextResponse.redirect(new URL("/?canva_error=network_error", req.nextUrl.origin));
+    response.cookies.delete("canva_code_verifier");
+    response.cookies.delete("canva_state");
+
+    return response;
+  } catch (err) {
+    console.error("[Canva OAuth] Network error:", err);
+    return NextResponse.json({ error: "Network error during token exchange: " + String(err) }, { status: 500 });
   }
 }
