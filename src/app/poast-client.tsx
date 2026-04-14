@@ -1042,8 +1042,8 @@ function Confetti() {
 function UserSelect({ onSelect }) {
   var _h = useState(null), h = _h[0], sh = _h[1];
   var users = [
-    { name: "Akash", role: "Producer", color: "#0B86D1", glow: "rgba(11,134,209," },
-    { name: "Vansh", role: "Analyst", color: "#2EAD8E", glow: "rgba(46,173,142," },
+    { name: "Akash", role: "Director", color: "#0B86D1", glow: "rgba(11,134,209," },
+    { name: "Vansh", role: "Social Media Manager", color: "#2EAD8E", glow: "rgba(46,173,142," },
   ];
   return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, overflow: "hidden" }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes ufi{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}@keyframes orbPulse{0%,100%{transform:scale(1);opacity:0.5}50%{transform:scale(1.1);opacity:0.8}}" }} />
