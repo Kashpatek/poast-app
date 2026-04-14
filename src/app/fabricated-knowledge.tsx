@@ -26,22 +26,34 @@ var HOST = "Doug O'Laughlin";
 // ═══ DEFAULT DATA ═══
 var DEFAULT_PROSPECTS = [
   { id: "fk-default-val", name: "Val Bercovici", company: "WEKA", role: "Executive", topics: "KV Cache, Disaggregated Inference, Memory Architecture, Memory Markets, HBM Pricing, Agentic Demand", tier: "S", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736899200000 },
-  { id: "fk-default-will", name: "Will Eatherton", company: "Cisco", role: "SVP Engineering", topics: "AI Networking, Datacenter Infrastructure, Modular Systems", tier: "A", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736812800000 },
-  { id: "fk-default-wes", name: "Wes Cummins", company: "Applied Digital", role: "CEO", topics: "GPU Cloud, AI Infrastructure, Datacenter Development", tier: "A", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736726400000 },
+  { id: "fk-default-rajesh", name: "Rajesh Vashist", company: "SiTime", role: "CEO", topics: "MEMS Timing, Precision Oscillators, Semiconductor Clocks", tier: "S", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736812800000 },
+  { id: "fk-default-tony", name: "Tony Pialis", company: "Alphawave", role: "CEO", topics: "Connectivity IP, SerDes, Chiplets, High-Speed Interfaces", tier: "A", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736726400000 },
+  { id: "fk-default-dan", name: "Dan Kim", company: "CHIPS Program", role: "Executive", topics: "CHIPS Act, Semiconductor Policy, US Fab Investment", tier: "A", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736640000000 },
+  { id: "fk-default-hasan", name: "Hasan Khan", company: "CHIPS Program", role: "Executive", topics: "CHIPS Act, Semiconductor Policy, US Fab Investment", tier: "A", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736553600000 },
+  { id: "fk-default-wes", name: "Wes Cummins", company: "Applied Digital", role: "CEO", topics: "GPU Cloud, AI Infrastructure, Datacenter Development", tier: "A", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736467200000 },
+  { id: "fk-default-will", name: "Will Eatherton", company: "Cisco", role: "SVP Engineering", topics: "AI Networking, Datacenter Infrastructure, Modular Systems", tier: "A", status: "Released", channel: "intro", dateContacted: "", followUp: "", response: "", added: 1736380800000 },
 ];
 
 var DEFAULT_EPISODES = [
-  { id: "fk-ep-default-1", number: "1", guestId: "fk-default-val", topic: "KV Cache, Disaggregated Inference, Memory Architecture", recordDate: "", releaseDate: "2025-07-07", status: "Released", notes: "A Conversation with Val Bercovici about Disaggregated Prefill / Decode", added: 1751846400000 },
-  { id: "fk-ep-default-2", number: "2", guestId: "fk-default-will", topic: "AI Networking, Datacenter Infrastructure, Modular Systems", recordDate: "", releaseDate: "2025-10-27", status: "Released", notes: "Will Eatherton: How Cisco Plans to Compete in the AI Datacenter", added: 1761523200000 },
-  { id: "fk-ep-default-3", number: "3", guestId: "fk-default-val", topic: "Memory Markets, HBM Pricing, Agentic Demand", recordDate: "", releaseDate: "2025-02-16", status: "Released", notes: "Another Conversation with Val Bercovici Memory Markets", added: 1739664000000 },
-  { id: "fk-ep-default-4", number: "4", guestId: "fk-default-wes", topic: "GPU Cloud, AI Infrastructure, Datacenter Development", recordDate: "", releaseDate: "2025-01-15", status: "Released", notes: "An Interview with Wes Cummins, CEO of Applied Digital", added: 1736899200000 },
+  { id: "fk-ep-default-1", number: "1", guestId: "fk-default-rajesh", topic: "MEMS Timing, Precision Oscillators, Semiconductor Clocks", recordDate: "", releaseDate: "2025-07-26", status: "Released", notes: "Rajesh Vashist on SiTime and the Future of MEMS Timing", added: 1753488000000 },
+  { id: "fk-ep-default-2", number: "2", guestId: "fk-default-tony", topic: "Connectivity IP, SerDes, Chiplets, High-Speed Interfaces", recordDate: "", releaseDate: "2025-08-15", status: "Released", notes: "Tony Pialis on Alphawave and Next-Gen Connectivity", added: 1755216000000 },
+  { id: "fk-ep-default-3", number: "3", guestId: "fk-default-rajesh", topic: "SiTime Business Update, MEMS Market Dynamics", recordDate: "", releaseDate: "2025-09-10", status: "Released", notes: "Rajesh Vashist: SiTime Update", added: 1757462400000 },
+  { id: "fk-ep-default-4", number: "4", guestId: "fk-default-dan", topic: "CHIPS Act Implementation, US Semiconductor Strategy", recordDate: "", releaseDate: "2025-09-25", status: "Released", notes: "Dan Kim & Hasan Khan on the CHIPS Program", added: 1758758400000 },
+  { id: "fk-ep-default-5", number: "5", guestId: "fk-default-wes", topic: "GPU Cloud, AI Infrastructure, Datacenter Development", recordDate: "", releaseDate: "2025-10-20", status: "Released", notes: "Wes Cummins: CEO of Applied Digital on AI Infrastructure", added: 1760918400000 },
+  { id: "fk-ep-default-6", number: "6", guestId: "fk-default-val", topic: "KV Cache, Disaggregated Inference, Prefill/Decode Architecture", recordDate: "", releaseDate: "2025-10-27", status: "Released", notes: "Val Bercovici on Disaggregated Prefill/Decode", added: 1761523200000 },
+  { id: "fk-ep-default-7", number: "7", guestId: "fk-default-will", topic: "AI Networking, Datacenter Infrastructure, Modular Systems", recordDate: "", releaseDate: "2025-11-20", status: "Released", notes: "Will Eatherton: How Cisco Plans to Compete in the AI Datacenter", added: 1763596800000 },
+  { id: "fk-ep-default-8", number: "8", guestId: "fk-default-val", topic: "Memory Markets, HBM Pricing, Agentic Demand", recordDate: "", releaseDate: "2026-02-16", status: "Released", notes: "Val Bercovici on Memory Markets", added: 1771200000000 },
 ];
 
 var DEFAULT_ARCHIVE = [
-  { id: "fk-arc-default-1", number: "1", guest: "Val Bercovici", company: "WEKA", topic: "KV Cache, Disaggregated Inference, Memory Architecture", category: "AI Infra", releaseDate: "2025-07-07", plays: 0 },
-  { id: "fk-arc-default-2", number: "2", guest: "Will Eatherton", company: "Cisco", topic: "AI Networking, Datacenter Infrastructure, Modular Systems", category: "Data Center", releaseDate: "2025-10-27", plays: 0 },
-  { id: "fk-arc-default-3", number: "3", guest: "Val Bercovici", company: "WEKA", topic: "Memory Markets, HBM Pricing, Agentic Demand", category: "Memory", releaseDate: "2025-02-16", plays: 0 },
-  { id: "fk-arc-default-4", number: "4", guest: "Wes Cummins", company: "Applied Digital", topic: "GPU Cloud, AI Infrastructure, Datacenter Development", category: "Compute", releaseDate: "2025-01-15", plays: 0 },
+  { id: "fk-arc-default-1", number: "1", guest: "Rajesh Vashist", company: "SiTime", topic: "MEMS Timing, Precision Oscillators, Semiconductor Clocks", category: "Semiconductors", releaseDate: "2025-07-26", plays: 0 },
+  { id: "fk-arc-default-2", number: "2", guest: "Tony Pialis", company: "Alphawave", topic: "Connectivity IP, SerDes, Chiplets, High-Speed Interfaces", category: "Semiconductors", releaseDate: "2025-08-15", plays: 0 },
+  { id: "fk-arc-default-3", number: "3", guest: "Rajesh Vashist", company: "SiTime", topic: "SiTime Business Update, MEMS Market Dynamics", category: "Semiconductors", releaseDate: "2025-09-10", plays: 0 },
+  { id: "fk-arc-default-4", number: "4", guest: "Dan Kim & Hasan Khan", company: "CHIPS Program", topic: "CHIPS Act Implementation, US Semiconductor Strategy", category: "Geopolitics", releaseDate: "2025-09-25", plays: 0 },
+  { id: "fk-arc-default-5", number: "5", guest: "Wes Cummins", company: "Applied Digital", topic: "GPU Cloud, AI Infrastructure, Datacenter Development", category: "Compute", releaseDate: "2025-10-20", plays: 0 },
+  { id: "fk-arc-default-6", number: "6", guest: "Val Bercovici", company: "WEKA", topic: "KV Cache, Disaggregated Inference, Prefill/Decode Architecture", category: "AI Infra", releaseDate: "2025-10-27", plays: 0 },
+  { id: "fk-arc-default-7", number: "7", guest: "Will Eatherton", company: "Cisco", topic: "AI Networking, Datacenter Infrastructure, Modular Systems", category: "Data Center", releaseDate: "2025-11-20", plays: 0 },
+  { id: "fk-arc-default-8", number: "8", guest: "Val Bercovici", company: "WEKA", topic: "Memory Markets, HBM Pricing, Agentic Demand", category: "Memory", releaseDate: "2026-02-16", plays: 0 },
 ];
 
 function uid() { return "fk-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8); }
@@ -257,7 +269,7 @@ function ProspectsTab({ prospects, setProspects }) {
 }
 
 // ═══ TAB: EPISODES ═══
-function EpisodesTab({ episodes, setEpisodes, prospects }) {
+function EpisodesTab({ episodes, setEpisodes, prospects, setTab }) {
   var _show = useState(false), showForm = _show[0], setShowForm = _show[1];
   var _exp = useState(null), expanded = _exp[0], setExpanded = _exp[1];
   var _form = useState({ number: "", guestId: "", topic: "", recordDate: "", releaseDate: "", status: "Planning", notes: "" }), form = _form[0], setForm = _form[1];
@@ -286,13 +298,16 @@ function EpisodesTab({ episodes, setEpisodes, prospects }) {
     return g ? g.name : "TBD";
   }
 
+  // Filter out Released episodes - those belong in Archive only
+  var activeEpisodes = episodes.filter(function(e) { return e.status !== "Released"; });
+
   // Calendar: upcoming episodes sorted by record date
-  var upcoming = episodes.filter(function(e) { return e.recordDate; }).sort(function(a, b) { return a.recordDate.localeCompare(b.recordDate); });
+  var upcoming = activeEpisodes.filter(function(e) { return e.recordDate; }).sort(function(a, b) { return a.recordDate.localeCompare(b.recordDate); });
 
   return <div>
     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
       <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: D.txm }}>
-        {episodes.length} episode{episodes.length !== 1 ? "s" : ""} total
+        {activeEpisodes.length} upcoming episode{activeEpisodes.length !== 1 ? "s" : ""}
       </div>
       <Btn primary onClick={function() { setShowForm(!showForm); }}>{showForm ? "Cancel" : "+ New Episode"}</Btn>
     </div>
@@ -330,7 +345,7 @@ function EpisodesTab({ episodes, setEpisodes, prospects }) {
 
     {/* Episode list */}
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {episodes.map(function(e) {
+      {activeEpisodes.map(function(e) {
         var isExp = expanded === e.id;
         return <Card key={e.id} onClick={function() { setExpanded(isExp ? null : e.id); }} sx={{ borderColor: isExp ? D.coral + "40" : D.border, cursor: "pointer" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -358,7 +373,10 @@ function EpisodesTab({ episodes, setEpisodes, prospects }) {
         </Card>;
       })}
     </div>
-    {episodes.length === 0 && <div style={{ textAlign: "center", padding: 60, color: D.txd, fontFamily: ft, fontSize: 14 }}>No episodes yet. Create your first episode above.</div>}
+    {activeEpisodes.length === 0 && <div style={{ textAlign: "center", padding: 60 }}>
+      <div style={{ fontFamily: ft, fontSize: 15, color: D.txm, marginBottom: 16 }}>No upcoming episodes scheduled. Head to Prospects to book your next guest.</div>
+      <Btn primary onClick={function() { setTab(0); }}>Go to Prospects</Btn>
+    </div>}
   </div>;
 }
 
@@ -536,10 +554,19 @@ function PostProductionTab({ episodes, prospects }) {
     setClips(function(prev) { return prev.map(function(c) { return c.id === clipId ? { ...c, flagged: !c.flagged } : c; }); });
   }
 
+  // Show released episodes in the dropdown (post-production works on released content)
+  var releasedEpisodes = episodes.filter(function(e) { return e.status === "Released"; });
+
+  function epLabel(e) {
+    var g = prospects.find(function(p) { return p.id === e.guestId; });
+    var gName = g ? g.name : (e.guestName || "TBD");
+    return "EP " + e.number + " - " + gName;
+  }
+
   return <div>
     <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 24 }}>
       <SectionLabel>Episode</SectionLabel>
-      <Select value={selId} onChange={setSelId} options={[{ value: "", label: "Select episode..." }].concat(episodes.map(function(e) { var g = prospects.find(function(p) { return p.id === e.guestId; }); return { value: e.id, label: "EP " + e.number + " - " + (g ? g.name : "TBD") }; }))} sx={{ minWidth: 260 }} />
+      <Select value={selId} onChange={setSelId} options={[{ value: "", label: "Select released episode..." }].concat(releasedEpisodes.map(function(e) { return { value: e.id, label: epLabel(e) }; }))} sx={{ minWidth: 300 }} />
     </div>
 
     {/* Transcript input */}
@@ -548,17 +575,18 @@ function PostProductionTab({ episodes, prospects }) {
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Transcript</div>
         <Btn primary onClick={processTranscript} disabled={loading || !transcript.trim()}>{loading ? "Processing..." : "Process Transcript"}</Btn>
       </div>
-      <TextArea value={transcript} onChange={setTranscript} rows={10} mono placeholder="Paste Riverside transcript export here..." />
+      <TextArea value={transcript} onChange={setTranscript} rows={12} mono placeholder="Paste Riverside transcript export here..." />
     </Card>
 
     {/* Title options */}
     {titles.length > 0 && <Card sx={{ marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Title Options</div>
+        <span style={{ fontFamily: mn, fontSize: 10, color: D.txm }}>{titles.length} options</span>
       </div>
       {titles.map(function(t, i) {
         return <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: D.surface, borderRadius: 8, marginBottom: 8, border: "1px solid " + D.border }}>
-          <span style={{ fontFamily: ft, fontSize: 14, fontWeight: 600, color: D.tx }}>{t}</span>
+          <span style={{ fontFamily: ft, fontSize: 14, fontWeight: 600, color: D.tx }}>{i + 1}. {t}</span>
           <CopyBtn text={t} />
         </div>;
       })}
@@ -567,7 +595,7 @@ function PostProductionTab({ episodes, prospects }) {
     {/* Long description */}
     {longDesc && <Card sx={{ marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Long Description (Spotify)</div>
+        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Long Description</div>
         <CopyBtn text={longDesc} />
       </div>
       <TextArea value={longDesc} onChange={setLongDesc} rows={6} />
@@ -576,7 +604,7 @@ function PostProductionTab({ episodes, prospects }) {
     {/* Short description */}
     {shortDesc && <Card sx={{ marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Short Description (Social)</div>
+        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Short Description</div>
         <CopyBtn text={shortDesc} />
       </div>
       <TextArea value={shortDesc} onChange={setShortDesc} rows={3} />
@@ -593,7 +621,10 @@ function PostProductionTab({ episodes, prospects }) {
 
     {/* Clip highlights */}
     {clips.length > 0 && <Card>
-      <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx, marginBottom: 14 }}>Clip Highlights</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Clip Highlights</div>
+        <span style={{ fontFamily: mn, fontSize: 10, color: D.txm }}>{clips.filter(function(c) { return c.flagged; }).length} flagged</span>
+      </div>
       {clips.map(function(c) {
         return <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: c.flagged ? D.amber + "10" : D.surface, borderRadius: 8, marginBottom: 8, border: "1px solid " + (c.flagged ? D.amber + "40" : D.border) }}>
           <div style={{ flex: 1 }}>
@@ -802,7 +833,7 @@ export default function FabricatedKnowledge() {
     {/* Content */}
     <div style={{ padding: "0 40px" }}>
       {tab === 0 && <ProspectsTab prospects={prospects} setProspects={setProspects} />}
-      {tab === 1 && <EpisodesTab episodes={episodes} setEpisodes={setEpisodes} prospects={prospects} />}
+      {tab === 1 && <EpisodesTab episodes={episodes} setEpisodes={setEpisodes} prospects={prospects} setTab={setTab} />}
       {tab === 2 && <DevelopmentTab episodes={episodes} prospects={prospects} />}
       {tab === 3 && <PostProductionTab episodes={episodes} prospects={prospects} />}
       {tab === 4 && <ArchiveTab episodes={episodes} prospects={prospects} archive={archive} setArchive={setArchive} />}
