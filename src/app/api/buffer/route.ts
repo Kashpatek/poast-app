@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BUFFER_API = "https://api.buffer.com";
 
+// Simple cache to avoid rate limits (60s TTL)
+let _cache: { data: unknown; ts: number } | null = null;
+const CACHE_TTL = 60000;
+
 function getToken() {
   return process.env.BUFFER_API_KEY || "";
 }
@@ -79,22 +83,27 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ limits: data?.dailyPostingLimits || [], ts: Date.now() });
     }
 
-    // Default: everything
-    const [channels, scheduled, sent, drafts] = await Promise.all([
-      gql(`query($input: ChannelsInput!) { channels(input: $input) { id name service timezone avatar isDisconnected } }`, { input: { organizationId: orgId } }),
-      gql(`query($input: PostsInput!, $first: Int) { posts(input: $input, first: $first) { edges { node { id text status dueAt createdAt channelService channel { id name service } tags { id name color } } } } }`, { input: { organizationId: orgId, filter: { status: ["scheduled"] } }, first: 50 }),
-      gql(`query($input: PostsInput!, $first: Int) { posts(input: $input, first: $first) { edges { node { id text status dueAt sentAt createdAt channelService channel { id name service } tags { id name color } } } } }`, { input: { organizationId: orgId, filter: { status: ["sent"] } }, first: 50 }),
-      gql(`query($input: PostsInput!, $first: Int) { posts(input: $input, first: $first) { edges { node { id text status dueAt createdAt channelService channel { id name service } tags { id name color } } } } }`, { input: { organizationId: orgId, filter: { status: ["draft"] } }, first: 30 }),
-    ]);
+    // Return cached response if fresh (avoids rate limits)
+    if (_cache && Date.now() - _cache.ts < CACHE_TTL) {
+      return NextResponse.json(_cache.data);
+    }
 
-    return NextResponse.json({
+    // Default: everything (sequential to avoid rate limits)
+    const channels = await gql(`query($input: ChannelsInput!) { channels(input: $input) { id name service timezone avatar isDisconnected } }`, { input: { organizationId: orgId } });
+    const scheduled = await gql(`query($input: PostsInput!, $first: Int) { posts(input: $input, first: $first) { edges { node { id text status dueAt createdAt channelService channel { id name service } tags { id name color } } } } }`, { input: { organizationId: orgId, filter: { status: ["scheduled"] } }, first: 50 });
+    const sent = await gql(`query($input: PostsInput!, $first: Int) { posts(input: $input, first: $first) { edges { node { id text status dueAt sentAt createdAt channelService channel { id name service } tags { id name color } } } } }`, { input: { organizationId: orgId, filter: { status: ["sent"] } }, first: 50 });
+    const drafts = await gql(`query($input: PostsInput!, $first: Int) { posts(input: $input, first: $first) { edges { node { id text status dueAt createdAt channelService channel { id name service } tags { id name color } } } } }`, { input: { organizationId: orgId, filter: { status: ["draft"] } }, first: 30 });
+
+    const result = {
       orgId,
       channels: channels?.channels || [],
       scheduled: (scheduled?.posts?.edges || []).map((e: { node: unknown }) => e.node),
       sent: (sent?.posts?.edges || []).map((e: { node: unknown }) => e.node),
       drafts: (drafts?.posts?.edges || []).map((e: { node: unknown }) => e.node),
       ts: Date.now(),
-    });
+    };
+    _cache = { data: result, ts: Date.now() };
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Buffer API error:", error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
@@ -106,6 +115,7 @@ export async function POST(req: NextRequest) {
   if (!token) return NextResponse.json({ error: "BUFFER_API_KEY not configured" }, { status: 500 });
 
   try {
+    _cache = null; // Invalidate cache on any mutation
     const body = await req.json();
     const { action } = body;
 
