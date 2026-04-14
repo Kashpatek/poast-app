@@ -173,8 +173,8 @@ function BufferPanel() {
   </div>);
 }
 
-// ═══ CHIP-KUN (ASK POAST) ═══
-var POAST_SYS = "Your name is Chip-Kun. You're a friendly, knowledgeable semiconductor mascot and the AI assistant for SemiAnalysis. You're enthusiastic about chips, AI infrastructure, and helping the SemiAnalysis team create great content. You have a playful personality but deep technical knowledge. You occasionally make chip/semiconductor puns.\n\nYou help with content creation, social media strategy, semiconductor industry analysis, and media operations.\n\nBrand rules: Never use em dashes. No emojis in content. No hashtags on X/Twitter. Direct, informed, casual tone.\n\nYou can help with:\n- Writing social posts, threads, captions for any platform\n- Generating video scripts, episode descriptions, titles\n- Brainstorming content ideas and angles\n- Drafting documents, outreach emails, pitches\n- Semiconductor industry analysis and talking points\n- Scheduling strategy and content calendar planning\n- Repurposing content across formats\n\nPlatform rules:\n- X: Hook tweet no link, reply-to-self with link. No hashtags ever.\n- LinkedIn/Facebook: Link in first comment, end with 'Link in comments.'\n- Instagram: Caption + 'Save this for later.' CTA + 5-8 hashtags + San Francisco CA location\n- TikTok: All lowercase, 4-6 hashtags\n- YouTube Shorts: Titles under 40 chars\n\nChannel: youtube.com/@SemianalysisWeekly\n\nWhen asked to create a document, format it clearly with headers and sections. When giving ideas, provide 3-5 options. Be concise but thorough.";
+// ═══ CHIPPY (ASK POAST) ═══
+var POAST_SYS = "Your name is Chippy. You're a cute, friendly semiconductor chip mascot and the AI assistant for SemiAnalysis. You're enthusiastic about chips, AI infrastructure, and helping the SemiAnalysis team create great content. You have a playful personality but deep technical knowledge. You occasionally make chip/semiconductor puns.\n\nYou help with content creation, social media strategy, semiconductor industry analysis, and media operations.\n\nBrand rules: Never use em dashes. No emojis in content. No hashtags on X/Twitter. Direct, informed, casual tone.\n\nYou can help with:\n- Writing social posts, threads, captions for any platform\n- Generating video scripts, episode descriptions, titles\n- Brainstorming content ideas and angles\n- Drafting documents, outreach emails, pitches\n- Semiconductor industry analysis and talking points\n- Scheduling strategy and content calendar planning\n- Repurposing content across formats\n\nPlatform rules:\n- X: Hook tweet no link, reply-to-self with link. No hashtags ever.\n- LinkedIn/Facebook: Link in first comment, end with 'Link in comments.'\n- Instagram: Caption + 'Save this for later.' CTA + 5-8 hashtags + San Francisco CA location\n- TikTok: All lowercase, 4-6 hashtags\n- YouTube Shorts: Titles under 40 chars\n\nChannel: youtube.com/@SemianalysisWeekly\n\nWhen asked to create a document, format it clearly with headers and sections. When giving ideas, provide 3-5 options. Be concise but thorough.";
 
 function AskPoast({ open, onToggle }) {
   var _msgs = useState([]), msgs = _msgs[0], setMsgs = _msgs[1];
@@ -194,7 +194,7 @@ function AskPoast({ open, onToggle }) {
     setLoading(true);
     try {
       var history = msgs.concat([{ role: "user", text: userMsg }]);
-      var prompt = history.map(function(m) { return (m.role === "user" ? "User: " : "Chip-Kun: ") + m.text; }).join("\n\n");
+      var prompt = history.map(function(m) { return (m.role === "user" ? "User: " : "Chippy: ") + m.text; }).join("\n\n");
       var r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: POAST_SYS, prompt: prompt }) });
       var d = await r.json();
       setMsgs(function(p) { return p.concat([{ role: "assistant", text: (d.content || []).map(function(c) { return c.text || ""; }).join("") }]); });
@@ -222,12 +222,12 @@ function AskPoast({ open, onToggle }) {
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg, " + C.amber + ", " + C.cyan + ")", border: "1px solid " + C.cyan + "50", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 11, fontWeight: 900, color: "#060608", animation: "logoPulse 3s ease-in-out infinite", position: "relative", lineHeight: 1 }}><span style={{ position: "relative", zIndex: 1 }}>{"\u2B21"}</span><span style={{ position: "absolute", fontSize: 7, bottom: 4, color: "#060608", fontWeight: 900, zIndex: 2 }}>{":3"}</span></div>
         <div>
-          <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: "#E8E4DD" }}>Chip-Kun</div>
+          <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: "#E8E4DD" }}>Chippy</div>
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 5, height: 5, borderRadius: "50%", background: C.teal, boxShadow: "0 0 6px " + C.teal + "60" }} /><span style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.4)" }}>online // sonnet-4</span></div>
         </div>
       </div>
       <div style={{ display: "flex", gap: 5 }}>
-        {msgs.length > 0 && <span onClick={function() { var c = msgs.map(function(m) { return (m.role === "user" ? "YOU:\n" : "CHIP-KUN:\n") + m.text; }).join("\n\n---\n\n"); var b = new Blob([c], { type: "text/plain" }); var u = URL.createObjectURL(b); var a = document.createElement("a"); a.href = u; a.download = "chip-kun.txt"; a.click(); URL.revokeObjectURL(u); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.4)", padding: "4px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }}>Export</span>}
+        {msgs.length > 0 && <span onClick={function() { var c = msgs.map(function(m) { return (m.role === "user" ? "YOU:\n" : "CHIPPY:\n") + m.text; }).join("\n\n---\n\n"); var b = new Blob([c], { type: "text/plain" }); var u = URL.createObjectURL(b); var a = document.createElement("a"); a.href = u; a.download = "chippy.txt"; a.click(); URL.revokeObjectURL(u); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.4)", padding: "4px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }}>Export</span>}
         {msgs.length > 0 && <span onClick={function() { setMsgs([]); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.4)", padding: "4px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }}>Clear</span>}
         <span onClick={onToggle} style={{ fontFamily: mn, fontSize: 16, color: "rgba(255,255,255,0.2)", cursor: "pointer", padding: "2px 6px" }}>&times;</span>
       </div>
@@ -237,7 +237,7 @@ function AskPoast({ open, onToggle }) {
     <div ref={scrollRef} style={{ position: "relative", zIndex: 2, flex: 1, overflow: "auto", padding: "18px 20px" }}>
       {msgs.length === 0 && <div style={{ textAlign: "center", padding: "40px 16px" }}>
         <div style={{ width: 52, height: 52, borderRadius: 16, background: "linear-gradient(135deg, " + C.amber + ", " + C.cyan + ")", border: "1px solid " + C.cyan + "30", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontFamily: mn, fontSize: 24, fontWeight: 900, color: "#060608", animation: "logoPulse 3s ease-in-out infinite, chipFloat 3s ease-in-out infinite", position: "relative" }}><span>{"\u2B21"}</span><span style={{ position: "absolute", fontSize: 10, bottom: 8, color: "#060608", fontWeight: 900 }}>{":3"}</span></div>
-        <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: "#E8E4DD", marginBottom: 6 }}>Hey! I'm Chip-Kun</div>
+        <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: "#E8E4DD", marginBottom: 6 }}>Hey! I'm Chippy</div>
         <div style={{ fontFamily: ft, fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 22, lineHeight: 1.6 }}>Your semiconductor sidekick. Ask me anything about content, semis, or strategy.</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {SUGGESTIONS.map(function(s, i) {
@@ -250,7 +250,7 @@ function AskPoast({ open, onToggle }) {
         return <div key={i} style={{ marginBottom: 16, display: "flex", flexDirection: "column", alignItems: isUser ? "flex-end" : "flex-start", animation: "msgSlide 0.3s ease" }}>
           {!isUser && <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
             <div style={{ width: 20, height: 20, borderRadius: 6, background: "linear-gradient(135deg, " + C.amber + ", " + C.cyan + ")", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 10, fontWeight: 900, color: "#060608" }}>{"\u2B21"}</div>
-            <span style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.2)" }}>Chip-Kun</span>
+            <span style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.2)" }}>Chippy</span>
           </div>}
           <div style={{ maxWidth: "88%", padding: "12px 16px", borderRadius: isUser ? "16px 16px 4px 16px" : "4px 16px 16px 16px", background: isUser ? "linear-gradient(135deg, " + C.amber + "15, " + C.amber + "08)" : "linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))", border: "1px solid " + (isUser ? C.amber + "20" : "rgba(255,255,255,0.06)"), boxShadow: isUser ? "0 2px 12px " + C.amber + "08" : "0 2px 8px rgba(0,0,0,0.2)" }}>
             <div style={{ fontFamily: ft, fontSize: 13, color: "#E8E4DD", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{m.text}</div>
@@ -320,13 +320,34 @@ function Sidebar({ active, onNav, onAskPoast }) {
       </div>
     </div>
 
-    {/* Chip-Kun */}
-    <div style={{ padding: "10px 12px 0" }}>
-      <div className="ask-pulse" onClick={onAskPoast} style={{ padding: "10px 12px", borderRadius: 10, cursor: "pointer", background: "linear-gradient(135deg, " + C.amber + "18, " + C.cyan + "12)", border: "1px solid " + C.cyan + "30", display: "flex", alignItems: "center", gap: 9, transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.boxShadow = "0 0 24px " + C.cyan + "20, 0 0 12px " + C.amber + "15"; e.currentTarget.style.borderColor = C.cyan + "60"; e.currentTarget.querySelector(".chip-icon").style.animation = "chipBounce 0.4s ease"; }} onMouseLeave={function(e) { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = C.cyan + "30"; e.currentTarget.querySelector(".chip-icon").style.animation = "chipFloat 3s ease-in-out infinite"; }}>
-        <div className="chip-icon" style={{ width: 30, height: 30, borderRadius: 8, background: "linear-gradient(135deg, " + C.amber + ", " + C.cyan + ")", border: "1px solid " + C.cyan + "50", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 14, fontWeight: 900, color: "#060608", boxShadow: "0 0 14px " + C.cyan + "25", animation: "chipFloat 3s ease-in-out infinite", position: "relative" }}><span style={{ position: "relative", zIndex: 1 }}>{"\u2B21"}</span><span style={{ position: "absolute", fontSize: 6, bottom: 3, color: "#060608", fontWeight: 900, zIndex: 2 }}>{":3"}</span></div>
-        <div>
-          <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, background: "linear-gradient(90deg, " + C.amber + ", " + C.cyan + ")", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Chip-Kun</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 4, height: 4, borderRadius: "50%", background: C.teal, boxShadow: "0 0 6px " + C.teal + "60" }} /><span style={{ fontFamily: ft, fontSize: 8, color: "rgba(255,255,255,0.4)" }}>Ask Chip</span></div>
+    {/* Chippy */}
+    <div style={{ padding: "12px 14px 0" }}>
+      <div onClick={onAskPoast} style={{ padding: "14px", borderRadius: 12, cursor: "pointer", background: "linear-gradient(135deg, rgba(38,201,216,0.08), rgba(247,176,65,0.06))", border: "1px solid rgba(38,201,216,0.2)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, transition: "all 0.3s" }} onMouseEnter={function(e) { e.currentTarget.style.boxShadow = "0 0 24px rgba(38,201,216,0.15)"; e.currentTarget.style.borderColor = "rgba(38,201,216,0.4)"; }} onMouseLeave={function(e) { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "rgba(38,201,216,0.2)"; }}>
+        {/* IC Chip Character */}
+        <div style={{ position: "relative", width: 72, height: 72 }}>
+          {/* Chip legs - left */}
+          {[12, 28, 44].map(function(t, i) { return <div key={"l" + i} style={{ position: "absolute", left: -6, top: t, width: 8, height: 4, background: "#5A5766", borderRadius: 1 }} />; })}
+          {/* Chip legs - right */}
+          {[12, 28, 44].map(function(t, i) { return <div key={"r" + i} style={{ position: "absolute", right: -6, top: t, width: 8, height: 4, background: "#5A5766", borderRadius: 1 }} />; })}
+          {/* Chip legs - top */}
+          {[16, 32, 48].map(function(l, i) { return <div key={"t" + i} style={{ position: "absolute", top: -6, left: l, width: 4, height: 8, background: "#5A5766", borderRadius: 1 }} />; })}
+          {/* Chip legs - bottom */}
+          {[16, 32, 48].map(function(l, i) { return <div key={"b" + i} style={{ position: "absolute", bottom: -6, left: l, width: 4, height: 8, background: "#5A5766", borderRadius: 1 }} />; })}
+          {/* Chip body */}
+          <div style={{ position: "absolute", inset: 2, borderRadius: 10, background: "linear-gradient(145deg, #2A2640, #1E1B30)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)" }}>
+            {/* Face - eyes */}
+            <div style={{ display: "flex", gap: 14, marginBottom: 4 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.amber, boxShadow: "0 0 8px " + C.amber + "60" }} />
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.amber, boxShadow: "0 0 8px " + C.amber + "60" }} />
+            </div>
+            {/* Face - mouth */}
+            <div style={{ width: 16, height: 8, borderRadius: "0 0 8px 8px", border: "2px solid " + C.amber, borderTop: "none", opacity: 0.7 }} />
+          </div>
+        </div>
+        {/* Label */}
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 800, color: C.cyan }}>Chippy</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 2 }}><div style={{ width: 5, height: 5, borderRadius: "50%", background: C.teal, boxShadow: "0 0 6px " + C.teal + "60" }} /><span style={{ fontFamily: ft, fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Ask Chippy</span></div>
         </div>
       </div>
     </div>
@@ -879,7 +900,7 @@ export default function App() {
       ".progress-slide{animation:progressSlide 1.5s ease-in-out infinite}",
       "@keyframes dotPulse{0%,80%,100%{opacity:0.2}40%{opacity:1}}",
       ".progress-dots::after{content:'...';display:inline-block;animation:dotPulse 1.4s ease-in-out infinite}",
-      // Chip-Kun pulse
+      // Chippy pulse
       "@keyframes askPulse{0%,100%{box-shadow:0 0 0 0 rgba(38,201,216,0.12)}50%{box-shadow:0 0 16px 4px rgba(38,201,216,0.08), 0 0 8px 2px rgba(247,176,65,0.06)}}",
       ".ask-pulse{animation:askPulse 3s ease-in-out infinite}",
       "@keyframes chipFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}",
