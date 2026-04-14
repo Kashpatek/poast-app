@@ -784,6 +784,87 @@ function Step8({ data, onNext, onBack }) {
   </div>;
 }
 
+// ═══ RENDER BUTTON (uploads assets, then triggers GitHub Actions) ═══
+function RenderButton({ data, assets }) {
+  var _status = useState("idle"), status = _status[0], setStatus = _status[1]; // idle, uploading, dispatching, done, error
+  var _progress = useState(""), progress = _progress[0], setProgress = _progress[1];
+
+  var render = async function() {
+    setStatus("uploading"); setProgress("Uploading voiceover...");
+    var voUrl = "";
+    var musicUrl = "";
+
+    // Upload voiceover
+    if (assets.voiceover) {
+      try {
+        var r = await fetch("/api/upload-asset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: assets.voiceover, filename: "vo-" + Date.now() + ".mp3", contentType: "audio/mpeg" }) });
+        var d = await r.json();
+        if (d.url) { voUrl = d.url; setProgress("Voiceover uploaded (" + Math.round(d.size / 1024) + "KB)"); }
+        else { toast("VO upload failed: " + (d.error || ""), "error"); }
+      } catch (e) { toast("VO upload failed", "error"); }
+    }
+
+    // Upload music
+    if (assets.music) {
+      setProgress("Uploading music...");
+      try {
+        var r2 = await fetch("/api/upload-asset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: assets.music, filename: "music-" + Date.now() + ".mp3", contentType: "audio/mpeg" }) });
+        var d2 = await r2.json();
+        if (d2.url) { musicUrl = d2.url; setProgress("Music uploaded (" + Math.round(d2.size / 1024) + "KB)"); }
+        else { toast("Music upload failed: " + (d2.error || ""), "warn"); }
+      } catch (e) { toast("Music upload failed", "warn"); }
+    }
+
+    // Build clip URLs
+    setStatus("dispatching"); setProgress("Sending to GitHub Actions...");
+    var script = data.scripts && data.scripts[data.selScript || 0];
+    var selectedClips = data.selectedClips || {};
+    var clipUrls = [];
+    if (assets.clips) {
+      var shotGroups = {};
+      assets.clips.forEach(function(c) { var s = c.shot || 1; if (!shotGroups[s]) shotGroups[s] = []; shotGroups[s].push(c); });
+      Object.keys(shotGroups).sort().forEach(function(s) { var sel = selectedClips[s] || 0; var clip = shotGroups[s][sel]; if (clip && clip.videoUrl) clipUrls.push(clip.videoUrl); });
+    }
+
+    try {
+      var r3 = await fetch("/api/render-video", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        hook: data.options ? data.options.hooks[data.selHook || 0] : "",
+        scriptSections: script ? [{ label: "INTRO", text: script.intro }].concat((script.body || []).map(function(b, i) { return { label: "BODY " + (i + 1), text: b }; })).concat([{ label: "OUTRO", text: script.outro }]) : [],
+        dataPoints: [],
+        thumbnailHeadline: data.options ? data.options.titles[data.selTitle || 0] : "",
+        audioUrl: voUrl,
+        clipUrls: clipUrls,
+        musicUrl: musicUrl,
+        duration: data.duration || 60,
+        aspectRatio: data.aspect || "16:9",
+      }) });
+      var d3 = await r3.json();
+      if (d3.renderId) {
+        setStatus("done"); setProgress("Render submitted! ID: " + d3.renderId);
+        toast("Render job dispatched to GitHub Actions.", "success");
+      } else {
+        setStatus("error"); setProgress(d3.error || "Dispatch failed");
+        toast("Render error: " + (d3.error || "Unknown"), "error");
+      }
+    } catch (e) {
+      setStatus("error"); setProgress(String(e).slice(0, 60));
+      toast("Render failed", "error");
+    }
+  };
+
+  return <div>
+    <button onClick={status === "idle" || status === "error" ? render : undefined} disabled={status === "uploading" || status === "dispatching"} style={{ width: "100%", height: 52, background: status === "done" ? D.teal + "15" : D.surface, border: "1px solid " + (status === "done" ? D.teal + "40" : D.border), borderRadius: 10, fontFamily: ft, fontSize: 15, fontWeight: 700, color: status === "done" ? D.teal : D.tx, cursor: status === "uploading" || status === "dispatching" ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }} onMouseEnter={function(e) { if (status === "idle") e.currentTarget.style.borderColor = D.violet + "40"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = status === "done" ? D.teal + "40" : D.border; }}>
+      {status === "idle" && "Render MP4 (GitHub Actions)"}
+      {status === "uploading" && "Uploading assets..."}
+      {status === "dispatching" && "Dispatching render..."}
+      {status === "done" && "Render dispatched!"}
+      {status === "error" && "Retry Render"}
+    </button>
+    {progress && <div style={{ fontFamily: mn, fontSize: 10, color: status === "error" ? D.coral : status === "done" ? D.teal : D.txl, marginTop: 6, textAlign: "center" }}>{progress}</div>}
+    {status === "done" && <a href="https://github.com/Kashpatek/poast-app/actions" target="_blank" rel="noopener noreferrer" style={{ display: "block", fontFamily: ft, fontSize: 12, color: D.violet, textDecoration: "none", textAlign: "center", marginTop: 4 }}>Check GitHub Actions</a>}
+  </div>;
+}
+
 // ═══ STEP 9: PREMIER ═══
 function Step9({ data, onPremier, onDraft }) {
   var assets = data.assets || {};
@@ -841,33 +922,7 @@ function Step9({ data, onPremier, onDraft }) {
       <button onClick={downloadAll} style={{ width: "100%", height: 52, background: D.surface, border: "1px solid " + D.border, borderRadius: 10, fontFamily: ft, fontSize: 15, fontWeight: 700, color: D.tx, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = D.amber + "40"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; }}>
         Download All Assets
       </button>
-      <button onClick={function() {
-        toast("Submitting render job to GitHub Actions...", "info");
-        var script = data.scripts && data.scripts[data.selScript || 0];
-        var selectedClips = data.selectedClips || {};
-        var clipUrls = [];
-        if (assets.clips) {
-          var shotGroups = {};
-          assets.clips.forEach(function(c) { var s = c.shot || 1; if (!shotGroups[s]) shotGroups[s] = []; shotGroups[s].push(c); });
-          Object.keys(shotGroups).sort().forEach(function(s) { var sel = selectedClips[s] || 0; var clip = shotGroups[s][sel]; if (clip && clip.videoUrl) clipUrls.push(clip.videoUrl); });
-        }
-        fetch("/api/render-video", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-          hook: data.options ? data.options.hooks[data.selHook || 0] : "",
-          scriptSections: script ? [{ label: "INTRO", text: script.intro }].concat((script.body || []).map(function(b, i) { return { label: "BODY " + (i + 1), text: b }; })).concat([{ label: "OUTRO", text: script.outro }]) : [],
-          dataPoints: [],
-          thumbnailHeadline: data.options ? data.options.titles[data.selTitle || 0] : "",
-          audioUrl: assets.voiceover || "",
-          clipUrls: clipUrls,
-          musicUrl: assets.music || "",
-          duration: data.duration || 60,
-          aspectRatio: data.aspect || "16:9",
-        }) }).then(function(r) { return r.json(); }).then(function(d) {
-          if (d.renderId) toast("Render submitted! ID: " + d.renderId + ". Check GitHub Actions.", "success");
-          else toast("Render error: " + (d.error || "Unknown"), "error");
-        }).catch(function(e) { toast("Render failed: " + String(e).slice(0, 60), "error"); });
-      }} style={{ width: "100%", height: 52, background: D.surface, border: "1px solid " + D.border, borderRadius: 10, fontFamily: ft, fontSize: 15, fontWeight: 700, color: D.tx, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = D.violet + "40"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; }}>
-        Render MP4 (GitHub Actions)
-      </button>
+      <RenderButton data={data} assets={assets} />
       <button onClick={sendToBuffer} style={{ width: "100%", height: 52, background: D.surface, border: "1px solid " + D.border, borderRadius: 10, fontFamily: ft, fontSize: 15, fontWeight: 700, color: D.tx, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = D.blue + "40"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; }}>
         Send to Buffer Schedule
       </button>
