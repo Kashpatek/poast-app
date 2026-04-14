@@ -4,10 +4,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 // ═══ DESIGN LANGUAGE ═══
 var D = {
-  bg: "#0B0B12", card: "#111118", border: "#1E1E2E", cardHover: "#141420", cardActive: "#16161F",
+  bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)", cardHover: "#0D0D12", cardActive: "#101018",
   amber: "#F7B041", teal: "#2EAD8E", blue: "#0B86D1", coral: "#E06347", violet: "#905CCB", crimson: "#D1334A",
-  tx: "#E8E4DD", txs: "#6B6878", accent: "#F7B041",
-  glow: "0 0 0 1px rgba(247,176,65,0.3)",
+  tx: "#E8E4DD", txs: "rgba(255,255,255,0.4)", accent: "#F7B041",
+  glow: "0 2px 12px rgba(0,0,0,0.4)",
 };
 var ft = "'Outfit',sans-serif";
 var mn = "'JetBrains Mono',monospace";

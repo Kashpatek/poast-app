@@ -163,10 +163,8 @@ export const SAVideo: React.FC<Props> = ({
         return (
           <Sequence from={f} durationInFrames={outroFrames}>
             <AbsoluteFill style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20 }}>
-              {/* Big SA logo */}
-              <div style={{ width: 80, height: 80, borderRadius: 20, background: `${AMBER}25`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
-                <span style={{ fontFamily: "Outfit", fontSize: 40, fontWeight: 900, color: AMBER }}>SA</span>
-              </div>
+              {/* SA logo */}
+              <img src="/sa-logo.svg" style={{ width: 120, height: 120, marginBottom: 16 }} />
               <FadeText text="SemiAnalysis" size={42} color={TX} weight={800} delay={5} />
               <FadeText text="semianalysis.com" size={22} color={AMBER} weight={600} delay={15} />
               <div style={{ marginTop: 10 }}>

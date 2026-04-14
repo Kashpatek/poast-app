@@ -315,9 +315,12 @@ function Sidebar({ active, onNav, onAskPoast }) {
 
   return (<div style={{ width: 240, minHeight: "100vh", background: "linear-gradient(180deg, #08080F 0%, #0A0A14 100%)", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
     {/* Logo */}
-    <div style={{ padding: "28px 22px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-      <div style={{ fontFamily: ft, fontSize: 24, fontWeight: 900, color: C.amber, letterSpacing: 2 }}>POAST</div>
-      <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.2)", letterSpacing: 3, marginTop: 4, textTransform: "uppercase" }}>Content Command Center</div>
+    <div style={{ padding: "24px 22px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 12 }}>
+      <img src="/poast-logo.png" style={{ width: 36, height: 36, borderRadius: 8 }} />
+      <div>
+        <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 900, color: C.amber, letterSpacing: 2 }}>POAST</div>
+        <div style={{ fontFamily: ft, fontSize: 8, fontWeight: 600, color: "rgba(255,255,255,0.15)", letterSpacing: 2, textTransform: "uppercase" }}>Content Command Center</div>
+      </div>
     </div>
 
     {/* Ask Poast */}
@@ -1349,6 +1352,12 @@ export default function App() {
         </div>
       </div>
     </div>
-    <div style={{ position: "fixed", bottom: 8, right: 12, zIndex: 2, fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.08)", letterSpacing: 1, pointerEvents: "none" }}>v1.1</div>
+    <div style={{ position: "fixed", bottom: 8, right: 12, zIndex: 2, fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.08)", letterSpacing: 1, pointerEvents: "none" }}>v1.2</div>
+    {/* Mobile warning */}
+    <style dangerouslySetInnerHTML={{ __html: "@media(min-width:769px){.mobile-warn{display:none!important}}" }} />
+    <div className="mobile-warn" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9999, padding: "14px 20px", background: "#111118", borderTop: "1px solid " + C.amber + "30", display: "flex", alignItems: "center", gap: 10 }}>
+      <img src="/poast-logo.png" style={{ width: 28, height: 28, borderRadius: 6 }} />
+      <div><div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: C.tx }}>POAST works best on desktop</div><div style={{ fontFamily: ft, fontSize: 11, color: "rgba(255,255,255,0.4)" }}>For the full experience, switch to a larger screen.</div></div>
+    </div>
   </div>);
 }

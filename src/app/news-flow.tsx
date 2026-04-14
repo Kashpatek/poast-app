@@ -2,14 +2,14 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 
-// ═══ THEME (dark glow, non-SA) ═══
+// ═══ THEME (matches POAST design system) ═══
 var T = {
-  bg: "#06060E", card: "#0C0C18", border: "#161625", surface: "#101020",
-  accent: "#7C5CFC", accent2: "#00D4AA", accent3: "#FF6B6B", accent4: "#3B9EFF",
-  tx: "#E8E6F0", txm: "#8B88A0", txd: "#4A4860",
-  glow: "0 0 20px rgba(124,92,252,0.08), 0 0 40px rgba(124,92,252,0.04)",
-  glowAccent: "0 0 30px rgba(124,92,252,0.15)",
-  green: "#00D4AA", red: "#FF6B6B",
+  bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)", surface: "#0D0D12",
+  accent: "#F7B041", accent2: "#2EAD8E", accent3: "#E06347", accent4: "#0B86D1",
+  tx: "#E8E4DD", txm: "rgba(255,255,255,0.55)", txd: "rgba(255,255,255,0.25)",
+  glow: "0 2px 12px rgba(0,0,0,0.4)",
+  glowAccent: "0 0 20px rgba(247,176,65,0.08)",
+  green: "#2EAD8E", red: "#E06347",
 };
 var ft = "'Outfit',sans-serif";
 var mn = "'JetBrains Mono',monospace";

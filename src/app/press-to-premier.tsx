@@ -833,21 +833,39 @@ function RenderPoll({ renderId, onComplete }) {
   var _status = useState("polling"), status = _status[0], setStatus = _status[1];
   var _video = useState(null), video = _video[0], setVideo = _video[1];
   var _elapsed = useState(0), elapsed = _elapsed[0], setElapsed = _elapsed[1];
+  var _runStatus = useState("queued"), runStatus = _runStatus[0], setRunStatus = _runStatus[1];
 
   useEffect(function() {
     if (!renderId) return;
     var start = Date.now();
     var iv = setInterval(function() {
       setElapsed(Math.round((Date.now() - start) / 1000));
+
+      // Check for finished release
       fetch("/api/render-video?id=" + renderId).then(function(r) { return r.json(); }).then(function(d) {
         if (d.status === "complete" && d.assets && d.assets.length > 0) {
           setStatus("done");
           setVideo(d.assets[0]);
+          setRunStatus("complete");
           clearInterval(iv);
-          toast("MP4 ready! Download below.", "success");
+          toast("MP4 ready!", "success");
+          if (onComplete) onComplete(d.assets[0]);
         }
       }).catch(function() {});
-    }, 15000); // Check every 15s
+
+      // Also check GitHub Actions run status for progress
+      fetch("https://api.github.com/repos/Kashpatek/poast-app/actions/runs?event=repository_dispatch&per_page=1", {
+        headers: { "Accept": "application/vnd.github.v3+json" }
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.workflow_runs && d.workflow_runs[0]) {
+          var run = d.workflow_runs[0];
+          if (run.status === "in_progress") setRunStatus("rendering");
+          else if (run.status === "queued") setRunStatus("queued");
+          else if (run.status === "completed" && run.conclusion === "success") setRunStatus("uploading");
+          else if (run.status === "completed" && run.conclusion === "failure") { setRunStatus("failed"); setStatus("error"); clearInterval(iv); toast("Render failed on GitHub.", "error"); }
+        }
+      }).catch(function() {});
+    }, 12000);
     return function() { clearInterval(iv); };
   }, [renderId]);
 
@@ -860,7 +878,7 @@ function RenderPoll({ renderId, onComplete }) {
         <div style={{ width: 16, height: 16, border: "2px solid " + D.border, borderTopColor: D.violet, borderRadius: "50%", animation: "renderSpin 0.8s linear infinite" }} />
         <span style={{ fontFamily: ft, fontSize: 13, fontWeight: 600, color: D.tx }}>Rendering on GitHub Actions...</span>
       </div>
-      <div style={{ fontFamily: mn, fontSize: 10, color: D.txl }}>{elapsed}s elapsed // Checking every 15s</div>
+      <div style={{ fontFamily: mn, fontSize: 10, color: D.txl }}>{elapsed}s elapsed // Status: {runStatus}</div>
       <div style={{ height: 3, background: D.border, borderRadius: 2, marginTop: 8, overflow: "hidden" }}>
         <style dangerouslySetInnerHTML={{ __html: "@keyframes renderSlide{0%{transform:translateX(-100%)}100%{transform:translateX(200%)}}" }} />
         <div style={{ width: "40%", height: "100%", background: "linear-gradient(90deg, transparent, " + D.violet + ", transparent)", animation: "renderSlide 1.5s ease-in-out infinite" }} />
@@ -968,10 +986,19 @@ function Step9({ data, onPremier, onDraft }) {
   var _renderVideo = useState(null), renderVideo = _renderVideo[0], setRenderVideo = _renderVideo[1];
 
   var downloadAll = function() {
-    if (assets.voiceover) { var a = document.createElement("a"); a.href = assets.voiceover; a.download = "voiceover.mp3"; a.click(); }
-    if (assets.music) { setTimeout(function() { var a = document.createElement("a"); a.href = assets.music; a.download = "music.mp3"; a.click(); }, 500); }
-    (assets.clips || []).forEach(function(c, i) { if (c.videoUrl) { setTimeout(function() { var a = document.createElement("a"); a.href = c.videoUrl; a.download = "shot-" + c.shot + ".mp4"; a.target = "_blank"; a.click(); }, 1000 + i * 500); } });
-    toast("Downloading all assets...", "info");
+    var count = 0;
+    // VO -- base64 data URL, direct download works
+    if (assets.voiceover) { var a = document.createElement("a"); a.href = assets.voiceover; a.download = "voiceover.mp3"; document.body.appendChild(a); a.click(); document.body.removeChild(a); count++; }
+    // Music -- base64 data URL
+    if (assets.music) { setTimeout(function() { var a = document.createElement("a"); a.href = assets.music; a.download = "music.mp3"; document.body.appendChild(a); a.click(); document.body.removeChild(a); }, 800); count++; }
+    // Clips -- external URLs, open in new tabs for download
+    (assets.clips || []).forEach(function(c, i) {
+      if (c.videoUrl) {
+        setTimeout(function() { window.open(c.videoUrl, "_blank"); }, 1500 + i * 800);
+        count++;
+      }
+    });
+    toast("Downloading " + count + " assets...", "info");
   };
 
   var sendToBuffer = function() {
