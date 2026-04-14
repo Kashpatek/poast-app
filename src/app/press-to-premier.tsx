@@ -784,6 +784,57 @@ function Step8({ data, onNext, onBack }) {
   </div>;
 }
 
+// ═══ RENDER POLL (watches for finished MP4) ═══
+function RenderPoll({ renderId }) {
+  var _status = useState("polling"), status = _status[0], setStatus = _status[1];
+  var _video = useState(null), video = _video[0], setVideo = _video[1];
+  var _elapsed = useState(0), elapsed = _elapsed[0], setElapsed = _elapsed[1];
+
+  useEffect(function() {
+    if (!renderId) return;
+    var start = Date.now();
+    var iv = setInterval(function() {
+      setElapsed(Math.round((Date.now() - start) / 1000));
+      fetch("/api/render-video?id=" + renderId).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.status === "complete" && d.assets && d.assets.length > 0) {
+          setStatus("done");
+          setVideo(d.assets[0]);
+          clearInterval(iv);
+          toast("MP4 ready! Download below.", "success");
+        }
+      }).catch(function() {});
+    }, 15000); // Check every 15s
+    return function() { clearInterval(iv); };
+  }, [renderId]);
+
+  if (!renderId) return null;
+
+  return <div style={{ marginTop: 12 }}>
+    {status === "polling" && <div style={{ padding: "14px 18px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10 }}>
+      <style dangerouslySetInnerHTML={{ __html: "@keyframes renderSpin{to{transform:rotate(360deg)}}" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+        <div style={{ width: 16, height: 16, border: "2px solid " + D.border, borderTopColor: D.violet, borderRadius: "50%", animation: "renderSpin 0.8s linear infinite" }} />
+        <span style={{ fontFamily: ft, fontSize: 13, fontWeight: 600, color: D.tx }}>Rendering on GitHub Actions...</span>
+      </div>
+      <div style={{ fontFamily: mn, fontSize: 10, color: D.txl }}>{elapsed}s elapsed // Checking every 15s</div>
+      <div style={{ height: 3, background: D.border, borderRadius: 2, marginTop: 8, overflow: "hidden" }}>
+        <style dangerouslySetInnerHTML={{ __html: "@keyframes renderSlide{0%{transform:translateX(-100%)}100%{transform:translateX(200%)}}" }} />
+        <div style={{ width: "40%", height: "100%", background: "linear-gradient(90deg, transparent, " + D.violet + ", transparent)", animation: "renderSlide 1.5s ease-in-out infinite" }} />
+      </div>
+      <a href={"https://github.com/Kashpatek/poast-app/actions"} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", fontFamily: mn, fontSize: 10, color: D.violet, textDecoration: "none", marginTop: 8 }}>Watch on GitHub</a>
+    </div>}
+
+    {status === "done" && video && <div style={{ padding: "18px", background: D.surface, border: "1px solid " + D.teal + "30", borderRadius: 10 }}>
+      <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.teal, letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>MP4 Ready</div>
+      <video controls src={video.url} style={{ width: "100%", borderRadius: 8, marginBottom: 10 }} />
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <a href={video.url} download={video.name || "sa-video.mp4"} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", height: 44, background: "linear-gradient(135deg, " + D.teal + ", " + D.blue + ")", color: D.bg, borderRadius: 8, fontFamily: ft, fontSize: 14, fontWeight: 700, textDecoration: "none" }}>Download MP4</a>
+        <span style={{ fontFamily: mn, fontSize: 10, color: D.txl }}>{video.size ? Math.round(video.size / 1024 / 1024 * 10) / 10 + " MB" : ""}</span>
+      </div>
+    </div>}
+  </div>;
+}
+
 // ═══ RENDER BUTTON (uploads assets, then triggers GitHub Actions) ═══
 function RenderButton({ data, assets }) {
   var _status = useState("idle"), status = _status[0], setStatus = _status[1]; // idle, uploading, dispatching, done, error
@@ -861,7 +912,7 @@ function RenderButton({ data, assets }) {
       {status === "error" && "Retry Render"}
     </button>
     {progress && <div style={{ fontFamily: mn, fontSize: 10, color: status === "error" ? D.coral : status === "done" ? D.teal : D.txl, marginTop: 6, textAlign: "center" }}>{progress}</div>}
-    {status === "done" && <a href="https://github.com/Kashpatek/poast-app/actions" target="_blank" rel="noopener noreferrer" style={{ display: "block", fontFamily: ft, fontSize: 12, color: D.violet, textDecoration: "none", textAlign: "center", marginTop: 4 }}>Check GitHub Actions</a>}
+    {status === "done" && <RenderPoll renderId={progress.split("ID: ")[1]} />}
   </div>;
 }
 
