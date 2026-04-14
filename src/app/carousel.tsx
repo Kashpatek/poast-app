@@ -5,8 +5,8 @@ import { useState, useRef } from "react";
 var C = {
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
   violet: "#905CCB", cyan: "#26C9D8", crimson: "#D1334A",
-  bg: "#06060C", card: "#14141E", border: "#252535", hover: "#181824",
-  surface: "#101018", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
+  bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)", hover: "#0D0D12",
+  surface: "#0D0D12", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
 };
 var ft = "'Outfit',sans-serif";
 var mn = "'JetBrains Mono',monospace";

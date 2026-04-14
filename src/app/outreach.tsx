@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 
 // ═══ DESIGN ═══
 var D = {
-  bg: "#06060C", card: "#14141E", border: "#252535", hover: "#181824",
-  surface: "#101018", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
+  bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)", hover: "#0D0D12",
+  surface: "#0D0D12", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
   violet: "#905CCB", cyan: "#26C9D8",
 };
@@ -242,7 +242,7 @@ export default function Outreach() {
     return filtered.filter(function(o) { return o.status === status; });
   }
 
-  var tierColors = { S: D.violet, A: D.amber, B: D.blue, C: D.txm };
+  var tierColors = { S: D.coral, A: D.amber, B: D.blue, C: D.txm };
 
   // ═══ INPUT STYLE ═══
   var inputStyle = {
@@ -267,7 +267,7 @@ export default function Outreach() {
             <div key={t.key} onClick={function() { setTab(t.key); }}
               style={{
                 padding: "12px 28px", cursor: "pointer", fontFamily: ft, fontSize: 13, fontWeight: active ? 700 : 500,
-                color: active ? D.violet : D.txm, borderBottom: active ? "2px solid " + D.violet : "2px solid transparent",
+                color: active ? D.coral : D.txm, borderBottom: active ? "2px solid " + D.coral : "2px solid transparent",
                 transition: "all 0.15s", letterSpacing: 0.5,
               }}>{t.label}</div>
           );
@@ -318,8 +318,8 @@ export default function Outreach() {
             <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 2, textTransform: "uppercase" }}>Podcast Opportunities</div>
             <div onClick={function() { setShowForm(!showForm); }}
               style={{
-                padding: "8px 18px", background: D.violet + "18", border: "1px solid " + D.violet + "40", borderRadius: 8,
-                cursor: "pointer", fontFamily: ft, fontSize: 12, fontWeight: 600, color: D.violet, transition: "all 0.15s",
+                padding: "8px 18px", background: D.coral + "18", border: "1px solid " + D.coral + "40", borderRadius: 8,
+                cursor: "pointer", fontFamily: ft, fontSize: 12, fontWeight: 600, color: D.coral, transition: "all 0.15s",
               }}>{showForm ? "Cancel" : "+ Add Opportunity"}</div>
           </div>
 
@@ -370,7 +370,7 @@ export default function Outreach() {
               </div>
               <div onClick={addOpp}
                 style={{
-                  padding: "12px 24px", background: D.violet, borderRadius: 8, cursor: "pointer", display: "inline-block",
+                  padding: "12px 24px", background: D.coral, borderRadius: 8, cursor: "pointer", display: "inline-block",
                   fontFamily: ft, fontSize: 13, fontWeight: 700, color: "#fff", transition: "all 0.15s",
                 }}>Add Opportunity</div>
             </div>
@@ -519,7 +519,7 @@ export default function Outreach() {
                           {opp.notes && (
                             <div>
                               <div onClick={function() { setExpandedNotes(function(p) { var n = Object.assign({}, p); n[opp.id] = !n[opp.id]; return n; }); }}
-                                style={{ fontFamily: mn, fontSize: 9, color: D.violet, cursor: "pointer", marginBottom: notesOpen ? 6 : 0 }}>
+                                style={{ fontFamily: mn, fontSize: 9, color: D.coral, cursor: "pointer", marginBottom: notesOpen ? 6 : 0 }}>
                                 {notesOpen ? "- hide notes" : "+ show notes"}
                               </div>
                               {notesOpen && (

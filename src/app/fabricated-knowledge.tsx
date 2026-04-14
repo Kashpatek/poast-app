@@ -4,8 +4,8 @@ import { useState, useEffect, useRef } from "react";
 
 // ═══ DESIGN ═══
 var D = {
-  bg: "#06060C", card: "#14141E", border: "#252535", hover: "#181824",
-  surface: "#101018", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
+  bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)", hover: "#0D0D12",
+  surface: "#0D0D12", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
   violet: "#905CCB", cyan: "#26C9D8",
 };
@@ -89,7 +89,7 @@ function Toasts() {
 // ═══ REUSABLE COMPONENTS ═══
 function Btn(p) {
   var primary = p.primary;
-  return <button onClick={p.onClick} disabled={p.disabled} style={{ padding: p.small ? "6px 12px" : "10px 18px", borderRadius: 8, cursor: p.disabled ? "not-allowed" : "pointer", fontFamily: ft, fontSize: p.small ? 11 : 13, fontWeight: 700, border: primary ? "none" : "1px solid " + D.violet, background: primary ? D.violet : "transparent", color: primary ? "#fff" : D.violet, opacity: p.disabled ? 0.4 : 1, transition: "all 0.15s", ...(p.sx || {}) }}>{p.children}</button>;
+  return <button onClick={p.onClick} disabled={p.disabled} style={{ padding: p.small ? "6px 12px" : "10px 18px", borderRadius: 8, cursor: p.disabled ? "not-allowed" : "pointer", fontFamily: ft, fontSize: p.small ? 11 : 13, fontWeight: 700, border: primary ? "none" : "1px solid " + D.coral, background: primary ? D.coral : "transparent", color: primary ? "#fff" : D.coral, opacity: p.disabled ? 0.4 : 1, transition: "all 0.15s", ...(p.sx || {}) }}>{p.children}</button>;
 }
 
 function CopyBtn(p) {
@@ -101,7 +101,7 @@ function Badge(p) {
 }
 
 function Tag(p) {
-  return <span style={{ display: "inline-block", fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 4, background: D.violet + "15", color: D.violet, fontFamily: ft, marginRight: 4, marginBottom: 4 }}>{p.children}</span>;
+  return <span style={{ display: "inline-block", fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 4, background: D.coral + "15", color: D.coral, fontFamily: ft, marginRight: 4, marginBottom: 4 }}>{p.children}</span>;
 }
 
 function Input(p) {
@@ -178,7 +178,7 @@ function ProspectsTab({ prospects, setProspects }) {
     </div>
 
     {/* Add form */}
-    {showForm && <Card sx={{ marginBottom: 20, borderColor: D.violet + "40" }}>
+    {showForm && <Card sx={{ marginBottom: 20, borderColor: D.coral + "40" }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
         <div><SectionLabel>Name</SectionLabel><Input value={form.name} onChange={function(v) { setForm({ ...form, name: v }); }} placeholder="Guest name" /></div>
         <div><SectionLabel>Company</SectionLabel><Input value={form.company} onChange={function(v) { setForm({ ...form, company: v }); }} placeholder="Company" /></div>
@@ -278,7 +278,7 @@ function EpisodesTab({ episodes, setEpisodes, prospects }) {
       <Btn primary onClick={function() { setShowForm(!showForm); }}>{showForm ? "Cancel" : "+ New Episode"}</Btn>
     </div>
 
-    {showForm && <Card sx={{ marginBottom: 20, borderColor: D.violet + "40" }}>
+    {showForm && <Card sx={{ marginBottom: 20, borderColor: D.coral + "40" }}>
       <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr", gap: 12, marginBottom: 12 }}>
         <div><SectionLabel>EP #</SectionLabel><Input value={form.number} onChange={function(v) { setForm({ ...form, number: v }); }} placeholder="#" /></div>
         <div><SectionLabel>Guest</SectionLabel>
@@ -301,7 +301,7 @@ function EpisodesTab({ episodes, setEpisodes, prospects }) {
       <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8 }}>
         {upcoming.slice(0, 8).map(function(e) {
           return <div key={e.id} style={{ minWidth: 140, padding: "12px 14px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, color: D.violet, marginBottom: 4 }}>EP {e.number}</div>
+            <div style={{ fontFamily: mn, fontSize: 10, color: D.coral, marginBottom: 4 }}>EP {e.number}</div>
             <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: D.tx, marginBottom: 4 }}>{guestName(e.guestId)}</div>
             <div style={{ fontFamily: mn, fontSize: 10, color: D.txm }}>{e.recordDate}</div>
           </div>;
@@ -313,10 +313,10 @@ function EpisodesTab({ episodes, setEpisodes, prospects }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {episodes.map(function(e) {
         var isExp = expanded === e.id;
-        return <Card key={e.id} onClick={function() { setExpanded(isExp ? null : e.id); }} sx={{ borderColor: isExp ? D.violet + "40" : D.border, cursor: "pointer" }}>
+        return <Card key={e.id} onClick={function() { setExpanded(isExp ? null : e.id); }} sx={{ borderColor: isExp ? D.coral + "40" : D.border, cursor: "pointer" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <span style={{ fontFamily: mn, fontSize: 14, fontWeight: 900, color: D.violet }}>#{e.number}</span>
+              <span style={{ fontFamily: mn, fontSize: 14, fontWeight: 900, color: D.coral }}>#{e.number}</span>
               <div>
                 <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: D.tx }}>{guestName(e.guestId)}</div>
                 <div style={{ fontFamily: ft, fontSize: 12, color: D.txm }}>{e.topic || "No topic set"}</div>
@@ -578,12 +578,12 @@ function PostProductionTab({ episodes, prospects }) {
       {clips.map(function(c) {
         return <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: c.flagged ? D.amber + "10" : D.surface, borderRadius: 8, marginBottom: 8, border: "1px solid " + (c.flagged ? D.amber + "40" : D.border) }}>
           <div style={{ flex: 1 }}>
-            <span style={{ fontFamily: mn, fontSize: 11, color: D.violet, marginRight: 10 }}>[{c.timestamp}]</span>
+            <span style={{ fontFamily: mn, fontSize: 11, color: D.coral, marginRight: 10 }}>[{c.timestamp}]</span>
             <span style={{ fontFamily: ft, fontSize: 13, color: D.tx }}>{c.text}</span>
           </div>
           <div style={{ display: "flex", gap: 8, marginLeft: 12, flexShrink: 0 }}>
             <CopyBtn text={c.timestamp + " - " + c.text} />
-            <Btn small onClick={function() { toggleFlag(c.id); }} sx={{ borderColor: c.flagged ? D.amber : D.violet, color: c.flagged ? D.amber : D.violet }}>{c.flagged ? "Flagged" : "Flag for Slob Top"}</Btn>
+            <Btn small onClick={function() { toggleFlag(c.id); }} sx={{ borderColor: c.flagged ? D.amber : D.coral, color: c.flagged ? D.amber : D.coral }}>{c.flagged ? "Flagged" : "Flag for Slob Top"}</Btn>
           </div>
         </div>;
       })}
@@ -639,7 +639,7 @@ function ArchiveTab({ episodes, prospects, archive, setArchive }) {
       <Btn primary onClick={function() { setShowAdd(!showAdd); }}>{showAdd ? "Cancel" : "+ Add to Archive"}</Btn>
     </div>
 
-    {showAdd && <Card sx={{ marginBottom: 20, borderColor: D.violet + "40" }}>
+    {showAdd && <Card sx={{ marginBottom: 20, borderColor: D.coral + "40" }}>
       <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
         <div><SectionLabel>EP #</SectionLabel><Input value={form.number} onChange={function(v) { setForm({ ...form, number: v }); }} /></div>
         <div><SectionLabel>Guest</SectionLabel><Input value={form.guest} onChange={function(v) { setForm({ ...form, guest: v }); }} /></div>
@@ -667,7 +667,7 @@ function ArchiveTab({ episodes, prospects, archive, setArchive }) {
           return <div key={cat} style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ fontFamily: ft, fontSize: 12, color: D.txm, width: 120, textAlign: "right", flexShrink: 0 }}>{cat}</span>
             <div style={{ flex: 1, height: 20, background: D.surface, borderRadius: 4, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: pct + "%", background: D.violet, borderRadius: 4, transition: "width 0.5s ease", minWidth: 24, display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 6 }}>
+              <div style={{ height: "100%", width: pct + "%", background: D.coral, borderRadius: 4, transition: "width 0.5s ease", minWidth: 24, display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 6 }}>
                 <span style={{ fontFamily: mn, fontSize: 10, color: "#fff", fontWeight: 700 }}>{catCounts[cat]}</span>
               </div>
             </div>
@@ -682,11 +682,11 @@ function ArchiveTab({ episodes, prospects, archive, setArchive }) {
         return <Card key={a.id}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
             <div>
-              <span style={{ fontFamily: mn, fontSize: 11, color: D.violet, fontWeight: 700 }}>EP {a.number} </span>
+              <span style={{ fontFamily: mn, fontSize: 11, color: D.coral, fontWeight: 700 }}>EP {a.number} </span>
               <span style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: D.tx }}>{a.guest}</span>
               <div style={{ fontFamily: ft, fontSize: 12, color: D.txm }}>{a.company}</div>
             </div>
-            <Badge bg={D.violet}>{a.category}</Badge>
+            <Badge bg={D.coral}>{a.category}</Badge>
           </div>
           <div style={{ fontFamily: ft, fontSize: 13, color: D.txm, marginBottom: 10 }}>{a.topic}</div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -776,7 +776,7 @@ export default function FabricatedKnowledge() {
     <div style={{ display: "flex", gap: 0, padding: "20px 40px 0 40px", borderBottom: "1px solid " + D.border, marginBottom: 28 }}>
       {TABS.map(function(t, i) {
         var active = tab === i;
-        return <div key={t} onClick={function() { setTab(i); }} style={{ padding: "12px 22px", cursor: "pointer", fontFamily: ft, fontSize: 13, fontWeight: active ? 700 : 500, color: active ? D.violet : D.txm, borderBottom: active ? "2px solid " + D.violet : "2px solid transparent", transition: "all 0.15s", marginBottom: -1 }}>{t}</div>;
+        return <div key={t} onClick={function() { setTab(i); }} style={{ padding: "12px 22px", cursor: "pointer", fontFamily: ft, fontSize: 13, fontWeight: active ? 700 : 500, color: active ? D.coral : D.txm, borderBottom: active ? "2px solid " + D.coral : "2px solid transparent", transition: "all 0.15s", marginBottom: -1 }}>{t}</div>;
       })}
     </div>
 
