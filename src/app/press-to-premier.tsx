@@ -281,22 +281,26 @@ function Step6({ data, setData, onNext, onBack }) {
     var brollShots = script && script.broll ? script.broll : [];
     addLog("Submitting all " + brollShots.length + " b-roll shots in parallel...", "info");
 
-    // Submit ALL clips at once (parallel)
-    var clips = await Promise.all(brollShots.map(async function(shot, idx) {
+    // Submit clips with 1.5s delay between each (Grok rate limit: 1/sec)
+    var clips = [];
+    for (var ci = 0; ci < brollShots.length; ci++) {
+      if (ci > 0) await new Promise(function(res) { setTimeout(res, 1500); });
+      var shot = brollShots[ci];
       try {
         var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: shot.prompt, engine: "grok" }) });
         var d = await r.json();
         if (d.task && d.task.task_id) {
-          addLog("Shot " + (idx + 1) + " submitted (ID: " + d.task.task_id.slice(0, 10) + "...)", "success");
-          return { taskId: d.task.task_id, shot: idx + 1, pending: true, provider: "grok", progress: 0 };
+          addLog("Shot " + (ci + 1) + " submitted (ID: " + d.task.task_id.slice(0, 10) + "...)", "success");
+          clips.push({ taskId: d.task.task_id, shot: ci + 1, pending: true, provider: "grok", progress: 0 });
+        } else {
+          addLog("Shot " + (ci + 1) + " error: " + (d.error || "Unknown"), "error");
+          clips.push({ error: d.error, shot: ci + 1 });
         }
-        addLog("Shot " + (idx + 1) + " error: " + (d.error || "Unknown"), "error");
-        return { error: d.error, shot: idx + 1 };
       } catch (e) {
-        addLog("Shot " + (idx + 1) + " failed: " + String(e).slice(0, 50), "error");
-        return { error: String(e), shot: idx + 1 };
+        addLog("Shot " + (ci + 1) + " failed: " + String(e).slice(0, 50), "error");
+        clips.push({ error: String(e), shot: ci + 1 });
       }
-    }));
+    }
 
     addLog(clips.filter(function(c) { return c.taskId; }).length + " shots submitted. Polling...", "info");
 
