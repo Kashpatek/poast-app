@@ -937,6 +937,16 @@ export default function PressToPremi() {
     if (status === "premiered" || status === "draft") { setActive(null); }
   };
 
+  // Auto-save: persist project data whenever step or data changes
+  useEffect(function() {
+    if (!active || active === "new" && step === 0) return; // Don't auto-save empty new projects
+    var title = data.options ? data.options.titles[data.selTitle || 0] : "Untitled";
+    var id = active === "new" ? "p-auto-" + Date.now() : active;
+    if (active === "new") setActive(id); // Give it a real ID on first auto-save
+    var proj = { id: id, title: title, status: "production", step: step, data: data, ts: Date.now() };
+    setProjects(function(p) { var f = p.filter(function(x) { return x.id !== proj.id; }); return [proj].concat(f).slice(0, 5); });
+  }, [step, data.assets, data.options, data.scripts, data.selectedClips]);
+
   var genOptions = async function() {
     setLoading(true); setStep(1);
     try {
