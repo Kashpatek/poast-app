@@ -1,14 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCanvaAccessToken, forceRefreshCanvaToken } from "../token";
 
-// Canva Connect API - Export
-// Exports a Canva design as PNG/PDF for download
-// Docs: https://www.canva.dev/docs/connect/api-reference/export/
-
+// Canva Connect API - Export with auto-refresh
 const CANVA_API = "https://api.canva.com/rest/v1";
 
+async function canvaFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  let token = await getCanvaAccessToken();
+  if (!token) throw new Error("No Canva token available");
+
+  const headers = { ...options.headers as Record<string, string>, "Authorization": `Bearer ${token}` };
+  let r = await fetch(url, { ...options, headers });
+
+  if (r.status === 401) {
+    const newToken = await forceRefreshCanvaToken();
+    if (newToken) {
+      headers["Authorization"] = `Bearer ${newToken}`;
+      r = await fetch(url, { ...options, headers });
+    }
+  }
+  return r;
+}
+
 export async function POST(req: NextRequest) {
-  const accessToken = process.env.CANVA_ACCESS_TOKEN;
-  if (!accessToken) {
+  const token = await getCanvaAccessToken();
+  if (!token) {
     return NextResponse.json({ error: "Canva not authenticated" }, { status: 401 });
   }
 
@@ -20,13 +35,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "designId required" }, { status: 400 });
     }
 
-    // Start export job
-    const r = await fetch(`${CANVA_API}/exports`, {
+    const r = await canvaFetch(`${CANVA_API}/exports`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${accessToken}`,
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         design_id: designId,
         format: {
@@ -47,10 +58,9 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET: Check export job status + get download URL
 export async function GET(req: NextRequest) {
-  const accessToken = process.env.CANVA_ACCESS_TOKEN;
-  if (!accessToken) {
+  const token = await getCanvaAccessToken();
+  if (!token) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
@@ -60,9 +70,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const r = await fetch(`${CANVA_API}/exports/${jobId}`, {
-      headers: { "Authorization": `Bearer ${accessToken}` },
-    });
+    const r = await canvaFetch(`${CANVA_API}/exports/${jobId}`);
     const result = await r.json();
     return NextResponse.json(result);
   } catch (error) {

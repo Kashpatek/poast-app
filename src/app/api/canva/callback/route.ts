@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { setCanvaTokens } from "../token";
 
 // Canva Connect API - OAuth2 Callback with PKCE
 // Exchanges authorization code + code_verifier for access token
@@ -40,7 +41,6 @@ export async function GET(req: NextRequest) {
   const redirectUri = `${origin}/api/canva/callback`;
 
   try {
-    // Exchange code for token with PKCE code_verifier
     const r = await fetch(CANVA_TOKEN_URL, {
       method: "POST",
       headers: {
@@ -62,30 +62,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         error: "Token exchange failed",
         details: data,
-        hint: "Check that CANVA_CLIENT_ID and CANVA_CLIENT_SECRET are correct in Vercel env vars",
       }, { status: 400 });
     }
 
-    // Success -- show the token so user can add to Vercel env vars
-    // In production, save to database instead
-    console.log("[Canva OAuth] Success! Tokens received.");
+    // Store tokens in memory for auto-refresh
+    setCanvaTokens(data.access_token, data.refresh_token || null, data.expires_in || 14400);
 
-    // Clean up cookies
-    const response = NextResponse.json({
-      success: true,
-      message: "Canva connected. Add these to your Vercel environment variables:",
-      CANVA_ACCESS_TOKEN: data.access_token,
-      CANVA_REFRESH_TOKEN: data.refresh_token || null,
-      expires_in: data.expires_in,
-      hint: "Go to Vercel Dashboard > poast-app > Settings > Environment Variables and add CANVA_ACCESS_TOKEN, then redeploy.",
-    });
+    console.log("[Canva OAuth] Connected and tokens stored in memory. Auto-refresh enabled.");
 
+    // Redirect home with success indicator
+    const response = NextResponse.redirect(new URL("/?canva_connected=true", origin));
     response.cookies.delete("canva_code_verifier");
     response.cookies.delete("canva_state");
 
     return response;
   } catch (err) {
     console.error("[Canva OAuth] Network error:", err);
-    return NextResponse.json({ error: "Network error during token exchange: " + String(err) }, { status: 500 });
+    return NextResponse.json({ error: "Network error: " + String(err) }, { status: 500 });
   }
 }
