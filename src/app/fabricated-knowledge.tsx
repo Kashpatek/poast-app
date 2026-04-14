@@ -48,6 +48,29 @@ function uid() { return "fk-" + Date.now() + "-" + Math.random().toString(36).sl
 function ls(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 function ss(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 
+// ═══ SUPABASE API HELPERS ═══
+function dbFetch(table) {
+  return fetch("/api/db?table=" + encodeURIComponent(table))
+    .then(function(r) { if (!r.ok) throw new Error("API " + r.status); return r.json(); })
+    .then(function(d) { return d.data && d.data.length > 0 ? d.data : null; });
+}
+
+function dbUpsert(table, row) {
+  return fetch("/api/db", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ table: table, data: row }),
+  }).then(function(r) { if (!r.ok) throw new Error("API " + r.status); return r.json(); });
+}
+
+function dbDelete(table, id) {
+  return fetch("/api/db", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ table: table, id: id }),
+  }).then(function(r) { if (!r.ok) throw new Error("API " + r.status); return r.json(); });
+}
+
 // ═══ TOAST ═══
 var _toast = { current: null };
 function toast(msg, type) { if (_toast.current) _toast.current(msg, type); }
@@ -130,10 +153,17 @@ function ProspectsTab({ prospects, setProspects }) {
     setForm({ name: "", company: "", role: "", topics: "", tier: "B", status: "Prospect", channel: "email", dateContacted: "", followUp: "", response: "" });
     setShowForm(false);
     toast("Prospect added");
+    dbUpsert("prospects", p).catch(function() { toast("Saved locally only (API unavailable)", "info"); });
   }
 
   function updateField(id, field, val) {
     setProspects(function(prev) { return prev.map(function(p) { return p.id === id ? { ...p, [field]: val } : p; }); });
+    // Find the full prospect and upsert to Supabase
+    var target = prospects.find(function(p) { return p.id === id; });
+    if (target) {
+      var updated = { ...target, [field]: val };
+      dbUpsert("prospects", updated).catch(function() {});
+    }
   }
 
   return <div>
@@ -220,10 +250,16 @@ function EpisodesTab({ episodes, setEpisodes, prospects }) {
     setForm({ number: "", guestId: "", topic: "", recordDate: "", releaseDate: "", status: "Planning", notes: "" });
     setShowForm(false);
     toast("Episode created");
+    dbUpsert("episodes", ep).catch(function() { toast("Saved locally only (API unavailable)", "info"); });
   }
 
   function updateEp(id, field, val) {
     setEpisodes(function(prev) { return prev.map(function(e) { return e.id === id ? { ...e, [field]: val } : e; }); });
+    var target = episodes.find(function(e) { return e.id === id; });
+    if (target) {
+      var updated = { ...target, [field]: val };
+      dbUpsert("episodes", updated).catch(function() {});
+    }
   }
 
   function guestName(gid) {
@@ -573,14 +609,21 @@ function ArchiveTab({ episodes, prospects, archive, setArchive }) {
 
   function addArchiveEntry() {
     if (!form.number || !form.guest) { toast("Number and guest required", "error"); return; }
-    setArchive(function(prev) { return [{ id: uid(), ...form, plays: parseInt(form.plays) || 0 }].concat(prev); });
+    var entry = { id: uid(), ...form, plays: parseInt(form.plays) || 0 };
+    setArchive(function(prev) { return [entry].concat(prev); });
     setForm({ number: "", guest: "", company: "", topic: "", category: "Other", releaseDate: "", plays: "" });
     setShowAdd(false);
     toast("Episode archived");
+    dbUpsert("archive", entry).catch(function() { toast("Saved locally only (API unavailable)", "info"); });
   }
 
   function updatePlays(id, val) {
     setArchive(function(prev) { return prev.map(function(a) { return a.id === id ? { ...a, plays: parseInt(val) || 0 } : a; }); });
+    var target = archive.find(function(a) { return a.id === id; });
+    if (target) {
+      var updated = { ...target, plays: parseInt(val) || 0 };
+      dbUpsert("archive", updated).catch(function() {});
+    }
   }
 
   // Analytics
@@ -669,18 +712,53 @@ export default function FabricatedKnowledge() {
   var _archive = useState([]), archive = _archive[0], setArchive = _archive[1];
   var _loaded = useState(false), loaded = _loaded[0], setLoaded = _loaded[1];
 
-  // Load from localStorage, seed defaults if empty
+  // Load from Supabase first, fall back to localStorage, then defaults
   useEffect(function() {
-    var p = ls("fk-prospects");
-    if (p && p.length > 0) { setProspects(p); } else { setProspects(DEFAULT_PROSPECTS); }
-    var e = ls("fk-episodes");
-    if (e && e.length > 0) { setEpisodes(e); } else { setEpisodes(DEFAULT_EPISODES); }
-    var a = ls("fk-archive");
-    if (a && a.length > 0) { setArchive(a); } else { setArchive(DEFAULT_ARCHIVE); }
-    setLoaded(true);
+    var settled = false;
+    function loadFallback() {
+      if (settled) return;
+      settled = true;
+      var p = ls("fk-prospects");
+      if (p && p.length > 0) { setProspects(p); } else { setProspects(DEFAULT_PROSPECTS); }
+      var e = ls("fk-episodes");
+      if (e && e.length > 0) { setEpisodes(e); } else { setEpisodes(DEFAULT_EPISODES); }
+      var a = ls("fk-archive");
+      if (a && a.length > 0) { setArchive(a); } else { setArchive(DEFAULT_ARCHIVE); }
+      setLoaded(true);
+    }
+
+    Promise.all([
+      dbFetch("prospects").catch(function() { return null; }),
+      dbFetch("episodes").catch(function() { return null; }),
+      dbFetch("archive").catch(function() { return null; }),
+    ]).then(function(results) {
+      if (settled) return;
+      settled = true;
+      var p = results[0], e = results[1], a = results[2];
+
+      // Prospects: Supabase -> localStorage -> defaults
+      if (p && p.length > 0) { setProspects(p); }
+      else { var lp = ls("fk-prospects"); if (lp && lp.length > 0) { setProspects(lp); } else { setProspects(DEFAULT_PROSPECTS); } }
+
+      // Episodes: Supabase -> localStorage -> defaults
+      if (e && e.length > 0) { setEpisodes(e); }
+      else { var le = ls("fk-episodes"); if (le && le.length > 0) { setEpisodes(le); } else { setEpisodes(DEFAULT_EPISODES); } }
+
+      // Archive: Supabase -> localStorage -> defaults
+      if (a && a.length > 0) { setArchive(a); }
+      else { var la = ls("fk-archive"); if (la && la.length > 0) { setArchive(la); } else { setArchive(DEFAULT_ARCHIVE); } }
+
+      setLoaded(true);
+    }).catch(function() {
+      loadFallback();
+    });
+
+    // If API takes too long, fall back to localStorage after 3 seconds
+    setTimeout(function() { loadFallback(); }, 3000);
   }, []);
 
-  // Persist to localStorage
+  // Persist to localStorage as fallback cache
+  // (Individual add/update/delete functions handle Supabase writes directly)
   useEffect(function() { if (loaded) ss("fk-prospects", prospects); }, [prospects, loaded]);
   useEffect(function() { if (loaded) ss("fk-episodes", episodes); }, [episodes, loaded]);
   useEffect(function() { if (loaded) ss("fk-archive", archive); }, [archive, loaded]);

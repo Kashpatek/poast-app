@@ -58,6 +58,52 @@ function saveData(data) {
   try { localStorage.setItem("outreach-data", JSON.stringify(data)); } catch (e) {}
 }
 
+// ═══ SUPABASE HELPERS ═══
+function toDbRow(opp) {
+  var row = {
+    show_name: opp.showName || "",
+    host: opp.hostName || "",
+    audience_size: opp.audience || "",
+    topic_focus: opp.topicFocus || "",
+    tier: opp.tier || "",
+    assigned_to: opp.assignedTo || null,
+    status: opp.status || "identified",
+    contact: opp.contact || "",
+    notes: opp.notes || "",
+  };
+  if (opp.id) row.id = opp.id;
+  return row;
+}
+function fromDbRow(row) {
+  return {
+    id: row.id,
+    showName: row.show_name || "",
+    hostName: row.host || "",
+    audience: row.audience_size || "",
+    topicFocus: row.topic_focus || "",
+    tier: row.tier || "",
+    contact: row.contact || "",
+    notes: row.notes || "",
+    assignedTo: row.assigned_to || null,
+    status: row.status || "identified",
+    lastAction: row.created_at ? row.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
+  };
+}
+function apiPost(opp) {
+  return fetch("/api/db", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ table: "outreach", data: toDbRow(opp) }),
+  }).then(function(r) { return r.json(); });
+}
+function apiDelete(id) {
+  return fetch("/api/db", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ table: "outreach", id: id }),
+  }).then(function(r) { return r.json(); });
+}
+
 function teamById(id) {
   for (var i = 0; i < TEAM.length; i++) { if (TEAM[i].id === id) return TEAM[i]; }
   return null;
@@ -83,21 +129,30 @@ export default function Outreach() {
   var _fContact = useState(""), fContact = _fContact[0], setFContact = _fContact[1];
   var _fNotes = useState(""), fNotes = _fNotes[0], setFNotes = _fNotes[1];
 
-  // Load
+  // Load from API first, fall back to localStorage
   useEffect(function() {
-    var d = loadData();
-    if (d && d.opps) setOpps(d.opps);
+    var cancelled = false;
+    fetch("/api/db?table=outreach").then(function(r) { return r.json(); }).then(function(res) {
+      if (cancelled) return;
+      if (res.data && res.data.length > 0) {
+        var mapped = res.data.map(fromDbRow);
+        setOpps(mapped);
+        saveData({ opps: mapped });
+      } else {
+        var d = loadData();
+        if (d && d.opps) setOpps(d.opps);
+      }
+    }).catch(function() {
+      if (cancelled) return;
+      var d = loadData();
+      if (d && d.opps) setOpps(d.opps);
+    });
+    return function() { cancelled = true; };
   }, []);
-
-  // Save
-  useEffect(function() {
-    saveData({ opps: opps });
-  }, [opps]);
 
   function addOpp() {
     if (!fShow.trim()) return;
     var opp = {
-      id: Date.now().toString(),
       showName: fShow.trim(),
       hostName: fHost.trim(),
       audience: fAud.trim(),
@@ -109,21 +164,47 @@ export default function Outreach() {
       status: "identified",
       lastAction: new Date().toISOString().split("T")[0],
     };
-    setOpps(function(p) { return [opp].concat(p); });
+    // POST to API -- don't send id, let Supabase generate it
+    apiPost(opp).then(function(res) {
+      if (res.data && res.data[0]) {
+        var saved = fromDbRow(res.data[0]);
+        setOpps(function(p) { var next = [saved].concat(p); saveData({ opps: next }); return next; });
+      } else {
+        // API failed, use local id as fallback
+        var fallback = Object.assign({}, opp, { id: Date.now().toString() });
+        setOpps(function(p) { var next = [fallback].concat(p); saveData({ opps: next }); return next; });
+      }
+    }).catch(function() {
+      var fallback = Object.assign({}, opp, { id: Date.now().toString() });
+      setOpps(function(p) { var next = [fallback].concat(p); saveData({ opps: next }); return next; });
+    });
     setFShow(""); setFHost(""); setFAud(""); setFTopic(""); setFTier("A"); setFContact(""); setFNotes("");
     setShowForm(false);
   }
 
   function assignMember(oppId, memberId) {
-    setOpps(function(p) { return p.map(function(o) { return o.id === oppId ? Object.assign({}, o, { assignedTo: memberId, lastAction: new Date().toISOString().split("T")[0] }) : o; }); });
+    setOpps(function(p) {
+      var next = p.map(function(o) { return o.id === oppId ? Object.assign({}, o, { assignedTo: memberId, lastAction: new Date().toISOString().split("T")[0] }) : o; });
+      saveData({ opps: next });
+      var updated = next.find(function(o) { return o.id === oppId; });
+      if (updated) apiPost(updated).catch(function() {});
+      return next;
+    });
   }
 
   function moveStatus(oppId, newStatus) {
-    setOpps(function(p) { return p.map(function(o) { return o.id === oppId ? Object.assign({}, o, { status: newStatus, lastAction: new Date().toISOString().split("T")[0] }) : o; }); });
+    setOpps(function(p) {
+      var next = p.map(function(o) { return o.id === oppId ? Object.assign({}, o, { status: newStatus, lastAction: new Date().toISOString().split("T")[0] }) : o; });
+      saveData({ opps: next });
+      var updated = next.find(function(o) { return o.id === oppId; });
+      if (updated) apiPost(updated).catch(function() {});
+      return next;
+    });
   }
 
   function deleteOpp(oppId) {
-    setOpps(function(p) { return p.filter(function(o) { return o.id !== oppId; }); });
+    apiDelete(oppId).catch(function() {});
+    setOpps(function(p) { var next = p.filter(function(o) { return o.id !== oppId; }); saveData({ opps: next }); return next; });
   }
 
   function countAssigned(memberId) {

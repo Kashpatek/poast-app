@@ -53,7 +53,57 @@ function loadData() {
   try { var raw = localStorage.getItem("trends-data"); return raw ? JSON.parse(raw) : []; }
   catch(e) { return []; }
 }
-function saveData(trends) { localStorage.setItem("trends-data", JSON.stringify(trends)); }
+function saveData(trends) { try { localStorage.setItem("trends-data", JSON.stringify(trends)); } catch(e) {} }
+
+// ═══ SUPABASE HELPERS ═══
+function toDbRow(t) {
+  var row = {
+    url: t.url || "",
+    platform: t.platform || "",
+    format: t.format || "",
+    audio: t.audio || "",
+    visual: t.visual || "",
+    sentiment: t.sentiment || "",
+    audience: t.audience || "",
+    cta_type: t.ctaType || "",
+    relevance_score: t.relevance != null ? t.relevance : 5,
+    sa_angle: t.saAngle || "",
+    status: t.status || "Active",
+  };
+  if (t.id) row.id = t.id;
+  return row;
+}
+function fromDbRow(row) {
+  return {
+    id: row.id,
+    url: row.url || "",
+    platform: row.platform || "",
+    format: row.format || "",
+    audio: row.audio || "",
+    visual: row.visual || "",
+    sentiment: row.sentiment || "",
+    audience: row.audience || "",
+    ctaType: row.cta_type || "",
+    relevance: row.relevance_score != null ? row.relevance_score : 5,
+    saAngle: row.sa_angle || "",
+    status: row.status || "Active",
+    date: row.created_at || new Date().toISOString(),
+  };
+}
+function tApiPost(trend) {
+  return fetch("/api/db", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ table: "trends", data: toDbRow(trend) }),
+  }).then(function(r) { return r.json(); });
+}
+function tApiDelete(id) {
+  return fetch("/api/db", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ table: "trends", id: id }),
+  }).then(function(r) { return r.json(); });
+}
 function truncUrl(url, max) { if (!url) return ""; if (url.length <= (max || 50)) return url; return url.slice(0, max || 50) + "\u2026"; }
 function makeId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 function relScoreColor(score) { if (score <= 3) return D.coral; if (score <= 6) return D.amber; return D.teal; }
@@ -89,11 +139,24 @@ export default function Trends() {
   var _fAud = useState(""), fAud = _fAud[0], setFAud = _fAud[1];
   var _fStat = useState(""), fStat = _fStat[0], setFStat = _fStat[1];
 
-  // Load on mount
-  useEffect(function() { setTrends(loadData()); }, []);
-
-  // Persist on change
-  useEffect(function() { if (trends.length > 0) saveData(trends); }, [trends]);
+  // Load from API first, fall back to localStorage
+  useEffect(function() {
+    var cancelled = false;
+    fetch("/api/db?table=trends").then(function(r) { return r.json(); }).then(function(res) {
+      if (cancelled) return;
+      if (res.data && res.data.length > 0) {
+        var mapped = res.data.map(fromDbRow);
+        setTrends(mapped);
+        saveData(mapped);
+      } else {
+        setTrends(loadData());
+      }
+    }).catch(function() {
+      if (cancelled) return;
+      setTrends(loadData());
+    });
+    return function() { cancelled = true; };
+  }, []);
 
   function resetForm() {
     setUrl(""); setPlatform("tiktok"); setFormat(""); setAudio(""); setVisual("");
@@ -105,12 +168,24 @@ export default function Trends() {
     if (!sentiment) { addToast("Select a sentiment", "error"); return; }
     if (!audience) { addToast("Select an audience", "error"); return; }
     var entry = {
-      id: makeId(), url: url.trim(), platform: platform, format: format.trim(),
+      url: url.trim(), platform: platform, format: format.trim(),
       audio: audio.trim(), visual: visual.trim(), sentiment: sentiment,
       audience: audience, ctaType: ctaType, relevance: relevance,
       saAngle: saAngle.trim(), status: "Active", date: new Date().toISOString(),
     };
-    setTrends(function(p) { var next = [entry].concat(p); saveData(next); return next; });
+    // POST to API -- don't send id, let Supabase generate it
+    tApiPost(entry).then(function(res) {
+      if (res.data && res.data[0]) {
+        var saved = fromDbRow(res.data[0]);
+        setTrends(function(p) { var next = [saved].concat(p); saveData(next); return next; });
+      } else {
+        var fallback = Object.assign({}, entry, { id: makeId() });
+        setTrends(function(p) { var next = [fallback].concat(p); saveData(next); return next; });
+      }
+    }).catch(function() {
+      var fallback = Object.assign({}, entry, { id: makeId() });
+      setTrends(function(p) { var next = [fallback].concat(p); saveData(next); return next; });
+    });
     resetForm();
     setFormOpen(false);
     addToast("Trend added", "success");
@@ -125,11 +200,14 @@ export default function Trends() {
         return Object.assign({}, t, { status: ns });
       });
       saveData(next);
+      var updated = next.find(function(t) { return t.id === id; });
+      if (updated) tApiPost(updated).catch(function() {});
       return next;
     });
   }
 
   function removeTrend(id) {
+    tApiDelete(id).catch(function() {});
     setTrends(function(p) { var next = p.filter(function(t) { return t.id !== id; }); saveData(next); return next; });
     addToast("Trend removed", "info");
   }

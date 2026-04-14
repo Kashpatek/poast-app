@@ -73,53 +73,53 @@ function Toast() {
 }
 
 function ProgressBar({ label }) {
-  return <div style={{ margin: "20px 0" }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-      <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, letterSpacing: "1px" }}>{label || "Generating..."}</div>
-      <div className="progress-dots" style={{ fontFamily: mn, fontSize: 10, color: C.txm }} />
+  return <div style={{ margin: "22px 0" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+      <div style={{ fontFamily: mn, fontSize: 11, color: C.amber, letterSpacing: "2px", textTransform: "uppercase" }}>{label || "Generating..."}</div>
+      <div className="progress-dots" style={{ fontFamily: mn, fontSize: 10, color: "rgba(255,255,255,0.25)" }} />
     </div>
-    <div style={{ width: "100%", height: 3, background: C.border, borderRadius: 2, overflow: "hidden", position: "relative" }}>
-      <div className="progress-slide" style={{ position: "absolute", top: 0, left: 0, height: "100%", width: "40%", borderRadius: 2, background: "linear-gradient(90deg, transparent, " + C.amber + ", transparent)" }} />
+    <div style={{ width: "100%", height: 2, background: "rgba(255,255,255,0.06)", borderRadius: 1, overflow: "hidden", position: "relative" }}>
+      <div className="progress-slide" style={{ position: "absolute", top: 0, left: 0, height: "100%", width: "40%", borderRadius: 1, background: "linear-gradient(90deg, transparent, " + C.amber + ", transparent)" }} />
     </div>
   </div>;
 }
 
-function Label({ children }) { return <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 6 }}>{children}</div>; }
-function Field({ label, value, onChange, placeholder, isMono }) { return (<div style={{ marginBottom: 14 }}>{label && <Label>{label}</Label>}<input value={value} onChange={function(e) { onChange(e.target.value); }} placeholder={placeholder} style={{ width: "100%", padding: "10px 12px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: isMono ? mn : ft, fontSize: 13, outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} /></div>); }
-function Btn({ children, onClick, loading, sec, sm, off }) { return (<button onClick={onClick} disabled={loading || off} style={{ padding: sm ? "6px 13px" : "10px 24px", background: off ? C.surface : sec ? "transparent" : C.amber, color: off ? C.txd : sec ? C.amber : C.bg, border: sec ? "1px solid " + (off ? C.border : C.amber) : "none", borderRadius: 6, fontFamily: ft, fontSize: sm ? 11 : 13, fontWeight: 700, cursor: loading || off ? "not-allowed" : "pointer", opacity: loading ? 0.5 : 1 }}>{loading ? "Working..." : children}</button>); }
-function CopyBtn({ text }) { var _s = useState(false), ok = _s[0], set = _s[1]; return <span onClick={function(e) { e.stopPropagation(); set(copyText(text)); setTimeout(function() { set(false); }, 1200); }} style={{ fontFamily: mn, fontSize: 9, color: ok ? C.amber : C.txd, cursor: "pointer", padding: "2px 6px", borderRadius: 3, border: "1px solid " + C.border, userSelect: "none" }}>{ok ? "Copied" : "Copy"}</span>; }
-function Divider() { return <div style={{ borderBottom: "1px solid " + C.border, margin: "24px 0" }} />; }
+function Label({ children }) { return <div style={{ fontFamily: mn, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 8 }}>{children}</div>; }
+function Field({ label, value, onChange, placeholder, isMono }) { return (<div style={{ marginBottom: 16 }}>{label && <Label>{label}</Label>}<input value={value} onChange={function(e) { onChange(e.target.value); }} placeholder={placeholder} style={{ width: "100%", padding: "12px 14px", background: "#09090D", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, color: C.tx, fontFamily: isMono ? mn : ft, fontSize: 14, outline: "none", boxSizing: "border-box", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; e.target.style.boxShadow = "0 0 24px rgba(247,176,65,0.06)"; }} onBlur={function(e) { e.target.style.borderColor = "rgba(255,255,255,0.06)"; e.target.style.boxShadow = "none"; }} /></div>); }
+function Btn({ children, onClick, loading, sec, sm, off }) { return (<button onClick={onClick} disabled={loading || off} style={{ padding: sm ? "8px 16px" : "12px 28px", background: off ? "#09090D" : sec ? "transparent" : "linear-gradient(135deg, " + C.amber + ", #E8A020)", color: off ? "rgba(255,255,255,0.25)" : sec ? C.amber : "#060608", border: sec ? "1px solid " + (off ? "rgba(255,255,255,0.06)" : C.amber) : "none", borderRadius: 10, fontFamily: ft, fontSize: sm ? 12 : 14, fontWeight: 800, cursor: loading || off ? "not-allowed" : "pointer", opacity: loading ? 0.5 : 1, letterSpacing: -0.3, transition: "all 0.2s ease" }}>{loading ? "Working..." : children}</button>); }
+function CopyBtn({ text }) { var _s = useState(false), ok = _s[0], set = _s[1]; return <span onClick={function(e) { e.stopPropagation(); set(copyText(text)); setTimeout(function() { set(false); }, 1200); }} style={{ fontFamily: mn, fontSize: 9, color: ok ? C.amber : "rgba(255,255,255,0.25)", cursor: "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)", userSelect: "none", transition: "all 0.2s ease" }}>{ok ? "Copied" : "Copy"}</span>; }
+function Divider() { return <div style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", margin: "28px 0" }} />; }
 
 function Pick({ text, picked, onPick, onRedo, rLoading }) {
-  return (<div className="poast-card" onClick={onPick} style={{ background: picked ? "linear-gradient(135deg, " + C.amber + "0C 0%, " + C.amber + "08 100%)" : C.cardGrad, border: "1px solid " + (picked ? C.amber : C.border), borderRadius: 7, padding: "12px 16px", marginBottom: 7, cursor: "pointer", boxShadow: picked ? C.glow : "none" }}>
-    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-      <div style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, marginTop: 2, border: "2px solid " + (picked ? C.amber : C.border), background: picked ? C.amber : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>{picked && <div style={{ width: 7, height: 7, borderRadius: "50%", background: C.bg }} />}</div>
-      <div style={{ flex: 1, fontFamily: ft, fontSize: 13, color: C.tx, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{text}</div>
-      <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
+  return (<div className="poast-card" onClick={onPick} style={{ background: picked ? "linear-gradient(135deg, " + C.amber + "0A 0%, " + C.amber + "05 100%)" : "#0D0D12", border: "1px solid " + (picked ? C.amber + "60" : "rgba(255,255,255,0.06)"), borderRadius: 12, padding: "16px 20px", marginBottom: 8, cursor: "pointer", boxShadow: picked ? "0 0 24px rgba(247,176,65,0.06)" : "none", transition: "all 0.2s ease" }}>
+    <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+      <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, marginTop: 2, border: "2px solid " + (picked ? C.amber : "rgba(255,255,255,0.12)"), background: picked ? C.amber : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s ease" }}>{picked && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#060608" }} />}</div>
+      <div style={{ flex: 1, fontFamily: ft, fontSize: 14, color: picked ? "#ffffff" : "rgba(255,255,255,0.55)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{text}</div>
+      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
         <CopyBtn text={text} />
-        {onRedo && <span onClick={function(e) { e.stopPropagation(); if (!rLoading) onRedo(); }} style={{ fontFamily: mn, fontSize: 9, color: C.txd, cursor: rLoading ? "wait" : "pointer", padding: "2px 6px", borderRadius: 3, border: "1px solid " + C.border, opacity: rLoading ? 0.4 : 1, userSelect: "none" }}>&#x21bb;</span>}
+        {onRedo && <span onClick={function(e) { e.stopPropagation(); if (!rLoading) onRedo(); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", cursor: rLoading ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)", opacity: rLoading ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>&#x21bb;</span>}
       </div>
     </div>
   </div>);
 }
 
 function SecHead({ label, onRedoAll, rL }) {
-  return (<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "2px" }}>{label}</div>
-    {onRedoAll && <span onClick={function() { if (!rL) onRedoAll(); }} style={{ fontFamily: mn, fontSize: 9, color: C.txd, cursor: rL ? "wait" : "pointer", padding: "3px 8px", borderRadius: 4, border: "1px solid " + C.border, opacity: rL ? 0.4 : 1 }}>&#x21bb; Redo All 3</span>}
+  return (<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+    <div style={{ fontFamily: mn, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "2px", fontWeight: 700 }}>{label}</div>
+    {onRedoAll && <span onClick={function() { if (!rL) onRedoAll(); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", cursor: rL ? "wait" : "pointer", padding: "4px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.06)", opacity: rL ? 0.4 : 1, transition: "all 0.2s ease" }}>&#x21bb; Redo All 3</span>}
   </div>);
 }
 
 function OutCard({ title, content, color, onRedo, rLoading }) {
-  return (<div className="poast-card" style={{ background: C.cardGrad, border: "1px solid " + C.border, borderLeft: "3px solid " + (color || C.amber), borderRadius: 7, padding: "13px 16px", marginBottom: 8, boxShadow: C.glow }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-      <div style={{ fontFamily: mn, fontSize: 10, color: color || C.amber, textTransform: "uppercase", letterSpacing: "1.5px" }}>{title}</div>
-      <div style={{ display: "flex", gap: 4 }}>
+  return (<div className="poast-card" style={{ background: "#0D0D12", border: "1px solid rgba(255,255,255,0.06)", borderLeft: "3px solid " + (color || C.amber), borderRadius: 12, padding: "16px 20px", marginBottom: 10, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+      <div style={{ fontFamily: mn, fontSize: 11, color: color || C.amber, textTransform: "uppercase", letterSpacing: "2px" }}>{title}</div>
+      <div style={{ display: "flex", gap: 5 }}>
         <CopyBtn text={content} />
-        {onRedo && <span onClick={function() { if (!rLoading) onRedo(); }} style={{ fontFamily: mn, fontSize: 9, color: C.txd, cursor: rLoading ? "wait" : "pointer", padding: "2px 6px", borderRadius: 3, border: "1px solid " + C.border, opacity: rLoading ? 0.4 : 1, userSelect: "none" }}>&#x21bb;</span>}
+        {onRedo && <span onClick={function() { if (!rLoading) onRedo(); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", cursor: rLoading ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)", opacity: rLoading ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>&#x21bb;</span>}
       </div>
     </div>
-    <div style={{ fontFamily: ft, fontSize: 13, color: C.tx, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{content}</div>
+    <div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{content}</div>
   </div>);
 }
 
@@ -372,27 +372,27 @@ function Sidebar({ active, onNav, onAskPoast }) {
 }
 
 function TabBar({ items, active, onPick, locks }) {
-  return (<div style={{ display: "flex", borderBottom: "1px solid " + C.border, marginBottom: 24, background: C.bg, flexWrap: "wrap" }}>
-    {items.map(function(t) { var s = active === t.id, lk = locks && locks.indexOf(t.id) >= 0; return (<div key={t.id} onClick={function() { if (!lk) onPick(t.id); }} style={{ padding: "12px 18px", cursor: lk ? "not-allowed" : "pointer", fontFamily: ft, fontSize: 12, fontWeight: s ? 700 : 500, color: lk ? C.txd : s ? C.amber : C.txm, borderBottom: s ? "2px solid " + C.amber : "2px solid transparent", opacity: lk ? 0.35 : 1, display: "flex", alignItems: "center", gap: 5 }}>{t.l}{lk && <span style={{ fontFamily: mn, fontSize: 7, background: C.surface, padding: "1px 5px", borderRadius: 3, color: C.txd }}>locked</span>}</div>); })}
+  return (<div style={{ display: "flex", gap: 4, borderBottom: "1px solid rgba(255,255,255,0.06)", marginBottom: 28, paddingBottom: 0, background: "transparent", flexWrap: "wrap" }}>
+    {items.map(function(t) { var s = active === t.id, lk = locks && locks.indexOf(t.id) >= 0; return (<div key={t.id} onClick={function() { if (!lk) onPick(t.id); }} style={{ padding: "14px 22px", cursor: lk ? "not-allowed" : "pointer", fontFamily: ft, fontSize: 13, fontWeight: s ? 800 : 500, color: lk ? "rgba(255,255,255,0.12)" : s ? C.amber : "rgba(255,255,255,0.55)", borderBottom: s ? "2px solid " + C.amber : "2px solid transparent", opacity: lk ? 0.35 : 1, display: "flex", alignItems: "center", gap: 6, letterSpacing: s ? -0.3 : 0, transition: "all 0.2s ease", position: "relative" }}>{t.l}{lk && <span style={{ fontFamily: mn, fontSize: 7, background: "#09090D", padding: "2px 6px", borderRadius: 4, color: "rgba(255,255,255,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}>locked</span>}</div>); })}
   </div>);
 }
 
 function GuestManager({ guests, setGuests }) {
-  return (<div style={{ marginBottom: 18 }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><Label>Guests</Label><span onClick={function() { setGuests(guests.concat([{ name: "", handle: "" }])); }} style={{ fontFamily: mn, fontSize: 10, color: C.amber, cursor: "pointer", padding: "3px 8px", borderRadius: 4, border: "1px solid " + C.border }}>+ Add</span></div>
-    {guests.length === 0 && <div onClick={function() { setGuests([{ name: "", handle: "" }]); }} style={{ background: C.card, border: "1px dashed " + C.border, borderRadius: 6, padding: "14px", cursor: "pointer", textAlign: "center", fontFamily: ft, fontSize: 12, color: C.txd }}>Click to add guests</div>}
-    {guests.map(function(g, i) { return (<div key={i} style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center" }}>
-      <input value={g.name} onChange={function(e) { var c = guests.slice(); c[i] = { name: e.target.value, handle: g.handle }; setGuests(c); }} placeholder="Name" style={{ flex: 1, padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 5, color: C.tx, fontFamily: ft, fontSize: 13, outline: "none" }} />
-      <input value={g.handle} onChange={function(e) { var c = guests.slice(); c[i] = { name: g.name, handle: e.target.value }; setGuests(c); }} placeholder="@handle" style={{ flex: 1, padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 5, color: C.tx, fontFamily: mn, fontSize: 12, outline: "none" }} />
-      <span onClick={function() { setGuests(guests.filter(function(_, j) { return j !== i; })); }} style={{ fontFamily: mn, fontSize: 11, color: C.txd, cursor: "pointer", padding: "4px 8px" }}>x</span>
+  return (<div style={{ marginBottom: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}><Label>Guests</Label><span onClick={function() { setGuests(guests.concat([{ name: "", handle: "" }])); }} style={{ fontFamily: mn, fontSize: 10, color: C.amber, cursor: "pointer", padding: "4px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.06)", transition: "all 0.2s ease" }}>+ Add</span></div>
+    {guests.length === 0 && <div onClick={function() { setGuests([{ name: "", handle: "" }]); }} style={{ background: "#09090D", border: "1px dashed rgba(255,255,255,0.06)", borderRadius: 10, padding: "16px", cursor: "pointer", textAlign: "center", fontFamily: ft, fontSize: 13, color: "rgba(255,255,255,0.25)" }}>Click to add guests</div>}
+    {guests.map(function(g, i) { return (<div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+      <input value={g.name} onChange={function(e) { var c = guests.slice(); c[i] = { name: e.target.value, handle: g.handle }; setGuests(c); }} placeholder="Name" style={{ flex: 1, padding: "10px 12px", background: "#09090D", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, color: C.tx, fontFamily: ft, fontSize: 14, outline: "none", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = "rgba(255,255,255,0.06)"; }} />
+      <input value={g.handle} onChange={function(e) { var c = guests.slice(); c[i] = { name: g.name, handle: e.target.value }; setGuests(c); }} placeholder="@handle" style={{ flex: 1, padding: "10px 12px", background: "#09090D", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, color: C.tx, fontFamily: mn, fontSize: 13, outline: "none", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = "rgba(255,255,255,0.06)"; }} />
+      <span onClick={function() { setGuests(guests.filter(function(_, j) { return j !== i; })); }} style={{ fontFamily: mn, fontSize: 11, color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "4px 8px" }}>x</span>
     </div>); })}
   </div>);
 }
 
 function KeywordBar({ onSuggest, loading }) {
   var _s = useState(""), kw = _s[0], setKw = _s[1];
-  return (<div style={{ display: "flex", gap: 6, marginTop: 8, marginBottom: 12 }}>
-    <input value={kw} onChange={function(e) { setKw(e.target.value); }} placeholder="Keywords to refine titles (e.g. TSMC, GPU shortage)" onKeyDown={function(e) { if (e.key === "Enter" && kw.trim()) { onSuggest(kw.trim()); setKw(""); } }} style={{ flex: 1, padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 5, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none" }} />
+  return (<div style={{ display: "flex", gap: 8, marginTop: 10, marginBottom: 14 }}>
+    <input value={kw} onChange={function(e) { setKw(e.target.value); }} placeholder="Keywords to refine titles (e.g. TSMC, GPU shortage)" onKeyDown={function(e) { if (e.key === "Enter" && kw.trim()) { onSuggest(kw.trim()); setKw(""); } }} style={{ flex: 1, padding: "10px 14px", background: "#09090D", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, color: C.tx, fontFamily: mn, fontSize: 12, outline: "none", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = "rgba(255,255,255,0.06)"; }} />
     <Btn sm onClick={function() { if (kw.trim()) { onSuggest(kw.trim()); setKw(""); } }} loading={loading} off={!kw.trim()}>Suggest</Btn>
   </div>);
 }
@@ -457,43 +457,43 @@ function EpisodeSetup({ ep, setEp, guests, setGuests, opts, setOpts, sel, setSel
     <GuestManager guests={guests} setGuests={setGuests} />
 
     {/* Transcript */}
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <Label>Full Transcript</Label>
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 5, cursor: "pointer", background: C.surface, border: "1px solid " + C.border, fontFamily: mn, fontSize: 10, color: C.amber }}>Upload .txt<input type="file" accept=".txt,.text" style={{ display: "none" }} onChange={function(e) { var f = e.target.files && e.target.files[0]; if (!f) return; var r = new FileReader(); r.onload = function(ev) { setEp(Object.assign({}, ep, { transcript: ev.target.result })); }; r.readAsText(f); e.target.value = ""; }} /></label>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, cursor: "pointer", background: "transparent", border: "1px solid rgba(255,255,255,0.06)", fontFamily: mn, fontSize: 10, color: C.amber, transition: "all 0.2s ease" }}>Upload .txt<input type="file" accept=".txt,.text" style={{ display: "none" }} onChange={function(e) { var f = e.target.files && e.target.files[0]; if (!f) return; var r = new FileReader(); r.onload = function(ev) { setEp(Object.assign({}, ep, { transcript: ev.target.result })); }; r.readAsText(f); e.target.value = ""; }} /></label>
       </div>
-      <div onDragOver={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = C.amber; }} onDragLeave={function(e) { e.currentTarget.style.borderColor = C.border; }} onDrop={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = C.border; var f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) { var r = new FileReader(); r.onload = function(ev) { setEp(Object.assign({}, ep, { transcript: ev.target.result })); }; r.readAsText(f); } }} style={{ position: "relative", border: "1px solid " + C.border, borderRadius: 7, background: C.card }}>
-        {!ep.transcript && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none", zIndex: 1 }}><div style={{ fontFamily: ft, fontSize: 13, color: C.txd }}>Drop .txt or paste transcript</div></div>}
-        <textarea value={ep.transcript} onChange={function(e) { setEp(Object.assign({}, ep, { transcript: e.target.value })); }} rows={10} style={{ width: "100%", padding: "12px 14px", background: "transparent", border: "none", borderRadius: 7, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.6, position: "relative", zIndex: 2, minHeight: 140 }} />
+      <div onDragOver={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = C.amber; }} onDragLeave={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }} onDrop={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; var f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) { var r = new FileReader(); r.onload = function(ev) { setEp(Object.assign({}, ep, { transcript: ev.target.result })); }; r.readAsText(f); } }} style={{ position: "relative", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, background: "#09090D", transition: "border-color 0.2s ease" }}>
+        {!ep.transcript && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none", zIndex: 1 }}><div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.25)" }}>Drop .txt or paste transcript</div></div>}
+        <textarea value={ep.transcript} onChange={function(e) { setEp(Object.assign({}, ep, { transcript: e.target.value })); }} rows={10} style={{ width: "100%", padding: "14px 16px", background: "transparent", border: "none", borderRadius: 12, color: C.tx, fontFamily: mn, fontSize: 12, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.7, position: "relative", zIndex: 2, minHeight: 140 }} />
       </div>
-      {ep.transcript && <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}><span style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>{ep.transcript.length.toLocaleString()} chars</span><span onClick={function() { setEp(Object.assign({}, ep, { transcript: "" })); }} style={{ fontFamily: mn, fontSize: 9, color: C.txd, cursor: "pointer" }}>Clear</span></div>}
+      {ep.transcript && <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}><span style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)" }}>{ep.transcript.length.toLocaleString()} chars</span><span onClick={function() { setEp(Object.assign({}, ep, { transcript: "" })); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", cursor: "pointer" }}>Clear</span></div>}
     </div>
 
     {/* Timestamps */}
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: 20 }}>
       <Label>Timestamps (optional)</Label>
-      <textarea value={ep.timestamps || ""} onChange={function(e) { setEp(Object.assign({}, ep, { timestamps: e.target.value })); }} rows={4} placeholder={"(00:00) Cold open\n(02:06) Introduction\n(05:10) Supply chain choke points"} style={{ width: "100%", padding: "10px 12px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.6 }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
-      <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 4 }}>Added to end of generated descriptions.</div>
+      <textarea value={ep.timestamps || ""} onChange={function(e) { setEp(Object.assign({}, ep, { timestamps: e.target.value })); }} rows={4} placeholder={"(00:00) Cold open\n(02:06) Introduction\n(05:10) Supply chain choke points"} style={{ width: "100%", padding: "12px 14px", background: "#09090D", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, color: C.tx, fontFamily: mn, fontSize: 12, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.7, transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; e.target.style.boxShadow = "0 0 24px rgba(247,176,65,0.06)"; }} onBlur={function(e) { e.target.style.borderColor = "rgba(255,255,255,0.06)"; e.target.style.boxShadow = "none"; }} />
+      <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", marginTop: 6 }}>Added to end of generated descriptions.</div>
     </div>
 
     {/* Additional Info */}
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: 20 }}>
       <Label>Additional Info (optional)</Label>
-      <textarea value={ep.extra || ""} onChange={function(e) { setEp(Object.assign({}, ep, { extra: e.target.value })); }} rows={2} placeholder="Key topics, sponsor mentions, angles to emphasize..." style={{ width: "100%", padding: "10px 12px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: ft, fontSize: 13, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.5 }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+      <textarea value={ep.extra || ""} onChange={function(e) { setEp(Object.assign({}, ep, { extra: e.target.value })); }} rows={2} placeholder="Key topics, sponsor mentions, angles to emphasize..." style={{ width: "100%", padding: "12px 14px", background: "#09090D", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, color: C.tx, fontFamily: ft, fontSize: 14, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.6, transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; e.target.style.boxShadow = "0 0 24px rgba(247,176,65,0.06)"; }} onBlur={function(e) { e.target.style.borderColor = "rgba(255,255,255,0.06)"; e.target.style.boxShadow = "none"; }} />
     </div>
 
     {/* Desc length */}
-    <div style={{ marginBottom: 20 }}>
+    <div style={{ marginBottom: 24 }}>
       <Label>Description Length</Label>
-      <div style={{ display: "flex", gap: 6 }}>
-        {[{ id: "short", l: "Short", sub: "2-4 sentences" }, { id: "medium", l: "Medium", sub: "2 paragraphs" }, { id: "long", l: "Long", sub: "3-5 paragraphs" }].map(function(m) { var s2 = descLen === m.id; return <div key={m.id} onClick={function() { setDescLen(m.id); }} style={{ flex: 1, padding: "10px 14px", borderRadius: 6, cursor: "pointer", background: s2 ? C.amber + "12" : C.card, border: "1px solid " + (s2 ? C.amber : C.border), textAlign: "center" }}><div style={{ fontFamily: ft, fontSize: 13, fontWeight: s2 ? 700 : 500, color: s2 ? C.amber : C.tx }}>{m.l}</div><div style={{ fontFamily: mn, fontSize: 9, color: s2 ? C.amber : C.txd, marginTop: 2 }}>{m.sub}</div></div>; })}
+      <div style={{ display: "flex", gap: 8 }}>
+        {[{ id: "short", l: "Short", sub: "2-4 sentences" }, { id: "medium", l: "Medium", sub: "2 paragraphs" }, { id: "long", l: "Long", sub: "3-5 paragraphs" }].map(function(m) { var s2 = descLen === m.id; return <div key={m.id} onClick={function() { setDescLen(m.id); }} style={{ flex: 1, padding: "14px 16px", borderRadius: 12, cursor: "pointer", background: s2 ? C.amber + "0A" : "#0D0D12", border: "1px solid " + (s2 ? C.amber + "60" : "rgba(255,255,255,0.06)"), textAlign: "center", boxShadow: s2 ? "0 0 24px rgba(247,176,65,0.06)" : "none", transition: "all 0.2s ease" }}><div style={{ fontFamily: ft, fontSize: 14, fontWeight: s2 ? 800 : 500, color: s2 ? C.amber : "#ffffff" }}>{m.l}</div><div style={{ fontFamily: mn, fontSize: 9, color: s2 ? C.amber : "rgba(255,255,255,0.25)", marginTop: 3 }}>{m.sub}</div></div>; })}
       </div>
     </div>
 
     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
       <Btn onClick={genAll} loading={loading} off={!ep.transcript}>Generate Options</Btn>
       {opts && <Btn onClick={genAll} loading={loading} sec sm>Full Regen</Btn>}
-      {!ep.transcript && <span style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>Paste or upload a transcript first</span>}
+      {!ep.transcript && <span style={{ fontFamily: mn, fontSize: 10, color: "rgba(255,255,255,0.25)" }}>Paste or upload a transcript first</span>}
     </div>
     {loading && <ProgressBar label="Generating titles, descriptions, and thumbnails" />}
 
@@ -508,11 +508,11 @@ function EpisodeSetup({ ep, setEp, guests, setGuests, opts, setOpts, sel, setSel
       <SecHead label="Select a Thumbnail Concept" onRedoAll={function() { redoCat("thumbnails"); }} rL={rL["all-thumbnails"]} />
       {(opts.thumbnails || []).map(function(th, i) { return <Pick key={"th" + i} text={thTxt(th)} picked={sel.thumb === i} onPick={function() { setSel(Object.assign({}, sel, { thumb: i })); }} onRedo={function() { redoOne("thumbnails", i); }} rLoading={rL["thumbnails-" + i]} />; })}
       <Divider />
-      <div className="poast-card" style={{ background: C.surfGrad, border: "1px solid " + C.border, borderRadius: 8, padding: 20, marginBottom: 20, boxShadow: C.glow }}>
-        <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 14 }}>Your Selections</div>
-        <div style={{ marginBottom: 14 }}><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginBottom: 3 }}>TITLE</div><div style={{ fontFamily: ft, fontSize: 15, color: C.tx, fontWeight: 600 }}>{opts.titles && opts.titles[sel.title]}</div></div>
-        <div style={{ marginBottom: 14 }}><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginBottom: 3 }}>DESCRIPTION</div><div style={{ fontFamily: ft, fontSize: 13, color: C.tx, lineHeight: 1.6, whiteSpace: "pre-wrap", maxHeight: 150, overflow: "auto" }}>{opts.descriptions && opts.descriptions[sel.desc]}</div></div>
-        <div><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginBottom: 3 }}>THUMBNAIL CONCEPT</div><div style={{ fontFamily: ft, fontSize: 13, color: C.tx, lineHeight: 1.6 }}>{thTxt(opts.thumbnails && opts.thumbnails[sel.thumb])}</div></div>
+      <div className="poast-card" style={{ background: "#0D0D12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 24, marginBottom: 24, boxShadow: "0 0 24px rgba(247,176,65,0.06)" }}>
+        <div style={{ fontFamily: mn, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 18, fontWeight: 700 }}>Your Selections</div>
+        <div style={{ marginBottom: 16 }}><div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.55)", marginBottom: 4, letterSpacing: "1.5px" }}>TITLE</div><div style={{ fontFamily: ft, fontSize: 16, color: "#ffffff", fontWeight: 700 }}>{opts.titles && opts.titles[sel.title]}</div></div>
+        <div style={{ marginBottom: 16 }}><div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.55)", marginBottom: 4, letterSpacing: "1.5px" }}>DESCRIPTION</div><div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.7, whiteSpace: "pre-wrap", maxHeight: 150, overflow: "auto" }}>{opts.descriptions && opts.descriptions[sel.desc]}</div></div>
+        <div><div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.55)", marginBottom: 4, letterSpacing: "1.5px" }}>THUMBNAIL CONCEPT</div><div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.7 }}>{thTxt(opts.thumbnails && opts.thumbnails[sel.thumb])}</div></div>
       </div>
       <Btn onClick={function() { if (!opts) return; setFin({ title: opts.titles[sel.title], description: opts.descriptions[sel.desc], thumbnail: opts.thumbnails[sel.thumb] }); goTest(); }}>Save Selections + Go to Test Page</Btn>
       {fin && <span style={{ fontFamily: mn, fontSize: 10, color: C.teal, marginLeft: 12 }}>Saved</span>}
@@ -586,53 +586,53 @@ function TestPage({ ep, guests, opts, fin, setFin, thumb, setThumb, goLaunch }) 
   };
 
   return (<div>
-    <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: C.tx, marginBottom: 4 }}>Test Page</div>
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginBottom: 28 }}>Preview, double check, A/B test, then finalize.</div>
-    <div className="poast-card" style={{ background: C.cardGrad, border: "1px solid " + C.border, borderRadius: 10, overflow: "hidden", marginBottom: 24, boxShadow: C.glow }}>
-      <div style={{ width: "100%", aspectRatio: "16/9", background: C.surface, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>{thumb ? <img src={thumb} alt="Thumb" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ textAlign: "center" }}><div style={{ fontFamily: ft, fontSize: 15, color: C.txd }}>Thumbnail Preview</div></div>}<div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.8)", borderRadius: 3, padding: "2px 6px", fontFamily: mn, fontSize: 10, color: "#fff" }}>42:18</div></div>
-      <div style={{ padding: "14px 16px" }}><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: C.tx, lineHeight: 1.4, marginBottom: 8 }}>{fin.title}</div><div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 28, height: 28, borderRadius: "50%", background: C.amber, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 11, fontWeight: 800, color: C.bg }}>SA</div><div style={{ fontFamily: ft, fontSize: 12, color: C.txm, fontWeight: 600 }}>SemiAnalysis Weekly</div></div></div>
+    <div style={{ fontFamily: ft, fontSize: 24, fontWeight: 900, color: "#ffffff", marginBottom: 4, letterSpacing: -1 }}>Test Page</div>
+    <div style={{ fontFamily: mn, fontSize: 11, color: "rgba(255,255,255,0.55)", marginBottom: 32, letterSpacing: "1px" }}>Preview, double check, A/B test, then finalize.</div>
+    <div className="poast-card" style={{ background: "#0D0D12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, overflow: "hidden", marginBottom: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
+      <div style={{ width: "100%", aspectRatio: "16/9", background: "#09090D", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>{thumb ? <img src={thumb} alt="Thumb" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ textAlign: "center" }}><div style={{ fontFamily: ft, fontSize: 15, color: "rgba(255,255,255,0.25)" }}>Thumbnail Preview</div></div>}<div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.8)", borderRadius: 4, padding: "3px 8px", fontFamily: mn, fontSize: 10, color: "#fff" }}>42:18</div></div>
+      <div style={{ padding: "16px 20px" }}><div style={{ fontFamily: ft, fontSize: 16, fontWeight: 800, color: "#ffffff", lineHeight: 1.4, marginBottom: 10 }}>{fin.title}</div><div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 28, height: 28, borderRadius: "50%", background: C.amber, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 11, fontWeight: 800, color: "#060608" }}>SA</div><div style={{ fontFamily: ft, fontSize: 12, color: "rgba(255,255,255,0.55)", fontWeight: 600 }}>SemiAnalysis Weekly</div></div></div>
     </div>
-    <div className="poast-card" style={{ background: C.cardGrad, border: "1px solid " + C.border, borderRadius: 8, padding: 18, marginBottom: 20, boxShadow: C.glow }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px" }}>Description</div><CopyBtn text={fin.description} /></div><div style={{ fontFamily: ft, fontSize: 13, color: C.tx, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{fin.description}</div></div>
-    <div className="poast-card" style={{ background: C.cardGrad, border: "1px solid " + C.border, borderRadius: 8, padding: 18, marginBottom: 24, boxShadow: C.glow }}><div style={{ fontFamily: mn, fontSize: 10, color: C.violet, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 8 }}>Thumbnail Concept</div><div style={{ fontFamily: ft, fontSize: 13, color: C.tx, lineHeight: 1.6 }}>{thS}</div></div>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
-      <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, background: C.card, border: "2px dashed " + C.border, borderRadius: 8, cursor: "pointer" }}><div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.amber, marginBottom: 3 }}>A. Upload Thumbnail</div><div style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>PNG, JPG, 1280x720</div><input type="file" accept="image/*" style={{ display: "none" }} onChange={function(e) { var f = e.target.files && e.target.files[0]; if (!f) return; var r = new FileReader(); r.onload = function(ev) { setThumb(ev.target.result); }; r.readAsDataURL(f); e.target.value = ""; }} /></label>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, background: C.card, border: "2px dashed " + C.border, borderRadius: 8, opacity: 0.35 }}><div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.txm, marginBottom: 3 }}>B. Get One Prompted</div><div style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>Coming Soon</div></div>
+    <div className="poast-card" style={{ background: "#0D0D12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 20, marginBottom: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}><div style={{ fontFamily: mn, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "2px" }}>Description</div><CopyBtn text={fin.description} /></div><div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{fin.description}</div></div>
+    <div className="poast-card" style={{ background: "#0D0D12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 20, marginBottom: 28, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}><div style={{ fontFamily: mn, fontSize: 11, color: C.violet, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 10 }}>Thumbnail Concept</div><div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.7 }}>{thS}</div></div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 28 }}>
+      <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, background: "#09090D", border: "2px dashed rgba(255,255,255,0.06)", borderRadius: 12, cursor: "pointer", transition: "border-color 0.2s ease" }}><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: C.amber, marginBottom: 4 }}>A. Upload Thumbnail</div><div style={{ fontFamily: mn, fontSize: 10, color: "rgba(255,255,255,0.25)" }}>PNG, JPG, 1280x720</div><input type="file" accept="image/*" style={{ display: "none" }} onChange={function(e) { var f = e.target.files && e.target.files[0]; if (!f) return; var r = new FileReader(); r.onload = function(ev) { setThumb(ev.target.result); }; r.readAsDataURL(f); e.target.value = ""; }} /></label>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, background: "#09090D", border: "2px dashed rgba(255,255,255,0.06)", borderRadius: 12, opacity: 0.35 }}><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: "rgba(255,255,255,0.55)", marginBottom: 4 }}>B. Get One Prompted</div><div style={{ fontFamily: mn, fontSize: 10, color: "rgba(255,255,255,0.25)" }}>Coming Soon</div></div>
     </div>
-    {thumb && <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 20 }}><span style={{ fontFamily: mn, fontSize: 10, color: C.teal }}>Thumbnail uploaded</span><span onClick={function() { setThumb(null); }} style={{ fontFamily: mn, fontSize: 9, color: C.txd, cursor: "pointer" }}>Remove</span></div>}
+    {thumb && <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 20 }}><span style={{ fontFamily: mn, fontSize: 10, color: C.teal }}>Thumbnail uploaded</span><span onClick={function() { setThumb(null); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", cursor: "pointer" }}>Remove</span></div>}
     <Divider />
-    <div style={{ marginBottom: 24 }}><div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: C.tx, marginBottom: 8 }}>Double Check</div><Btn onClick={doubleCheck} loading={checkL} sec>Run Double Check</Btn>
+    <div style={{ marginBottom: 28 }}><div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: "#ffffff", marginBottom: 10, letterSpacing: -0.5 }}>Double Check</div><Btn onClick={doubleCheck} loading={checkL} sec>Run Double Check</Btn>
       {checkL && <ProgressBar label="Evaluating cohesion" />}
-      {checkR && <div className="poast-card" style={{ background: C.cardGrad, border: "1px solid " + C.border, borderRadius: 8, padding: 18, marginTop: 14, boxShadow: C.glow }}><div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}><div style={{ width: 48, height: 48, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: (checkR.score >= 8 ? C.teal : checkR.score >= 5 ? C.amber : C.coral) + "20", border: "2px solid " + (checkR.score >= 8 ? C.teal : checkR.score >= 5 ? C.amber : C.coral), fontFamily: mn, fontSize: 18, fontWeight: 700, color: checkR.score >= 8 ? C.teal : checkR.score >= 5 ? C.amber : C.coral }}>{checkR.score}</div><div><div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx }}>Cohesion Score</div></div></div><div style={{ fontFamily: ft, fontSize: 13, color: C.tx, lineHeight: 1.6, marginBottom: 12 }}>{checkR.feedback}</div>{checkR.suggestions && checkR.suggestions.map(function(s, i) { return <div key={i} style={{ fontFamily: ft, fontSize: 12, color: C.txm, paddingLeft: 10, borderLeft: "2px solid " + C.border, marginBottom: 4 }}>{s}</div>; })}</div>}
+      {checkR && <div className="poast-card" style={{ background: "#0D0D12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 20, marginTop: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}><div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}><div style={{ width: 48, height: 48, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: (checkR.score >= 8 ? C.teal : checkR.score >= 5 ? C.amber : C.coral) + "15", border: "2px solid " + (checkR.score >= 8 ? C.teal : checkR.score >= 5 ? C.amber : C.coral), fontFamily: mn, fontSize: 18, fontWeight: 700, color: checkR.score >= 8 ? C.teal : checkR.score >= 5 ? C.amber : C.coral }}>{checkR.score}</div><div><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: "#ffffff" }}>Cohesion Score</div></div></div><div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.7, marginBottom: 14 }}>{checkR.feedback}</div>{checkR.suggestions && checkR.suggestions.map(function(s, i) { return <div key={i} style={{ fontFamily: ft, fontSize: 13, color: "rgba(255,255,255,0.55)", paddingLeft: 12, borderLeft: "2px solid rgba(255,255,255,0.06)", marginBottom: 6, lineHeight: 1.6 }}>{s}</div>; })}</div>}
     </div>
     <Divider />
-    <div style={{ marginBottom: 24 }}><div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: C.tx, marginBottom: 8 }}>A/B Testing</div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>{[{ id: "title", l: "Title Only" }, { id: "thumbnail", l: "Thumbnail Only" }, { id: "both", l: "Title + Thumbnail" }].map(function(m) { var s2 = abM === m.id; return <div key={m.id} onClick={function() { setAbM(m.id); }} style={{ padding: "7px 14px", borderRadius: 5, cursor: "pointer", background: s2 ? C.amber + "15" : C.card, border: "1px solid " + (s2 ? C.amber : C.border), fontFamily: mn, fontSize: 10, color: s2 ? C.amber : C.txm }}>{m.l}</div>; })}</div>
+    <div style={{ marginBottom: 28 }}><div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: "#ffffff", marginBottom: 10, letterSpacing: -0.5 }}>A/B Testing</div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>{[{ id: "title", l: "Title Only" }, { id: "thumbnail", l: "Thumbnail Only" }, { id: "both", l: "Title + Thumbnail" }].map(function(m) { var s2 = abM === m.id; return <div key={m.id} onClick={function() { setAbM(m.id); }} style={{ padding: "10px 16px", borderRadius: 10, cursor: "pointer", background: s2 ? C.amber + "0A" : "#0D0D12", border: "1px solid " + (s2 ? C.amber + "60" : "rgba(255,255,255,0.06)"), fontFamily: mn, fontSize: 11, color: s2 ? C.amber : "rgba(255,255,255,0.55)", boxShadow: s2 ? "0 0 24px rgba(247,176,65,0.06)" : "none", transition: "all 0.2s ease" }}>{m.l}</div>; })}</div>
       <div style={{ display: "flex", gap: 8 }}><Btn onClick={runAB} loading={abL} sec>Run A/B Test</Btn>{abR && <Btn onClick={function() { setAbR(null); runAB(); }} loading={abL} sec sm>Redo Fresh</Btn>}</div>
       {abL && <ProgressBar label="Running A/B analysis" />}
-      {abR && abR.option_a && abR.option_b && <div style={{ marginTop: 14 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-          {[{ key: "option_a", label: "Option A // Current", color: C.txm }, { key: "option_b", label: "Option B // Recommended", color: C.amber }].map(function(col) {
+      {abR && abR.option_a && abR.option_b && <div style={{ marginTop: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+          {[{ key: "option_a", label: "Option A // Current", color: "rgba(255,255,255,0.55)" }, { key: "option_b", label: "Option B // Recommended", color: C.amber }].map(function(col) {
             var opt = abR[col.key];
-            return <div key={col.key} className="poast-card" style={{ background: C.cardGrad, border: "1px solid " + (col.key === "option_b" ? C.amber + "40" : C.border), borderRadius: 8, padding: 18, boxShadow: C.glow }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                <div style={{ fontFamily: mn, fontSize: 9, color: col.color, textTransform: "uppercase", letterSpacing: "1.5px" }}>{col.label}</div>
-                <div style={{ width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: col.color + "18", border: "2px solid " + col.color, fontFamily: mn, fontSize: 15, fontWeight: 700, color: col.color }}>{opt.score}</div>
+            return <div key={col.key} className="poast-card" style={{ background: "#0D0D12", border: "1px solid " + (col.key === "option_b" ? C.amber + "40" : "rgba(255,255,255,0.06)"), borderRadius: 12, padding: 20, boxShadow: col.key === "option_b" ? "0 0 24px rgba(247,176,65,0.06)" : "0 2px 12px rgba(0,0,0,0.3)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div style={{ fontFamily: mn, fontSize: 9, color: col.color, textTransform: "uppercase", letterSpacing: "2px" }}>{col.label}</div>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: col.color + "15", border: "2px solid " + col.color, fontFamily: mn, fontSize: 15, fontWeight: 700, color: col.color }}>{opt.score}</div>
               </div>
-              {opt.title && <div style={{ marginBottom: 10 }}><div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 3 }}>TITLE</div><div style={{ fontFamily: ft, fontSize: 13, color: C.tx, fontWeight: 600 }}>{opt.title}</div></div>}
-              {opt.thumbnail_concept && <div style={{ marginBottom: 10 }}><div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 3 }}>THUMBNAIL</div><div style={{ fontFamily: ft, fontSize: 12, color: C.tx }}>{opt.thumbnail_concept}</div></div>}
-              <div style={{ fontFamily: ft, fontSize: 11, color: C.txm, lineHeight: 1.5, borderTop: "1px solid " + C.border, paddingTop: 10, marginTop: 6 }}>{opt.reasoning}</div>
+              {opt.title && <div style={{ marginBottom: 12 }}><div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", marginBottom: 4, letterSpacing: "1.5px" }}>TITLE</div><div style={{ fontFamily: ft, fontSize: 14, color: "#ffffff", fontWeight: 700 }}>{opt.title}</div></div>}
+              {opt.thumbnail_concept && <div style={{ marginBottom: 12 }}><div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", marginBottom: 4, letterSpacing: "1.5px" }}>THUMBNAIL</div><div style={{ fontFamily: ft, fontSize: 13, color: "rgba(255,255,255,0.55)" }}>{opt.thumbnail_concept}</div></div>}
+              <div style={{ fontFamily: ft, fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.6, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 12, marginTop: 8 }}>{opt.reasoning}</div>
             </div>;
           })}
         </div>
-        <div style={{ background: C.surfGrad, border: "1px solid " + C.border, borderRadius: 6, padding: "12px 16px", marginBottom: 14 }}>
-          <div style={{ fontFamily: ft, fontSize: 12, color: C.tx, lineHeight: 1.5 }}>{abR.verdict}</div>
+        <div style={{ background: "#09090D", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "14px 18px", marginBottom: 16 }}>
+          <div style={{ fontFamily: ft, fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.6 }}>{abR.verdict}</div>
         </div>
         <Btn onClick={applyAB} sm>Apply Option B</Btn>
       </div>}
     </div>
     <Divider />
-    <div style={{ background: locked ? C.teal + "10" : C.surface, border: "1px solid " + (locked ? C.teal : C.border), borderRadius: 8, padding: 20 }}>
-      <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: locked ? C.teal : C.tx, marginBottom: 6 }}>{locked ? "Finalized" : "Ready to Finalize?"}</div>
+    <div style={{ background: locked ? C.teal + "08" : "#09090D", border: "1px solid " + (locked ? C.teal : "rgba(255,255,255,0.06)"), borderRadius: 12, padding: 24 }}>
+      <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: locked ? C.teal : "#ffffff", marginBottom: 8, letterSpacing: -0.5 }}>{locked ? "Finalized" : "Ready to Finalize?"}</div>
       {!locked ? <Btn onClick={function() { setLocked(true); }} off={!thumb}>{thumb ? "Finalize for Launch" : "Upload Thumbnail First"}</Btn> : <Btn onClick={goLaunch}>Continue to Launch Rollout</Btn>}
     </div>
   </div>);
@@ -696,22 +696,22 @@ function LaunchRollout({ ep, guests, fin, onComplete }) {
   };
 
   return (<div>
-    <div className="poast-card" style={{ background: "linear-gradient(135deg," + C.card + " 0%," + C.surface + " 50%," + C.card + " 100%)", border: "1px solid " + C.border, borderRadius: 10, padding: 22, marginBottom: 22, boxShadow: C.glow }}>
-      <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 6 }}>{"Episode #" + ep.number + " // Full Launch"}</div>
-      <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: C.tx }}>{fin.title}</div>
-      <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, marginTop: 4 }}>{gs}</div>
+    <div className="poast-card" style={{ background: "#0D0D12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 26, marginBottom: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
+      <div style={{ fontFamily: mn, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 8 }}>{"Episode #" + ep.number + " // Full Launch"}</div>
+      <div style={{ fontFamily: ft, fontSize: 24, fontWeight: 900, color: "#ffffff", letterSpacing: -1 }}>{fin.title}</div>
+      <div style={{ fontFamily: ft, fontSize: 13, color: "rgba(255,255,255,0.55)", marginTop: 6 }}>{gs}</div>
     </div>
-    <div style={{ marginBottom: 16 }}><Label>Hook / Angle</Label><textarea value={hook} onChange={function(e) { setHook(e.target.value); }} rows={3} style={{ width: "100%", padding: "10px 12px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: ft, fontSize: 13, outline: "none", boxSizing: "border-box", resize: "vertical" }} /></div>
+    <div style={{ marginBottom: 20 }}><Label>Hook / Angle</Label><textarea value={hook} onChange={function(e) { setHook(e.target.value); }} rows={3} style={{ width: "100%", padding: "12px 14px", background: "#09090D", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, color: C.tx, fontFamily: ft, fontSize: 14, outline: "none", boxSizing: "border-box", resize: "vertical", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; e.target.style.boxShadow = "0 0 24px rgba(247,176,65,0.06)"; }} onBlur={function(e) { e.target.style.borderColor = "rgba(255,255,255,0.06)"; e.target.style.boxShadow = "none"; }} /></div>
     <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
       <Btn onClick={gen} loading={loading}>Generate Launch Rollout</Btn>
       {res && <Btn onClick={gen} loading={loading} sec sm>Regen All</Btn>}
     </div>
     {loading && <ProgressBar label="Generating social captions for all platforms" />}
 
-    {res && <div style={{ marginTop: 24 }}>
-      <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.txm, marginBottom: 10 }}>Horizontal (X, LinkedIn, Facebook)</div>
+    {res && <div style={{ marginTop: 28 }}>
+      <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: "rgba(255,255,255,0.55)", marginBottom: 12 }}>Horizontal (X, LinkedIn, Facebook)</div>
       {FIELDS.slice(0, 6).map(function(f) { return <OutCard key={f.key} title={f.label} content={res[f.key] || "(not generated)"} color={f.color} onRedo={function() { redoField(f.key, f.label); }} rLoading={redoL[f.key]} />; })}
-      <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.txm, marginTop: 20, marginBottom: 10 }}>Vertical (Shorts, Reels, TikTok)</div>
+      <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: "rgba(255,255,255,0.55)", marginTop: 24, marginBottom: 12 }}>Vertical (Shorts, Reels, TikTok)</div>
       {FIELDS.slice(6).map(function(f) { return <OutCard key={f.key} title={f.label} content={res[f.key] || "(not generated)"} color={f.color} onRedo={function() { redoField(f.key, f.label); }} rLoading={redoL[f.key]} />; })}
 
       <Divider />
@@ -722,14 +722,14 @@ function LaunchRollout({ ep, guests, fin, onComplete }) {
     </div>}
 
     {/* Congratulations Modal */}
-    {showModal && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }} onClick={function() { setShowModal(false); }}>
+    {showModal && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }} onClick={function() { setShowModal(false); }}>
       <Confetti />
-      <div onClick={function(e) { e.stopPropagation(); }} style={{ background: C.cardGrad, border: "1px solid " + C.amber, borderRadius: 12, padding: 36, maxWidth: 440, textAlign: "center", boxShadow: "0 0 40px rgba(247,176,65,0.2), 0 0 80px rgba(247,176,65,0.08)", position: "relative", zIndex: 1001 }}>
+      <div onClick={function(e) { e.stopPropagation(); }} style={{ background: "#0D0D12", border: "1px solid " + C.amber, borderRadius: 12, padding: 40, maxWidth: 440, textAlign: "center", boxShadow: "0 0 40px rgba(247,176,65,0.2), 0 0 80px rgba(247,176,65,0.08)", position: "relative", zIndex: 1001 }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>&#x1F680;</div>
-        <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.amber, marginBottom: 8 }}>Launch Your Video Now</div>
-        <div style={{ fontFamily: ft, fontSize: 14, color: C.tx, marginBottom: 6 }}>{fin.title}</div>
-        <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginBottom: 20 }}>Episode #{ep.number} - {gs}</div>
-        <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 24 }}>Your Launch Kit is saved. Download the doc, schedule in Buffer, and push it live.</div>
+        <div style={{ fontFamily: ft, fontSize: 24, fontWeight: 900, color: C.amber, marginBottom: 10, letterSpacing: -1 }}>Launch Your Video Now</div>
+        <div style={{ fontFamily: ft, fontSize: 15, color: "#ffffff", marginBottom: 6, fontWeight: 700 }}>{fin.title}</div>
+        <div style={{ fontFamily: mn, fontSize: 11, color: "rgba(255,255,255,0.55)", marginBottom: 22, letterSpacing: "1px" }}>Episode #{ep.number} - {gs}</div>
+        <div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.55)", marginBottom: 28 }}>Your Launch Kit is saved. Download the doc, schedule in Buffer, and push it live.</div>
         <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
           <Btn onClick={function() { window.open("https://publish.buffer.com", "_blank"); }}>Open Buffer</Btn>
           <Btn onClick={doExport} sec>Download .doc</Btn>
@@ -741,7 +741,7 @@ function LaunchRollout({ ep, guests, fin, onComplete }) {
 }
 
 // ═══ CLIP MANAGER + LOG ═══
-function ClipMgr() { return <div style={{ textAlign: "center", padding: 80, color: C.txd, fontFamily: ft }}><div style={{ fontSize: 16, marginBottom: 6 }}>Clip Manager</div><div style={{ fontFamily: mn, fontSize: 11 }}>Coming next.</div></div>; }
+function ClipMgr() { return <div style={{ textAlign: "center", padding: 80, color: "rgba(255,255,255,0.25)", fontFamily: ft }}><div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8, color: "rgba(255,255,255,0.55)" }}>Clip Manager</div><div style={{ fontFamily: mn, fontSize: 11, letterSpacing: "1px" }}>Coming next.</div></div>; }
 
 function LogTab({ logData, setLogData }) {
   var _ed = useState(false), editing = _ed[0], setEditing = _ed[1];
@@ -776,43 +776,43 @@ function LogTab({ logData, setLogData }) {
   var viewEntry = viewIdx !== null && logData[viewIdx] ? logData[viewIdx] : null;
 
   return (<div>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-      <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: C.tx }}>Activity Log</div>
-      {logData.length > 0 && <span onClick={function() { setEditing(!editing); }} style={{ fontFamily: mn, fontSize: 10, color: editing ? C.coral : C.txd, cursor: "pointer", padding: "4px 10px", borderRadius: 4, border: "1px solid " + (editing ? C.coral + "40" : C.border) }}>{editing ? "Done" : "Edit"}</span>}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+      <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: "#ffffff", letterSpacing: -0.5 }}>Activity Log</div>
+      {logData.length > 0 && <span onClick={function() { setEditing(!editing); }} style={{ fontFamily: mn, fontSize: 10, color: editing ? C.coral : "rgba(255,255,255,0.25)", cursor: "pointer", padding: "5px 12px", borderRadius: 8, border: "1px solid " + (editing ? C.coral + "40" : "rgba(255,255,255,0.06)"), transition: "all 0.2s ease" }}>{editing ? "Done" : "Edit"}</span>}
     </div>
-    {logData.length === 0 ? <div style={{ textAlign: "center", padding: 60, color: C.txd, fontFamily: ft, fontSize: 13 }}>No completed episodes yet.</div>
-      : logData.map(function(e, i) { return (<div key={i} className="poast-card" style={{ background: C.cardGrad, border: "1px solid " + C.border, borderRadius: 8, padding: "16px 18px", marginBottom: 8, boxShadow: C.glow }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10 }}>
-          {editing && <span onClick={function() { removeEntry(i); }} style={{ width: 24, height: 24, borderRadius: "50%", background: C.coral + "20", border: "1px solid " + C.coral, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 13, color: C.coral, cursor: "pointer", flexShrink: 0 }}>x</span>}
-          <div style={{ width: 40, height: 40, borderRadius: 6, background: C.surface, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 12, color: C.amber, fontWeight: 700, border: "1px solid " + C.border, flexShrink: 0 }}>{"#" + e.episode}</div>
-          <div style={{ flex: 1 }}><div style={{ fontFamily: ft, fontSize: 14, fontWeight: 600, color: C.tx }}>{e.title}</div><div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>{e.guests}</div></div>
-          <div style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>{e.date}</div>
+    {logData.length === 0 ? <div style={{ textAlign: "center", padding: 60, color: "rgba(255,255,255,0.25)", fontFamily: ft, fontSize: 14 }}>No completed episodes yet.</div>
+      : logData.map(function(e, i) { return (<div key={i} className="poast-card" style={{ background: "#0D0D12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "18px 20px", marginBottom: 10, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
+          {editing && <span onClick={function() { removeEntry(i); }} style={{ width: 24, height: 24, borderRadius: "50%", background: C.coral + "15", border: "1px solid " + C.coral, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 13, color: C.coral, cursor: "pointer", flexShrink: 0 }}>x</span>}
+          <div style={{ width: 42, height: 42, borderRadius: 10, background: "#09090D", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 12, color: C.amber, fontWeight: 700, border: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>{"#" + e.episode}</div>
+          <div style={{ flex: 1 }}><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: "#ffffff" }}>{e.title}</div><div style={{ fontFamily: ft, fontSize: 12, color: "rgba(255,255,255,0.55)" }}>{e.guests}</div></div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)" }}>{e.date}</div>
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-          <span onClick={function() { setViewIdx(i); }} style={{ fontFamily: mn, fontSize: 9, color: C.teal, padding: "3px 10px", background: C.teal + "15", borderRadius: 4, cursor: "pointer" }}>View Launch Kit</span>
-          <span onClick={function() { downloadLaunchKit(e); }} style={{ fontFamily: mn, fontSize: 9, color: C.amber, cursor: "pointer", padding: "3px 10px", background: C.amber + "15", borderRadius: 4 }}>Download Launch Kit</span>
-          {e.social && <span onClick={function() { downloadSocialKit(e); }} style={{ fontFamily: mn, fontSize: 9, color: C.blue, cursor: "pointer", padding: "3px 10px", background: C.blue + "15", borderRadius: 4 }}>Download Social Kit</span>}
+          <span onClick={function() { setViewIdx(i); }} style={{ fontFamily: mn, fontSize: 9, color: C.teal, padding: "4px 12px", background: C.teal + "0A", borderRadius: 6, cursor: "pointer", border: "1px solid " + C.teal + "30" }}>View Launch Kit</span>
+          <span onClick={function() { downloadLaunchKit(e); }} style={{ fontFamily: mn, fontSize: 9, color: C.amber, cursor: "pointer", padding: "4px 12px", background: C.amber + "0A", borderRadius: 6, border: "1px solid " + C.amber + "30" }}>Download Launch Kit</span>
+          {e.social && <span onClick={function() { downloadSocialKit(e); }} style={{ fontFamily: mn, fontSize: 9, color: C.blue, cursor: "pointer", padding: "4px 12px", background: C.blue + "0A", borderRadius: 6, border: "1px solid " + C.blue + "30" }}>Download Social Kit</span>}
         </div>
       </div>); })}
 
     {/* View Launch Kit Modal */}
-    {viewEntry && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }} onClick={function() { setViewIdx(null); }}>
-      <div onClick={function(e) { e.stopPropagation(); }} style={{ background: C.cardGrad, border: "1px solid " + C.border, borderRadius: 12, padding: 28, maxWidth: 640, width: "90%", maxHeight: "80vh", overflow: "auto", boxShadow: C.glow }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-          <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "2px" }}>{"Episode #" + viewEntry.episode + " // Launch Kit"}</div>
-          <span onClick={function() { setViewIdx(null); }} style={{ fontFamily: mn, fontSize: 11, color: C.txd, cursor: "pointer", padding: "4px 8px" }}>x</span>
+    {viewEntry && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }} onClick={function() { setViewIdx(null); }}>
+      <div onClick={function(e) { e.stopPropagation(); }} style={{ background: "#0D0D12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 32, maxWidth: 640, width: "90%", maxHeight: "80vh", overflow: "auto", boxShadow: "0 4px 40px rgba(0,0,0,0.6)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div style={{ fontFamily: mn, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "2px" }}>{"Episode #" + viewEntry.episode + " // Launch Kit"}</div>
+          <span onClick={function() { setViewIdx(null); }} style={{ fontFamily: mn, fontSize: 11, color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "4px 8px" }}>x</span>
         </div>
-        <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: C.tx, marginBottom: 4 }}>{viewEntry.title}</div>
-        <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, marginBottom: 6 }}>{viewEntry.guests} // {viewEntry.date}</div>
-        {viewEntry.description && <div style={{ fontFamily: ft, fontSize: 13, color: C.tx, lineHeight: 1.7, whiteSpace: "pre-wrap", padding: "12px 14px", background: C.surface, borderRadius: 6, border: "1px solid " + C.border, marginBottom: 16, maxHeight: 160, overflow: "auto" }}>{viewEntry.description}</div>}
+        <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 900, color: "#ffffff", marginBottom: 4, letterSpacing: -0.5 }}>{viewEntry.title}</div>
+        <div style={{ fontFamily: ft, fontSize: 13, color: "rgba(255,255,255,0.55)", marginBottom: 8 }}>{viewEntry.guests} // {viewEntry.date}</div>
+        {viewEntry.description && <div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.7, whiteSpace: "pre-wrap", padding: "14px 16px", background: "#09090D", borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)", marginBottom: 18, maxHeight: 160, overflow: "auto" }}>{viewEntry.description}</div>}
         {viewEntry.social && <div>
-          <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Social Captions</div>
-          {Object.keys(viewEntry.social).map(function(k) { return <div key={k} style={{ marginBottom: 10, padding: "10px 12px", background: C.surface, borderRadius: 6, border: "1px solid " + C.border }}>
-            <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{k.replace(/_/g, " ")}</div>
-            <div style={{ fontFamily: ft, fontSize: 12, color: C.tx, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{viewEntry.social[k]}</div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.55)", textTransform: "uppercase", letterSpacing: "2px", marginBottom: 12 }}>Social Captions</div>
+          {Object.keys(viewEntry.social).map(function(k) { return <div key={k} style={{ marginBottom: 10, padding: "12px 14px", background: "#09090D", borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 5 }}>{k.replace(/_/g, " ")}</div>
+            <div style={{ fontFamily: ft, fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{viewEntry.social[k]}</div>
           </div>; })}
         </div>}
-        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+        <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
           <Btn onClick={function() { downloadLaunchKit(viewEntry); }} sm sec>Download Launch Kit</Btn>
           {viewEntry.social && <Btn onClick={function() { downloadSocialKit(viewEntry); }} sm sec>Download Social Kit</Btn>}
         </div>
@@ -1347,11 +1347,11 @@ export default function App() {
     <AskPoast open={askPoastOpen} onToggle={function() { setAskPoastOpen(false); }} />
     <div style={{ marginLeft: 240, position: "relative", zIndex: 1 }} className="poast-fadein">
       <div style={{ maxWidth: sec === "news" || sec === "schedule" || sec === "p2p" ? "none" : "none", margin: "0 auto", padding: "0 32px" }}>
-        {sec === "weekly" && <div style={{ padding: "20px 0", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", background: C.bg + "E0" }}>
-          <div><div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx, letterSpacing: -0.5 }}>SemiAnalysis Weekly</div><div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginTop: 2 }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div></div>
+        {sec === "weekly" && <div style={{ padding: "24px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", background: "#060608E0" }}>
+          <div><div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: "#ffffff", letterSpacing: -2 }}>SemiAnalysis Weekly</div><div style={{ fontFamily: mn, fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 4, letterSpacing: "2px", textTransform: "uppercase" }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div></div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {hasDraft && <span onClick={loadDraft} style={{ fontFamily: mn, fontSize: 9, color: C.amber, cursor: "pointer", padding: "5px 10px", border: "1px solid " + C.amber + "40", borderRadius: 5, background: C.amber + "10" }}>Load from Draft</span>}
-            <a href="https://youtube.com/@SemianalysisWeekly" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 9, color: C.txd, textDecoration: "none", padding: "5px 10px", border: "1px solid " + C.border, borderRadius: 5 }}>@SemianalysisWeekly</a>
+            {hasDraft && <span onClick={loadDraft} style={{ fontFamily: mn, fontSize: 9, color: C.amber, cursor: "pointer", padding: "6px 12px", border: "1px solid " + C.amber + "40", borderRadius: 8, background: C.amber + "08", transition: "all 0.2s ease" }}>Load from Draft</span>}
+            <a href="https://youtube.com/@SemianalysisWeekly" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", textDecoration: "none", padding: "6px 12px", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, transition: "all 0.2s ease" }}>@SemianalysisWeekly</a>
           </div>
         </div>}
         {sec === "weekly" && <TabBar items={tabs} active={tab} onPick={setTab} locks={locks} />}
