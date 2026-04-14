@@ -11,12 +11,24 @@ async function canvaFetch(url: string, options: RequestInit = {}): Promise<Respo
   const headers = { ...options.headers as Record<string, string>, "Authorization": `Bearer ${token}` };
   let r = await fetch(url, { ...options, headers });
 
-  if (r.status === 401) {
+  if (r.status === 401 || r.status === 403) {
     const newToken = await forceRefreshCanvaToken();
     if (newToken) {
       headers["Authorization"] = `Bearer ${newToken}`;
       r = await fetch(url, { ...options, headers });
     }
+  } else {
+    const cloned = r.clone();
+    try {
+      const body = await cloned.json();
+      if (body?.code === "invalid_access_token" || body?.code === "token_expired") {
+        const newToken = await forceRefreshCanvaToken();
+        if (newToken) {
+          headers["Authorization"] = `Bearer ${newToken}`;
+          r = await fetch(url, { ...options, headers });
+        }
+      }
+    } catch { /* not JSON */ }
   }
   return r;
 }

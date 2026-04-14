@@ -35,7 +35,7 @@ function buildAutofillData(slide: Record<string, string>) {
   return data;
 }
 
-// Helper: make a Canva API request with auto-refresh on 401
+// Helper: make a Canva API request with auto-refresh on 401 or invalid token
 async function canvaFetch(url: string, options: RequestInit = {}): Promise<Response> {
   let token = await getCanvaAccessToken();
   if (!token) throw new Error("No Canva token available. Authorize at /api/canva/auth");
@@ -43,13 +43,26 @@ async function canvaFetch(url: string, options: RequestInit = {}): Promise<Respo
   const headers = { ...options.headers as Record<string, string>, "Authorization": `Bearer ${token}` };
   let r = await fetch(url, { ...options, headers });
 
-  // If 401, try refreshing the token once
-  if (r.status === 401) {
+  // If 401 or invalid token error, try refreshing once
+  if (r.status === 401 || r.status === 403) {
     const newToken = await forceRefreshCanvaToken();
     if (newToken) {
       headers["Authorization"] = `Bearer ${newToken}`;
       r = await fetch(url, { ...options, headers });
     }
+  } else {
+    // Canva sometimes returns 200 with error body, or other codes
+    const cloned = r.clone();
+    try {
+      const body = await cloned.json();
+      if (body?.code === "invalid_access_token" || body?.code === "token_expired") {
+        const newToken = await forceRefreshCanvaToken();
+        if (newToken) {
+          headers["Authorization"] = `Bearer ${newToken}`;
+          r = await fetch(url, { ...options, headers });
+        }
+      }
+    } catch { /* not JSON, that's fine */ }
   }
 
   return r;
