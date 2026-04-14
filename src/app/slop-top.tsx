@@ -1,6 +1,6 @@
 // @ts-nocheck
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // ═══ DESIGN ═══
 var D = {
@@ -11,6 +11,53 @@ var D = {
 };
 var ft = "'Outfit',sans-serif";
 var mn = "'JetBrains Mono',monospace";
+
+// ═══ BRAINROT DATA ═══
+var ROTATING_PHRASES = [
+  "no cap fr fr",
+  "it's giving semiconductor",
+  "this goes hard",
+  "absolute cinema",
+  "lowkey bussin",
+  "rent free in your head",
+  "understood the assignment",
+  "main character energy",
+];
+
+var ROTATING_EMOJIS = ["\uD83D\uDC80", "\uD83D\uDD25", "\uD83D\uDCAF", "\uD83D\uDDFF", "\u26A1", "\uD83E\uDDE0", "\uD83D\uDE24", "\uD83E\uDEE0"];
+
+var BRAINROT_PRESETS = [
+  { label: "\uD83D\uDC80 skibidi sigma", text: "skibidi toilet sigma male grindset energy, maximum aura" },
+  { label: "\uD83D\uDCAF no cap fr fr", text: "deadass no cap, this is real, certified hood classic moment" },
+  { label: "\u2728 it's giving...", text: "it's giving main character energy, the vibes are immaculate" },
+  { label: "\uD83C\uDF1F understood the assignment", text: "absolutely understood the assignment, ate and left no crumbs" },
+  { label: "\uD83C\uDFE0 rent free", text: "living rent free in everyone's head, obsession era" },
+  { label: "\uD83D\uDD25 certified banger", text: "this goes hard, feel free to screenshot, absolute cinema" },
+  { label: "\uD83C\uDF3D Ohio moment", text: "only in Ohio, cursed timeline energy, what is this" },
+  { label: "\uD83D\uDCC9 ratio + L", text: "ratio + L + didn't ask + touch grass + cope + seethe" },
+  { label: "\uD83D\uDE0B lowkey bussin", text: "lowkey bussin no cap, the flavor profile is insane" },
+  { label: "\uD83D\uDCAB delulu is the solulu", text: "manifesting, delusional but make it fashion" },
+  { label: "\uD83D\uDC85 slay era", text: "serving looks, slay era, mother is mothering" },
+  { label: "\uD83D\uDE33 GYATT", text: "maximum gyatt energy, absolutely unhinged" },
+  { label: "\uD83E\uDD16 NPC behavior", text: "NPC energy, running on a script, glitched out" },
+  { label: "\uD83D\uDCA6 hawk tuah", text: "hawk tuah energy, spit on that thang" },
+  { label: "\uD83E\uDEE1 mewing", text: "mewing arc, looksmaxxing, jawline check" },
+];
+
+var LOADING_PHRASES = [
+  "cooking rn...",
+  "hold up this boutta go crazy...",
+  "generating pure slop...",
+  "the slopification is in progress...",
+  "brainrot loading...",
+  "sigma grindset activating...",
+];
+
+var NEON_HUES = [
+  "#FF6B9D", "#C471ED", "#12FFF7", "#F8D800", "#FF6347",
+  "#00FF88", "#FF00FF", "#00BFFF", "#FFD700", "#FF4500",
+  "#7CFC00", "#FF1493", "#00CED1", "#FF8C00", "#ADFF2F",
+];
 
 // ═══ PLATFORM CONFIG ═══
 var PLATFORMS = [
@@ -267,6 +314,18 @@ function SlopCard({ title, content, onCopy, copyLabel, extraButton }) {
 
 // ═══ MAIN COMPONENT ═══
 export default function SlopTop() {
+  // Rotating brainrot phrase
+  var _phraseIdx = useState(0), phraseIdx = _phraseIdx[0], setPhraseIdx = _phraseIdx[1];
+  var _emojiIdx = useState(0), emojiIdx = _emojiIdx[0], setEmojiIdx = _emojiIdx[1];
+
+  useEffect(function() {
+    var interval = setInterval(function() {
+      setPhraseIdx(function(prev) { return (prev + 1) % ROTATING_PHRASES.length; });
+      setEmojiIdx(function(prev) { return (prev + 1) % ROTATING_EMOJIS.length; });
+    }, 3000);
+    return function() { clearInterval(interval); };
+  }, []);
+
   // Link-to-slop state
   var _slopUrl = useState(""), slopUrl = _slopUrl[0], setSlopUrl = _slopUrl[1];
   var _slopLoading = useState(false), slopLoading = _slopLoading[0], setSlopLoading = _slopLoading[1];
@@ -287,11 +346,25 @@ export default function SlopTop() {
   var _error = useState(null), error = _error[0], setError = _error[1];
   var _selected = useState(null), selected = _selected[0], setSelected = _selected[1];
 
+  // Video generation state
+  var _videoLoading = useState(false), videoLoading = _videoLoading[0], setVideoLoading = _videoLoading[1];
+  var _videoUrl = useState(null), videoUrl = _videoUrl[0], setVideoUrl = _videoUrl[1];
+  var _videoError = useState(null), videoError = _videoError[0], setVideoError = _videoError[1];
+  var _videoStatus = useState(null), videoStatus = _videoStatus[0], setVideoStatus = _videoStatus[1];
+
+  // Random loading phrase
+  var _loadingPhrase = useState(LOADING_PHRASES[0]), loadingPhrase = _loadingPhrase[0], setLoadingPhrase = _loadingPhrase[1];
+
+  function pickLoadingPhrase() {
+    setLoadingPhrase(LOADING_PHRASES[Math.floor(Math.random() * LOADING_PHRASES.length)]);
+  }
+
   function handleSlopGenerate() {
     if (!slopUrl.trim()) return;
     setSlopLoading(true);
     setSlopError(null);
     setSlopResults(null);
+    pickLoadingPhrase();
 
     fetch("/api/slob-top", {
       method: "POST",
@@ -361,12 +434,12 @@ export default function SlopTop() {
   var _memeImgLoading = useState(false), memeImgLoading = _memeImgLoading[0], setMemeImgLoading = _memeImgLoading[1];
 
   var MEME_STYLES = [
-    { id: "meme", l: "Classic Meme", prompt: "internet meme format, bold impact font, funny" },
-    { id: "infographic", l: "Infographic", prompt: "clean infographic, data visualization, professional" },
-    { id: "reaction", l: "Reaction", prompt: "reaction image, expressive, social media ready" },
-    { id: "screenshot", l: "Fake Screenshot", prompt: "fake tweet or post screenshot, realistic UI mockup" },
-    { id: "chart", l: "Chart Meme", prompt: "funny chart or graph, data humor, tech satire" },
-    { id: "sa-branded", l: "SA Branded", prompt: "SemiAnalysis branded, dark theme, amber accents, professional tech" },
+    { id: "meme", l: "Classic Meme \uD83D\uDC80", prompt: "internet meme format, bold impact font, funny" },
+    { id: "infographic", l: "Infographic \uD83D\uDCCA", prompt: "clean infographic, data visualization, professional" },
+    { id: "reaction", l: "Reaction \uD83D\uDE31", prompt: "reaction image, expressive, social media ready" },
+    { id: "screenshot", l: "Fake Screenshot \uD83D\uDCF1", prompt: "fake tweet or post screenshot, realistic UI mockup" },
+    { id: "chart", l: "Chart Meme \uD83D\uDCC8", prompt: "funny chart or graph, data humor, tech satire" },
+    { id: "sa-branded", l: "SA Branded \u26A1", prompt: "SemiAnalysis branded, dark theme, amber accents, professional tech" },
   ];
 
   var handleMemeGenerate = function() {
@@ -382,6 +455,7 @@ export default function SlopTop() {
 
     setMemeImgLoading(true);
     setMemeImg(null);
+    pickLoadingPhrase();
     fetch("/api/generate-thumbnail", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -393,43 +467,177 @@ export default function SlopTop() {
     }).catch(function(e) { setSlopError(String(e)); setMemeImgLoading(false); });
   };
 
+  var handleVideoGenerate = function() {
+    var prompt = "";
+    if (memeMode === "link" && slopResults && slopResults.image_prompt) {
+      prompt = slopResults.image_prompt;
+    } else if (memeMode === "idea" && memeIdea.trim()) {
+      prompt = memeIdea.trim();
+    } else return;
+
+    var styleInfo = MEME_STYLES.find(function(s) { return s.id === memeStyle; });
+    var fullPrompt = prompt + ". Style: " + (styleInfo ? styleInfo.prompt : "meme format");
+
+    setVideoLoading(true);
+    setVideoUrl(null);
+    setVideoError(null);
+    setVideoStatus("cooking rn...");
+    pickLoadingPhrase();
+
+    fetch("/api/generate-clip", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: fullPrompt, engine: "grok" }),
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (d.video && d.video.url) {
+        setVideoUrl(d.video.url);
+        setVideoStatus(null);
+        setVideoLoading(false);
+      } else if (d.status === "processing" || d.status === "pending") {
+        setVideoStatus("still cooking... " + (d.status || ""));
+        // Poll for completion
+        var pollInterval = setInterval(function() {
+          fetch("/api/generate-clip", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: fullPrompt, engine: "grok" }),
+          }).then(function(r2) { return r2.json(); }).then(function(d2) {
+            if (d2.video && d2.video.url) {
+              setVideoUrl(d2.video.url);
+              setVideoStatus(null);
+              setVideoLoading(false);
+              clearInterval(pollInterval);
+            } else if (d2.error) {
+              setVideoError(d2.error);
+              setVideoLoading(false);
+              clearInterval(pollInterval);
+            }
+          }).catch(function(e2) {
+            setVideoError(String(e2));
+            setVideoLoading(false);
+            clearInterval(pollInterval);
+          });
+        }, 5000);
+      } else if (d.error) {
+        setVideoError(d.error);
+        setVideoLoading(false);
+      } else {
+        setVideoError("Unexpected response format");
+        setVideoLoading(false);
+      }
+    }).catch(function(e) {
+      setVideoError(String(e));
+      setVideoLoading(false);
+    });
+  };
+
+  var handlePresetClick = function(presetText) {
+    if (memeMode === "idea") {
+      setMemeIdea(function(prev) { return prev ? prev + " " + presetText : presetText; });
+    }
+  };
+
   var TABS = [
-    { id: "meme", l: "Meme Maker", ic: "\uD83D\uDD25" },
-    { id: "brief", l: "Brief Generator", ic: "\uD83D\uDCCB" },
+    { id: "meme", l: "Meme Maker \uD83D\uDC80" },
+    { id: "brief", l: "Brief Generator \uD83D\uDCCB" },
   ];
+
+  // ═══ GLOBAL ANIMATIONS ═══
+  var globalStyles = [
+    "@keyframes slopSpin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}",
+    "@keyframes slopPulse{0%,100%{opacity:0.3}50%{opacity:1}}",
+    "@keyframes rainbowShimmer{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}",
+    "@keyframes glowPulse{0%,100%{box-shadow:0 0 5px rgba(247,176,65,0.3),0 0 10px rgba(247,176,65,0.1)}50%{box-shadow:0 0 20px rgba(247,176,65,0.6),0 0 40px rgba(247,176,65,0.3),0 0 60px rgba(144,92,203,0.2)}}",
+    "@keyframes textGlow{0%,100%{text-shadow:0 0 10px rgba(247,176,65,0.5)}50%{text-shadow:0 0 20px rgba(247,176,65,0.8),0 0 40px rgba(144,92,203,0.4)}}",
+    "@keyframes floatEmoji{0%,100%{transform:translateY(0px) rotate(0deg)}25%{transform:translateY(-3px) rotate(5deg)}75%{transform:translateY(3px) rotate(-5deg)}}",
+    "@keyframes phraseSlide{0%{opacity:0;transform:translateY(10px)}10%{opacity:1;transform:translateY(0)}90%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-10px)}}",
+    "@keyframes gradientText{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}",
+    "@keyframes buttonGlow{0%,100%{box-shadow:0 4px 20px rgba(247,176,65,0.25)}50%{box-shadow:0 4px 30px rgba(247,176,65,0.5),0 0 60px rgba(144,92,203,0.3)}}",
+    "@keyframes neonFlicker{0%,100%{opacity:1}92%{opacity:1}93%{opacity:0.8}94%{opacity:1}96%{opacity:0.9}97%{opacity:1}}",
+    "@keyframes successPop{0%{transform:scale(0.8);opacity:0}50%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}",
+  ].join("\n");
 
   return <div style={{
     minHeight: "100vh", background: D.bg, padding: "32px 40px",
     fontFamily: ft, color: D.tx,
   }}>
-    {/* Header */}
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24 }}>
-      <div>
-        <div style={{ fontFamily: ft, fontSize: 28, fontWeight: 900, color: D.tx, letterSpacing: -1 }}>Slop Top</div>
-        <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginTop: 4, letterSpacing: 1 }}>
-          Meme machine // Content brief generator // Image creator
+    <style dangerouslySetInnerHTML={{ __html: globalStyles }} />
+
+    {/* ═══ HEADER ═══ */}
+    <div style={{
+      marginBottom: 24, padding: "24px 28px", borderRadius: 16,
+      background: "linear-gradient(135deg, rgba(247,176,65,0.08), rgba(144,92,203,0.06), rgba(38,201,216,0.04), rgba(247,176,65,0.08))",
+      backgroundSize: "300% 300%",
+      animation: "rainbowShimmer 8s ease infinite",
+      border: "1px solid rgba(247,176,65,0.15)",
+      position: "relative", overflow: "hidden",
+    }}>
+      {/* Shimmer overlay */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+        background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.02), transparent)",
+        backgroundSize: "200% 100%",
+        animation: "rainbowShimmer 4s linear infinite",
+        pointerEvents: "none",
+      }} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", position: "relative" }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{
+              fontFamily: ft, fontSize: 32, fontWeight: 900, letterSpacing: -1,
+              background: "linear-gradient(135deg, " + D.amber + ", " + D.violet + ", " + D.cyan + ", " + D.amber + ")",
+              backgroundSize: "300% 300%",
+              animation: "gradientText 4s ease infinite",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}>SLOP TOP</div>
+            <span style={{
+              fontSize: 28,
+              animation: "floatEmoji 2s ease-in-out infinite",
+              display: "inline-block",
+            }}>{ROTATING_EMOJIS[emojiIdx]}</span>
+          </div>
+          <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginTop: 4, letterSpacing: 1 }}>
+            certified brainrot factory // making slop since birth
+          </div>
+          <div style={{
+            fontFamily: ft, fontSize: 12, fontWeight: 600, marginTop: 8,
+            color: D.violet, letterSpacing: 0.5,
+            animation: "phraseSlide 3s ease-in-out infinite",
+            minHeight: 18,
+          }}>
+            {ROTATING_PHRASES[phraseIdx]}
+          </div>
         </div>
       </div>
     </div>
 
-    {/* Tabs */}
+    {/* ═══ TABS ═══ */}
     <div style={{ display: "flex", gap: 0, marginBottom: 28, borderBottom: "1px solid " + D.border }}>
       {TABS.map(function(t) {
         var on = tab === t.id;
+        var isMemeMaker = t.id === "meme";
         return <div key={t.id} onClick={function() { setTab(t.id); }} style={{
           padding: "12px 24px", cursor: "pointer", fontFamily: ft, fontSize: 14, fontWeight: on ? 800 : 500,
           color: on ? D.amber : D.txm, borderBottom: on ? "2px solid " + D.amber : "2px solid transparent",
           transition: "all 0.2s", display: "flex", alignItems: "center", gap: 6,
+          background: on && isMemeMaker ? "linear-gradient(135deg, rgba(247,176,65,0.05), transparent)" : "transparent",
         }}>
-          <span style={{ fontSize: 14 }}>{t.ic}</span>
-          {t.l}
+          {isMemeMaker && on ? <span style={{
+            background: "linear-gradient(135deg, " + D.amber + ", " + D.violet + ")",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+            fontWeight: 900,
+          }}>{t.l}</span> : t.l}
         </div>;
       })}
     </div>
 
     {/* ═══ TAB: MEME MAKER ═══ */}
     {tab === "meme" && <div>
-      {/* Mode toggle: Link to Meme / Idea to Meme */}
+      {/* Mode toggle: Link to Slop / Idea to Meme */}
       <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
         <div onClick={function() { setMemeMode("link"); }} style={{
           flex: 1, padding: "16px 20px", borderRadius: 12, cursor: "pointer",
@@ -437,7 +645,7 @@ export default function SlopTop() {
           border: "1px solid " + (memeMode === "link" ? D.amber + "40" : D.border),
           transition: "all 0.2s",
         }}>
-          <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: memeMode === "link" ? D.amber : D.tx }}>Link to Meme</div>
+          <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: memeMode === "link" ? D.amber : D.tx }}>Link to Slop \uD83D\uDD17</div>
           <div style={{ fontFamily: ft, fontSize: 11, color: D.txm, marginTop: 2 }}>Paste a URL, get meme content + image</div>
         </div>
         <div onClick={function() { setMemeMode("idea"); }} style={{
@@ -446,8 +654,28 @@ export default function SlopTop() {
           border: "1px solid " + (memeMode === "idea" ? D.violet + "40" : D.border),
           transition: "all 0.2s",
         }}>
-          <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: memeMode === "idea" ? D.violet : D.tx }}>Idea to Meme</div>
+          <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: memeMode === "idea" ? D.violet : D.tx }}>Idea to Meme \uD83E\uDDE0</div>
           <div style={{ fontFamily: ft, fontSize: 11, color: D.txm, marginTop: 2 }}>Describe an idea, generate a meme image directly</div>
+        </div>
+      </div>
+
+      {/* ═══ BRAINROT PRESETS ═══ */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.cyan, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+          <span>\uD83E\uDDE0</span> Brainrot Presets <span style={{ fontSize: 8, color: D.txd }}>(click to add to prompt)</span>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {BRAINROT_PRESETS.map(function(preset, idx) {
+            var hue = NEON_HUES[idx % NEON_HUES.length];
+            return <button key={idx} onClick={function() { handlePresetClick(preset.text); }} style={{
+              padding: "6px 14px", borderRadius: 20, cursor: "pointer",
+              background: hue + "12", border: "1px solid " + hue + "40",
+              color: hue, fontFamily: ft, fontSize: 11, fontWeight: 600,
+              transition: "all 0.2s", animation: "neonFlicker 3s ease-in-out infinite",
+              animationDelay: (idx * 0.2) + "s",
+              whiteSpace: "nowrap",
+            }}>{preset.label}</button>;
+          })}
         </div>
       </div>
 
@@ -458,7 +686,9 @@ export default function SlopTop() {
           background: "linear-gradient(135deg, " + D.amber + "08, " + D.card + ", " + D.violet + "06)",
           border: "1px solid " + D.amber + "25", borderRadius: 12, padding: 28, marginBottom: 24,
         }}>
-          <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>Paste Link</div>
+          <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+            <span>\uD83D\uDD17</span> Paste Link <span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// drop the url bro</span>
+          </div>
           <div style={{ display: "flex", gap: 12 }}>
             <input type="text" value={slopUrl} onChange={function(e) { setSlopUrl(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") handleSlopGenerate(); }} placeholder="Paste any link to get slop..." style={{
               flex: 1, padding: "14px 20px", borderRadius: 10, background: D.surface, border: "2px solid " + D.border,
@@ -469,32 +699,35 @@ export default function SlopTop() {
               background: !slopUrl.trim() ? D.border : "linear-gradient(135deg, " + D.amber + ", #E09520)",
               color: D.bg, fontFamily: ft, fontSize: 14, fontWeight: 800, opacity: !slopUrl.trim() ? 0.4 : 1, flexShrink: 0,
               boxShadow: slopUrl.trim() && !slopLoading ? "0 4px 16px " + D.amber + "30" : "none",
-            }}>{slopLoading ? "Generating..." : "Generate Slop"}</button>
+              animation: slopUrl.trim() && !slopLoading ? "buttonGlow 2s ease-in-out infinite" : "none",
+            }}>{slopLoading ? "\uD83D\uDD25 " + loadingPhrase : "Generate Slop \uD83D\uDC80"}</button>
           </div>
           {slopError && <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, background: D.coral + "12", border: "1px solid " + D.coral + "30", fontFamily: mn, fontSize: 11, color: D.coral }}>{slopError}</div>}
         </div>
 
         {/* Slop results */}
         {slopLoading && <div style={{ padding: 40, textAlign: "center", background: D.card, borderRadius: 12, border: "1px solid " + D.border, marginBottom: 24 }}>
-          <style dangerouslySetInnerHTML={{ __html: "@keyframes slopPulse{0%,100%{opacity:0.3}50%{opacity:1}}" }} />
           <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 16 }}>{[0, 1, 2].map(function(i) { return <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: D.amber, animation: "slopPulse 1.4s ease-in-out infinite", animationDelay: i * 0.2 + "s" }} />; })}</div>
-          <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 600, color: D.txm }}>Generating slop...</div>
+          <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 600, color: D.txm }}>{loadingPhrase}</div>
         </div>}
 
-        {slopResults && <div style={{ marginBottom: 24 }}>
+        {slopResults && <div style={{ marginBottom: 24, animation: "successPop 0.4s ease-out" }}>
+          <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 700, color: D.teal, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+            <span>\uD83D\uDD25</span> slop acquired <span>\uD83D\uDCAF</span>
+          </div>
           {/* Meme Captions */}
           {slopResults.meme_captions && slopResults.meme_captions.length > 0 && <div style={{ marginBottom: 20 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Meme Captions</div>
+            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>\uD83D\uDC80 Meme Captions</div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>{slopResults.meme_captions.map(function(cap, i) { return <SlopCard key={i} title={"Caption " + (i + 1)} content={cap} />; })}</div>
           </div>}
           {/* Video Hooks */}
           {slopResults.video_hooks && slopResults.video_hooks.length > 0 && <div style={{ marginBottom: 20 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.cyan, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Video Hooks</div>
+            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.cyan, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>\u26A1 Video Hooks</div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>{slopResults.video_hooks.map(function(hook, i) { return <SlopCard key={i} title={"Hook " + (i + 1)} content={hook} />; })}</div>
           </div>}
           {/* Thread Idea */}
           {slopResults.thread_idea && <div style={{ marginBottom: 20 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.violet, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Thread Idea</div>
+            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.violet, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>\uD83E\uDDE0 Thread Idea</div>
             <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 18 }}>
               {(Array.isArray(slopResults.thread_idea) ? slopResults.thread_idea : [slopResults.thread_idea]).map(function(post, i) {
                 return <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8 }}>
@@ -506,7 +739,7 @@ export default function SlopTop() {
           </div>}
           {/* Image Prompt */}
           {slopResults.image_prompt && <div style={{ marginBottom: 20 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.teal, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Image Prompt</div>
+            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.teal, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>\uD83D\uDD25 Image Prompt</div>
             <SlopCard content={slopResults.image_prompt} />
           </div>}
         </div>}
@@ -517,16 +750,20 @@ export default function SlopTop() {
         background: "linear-gradient(135deg, " + D.violet + "08, " + D.card + ", " + D.cyan + "06)",
         border: "1px solid " + D.violet + "25", borderRadius: 12, padding: 28, marginBottom: 24,
       }}>
-        <div style={{ fontFamily: mn, fontSize: 10, color: D.violet, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>Describe Your Meme</div>
-        <textarea value={memeIdea} onChange={function(e) { setMemeIdea(e.target.value); }} placeholder="e.g. Jensen Huang holding a GPU like it's the holy grail, NVIDIA cathedral lighting..." rows={4} style={{
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.violet, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+          <span>\uD83D\uDE24</span> What's the prompt bro <span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// describe your masterpiece</span>
+        </div>
+        <textarea value={memeIdea} onChange={function(e) { setMemeIdea(e.target.value); }} placeholder="e.g. Jensen Huang holding a GPU like it's the holy grail, NVIDIA cathedral lighting... \uD83D\uDD25" rows={4} style={{
           width: "100%", padding: "14px 16px", borderRadius: 10, background: D.surface, border: "1px solid " + D.border,
           color: D.tx, fontFamily: ft, fontSize: 14, lineHeight: 1.6, resize: "vertical", outline: "none", boxSizing: "border-box",
         }} onFocus={function(e) { e.target.style.borderColor = D.violet; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
       </div>}
 
-      {/* Style selector (both modes) */}
+      {/* Vibe Check (Style selector) - both modes */}
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Meme Style</div>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+          <span>\uD83D\uDCAF</span> Vibe Check <span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// pick your aesthetic</span>
+        </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {MEME_STYLES.map(function(s) {
             var on = memeStyle === s.id;
@@ -535,40 +772,85 @@ export default function SlopTop() {
               background: on ? D.amber + "14" : D.card, border: "1px solid " + (on ? D.amber + "50" : D.border),
               fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? D.amber : D.txm,
               transition: "all 0.15s",
+              boxShadow: on ? "0 0 12px " + D.amber + "20" : "none",
             }}>{s.l}</div>;
           })}
         </div>
       </div>
 
-      {/* Generate Meme Image button */}
-      <button onClick={handleMemeGenerate} disabled={memeImgLoading || (memeMode === "link" ? !slopResults : !memeIdea.trim())} style={{
-        padding: "14px 32px", borderRadius: 10, border: "none", fontFamily: ft, fontSize: 15, fontWeight: 800,
-        background: memeImgLoading ? D.amber + "60" : "linear-gradient(135deg, " + D.amber + ", " + D.violet + ")",
-        color: "#fff", cursor: memeImgLoading ? "wait" : "pointer", letterSpacing: 0.5,
-        boxShadow: "0 4px 20px " + D.amber + "25", transition: "all 0.2s",
-        opacity: (memeMode === "link" ? !slopResults : !memeIdea.trim()) ? 0.4 : 1,
-      }}>{memeImgLoading ? "Generating Image..." : "Generate Meme Image"}</button>
+      {/* Generate Buttons Row */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
+        {/* Generate Meme Image button */}
+        <button onClick={handleMemeGenerate} disabled={memeImgLoading || (memeMode === "link" ? !slopResults : !memeIdea.trim())} style={{
+          padding: "14px 32px", borderRadius: 10, border: "none", fontFamily: ft, fontSize: 15, fontWeight: 800,
+          background: memeImgLoading ? D.amber + "60" : "linear-gradient(135deg, " + D.amber + ", " + D.violet + ")",
+          color: "#fff", cursor: memeImgLoading ? "wait" : "pointer", letterSpacing: 0.5,
+          transition: "all 0.2s",
+          opacity: (memeMode === "link" ? !slopResults : !memeIdea.trim()) ? 0.4 : 1,
+          animation: !(memeMode === "link" ? !slopResults : !memeIdea.trim()) && !memeImgLoading ? "buttonGlow 2s ease-in-out infinite" : "none",
+        }}>{memeImgLoading ? "\uD83C\uDF73 " + loadingPhrase : "\uD83D\uDDBC\uFE0F Generate Meme Image"}</button>
+
+        {/* Generate Video button */}
+        <button onClick={handleVideoGenerate} disabled={videoLoading || (memeMode === "link" ? !slopResults : !memeIdea.trim())} style={{
+          padding: "14px 32px", borderRadius: 10, border: "none", fontFamily: ft, fontSize: 15, fontWeight: 800,
+          background: videoLoading ? D.cyan + "60" : "linear-gradient(135deg, " + D.cyan + ", " + D.teal + ")",
+          color: "#fff", cursor: videoLoading ? "wait" : "pointer", letterSpacing: 0.5,
+          transition: "all 0.2s",
+          opacity: (memeMode === "link" ? !slopResults : !memeIdea.trim()) ? 0.4 : 1,
+          animation: !(memeMode === "link" ? !slopResults : !memeIdea.trim()) && !videoLoading ? "glowPulse 2s ease-in-out infinite" : "none",
+        }}>{videoLoading ? "\uD83C\uDFA5 " + (videoStatus || loadingPhrase) : "\uD83C\uDFA5 Generate Video"}</button>
+      </div>
 
       {/* Generated meme image */}
       {memeImgLoading && <div style={{ marginTop: 24, padding: 40, textAlign: "center", background: D.card, borderRadius: 12, border: "1px solid " + D.border }}>
-        <style dangerouslySetInnerHTML={{ __html: "@keyframes slopSpin{to{transform:rotate(360deg)}}" }} />
         <div style={{ width: 40, height: 40, borderRadius: "50%", border: "3px solid " + D.border, borderTopColor: D.violet, margin: "0 auto 16px", animation: "slopSpin 1s linear infinite" }} />
-        <div style={{ fontFamily: ft, fontSize: 14, color: D.txm }}>Grok is creating your meme...</div>
+        <div style={{ fontFamily: ft, fontSize: 14, color: D.txm }}>{loadingPhrase} \uD83D\uDD25</div>
       </div>}
 
-      {memeImg && <div style={{ marginTop: 24 }}>
-        <div style={{ fontFamily: mn, fontSize: 10, color: D.teal, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Generated Meme</div>
+      {memeImg && <div style={{ marginTop: 24, animation: "successPop 0.4s ease-out" }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.teal, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+          <span>\uD83D\uDD25</span> this goes HARD <span>\uD83D\uDCAF</span>
+        </div>
         <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 16, textAlign: "center" }}>
           <img src={memeImg} style={{ maxWidth: "100%", maxHeight: 500, borderRadius: 8 }} />
           <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 16 }}>
             <a href={memeImg} download="slop-meme.png" style={{
               padding: "10px 20px", borderRadius: 8, background: D.teal + "18", border: "1px solid " + D.teal + "40",
               color: D.teal, fontFamily: ft, fontSize: 12, fontWeight: 700, textDecoration: "none", cursor: "pointer",
-            }}>Download</a>
+            }}>Download \uD83D\uDC80</a>
             <button onClick={handleMemeGenerate} style={{
               padding: "10px 20px", borderRadius: 8, background: "transparent", border: "1px solid " + D.border,
               color: D.txm, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer",
-            }}>Regenerate</button>
+            }}>Regenerate \uD83D\uDD04</button>
+          </div>
+        </div>
+      </div>}
+
+      {/* Generated video */}
+      {videoLoading && !videoUrl && <div style={{ marginTop: 24, padding: 40, textAlign: "center", background: D.card, borderRadius: 12, border: "1px solid " + D.cyan + "20" }}>
+        <div style={{ width: 40, height: 40, borderRadius: "50%", border: "3px solid " + D.border, borderTopColor: D.cyan, margin: "0 auto 16px", animation: "slopSpin 1s linear infinite" }} />
+        <div style={{ fontFamily: ft, fontSize: 14, color: D.txm }}>{videoStatus || loadingPhrase} \uD83C\uDFA5</div>
+      </div>}
+
+      {videoError && <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 8, background: D.coral + "12", border: "1px solid " + D.coral + "30", fontFamily: mn, fontSize: 11, color: D.coral }}>
+        \uD83D\uDC80 Video error: {videoError}
+      </div>}
+
+      {videoUrl && <div style={{ marginTop: 24, animation: "successPop 0.4s ease-out" }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.cyan, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+          <span>\uD83C\uDFA5</span> absolute cinema <span>\uD83D\uDD25</span>
+        </div>
+        <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 16, textAlign: "center" }}>
+          <video src={videoUrl} controls style={{ maxWidth: "100%", maxHeight: 500, borderRadius: 8 }} />
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 16 }}>
+            <a href={videoUrl} download="slop-video.mp4" style={{
+              padding: "10px 20px", borderRadius: 8, background: D.cyan + "18", border: "1px solid " + D.cyan + "40",
+              color: D.cyan, fontFamily: ft, fontSize: 12, fontWeight: 700, textDecoration: "none", cursor: "pointer",
+            }}>Download \uD83C\uDFA5</a>
+            <button onClick={handleVideoGenerate} style={{
+              padding: "10px 20px", borderRadius: 8, background: "transparent", border: "1px solid " + D.border,
+              color: D.txm, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer",
+            }}>Regenerate \uD83D\uDD04</button>
           </div>
         </div>
       </div>}
@@ -744,7 +1026,6 @@ export default function SlopTop() {
           background: D.card, border: "1px solid " + D.border, borderRadius: 12,
           padding: "80px 40px", textAlign: "center",
         }}>
-          <style dangerouslySetInnerHTML={{ __html: "@keyframes slopPulse{0%,100%{opacity:0.3}50%{opacity:1}}" }} />
           <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 20 }}>
             {[0, 1, 2].map(function(i) {
               return <div key={i} style={{
