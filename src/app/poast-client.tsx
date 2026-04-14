@@ -428,13 +428,25 @@ var CAPPER_LENGTHS = [
   { key: "epic", label: "Epic Thread", desc: "6-10 posts", thread: true },
 ];
 
-var SYS_CAPPER = "You are a social media caption writer. You write captions for short-form video clips.\n\nTone descriptions:\n- Dylan: Direct, data-heavy, confident. Uses specific numbers and bold claims. Opens with hooks like 'Here is what nobody is telling you about...' Never hedges.\n- Doug: Technical, first-principles, analytical. Focuses on structural importance and why something matters at a fundamental level. Methodical.\n- SA Twitter: Punchy, provocative, hot-take energy. Short sentences. Bold claims. Data-backed but aggressive framing.\n- Oren: Conversational, storytelling approach. Bridges technical topics to business impact. Accessible but clearly informed.\n\nPlatform rules:\n- X: No hashtags ever. Write as hook tweet + reply-to-self format. No links in the main post. Keep punchy.\n- Instagram: Include a 'Save this for later' CTA. Add 5-8 relevant hashtags. Add location 'San Francisco, CA'. Direct to bio link.\n- LinkedIn: Professional framing. End with 'Link in comments.' No hashtags. Longer form is fine.\n- TikTok: All lowercase. 4-6 hashtags. Casual tone. Short.\n- YouTube: Include a separate title line (under 40 characters). Then the description. Include relevant keywords.\n\nRules: Never use em dashes, use commas or periods. No emojis. Be direct. RESPOND ONLY IN VALID JSON. No markdown fences. No preamble.";
+var CAPPER_AUDIENCES = [
+  { key: "meme", label: "Meme-coded", desc: "Internet brain, irony-pilled, chronically online. Think tech twitter memes.", color: "#00FF88" },
+  { key: "genz", label: "Gen Z", desc: "Lowercase, no punctuation, absurdist humor, unhinged but smart.", color: "#FF6BFF" },
+  { key: "techtwitter", label: "Tech Twitter", desc: "Smart, opinionated, ratio-ready. Mix of insight and shade.", color: "#1DA1F2" },
+  { key: "degen", label: "Degen", desc: "Crypto/finance energy. WAGMI, aping in, LFG. Numbers go up.", color: "#FFD700" },
+  { key: "corporate", label: "Corporate", desc: "LinkedIn-safe. Thought leadership. Buzzwords. I'm pleased to announce.", color: "#0A66C2" },
+  { key: "boomer", label: "Boomer", desc: "Straightforward, no slang, earnest. Your dad explaining semiconductors.", color: "#888888" },
+  { key: "unhinged", label: "Unhinged", desc: "Fully deranged takes. Chaos energy. Will get screenshots.", color: "#FF0040" },
+];
+
+var SYS_CAPPER = "You are a social media caption writer for SemiAnalysis. You write captions for short-form video clips and memes.\n\nTone descriptions:\n- Dylan: Direct, data-heavy, confident. Uses specific numbers and bold claims. Opens with hooks like 'Here is what nobody is telling you about...' Never hedges.\n- Doug: Technical, first-principles, analytical. Focuses on structural importance and why something matters at a fundamental level. Methodical.\n- SA Twitter: Punchy, provocative, hot-take energy. Short sentences. Bold claims. Data-backed but aggressive framing.\n- Oren: Conversational, storytelling approach. Bridges technical topics to business impact. Accessible but clearly informed.\n\nAudience/vibe descriptions:\n- Meme-coded: Internet brain, irony-pilled, chronically online. Reference meme formats, use internet humor, be self-aware. Think 'this is the way' energy.\n- Gen Z: All lowercase, minimal punctuation, absurdist humor, unhinged but smart. Deadpan delivery. 'no because why is this actually true'\n- Tech Twitter: Smart and opinionated, mix of genuine insight and shade. Ratio-ready. CT/tech twitter native.\n- Degen: Crypto/finance energy. WAGMI, aping in, LFG. Numbers go up. Semi-ironic hype.\n- Corporate: LinkedIn-safe thought leadership. Buzzwords welcome. I'm pleased to announce.\n- Boomer: Straightforward, no slang, earnest and sincere.\n- Unhinged: Fully deranged takes. Chaos energy. Will definitely get screenshotted.\n\nPlatform rules:\n- X: No hashtags ever. Write as hook tweet + reply-to-self format. No links in the main post. Keep punchy.\n- Instagram: Include a 'Save this for later' CTA. Add 5-8 relevant hashtags. Add location 'San Francisco, CA'. Direct to bio link.\n- LinkedIn: Professional framing. End with 'Link in comments.' No hashtags. Longer form is fine.\n- TikTok: All lowercase. 4-6 hashtags. Casual tone. Short.\n- YouTube: Include a separate title line (under 40 characters). Then the description. Include relevant keywords.\n\nRules: Never use em dashes, use commas or periods. Be direct. Match the audience vibe exactly. RESPOND ONLY IN VALID JSON. No markdown fences. No preamble.";
 
 function ClipCaptions() {
   var _content = useState(""), content = _content[0], setContent = _content[1];
   var _platforms = useState(["x"]), platforms = _platforms[0], setPlatforms = _platforms[1];
   var _length = useState("medium"), length = _length[0], setLength = _length[1];
   var _tone = useState("dylan"), tone = _tone[0], setTone = _tone[1];
+  var _audience = useState("meme"), audience = _audience[0], setAudience = _audience[1];
+  var _customPrompt = useState(""), customPrompt = _customPrompt[0], setCustomPrompt = _customPrompt[1];
   var _link = useState(false), showLink = _link[0], setShowLink = _link[1];
   var _url = useState(""), url = _url[0], setUrl = _url[1];
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
@@ -467,10 +479,13 @@ function ClipCaptions() {
       parts.push("Generate a " + platObj.label + " caption for this clip.");
       parts.push("Length: " + lenObj.label + " (" + lenObj.desc + ")");
     }
+    var audObj = CAPPER_AUDIENCES.find(function(a) { return a.key === audience; }) || CAPPER_AUDIENCES[0];
     parts.push("Tone: " + toneObj.label + " - " + toneObj.desc);
+    parts.push("Audience/Vibe: " + audObj.label + " - " + audObj.desc + ". MATCH THIS VIBE EXACTLY.");
     parts.push("Platform: " + platObj.label);
     parts.push("Clip content:\n" + content.slice(0, 6000));
     if (showLink && url) parts.push("Include this redirect link naturally: " + url);
+    if (customPrompt.trim()) parts.push("Additional instructions from user: " + customPrompt.trim());
     if (variationNote) parts.push(variationNote);
     if (isThread) {
       parts.push('Return JSON: {"posts":[{"number":1,"text":"post text"},{"number":2,"text":"post text"},...]}');
@@ -594,6 +609,26 @@ function ClipCaptions() {
           </div>;
         })}
       </div>
+    </div>
+
+    {/* Audience / Vibe */}
+    <div style={{ marginBottom: 20 }}>
+      <Label>Audience / Vibe</Label>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {CAPPER_AUDIENCES.map(function(a) {
+          var on = audience === a.key;
+          return <div key={a.key} onClick={function() { setAudience(a.key); }} style={{ padding: "8px 14px", borderRadius: 20, cursor: "pointer", background: on ? a.color + "18" : cardBg, border: "1px solid " + (on ? a.color + "60" : borderC), fontFamily: ft, fontSize: 11, fontWeight: on ? 700 : 500, color: on ? a.color : C.txm, transition: "all 0.15s" }} onMouseEnter={function(e) { if (!on) e.currentTarget.style.borderColor = a.color + "30"; }} onMouseLeave={function(e) { if (!on) e.currentTarget.style.borderColor = borderC; }}>
+            {a.label}
+          </div>;
+        })}
+      </div>
+      <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6 }}>{(CAPPER_AUDIENCES.find(function(a) { return a.key === audience; }) || {}).desc || ""}</div>
+    </div>
+
+    {/* Custom Prompt Addition */}
+    <div style={{ marginBottom: 20 }}>
+      <Label>Add to Prompt (optional)</Label>
+      <textarea value={customPrompt} onChange={function(e) { setCustomPrompt(e.target.value); }} placeholder="e.g. make it meme-coded, reference the Drake format, add more chaos..." rows={2} style={{ width: "100%", padding: "10px 14px", background: cardBg, border: "1px solid " + borderC, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 12, lineHeight: 1.5, resize: "none", outline: "none", boxSizing: "border-box", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = borderC; }} />
     </div>
 
     {/* Redirect Link Toggle */}
