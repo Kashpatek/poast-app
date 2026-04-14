@@ -306,7 +306,7 @@ var SIDEBAR_CATS = {
     { id: "p2p", l: "Press to Premier", ic: "\uD83C\uDFAC" },
   ]},
   podcast: { label: "PODCAST", color: C.violet, glow: "rgba(144,92,203,", items: [
-    { id: "fk", l: "Fabricated Knowledge", ic: "\uD83C\uDFA7" },
+    { id: "fk", l: "Fab Knowledge", ic: "\uD83C\uDFA7" },
     { id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99" },
     { id: "outreach", l: "Outreach", ic: "\uD83D\uDCE4" },
   ]},
@@ -327,45 +327,45 @@ function Sidebar({ active, onNav, onAskPoast }) {
 
   return (<div style={{ width: 240, minHeight: "100vh", background: "linear-gradient(180deg, #08080F 0%, #0A0A14 100%)", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
     {/* Logo */}
-    <div style={{ padding: "24px 22px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 12 }}>
-      <img src="/poast-logo.png" style={{ width: 36, height: 36, borderRadius: 8 }} />
+    <div style={{ padding: "18px 18px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10 }}>
+      <img src="/poast-logo.png" style={{ width: 32, height: 32, borderRadius: 7 }} />
       <div>
-        <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 900, color: C.amber, letterSpacing: 2 }}>POAST</div>
-        <div style={{ fontFamily: ft, fontSize: 8, fontWeight: 600, color: "rgba(255,255,255,0.15)", letterSpacing: 2, textTransform: "uppercase" }}>Content Command Center</div>
+        <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 900, color: C.amber, letterSpacing: 2 }}>POAST</div>
+        <div style={{ fontFamily: ft, fontSize: 7, fontWeight: 600, color: "rgba(255,255,255,0.15)", letterSpacing: 2, textTransform: "uppercase" }}>Content Command Center</div>
       </div>
     </div>
 
     {/* Ask Poast */}
-    <div style={{ padding: "16px 14px 0" }}>
-      <div className="ask-pulse" onClick={onAskPoast} style={{ padding: "14px 14px", borderRadius: 10, cursor: "pointer", background: "linear-gradient(135deg, " + C.amber + "15, " + C.amber + "06)", border: "1px solid " + C.amber + "25", display: "flex", alignItems: "center", gap: 10, transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.boxShadow = "0 0 20px " + C.amber + "18"; e.currentTarget.style.borderColor = C.amber + "50"; }} onMouseLeave={function(e) { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = C.amber + "25"; }}>
-        <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg, " + C.amber + "25, " + C.amber + "10)", border: "1px solid " + C.amber + "30", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 16, fontWeight: 900, color: C.amber, boxShadow: "0 0 14px " + C.amber + "15" }}>P</div>
+    <div style={{ padding: "10px 12px 0" }}>
+      <div className="ask-pulse" onClick={onAskPoast} style={{ padding: "10px 12px", borderRadius: 8, cursor: "pointer", background: "linear-gradient(135deg, " + C.amber + "15, " + C.amber + "06)", border: "1px solid " + C.amber + "25", display: "flex", alignItems: "center", gap: 9, transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.boxShadow = "0 0 20px " + C.amber + "18"; e.currentTarget.style.borderColor = C.amber + "50"; }} onMouseLeave={function(e) { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = C.amber + "25"; }}>
+        <div style={{ width: 30, height: 30, borderRadius: 8, background: "linear-gradient(135deg, " + C.amber + "25, " + C.amber + "10)", border: "1px solid " + C.amber + "30", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 14, fontWeight: 900, color: C.amber, boxShadow: "0 0 14px " + C.amber + "15" }}>P</div>
         <div>
-          <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.amber }}>Ask Poast</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 5, height: 5, borderRadius: "50%", background: C.teal, boxShadow: "0 0 6px " + C.teal + "60" }} /><span style={{ fontFamily: ft, fontSize: 9, color: "rgba(255,255,255,0.25)" }}>online</span></div>
+          <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: C.amber }}>Ask Poast</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 4, height: 4, borderRadius: "50%", background: C.teal, boxShadow: "0 0 6px " + C.teal + "60" }} /><span style={{ fontFamily: ft, fontSize: 8, color: "rgba(255,255,255,0.25)" }}>online</span></div>
         </div>
       </div>
     </div>
 
     {/* Categories */}
-    <div style={{ padding: "12px 10px", flex: 1, overflow: "auto" }}>
+    <div style={{ padding: "8px 10px", flex: 1, overflow: "auto" }}>
       {Object.keys(SIDEBAR_CATS).map(function(catKey) {
         var cat = SIDEBAR_CATS[catKey];
         var isCatActive = activeCat === catKey;
-        return <div key={catKey} style={{ marginBottom: 8 }}>
+        return <div key={catKey} style={{ marginBottom: 2 }}>
           {/* Category label */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px" }}>
-            <div style={{ width: 4, height: 18, borderRadius: 2, background: isCatActive ? cat.color : "rgba(255,255,255,0.08)", boxShadow: isCatActive ? "0 0 10px " + cat.color + "60, 0 0 20px " + cat.color + "20" : "none", transition: "all 0.25s" }} />
-            <span style={{ fontFamily: ft, fontSize: 12, fontWeight: 800, color: isCatActive ? cat.color : "rgba(255,255,255,0.25)", letterSpacing: 2, textTransform: "uppercase", transition: "all 0.25s", textShadow: isCatActive ? "0 0 16px " + cat.glow + "0.4), 0 0 30px " + cat.glow + "0.12)" : "none" }}>{cat.label}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 12px" }}>
+            <div style={{ width: 3, height: 14, borderRadius: 2, background: isCatActive ? cat.color : "rgba(255,255,255,0.08)", boxShadow: isCatActive ? "0 0 10px " + cat.color + "60, 0 0 20px " + cat.color + "20" : "none", transition: "all 0.25s" }} />
+            <span style={{ fontFamily: ft, fontSize: 10, fontWeight: 800, color: isCatActive ? cat.color : "rgba(255,255,255,0.3)", letterSpacing: 2, textTransform: "uppercase", transition: "all 0.25s", textShadow: isCatActive ? "0 0 16px " + cat.glow + "0.4), 0 0 30px " + cat.glow + "0.12)" : "none" }}>{cat.label}</span>
           </div>
           {/* Items */}
           {cat.items.map(function(item) {
             var isActive = active === item.id;
-            return <div key={item.id} onClick={function() { onNav(item.id); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px 11px 30px", borderRadius: 8, marginBottom: 2, cursor: "pointer", background: isActive ? cat.color + "0C" : "transparent", borderLeft: isActive ? "3px solid " + cat.color : "3px solid transparent", transition: "all 0.2s", position: "relative" }} onMouseEnter={function(e) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }} onMouseLeave={function(e) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
+            return <div key={item.id} onClick={function() { onNav(item.id); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 12px 7px 28px", borderRadius: 6, marginBottom: 1, cursor: "pointer", background: isActive ? cat.color + "0C" : "transparent", borderLeft: isActive ? "3px solid " + cat.color : "3px solid transparent", transition: "all 0.2s", position: "relative" }} onMouseEnter={function(e) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={function(e) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
               {isActive && <div style={{ position: "absolute", left: 0, top: "10%", width: 3, height: "80%", background: cat.color, borderRadius: 2, boxShadow: "0 0 12px " + cat.color + "70, 0 0 24px " + cat.color + "25" }} />}
               {isActive && <div style={{ position: "absolute", left: 0, top: 0, width: "50%", height: "100%", background: "radial-gradient(ellipse at left center, " + cat.color + "08, transparent 70%)", pointerEvents: "none" }} />}
-              <span style={{ fontSize: 16, filter: isActive ? "brightness(1.3) saturate(1.2)" : "brightness(0.5) saturate(0.5)", transition: "filter 0.2s" }}>{item.ic}</span>
-              <span style={{ fontFamily: ft, fontSize: 14, fontWeight: isActive ? 800 : 500, color: isActive ? cat.color : "rgba(255,255,255,0.4)", transition: "all 0.2s", textShadow: isActive ? "0 0 20px " + cat.glow + "0.5), 0 0 40px " + cat.glow + "0.12)" : "none" }}>{item.l}</span>
-              {isActive && <div style={{ width: 6, height: 6, borderRadius: "50%", background: cat.color, marginLeft: "auto", boxShadow: "0 0 8px " + cat.color + "70, 0 0 16px " + cat.color + "30" }} />}
+              <span style={{ fontSize: 14, filter: isActive ? "brightness(1.3) saturate(1.2)" : "brightness(0.6) saturate(0.6)", transition: "filter 0.2s" }}>{item.ic}</span>
+              <span style={{ fontFamily: ft, fontSize: 13, fontWeight: isActive ? 800 : 500, color: isActive ? cat.color : "rgba(255,255,255,0.5)", transition: "all 0.2s", textShadow: isActive ? "0 0 20px " + cat.glow + "0.5), 0 0 40px " + cat.glow + "0.12)" : "none" }}>{item.l}</span>
+              {isActive && <div style={{ width: 5, height: 5, borderRadius: "50%", background: cat.color, marginLeft: "auto", boxShadow: "0 0 8px " + cat.color + "70, 0 0 16px " + cat.color + "30" }} />}
             </div>;
           })}
         </div>;
@@ -374,7 +374,7 @@ function Sidebar({ active, onNav, onAskPoast }) {
 
     {/* Footer */}
     <div style={{ padding: "14px 18px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-      <div style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v1.1 // SEMIANALYSIS</div>
+      <div style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v2.0 // SEMIANALYSIS</div>
     </div>
   </div>);
 }
