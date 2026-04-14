@@ -2,8 +2,9 @@
 "use client";
 import { useState, useEffect, useMemo, Fragment } from "react";
 
-var AMB = "#F7B041", BLU = "#0B86D1", BG0 = "#08090D", BG1 = "#0D0F14", BDR = "#1a1d25", GRN = "#22c55e", RED = "#ef4444", CYN = "#06b6d4";
-var FONT = "'JetBrains Mono','SF Mono',monospace";
+var AMB = "#F7B041", BLU = "#0B86D1", BG0 = "#060608", BG1 = "#09090D", BDR = "rgba(255,255,255,0.06)", GRN = "#2EAD8E", RED = "#E06347", CYN = "#26C9D8";
+var FONT = "'Outfit',sans-serif";
+var MONO = "'JetBrains Mono',monospace";
 var TC = {"Cloud/Infra":"#3b82f6","AI/ML":"#8b5cf6","Hardware":"#ef4444","GPU Optimization":"#f97316","Internal":"#6b7280","AI Safety":"#f59e0b","Neocloud":"#0ea5e9","AMD Ecosystem":"#dc2626","Energy/Infra":"#22c55e"};
 var TL = {1:"Flagship",2:"Strong",3:"Standard"};
 var DYLAN_SYS = "You write social captions for SemiAnalysis. Match this voice exactly.\n\nRULES:\n- Lead with a number or specific claim. A fact, not a vibe.\n- Casual, informed. Short sentences.\n- NEVER hashtags on X.\n- No marketing language. No breaks down or deep-dive or explores.\n- No em dashes. No emojis.\n- X hook: 1 sentence, no link, no hashtags.\n- X reply: just the link.\n- LinkedIn: 3-5 sentences with guest context.\n- Facebook: 3-5 sentences, conversational.\n- Story: one short line.";
@@ -41,9 +42,9 @@ var SAIL_EPS=[
 {guest:"Caia Costello",company:"Lambda AI",host:"Caithrin Rintoul"},
 ];
 
-function Badge(p){return <span style={{display:"inline-block",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:4,background:p.bg,color:p.c||"#fff",letterSpacing:.5}}>{p.children}</span>}
-function Btn(p){return <button onClick={p.onClick} style={{padding:"6px 14px",border:p.on?"2px solid "+AMB:"1px solid "+BDR,borderRadius:6,background:p.on?AMB+"18":"transparent",color:p.on?AMB:"#6b7280",cursor:"pointer",fontFamily:FONT,fontSize:12,fontWeight:p.on?700:400,...(p.sx||{})}}>{p.children}</button>}
-function Chk(p){return <span onClick={p.onClick} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:22,height:22,borderRadius:4,border:"2px solid "+(p.on?GRN:BDR),background:p.on?GRN+"30":"transparent",cursor:"pointer",fontSize:12,color:p.on?GRN:"#4b5563",userSelect:"none",fontWeight:700}}>{p.on?"\u2713":""}</span>}
+function Badge(p){return <span style={{display:"inline-block",fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:6,background:p.bg,color:p.c||"#fff",letterSpacing:.5,fontFamily:FONT}}>{p.children}</span>}
+function Btn(p){return <button onClick={p.onClick} style={{padding:"8px 16px",border:p.on?"1px solid "+AMB+"50":"1px solid "+BDR,borderRadius:8,background:p.on?AMB+"12":"rgba(255,255,255,0.02)",color:p.on?AMB:"rgba(255,255,255,0.4)",cursor:"pointer",fontFamily:FONT,fontSize:13,fontWeight:p.on?700:500,transition:"all 0.15s",...(p.sx||{})}}>{p.children}</button>}
+function Chk(p){return <span onClick={p.onClick} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:6,border:"2px solid "+(p.on?GRN:BDR),background:p.on?GRN+"20":"transparent",cursor:"pointer",fontSize:12,color:p.on?GRN:"rgba(255,255,255,0.25)",userSelect:"none",fontWeight:700,transition:"all 0.15s"}}>{p.on?"\u2713":""}</span>}
 
 export default function GTCFlow(){
   var [view,setView]=useState("dash");
@@ -92,12 +93,11 @@ export default function GTCFlow(){
 
   if(view==="ep"&&sel)return <EpDet ep={sel} cad={cad} onBack={function(){setView("dash");setSel(null)}}/>;
 
-  return(<div style={{fontFamily:FONT,background:BG0,color:"#e5e7eb",minHeight:"100vh"}}><div style={{maxWidth:1140,margin:"0 auto",padding:"28px 24px 60px"}}>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
-      <div style={{display:"flex",alignItems:"center",gap:10}}>
-        <svg width={28} height={28} viewBox="0 0 80 80"><circle cx="40" cy="40" r="28" fill={AMB} opacity=".22"/><text x="40" y="52" textAnchor="middle" fontSize="36" fill={AMB} fontWeight="900">P</text></svg>
-        <div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:18,fontWeight:900,color:AMB}}>POSTY</span><span style={{fontSize:10,color:"#4b5563",letterSpacing:2}}>// v4</span></div>
-        <div style={{fontSize:10,color:"#374151",letterSpacing:1}}>WED 8AM PST // CLIPS THU+TUE 10AM PST</div></div>
+  return(<div style={{fontFamily:FONT,color:"#E8E4DD"}}><div style={{maxWidth:1140,margin:"0 auto",padding:"28px 32px 60px"}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24,flexWrap:"wrap",gap:10}}>
+      <div>
+        <div style={{fontSize:28,fontWeight:900,color:"#E8E4DD",letterSpacing:-1}}>GTC Flow</div>
+        <div style={{fontFamily:MONO,fontSize:10,fontWeight:600,color:"rgba(255,255,255,0.25)",letterSpacing:2,marginTop:2}}>WED 8AM PST // CLIPS THU+TUE 10AM PST</div>
       </div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         <Btn on={subV==="timeline"} onClick={function(){setSubV("timeline")}}>Timeline</Btn>
@@ -108,18 +108,19 @@ export default function GTCFlow(){
     </div>
 
     <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginBottom:14}}>
-      <span style={{fontSize:10,color:"#4b5563",letterSpacing:1.5}}>CADENCE</span>
-      {CADENCES.map(function(c,i){return <button key={i} disabled={cadLocked&&i!==cadIdx} onClick={function(){if(!cadLocked)setCadIdx(i)}} style={{padding:"4px 12px",border:i===cadIdx?"2px solid "+AMB:"1px solid "+BDR,borderRadius:5,background:i===cadIdx?AMB+"18":"transparent",color:i===cadIdx?AMB:"#4b5563",cursor:cadLocked&&i!==cadIdx?"not-allowed":"pointer",fontFamily:FONT,fontSize:11,opacity:cadLocked&&i!==cadIdx?.4:1}}>{c.label}</button>})}
-      <button onClick={function(){setCadLocked(!cadLocked)}} style={{padding:"3px 10px",border:"1px solid "+(cadLocked?GRN:RED),borderRadius:4,background:"transparent",color:cadLocked?GRN:RED,cursor:"pointer",fontFamily:FONT,fontSize:10}}>{cadLocked?"Locked":"Unlock"}</button>
-      <span style={{width:1,height:16,background:BDR,margin:"0 6px"}}/>
-      <span style={{fontSize:10,color:"#4b5563",letterSpacing:1.5}}>HOST</span>
-      <select value={hostF} onChange={function(e){setHostF(e.target.value)}} style={{padding:"4px 8px",background:BG1,border:"1px solid "+BDR,borderRadius:5,color:AMB,fontFamily:FONT,fontSize:11}}>{HOSTS.map(function(h){return <option key={h} value={h}>{h}</option>})}</select>
-      <span style={{fontSize:10,color:"#4b5563",letterSpacing:1.5}}>TOPIC</span>
-      <select value={tagF} onChange={function(e){setTagF(e.target.value)}} style={{padding:"4px 8px",background:BG1,border:"1px solid "+BDR,borderRadius:5,color:BLU,fontFamily:FONT,fontSize:11}}><option value="All">All</option>{allTags.map(function(t){return <option key={t} value={t}>{t}</option>})}</select>
+      <span style={{fontFamily:MONO,fontSize:10,fontWeight:600,color:"rgba(255,255,255,0.25)",letterSpacing:2}}>CADENCE</span>
+      {CADENCES.map(function(c,i){return <button key={i} disabled={cadLocked&&i!==cadIdx} onClick={function(){if(!cadLocked)setCadIdx(i)}} style={{padding:"6px 14px",border:i===cadIdx?"1px solid "+AMB+"50":"1px solid "+BDR,borderRadius:8,background:i===cadIdx?AMB+"12":"rgba(255,255,255,0.02)",color:i===cadIdx?AMB:"rgba(255,255,255,0.3)",cursor:cadLocked&&i!==cadIdx?"not-allowed":"pointer",fontFamily:FONT,fontSize:12,fontWeight:i===cadIdx?700:500,opacity:cadLocked&&i!==cadIdx?.3:1,transition:"all 0.15s"}}>{c.label}</button>})}
+      <button onClick={function(){setCadLocked(!cadLocked)}} style={{padding:"5px 12px",border:"1px solid "+(cadLocked?GRN+"40":RED+"40"),borderRadius:8,background:"transparent",color:cadLocked?GRN:RED,cursor:"pointer",fontFamily:FONT,fontSize:11,fontWeight:600,transition:"all 0.15s"}}>{cadLocked?"Locked":"Unlock"}</button>
+      <span style={{width:1,height:16,background:BDR,margin:"0 8px"}}/>
+      <span style={{fontFamily:MONO,fontSize:10,fontWeight:600,color:"rgba(255,255,255,0.25)",letterSpacing:2}}>HOST</span>
+      <select value={hostF} onChange={function(e){setHostF(e.target.value)}} style={{padding:"6px 10px",background:"#09090D",border:"1px solid "+BDR,borderRadius:8,color:AMB,fontFamily:FONT,fontSize:12}}>{HOSTS.map(function(h){return <option key={h} value={h}>{h}</option>})}</select>
+      <span style={{fontFamily:MONO,fontSize:10,fontWeight:600,color:"rgba(255,255,255,0.25)",letterSpacing:2}}>TOPIC</span>
+      <select value={tagF} onChange={function(e){setTagF(e.target.value)}} style={{padding:"6px 10px",background:"#09090D",border:"1px solid "+BDR,borderRadius:8,color:BLU,fontFamily:FONT,fontSize:12}}><option value="All">All</option>{allTags.map(function(t){return <option key={t} value={t}>{t}</option>})}</select>
     </div>
 
-    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:16,padding:14,background:BG1,borderRadius:8,border:"1px solid "+BDR}}>
-      {[{l:"Published",v:pub.length,c:GRN},{l:"Remaining",v:sched.length,c:AMB},{l:"Cadence",v:cad.label,c:"#9ca3af"},{l:"Full Ep",v:"8AM PST",c:AMB},{l:"Clips",v:"10AM PST",c:BLU}].map(function(s,i){return <div key={i} style={{textAlign:"center"}}><div style={{fontSize:16,fontWeight:900,color:s.c}}>{s.v}</div><div style={{fontSize:8,color:"#4b5563",textTransform:"uppercase",letterSpacing:1}}>{s.l}</div></div>})}
+    {/* Stats */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:20,padding:18,background:"#09090D",borderRadius:10,border:"1px solid "+BDR}}>
+      {[{l:"Published",v:pub.length,c:GRN},{l:"Remaining",v:sched.length,c:AMB},{l:"Cadence",v:cad.label,c:"rgba(255,255,255,0.55)"},{l:"Full Ep",v:"8AM PST",c:AMB},{l:"Clips",v:"10AM PST",c:BLU}].map(function(s,i){return <div key={i} style={{textAlign:"center"}}><div style={{fontFamily:MONO,fontSize:22,fontWeight:900,color:s.c}}>{s.v}</div><div style={{fontFamily:MONO,fontSize:9,fontWeight:600,color:"rgba(255,255,255,0.2)",textTransform:"uppercase",letterSpacing:1.5,marginTop:4}}>{s.l}</div></div>})}
     </div>
 
     {pub.length>0&&<div style={{marginBottom:16,padding:12,background:GRN+"08",borderRadius:8,border:"1px solid "+GRN+"30"}}>
@@ -212,8 +213,8 @@ function EpDet(p){var ep=p.ep,cad=p.cad,onBack=p.onBack;
   async function gKit(){setGenK(true);var r=await callAPI(DYLAN_SYS,"Episode launch.\nYT desc: informative, 150 words, include bio. NOT casual.\nX: 1 sentence casual, no link.\nLinkedIn: 3-5 sentences, guest context, why it matters.\nFacebook: 3-5 sentences, conversational.\nStory: 1 line.\n\nGuest: "+ep.guest+", "+ep.title+" at "+ep.company+"\nHost: "+ep.host+"\nBio: "+ep.bio+"\nTopics: "+(ep.topics||"general")+"\nFormat: "+(ep.virtual?"Virtual Riverside":"GTC 2026"));setKitOut(r);setGenK(false)}
   async function gClip(){setGenC(true);var r=await callAPI(DYLAN_SYS,"2 clips. All casual.\nGuest: "+ep.guest+" ("+ep.company+")\n\nCLIP 1:\n"+(c1||"[no transcript]")+"\n\nCLIP 2:\n"+(c2||"[no transcript]")+"\n\nEach clip: X (no hashtags), YT Shorts (title<40 + #shorts), IG Reels (save CTA + 5-8 hashtags + San Jose), TikTok (lowercase + 4-6 hashtags + on-screen 0s/3s/6s), Story (1 line).\nClip1 Thu 10AM, Clip2 Tue 10AM. TikTok stagger 4-6hr.");setClipOut(r);setGenC(false)}
 
-  return <div style={{fontFamily:FONT,background:BG0,color:"#e5e7eb",minHeight:"100vh"}}><div style={{maxWidth:880,margin:"0 auto",padding:"28px 24px 60px"}}>
-    <button onClick={onBack} style={{background:"none",border:"1px solid "+BDR,color:"#6b7280",padding:"8px 16px",borderRadius:6,cursor:"pointer",fontFamily:FONT,fontSize:12,marginBottom:20}}>Back</button>
+  return <div style={{fontFamily:FONT,color:"#E8E4DD"}}><div style={{maxWidth:960,margin:"0 auto",padding:"28px 32px 60px"}}>
+    <button onClick={onBack} style={{background:"rgba(255,255,255,0.02)",border:"1px solid "+BDR,color:"rgba(255,255,255,0.4)",padding:"10px 20px",borderRadius:8,cursor:"pointer",fontFamily:FONT,fontSize:13,fontWeight:600,marginBottom:24,transition:"all 0.15s"}}>Back</button>
     <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:6,flexWrap:"wrap"}}>
       <Badge bg={AMB} c="#0D0F14">SA</Badge>
       <span style={{fontSize:10,padding:"3px 8px",borderRadius:4,border:"1px solid "+tc+"50",color:tc}}>{ep.tag}</span>
