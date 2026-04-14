@@ -592,9 +592,127 @@ export default function SlopTop() {
     }
   };
 
+  // Arxiv queue state
+  var _arxivInput = useState(""), arxivInput = _arxivInput[0], setArxivInput = _arxivInput[1];
+  var _arxivQueue = useState([]), arxivQueue = _arxivQueue[0], setArxivQueue = _arxivQueue[1];
+  var _arxivMsg = useState(null), arxivMsg = _arxivMsg[0], setArxivMsg = _arxivMsg[1];
+  var _arxivToast = useState(null), arxivToast = _arxivToast[0], setArxivToast = _arxivToast[1];
+  var _arxivReadyCount = useState(0), arxivReadyCount = _arxivReadyCount[0], setArxivReadyCount = _arxivReadyCount[1];
+
+  // Load arxiv queue from localStorage on mount
+  useEffect(function() {
+    try {
+      var stored = localStorage.getItem("sloptop-arxiv-queue");
+      if (stored) {
+        var parsed = JSON.parse(stored);
+        setArxivQueue(parsed);
+        var rc = parsed.filter(function(j) { return j.status === "ready"; }).length;
+        setArxivReadyCount(rc);
+      }
+    } catch (e) { /* ignore */ }
+  }, []);
+
+  // Save arxiv queue to localStorage on change
+  useEffect(function() {
+    if (arxivQueue.length > 0) {
+      try { localStorage.setItem("sloptop-arxiv-queue", JSON.stringify(arxivQueue)); } catch (e) { /* ignore */ }
+    } else {
+      try { localStorage.removeItem("sloptop-arxiv-queue"); } catch (e) { /* ignore */ }
+    }
+    var rc = arxivQueue.filter(function(j) { return j.status === "ready"; }).length;
+    setArxivReadyCount(rc);
+  }, [arxivQueue]);
+
+  // Polling: every 60s, check processing jobs
+  useEffect(function() {
+    var interval = setInterval(function() {
+      setArxivQueue(function(prev) {
+        var processing = prev.filter(function(j) { return j.status === "processing"; });
+        if (processing.length === 0) return prev;
+        processing.forEach(function(job) {
+          fetch("/api/arxiv-check?paperId=" + encodeURIComponent(job.paperId))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (data.ready) {
+                setArxivQueue(function(curr) {
+                  return curr.map(function(j) {
+                    if (j.paperId === job.paperId && j.status === "processing") {
+                      return Object.assign({}, j, { status: "ready", title: data.title || j.title });
+                    }
+                    return j;
+                  });
+                });
+                setArxivToast("Your arxiv slop is ready! Paper " + job.paperId);
+                setTimeout(function() { setArxivToast(null); }, 8000);
+              }
+            })
+            .catch(function() { /* ignore polling errors */ });
+        });
+        return prev;
+      });
+    }, 60000);
+    return function() { clearInterval(interval); };
+  }, []);
+
+  function extractPaperId(input) {
+    var trimmed = input.trim();
+    // Strip common arxiv URL prefixes
+    var prefixes = ["https://arxiv.org/abs/", "http://arxiv.org/abs/", "https://arxiv.org/pdf/", "http://arxiv.org/pdf/", "https://arxiv.lol/", "http://arxiv.lol/"];
+    for (var i = 0; i < prefixes.length; i++) {
+      if (trimmed.startsWith(prefixes[i])) {
+        trimmed = trimmed.slice(prefixes[i].length);
+        break;
+      }
+    }
+    // Remove trailing .pdf or slashes
+    trimmed = trimmed.replace(/\.pdf$/, "").replace(/\/$/, "");
+    return trimmed;
+  }
+
+  function handleArxivSubmit() {
+    if (!arxivInput.trim()) return;
+    var paperId = extractPaperId(arxivInput);
+    if (!paperId) return;
+
+    // Open the arxiv.lol page in a new tab
+    window.open("https://arxiv.lol/" + paperId, "_blank");
+
+    // Add to queue
+    var newJob = {
+      paperId: paperId,
+      status: "processing",
+      submittedAt: Date.now(),
+      title: null,
+    };
+    setArxivQueue(function(prev) { return [newJob].concat(prev); });
+    setArxivInput("");
+    setArxivMsg("Submitted! arxiv.lol takes 5-10 minutes to generate. We'll check automatically.");
+    setTimeout(function() { setArxivMsg(null); }, 10000);
+  }
+
+  function handleArxivRemove(paperId) {
+    setArxivQueue(function(prev) { return prev.filter(function(j) { return j.paperId !== paperId; }); });
+  }
+
+  function handleArxivCheckNow(paperId) {
+    window.open("https://arxiv.lol/" + paperId, "_blank");
+  }
+
+  function getTimeAgo(ts) {
+    var diff = Date.now() - ts;
+    var mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins === 1) return "1 min ago";
+    if (mins < 60) return mins + " min ago";
+    var hrs = Math.floor(mins / 60);
+    if (hrs === 1) return "1 hr ago";
+    return hrs + " hrs ago";
+  }
+
   var TABS = [
     { id: "meme", l: "Meme Maker \uD83D\uDC80" },
     { id: "brief", l: "Brief Generator \uD83D\uDCCB" },
+    { id: "arxiv", l: "arxiv.lol \uD83D\uDCC4", ic: "" },
   ];
 
   // ═══ GLOBAL ANIMATIONS ═══
@@ -619,6 +737,11 @@ export default function SlopTop() {
     "input[type=range].brainrot-slider:hover{opacity:1}",
     "input[type=range].brainrot-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#F7B041,#E06347);cursor:pointer;border:2px solid #fff;animation:sliderThumbPulse 1.5s ease-in-out infinite}",
     "input[type=range].brainrot-slider::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#F7B041,#E06347);cursor:pointer;border:2px solid #fff;animation:sliderThumbPulse 1.5s ease-in-out infinite}",
+    "@keyframes amberPulse{0%,100%{opacity:0.6;box-shadow:0 0 4px rgba(247,176,65,0.3)}50%{opacity:1;box-shadow:0 0 12px rgba(247,176,65,0.6)}}",
+    "@keyframes greenGlow{0%,100%{box-shadow:0 0 8px rgba(46,173,142,0.2)}50%{box-shadow:0 0 20px rgba(46,173,142,0.5),0 0 40px rgba(46,173,142,0.2)}}",
+    "@keyframes toastSlide{0%{transform:translateY(-20px);opacity:0}10%{transform:translateY(0);opacity:1}90%{transform:translateY(0);opacity:1}100%{transform:translateY(-20px);opacity:0}}",
+    "@keyframes paperFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}",
+    "@keyframes readyBounce{0%{transform:scale(1)}50%{transform:scale(1.05)}100%{transform:scale(1)}}",
   ].join("\n");
 
   return <div style={{
@@ -677,16 +800,35 @@ export default function SlopTop() {
       </div>
     </div>
 
+    {/* ═══ TOAST NOTIFICATION ═══ */}
+    {arxivToast && <div style={{
+      position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", zIndex: 9999,
+      padding: "14px 28px", borderRadius: 12,
+      background: "linear-gradient(135deg, " + D.teal + "20, " + D.card + "F0)",
+      border: "1px solid " + D.teal + "60",
+      boxShadow: "0 8px 32px rgba(46,173,142,0.3), 0 0 60px rgba(46,173,142,0.1)",
+      fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.teal,
+      animation: "toastSlide 8s ease-in-out forwards",
+      display: "flex", alignItems: "center", gap: 10,
+      backdropFilter: "blur(12px)",
+    }}>
+      <span style={{ fontSize: 20 }}>{"\uD83D\uDCC4"}</span>
+      {arxivToast}
+      <span onClick={function() { setArxivToast(null); }} style={{ cursor: "pointer", marginLeft: 8, color: D.txm, fontSize: 16 }}>{"\u2715"}</span>
+    </div>}
+
     {/* ═══ TABS ═══ */}
     <div style={{ display: "flex", gap: 0, marginBottom: 28, borderBottom: "1px solid " + D.border }}>
       {TABS.map(function(t) {
         var on = tab === t.id;
         var isMemeMaker = t.id === "meme";
+        var isArxiv = t.id === "arxiv";
         return <div key={t.id} onClick={function() { setTab(t.id); }} style={{
           padding: "12px 24px", cursor: "pointer", fontFamily: ft, fontSize: 14, fontWeight: on ? 800 : 500,
           color: on ? D.amber : D.txm, borderBottom: on ? "2px solid " + D.amber : "2px solid transparent",
           transition: "all 0.2s", display: "flex", alignItems: "center", gap: 6,
           background: on && isMemeMaker ? "linear-gradient(135deg, rgba(247,176,65,0.05), transparent)" : "transparent",
+          position: "relative",
         }}>
           {isMemeMaker && on ? <span style={{
             background: "linear-gradient(135deg, " + D.amber + ", " + D.violet + ")",
@@ -695,6 +837,13 @@ export default function SlopTop() {
             backgroundClip: "text",
             fontWeight: 900,
           }}>{t.l}</span> : t.l}
+          {isArxiv && arxivReadyCount > 0 && <span style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            marginLeft: 6, padding: "2px 8px", borderRadius: 10,
+            background: D.teal + "20", border: "1px solid " + D.teal + "50",
+            fontFamily: mn, fontSize: 9, fontWeight: 800, color: D.teal,
+            animation: "readyBounce 2s ease-in-out infinite",
+          }}>{arxivReadyCount + " ready"}</span>}
         </div>;
       })}
     </div>
@@ -1237,5 +1386,189 @@ export default function SlopTop() {
       </div>
     </div>
     </div>}
+
+    {/* ═══ TAB: ARXIV.LOL ═══ */}
+    {tab === "arxiv" && <div style={{
+      background: "linear-gradient(180deg, rgba(255,253,245,0.02) 0%, rgba(247,176,65,0.03) 50%, rgba(144,92,203,0.02) 100%)",
+      borderRadius: 16, padding: 4,
+    }}>
+      {/* Academic Header */}
+      <div style={{
+        padding: "28px 32px", borderRadius: 14, marginBottom: 24,
+        background: "linear-gradient(135deg, rgba(247,176,65,0.06), " + D.card + ", rgba(144,92,203,0.04))",
+        border: "1px solid " + D.amber + "20",
+        position: "relative", overflow: "hidden",
+      }}>
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+          background: "repeating-linear-gradient(0deg, transparent, transparent 28px, rgba(255,255,255,0.01) 28px, rgba(255,255,255,0.01) 29px)",
+          pointerEvents: "none",
+        }} />
+        <div style={{ position: "relative" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+            <span style={{ fontSize: 28, animation: "paperFloat 3s ease-in-out infinite" }}>{"\uD83D\uDCC4"}</span>
+            <div style={{
+              fontFamily: ft, fontSize: 26, fontWeight: 900, letterSpacing: -0.5,
+              background: "linear-gradient(135deg, " + D.amber + ", " + D.violet + ")",
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
+            }}>arxiv.lol</div>
+            <span style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginLeft: 4 }}>// peer reviewed by AI</span>
+          </div>
+          <div style={{ fontFamily: mn, fontSize: 11, color: D.txm, lineHeight: 1.6 }}>
+            turn any research paper into a meme masterpiece. citation needed: this goes hard.
+          </div>
+        </div>
+      </div>
+
+      {/* Submit Section */}
+      <div style={{
+        background: D.card, border: "1px solid " + D.border, borderRadius: 14,
+        padding: "24px 28px", marginBottom: 24,
+      }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
+          <span>{"\uD83D\uDD17"}</span> Submit Paper <span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// your paper just got slopped</span>
+        </div>
+        <div style={{ display: "flex", gap: 12 }}>
+          <input
+            type="text"
+            value={arxivInput}
+            onChange={function(e) { setArxivInput(e.target.value); }}
+            onKeyDown={function(e) { if (e.key === "Enter") handleArxivSubmit(); }}
+            placeholder="Paste arxiv URL or paper ID (e.g. 2506.05869)"
+            style={{
+              flex: 1, padding: "14px 20px", borderRadius: 10,
+              background: D.surface, border: "2px solid " + D.border,
+              color: D.tx, fontFamily: mn, fontSize: 14, outline: "none", boxSizing: "border-box",
+              transition: "border 0.2s",
+            }}
+            onFocus={function(e) { e.target.style.borderColor = D.amber; }}
+            onBlur={function(e) { e.target.style.borderColor = D.border; }}
+          />
+          <button
+            onClick={handleArxivSubmit}
+            disabled={!arxivInput.trim()}
+            style={{
+              padding: "14px 28px", borderRadius: 10, border: "none",
+              cursor: !arxivInput.trim() ? "not-allowed" : "pointer",
+              background: !arxivInput.trim() ? D.border : "linear-gradient(135deg, " + D.amber + ", " + D.violet + ")",
+              color: "#fff", fontFamily: ft, fontSize: 14, fontWeight: 800,
+              opacity: !arxivInput.trim() ? 0.4 : 1, flexShrink: 0,
+              boxShadow: arxivInput.trim() ? "0 4px 16px " + D.amber + "30" : "none",
+              animation: arxivInput.trim() ? "buttonGlow 2s ease-in-out infinite" : "none",
+              transition: "all 0.2s",
+            }}
+          >Submit to arxiv.lol {"\uD83D\uDCC4"}</button>
+        </div>
+        {arxivMsg && <div style={{
+          marginTop: 14, padding: "12px 16px", borderRadius: 8,
+          background: D.teal + "10", border: "1px solid " + D.teal + "30",
+          fontFamily: ft, fontSize: 12, fontWeight: 600, color: D.teal,
+          animation: "successPop 0.4s ease-out",
+        }}>{"\u2705"} {arxivMsg}</div>}
+      </div>
+
+      {/* Queue / Jobs Section */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.violet, letterSpacing: 2, textTransform: "uppercase", marginBottom: 16, display: "flex", alignItems: "center", gap: 6 }}>
+          <span>{"\uD83D\uDCDA"}</span> Slop Queue <span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// {arxivQueue.length} paper{arxivQueue.length !== 1 ? "s" : ""} in the lab</span>
+        </div>
+
+        {arxivQueue.length === 0 && <div style={{
+          background: D.card, border: "1px solid " + D.border, borderRadius: 12,
+          padding: "60px 40px", textAlign: "center",
+        }}>
+          <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}>{"\uD83D\uDCC4"}</div>
+          <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 600, color: D.txd }}>No papers in the slop queue</div>
+          <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginTop: 6 }}>submit a paper above to start the slopping process</div>
+        </div>}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {arxivQueue.map(function(job) {
+            var isReady = job.status === "ready";
+            var isProcessing = job.status === "processing";
+            return <div key={job.paperId + "-" + job.submittedAt} style={{
+              background: D.card,
+              border: "1px solid " + (isReady ? D.teal + "50" : D.border),
+              borderRadius: 12, padding: "20px 24px",
+              transition: "all 0.3s",
+              animation: isReady ? "greenGlow 2s ease-in-out infinite" : "none",
+              position: "relative", overflow: "hidden",
+            }}>
+              {/* Paper texture lines for academic vibe */}
+              <div style={{
+                position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                background: isReady
+                  ? "linear-gradient(135deg, rgba(46,173,142,0.03), transparent, rgba(46,173,142,0.02))"
+                  : "linear-gradient(135deg, rgba(247,176,65,0.02), transparent)",
+                pointerEvents: "none",
+              }} />
+
+              <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                    <span style={{
+                      fontFamily: mn, fontSize: 16, fontWeight: 800,
+                      color: isReady ? D.teal : D.amber,
+                      letterSpacing: 0.5,
+                    }}>{job.paperId}</span>
+                    {/* Status Badge */}
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                      padding: "3px 10px", borderRadius: 8,
+                      background: isReady ? D.teal + "18" : D.amber + "14",
+                      border: "1px solid " + (isReady ? D.teal + "40" : D.amber + "30"),
+                      fontFamily: mn, fontSize: 10, fontWeight: 700,
+                      color: isReady ? D.teal : D.amber,
+                      animation: isProcessing ? "amberPulse 2s ease-in-out infinite" : "none",
+                    }}>
+                      {isReady ? "\u2705 Ready!" : "\u23F3 Processing..."}
+                    </span>
+                  </div>
+                  {job.title && <div style={{
+                    fontFamily: ft, fontSize: 12, color: D.tx, marginBottom: 4, fontWeight: 600,
+                  }}>{job.title}</div>}
+                  <div style={{ fontFamily: mn, fontSize: 10, color: D.txd }}>
+                    Submitted {getTimeAgo(job.submittedAt)}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                  {isReady && <button onClick={function() { window.open("https://arxiv.lol/" + job.paperId, "_blank"); }} style={{
+                    padding: "8px 16px", borderRadius: 8, border: "none",
+                    background: "linear-gradient(135deg, " + D.teal + ", " + D.cyan + ")",
+                    color: "#fff", fontFamily: ft, fontSize: 11, fontWeight: 800, cursor: "pointer",
+                    boxShadow: "0 4px 12px " + D.teal + "30",
+                    animation: "readyBounce 2s ease-in-out infinite",
+                  }}>View Meme {"\uD83D\uDD25"}</button>}
+                  {isProcessing && <button onClick={function() { handleArxivCheckNow(job.paperId); }} style={{
+                    padding: "8px 16px", borderRadius: 8,
+                    border: "1px solid " + D.amber + "40",
+                    background: D.amber + "10",
+                    color: D.amber, fontFamily: ft, fontSize: 11, fontWeight: 700, cursor: "pointer",
+                    transition: "all 0.15s",
+                  }}>Check Now {"\u2197\uFE0F"}</button>}
+                  <button onClick={function() { handleArxivRemove(job.paperId); }} style={{
+                    padding: "8px 16px", borderRadius: 8,
+                    border: "1px solid " + D.border,
+                    background: "transparent",
+                    color: D.txm, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer",
+                    transition: "all 0.15s",
+                  }}>Remove</button>
+                </div>
+              </div>
+            </div>;
+          })}
+        </div>
+      </div>
+
+      {/* Academic Chaos Footer */}
+      <div style={{
+        textAlign: "center", padding: "16px 0",
+        fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 1,
+      }}>
+        // powered by brainrot // peer reviewed by nobody // citation needed: this goes hard //
+      </div>
+    </div>}
+
   </div>;
 }
