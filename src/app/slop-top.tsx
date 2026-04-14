@@ -599,6 +599,217 @@ export default function SlopTop() {
   var _arxivToast = useState(null), arxivToast = _arxivToast[0], setArxivToast = _arxivToast[1];
   var _arxivReadyCount = useState(0), arxivReadyCount = _arxivReadyCount[0], setArxivReadyCount = _arxivReadyCount[1];
 
+  // Factory state
+  var _factoryPhase = useState("idle"), factoryPhase = _factoryPhase[0], setFactoryPhase = _factoryPhase[1];
+  var _factoryFormat = useState("lego"), factoryFormat = _factoryFormat[0], setFactoryFormat = _factoryFormat[1];
+  var _factoryInput = useState(""), factoryInput = _factoryInput[0], setFactoryInput = _factoryInput[1];
+  var _factoryImagePrompt = useState(""), factoryImagePrompt = _factoryImagePrompt[0], setFactoryImagePrompt = _factoryImagePrompt[1];
+  var _factoryVideoPrompt = useState(""), factoryVideoPrompt = _factoryVideoPrompt[0], setFactoryVideoPrompt = _factoryVideoPrompt[1];
+  var _factoryImageUrl = useState(null), factoryImageUrl = _factoryImageUrl[0], setFactoryImageUrl = _factoryImageUrl[1];
+  var _factoryVideoUrl = useState(null), factoryVideoUrl = _factoryVideoUrl[0], setFactoryVideoUrl = _factoryVideoUrl[1];
+  var _factoryCredits = useState(0), factoryCredits = _factoryCredits[0], setFactoryCredits = _factoryCredits[1];
+  var _factoryError = useState(null), factoryError = _factoryError[0], setFactoryError = _factoryError[1];
+  var _factoryPromptEditing = useState(false), factoryPromptEditing = _factoryPromptEditing[0], setFactoryPromptEditing = _factoryPromptEditing[1];
+  var _factoryVideoPromptEditing = useState(false), factoryVideoPromptEditing = _factoryVideoPromptEditing[0], setFactoryVideoPromptEditing = _factoryVideoPromptEditing[1];
+  var _factoryProgress = useState(0), factoryProgress = _factoryProgress[0], setFactoryProgress = _factoryProgress[1];
+
+  var FACTORY_FORMATS = [
+    { id: "lego", label: "Lego World", emoji: "\uD83E\uDDF1", color: "#FFD700", cost: 1,
+      placeholder: "A CEO giving a keynote speech...",
+      imageSystem: "You are a creative prompt engineer for Grok image generation. The user wants their subject placed in a Lego universe. Write a detailed Grok image prompt (100 words) that transforms the subject into Lego minifigure form in a fully Lego-built environment. Include Lego brick textures, stud details on surfaces, bright primary colors, dramatic Lego lighting. Make it look like an official Lego set box art photo. Include specific Lego details: brick walls, baseplate ground, minifigure proportions with claw hands and C-shaped grip. The scene should be cinematic and high quality.",
+      videoSystem: "You are a creative prompt engineer for video generation. The user has an approved Lego-style image. Write a video animation prompt that brings this Lego scene to life with stop-motion style movement, slight wobble of minifigures, bricks clicking into place, smooth camera pan across the Lego diorama. Keep the charming stop-motion aesthetic throughout." },
+    { id: "minecraft", label: "Minecraft Day", emoji: "\u26CF\uFE0F", color: "#5B8731", cost: 1,
+      placeholder: "A scientist discovering a new element...",
+      imageSystem: "You are a creative prompt engineer for Grok image generation. The user wants their subject in a Minecraft block world. Write a detailed Grok image prompt (100 words) that transforms everything into Minecraft voxel art style. Blocky terrain, pixelated textures, 16x16 texture resolution feel, cubic trees and clouds, torch lighting with warm glow, inventory bar at bottom. The subject should be rendered as a Minecraft skin/character in a recognizable biome. Include details like block types, ore veins, crafting elements, and dramatic Minecraft sunset/sunrise lighting.",
+      videoSystem: "You are a creative prompt engineer for video generation. The user has an approved Minecraft-style image. Write a video prompt that animates this scene with Minecraft-style movement: blocky walking animations, block-breaking particles, day/night cycle transition, smooth camera rotation around the scene. Include ambient Minecraft sounds description." },
+    { id: "subway", label: "Subway Surfers Split", emoji: "\uD83D\uDD79\uFE0F", color: "#FF4500", cost: 1,
+      placeholder: "An explanation of quantum computing...",
+      imageSystem: "You are a creative prompt engineer for Grok image generation. The user wants a vertical split-screen image: meaningful content on top, Subway Surfers gameplay on the bottom third. Write a detailed Grok image prompt (100 words) for the TOP portion showing the subject in crisp, attention-grabbing style with bold text overlays and bright colors. The bottom third should show a stylized Subway Surfers-inspired endless runner scene with colorful trains, coins, and a running character. The split should look like a TikTok screen recording with the gameplay keeping viewers watching.",
+      videoSystem: "You are a creative prompt engineer for video generation. Write a video prompt for a vertical split-screen: the top shows the main content with text animations and transitions, while the bottom third has endless runner gameplay with a character dodging trains and collecting coins. Fast-paced, ADHD-optimized visual flow." },
+    { id: "npc", label: "NPC Skit", emoji: "\uD83E\uDD16", color: "#00BFFF", cost: 1,
+      placeholder: "A tech CEO announcing layoffs...",
+      imageSystem: "You are a creative prompt engineer for Grok image generation. The user wants their subject as an RPG NPC with game UI overlay. Write a detailed Grok image prompt (100 words) showing the subject as a video game NPC with a dialogue box at the bottom, health bar, quest marker floating above their head, inventory slots visible. Style it like a mix of Skyrim and retro JRPG aesthetics. Include XP counter, minimap in corner, quest log notification. The character should have slightly robotic NPC energy with that classic thousand-yard NPC stare. Add pixel art UI elements and a glowing interaction prompt.",
+      videoSystem: "You are a creative prompt engineer for video generation. Write a video prompt showing this NPC scene coming to life: the character does a subtle idle animation loop, dialogue text types out letter by letter, UI elements pulse and animate, quest marker bobs up and down. Camera slowly zooms in as if the player is approaching the NPC." },
+    { id: "sigma", label: "Sigma Grindset", emoji: "\uD83E\uDD85", color: "#C0A060", cost: 1,
+      placeholder: "Waking up at 4am to code...",
+      imageSystem: "You are a creative prompt engineer for Grok image generation. The user wants a cinematic lone wolf sigma aesthetic. Write a detailed Grok image prompt (100 words) showing the subject in ultra-cinematic, desaturated teal-and-orange color grading. Dramatic backlit silhouette, rain or city lights in background, stoic expression. Add motivational text overlay in bold sans-serif font. Think Patrick Bateman meets hustle culture. Include lens flare, shallow depth of field, and that specific sigma male energy of someone who chose this path. Dark, moody, but powerful. The composition should scream 'different breed'.",
+      videoSystem: "You are a creative prompt engineer for video generation. Write a video prompt for a sigma grindset edit: slow-motion walk with dramatic music cues, camera orbiting the subject, text overlays appearing with impact, desaturated color that shifts to full color at the climax. Cinematic letterbox bars, lens flares tracking across frame." },
+    { id: "ghibli", label: "Ghibli Day", emoji: "\uD83C\uDF3F", color: "#88C070", cost: 1,
+      placeholder: "A programmer debugging at midnight...",
+      imageSystem: "You are a creative prompt engineer for Grok image generation. The user wants their subject in Studio Ghibli animated style. Write a detailed Grok image prompt (100 words) that transforms the scene into a Hayao Miyazaki film frame. Soft watercolor backgrounds, gentle lighting with visible light rays, lush green nature elements, puffy cumulus clouds, warm nostalgic color palette. The subject should look like a Ghibli protagonist with large expressive eyes and simple but emotive features. Include signature Ghibli details: detailed food, cozy interiors, magical floating elements, and that specific peaceful-yet-wondrous atmosphere. Hand-painted texture throughout.",
+      videoSystem: "You are a creative prompt engineer for video generation. Write a video prompt that animates this Ghibli scene with gentle wind blowing through hair and grass, soft camera pan across a detailed landscape, magical particles floating in sunbeams, smooth character animation with Ghibli-style expressiveness. Peaceful, contemplative movement." },
+    { id: "lore", label: "Lore Drop", emoji: "\uD83D\uDCDC", color: "#DAA520", cost: 1,
+      placeholder: "The real reason GPU prices are rising...",
+      imageSystem: "You are a creative prompt engineer for Grok image generation. The user wants their subject presented as ancient lore or prophecy. Write a detailed Grok image prompt (100 words) showing the subject as if it were an ancient manuscript discovery, illuminated manuscript style with gold leaf borders, aged parchment texture, medieval illustrations, mysterious symbols and runes. Include a dramatic aged paper texture, wax seal, quill marks, and the content presented as a sacred text or prophecy scroll. Mix ancient aesthetic with the modern subject for comedic contrast. Dark academia meets shitpost energy.",
+      videoSystem: "You are a creative prompt engineer for video generation. Write a video prompt showing this ancient scroll being dramatically unrolled, camera slowly panning across illuminated text that glows, dust particles floating in candlelight, mysterious chanting ambiance, zoom into key prophecy text with dramatic reveal timing." },
+    { id: "brainrot_news", label: "Brain Rot News", emoji: "\uD83D\uDCFA", color: "#FF0000", cost: 1,
+      placeholder: "Scientists discover new form of matter...",
+      imageSystem: "You are a creative prompt engineer for Grok image generation. The user wants a breaking news broadcast aesthetic. Write a detailed Grok image prompt (100 words) showing the subject as a BREAKING NEWS broadcast: red and white news lower third banner, dramatic headline text, news anchor desk composition, live feed camera angle, 'BREAKING' and 'LIVE' badges, scrolling ticker at bottom, channel logo in corner. Make it look like a legitimate but absurd news broadcast. Include dramatic news lighting, teleprompter reflection in eyes, and that specific cable news urgency energy. The content should look like it interrupted regular programming.",
+      videoSystem: "You are a creative prompt engineer for video generation. Write a video prompt for a breaking news broadcast: camera shake as if something big just happened, news ticker scrolling, BREAKING NEWS banner animating in, dramatic zoom on the anchor, graphics flying in from sides. Fast cuts between angles, live feed static glitches." },
+  ];
+
+  var factoryAsk = function(systemPrompt, userPrompt) {
+    return fetch("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ system: systemPrompt, prompt: userPrompt }),
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      var text = (d.content || []).map(function(c) { return c.text || ""; }).join("");
+      if (!text) throw new Error("THE MACHINE RETURNED NOTHING. TRY AGAIN.");
+      return text;
+    });
+  };
+
+  var handleFactoryCraftPrompt = function() {
+    if (!factoryInput.trim()) return;
+    var fmt = FACTORY_FORMATS.find(function(f) { return f.id === factoryFormat; });
+    if (!fmt) return;
+    setFactoryPhase("crafting");
+    setFactoryError(null);
+    setFactoryImagePrompt("");
+    setFactoryPromptEditing(false);
+    factoryAsk(fmt.imageSystem, factoryInput.trim()).then(function(text) {
+      setFactoryImagePrompt(text);
+      setFactoryPhase("image_ready");
+    }).catch(function(e) {
+      setFactoryError(String(e.message || e));
+      setFactoryPhase("error");
+    });
+  };
+
+  var handleFactoryGenerateImage = function() {
+    if (!factoryImagePrompt.trim()) return;
+    setFactoryPhase("image_generating");
+    setFactoryError(null);
+    setFactoryImageUrl(null);
+    setFactoryProgress(0);
+    var progInterval = setInterval(function() {
+      setFactoryProgress(function(p) { return p < 90 ? p + Math.random() * 8 : p; });
+    }, 400);
+    fetch("/api/generate-thumbnail", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ concept: factoryImagePrompt, style: "cinematic" }),
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      clearInterval(progInterval);
+      setFactoryProgress(100);
+      if (d.url) {
+        setFactoryImageUrl(d.url);
+        setFactoryCredits(function(c) { return c + 1; });
+        setFactoryPhase("image_ready");
+      } else {
+        setFactoryError(d.error || "THE MACHINE RETURNED NOTHING. TRY AGAIN.");
+        setFactoryPhase("error");
+      }
+    }).catch(function(e) {
+      clearInterval(progInterval);
+      setFactoryError("CONNECTION LOST. CHECK YOUR SIGNAL.");
+      setFactoryPhase("error");
+    });
+  };
+
+  var handleFactoryVideoConfirm = function() {
+    setFactoryPhase("video_crafting");
+    setFactoryError(null);
+    setFactoryVideoPrompt("");
+    setFactoryVideoPromptEditing(false);
+    var fmt = FACTORY_FORMATS.find(function(f) { return f.id === factoryFormat; });
+    if (!fmt) return;
+    var combined = "The user described: " + factoryInput + "\n\nThe approved image prompt was: " + factoryImagePrompt + "\n\nNow write the video animation prompt.";
+    factoryAsk(fmt.videoSystem, combined).then(function(text) {
+      setFactoryVideoPrompt(text);
+      setFactoryPhase("video_ready");
+    }).catch(function(e) {
+      setFactoryError(String(e.message || e));
+      setFactoryPhase("error");
+    });
+  };
+
+  var handleFactoryGenerateVideo = function() {
+    if (!factoryVideoPrompt.trim()) return;
+    setFactoryPhase("video_generating");
+    setFactoryError(null);
+    setFactoryVideoUrl(null);
+    setFactoryProgress(0);
+    var progInterval = setInterval(function() {
+      setFactoryProgress(function(p) { return p < 85 ? p + Math.random() * 5 : p; });
+    }, 600);
+    fetch("/api/generate-clip", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: factoryVideoPrompt, engine: "grok" }),
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (d.video && d.video.url) {
+        clearInterval(progInterval);
+        setFactoryProgress(100);
+        setFactoryVideoUrl(d.video.url);
+        setFactoryCredits(function(c) { return c + 3; });
+        setFactoryPhase("video_done");
+      } else if (d.status === "processing" || d.status === "pending") {
+        var pollInterval = setInterval(function() {
+          fetch("/api/generate-clip", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: factoryVideoPrompt, engine: "grok" }),
+          }).then(function(r2) { return r2.json(); }).then(function(d2) {
+            if (d2.video && d2.video.url) {
+              clearInterval(progInterval);
+              clearInterval(pollInterval);
+              setFactoryProgress(100);
+              setFactoryVideoUrl(d2.video.url);
+              setFactoryCredits(function(c) { return c + 3; });
+              setFactoryPhase("video_done");
+            } else if (d2.error) {
+              clearInterval(progInterval);
+              clearInterval(pollInterval);
+              setFactoryError(d2.error);
+              setFactoryPhase("error");
+            }
+          }).catch(function() {
+            clearInterval(progInterval);
+            clearInterval(pollInterval);
+            setFactoryError("CONNECTION LOST. CHECK YOUR SIGNAL.");
+            setFactoryPhase("error");
+          });
+        }, 5000);
+      } else if (d.error) {
+        clearInterval(progInterval);
+        setFactoryError(d.error);
+        setFactoryPhase("error");
+      } else {
+        clearInterval(progInterval);
+        setFactoryError("THE MACHINE RETURNED NOTHING. TRY AGAIN.");
+        setFactoryPhase("error");
+      }
+    }).catch(function(e) {
+      clearInterval(progInterval);
+      setFactoryError("CONNECTION LOST. CHECK YOUR SIGNAL.");
+      setFactoryPhase("error");
+    });
+  };
+
+  var handleFactoryReset = function() {
+    setFactoryPhase("idle");
+    setFactoryInput("");
+    setFactoryImagePrompt("");
+    setFactoryVideoPrompt("");
+    setFactoryImageUrl(null);
+    setFactoryVideoUrl(null);
+    setFactoryError(null);
+    setFactoryPromptEditing(false);
+    setFactoryVideoPromptEditing(false);
+    setFactoryProgress(0);
+  };
+
+  var factoryProgressBar = function(pct) {
+    var filled = Math.floor(pct / 5);
+    var empty = 20 - filled;
+    var bar = "";
+    for (var i = 0; i < filled; i++) bar += "\u2588";
+    for (var j = 0; j < empty; j++) bar += "\u2591";
+    return bar + " " + Math.floor(pct) + "%";
+  };
+
   // Load arxiv queue from localStorage on mount
   useEffect(function() {
     try {
@@ -713,6 +924,7 @@ export default function SlopTop() {
     { id: "meme", l: "Meme Maker \uD83D\uDC80" },
     { id: "brief", l: "Brief Generator \uD83D\uDCCB" },
     { id: "arxiv", l: "arxiv.lol \uD83D\uDCC4", ic: "" },
+    { id: "factory", l: "FACTORY \u2699", ic: "" },
   ];
 
   // ═══ GLOBAL ANIMATIONS ═══
@@ -742,6 +954,10 @@ export default function SlopTop() {
     "@keyframes toastSlide{0%{transform:translateY(-20px);opacity:0}10%{transform:translateY(0);opacity:1}90%{transform:translateY(0);opacity:1}100%{transform:translateY(-20px);opacity:0}}",
     "@keyframes paperFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}",
     "@keyframes readyBounce{0%{transform:scale(1)}50%{transform:scale(1.05)}100%{transform:scale(1)}}",
+    "@keyframes factoryGlitch{0%,100%{text-shadow:2px 0 #ff0040,-2px 0 #00ffff}25%{text-shadow:-2px 0 #ff0040,2px 0 #00ffff}50%{text-shadow:4px 0 #ff0040,-4px 0 #00ffff}75%{text-shadow:-4px 0 #ff0040,0 0 #00ffff}}",
+    "@keyframes factoryCrt{0%,100%{opacity:1}92%{opacity:1}93%{opacity:0.85}94%{opacity:1}96%{opacity:0.9}97%{opacity:1}}",
+    "@keyframes factoryBlink{0%,100%{opacity:1}50%{opacity:0}}",
+    "@keyframes factoryScanline{0%{background-position:0 0}100%{background-position:0 4px}}",
   ].join("\n");
 
   return <div style={{
@@ -1567,6 +1783,447 @@ export default function SlopTop() {
         fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 1,
       }}>
         // powered by brainrot // peer reviewed by nobody // citation needed: this goes hard //
+      </div>
+    </div>}
+
+    {/* ═══ TAB: FACTORY ═══ */}
+    {tab === "factory" && <div style={{
+      background: "#0a0a0a", borderRadius: 16, padding: 4, position: "relative",
+      animation: "factoryCrt 4s ease-in-out infinite",
+    }}>
+      {/* CRT Scanlines Overlay */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 16,
+        background: "repeating-linear-gradient(0deg, rgba(0,255,65,0.03) 0px, rgba(0,255,65,0.03) 1px, transparent 1px, transparent 3px)",
+        pointerEvents: "none", zIndex: 2,
+      }} />
+
+      {/* Factory Header */}
+      <div style={{
+        padding: "28px 32px", borderRadius: 14, marginBottom: 0,
+        background: "linear-gradient(135deg, rgba(0,255,65,0.06), #0a0a0a, rgba(0,255,65,0.03))",
+        border: "1px solid rgba(0,255,65,0.15)",
+        position: "relative", overflow: "hidden",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", position: "relative", zIndex: 3 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+            <div style={{
+              fontFamily: mn, fontSize: 11, fontWeight: 800, color: "rgba(0,255,65,0.3)",
+              letterSpacing: 2, lineHeight: 1,
+            }}>067</div>
+            <div>
+              <div style={{
+                fontFamily: mn, fontSize: 28, fontWeight: 900, letterSpacing: 2,
+                color: "#00FF41",
+                animation: "factoryGlitch 3s ease-in-out infinite",
+                textTransform: "uppercase",
+              }}>SLOGTOP FACTORY</div>
+              <div style={{ fontFamily: mn, fontSize: 10, color: "rgba(0,255,65,0.4)", marginTop: 4, letterSpacing: 1 }}>
+                // MEME PRODUCTION PIPELINE v0.67 // SECTION 67 CLEARANCE
+              </div>
+            </div>
+          </div>
+          <div style={{
+            fontFamily: mn, fontSize: 11, fontWeight: 700, color: "#00FF41",
+            background: "rgba(0,255,65,0.08)", border: "1px solid rgba(0,255,65,0.2)",
+            padding: "8px 16px", borderRadius: 6, letterSpacing: 1,
+            animation: "factoryBlink 4s ease-in-out infinite",
+          }}>SESSION CREDITS: {factoryCredits}</div>
+        </div>
+      </div>
+
+      {/* Format Selector */}
+      <div style={{
+        padding: "20px 32px", position: "relative", zIndex: 3,
+      }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: "#00FF41", letterSpacing: 2, textTransform: "uppercase", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ animation: "factoryBlink 2s ease-in-out infinite" }}>{"\u25B6"}</span> SELECT FORMAT
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {FACTORY_FORMATS.map(function(fmt) {
+            var on = factoryFormat === fmt.id;
+            return <button key={fmt.id} onClick={function() { setFactoryFormat(fmt.id); }} style={{
+              padding: "8px 16px", borderRadius: 20, cursor: "pointer",
+              background: on ? fmt.color + "20" : "rgba(0,255,65,0.04)",
+              border: "1px solid " + (on ? fmt.color + "80" : "rgba(0,255,65,0.15)"),
+              color: on ? fmt.color : "rgba(0,255,65,0.6)",
+              fontFamily: mn, fontSize: 11, fontWeight: on ? 800 : 500,
+              transition: "all 0.2s", display: "flex", alignItems: "center", gap: 6,
+              boxShadow: on ? "0 0 12px " + fmt.color + "30, inset 0 0 8px " + fmt.color + "10" : "none",
+            }}>
+              <span>{fmt.emoji}</span> {fmt.label}
+            </button>;
+          })}
+        </div>
+      </div>
+
+      {/* Error Display */}
+      {factoryError && <div style={{
+        margin: "0 32px 16px", padding: "14px 20px", borderRadius: 8,
+        background: "rgba(255,0,0,0.08)", border: "1px solid rgba(255,0,0,0.3)",
+        fontFamily: mn, fontSize: 12, color: "#FF4444", position: "relative", zIndex: 3,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <div>
+          <span style={{ color: "#FF0000", fontWeight: 800 }}>ERR &gt; </span>
+          {factoryError}
+        </div>
+        <button onClick={function() {
+          setFactoryError(null);
+          if (factoryPhase === "error") setFactoryPhase(factoryImageUrl ? "image_ready" : "idle");
+        }} style={{
+          padding: "6px 16px", borderRadius: 6, cursor: "pointer",
+          background: "rgba(255,0,0,0.12)", border: "1px solid rgba(255,0,0,0.4)",
+          color: "#FF4444", fontFamily: mn, fontSize: 10, fontWeight: 700,
+        }}>RETRY</button>
+      </div>}
+
+      {/* PHASE 1: Input + Prompt Crafting */}
+      {(factoryPhase === "idle" || factoryPhase === "crafting" || factoryPhase === "error") && !factoryImagePrompt && <div style={{
+        padding: "0 32px 24px", position: "relative", zIndex: 3,
+      }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: "#00FF41", letterSpacing: 2, textTransform: "uppercase", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+          STEP 1 // INPUT
+        </div>
+        <textarea
+          value={factoryInput}
+          onChange={function(e) { setFactoryInput(e.target.value); }}
+          placeholder={(FACTORY_FORMATS.find(function(f) { return f.id === factoryFormat; }) || {}).placeholder || "Describe your subject..."}
+          rows={4}
+          style={{
+            width: "100%", padding: "14px 16px", borderRadius: 8,
+            background: "rgba(0,255,65,0.03)", border: "1px solid rgba(0,255,65,0.15)",
+            color: "#00FF41", fontFamily: mn, fontSize: 13, lineHeight: 1.6,
+            resize: "vertical", outline: "none", boxSizing: "border-box",
+            transition: "border 0.2s",
+          }}
+          onFocus={function(e) { e.target.style.borderColor = "rgba(0,255,65,0.5)"; }}
+          onBlur={function(e) { e.target.style.borderColor = "rgba(0,255,65,0.15)"; }}
+        />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14 }}>
+          <div style={{
+            fontFamily: mn, fontSize: 10, color: "rgba(0,255,65,0.4)",
+            background: "rgba(0,255,65,0.05)", padding: "4px 12px", borderRadius: 4,
+            border: "1px solid rgba(0,255,65,0.1)",
+          }}>
+            COST: 1 IMAGE CREDIT
+          </div>
+          <button onClick={handleFactoryCraftPrompt} disabled={factoryPhase === "crafting" || !factoryInput.trim()} style={{
+            padding: "12px 28px", borderRadius: 8, border: "1px solid rgba(0,255,65,0.4)",
+            background: factoryPhase === "crafting" ? "rgba(0,255,65,0.1)" : "rgba(0,255,65,0.15)",
+            color: "#00FF41", fontFamily: mn, fontSize: 12, fontWeight: 800,
+            cursor: factoryPhase === "crafting" || !factoryInput.trim() ? "wait" : "pointer",
+            letterSpacing: 1, transition: "all 0.2s",
+            opacity: !factoryInput.trim() ? 0.4 : 1,
+            boxShadow: factoryInput.trim() && factoryPhase !== "crafting" ? "0 0 16px rgba(0,255,65,0.2)" : "none",
+          }}>
+            {factoryPhase === "crafting" ? "CRAFTING..." : "CRAFT PROMPT \u2192"}
+          </button>
+        </div>
+        {factoryPhase === "crafting" && <div style={{
+          marginTop: 16, padding: "12px 16px", borderRadius: 6,
+          background: "rgba(0,255,65,0.04)", border: "1px solid rgba(0,255,65,0.1)",
+          fontFamily: mn, fontSize: 11, color: "rgba(0,255,65,0.6)",
+          animation: "factoryBlink 1.5s ease-in-out infinite",
+        }}>
+          {">"} CLAUDE IS CRAFTING YOUR GROK PROMPT...
+        </div>}
+      </div>}
+
+      {/* PHASE 1: Prompt Preview / Edit */}
+      {factoryImagePrompt && (factoryPhase === "image_ready" || factoryPhase === "image_generating") && <div style={{
+        padding: "0 32px 24px", position: "relative", zIndex: 3,
+      }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: "#00FF41", letterSpacing: 2, textTransform: "uppercase", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+          STEP 2 // PROMPT PREVIEW
+        </div>
+        {/* Terminal Box for prompt */}
+        <div style={{
+          background: "rgba(0,255,65,0.03)", border: "1px solid rgba(0,255,65,0.2)",
+          borderRadius: 8, padding: 0, overflow: "hidden", marginBottom: 16,
+        }}>
+          {/* Terminal title bar */}
+          <div style={{
+            padding: "8px 14px", background: "rgba(0,255,65,0.08)",
+            borderBottom: "1px solid rgba(0,255,65,0.15)",
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#FF5F56" }} />
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#FFBD2E" }} />
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#27C93F" }} />
+            <span style={{ fontFamily: mn, fontSize: 9, color: "rgba(0,255,65,0.4)", marginLeft: 8 }}>grok-prompt.txt</span>
+          </div>
+          <div style={{ padding: "16px 18px" }}>
+            {factoryPromptEditing ? <textarea
+              value={factoryImagePrompt}
+              onChange={function(e) { setFactoryImagePrompt(e.target.value); }}
+              rows={6}
+              style={{
+                width: "100%", background: "transparent", border: "none",
+                color: "#00FF41", fontFamily: mn, fontSize: 12, lineHeight: 1.7,
+                resize: "vertical", outline: "none", boxSizing: "border-box",
+              }}
+            /> : <div style={{
+              fontFamily: mn, fontSize: 12, color: "#00FF41", lineHeight: 1.7,
+              whiteSpace: "pre-wrap", wordBreak: "break-word",
+            }}>{factoryImagePrompt}</div>}
+          </div>
+        </div>
+        {/* Action buttons */}
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button onClick={function() { setFactoryPromptEditing(!factoryPromptEditing); }} style={{
+            padding: "10px 20px", borderRadius: 6, cursor: "pointer",
+            background: "transparent", border: "1px solid rgba(0,255,65,0.3)",
+            color: "#00FF41", fontFamily: mn, fontSize: 11, fontWeight: 600,
+            transition: "all 0.2s",
+          }}>{factoryPromptEditing ? "DONE EDITING" : "EDIT PROMPT"}</button>
+          <button onClick={handleFactoryGenerateImage} disabled={factoryPhase === "image_generating"} style={{
+            padding: "10px 24px", borderRadius: 6, cursor: factoryPhase === "image_generating" ? "wait" : "pointer",
+            background: "rgba(0,255,65,0.15)", border: "1px solid rgba(0,255,65,0.5)",
+            color: "#00FF41", fontFamily: mn, fontSize: 11, fontWeight: 800,
+            letterSpacing: 1, transition: "all 0.2s",
+            boxShadow: factoryPhase !== "image_generating" ? "0 0 16px rgba(0,255,65,0.2)" : "none",
+          }}>{factoryPhase === "image_generating" ? "GENERATING..." : "GENERATE IMAGE \u2192"}</button>
+          <button onClick={function() {
+            setFactoryImagePrompt("");
+            setFactoryPhase("idle");
+            setFactoryPromptEditing(false);
+          }} style={{
+            padding: "10px 16px", borderRadius: 6, cursor: "pointer",
+            background: "transparent", border: "1px solid rgba(255,255,255,0.1)",
+            color: "rgba(255,255,255,0.3)", fontFamily: mn, fontSize: 11, fontWeight: 500,
+            transition: "all 0.2s",
+          }}>BACK</button>
+        </div>
+
+        {/* ASCII Progress Bar */}
+        {factoryPhase === "image_generating" && <div style={{
+          marginTop: 16, padding: "14px 18px", borderRadius: 6,
+          background: "rgba(0,255,65,0.04)", border: "1px solid rgba(0,255,65,0.1)",
+          fontFamily: mn, fontSize: 13, color: "#00FF41", letterSpacing: 1,
+        }}>
+          {">"} {factoryProgressBar(factoryProgress)}
+        </div>}
+      </div>}
+
+      {/* Generated Image Display */}
+      {factoryImageUrl && (factoryPhase === "image_ready" || factoryPhase === "video_confirming" || factoryPhase === "video_crafting" || factoryPhase === "video_ready" || factoryPhase === "video_generating" || factoryPhase === "video_done") && <div style={{
+        padding: "0 32px 24px", position: "relative", zIndex: 3,
+      }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: "#00FF41", letterSpacing: 2, textTransform: "uppercase", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+          STEP 3 // OUTPUT
+        </div>
+        {/* CRT Monitor Frame */}
+        <div style={{
+          background: "#0D0D0D", border: "2px solid rgba(0,255,65,0.2)",
+          borderRadius: 12, padding: 4, position: "relative", overflow: "hidden",
+          boxShadow: "0 0 30px rgba(0,255,65,0.08), inset 0 0 60px rgba(0,0,0,0.5)",
+        }}>
+          {/* CRT scanline overlay on image */}
+          <div style={{
+            position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+            background: "repeating-linear-gradient(0deg, rgba(0,255,65,0.02) 0px, rgba(0,255,65,0.02) 1px, transparent 1px, transparent 3px)",
+            pointerEvents: "none", zIndex: 2, borderRadius: 10,
+          }} />
+          <img src={factoryImageUrl} style={{
+            width: "100%", maxHeight: 500, objectFit: "contain", borderRadius: 10, display: "block",
+          }} />
+        </div>
+
+        {/* Image Review Buttons */}
+        {factoryPhase === "image_ready" && <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+          <button onClick={function() {
+            setFactoryImageUrl(null);
+            handleFactoryGenerateImage();
+          }} style={{
+            padding: "10px 18px", borderRadius: 6, cursor: "pointer",
+            background: "rgba(255,68,68,0.08)", border: "1px solid rgba(255,68,68,0.3)",
+            color: "#FF4444", fontFamily: mn, fontSize: 11, fontWeight: 600,
+          }}>REGENERATE (1 credit)</button>
+          <button onClick={function() {
+            setFactoryPhase("idle");
+            setFactoryImageUrl(null);
+            setFactoryPromptEditing(true);
+          }} style={{
+            padding: "10px 18px", borderRadius: 6, cursor: "pointer",
+            background: "transparent", border: "1px solid rgba(0,255,65,0.3)",
+            color: "#00FF41", fontFamily: mn, fontSize: 11, fontWeight: 600,
+          }}>EDIT PROMPT + RETRY</button>
+          <button onClick={function() { setFactoryPhase("video_confirming"); }} style={{
+            padding: "10px 24px", borderRadius: 6, cursor: "pointer",
+            background: "rgba(0,255,65,0.15)", border: "1px solid rgba(0,255,65,0.5)",
+            color: "#00FF41", fontFamily: mn, fontSize: 11, fontWeight: 800,
+            letterSpacing: 1, boxShadow: "0 0 16px rgba(0,255,65,0.2)",
+          }}>{"\u2713"} LOOKS GOOD {"\u2192"} MAKE VIDEO</button>
+          <a href={factoryImageUrl} download="factory-image.png" style={{
+            padding: "10px 18px", borderRadius: 6, textDecoration: "none",
+            background: "transparent", border: "1px solid rgba(0,255,65,0.2)",
+            color: "rgba(0,255,65,0.6)", fontFamily: mn, fontSize: 11, fontWeight: 600,
+            display: "inline-flex", alignItems: "center",
+          }}>DOWNLOAD</a>
+        </div>}
+      </div>}
+
+      {/* PHASE 2: Video Confirmation Modal */}
+      {factoryPhase === "video_confirming" && <div style={{
+        padding: "0 32px 24px", position: "relative", zIndex: 3,
+      }}>
+        <div style={{
+          background: "rgba(0,255,65,0.04)", border: "1px solid rgba(0,255,65,0.3)",
+          borderRadius: 8, padding: "24px 28px", textAlign: "center",
+        }}>
+          <div style={{
+            fontFamily: mn, fontSize: 14, fontWeight: 800, color: "#00FF41",
+            marginBottom: 8, letterSpacing: 1,
+          }}>GENERATE VIDEO?</div>
+          <div style={{
+            fontFamily: mn, fontSize: 11, color: "rgba(0,255,65,0.5)", marginBottom: 20,
+          }}>This will use 3 video credits.</div>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+            <button onClick={handleFactoryVideoConfirm} style={{
+              padding: "12px 32px", borderRadius: 6, cursor: "pointer",
+              background: "rgba(0,255,65,0.15)", border: "1px solid rgba(0,255,65,0.5)",
+              color: "#00FF41", fontFamily: mn, fontSize: 12, fontWeight: 800,
+              letterSpacing: 1, boxShadow: "0 0 16px rgba(0,255,65,0.2)",
+            }}>CONFIRM</button>
+            <button onClick={function() { setFactoryPhase("image_ready"); }} style={{
+              padding: "12px 32px", borderRadius: 6, cursor: "pointer",
+              background: "transparent", border: "1px solid rgba(255,255,255,0.15)",
+              color: "rgba(255,255,255,0.4)", fontFamily: mn, fontSize: 12, fontWeight: 600,
+            }}>CANCEL</button>
+          </div>
+        </div>
+      </div>}
+
+      {/* PHASE 2: Video Prompt Crafting */}
+      {factoryPhase === "video_crafting" && <div style={{
+        padding: "0 32px 24px", position: "relative", zIndex: 3,
+      }}>
+        <div style={{
+          padding: "16px 20px", borderRadius: 6,
+          background: "rgba(0,255,65,0.04)", border: "1px solid rgba(0,255,65,0.1)",
+          fontFamily: mn, fontSize: 12, color: "rgba(0,255,65,0.6)",
+          animation: "factoryBlink 1.5s ease-in-out infinite",
+        }}>
+          {">"} CLAUDE IS CRAFTING YOUR VIDEO PROMPT...
+        </div>
+      </div>}
+
+      {/* PHASE 2: Video Prompt Preview */}
+      {factoryVideoPrompt && (factoryPhase === "video_ready" || factoryPhase === "video_generating") && <div style={{
+        padding: "0 32px 24px", position: "relative", zIndex: 3,
+      }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: "#00FF41", letterSpacing: 2, textTransform: "uppercase", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+          STEP 6 // VIDEO PROMPT
+        </div>
+        <div style={{
+          background: "rgba(0,255,65,0.03)", border: "1px solid rgba(0,255,65,0.2)",
+          borderRadius: 8, padding: 0, overflow: "hidden", marginBottom: 16,
+        }}>
+          <div style={{
+            padding: "8px 14px", background: "rgba(0,255,65,0.08)",
+            borderBottom: "1px solid rgba(0,255,65,0.15)",
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#FF5F56" }} />
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#FFBD2E" }} />
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#27C93F" }} />
+            <span style={{ fontFamily: mn, fontSize: 9, color: "rgba(0,255,65,0.4)", marginLeft: 8 }}>video-prompt.txt</span>
+          </div>
+          <div style={{ padding: "16px 18px" }}>
+            {factoryVideoPromptEditing ? <textarea
+              value={factoryVideoPrompt}
+              onChange={function(e) { setFactoryVideoPrompt(e.target.value); }}
+              rows={5}
+              style={{
+                width: "100%", background: "transparent", border: "none",
+                color: "#00FF41", fontFamily: mn, fontSize: 12, lineHeight: 1.7,
+                resize: "vertical", outline: "none", boxSizing: "border-box",
+              }}
+            /> : <div style={{
+              fontFamily: mn, fontSize: 12, color: "#00FF41", lineHeight: 1.7,
+              whiteSpace: "pre-wrap", wordBreak: "break-word",
+            }}>{factoryVideoPrompt}</div>}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={function() { setFactoryVideoPromptEditing(!factoryVideoPromptEditing); }} style={{
+            padding: "10px 20px", borderRadius: 6, cursor: "pointer",
+            background: "transparent", border: "1px solid rgba(0,255,65,0.3)",
+            color: "#00FF41", fontFamily: mn, fontSize: 11, fontWeight: 600,
+          }}>{factoryVideoPromptEditing ? "DONE EDITING" : "EDIT PROMPT"}</button>
+          <button onClick={handleFactoryGenerateVideo} disabled={factoryPhase === "video_generating"} style={{
+            padding: "10px 24px", borderRadius: 6,
+            cursor: factoryPhase === "video_generating" ? "wait" : "pointer",
+            background: "rgba(0,255,65,0.15)", border: "1px solid rgba(0,255,65,0.5)",
+            color: "#00FF41", fontFamily: mn, fontSize: 11, fontWeight: 800,
+            letterSpacing: 1, boxShadow: factoryPhase !== "video_generating" ? "0 0 16px rgba(0,255,65,0.2)" : "none",
+          }}>{factoryPhase === "video_generating" ? "GENERATING..." : "GENERATE VIDEO \u2192"}</button>
+        </div>
+
+        {/* ASCII Progress Bar */}
+        {factoryPhase === "video_generating" && <div style={{
+          marginTop: 16, padding: "14px 18px", borderRadius: 6,
+          background: "rgba(0,255,65,0.04)", border: "1px solid rgba(0,255,65,0.1)",
+          fontFamily: mn, fontSize: 13, color: "#00FF41", letterSpacing: 1,
+        }}>
+          {">"} {factoryProgressBar(factoryProgress)}
+        </div>}
+      </div>}
+
+      {/* PHASE 2: Video Output */}
+      {factoryVideoUrl && factoryPhase === "video_done" && <div style={{
+        padding: "0 32px 24px", position: "relative", zIndex: 3,
+      }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: "#00FF41", letterSpacing: 2, textTransform: "uppercase", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+          STEP 8 // VIDEO OUTPUT
+        </div>
+        {/* CRT Monitor Frame for video */}
+        <div style={{
+          background: "#0D0D0D", border: "2px solid rgba(0,255,65,0.2)",
+          borderRadius: 12, padding: 4, position: "relative", overflow: "hidden",
+          boxShadow: "0 0 30px rgba(0,255,65,0.08), inset 0 0 60px rgba(0,0,0,0.5)",
+        }}>
+          <div style={{
+            position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+            background: "repeating-linear-gradient(0deg, rgba(0,255,65,0.02) 0px, rgba(0,255,65,0.02) 1px, transparent 1px, transparent 3px)",
+            pointerEvents: "none", zIndex: 2, borderRadius: 10,
+          }} />
+          <video src={factoryVideoUrl} controls style={{
+            width: "100%", maxHeight: 500, borderRadius: 10, display: "block",
+          }} />
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+          <a href={factoryVideoUrl} download="factory-video.mp4" style={{
+            padding: "10px 20px", borderRadius: 6, textDecoration: "none",
+            background: "rgba(0,255,65,0.12)", border: "1px solid rgba(0,255,65,0.3)",
+            color: "#00FF41", fontFamily: mn, fontSize: 11, fontWeight: 700,
+            display: "inline-flex", alignItems: "center",
+          }}>DOWNLOAD VIDEO</a>
+          <button onClick={function() {
+            setFactoryVideoUrl(null);
+            setFactoryPhase("video_ready");
+            setFactoryProgress(0);
+          }} style={{
+            padding: "10px 18px", borderRadius: 6, cursor: "pointer",
+            background: "transparent", border: "1px solid rgba(0,255,65,0.3)",
+            color: "#00FF41", fontFamily: mn, fontSize: 11, fontWeight: 600,
+          }}>REGENERATE VIDEO</button>
+          <button onClick={handleFactoryReset} style={{
+            padding: "10px 18px", borderRadius: 6, cursor: "pointer",
+            background: "transparent", border: "1px solid rgba(255,255,255,0.1)",
+            color: "rgba(255,255,255,0.4)", fontFamily: mn, fontSize: 11, fontWeight: 600,
+          }}>NEW PROJECT</button>
+        </div>
+      </div>}
+
+      {/* Factory Footer */}
+      <div style={{
+        textAlign: "center", padding: "20px 32px 24px",
+        fontFamily: mn, fontSize: 9, color: "rgba(0,255,65,0.25)", letterSpacing: 1,
+        position: "relative", zIndex: 3,
+      }}>
+        // SECTION 67 // SLOGTOP FACTORY // ALL CREDITS ARE IMAGINARY // THE MACHINE PROVIDES //
       </div>
     </div>}
 
