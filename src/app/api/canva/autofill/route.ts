@@ -120,9 +120,49 @@ export async function GET(req: NextRequest) {
 
   const action = req.nextUrl.searchParams.get("action");
 
+  // List brand templates
   if (action === "templates") {
     try {
-      const r = await canvaFetch(`${CANVA_API}/brand-templates?ownership=owned`);
+      const r = await canvaFetch(`${CANVA_API}/brand-templates`);
+      const result = await r.json();
+      return NextResponse.json(result);
+    } catch (error) {
+      return NextResponse.json({ error: String(error) }, { status: 500 });
+    }
+  }
+
+  // List user's designs (your TEMPLATES folder items are probably designs, not brand templates)
+  if (action === "designs") {
+    const query = req.nextUrl.searchParams.get("q") || "";
+    try {
+      const url = query
+        ? `${CANVA_API}/designs?query=${encodeURIComponent(query)}`
+        : `${CANVA_API}/designs`;
+      const r = await canvaFetch(url);
+      const result = await r.json();
+      return NextResponse.json(result);
+    } catch (error) {
+      return NextResponse.json({ error: String(error) }, { status: 500 });
+    }
+  }
+
+  // List folders
+  if (action === "folders") {
+    try {
+      const r = await canvaFetch(`${CANVA_API}/folders`);
+      const result = await r.json();
+      return NextResponse.json(result);
+    } catch (error) {
+      return NextResponse.json({ error: String(error) }, { status: 500 });
+    }
+  }
+
+  // List items in a specific folder
+  if (action === "folder") {
+    const folderId = req.nextUrl.searchParams.get("id");
+    if (!folderId) return NextResponse.json({ error: "id param required" }, { status: 400 });
+    try {
+      const r = await canvaFetch(`${CANVA_API}/folders/${folderId}/items`);
       const result = await r.json();
       return NextResponse.json(result);
     } catch (error) {
