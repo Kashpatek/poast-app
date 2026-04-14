@@ -829,7 +829,7 @@ function Step8({ data, onNext, onBack }) {
 }
 
 // ═══ RENDER POLL (watches for finished MP4) ═══
-function RenderPoll({ renderId }) {
+function RenderPoll({ renderId, onComplete }) {
   var _status = useState("polling"), status = _status[0], setStatus = _status[1];
   var _video = useState(null), video = _video[0], setVideo = _video[1];
   var _elapsed = useState(0), elapsed = _elapsed[0], setElapsed = _elapsed[1];
@@ -880,7 +880,7 @@ function RenderPoll({ renderId }) {
 }
 
 // ═══ RENDER BUTTON (uploads assets, then triggers GitHub Actions) ═══
-function RenderButton({ data, assets }) {
+function RenderButton({ data, assets, onComplete }) {
   var _status = useState("idle"), status = _status[0], setStatus = _status[1]; // idle, uploading, dispatching, done, error
   var _progress = useState(""), progress = _progress[0], setProgress = _progress[1];
 
@@ -964,66 +964,69 @@ function RenderButton({ data, assets }) {
 function Step9({ data, onPremier, onDraft }) {
   var assets = data.assets || {};
   var title = data.options ? data.options.titles[data.selTitle || 0] : "Untitled";
+  var _renderDone = useState(false), renderDone = _renderDone[0], setRenderDone = _renderDone[1];
+  var _renderVideo = useState(null), renderVideo = _renderVideo[0], setRenderVideo = _renderVideo[1];
 
   var downloadAll = function() {
-    // Download voiceover
     if (assets.voiceover) { var a = document.createElement("a"); a.href = assets.voiceover; a.download = "voiceover.mp3"; a.click(); }
-    // Download music
     if (assets.music) { setTimeout(function() { var a = document.createElement("a"); a.href = assets.music; a.download = "music.mp3"; a.click(); }, 500); }
-    // Download clips
-    (assets.clips || []).forEach(function(c, i) {
-      if (c.videoUrl) { setTimeout(function() { var a = document.createElement("a"); a.href = c.videoUrl; a.download = "shot-" + c.shot + "-v" + (c.variation || 1) + ".mp4"; a.target = "_blank"; a.click(); }, 1000 + i * 500); }
-    });
+    (assets.clips || []).forEach(function(c, i) { if (c.videoUrl) { setTimeout(function() { var a = document.createElement("a"); a.href = c.videoUrl; a.download = "shot-" + c.shot + ".mp4"; a.target = "_blank"; a.click(); }, 1000 + i * 500); } });
     toast("Downloading all assets...", "info");
   };
 
   var sendToBuffer = function() {
     var desc = data.options ? data.options.descriptions[data.selDesc || 0] : "";
-    // Save to localStorage for Buffer schedule to pick up
-    try {
-      var bufferDraft = { text: title + "\n\n" + desc, source: "Press to Premier", ts: Date.now() };
-      localStorage.setItem("p2p-to-buffer", JSON.stringify(bufferDraft));
-    } catch (e) {}
+    try { localStorage.setItem("p2p-to-buffer", JSON.stringify({ text: title + "\n\n" + desc, source: "Press to Premier", ts: Date.now() })); } catch (e) {}
     toast("Saved for Buffer. Go to Schedule to post.", "success");
   };
 
   return <div>
     <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Premier</div>
-    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Finalize and launch your video.</div>
+    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Render, review, and finalize.</div>
 
-    {/* Summary card */}
+    {/* Summary */}
     <div style={{ background: "linear-gradient(135deg, " + D.elevated + ", " + D.surface + ")", border: "1px solid " + D.amber + "20", borderRadius: 12, padding: 28, marginBottom: 24 }}>
       <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.amber, letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>Project Summary</div>
       <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: D.tx, marginBottom: 8 }}>{title}</div>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-        {[
-          { l: "Duration", v: (data.duration || 60) + "s" },
-          { l: "Format", v: data.aspect || "16:9" },
-          { l: "VO", v: assets.voiceover ? "Ready" : "Missing", c: assets.voiceover ? D.teal : D.coral },
-          { l: "Clips", v: (assets.clips || []).filter(function(c) { return c.videoUrl; }).length + " ready", c: D.teal },
-          { l: "Music", v: assets.music ? "Ready" : "Missing", c: assets.music ? D.teal : D.coral },
-        ].map(function(s, i) {
+        {[{ l: "Duration", v: (data.duration || 60) + "s" }, { l: "Format", v: data.aspect || "16:9" }, { l: "VO", v: assets.voiceover ? "Ready" : "Missing", c: assets.voiceover ? D.teal : D.coral }, { l: "Clips", v: (assets.clips || []).filter(function(c) { return c.videoUrl; }).length + " ready", c: D.teal }, { l: "Music", v: assets.music ? "Ready" : "Missing", c: assets.music ? D.teal : D.coral }].map(function(s, i) {
           return <div key={i} style={{ padding: "8px 14px", background: D.bg, borderRadius: 8, border: "1px solid " + D.border }}>
             <div style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: D.txh, letterSpacing: 1 }}>{s.l}</div>
             <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: s.c || D.tx }}>{s.v}</div>
           </div>;
         })}
       </div>
-      {data.options && <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 500, color: D.txb, lineHeight: 1.7 }}>{data.options.descriptions[data.selDesc || 0]}</div>}
     </div>
 
-    {/* Actions */}
-    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
-      <button onClick={downloadAll} style={{ width: "100%", height: 52, background: D.surface, border: "1px solid " + D.border, borderRadius: 10, fontFamily: ft, fontSize: 15, fontWeight: 700, color: D.tx, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = D.amber + "40"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; }}>
-        Download All Assets
-      </button>
-      <RenderButton data={data} assets={assets} />
-      <button onClick={sendToBuffer} style={{ width: "100%", height: 52, background: D.surface, border: "1px solid " + D.border, borderRadius: 10, fontFamily: ft, fontSize: 15, fontWeight: 700, color: D.tx, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = D.blue + "40"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; }}>
-        Send to Buffer Schedule
-      </button>
+    {/* Step 1: Render */}
+    <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txl, letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>Step 1: Render Video</div>
+    <RenderButton data={data} assets={assets} onComplete={function(video) { setRenderDone(true); setRenderVideo(video); }} />
+
+    {/* Step 2: After render -- preview + download + buffer */}
+    {renderDone && <div style={{ marginTop: 24 }}>
+      <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.teal, letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>Step 2: Review & Distribute</div>
+
+      {renderVideo && <div style={{ background: D.surface, border: "1px solid " + D.teal + "30", borderRadius: 12, padding: 18, marginBottom: 16 }}>
+        <video controls src={renderVideo.url} style={{ width: "100%", borderRadius: 8, marginBottom: 10 }} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <a href={renderVideo.url} download={"poast-video.mp4"} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", height: 44, background: "linear-gradient(135deg, " + D.teal + ", " + D.blue + ")", color: D.bg, borderRadius: 8, fontFamily: ft, fontSize: 14, fontWeight: 700, textDecoration: "none" }}>Download MP4</a>
+          <span style={{ fontFamily: mn, fontSize: 10, color: D.txl, alignSelf: "center" }}>{renderVideo.size ? Math.round(renderVideo.size / 1024 / 1024 * 10) / 10 + " MB" : ""}</span>
+        </div>
+      </div>}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+        <button onClick={downloadAll} style={{ width: "100%", height: 48, background: D.surface, border: "1px solid " + D.border, borderRadius: 10, fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx, cursor: "pointer", transition: "all 0.15s" }}>Download All Raw Assets</button>
+        <button onClick={sendToBuffer} style={{ width: "100%", height: 48, background: D.surface, border: "1px solid " + D.border, borderRadius: 10, fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx, cursor: "pointer", transition: "all 0.15s" }}>Send to Buffer Schedule</button>
+      </div>
+    </div>}
+
+    {/* Manual fallback */}
+    <div style={{ marginTop: 16, textAlign: "center" }}>
+      <a href="https://github.com/Kashpatek/poast-app/releases" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 10, color: D.txh, textDecoration: "none" }}>Manual download from GitHub Releases</a>
     </div>
 
-    <div style={{ display: "flex", gap: 12 }}>
+    {/* Finalize */}
+    <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
       <button onClick={onDraft} style={{ padding: "14px 24px", background: "transparent", border: "1px solid " + D.border, color: D.txl, borderRadius: 10, fontFamily: ft, fontSize: 14, cursor: "pointer" }}>Save as Draft</button>
       <button onClick={onPremier} style={{ flex: 1, height: 52, background: "linear-gradient(135deg, " + D.amber + ", " + D.teal + ")", color: D.bg, border: "none", borderRadius: 10, fontFamily: ft, fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 20px " + D.teal + "30" }}>Confirm Premier</button>
     </div>
