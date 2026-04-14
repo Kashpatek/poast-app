@@ -643,33 +643,131 @@ function Step7({ data, setData, onNext, onBack }) {
   </div>;
 }
 
-// ═══ STEP 8: PREVIEW ═══
+// ═══ STEP 8: ASSEMBLED PREVIEW ═══
 function Step8({ data, onNext, onBack }) {
   var assets = data.assets || {};
   var script = data.scripts && data.scripts[data.selScript || 0];
   var aspect = data.aspect || "16:9";
+  var selectedClips = data.selectedClips || {};
+
+  // Build ordered clip list from selections
+  var orderedClips = [];
+  if (assets.clips) {
+    var shotGroups = {};
+    assets.clips.forEach(function(c) { var s = c.shot || 1; if (!shotGroups[s]) shotGroups[s] = []; shotGroups[s].push(c); });
+    Object.keys(shotGroups).sort(function(a, b) { return a - b; }).forEach(function(s) {
+      var sel = selectedClips[s] || 0;
+      var clip = shotGroups[s][sel];
+      if (clip && clip.videoUrl) orderedClips.push(clip);
+    });
+  }
+
+  // Sequential video player
+  var _currentClip = useState(0), currentClip = _currentClip[0], setCurrentClip = _currentClip[1];
+  var _playing = useState(false), playing = _playing[0], setPlaying = _playing[1];
+  var _assembling = useState(true), assembling = _assembling[0], setAssembling = _assembling[1];
+  var _log = useState([]), alog = _log[0], setAlog = _log[1];
+  var videoRef = useRef(null);
+  var voRef = useRef(null);
+  var musicRef = useRef(null);
+
+  var addLog = function(msg, type) { setAlog(function(p) { return p.concat([{ msg: msg, type: type || "info", ts: new Date().toLocaleTimeString() }]); }); };
+
+  // Assembly simulation
+  useEffect(function() {
+    var steps = [
+      { msg: "Loading " + orderedClips.length + " selected clips...", delay: 300 },
+      { msg: "Clips: " + orderedClips.map(function(c) { return "Shot " + c.shot; }).join(", "), delay: 600 },
+      { msg: "Voiceover: " + (assets.voiceover ? "Ready" : "Missing"), delay: 900 },
+      { msg: "Music: " + (assets.music ? "Ready (looping)" : "None"), delay: 1200 },
+      { msg: "Syncing audio tracks...", delay: 1500 },
+      { msg: "Assembly complete. Press play to preview.", delay: 2000 },
+    ];
+    steps.forEach(function(s) { setTimeout(function() { addLog(s.msg, s.msg.includes("Missing") ? "warn" : "success"); }, s.delay); });
+    setTimeout(function() { setAssembling(false); }, 2200);
+  }, []);
+
+  var playAll = function() {
+    setPlaying(true);
+    setCurrentClip(0);
+    if (voRef.current) { voRef.current.currentTime = 0; voRef.current.play(); }
+    if (musicRef.current) { musicRef.current.currentTime = 0; musicRef.current.volume = 0.15; musicRef.current.play(); }
+    if (videoRef.current) { videoRef.current.currentTime = 0; videoRef.current.play(); }
+  };
+
+  var stopAll = function() {
+    setPlaying(false);
+    if (voRef.current) voRef.current.pause();
+    if (musicRef.current) musicRef.current.pause();
+    if (videoRef.current) videoRef.current.pause();
+  };
+
+  var handleClipEnd = function() {
+    if (currentClip < orderedClips.length - 1) {
+      setCurrentClip(function(c) { return c + 1; });
+      // Next clip will autoplay via effect
+    } else {
+      stopAll();
+      addLog("Playback complete.", "success");
+    }
+  };
+
+  // When currentClip changes, play the new clip
+  useEffect(function() {
+    if (playing && videoRef.current && orderedClips[currentClip]) {
+      videoRef.current.src = orderedClips[currentClip].videoUrl;
+      videoRef.current.play().catch(function() {});
+    }
+  }, [currentClip]);
+
+  var dimStyle = { width: aspect === "9:16" ? "40%" : "100%", margin: "0 auto" };
 
   return <div>
     <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Preview</div>
-    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Watch your assembled video.</div>
+    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Assembled preview with all your selected assets.</div>
 
-    {/* Assembled preview */}
+    {/* Video player */}
     <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 20 }}>
-      <div style={{ width: aspect === "9:16" ? "35%" : "100%", margin: "0 auto", aspectRatio: aspect === "9:16" ? "9/16" : aspect === "1:1" ? "1/1" : "16/9", background: D.bg, borderRadius: 10, border: "1px solid " + D.border, overflow: "hidden", position: "relative" }}>
-        {/* Show first selected clip as preview */}
-        {assets.clips && assets.clips[0] && assets.clips[0].videoUrl ? <video controls src={assets.clips[0].videoUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      <div style={Object.assign({}, dimStyle, { aspectRatio: aspect === "9:16" ? "9/16" : aspect === "1:1" ? "1/1" : "16/9", background: D.bg, borderRadius: 10, border: "1px solid " + D.border, overflow: "hidden", position: "relative" })}>
+        {orderedClips.length > 0 ? <video ref={videoRef} src={orderedClips[currentClip] ? orderedClips[currentClip].videoUrl : ""} onEnded={handleClipEnd} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-          <span style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txl }}>Preview ({aspect})</span>
+          <span style={{ fontFamily: ft, fontSize: 14, color: D.txl }}>No clips available</span>
         </div>}
+        {/* Shot indicator */}
+        {playing && orderedClips[currentClip] && <div style={{ position: "absolute", top: 10, left: 10, padding: "4px 10px", background: D.bg + "CC", borderRadius: 6, fontFamily: mn, fontSize: 10, color: D.amber }}>Shot {orderedClips[currentClip].shot} of {orderedClips.length}</div>}
+        {/* Progress bar */}
+        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: D.border }}>
+          <div style={{ height: "100%", width: orderedClips.length > 0 ? ((currentClip + (playing ? 0.5 : 0)) / orderedClips.length * 100) + "%" : "0%", background: D.amber, transition: "width 0.3s" }} />
+        </div>
       </div>
-      {assets.voiceover && <div style={{ marginTop: 16 }}>
-        <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txl, letterSpacing: 2, marginBottom: 6 }}>VOICEOVER</div>
-        <audio controls src={assets.voiceover} style={{ width: "100%", height: 40 }} />
-      </div>}
-      {assets.music && <div style={{ marginTop: 12 }}>
-        <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txl, letterSpacing: 2, marginBottom: 6 }}>MUSIC</div>
-        <audio controls loop src={assets.music} style={{ width: "100%", height: 40 }} />
-      </div>}
+
+      {/* Controls */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
+        <button onClick={playing ? stopAll : playAll} disabled={assembling || orderedClips.length === 0} style={{ padding: "10px 24px", background: playing ? D.surface : "linear-gradient(135deg, " + D.amber + ", #E8A020)", color: playing ? D.tx : D.bg, border: playing ? "1px solid " + D.border : "none", borderRadius: 8, fontFamily: ft, fontSize: 14, fontWeight: 700, cursor: assembling ? "wait" : "pointer", opacity: assembling ? 0.4 : 1, boxShadow: playing ? "none" : "0 4px 14px " + D.amber + "25" }}>{assembling ? "Assembling..." : playing ? "Stop" : "Play Preview"}</button>
+        <span style={{ fontFamily: mn, fontSize: 11, color: D.txl }}>Shot {currentClip + 1} / {orderedClips.length}</span>
+        <span style={{ fontFamily: mn, fontSize: 11, color: D.txh, marginLeft: "auto" }}>{orderedClips.length} clips // {assets.voiceover ? "VO" : "no VO"} // {assets.music ? "music" : "no music"}</span>
+      </div>
+
+      {/* Hidden audio elements */}
+      {assets.voiceover && <audio ref={voRef} src={assets.voiceover} />}
+      {assets.music && <audio ref={musicRef} src={assets.music} loop />}
+    </div>
+
+    {/* Assembly log */}
+    <div style={{ background: D.bg, border: "1px solid " + D.border, borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
+      <div style={{ padding: "8px 14px", borderBottom: "1px solid " + D.border, display: "flex", justifyContent: "space-between" }}>
+        <span style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txl, letterSpacing: 2, textTransform: "uppercase" }}>Assembly Log</span>
+        <span style={{ fontFamily: mn, fontSize: 9, color: D.txh }}>{alog.length} entries</span>
+      </div>
+      <div style={{ maxHeight: 140, overflow: "auto", padding: "6px 14px" }}>
+        {alog.map(function(e, i) {
+          var colors = { info: D.txb, success: D.teal, warn: D.amber, error: D.coral };
+          return <div key={i} style={{ display: "flex", gap: 8, padding: "3px 0", fontFamily: mn, fontSize: 10 }}>
+            <span style={{ color: D.txh, flexShrink: 0 }}>{e.ts}</span>
+            <span style={{ color: colors[e.type] || D.txb }}>{e.msg}</span>
+          </div>;
+        })}
+      </div>
     </div>
 
     {/* Metadata */}
