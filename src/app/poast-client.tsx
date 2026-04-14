@@ -8,7 +8,7 @@ import PressToPremi from "./press-to-premier";
 import Carousel from "./carousel";
 import FabricatedKnowledge from "./fabricated-knowledge";
 import Trends from "./trends";
-import SlobTop from "./slob-top";
+import SlopTop from "./slop-top";
 import { exportDocx } from "./docx-export";
 import Outreach from "./outreach";
 
@@ -16,7 +16,7 @@ var C = {
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
   violet: "#905CCB", cyan: "#26C9D8", crimson: "#D1334A",
   bg: "#06060C", card: "#14141E", border: "#252535", hover: "#181824",
-  surface: "#101018", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
+  surface: "#101018", tx: "#E8E4DD", txm: "#9A969F", txd: "#5A5766",
   glow: "0 2px 12px rgba(0,0,0,0.4), 0 0 0 0 rgba(247,176,65,0)",
   glowHover: "0 8px 30px rgba(0,0,0,0.5), 0 0 20px rgba(247,176,65,0.08)",
   cardGrad: "linear-gradient(135deg, #14141E 0%, #101018 100%)",
@@ -76,7 +76,7 @@ function ProgressBar({ label }) {
   return <div style={{ margin: "22px 0" }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
       <div style={{ fontFamily: mn, fontSize: 11, color: C.amber, letterSpacing: "2px", textTransform: "uppercase" }}>{label || "Generating..."}</div>
-      <div className="progress-dots" style={{ fontFamily: mn, fontSize: 10, color: "rgba(255,255,255,0.25)" }} />
+      <div className="progress-dots" style={{ fontFamily: mn, fontSize: 10, color: "rgba(255,255,255,0.4)" }} />
     </div>
     <div style={{ width: "100%", height: 2, background: "rgba(255,255,255,0.06)", borderRadius: 1, overflow: "hidden", position: "relative" }}>
       <div className="progress-slide" style={{ position: "absolute", top: 0, left: 0, height: "100%", width: "40%", borderRadius: 1, background: "linear-gradient(90deg, transparent, " + C.amber + ", transparent)" }} />
@@ -86,8 +86,8 @@ function ProgressBar({ label }) {
 
 function Label({ children }) { return <div style={{ fontFamily: mn, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 8 }}>{children}</div>; }
 function Field({ label, value, onChange, placeholder, isMono }) { return (<div style={{ marginBottom: 16 }}>{label && <Label>{label}</Label>}<input value={value} onChange={function(e) { onChange(e.target.value); }} placeholder={placeholder} style={{ width: "100%", padding: "12px 14px", background: "#09090D", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, color: C.tx, fontFamily: isMono ? mn : ft, fontSize: 14, outline: "none", boxSizing: "border-box", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; e.target.style.boxShadow = "0 0 24px rgba(247,176,65,0.06)"; }} onBlur={function(e) { e.target.style.borderColor = "rgba(255,255,255,0.06)"; e.target.style.boxShadow = "none"; }} /></div>); }
-function Btn({ children, onClick, loading, sec, sm, off }) { return (<button onClick={onClick} disabled={loading || off} style={{ padding: sm ? "8px 16px" : "12px 28px", background: off ? "#09090D" : sec ? "transparent" : "linear-gradient(135deg, " + C.amber + ", #E8A020)", color: off ? "rgba(255,255,255,0.25)" : sec ? C.amber : "#060608", border: sec ? "1px solid " + (off ? "rgba(255,255,255,0.06)" : C.amber) : "none", borderRadius: 10, fontFamily: ft, fontSize: sm ? 12 : 14, fontWeight: 800, cursor: loading || off ? "not-allowed" : "pointer", opacity: loading ? 0.5 : 1, letterSpacing: -0.3, transition: "all 0.2s ease" }}>{loading ? "Working..." : children}</button>); }
-function CopyBtn({ text }) { var _s = useState(false), ok = _s[0], set = _s[1]; return <span onClick={function(e) { e.stopPropagation(); set(copyText(text)); setTimeout(function() { set(false); }, 1200); }} style={{ fontFamily: mn, fontSize: 9, color: ok ? C.amber : "rgba(255,255,255,0.25)", cursor: "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)", userSelect: "none", transition: "all 0.2s ease" }}>{ok ? "Copied" : "Copy"}</span>; }
+function Btn({ children, onClick, loading, sec, sm, off }) { return (<button onClick={onClick} disabled={loading || off} style={{ padding: sm ? "8px 16px" : "12px 28px", background: off ? "#09090D" : sec ? "transparent" : "linear-gradient(135deg, " + C.amber + ", #E8A020)", color: off ? "rgba(255,255,255,0.4)" : sec ? C.amber : "#060608", border: sec ? "1px solid " + (off ? "rgba(255,255,255,0.06)" : C.amber) : "none", borderRadius: 10, fontFamily: ft, fontSize: sm ? 12 : 14, fontWeight: 800, cursor: loading || off ? "not-allowed" : "pointer", opacity: loading ? 0.5 : 1, letterSpacing: -0.3, transition: "all 0.2s ease" }}>{loading ? "Working..." : children}</button>); }
+function CopyBtn({ text }) { var _s = useState(false), ok = _s[0], set = _s[1]; return <span onClick={function(e) { e.stopPropagation(); set(copyText(text)); setTimeout(function() { set(false); }, 1200); }} style={{ fontFamily: mn, fontSize: 9, color: ok ? C.amber : "rgba(255,255,255,0.4)", cursor: "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)", userSelect: "none", transition: "all 0.2s ease" }}>{ok ? "Copied" : "Copy"}</span>; }
 function Divider() { return <div style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", margin: "28px 0" }} />; }
 
 function Pick({ text, picked, onPick, onRedo, rLoading }) {
@@ -97,7 +97,7 @@ function Pick({ text, picked, onPick, onRedo, rLoading }) {
       <div style={{ flex: 1, fontFamily: ft, fontSize: 14, color: picked ? "#ffffff" : "rgba(255,255,255,0.55)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{text}</div>
       <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
         <CopyBtn text={text} />
-        {onRedo && <span onClick={function(e) { e.stopPropagation(); if (!rLoading) onRedo(); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", cursor: rLoading ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)", opacity: rLoading ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>&#x21bb;</span>}
+        {onRedo && <span onClick={function(e) { e.stopPropagation(); if (!rLoading) onRedo(); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: rLoading ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)", opacity: rLoading ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>&#x21bb;</span>}
       </div>
     </div>
   </div>);
@@ -106,7 +106,7 @@ function Pick({ text, picked, onPick, onRedo, rLoading }) {
 function SecHead({ label, onRedoAll, rL }) {
   return (<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
     <div style={{ fontFamily: mn, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "2px", fontWeight: 700 }}>{label}</div>
-    {onRedoAll && <span onClick={function() { if (!rL) onRedoAll(); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", cursor: rL ? "wait" : "pointer", padding: "4px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.06)", opacity: rL ? 0.4 : 1, transition: "all 0.2s ease" }}>&#x21bb; Redo All 3</span>}
+    {onRedoAll && <span onClick={function() { if (!rL) onRedoAll(); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: rL ? "wait" : "pointer", padding: "4px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.06)", opacity: rL ? 0.4 : 1, transition: "all 0.2s ease" }}>&#x21bb; Redo All 3</span>}
   </div>);
 }
 
@@ -116,7 +116,7 @@ function OutCard({ title, content, color, onRedo, rLoading }) {
       <div style={{ fontFamily: mn, fontSize: 11, color: color || C.amber, textTransform: "uppercase", letterSpacing: "2px" }}>{title}</div>
       <div style={{ display: "flex", gap: 5 }}>
         <CopyBtn text={content} />
-        {onRedo && <span onClick={function() { if (!rLoading) onRedo(); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", cursor: rLoading ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)", opacity: rLoading ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>&#x21bb;</span>}
+        {onRedo && <span onClick={function() { if (!rLoading) onRedo(); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: rLoading ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)", opacity: rLoading ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>&#x21bb;</span>}
       </div>
     </div>
     <div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{content}</div>
@@ -232,12 +232,12 @@ function AskPoast({ open, onToggle }) {
         <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg, " + C.amber + "30, " + C.amber + "10)", border: "1px solid " + C.amber + "30", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 16, fontWeight: 900, color: C.amber, animation: "logoPulse 3s ease-in-out infinite" }}>P</div>
         <div>
           <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: "#E8E4DD" }}>Poast</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 5, height: 5, borderRadius: "50%", background: C.teal, boxShadow: "0 0 6px " + C.teal + "60" }} /><span style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.25)" }}>online // sonnet-4</span></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 5, height: 5, borderRadius: "50%", background: C.teal, boxShadow: "0 0 6px " + C.teal + "60" }} /><span style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.4)" }}>online // sonnet-4</span></div>
         </div>
       </div>
       <div style={{ display: "flex", gap: 5 }}>
-        {msgs.length > 0 && <span onClick={function() { var c = msgs.map(function(m) { return (m.role === "user" ? "YOU:\n" : "POAST:\n") + m.text; }).join("\n\n---\n\n"); var b = new Blob([c], { type: "text/plain" }); var u = URL.createObjectURL(b); var a = document.createElement("a"); a.href = u; a.download = "poast.txt"; a.click(); URL.revokeObjectURL(u); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.25)", padding: "4px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }}>Export</span>}
-        {msgs.length > 0 && <span onClick={function() { setMsgs([]); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.25)", padding: "4px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }}>Clear</span>}
+        {msgs.length > 0 && <span onClick={function() { var c = msgs.map(function(m) { return (m.role === "user" ? "YOU:\n" : "POAST:\n") + m.text; }).join("\n\n---\n\n"); var b = new Blob([c], { type: "text/plain" }); var u = URL.createObjectURL(b); var a = document.createElement("a"); a.href = u; a.download = "poast.txt"; a.click(); URL.revokeObjectURL(u); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.4)", padding: "4px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }}>Export</span>}
+        {msgs.length > 0 && <span onClick={function() { setMsgs([]); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.4)", padding: "4px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }}>Clear</span>}
         <span onClick={onToggle} style={{ fontFamily: mn, fontSize: 16, color: "rgba(255,255,255,0.2)", cursor: "pointer", padding: "2px 6px" }}>&times;</span>
       </div>
     </div>
@@ -292,7 +292,7 @@ function AskPoast({ open, onToggle }) {
 // ═══ SIDEBAR CATEGORIES ═══
 var SIDEBAR_CATS = {
   produce: { label: "PRODUCE", color: C.amber, glow: "rgba(247,176,65,", items: [
-    { id: "slobtop", l: "Slob Top", ic: "\uD83D\uDCA5" },
+    { id: "sloptop", l: "Slop Top", ic: "\uD83D\uDCA5" },
     { id: "carousel", l: "Carousel", ic: "\uD83D\uDCD0" },
     { id: "captions", l: "Capper", ic: "\uD83C\uDFAC" },
     { id: "p2p", l: "Press to Premier", ic: "\uD83C\uDFAC" },
@@ -323,7 +323,7 @@ function Sidebar({ active, onNav, onAskPoast }) {
       <img src="/poast-logo.png" style={{ width: 32, height: 32, borderRadius: 7 }} />
       <div>
         <div style={{ fontFamily: gf, fontSize: 18, fontWeight: 900, color: C.amber, letterSpacing: 2 }}>POAST</div>
-        <div style={{ fontFamily: ft, fontSize: 7, fontWeight: 600, color: "rgba(255,255,255,0.15)", letterSpacing: 2, textTransform: "uppercase" }}>Content Command Center</div>
+        <div style={{ fontFamily: ft, fontSize: 7, fontWeight: 600, color: "rgba(255,255,255,0.25)", letterSpacing: 2, textTransform: "uppercase" }}>Content Command Center</div>
       </div>
     </div>
 
@@ -333,7 +333,7 @@ function Sidebar({ active, onNav, onAskPoast }) {
         <div style={{ width: 30, height: 30, borderRadius: 8, background: "linear-gradient(135deg, " + C.amber + "25, " + C.amber + "10)", border: "1px solid " + C.amber + "30", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 14, fontWeight: 900, color: C.amber, boxShadow: "0 0 14px " + C.amber + "15" }}>P</div>
         <div>
           <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: C.amber }}>Ask Poast</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 4, height: 4, borderRadius: "50%", background: C.teal, boxShadow: "0 0 6px " + C.teal + "60" }} /><span style={{ fontFamily: ft, fontSize: 8, color: "rgba(255,255,255,0.25)" }}>online</span></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 4, height: 4, borderRadius: "50%", background: C.teal, boxShadow: "0 0 6px " + C.teal + "60" }} /><span style={{ fontFamily: ft, fontSize: 8, color: "rgba(255,255,255,0.4)" }}>online</span></div>
         </div>
       </div>
     </div>
@@ -346,7 +346,7 @@ function Sidebar({ active, onNav, onAskPoast }) {
         return <div key={catKey} style={{ marginBottom: 2 }}>
           {/* Category label */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 12px" }}>
-            <div style={{ width: 3, height: 14, borderRadius: 2, background: isCatActive ? cat.color : "rgba(255,255,255,0.08)", boxShadow: isCatActive ? "0 0 10px " + cat.color + "60, 0 0 20px " + cat.color + "20" : "none", transition: "all 0.25s" }} />
+            <div style={{ width: 3, height: 14, borderRadius: 2, background: isCatActive ? cat.color : "rgba(255,255,255,0.12)", boxShadow: isCatActive ? "0 0 10px " + cat.color + "60, 0 0 20px " + cat.color + "20" : "none", transition: "all 0.25s" }} />
             <span style={{ fontFamily: ft, fontSize: 10, fontWeight: 800, color: isCatActive ? cat.color : "rgba(255,255,255,0.3)", letterSpacing: 2, textTransform: "uppercase", transition: "all 0.25s", textShadow: isCatActive ? "0 0 16px " + cat.glow + "0.4), 0 0 30px " + cat.glow + "0.12)" : "none" }}>{cat.label}</span>
           </div>
           {/* Items */}
@@ -373,18 +373,18 @@ function Sidebar({ active, onNav, onAskPoast }) {
 
 function TabBar({ items, active, onPick, locks }) {
   return (<div style={{ display: "flex", gap: 4, borderBottom: "1px solid rgba(255,255,255,0.06)", marginBottom: 28, paddingBottom: 0, background: "transparent", flexWrap: "wrap" }}>
-    {items.map(function(t) { var s = active === t.id, lk = locks && locks.indexOf(t.id) >= 0; return (<div key={t.id} onClick={function() { if (!lk) onPick(t.id); }} style={{ padding: "14px 22px", cursor: lk ? "not-allowed" : "pointer", fontFamily: ft, fontSize: 13, fontWeight: s ? 800 : 500, color: lk ? "rgba(255,255,255,0.12)" : s ? C.amber : "rgba(255,255,255,0.55)", borderBottom: s ? "2px solid " + C.amber : "2px solid transparent", opacity: lk ? 0.35 : 1, display: "flex", alignItems: "center", gap: 6, letterSpacing: s ? -0.3 : 0, transition: "all 0.2s ease", position: "relative" }}>{t.l}{lk && <span style={{ fontFamily: mn, fontSize: 7, background: "#09090D", padding: "2px 6px", borderRadius: 4, color: "rgba(255,255,255,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}>locked</span>}</div>); })}
+    {items.map(function(t) { var s = active === t.id, lk = locks && locks.indexOf(t.id) >= 0; return (<div key={t.id} onClick={function() { if (!lk) onPick(t.id); }} style={{ padding: "14px 22px", cursor: lk ? "not-allowed" : "pointer", fontFamily: ft, fontSize: 13, fontWeight: s ? 800 : 500, color: lk ? "rgba(255,255,255,0.12)" : s ? C.amber : "rgba(255,255,255,0.55)", borderBottom: s ? "2px solid " + C.amber : "2px solid transparent", opacity: lk ? 0.35 : 1, display: "flex", alignItems: "center", gap: 6, letterSpacing: s ? -0.3 : 0, transition: "all 0.2s ease", position: "relative" }}>{t.l}{lk && <span style={{ fontFamily: mn, fontSize: 7, background: "#09090D", padding: "2px 6px", borderRadius: 4, color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.06)" }}>locked</span>}</div>); })}
   </div>);
 }
 
 function GuestManager({ guests, setGuests }) {
   return (<div style={{ marginBottom: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}><Label>Guests</Label><span onClick={function() { setGuests(guests.concat([{ name: "", handle: "" }])); }} style={{ fontFamily: mn, fontSize: 10, color: C.amber, cursor: "pointer", padding: "4px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.06)", transition: "all 0.2s ease" }}>+ Add</span></div>
-    {guests.length === 0 && <div onClick={function() { setGuests([{ name: "", handle: "" }]); }} style={{ background: "#09090D", border: "1px dashed rgba(255,255,255,0.06)", borderRadius: 10, padding: "16px", cursor: "pointer", textAlign: "center", fontFamily: ft, fontSize: 13, color: "rgba(255,255,255,0.25)" }}>Click to add guests</div>}
+    {guests.length === 0 && <div onClick={function() { setGuests([{ name: "", handle: "" }]); }} style={{ background: "#09090D", border: "1px dashed rgba(255,255,255,0.06)", borderRadius: 10, padding: "16px", cursor: "pointer", textAlign: "center", fontFamily: ft, fontSize: 13, color: "rgba(255,255,255,0.4)" }}>Click to add guests</div>}
     {guests.map(function(g, i) { return (<div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
       <input value={g.name} onChange={function(e) { var c = guests.slice(); c[i] = { name: e.target.value, handle: g.handle }; setGuests(c); }} placeholder="Name" style={{ flex: 1, padding: "10px 12px", background: "#09090D", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, color: C.tx, fontFamily: ft, fontSize: 14, outline: "none", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = "rgba(255,255,255,0.06)"; }} />
       <input value={g.handle} onChange={function(e) { var c = guests.slice(); c[i] = { name: g.name, handle: e.target.value }; setGuests(c); }} placeholder="@handle" style={{ flex: 1, padding: "10px 12px", background: "#09090D", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, color: C.tx, fontFamily: mn, fontSize: 13, outline: "none", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = "rgba(255,255,255,0.06)"; }} />
-      <span onClick={function() { setGuests(guests.filter(function(_, j) { return j !== i; })); }} style={{ fontFamily: mn, fontSize: 11, color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "4px 8px" }}>x</span>
+      <span onClick={function() { setGuests(guests.filter(function(_, j) { return j !== i; })); }} style={{ fontFamily: mn, fontSize: 11, color: "rgba(255,255,255,0.4)", cursor: "pointer", padding: "4px 8px" }}>x</span>
     </div>); })}
   </div>);
 }
@@ -463,17 +463,17 @@ function EpisodeSetup({ ep, setEp, guests, setGuests, opts, setOpts, sel, setSel
         <label style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, cursor: "pointer", background: "transparent", border: "1px solid rgba(255,255,255,0.06)", fontFamily: mn, fontSize: 10, color: C.amber, transition: "all 0.2s ease" }}>Upload .txt<input type="file" accept=".txt,.text" style={{ display: "none" }} onChange={function(e) { var f = e.target.files && e.target.files[0]; if (!f) return; var r = new FileReader(); r.onload = function(ev) { setEp(Object.assign({}, ep, { transcript: ev.target.result })); }; r.readAsText(f); e.target.value = ""; }} /></label>
       </div>
       <div onDragOver={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = C.amber; }} onDragLeave={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }} onDrop={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; var f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) { var r = new FileReader(); r.onload = function(ev) { setEp(Object.assign({}, ep, { transcript: ev.target.result })); }; r.readAsText(f); } }} style={{ position: "relative", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, background: "#09090D", transition: "border-color 0.2s ease" }}>
-        {!ep.transcript && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none", zIndex: 1 }}><div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.25)" }}>Drop .txt or paste transcript</div></div>}
+        {!ep.transcript && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none", zIndex: 1 }}><div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.4)" }}>Drop .txt or paste transcript</div></div>}
         <textarea value={ep.transcript} onChange={function(e) { setEp(Object.assign({}, ep, { transcript: e.target.value })); }} rows={10} style={{ width: "100%", padding: "14px 16px", background: "transparent", border: "none", borderRadius: 12, color: C.tx, fontFamily: mn, fontSize: 12, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.7, position: "relative", zIndex: 2, minHeight: 140 }} />
       </div>
-      {ep.transcript && <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}><span style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)" }}>{ep.transcript.length.toLocaleString()} chars</span><span onClick={function() { setEp(Object.assign({}, ep, { transcript: "" })); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", cursor: "pointer" }}>Clear</span></div>}
+      {ep.transcript && <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}><span style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)" }}>{ep.transcript.length.toLocaleString()} chars</span><span onClick={function() { setEp(Object.assign({}, ep, { transcript: "" })); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: "pointer" }}>Clear</span></div>}
     </div>
 
     {/* Timestamps */}
     <div style={{ marginBottom: 20 }}>
       <Label>Timestamps (optional)</Label>
       <textarea value={ep.timestamps || ""} onChange={function(e) { setEp(Object.assign({}, ep, { timestamps: e.target.value })); }} rows={4} placeholder={"(00:00) Cold open\n(02:06) Introduction\n(05:10) Supply chain choke points"} style={{ width: "100%", padding: "12px 14px", background: "#09090D", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, color: C.tx, fontFamily: mn, fontSize: 12, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.7, transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; e.target.style.boxShadow = "0 0 24px rgba(247,176,65,0.06)"; }} onBlur={function(e) { e.target.style.borderColor = "rgba(255,255,255,0.06)"; e.target.style.boxShadow = "none"; }} />
-      <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", marginTop: 6 }}>Added to end of generated descriptions.</div>
+      <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", marginTop: 6 }}>Added to end of generated descriptions.</div>
     </div>
 
     {/* Additional Info */}
@@ -486,14 +486,14 @@ function EpisodeSetup({ ep, setEp, guests, setGuests, opts, setOpts, sel, setSel
     <div style={{ marginBottom: 24 }}>
       <Label>Description Length</Label>
       <div style={{ display: "flex", gap: 8 }}>
-        {[{ id: "short", l: "Short", sub: "2-4 sentences" }, { id: "medium", l: "Medium", sub: "2 paragraphs" }, { id: "long", l: "Long", sub: "3-5 paragraphs" }].map(function(m) { var s2 = descLen === m.id; return <div key={m.id} onClick={function() { setDescLen(m.id); }} style={{ flex: 1, padding: "14px 16px", borderRadius: 12, cursor: "pointer", background: s2 ? C.amber + "0A" : "#0D0D12", border: "1px solid " + (s2 ? C.amber + "60" : "rgba(255,255,255,0.06)"), textAlign: "center", boxShadow: s2 ? "0 0 24px rgba(247,176,65,0.06)" : "none", transition: "all 0.2s ease" }}><div style={{ fontFamily: ft, fontSize: 14, fontWeight: s2 ? 800 : 500, color: s2 ? C.amber : "#ffffff" }}>{m.l}</div><div style={{ fontFamily: mn, fontSize: 9, color: s2 ? C.amber : "rgba(255,255,255,0.25)", marginTop: 3 }}>{m.sub}</div></div>; })}
+        {[{ id: "short", l: "Short", sub: "2-4 sentences" }, { id: "medium", l: "Medium", sub: "2 paragraphs" }, { id: "long", l: "Long", sub: "3-5 paragraphs" }].map(function(m) { var s2 = descLen === m.id; return <div key={m.id} onClick={function() { setDescLen(m.id); }} style={{ flex: 1, padding: "14px 16px", borderRadius: 12, cursor: "pointer", background: s2 ? C.amber + "0A" : "#0D0D12", border: "1px solid " + (s2 ? C.amber + "60" : "rgba(255,255,255,0.06)"), textAlign: "center", boxShadow: s2 ? "0 0 24px rgba(247,176,65,0.06)" : "none", transition: "all 0.2s ease" }}><div style={{ fontFamily: ft, fontSize: 14, fontWeight: s2 ? 800 : 500, color: s2 ? C.amber : "#ffffff" }}>{m.l}</div><div style={{ fontFamily: mn, fontSize: 9, color: s2 ? C.amber : "rgba(255,255,255,0.4)", marginTop: 3 }}>{m.sub}</div></div>; })}
       </div>
     </div>
 
     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
       <Btn onClick={genAll} loading={loading} off={!ep.transcript}>Generate Options</Btn>
       {opts && <Btn onClick={genAll} loading={loading} sec sm>Full Regen</Btn>}
-      {!ep.transcript && <span style={{ fontFamily: mn, fontSize: 10, color: "rgba(255,255,255,0.25)" }}>Paste or upload a transcript first</span>}
+      {!ep.transcript && <span style={{ fontFamily: mn, fontSize: 10, color: "rgba(255,255,255,0.4)" }}>Paste or upload a transcript first</span>}
     </div>
     {loading && <ProgressBar label="Generating titles, descriptions, and thumbnails" />}
 
@@ -529,7 +529,7 @@ function TestPage({ ep, guests, opts, fin, setFin, thumb, setThumb, goLaunch }) 
   var _am = useState("both"), abM = _am[0], setAbM = _am[1];
   var _fn = useState(false), locked = _fn[0], setLocked = _fn[1];
 
-  if (!fin) return <div style={{ textAlign: "center", padding: 80, color: C.txd, fontFamily: ft }}>Save selections in Episode Setup first.</div>;
+  if (!fin) return <div style={{ textAlign: "center", padding: 80, color: C.txm, fontFamily: ft }}>Save selections in Episode Setup first.</div>;
   var thS = thTxt(fin.thumbnail);
 
   var doubleCheck = async function() {
@@ -589,16 +589,16 @@ function TestPage({ ep, guests, opts, fin, setFin, thumb, setThumb, goLaunch }) 
     <div style={{ fontFamily: ft, fontSize: 24, fontWeight: 900, color: "#ffffff", marginBottom: 4, letterSpacing: -1 }}>Test Page</div>
     <div style={{ fontFamily: mn, fontSize: 11, color: "rgba(255,255,255,0.55)", marginBottom: 32, letterSpacing: "1px" }}>Preview, double check, A/B test, then finalize.</div>
     <div className="poast-card" style={{ background: "#0D0D12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, overflow: "hidden", marginBottom: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
-      <div style={{ width: "100%", aspectRatio: "16/9", background: "#09090D", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>{thumb ? <img src={thumb} alt="Thumb" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ textAlign: "center" }}><div style={{ fontFamily: ft, fontSize: 15, color: "rgba(255,255,255,0.25)" }}>Thumbnail Preview</div></div>}<div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.8)", borderRadius: 4, padding: "3px 8px", fontFamily: mn, fontSize: 10, color: "#fff" }}>42:18</div></div>
+      <div style={{ width: "100%", aspectRatio: "16/9", background: "#09090D", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>{thumb ? <img src={thumb} alt="Thumb" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ textAlign: "center" }}><div style={{ fontFamily: ft, fontSize: 15, color: "rgba(255,255,255,0.4)" }}>Thumbnail Preview</div></div>}<div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.8)", borderRadius: 4, padding: "3px 8px", fontFamily: mn, fontSize: 10, color: "#fff" }}>42:18</div></div>
       <div style={{ padding: "16px 20px" }}><div style={{ fontFamily: ft, fontSize: 16, fontWeight: 800, color: "#ffffff", lineHeight: 1.4, marginBottom: 10 }}>{fin.title}</div><div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 28, height: 28, borderRadius: "50%", background: C.amber, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 11, fontWeight: 800, color: "#060608" }}>SA</div><div style={{ fontFamily: ft, fontSize: 12, color: "rgba(255,255,255,0.55)", fontWeight: 600 }}>SemiAnalysis Weekly</div></div></div>
     </div>
     <div className="poast-card" style={{ background: "#0D0D12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 20, marginBottom: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}><div style={{ fontFamily: mn, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "2px" }}>Description</div><CopyBtn text={fin.description} /></div><div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{fin.description}</div></div>
     <div className="poast-card" style={{ background: "#0D0D12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 20, marginBottom: 28, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}><div style={{ fontFamily: mn, fontSize: 11, color: C.violet, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 10 }}>Thumbnail Concept</div><div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.7 }}>{thS}</div></div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 28 }}>
-      <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, background: "#09090D", border: "2px dashed rgba(255,255,255,0.06)", borderRadius: 12, cursor: "pointer", transition: "border-color 0.2s ease" }}><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: C.amber, marginBottom: 4 }}>A. Upload Thumbnail</div><div style={{ fontFamily: mn, fontSize: 10, color: "rgba(255,255,255,0.25)" }}>PNG, JPG, 1280x720</div><input type="file" accept="image/*" style={{ display: "none" }} onChange={function(e) { var f = e.target.files && e.target.files[0]; if (!f) return; var r = new FileReader(); r.onload = function(ev) { setThumb(ev.target.result); }; r.readAsDataURL(f); e.target.value = ""; }} /></label>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, background: "#09090D", border: "2px dashed rgba(255,255,255,0.06)", borderRadius: 12, opacity: 0.35 }}><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: "rgba(255,255,255,0.55)", marginBottom: 4 }}>B. Get One Prompted</div><div style={{ fontFamily: mn, fontSize: 10, color: "rgba(255,255,255,0.25)" }}>Coming Soon</div></div>
+      <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, background: "#09090D", border: "2px dashed rgba(255,255,255,0.06)", borderRadius: 12, cursor: "pointer", transition: "border-color 0.2s ease" }}><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: C.amber, marginBottom: 4 }}>A. Upload Thumbnail</div><div style={{ fontFamily: mn, fontSize: 10, color: "rgba(255,255,255,0.4)" }}>PNG, JPG, 1280x720</div><input type="file" accept="image/*" style={{ display: "none" }} onChange={function(e) { var f = e.target.files && e.target.files[0]; if (!f) return; var r = new FileReader(); r.onload = function(ev) { setThumb(ev.target.result); }; r.readAsDataURL(f); e.target.value = ""; }} /></label>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, background: "#09090D", border: "2px dashed rgba(255,255,255,0.06)", borderRadius: 12, opacity: 0.35 }}><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: "rgba(255,255,255,0.55)", marginBottom: 4 }}>B. Get One Prompted</div><div style={{ fontFamily: mn, fontSize: 10, color: "rgba(255,255,255,0.4)" }}>Coming Soon</div></div>
     </div>
-    {thumb && <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 20 }}><span style={{ fontFamily: mn, fontSize: 10, color: C.teal }}>Thumbnail uploaded</span><span onClick={function() { setThumb(null); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", cursor: "pointer" }}>Remove</span></div>}
+    {thumb && <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 20 }}><span style={{ fontFamily: mn, fontSize: 10, color: C.teal }}>Thumbnail uploaded</span><span onClick={function() { setThumb(null); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: "pointer" }}>Remove</span></div>}
     <Divider />
     <div style={{ marginBottom: 28 }}><div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: "#ffffff", marginBottom: 10, letterSpacing: -0.5 }}>Double Check</div><Btn onClick={doubleCheck} loading={checkL} sec>Run Double Check</Btn>
       {checkL && <ProgressBar label="Evaluating cohesion" />}
@@ -618,8 +618,8 @@ function TestPage({ ep, guests, opts, fin, setFin, thumb, setThumb, goLaunch }) 
                 <div style={{ fontFamily: mn, fontSize: 9, color: col.color, textTransform: "uppercase", letterSpacing: "2px" }}>{col.label}</div>
                 <div style={{ width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: col.color + "15", border: "2px solid " + col.color, fontFamily: mn, fontSize: 15, fontWeight: 700, color: col.color }}>{opt.score}</div>
               </div>
-              {opt.title && <div style={{ marginBottom: 12 }}><div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", marginBottom: 4, letterSpacing: "1.5px" }}>TITLE</div><div style={{ fontFamily: ft, fontSize: 14, color: "#ffffff", fontWeight: 700 }}>{opt.title}</div></div>}
-              {opt.thumbnail_concept && <div style={{ marginBottom: 12 }}><div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", marginBottom: 4, letterSpacing: "1.5px" }}>THUMBNAIL</div><div style={{ fontFamily: ft, fontSize: 13, color: "rgba(255,255,255,0.55)" }}>{opt.thumbnail_concept}</div></div>}
+              {opt.title && <div style={{ marginBottom: 12 }}><div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 4, letterSpacing: "1.5px" }}>TITLE</div><div style={{ fontFamily: ft, fontSize: 14, color: "#ffffff", fontWeight: 700 }}>{opt.title}</div></div>}
+              {opt.thumbnail_concept && <div style={{ marginBottom: 12 }}><div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", marginBottom: 4, letterSpacing: "1.5px" }}>THUMBNAIL</div><div style={{ fontFamily: ft, fontSize: 13, color: "rgba(255,255,255,0.55)" }}>{opt.thumbnail_concept}</div></div>}
               <div style={{ fontFamily: ft, fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.6, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 12, marginTop: 8 }}>{opt.reasoning}</div>
             </div>;
           })}
@@ -647,7 +647,7 @@ function LaunchRollout({ ep, guests, fin, onComplete }) {
   var _done = useState(false), done = _done[0], setDone = _done[1];
   var _show = useState(false), showModal = _show[0], setShowModal = _show[1];
 
-  if (!fin) return <div style={{ textAlign: "center", padding: 80, color: C.txd, fontFamily: ft }}>Complete Episode Setup and Test Page first.</div>;
+  if (!fin) return <div style={{ textAlign: "center", padding: 80, color: C.txm, fontFamily: ft }}>Complete Episode Setup and Test Page first.</div>;
   var gs = gStr(guests);
   var link = ep.link || "https://youtube.com/@SemianalysisWeekly";
 
@@ -741,7 +741,7 @@ function LaunchRollout({ ep, guests, fin, onComplete }) {
 }
 
 // ═══ CLIP MANAGER + LOG ═══
-function ClipMgr() { return <div style={{ textAlign: "center", padding: 80, color: "rgba(255,255,255,0.25)", fontFamily: ft }}><div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8, color: "rgba(255,255,255,0.55)" }}>Clip Manager</div><div style={{ fontFamily: mn, fontSize: 11, letterSpacing: "1px" }}>Coming next.</div></div>; }
+function ClipMgr() { return <div style={{ textAlign: "center", padding: 80, color: "rgba(255,255,255,0.4)", fontFamily: ft }}><div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8, color: "rgba(255,255,255,0.55)" }}>Clip Manager</div><div style={{ fontFamily: mn, fontSize: 11, letterSpacing: "1px" }}>Coming next.</div></div>; }
 
 function LogTab({ logData, setLogData }) {
   var _ed = useState(false), editing = _ed[0], setEditing = _ed[1];
@@ -778,15 +778,15 @@ function LogTab({ logData, setLogData }) {
   return (<div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
       <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: "#ffffff", letterSpacing: -0.5 }}>Activity Log</div>
-      {logData.length > 0 && <span onClick={function() { setEditing(!editing); }} style={{ fontFamily: mn, fontSize: 10, color: editing ? C.coral : "rgba(255,255,255,0.25)", cursor: "pointer", padding: "5px 12px", borderRadius: 8, border: "1px solid " + (editing ? C.coral + "40" : "rgba(255,255,255,0.06)"), transition: "all 0.2s ease" }}>{editing ? "Done" : "Edit"}</span>}
+      {logData.length > 0 && <span onClick={function() { setEditing(!editing); }} style={{ fontFamily: mn, fontSize: 10, color: editing ? C.coral : "rgba(255,255,255,0.4)", cursor: "pointer", padding: "5px 12px", borderRadius: 8, border: "1px solid " + (editing ? C.coral + "40" : "rgba(255,255,255,0.06)"), transition: "all 0.2s ease" }}>{editing ? "Done" : "Edit"}</span>}
     </div>
-    {logData.length === 0 ? <div style={{ textAlign: "center", padding: 60, color: "rgba(255,255,255,0.25)", fontFamily: ft, fontSize: 14 }}>No completed episodes yet.</div>
+    {logData.length === 0 ? <div style={{ textAlign: "center", padding: 60, color: "rgba(255,255,255,0.4)", fontFamily: ft, fontSize: 14 }}>No completed episodes yet.</div>
       : logData.map(function(e, i) { return (<div key={i} className="poast-card" style={{ background: "#0D0D12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "18px 20px", marginBottom: 10, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
           {editing && <span onClick={function() { removeEntry(i); }} style={{ width: 24, height: 24, borderRadius: "50%", background: C.coral + "15", border: "1px solid " + C.coral, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 13, color: C.coral, cursor: "pointer", flexShrink: 0 }}>x</span>}
           <div style={{ width: 42, height: 42, borderRadius: 10, background: "#09090D", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 12, color: C.amber, fontWeight: 700, border: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>{"#" + e.episode}</div>
           <div style={{ flex: 1 }}><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: "#ffffff" }}>{e.title}</div><div style={{ fontFamily: ft, fontSize: 12, color: "rgba(255,255,255,0.55)" }}>{e.guests}</div></div>
-          <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)" }}>{e.date}</div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)" }}>{e.date}</div>
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
           <span onClick={function() { setViewIdx(i); }} style={{ fontFamily: mn, fontSize: 9, color: C.teal, padding: "4px 12px", background: C.teal + "0A", borderRadius: 6, cursor: "pointer", border: "1px solid " + C.teal + "30" }}>View Launch Kit</span>
@@ -800,7 +800,7 @@ function LogTab({ logData, setLogData }) {
       <div onClick={function(e) { e.stopPropagation(); }} style={{ background: "#0D0D12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: 32, maxWidth: 640, width: "90%", maxHeight: "80vh", overflow: "auto", boxShadow: "0 4px 40px rgba(0,0,0,0.6)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div style={{ fontFamily: mn, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "2px" }}>{"Episode #" + viewEntry.episode + " // Launch Kit"}</div>
-          <span onClick={function() { setViewIdx(null); }} style={{ fontFamily: mn, fontSize: 11, color: "rgba(255,255,255,0.25)", cursor: "pointer", padding: "4px 8px" }}>x</span>
+          <span onClick={function() { setViewIdx(null); }} style={{ fontFamily: mn, fontSize: 11, color: "rgba(255,255,255,0.4)", cursor: "pointer", padding: "4px 8px" }}>x</span>
         </div>
         <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 900, color: "#ffffff", marginBottom: 4, letterSpacing: -0.5 }}>{viewEntry.title}</div>
         <div style={{ fontFamily: ft, fontSize: 13, color: "rgba(255,255,255,0.55)", marginBottom: 8 }}>{viewEntry.guests} // {viewEntry.date}</div>
@@ -822,181 +822,204 @@ function LogTab({ logData, setLogData }) {
 }
 
 // ═══ CLIP CAPTIONS ═══
-var SYS_CLIP = "You are a social media strategist for SemiAnalysis. You write captions for short-form video clips pulled from longer podcast episodes. Rules: Never use em dashes. No emojis. No hashtags on X/Twitter ever. YT Shorts titles under 40 chars. Instagram: caption + Save this for later CTA + 5-8 hashtags + location San Francisco CA, point to youtube.com/@SemianalysisWeekly. TikTok: all lowercase 4-6 hashtags no on-screen text overlays. LinkedIn/Facebook: link in first comment end with Link in comments. X: Hook tweet no link. Include guest handles on every platform. RESPOND ONLY IN VALID JSON. No markdown fences. No preamble.";
-
-var CLIP_PLATFORMS = [
-  { key: "x", label: "X // Post", color: PL.x },
-  { key: "linkedin", label: "LinkedIn // Post", color: PL.li },
-  { key: "facebook", label: "Facebook // Post", color: PL.fb },
-  { key: "instagram", label: "Instagram Reels", color: PL.ig },
-  { key: "yt_shorts_title", label: "YouTube Shorts // Title", color: PL.yt },
-  { key: "yt_shorts_desc", label: "YouTube Shorts // Description", color: PL.yt },
-  { key: "tiktok", label: "TikTok", color: PL.tt },
+var CAPPER_TONES = [
+  { key: "dylan", label: "Dylan", desc: "Direct, data-heavy, confident, uses specific numbers and claims.", hook: "Here's what nobody is telling you about..." },
+  { key: "doug", label: "Doug", desc: "Technical, first-principles, analytical. Focuses on why something matters structurally.", hook: "" },
+  { key: "sa_twitter", label: "SA Twitter", desc: "Punchy, provocative, hot-take style. Short sentences. Bold claims backed by data.", hook: "" },
+  { key: "oren", label: "Oren", desc: "Conversational, storytelling, bridges tech to business impact. Accessible but informed.", hook: "" },
 ];
 
+var CAPPER_PLATFORMS = [
+  { key: "x", label: "X", color: PL.x, icon: "X" },
+  { key: "instagram", label: "Instagram", color: PL.ig, icon: "IG" },
+  { key: "linkedin", label: "LinkedIn", color: PL.li, icon: "in" },
+  { key: "tiktok", label: "TikTok", color: PL.tt, icon: "TT" },
+  { key: "youtube", label: "YouTube", color: PL.yt, icon: "YT" },
+];
+
+var CAPPER_LENGTHS = [
+  { key: "short", label: "Short", desc: "1-2 sentences" },
+  { key: "medium", label: "Medium", desc: "3-4 sentences" },
+  { key: "long", label: "Long", desc: "Paragraph" },
+];
+
+var SYS_CAPPER = "You are a social media caption writer. You write captions for short-form video clips.\n\nTone descriptions:\n- Dylan: Direct, data-heavy, confident. Uses specific numbers and bold claims. Opens with hooks like 'Here is what nobody is telling you about...' Never hedges.\n- Doug: Technical, first-principles, analytical. Focuses on structural importance and why something matters at a fundamental level. Methodical.\n- SA Twitter: Punchy, provocative, hot-take energy. Short sentences. Bold claims. Data-backed but aggressive framing.\n- Oren: Conversational, storytelling approach. Bridges technical topics to business impact. Accessible but clearly informed.\n\nPlatform rules:\n- X: No hashtags ever. Write as hook tweet + reply-to-self format. No links in the main post. Keep punchy.\n- Instagram: Include a 'Save this for later' CTA. Add 5-8 relevant hashtags. Add location 'San Francisco, CA'. Direct to bio link.\n- LinkedIn: Professional framing. End with 'Link in comments.' No hashtags. Longer form is fine.\n- TikTok: All lowercase. 4-6 hashtags. Casual tone. Short.\n- YouTube: Include a separate title line (under 40 characters). Then the description. Include relevant keywords.\n\nRules: Never use em dashes, use commas or periods. No emojis. Be direct. RESPOND ONLY IN VALID JSON. No markdown fences. No preamble.";
+
 function ClipCaptions() {
-  var _clips = useState([{ name: "", context: "", guests: "", platforms: ["x", "linkedin", "facebook", "instagram", "yt_shorts_title", "yt_shorts_desc", "tiktok"] }]);
-  var clips = _clips[0], setClips = _clips[1];
-  var _active = useState(0), active = _active[0], setActive = _active[1];
-  var _results = useState({}), results = _results[0], setResults = _results[1];
-  var _loading = useState({}), loading = _loading[0], setLoading = _loading[1];
-  var _redoL = useState({}), redoL = _redoL[0], setRedoL = _redoL[1];
+  var _content = useState(""), content = _content[0], setContent = _content[1];
+  var _platform = useState("x"), platform = _platform[0], setPlatform = _platform[1];
+  var _length = useState("medium"), length = _length[0], setLength = _length[1];
+  var _tone = useState("dylan"), tone = _tone[0], setTone = _tone[1];
+  var _link = useState(false), showLink = _link[0], setShowLink = _link[1];
+  var _url = useState(""), url = _url[0], setUrl = _url[1];
+  var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
+  var _results = useState(null), results = _results[0], setResults = _results[1];
+  var _regenL = useState({}), regenL = _regenL[0], setRegenL = _regenL[1];
 
-  var addClip = function() {
-    var c = clips.concat([{ name: "", context: "", guests: "", platforms: ["x", "linkedin", "facebook", "instagram", "yt_shorts_title", "yt_shorts_desc", "tiktok"] }]);
-    setClips(c);
-    setActive(c.length - 1);
+  var platObj = CAPPER_PLATFORMS.find(function(p) { return p.key === platform; }) || CAPPER_PLATFORMS[0];
+  var toneObj = CAPPER_TONES.find(function(t) { return t.key === tone; }) || CAPPER_TONES[0];
+  var lenObj = CAPPER_LENGTHS.find(function(l) { return l.key === length; }) || CAPPER_LENGTHS[1];
+
+  var buildCapperPrompt = function(variationNote) {
+    var parts = [
+      "Generate a " + platObj.label + " caption for this clip.",
+      "Tone: " + toneObj.label + " - " + toneObj.desc,
+      "Length: " + lenObj.label + " (" + lenObj.desc + ")",
+      "Platform: " + platObj.label,
+      "Clip content:\n" + content.slice(0, 6000),
+    ];
+    if (showLink && url) parts.push("Include this redirect link naturally: " + url);
+    if (variationNote) parts.push(variationNote);
+    parts.push('Return JSON: {"caption":"the caption text"' + (platform === "youtube" ? ',"title":"short title under 40 chars"' : '') + (platform === "x" ? ',"reply":"reply tweet with link or additional context"' : '') + '}');
+    return parts.filter(Boolean).join("\n\n");
   };
 
-  var removeClip = function(idx) {
-    if (clips.length <= 1) return;
-    var c = clips.filter(function(_, i) { return i !== idx; });
-    setClips(c);
-    if (active >= c.length) setActive(c.length - 1);
-    // Re-index results to match new clip positions
-    var nr = {};
-    Object.keys(results).forEach(function(k) {
-      var ki = parseInt(k);
-      if (ki < idx) nr[ki] = results[ki];
-      else if (ki > idx) nr[ki - 1] = results[ki];
-    });
-    setResults(nr);
-    // Re-index redo loading states too
-    var nrl = {};
-    Object.keys(redoL).forEach(function(k) {
-      var parts = k.split("-");
-      var ki = parseInt(parts[0]);
-      if (ki < idx) nrl[k] = redoL[k];
-      else if (ki > idx) nrl[(ki - 1) + "-" + parts.slice(1).join("-")] = redoL[k];
-    });
-    setRedoL(nrl);
+  var generate = async function() {
+    if (!content) return;
+    setLoading(true);
+    setResults(null);
+    var promises = [
+      ask(SYS_CAPPER, buildCapperPrompt("This is variation 1 of 3. Be direct and sharp.")),
+      ask(SYS_CAPPER, buildCapperPrompt("This is variation 2 of 3. Try a different angle or hook.")),
+      ask(SYS_CAPPER, buildCapperPrompt("This is variation 3 of 3. Take the most creative or unexpected approach.")),
+    ];
+    var all = await Promise.all(promises);
+    var out = all.map(function(d, i) { return d || { caption: "Generation failed for variation " + (i + 1) }; });
+    setResults(out);
+    setLoading(false);
   };
 
-  var updateClip = function(idx, field, val) {
-    var c = clips.slice();
-    c[idx] = Object.assign({}, c[idx]);
-    c[idx][field] = val;
-    setClips(c);
-  };
-
-  var togglePlatform = function(idx, key) {
-    var c = clips.slice();
-    var p = c[idx].platforms.slice();
-    var i = p.indexOf(key);
-    if (i >= 0) p.splice(i, 1); else p.push(key);
-    c[idx] = Object.assign({}, c[idx], { platforms: p });
-    setClips(c);
-  };
-
-  var genCaptions = async function(idx) {
-    var clip = clips[idx];
-    if (!clip.context) return;
-    setLoading(function(p) { var o = Object.assign({}, p); o[idx] = true; return o; });
-    var platKeys = clip.platforms.join('","');
-    var data = await ask(SYS_CLIP, buildPrompt([
-      "Generate social captions for a short clip from SemiAnalysis Weekly.",
-      "Clip name: " + (clip.name || "Untitled"),
-      clip.guests ? "Guests with handles: " + clip.guests : "",
-      "Clip context/transcript: " + clip.context.slice(0, 6000),
-      "Channel: youtube.com/@SemianalysisWeekly",
-      "Generate captions ONLY for these platforms: " + clip.platforms.map(function(k) { var f = CLIP_PLATFORMS.find(function(p) { return p.key === k; }); return f ? f.label : k; }).join(", "),
-      'Return JSON with these exact keys: {"' + platKeys + '":"..."}. LinkedIn and Facebook posts should end with "Link in comments." X post should have no link. YT Shorts title must be under 40 characters.',
-    ]));
-    if (data) setResults(function(p) { var o = Object.assign({}, p); o[idx] = data; return o; });
-    setLoading(function(p) { var o = Object.assign({}, p); o[idx] = false; return o; });
-  };
-
-  var redoOne = async function(clipIdx, platKey) {
-    var rk = clipIdx + "-" + platKey;
-    setRedoL(function(p) { var o = Object.assign({}, p); o[rk] = true; return o; });
-    var clip = clips[clipIdx];
-    var cur = results[clipIdx] && results[clipIdx][platKey] || "";
-    var platLabel = (CLIP_PLATFORMS.find(function(p) { return p.key === platKey; }) || {}).label || platKey;
-    var data = await ask(SYS_CLIP, buildPrompt([
-      "Regenerate ONLY the " + platLabel + " caption for this SemiAnalysis clip.",
-      "Clip: " + (clip.name || "Untitled"),
-      clip.guests ? "Guests: " + clip.guests : "",
-      "Context: " + clip.context.slice(0, 3000),
-      "Current (be DIFFERENT): " + cur,
-      'Return JSON: {"result":"..."}',
-    ]));
-    if (data && data.result) {
+  var regenerateOne = async function(idx) {
+    setRegenL(function(p) { var o = Object.assign({}, p); o[idx] = true; return o; });
+    var cur = results[idx] && results[idx].caption || "";
+    var data = await ask(SYS_CAPPER, buildCapperPrompt("Regenerate this caption. Be DIFFERENT from: " + cur));
+    if (data) {
       setResults(function(p) {
-        var o = Object.assign({}, p);
-        o[clipIdx] = Object.assign({}, o[clipIdx]);
-        o[clipIdx][platKey] = data.result;
+        var o = p.slice();
+        o[idx] = data;
         return o;
       });
     }
-    setRedoL(function(p) { var o = Object.assign({}, p); o[rk] = false; return o; });
+    setRegenL(function(p) { var o = Object.assign({}, p); o[idx] = false; return o; });
   };
 
-  var exportClip = function(idx) {
-    var clip = clips[idx];
-    var res = results[idx];
-    if (!res) return;
-    var sections = [{ heading: "Clip: " + (clip.name || "Untitled"), items: Object.keys(res).map(function(k) {
-      var f = CLIP_PLATFORMS.find(function(p) { return p.key === k; });
-      return { label: f ? f.label : k, content: res[k] };
-    })}];
-    exportDoc("Clip Captions - " + (clip.name || "Untitled"), sections);
+  var charCount = function(text) {
+    if (!text) return 0;
+    return text.length;
   };
 
-  var clip = clips[active] || {};
-  var res = results[active] || null;
-  var isLoading = loading[active] || false;
+  var cardBg = "#09090D";
+  var borderC = "rgba(255,255,255,0.06)";
 
   return (<div>
     <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: C.tx, marginBottom: 4 }}>Capper</div>
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginBottom: 24 }}>Generate platform captions for individual clips from Opus/Riverside.</div>
+    <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginBottom: 24 }}>Clip caption maker. Paste transcript, pick platform and tone, get 3 variations.</div>
 
-    {/* Clip tabs */}
-    <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
-      {clips.map(function(c, i) {
-        var s = active === i;
-        return <div key={i} style={{ display: "flex", alignItems: "center", gap: 0 }}>
-          <div onClick={function() { setActive(i); }} style={{ padding: "8px 14px", borderRadius: clips.length > 1 ? "6px 0 0 6px" : 6, cursor: "pointer", background: s ? C.amber + "15" : C.card, border: "1px solid " + (s ? C.amber : C.border), borderRight: clips.length > 1 ? "none" : undefined, fontFamily: ft, fontSize: 12, fontWeight: s ? 700 : 500, color: s ? C.amber : C.txm }}>{c.name || "Clip " + (i + 1)}</div>
-          {clips.length > 1 && <div onClick={function() { removeClip(i); }} style={{ padding: "8px 8px", borderRadius: "0 6px 6px 0", cursor: "pointer", background: s ? C.amber + "15" : C.card, border: "1px solid " + (s ? C.amber : C.border), fontFamily: mn, fontSize: 10, color: C.txd }}>x</div>}
-        </div>;
-      })}
-      <div onClick={addClip} style={{ padding: "8px 14px", borderRadius: 6, cursor: "pointer", background: C.card, border: "1px dashed " + C.border, fontFamily: mn, fontSize: 11, color: C.amber }}>+ Add Clip</div>
-    </div>
-
-    {/* Clip form */}
-    <Field label="Clip Name" value={clip.name} onChange={function(v) { updateClip(active, "name", v); }} placeholder="e.g. TSMC Arizona Update" />
-    <Field label="Guest Handles" value={clip.guests} onChange={function(v) { updateClip(active, "guests", v); }} placeholder="e.g. Jordan Nanos (@JordanNanos)" isMono />
-
-    <div style={{ marginBottom: 16 }}>
-      <Label>Clip Transcript / Context</Label>
-      <textarea value={clip.context} onChange={function(e) { updateClip(active, "context", e.target.value); }} rows={8} placeholder="Paste the clip transcript or describe what the clip covers..." style={{ width: "100%", padding: "12px 14px", background: C.card, border: "1px solid " + C.border, borderRadius: 7, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.6 }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
-      {clip.context && <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 4 }}>{clip.context.length.toLocaleString()} chars</div>}
-    </div>
-
-    {/* Platform selector */}
+    {/* Clip Content */}
     <div style={{ marginBottom: 20 }}>
-      <Label>Platforms</Label>
+      <Label>Clip Content</Label>
+      <textarea value={content} onChange={function(e) { setContent(e.target.value); }} rows={7} placeholder="Paste the clip transcript or describe the topic..." style={{ width: "100%", padding: "14px 16px", background: cardBg, border: "1px solid " + borderC, borderRadius: 10, color: C.tx, fontFamily: mn, fontSize: 12, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.7, transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; e.target.style.boxShadow = "0 0 24px rgba(247,176,65,0.06)"; }} onBlur={function(e) { e.target.style.borderColor = borderC; e.target.style.boxShadow = "none"; }} />
+      {content && <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 4 }}>{content.length.toLocaleString()} chars</div>}
+    </div>
+
+    {/* Platform */}
+    <div style={{ marginBottom: 20 }}>
+      <Label>Platform</Label>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {CLIP_PLATFORMS.map(function(p) {
-          var on = clip.platforms && clip.platforms.indexOf(p.key) >= 0;
-          return <div key={p.key} onClick={function() { togglePlatform(active, p.key); }} style={{ padding: "6px 12px", borderRadius: 5, cursor: "pointer", background: on ? p.color + "18" : C.card, border: "1px solid " + (on ? p.color + "60" : C.border), fontFamily: mn, fontSize: 10, color: on ? p.color : C.txd, transition: "all 0.2s ease" }}>{p.label.split(" // ")[0]}</div>;
+        {CAPPER_PLATFORMS.map(function(p) {
+          var on = platform === p.key;
+          return <div key={p.key} onClick={function() { setPlatform(p.key); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: on ? p.color + "18" : cardBg, border: "1px solid " + (on ? p.color + "60" : borderC), fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? p.color : C.txd, transition: "all 0.2s ease", display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontFamily: mn, fontSize: 9, opacity: 0.7 }}>{p.icon}</span>
+            {p.label}
+          </div>;
         })}
       </div>
     </div>
 
-    <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
-      <Btn onClick={function() { genCaptions(active); }} loading={isLoading} off={!clip.context}>Generate Captions</Btn>
-      {res && <Btn onClick={function() { genCaptions(active); }} loading={isLoading} sec sm>Regen All</Btn>}
-      {!clip.context && <span style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>Add transcript or context first</span>}
+    {/* Length */}
+    <div style={{ marginBottom: 20 }}>
+      <Label>Length</Label>
+      <div style={{ display: "flex", gap: 6 }}>
+        {CAPPER_LENGTHS.map(function(l) {
+          var on = length === l.key;
+          return <div key={l.key} onClick={function() { setLength(l.key); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: on ? C.amber + "15" : cardBg, border: "1px solid " + (on ? C.amber + "60" : borderC), fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? C.amber : C.txd, transition: "all 0.2s ease" }}>
+            {l.label}
+            <span style={{ fontFamily: mn, fontSize: 9, marginLeft: 6, opacity: 0.5 }}>{l.desc}</span>
+          </div>;
+        })}
+      </div>
     </div>
-    {isLoading && <ProgressBar label={"Generating captions for " + (clip.name || "clip")} />}
 
-    {/* Results */}
-    {res && <div style={{ marginTop: 24 }}>
-      {CLIP_PLATFORMS.filter(function(p) { return clip.platforms.indexOf(p.key) >= 0 && res[p.key]; }).map(function(p) {
-        return <OutCard key={p.key} title={p.label} content={res[p.key]} color={p.color} onRedo={function() { redoOne(active, p.key); }} rLoading={redoL[active + "-" + p.key]} />;
+    {/* Tone */}
+    <div style={{ marginBottom: 20 }}>
+      <Label>Tone</Label>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        {CAPPER_TONES.map(function(t) {
+          var on = tone === t.key;
+          return <div key={t.key} onClick={function() { setTone(t.key); }} style={{ padding: "14px 16px", borderRadius: 10, cursor: "pointer", background: on ? C.amber + "0C" : cardBg, border: "1px solid " + (on ? C.amber + "50" : borderC), boxShadow: on ? "0 0 20px rgba(247,176,65,0.06)" : "none", transition: "all 0.2s ease" }}>
+            <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: on ? C.amber : C.tx, marginBottom: 4 }}>{t.label}</div>
+            <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, lineHeight: 1.5 }}>{t.desc}</div>
+            {t.hook && <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6, fontStyle: "italic" }}>"{t.hook}"</div>}
+          </div>;
+        })}
+      </div>
+    </div>
+
+    {/* Redirect Link Toggle */}
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: showLink ? 10 : 0 }}>
+        <div onClick={function() { setShowLink(!showLink); }} style={{ width: 36, height: 20, borderRadius: 10, cursor: "pointer", background: showLink ? C.amber : "rgba(255,255,255,0.1)", position: "relative", transition: "background 0.2s ease" }}>
+          <div style={{ width: 16, height: 16, borderRadius: "50%", background: "#fff", position: "absolute", top: 2, left: showLink ? 18 : 2, transition: "left 0.2s ease", boxShadow: "0 1px 4px rgba(0,0,0,0.3)" }} />
+        </div>
+        <span style={{ fontFamily: mn, fontSize: 11, color: showLink ? C.amber : C.txd }}>Include redirect link</span>
+      </div>
+      {showLink && <input value={url} onChange={function(e) { setUrl(e.target.value); }} placeholder="https://..." style={{ width: "100%", padding: "10px 14px", background: cardBg, border: "1px solid " + borderC, borderRadius: 8, color: C.tx, fontFamily: mn, fontSize: 12, outline: "none", boxSizing: "border-box", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = borderC; }} />}
+    </div>
+
+    {/* Generate */}
+    <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
+      <Btn onClick={generate} loading={loading} off={!content}>Generate Captions</Btn>
+      {!content && <span style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>Paste clip content first</span>}
+    </div>
+    {loading && <ProgressBar label={"Generating " + platObj.label + " captions (" + toneObj.label + " tone)"} />}
+
+    {/* Output */}
+    {results && <div style={{ marginTop: 28 }}>
+      <div style={{ fontFamily: mn, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 16, fontWeight: 700 }}>{platObj.label + " Captions - " + toneObj.label + " Tone"}</div>
+
+      {results.map(function(r, i) {
+        var cap = r.caption || "";
+        var isRegen = regenL[i];
+        return <div key={i} style={{ background: cardBg, border: "1px solid " + borderC, borderLeft: "3px solid " + platObj.color, borderRadius: 12, padding: "18px 20px", marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.3)", transition: "all 0.2s ease" }}>
+          {/* Header */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: platObj.color, background: platObj.color + "15", padding: "2px 8px", borderRadius: 4 }}>{platObj.icon}</span>
+              <span style={{ fontFamily: mn, fontSize: 11, color: C.txm }}>Variation {i + 1}</span>
+              <span style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>{charCount(cap)} chars</span>
+            </div>
+            <div style={{ display: "flex", gap: 5 }}>
+              <CopyBtn text={cap + (r.reply ? "\n\n[Reply]\n" + r.reply : "") + (r.title ? "\n\n[Title]\n" + r.title : "")} />
+              <span onClick={function() { if (!isRegen) regenerateOne(i); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: isRegen ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + borderC, opacity: isRegen ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>{isRegen ? "..." : "\u21BB"}</span>
+            </div>
+          </div>
+
+          {/* YouTube title */}
+          {platform === "youtube" && r.title && <div style={{ marginBottom: 10 }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4, textTransform: "uppercase", letterSpacing: "1px" }}>Title ({r.title.length} chars)</div>
+            <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: C.tx, padding: "8px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 6, border: "1px solid " + borderC }}>{r.title}</div>
+          </div>}
+
+          {/* Caption body */}
+          <div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.6)", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>{cap}</div>
+
+          {/* X reply format */}
+          {platform === "x" && r.reply && <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed " + borderC }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4, textTransform: "uppercase", letterSpacing: "1px" }}>Reply</div>
+            <div style={{ fontFamily: ft, fontSize: 13, color: "rgba(255,255,255,0.45)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{r.reply}</div>
+          </div>}
+        </div>;
       })}
-      <Divider />
-      <Btn onClick={function() { exportClip(active); }} sec>Download as .doc</Btn>
     </div>}
   </div>);
 }
@@ -1066,7 +1089,7 @@ function UserSelect({ onSelect }) {
         var on = h === i;
         var uc = user.color;
         return <div key={user.name} onClick={function() { onSelect(user.name); }} onMouseEnter={function() { sh(i); }} onMouseLeave={function() { sh(null); }} style={{ width: 160, padding: "28px 20px", borderRadius: 12, cursor: "pointer", background: on ? uc + "08" : "#0A0A14", border: on ? "1px solid " + uc + "50" : "1px solid rgba(255,255,255,0.06)", textAlign: "center", transition: "all 0.2s", boxShadow: on ? "0 0 30px " + uc + "18, 0 0 60px " + uc + "06" : "none", animation: "ufi 0.4s ease " + (0.2 + i * 0.1) + "s forwards", opacity: 0 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 12, background: on ? uc + "20" : "#111118", border: "1px solid " + (on ? uc + "40" : "rgba(255,255,255,0.06)"), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontFamily: ft, fontSize: 20, fontWeight: 900, color: on ? uc : "rgba(255,255,255,0.25)", transition: "all 0.2s", boxShadow: on ? "0 0 16px " + uc + "25" : "none" }}>{user.name[0]}</div>
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: on ? uc + "20" : "#111118", border: "1px solid " + (on ? uc + "40" : "rgba(255,255,255,0.06)"), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontFamily: ft, fontSize: 20, fontWeight: 900, color: on ? uc : "rgba(255,255,255,0.4)", transition: "all 0.2s", boxShadow: on ? "0 0 16px " + uc + "25" : "none" }}>{user.name[0]}</div>
           <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: on ? uc : "#E8E4DD", transition: "color 0.2s", textShadow: on ? "0 0 20px " + user.glow + "0.4)" : "none" }}>{user.name}</div>
           <div style={{ fontFamily: ft, fontSize: 9, color: on ? uc + "80" : "rgba(255,255,255,0.2)", marginTop: 4, transition: "color 0.2s" }}>{user.role}</div>
         </div>;
@@ -1080,13 +1103,37 @@ function TerminalBoot({ user, onDone }) {
   var bootLines = [
     { t: "POAST OS v0.8 // SemiAnalysis", c: "rgba(255,255,255,0.2)" },
     { t: "Auth: " + user, c: "rgba(255,255,255,0.2)" }, { t: "  [OK] identity", c: "#2EAD8E" },
-    { t: "Loading modules...", c: "rgba(255,255,255,0.2)" },
+    { t: "Initializing semiconductor intelligence...", c: "rgba(255,255,255,0.2)" },
+    { t: "Loading TSMC wafer allocation data...", c: "rgba(255,255,255,0.2)" },
     { t: "  [OK] content-engine", c: "#2EAD8E" }, { t: "  [OK] claude-sonnet-4.brain", c: "#2EAD8E" },
+    { t: "Connecting to Jensen's leather jacket...", c: "rgba(255,255,255,0.2)" },
     { t: "  [OK] grok-imagine.gpu", c: "#2EAD8E" }, { t: "  [OK] elevenlabs-voice", c: "#2EAD8E" },
+    { t: "Calibrating HBM pricing models...", c: "rgba(255,255,255,0.2)" },
+    { t: "Syncing with Fab 18 production schedule...", c: "rgba(255,255,255,0.2)" },
+    { t: "  [OK] fab18-sync", c: "#2EAD8E" },
+    { t: "Downloading ASML EUV lens alignment...", c: "rgba(255,255,255,0.2)" },
+    { t: "Parsing NVIDIA earnings call transcripts...", c: "rgba(255,255,255,0.2)" },
+    { t: "  [OK] earnings-parser", c: "#2EAD8E" },
+    { t: "Compiling export control compliance matrix...", c: "rgba(255,255,255,0.2)" },
+    { t: "Establishing secure channel to Doug's brain...", c: "rgba(255,255,255,0.2)" },
+    { t: "  [OK] doug-brain-link", c: "#2EAD8E" },
+    { t: "Loading Dylan's Twitter draft folder...", c: "rgba(255,255,255,0.2)" },
+    { t: "Indexing 47,000 semiconductor datasheets...", c: "rgba(255,255,255,0.2)" },
+    { t: "  [OK] datasheet-index", c: "#2EAD8E" },
+    { t: "Warming up Claude's silicon knowledge...", c: "rgba(255,255,255,0.2)" },
+    { t: "Checking CoWoS capacity utilization...", c: "rgba(255,255,255,0.2)" },
+    { t: "Verifying HBM4 stack height calculations...", c: "rgba(255,255,255,0.2)" },
+    { t: "  [OK] hbm4-verify", c: "#2EAD8E" },
+    { t: "Decrypting Samsung yield data...", c: "rgba(255,255,255,0.2)" },
+    { t: "Mapping global fab construction sites...", c: "rgba(255,255,255,0.2)" },
+    { t: "Aggregating analyst sentiment vectors...", c: "rgba(255,255,255,0.2)" },
+    { t: "  [OK] sentiment-agg", c: "#2EAD8E" },
+    { t: "Rendering amber glow particles...", c: "rgba(255,255,255,0.2)" },
+    { t: "  [OK] vibes.essential", c: "#2EAD8E" },
     user === "Vansh" ? { t: "  [ALERT] vansh-just-farted.exe", c: "#E06347" } : { t: "  [WARN] max-charisma-detected", c: C.amber },
     { t: "  [FAIL] sleep-schedule: not found", c: "#E06347" },
-    { t: "  [OK] vibes.essential", c: "#2EAD8E" },
-    { t: "", c: "rgba(255,255,255,0.2)" }, { t: "Systems nominal. Welcome, " + user + ".", c: C.amber },
+    { t: "Booting content command center...", c: "rgba(255,255,255,0.2)" },
+    { t: "", c: "rgba(255,255,255,0.2)" }, { t: "POAST systems nominal. Welcome back.", c: C.amber },
   ];
   useEffect(function() {
     var d = 0;
@@ -1114,7 +1161,7 @@ function GlitchTransition({ onDone }) {
 function SplashScreen({ onNavigate }) {
   var _h = useState(null), h = _h[0], sh = _h[1];
   var sections = {
-    PRODUCE: [{ l: "Slob Top", ic: "\uD83D\uDCA5", id: "slobtop" }, { l: "Carousel", ic: "\uD83D\uDCD0", id: "carousel" }, { l: "Capper", ic: "\uD83C\uDFAC", id: "captions" }, { l: "P2P", ic: "\uD83C\uDFAC", id: "p2p" }],
+    PRODUCE: [{ l: "Slop Top", ic: "\uD83D\uDCA5", id: "sloptop" }, { l: "Carousel", ic: "\uD83D\uDCD0", id: "carousel" }, { l: "Capper", ic: "\uD83C\uDFAC", id: "captions" }, { l: "P2P", ic: "\uD83C\uDFAC", id: "p2p" }],
     PODCAST: [{ l: "Fab Knowledge", ic: "\uD83C\uDFA7", id: "fk" }, { l: "SA Weekly", ic: "\uD83C\uDF99", id: "weekly" }, { l: "Outreach", ic: "\uD83D\uDCE4", id: "outreach" }],
     PREPARE: [{ l: "Trends", ic: "\uD83D\uDD25", id: "trends" }, { l: "News Flow", ic: "\uD83D\uDCE1", id: "news" }, { l: "GTC Flow", ic: "\uD83D\uDCCA", id: "gtc" }],
     PREMIER: [{ l: "Schedule", ic: "\uD83D\uDCC6", id: "schedule" }],
@@ -1122,7 +1169,7 @@ function SplashScreen({ onNavigate }) {
   var words = ["PRODUCE", "PODCAST", "PREPARE", "PREMIER"];
   var colors = [C.amber, C.coral, C.blue, C.teal];
   var glows = ["rgba(247,176,65,", "rgba(224,99,71,", "rgba(11,134,209,", "rgba(46,173,142,"];
-  var appNames = { PRODUCE: "Slob Top, Carousel, Capper, P2P", PODCAST: "Fab Knowledge, SA Weekly, Outreach", PREPARE: "Trends, News Flow, GTC Flow", PREMIER: "Schedule" };
+  var appNames = { PRODUCE: "Slop Top, Carousel, Capper, P2P", PODCAST: "Fab Knowledge, SA Weekly, Outreach", PREPARE: "Trends, News Flow, GTC Flow", PREMIER: "Schedule" };
 
   return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "0 8vw" }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes bIn{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}@keyframes bLine{0%{transform:scaleX(0)}100%{transform:scaleX(1)}}@keyframes itemReveal{0%{opacity:0;transform:translateY(-8px) scale(0.95)}100%{opacity:1;transform:translateY(0) scale(1)}}" }} />
@@ -1351,7 +1398,7 @@ export default function App() {
           <div><div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: "#ffffff", letterSpacing: -2 }}>SemiAnalysis Weekly</div><div style={{ fontFamily: mn, fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 4, letterSpacing: "2px", textTransform: "uppercase" }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div></div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {hasDraft && <span onClick={loadDraft} style={{ fontFamily: mn, fontSize: 9, color: C.amber, cursor: "pointer", padding: "6px 12px", border: "1px solid " + C.amber + "40", borderRadius: 8, background: C.amber + "08", transition: "all 0.2s ease" }}>Load from Draft</span>}
-            <a href="https://youtube.com/@SemianalysisWeekly" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", textDecoration: "none", padding: "6px 12px", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, transition: "all 0.2s ease" }}>@SemianalysisWeekly</a>
+            <a href="https://youtube.com/@SemianalysisWeekly" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", textDecoration: "none", padding: "6px 12px", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, transition: "all 0.2s ease" }}>@SemianalysisWeekly</a>
           </div>
         </div>}
         {sec === "weekly" && <TabBar items={tabs} active={tab} onPick={setTab} locks={locks} />}
@@ -1363,7 +1410,7 @@ export default function App() {
         {sec === "weekly" && tab === "log" && <LogTab logData={logData} setLogData={setLogData} />}
         {sec === "captions" && <ClipCaptions />}
         {sec === "carousel" && <Carousel />}
-        {sec === "slobtop" && <SlobTop />}
+        {sec === "sloptop" && <SlopTop />}
         {sec === "fk" && <FabricatedKnowledge />}
         {sec === "outreach" && <Outreach />}
         {sec === "trends" && <Trends />}
@@ -1375,7 +1422,7 @@ export default function App() {
         </div>
       </div>
     </div>
-    <div style={{ position: "fixed", bottom: 8, right: 12, zIndex: 2, fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.08)", letterSpacing: 1, pointerEvents: "none" }}>v2.0</div>
+    <div style={{ position: "fixed", bottom: 8, right: 12, zIndex: 2, fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.12)", letterSpacing: 1, pointerEvents: "none" }}>v2.0</div>
     {/* Mobile warning */}
     <style dangerouslySetInnerHTML={{ __html: "@media(min-width:769px){.mobile-warn{display:none!important}}" }} />
     <div className="mobile-warn" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9999, padding: "14px 20px", background: "#111118", borderTop: "1px solid " + C.amber + "30", display: "flex", alignItems: "center", gap: 10 }}>

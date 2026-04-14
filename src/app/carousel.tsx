@@ -25,10 +25,10 @@ var SLIDE_META = {
 };
 
 var CATEGORIES = [
-  { id: "general", label: "General", desc: "Industry news, trends, analysis", color: C.amber },
-  { id: "internal", label: "Internal", desc: "SA original research and findings", color: C.blue },
-  { id: "external", label: "External", desc: "Third-party content with SA commentary", color: C.teal },
-  { id: "capital", label: "Capital", desc: "Financial and investment analysis", color: C.coral },
+  { id: "general", label: "General", desc: "Industry news, trends, analysis", color: "#D4A853" },
+  { id: "internal", label: "Internal", desc: "SA original research and findings", color: "#F7B041" },
+  { id: "external", label: "External", desc: "Third-party content with SA commentary", color: "#0B86D1" },
+  { id: "capital", label: "Capital", desc: "Financial and investment analysis", color: "#2EAD8E" },
 ];
 
 var STEPS = ["Input", "Generate", "Select", "Caption", "Export"];
@@ -119,7 +119,7 @@ function InputStep({ state, setState, onNext }) {
 
   return <div>
     <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx, marginBottom: 4 }}>Content Input</div>
-    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 24 }}>Paste article text to generate carousel slides following SA Schema v1.0.</div>
+    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 24 }}>Paste Content / Context to generate carousel slides following SA Schema v1.0.</div>
 
     {/* Category */}
     <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Category</div>
@@ -140,8 +140,8 @@ function InputStep({ state, setState, onNext }) {
     <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Slide Count</div>
     <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
       <div onClick={function() { setState(function(s) { return Object.assign({}, s, { mode: "auto" }); }); }} style={{ flex: 1, padding: "12px 14px", borderRadius: 8, cursor: "pointer", background: state.mode === "auto" ? C.amber + "10" : C.card, border: "1px solid " + (state.mode === "auto" ? C.amber : C.border) }}>
-        <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: state.mode === "auto" ? C.amber : C.tx }}>Auto (4-6)</div>
-        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>COVER + 2-4 BODY + FINAL</div>
+        <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: state.mode === "auto" ? C.amber : C.tx }}>Auto</div>
+        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>AI decides (3-6 slides)</div>
       </div>
       <div onClick={function() { setState(function(s) { return Object.assign({}, s, { mode: "manual" }); }); }} style={{ flex: 1, padding: "12px 14px", borderRadius: 8, cursor: "pointer", background: state.mode === "manual" ? C.amber + "10" : C.card, border: "1px solid " + (state.mode === "manual" ? C.amber : C.border) }}>
         <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: state.mode === "manual" ? C.amber : C.tx }}>Manual</div>
@@ -149,16 +149,23 @@ function InputStep({ state, setState, onNext }) {
       </div>
     </div>
     {state.mode === "manual" && <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-      <input type="range" min={4} max={8} value={state.pageCount || 4} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { pageCount: parseInt(e.target.value) }); }); }} style={{ flex: 1, accentColor: C.amber }} />
+      <input type="range" min={1} max={8} value={state.pageCount || 4} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { pageCount: parseInt(e.target.value) }); }); }} style={{ flex: 1, accentColor: C.amber }} />
       <div style={{ fontFamily: mn, fontSize: 18, fontWeight: 700, color: C.amber, width: 30, textAlign: "center" }}>{state.pageCount || 4}</div>
     </div>}
 
-    {/* Image URLs */}
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 8 }}>Image URLs (optional, one per line)</div>
-    <textarea value={state.imageUrls || ""} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { imageUrls: e.target.value }); }); }} placeholder="https://cdn.semianalysis.com/images/example.png" rows={3} style={{ width: "100%", padding: "10px 14px", background: C.card, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: mn, fontSize: 12, lineHeight: 1.6, resize: "none", outline: "none", boxSizing: "border-box", marginBottom: 20 }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+    {/* Image URLs + Upload */}
+    <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 8 }}>Images: URL or Upload</div>
+    <textarea value={state.imageUrls || ""} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { imageUrls: e.target.value }); }); }} placeholder="https://cdn.semianalysis.com/images/example.png" rows={3} style={{ width: "100%", padding: "10px 14px", background: C.card, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: mn, fontSize: 12, lineHeight: 1.6, resize: "none", outline: "none", boxSizing: "border-box", marginBottom: 10 }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+    <div onDragOver={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = C.amber; e.currentTarget.style.background = C.amber + "08"; }} onDragLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.card; }} onDrop={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.card; var files = Array.prototype.slice.call(e.dataTransfer.files); files.forEach(function(file) { if (!file.type.match(/^image\/(png|jpeg|jpg)$/)) return; var reader = new FileReader(); reader.onload = function(ev) { setState(function(s) { var existing = s.imageUrls || ""; var sep = existing && !existing.endsWith("\n") ? "\n" : ""; return Object.assign({}, s, { imageUrls: existing + sep + ev.target.result }); }); }; reader.readAsDataURL(file); }); }} style={{ padding: "16px", background: C.card, border: "2px dashed " + C.border, borderRadius: 8, textAlign: "center", cursor: "pointer", marginBottom: 10, transition: "all 0.2s" }} onClick={function() { document.getElementById("sa-img-upload").click(); }}>
+      <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, marginBottom: 4 }}>Drag & drop PNG/JPG here or click to browse</div>
+      <div style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>Images will be converted to data URLs</div>
+      <input id="sa-img-upload" type="file" accept="image/png,image/jpeg" multiple onChange={function(e) { var files = Array.prototype.slice.call(e.target.files); files.forEach(function(file) { var reader = new FileReader(); reader.onload = function(ev) { setState(function(s) { var existing = s.imageUrls || ""; var sep = existing && !existing.endsWith("\n") ? "\n" : ""; return Object.assign({}, s, { imageUrls: existing + sep + ev.target.result }); }); }; reader.readAsDataURL(file); }); e.target.value = ""; }} style={{ display: "none" }} />
+    </div>
+    {(function() { var urls = (state.imageUrls || "").split("\n").filter(function(u) { return u.trim().match(/^data:image\//); }); if (urls.length === 0) return null; return <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>{urls.map(function(url, i) { return <div key={i} style={{ position: "relative", width: 56, height: 56, borderRadius: 6, overflow: "hidden", border: "1px solid " + C.border }}><img src={url.trim()} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><div onClick={function(e) { e.stopPropagation(); setState(function(s) { var lines = (s.imageUrls || "").split("\n").filter(function(l) { return l.trim() !== url.trim(); }); return Object.assign({}, s, { imageUrls: lines.join("\n") }); }); }} style={{ position: "absolute", top: 2, right: 2, width: 16, height: 16, borderRadius: "50%", background: "rgba(0,0,0,0.7)", color: "#fff", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", lineHeight: 1 }}>{"\u00D7"}</div></div>; })}</div>; })()}
+    <div style={{ marginBottom: 20 }} />
 
-    {/* Article text */}
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Article Content</div>
+    {/* Content / Context */}
+    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Content / Context</div>
     <div onDragOver={function(e) { e.preventDefault(); setDragging(true); }} onDragLeave={function() { setDragging(false); }} onDrop={function(e) { e.preventDefault(); setDragging(false); if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); }}>
       <textarea value={state.text || ""} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { text: e.target.value }); }); }} placeholder="Paste article text here..." rows={10} style={{ width: "100%", padding: "14px 16px", background: dragging ? C.amber + "08" : C.card, border: "1px solid " + (dragging ? C.amber : C.border), borderRadius: 10, color: C.tx, fontFamily: ft, fontSize: 13, lineHeight: 1.7, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, marginBottom: 20 }}>
