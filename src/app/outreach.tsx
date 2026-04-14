@@ -17,7 +17,7 @@ var TEAM = [
   { id: "dp", name: "Dylan Patel", role: "Chief Analyst", initials: "DP", color: D.amber, expertise: ["Semiconductors", "AI Infrastructure", "Supply Chain", "Geopolitics", "Capex Analysis"] },
   { id: "do", name: "Doug O'Laughlin", role: "Senior Analyst", initials: "DO", color: D.blue, expertise: ["Memory", "Compute", "Data Centers", "Financial Analysis", "HBM"] },
   { id: "jn", name: "Jordan Nanos", role: "Analyst", initials: "JN", color: D.teal, expertise: ["AI Models", "ML Infrastructure", "Cloud Computing", "Inference"] },
-  { id: "dn", name: "Dan Nischval", role: "Analyst", initials: "DN", color: D.coral, expertise: ["Hardware Design", "Chip Architecture", "Manufacturing", "Defense"] },
+  { id: "dn", name: "Dan Nishball", role: "Analyst", initials: "DN", color: D.coral, expertise: ["Hardware Design", "Chip Architecture", "Manufacturing", "Defense"] },
   { id: "kc", name: "Kimbo Chen", role: "Analyst", initials: "KC", color: D.cyan, expertise: ["Semiconductors", "Process Technology", "Foundry", "Advanced Packaging"] },
   { id: "cq", name: "Cameron Quilici", role: "Analyst", initials: "CQ", color: "#8B5CF6", expertise: ["AI Infrastructure", "Networking", "Optics", "Datacenter Design"] },
   { id: "wc", name: "Wega Chu", role: "Analyst", initials: "WC", color: "#EC4899", expertise: ["Memory", "NAND", "Storage", "Supply Chain"] },
