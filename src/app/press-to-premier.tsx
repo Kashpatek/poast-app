@@ -1301,6 +1301,15 @@ function ProjectList({ projects, onOpen, onNew }) {
   </div>;
 }
 
+// ═══ SUPABASE SYNC ═══
+function p2pDbSync(projects) {
+  fetch("/api/db", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ table: "projects", data: { id: "p2p-master", name: "P2P Projects", data: { projects: projects }, type: "p2p", updated_at: new Date().toISOString() } }),
+  }).catch(function() {});
+}
+
 // ═══ MAIN ═══
 export default function PressToPremi() {
   var _projects = useState([]), projects = _projects[0], setProjects = _projects[1];
@@ -1308,9 +1317,51 @@ export default function PressToPremi() {
   var _step = useState(0), step = _step[0], setStep = _step[1];
   var _data = useState({}), data = _data[0], setData = _data[1];
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
+  var _loaded = useState(false), loaded = _loaded[0], setLoaded = _loaded[1];
 
-  useEffect(function() { try { var p = localStorage.getItem("p2p-projects"); if (p) setProjects(JSON.parse(p)); } catch (e) {} }, []);
-  useEffect(function() { try { localStorage.setItem("p2p-projects", JSON.stringify(projects)); } catch (e) {} }, [projects]);
+  // On mount: fetch from Supabase first, fall back to localStorage
+  useEffect(function() {
+    var settled = false;
+    // Quick localStorage load while Supabase fetches
+    var timer = setTimeout(function() {
+      if (settled) return;
+      settled = true;
+      try { var p = localStorage.getItem("p2p-projects"); if (p) setProjects(JSON.parse(p)); } catch (e) {}
+      setLoaded(true);
+    }, 800);
+
+    fetch("/api/db?table=projects").then(function(r) { return r.json(); }).then(function(res) {
+      if (settled) return;
+      clearTimeout(timer);
+      settled = true;
+      if (res.data && res.data.length > 0) {
+        var p2pRow = res.data.find(function(r) { return r.type === "p2p" && r.id === "p2p-master"; });
+        if (p2pRow && p2pRow.data && p2pRow.data.projects && p2pRow.data.projects.length > 0) {
+          setProjects(p2pRow.data.projects);
+          setLoaded(true);
+          return;
+        }
+      }
+      // Supabase empty -- fall back to localStorage
+      try { var p = localStorage.getItem("p2p-projects"); if (p) setProjects(JSON.parse(p)); } catch (e) {}
+      setLoaded(true);
+    }).catch(function() {
+      if (settled) return;
+      clearTimeout(timer);
+      settled = true;
+      try { var p = localStorage.getItem("p2p-projects"); if (p) setProjects(JSON.parse(p)); } catch (e) {}
+      setLoaded(true);
+    });
+
+    return function() { clearTimeout(timer); };
+  }, []);
+
+  // On projects change: write to localStorage + fire-and-forget Supabase sync
+  useEffect(function() {
+    if (!loaded) return; // Don't write until initial load completes
+    try { localStorage.setItem("p2p-projects", JSON.stringify(projects)); } catch (e) {}
+    p2pDbSync(projects);
+  }, [projects, loaded]);
 
   var stepNames = ["Input", "Options", "Script", "Review", "Format", "Produce", "Select", "Preview", "Premier"];
   var startNew = function() { setActive("new"); setStep(0); setData({ mode: "url" }); };
