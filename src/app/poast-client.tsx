@@ -279,6 +279,55 @@ function AskPoast({ open, onToggle }) {
   </div>;
 }
 
+// ═══ CHIPPY SIDEBAR ═══
+var CHIP_FACES = ["\u25A0\u203F\u25A0", "\u00B0\u25E1\u00B0", ">\u203F<", "\u00B0o\u00B0", "^\u203F^", "-\u203F-", "\u00D7\u203F\u00D7"];
+var CHIP_MOODS = ["happy", "curious", "excited", "sleepy", "focused", "nappy", "vibing"];
+var CHIP_MSGS = ["I love semiconductors!", "Did you check NVDA today?", "Ship that content!", "CoWoS capacity is wild.", "3nm is the future.", "Don't forget to post!", "I'm a chip off the old block.", "TSMC earnings soon...", "Need more GPU compute!", "Cache me if you can.", "Fab-ulous day!", "HBM4 is coming!", "Click me more!", "Let's make some slop!"];
+
+function ChippySidebar({ onAsk }) {
+  var _face = useState(0), face = _face[0], setFace = _face[1];
+  var _mood = useState(0), mood = _mood[0], setMood = _mood[1];
+  var _msg = useState("Click me!"), msg = _msg[0], setMsg = _msg[1];
+  var _bouncing = useState(false), bouncing = _bouncing[0], setBouncing = _bouncing[1];
+  var _clicks = useState(0), clicks = _clicks[0], setClicks = _clicks[1];
+
+  useEffect(function() {
+    var iv = setInterval(function() { setFace(function(f) { return (f + 1) % CHIP_FACES.length; }); }, 3500);
+    return function() { clearInterval(iv); };
+  }, []);
+
+  var handleClick = function() {
+    setBouncing(true);
+    setFace(Math.floor(Math.random() * CHIP_FACES.length));
+    setMood(Math.floor(Math.random() * CHIP_MOODS.length));
+    setMsg(CHIP_MSGS[Math.floor(Math.random() * CHIP_MSGS.length)]);
+    setClicks(function(c) { return c + 1; });
+    setTimeout(function() { setBouncing(false); }, 500);
+  };
+
+  return <div style={{ padding: "12px 14px 0" }}>
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes chipBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}@keyframes chipIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}" }} />
+    <div style={{ padding: "14px 10px 10px", borderRadius: 12, background: "linear-gradient(135deg, rgba(38,201,216,0.06), rgba(247,176,65,0.04))", border: "1px solid rgba(38,201,216,0.15)", textAlign: "center" }}>
+      {/* Chip character - clickable */}
+      <div onClick={handleClick} style={{ display: "inline-block", cursor: "pointer", animation: bouncing ? "chipBounce 0.5s ease" : "chipIdle 2s ease-in-out infinite", userSelect: "none" }}>
+        <div style={{ width: 80, height: 80, borderRadius: 12, background: "linear-gradient(145deg, #2A2A4A, #1A1A30)", border: "2px solid " + C.amber + "40", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto", boxShadow: "0 0 24px " + C.amber + "15, 0 0 48px " + C.cyan + "08", position: "relative" }}>
+          {/* Pins */}
+          {[0, 1, 2, 3, 4].map(function(p) { return <div key={"b" + p} style={{ position: "absolute", bottom: -5, left: 8 + p * 14, width: 5, height: 7, background: C.amber + "60", borderRadius: "0 0 2px 2px" }} />; })}
+          {[0, 1, 2, 3, 4].map(function(p) { return <div key={"t" + p} style={{ position: "absolute", top: -5, left: 8 + p * 14, width: 5, height: 7, background: C.amber + "60", borderRadius: "2px 2px 0 0" }} />; })}
+          {[0, 1, 2].map(function(p) { return <div key={"l" + p} style={{ position: "absolute", left: -5, top: 14 + p * 20, width: 7, height: 5, background: C.cyan + "60", borderRadius: "2px 0 0 2px" }} />; })}
+          {[0, 1, 2].map(function(p) { return <div key={"r" + p} style={{ position: "absolute", right: -5, top: 14 + p * 20, width: 7, height: 5, background: C.cyan + "60", borderRadius: "0 2px 2px 0" }} />; })}
+          <div style={{ fontFamily: mn, fontSize: 20, color: C.amber, textShadow: "0 0 12px " + C.amber + "60" }}>{CHIP_FACES[face]}</div>
+        </div>
+      </div>
+      {/* Message */}
+      <div style={{ fontFamily: ft, fontSize: 11, color: C.tx, marginTop: 8, minHeight: 16 }}>{msg}</div>
+      <div style={{ fontFamily: mn, fontSize: 8, color: C.txd, marginTop: 2 }}>Mood: {CHIP_MOODS[mood]} // Clicks: {clicks}</div>
+      {/* Ask Chippy button */}
+      <div onClick={onAsk} style={{ marginTop: 8, padding: "8px 0", borderRadius: 8, cursor: "pointer", background: "linear-gradient(135deg, " + C.amber + ", " + C.cyan + ")", fontFamily: ft, fontSize: 12, fontWeight: 800, color: "#060608", letterSpacing: 0.5, transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.boxShadow = "0 0 16px " + C.amber + "40"; }} onMouseLeave={function(e) { e.currentTarget.style.boxShadow = "none"; }}>Ask Chippy</div>
+    </div>
+  </div>;
+}
+
 // ═══ SIDEBAR ═══
 // ═══ SIDEBAR CATEGORIES ═══
 var SIDEBAR_CATS = {
@@ -321,36 +370,7 @@ function Sidebar({ active, onNav, onAskPoast }) {
     </div>
 
     {/* Chippy */}
-    <div style={{ padding: "12px 14px 0" }}>
-      <div onClick={onAskPoast} style={{ padding: "14px", borderRadius: 12, cursor: "pointer", background: "linear-gradient(135deg, rgba(38,201,216,0.08), rgba(247,176,65,0.06))", border: "1px solid rgba(38,201,216,0.2)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, transition: "all 0.3s" }} onMouseEnter={function(e) { e.currentTarget.style.boxShadow = "0 0 24px rgba(38,201,216,0.15)"; e.currentTarget.style.borderColor = "rgba(38,201,216,0.4)"; }} onMouseLeave={function(e) { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "rgba(38,201,216,0.2)"; }}>
-        {/* IC Chip Character */}
-        <div style={{ position: "relative", width: 72, height: 72 }}>
-          {/* Chip legs - left */}
-          {[12, 28, 44].map(function(t, i) { return <div key={"l" + i} style={{ position: "absolute", left: -6, top: t, width: 8, height: 4, background: "#5A5766", borderRadius: 1 }} />; })}
-          {/* Chip legs - right */}
-          {[12, 28, 44].map(function(t, i) { return <div key={"r" + i} style={{ position: "absolute", right: -6, top: t, width: 8, height: 4, background: "#5A5766", borderRadius: 1 }} />; })}
-          {/* Chip legs - top */}
-          {[16, 32, 48].map(function(l, i) { return <div key={"t" + i} style={{ position: "absolute", top: -6, left: l, width: 4, height: 8, background: "#5A5766", borderRadius: 1 }} />; })}
-          {/* Chip legs - bottom */}
-          {[16, 32, 48].map(function(l, i) { return <div key={"b" + i} style={{ position: "absolute", bottom: -6, left: l, width: 4, height: 8, background: "#5A5766", borderRadius: 1 }} />; })}
-          {/* Chip body */}
-          <div style={{ position: "absolute", inset: 2, borderRadius: 10, background: "linear-gradient(145deg, #2A2640, #1E1B30)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)" }}>
-            {/* Face - eyes */}
-            <div style={{ display: "flex", gap: 14, marginBottom: 4 }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.amber, boxShadow: "0 0 8px " + C.amber + "60" }} />
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.amber, boxShadow: "0 0 8px " + C.amber + "60" }} />
-            </div>
-            {/* Face - mouth */}
-            <div style={{ width: 16, height: 8, borderRadius: "0 0 8px 8px", border: "2px solid " + C.amber, borderTop: "none", opacity: 0.7 }} />
-          </div>
-        </div>
-        {/* Label */}
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 800, color: C.cyan }}>Chippy</div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 2 }}><div style={{ width: 5, height: 5, borderRadius: "50%", background: C.teal, boxShadow: "0 0 6px " + C.teal + "60" }} /><span style={{ fontFamily: ft, fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Ask Chippy</span></div>
-        </div>
-      </div>
-    </div>
+    <ChippySidebar onAsk={onAskPoast} />
 
     {/* Categories */}
     <div style={{ padding: "8px 10px", flex: 1, overflow: "auto" }}>
