@@ -11,6 +11,7 @@ import Trends from "./trends";
 import SlopTop from "./slop-top";
 import { exportDocx } from "./docx-export";
 import Outreach from "./outreach";
+import IdeationNation from "./ideation-nation";
 
 var C = {
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
@@ -304,6 +305,7 @@ var SIDEBAR_CATS = {
   ]},
   prepare: { label: "PREPARE", color: C.blue, glow: "rgba(11,134,209,", items: [
     { id: "trends", l: "Trends", ic: "\uD83D\uDD25" },
+    { id: "ideation", l: "IdeationNation", ic: "\uD83D\uDCA1" },
     { id: "news", l: "News Flow", ic: "\uD83D\uDCE1" },
     { id: "gtc", l: "GTC Flow", ic: "\uD83D\uDCCA" },
   ]},
@@ -838,16 +840,18 @@ var CAPPER_PLATFORMS = [
 ];
 
 var CAPPER_LENGTHS = [
-  { key: "short", label: "Short", desc: "1-2 sentences" },
-  { key: "medium", label: "Medium", desc: "3-4 sentences" },
-  { key: "long", label: "Long", desc: "Paragraph" },
+  { key: "short", label: "Short", desc: "1-2 sentences", thread: false },
+  { key: "medium", label: "Medium", desc: "3-4 sentences", thread: false },
+  { key: "long", label: "Long", desc: "Paragraph", thread: false },
+  { key: "thread", label: "Thread", desc: "3-5 posts", thread: true },
+  { key: "epic", label: "Epic Thread", desc: "6-10 posts", thread: true },
 ];
 
 var SYS_CAPPER = "You are a social media caption writer. You write captions for short-form video clips.\n\nTone descriptions:\n- Dylan: Direct, data-heavy, confident. Uses specific numbers and bold claims. Opens with hooks like 'Here is what nobody is telling you about...' Never hedges.\n- Doug: Technical, first-principles, analytical. Focuses on structural importance and why something matters at a fundamental level. Methodical.\n- SA Twitter: Punchy, provocative, hot-take energy. Short sentences. Bold claims. Data-backed but aggressive framing.\n- Oren: Conversational, storytelling approach. Bridges technical topics to business impact. Accessible but clearly informed.\n\nPlatform rules:\n- X: No hashtags ever. Write as hook tweet + reply-to-self format. No links in the main post. Keep punchy.\n- Instagram: Include a 'Save this for later' CTA. Add 5-8 relevant hashtags. Add location 'San Francisco, CA'. Direct to bio link.\n- LinkedIn: Professional framing. End with 'Link in comments.' No hashtags. Longer form is fine.\n- TikTok: All lowercase. 4-6 hashtags. Casual tone. Short.\n- YouTube: Include a separate title line (under 40 characters). Then the description. Include relevant keywords.\n\nRules: Never use em dashes, use commas or periods. No emojis. Be direct. RESPOND ONLY IN VALID JSON. No markdown fences. No preamble.";
 
 function ClipCaptions() {
   var _content = useState(""), content = _content[0], setContent = _content[1];
-  var _platform = useState("x"), platform = _platform[0], setPlatform = _platform[1];
+  var _platforms = useState(["x"]), platforms = _platforms[0], setPlatforms = _platforms[1];
   var _length = useState("medium"), length = _length[0], setLength = _length[1];
   var _tone = useState("dylan"), tone = _tone[0], setTone = _tone[1];
   var _link = useState(false), showLink = _link[0], setShowLink = _link[1];
@@ -856,51 +860,89 @@ function ClipCaptions() {
   var _results = useState(null), results = _results[0], setResults = _results[1];
   var _regenL = useState({}), regenL = _regenL[0], setRegenL = _regenL[1];
 
-  var platObj = CAPPER_PLATFORMS.find(function(p) { return p.key === platform; }) || CAPPER_PLATFORMS[0];
   var toneObj = CAPPER_TONES.find(function(t) { return t.key === tone; }) || CAPPER_TONES[0];
   var lenObj = CAPPER_LENGTHS.find(function(l) { return l.key === length; }) || CAPPER_LENGTHS[1];
+  var isThread = lenObj.thread;
 
-  var buildCapperPrompt = function(variationNote) {
-    var parts = [
-      "Generate a " + platObj.label + " caption for this clip.",
-      "Tone: " + toneObj.label + " - " + toneObj.desc,
-      "Length: " + lenObj.label + " (" + lenObj.desc + ")",
-      "Platform: " + platObj.label,
-      "Clip content:\n" + content.slice(0, 6000),
-    ];
+  var togglePlatform = function(key) {
+    setPlatforms(function(prev) {
+      if (prev.indexOf(key) > -1) {
+        var next = prev.filter(function(k) { return k !== key; });
+        return next.length > 0 ? next : prev;
+      }
+      return prev.concat([key]);
+    });
+  };
+
+  var buildCapperPrompt = function(platKey, variationNote) {
+    var platObj = CAPPER_PLATFORMS.find(function(p) { return p.key === platKey; }) || CAPPER_PLATFORMS[0];
+    var parts = [];
+    if (isThread) {
+      var postCount = length === "epic" ? "6-10" : "3-5";
+      parts.push("Generate a " + platObj.label + " thread/multi-post series (" + postCount + " connected posts) for this clip.");
+      parts.push("Each post should be numbered (Post 1/" + postCount.split("-")[1] + ", Post 2/" + postCount.split("-")[1] + ", etc.) and form a coherent narrative.");
+      parts.push("The first post should hook the reader. Middle posts deliver value. Last post has a strong closer or CTA.");
+    } else {
+      parts.push("Generate a " + platObj.label + " caption for this clip.");
+      parts.push("Length: " + lenObj.label + " (" + lenObj.desc + ")");
+    }
+    parts.push("Tone: " + toneObj.label + " - " + toneObj.desc);
+    parts.push("Platform: " + platObj.label);
+    parts.push("Clip content:\n" + content.slice(0, 6000));
     if (showLink && url) parts.push("Include this redirect link naturally: " + url);
     if (variationNote) parts.push(variationNote);
-    parts.push('Return JSON: {"caption":"the caption text"' + (platform === "youtube" ? ',"title":"short title under 40 chars"' : '') + (platform === "x" ? ',"reply":"reply tweet with link or additional context"' : '') + '}');
+    if (isThread) {
+      parts.push('Return JSON: {"posts":[{"number":1,"text":"post text"},{"number":2,"text":"post text"},...]}');
+    } else {
+      parts.push('Return JSON: {"caption":"the caption text"' + (platKey === "youtube" ? ',"title":"short title under 40 chars"' : '') + (platKey === "x" ? ',"reply":"reply tweet with link or additional context"' : '') + '}');
+    }
     return parts.filter(Boolean).join("\n\n");
   };
 
   var generate = async function() {
-    if (!content) return;
+    if (!content || platforms.length === 0) return;
     setLoading(true);
     setResults(null);
-    var promises = [
-      ask(SYS_CAPPER, buildCapperPrompt("This is variation 1 of 3. Be direct and sharp.")),
-      ask(SYS_CAPPER, buildCapperPrompt("This is variation 2 of 3. Try a different angle or hook.")),
-      ask(SYS_CAPPER, buildCapperPrompt("This is variation 3 of 3. Take the most creative or unexpected approach.")),
-    ];
-    var all = await Promise.all(promises);
-    var out = all.map(function(d, i) { return d || { caption: "Generation failed for variation " + (i + 1) }; });
-    setResults(out);
+    var allPromises = [];
+    var promiseMap = [];
+    platforms.forEach(function(platKey) {
+      var variations = [
+        "This is variation 1 of 3. Be direct and sharp.",
+        "This is variation 2 of 3. Try a different angle or hook.",
+        "This is variation 3 of 3. Take the most creative or unexpected approach.",
+      ];
+      variations.forEach(function(v, vi) {
+        allPromises.push(ask(SYS_CAPPER, buildCapperPrompt(platKey, v)));
+        promiseMap.push({ platform: platKey, variation: vi });
+      });
+    });
+    var allResults = await Promise.all(allPromises);
+    var grouped = {};
+    allResults.forEach(function(d, i) {
+      var info = promiseMap[i];
+      if (!grouped[info.platform]) grouped[info.platform] = [];
+      grouped[info.platform].push(d || (isThread ? { posts: [{ number: 1, text: "Generation failed for variation " + (info.variation + 1) }] } : { caption: "Generation failed for variation " + (info.variation + 1) }));
+    });
+    setResults(grouped);
     setLoading(false);
   };
 
-  var regenerateOne = async function(idx) {
-    setRegenL(function(p) { var o = Object.assign({}, p); o[idx] = true; return o; });
-    var cur = results[idx] && results[idx].caption || "";
-    var data = await ask(SYS_CAPPER, buildCapperPrompt("Regenerate this caption. Be DIFFERENT from: " + cur));
+  var regenerateOne = async function(platKey, idx) {
+    var regenKey = platKey + "_" + idx;
+    setRegenL(function(p) { var o = Object.assign({}, p); o[regenKey] = true; return o; });
+    var cur = results[platKey] && results[platKey][idx];
+    var curText = isThread ? (cur && cur.posts ? cur.posts.map(function(p) { return p.text; }).join(" ") : "") : (cur && cur.caption || "");
+    var data = await ask(SYS_CAPPER, buildCapperPrompt(platKey, "Regenerate this caption. Be DIFFERENT from: " + curText));
     if (data) {
       setResults(function(p) {
-        var o = p.slice();
-        o[idx] = data;
+        var o = Object.assign({}, p);
+        var arr = (o[platKey] || []).slice();
+        arr[idx] = data;
+        o[platKey] = arr;
         return o;
       });
     }
-    setRegenL(function(p) { var o = Object.assign({}, p); o[idx] = false; return o; });
+    setRegenL(function(p) { var o = Object.assign({}, p); o[regenKey] = false; return o; });
   };
 
   var charCount = function(text) {
@@ -911,9 +953,14 @@ function ClipCaptions() {
   var cardBg = "#09090D";
   var borderC = "rgba(255,255,255,0.06)";
 
+  var platLabels = platforms.map(function(k) {
+    var p = CAPPER_PLATFORMS.find(function(pl) { return pl.key === k; });
+    return p ? p.label : k;
+  }).join(", ");
+
   return (<div>
     <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: C.tx, marginBottom: 4 }}>Capper</div>
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginBottom: 24 }}>Clip caption maker. Paste transcript, pick platform and tone, get 3 variations.</div>
+    <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginBottom: 24 }}>Clip caption maker. Paste transcript, pick platforms and tone, get 3 variations per platform.</div>
 
     {/* Clip Content */}
     <div style={{ marginBottom: 20 }}>
@@ -922,32 +969,35 @@ function ClipCaptions() {
       {content && <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 4 }}>{content.length.toLocaleString()} chars</div>}
     </div>
 
-    {/* Platform */}
+    {/* Platform (multi-select) */}
     <div style={{ marginBottom: 20 }}>
-      <Label>Platform</Label>
+      <Label>Platforms <span style={{ fontWeight: 400, opacity: 0.5, textTransform: "none", letterSpacing: 0 }}>(multi-select)</span></Label>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {CAPPER_PLATFORMS.map(function(p) {
-          var on = platform === p.key;
-          return <div key={p.key} onClick={function() { setPlatform(p.key); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: on ? p.color + "18" : cardBg, border: "1px solid " + (on ? p.color + "60" : borderC), fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? p.color : C.txd, transition: "all 0.2s ease", display: "flex", alignItems: "center", gap: 6 }}>
+          var on = platforms.indexOf(p.key) > -1;
+          return <div key={p.key} onClick={function() { togglePlatform(p.key); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: on ? p.color + "18" : cardBg, border: "1px solid " + (on ? p.color + "60" : borderC), fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? p.color : C.txd, transition: "all 0.2s ease", display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontFamily: mn, fontSize: 9, opacity: 0.7 }}>{p.icon}</span>
             {p.label}
+            {on && <span style={{ width: 6, height: 6, borderRadius: "50%", background: p.color, boxShadow: "0 0 6px " + p.color + "60", marginLeft: 2 }} />}
           </div>;
         })}
       </div>
+      {platforms.length > 1 && <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, marginTop: 6 }}>{platforms.length} platforms selected -- captions generated for each</div>}
     </div>
 
     {/* Length */}
     <div style={{ marginBottom: 20 }}>
       <Label>Length</Label>
-      <div style={{ display: "flex", gap: 6 }}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {CAPPER_LENGTHS.map(function(l) {
           var on = length === l.key;
-          return <div key={l.key} onClick={function() { setLength(l.key); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: on ? C.amber + "15" : cardBg, border: "1px solid " + (on ? C.amber + "60" : borderC), fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? C.amber : C.txd, transition: "all 0.2s ease" }}>
+          return <div key={l.key} onClick={function() { setLength(l.key); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: on ? (l.thread ? C.violet + "15" : C.amber + "15") : cardBg, border: "1px solid " + (on ? (l.thread ? C.violet + "60" : C.amber + "60") : borderC), fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? (l.thread ? C.violet : C.amber) : C.txd, transition: "all 0.2s ease" }}>
             {l.label}
             <span style={{ fontFamily: mn, fontSize: 9, marginLeft: 6, opacity: 0.5 }}>{l.desc}</span>
           </div>;
         })}
       </div>
+      {isThread && <div style={{ fontFamily: mn, fontSize: 9, color: C.violet, marginTop: 6 }}>Thread mode: each variation will be a series of connected posts forming a narrative.</div>}
     </div>
 
     {/* Tone */}
@@ -981,43 +1031,85 @@ function ClipCaptions() {
       <Btn onClick={generate} loading={loading} off={!content}>Generate Captions</Btn>
       {!content && <span style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>Paste clip content first</span>}
     </div>
-    {loading && <ProgressBar label={"Generating " + platObj.label + " captions (" + toneObj.label + " tone)"} />}
+    {loading && <ProgressBar label={"Generating " + (isThread ? "threads" : "captions") + " for " + platLabels + " (" + toneObj.label + " tone)"} />}
 
-    {/* Output */}
+    {/* Output -- grouped by platform */}
     {results && <div style={{ marginTop: 28 }}>
-      <div style={{ fontFamily: mn, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 16, fontWeight: 700 }}>{platObj.label + " Captions - " + toneObj.label + " Tone"}</div>
+      {platforms.map(function(platKey) {
+        var platObj = CAPPER_PLATFORMS.find(function(p) { return p.key === platKey; }) || CAPPER_PLATFORMS[0];
+        var platResults = results[platKey] || [];
+        if (platResults.length === 0) return null;
 
-      {results.map(function(r, i) {
-        var cap = r.caption || "";
-        var isRegen = regenL[i];
-        return <div key={i} style={{ background: cardBg, border: "1px solid " + borderC, borderLeft: "3px solid " + platObj.color, borderRadius: 12, padding: "18px 20px", marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.3)", transition: "all 0.2s ease" }}>
-          {/* Header */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: platObj.color, background: platObj.color + "15", padding: "2px 8px", borderRadius: 4 }}>{platObj.icon}</span>
-              <span style={{ fontFamily: mn, fontSize: 11, color: C.txm }}>Variation {i + 1}</span>
-              <span style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>{charCount(cap)} chars</span>
-            </div>
-            <div style={{ display: "flex", gap: 5 }}>
-              <CopyBtn text={cap + (r.reply ? "\n\n[Reply]\n" + r.reply : "") + (r.title ? "\n\n[Title]\n" + r.title : "")} />
-              <span onClick={function() { if (!isRegen) regenerateOne(i); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: isRegen ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + borderC, opacity: isRegen ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>{isRegen ? "..." : "\u21BB"}</span>
-            </div>
+        return <div key={platKey} style={{ marginBottom: 32 }}>
+          {/* Platform header */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, paddingBottom: 10, borderBottom: "1px solid " + platObj.color + "25" }}>
+            <span style={{ fontFamily: mn, fontSize: 12, fontWeight: 800, color: platObj.color, background: platObj.color + "18", padding: "4px 12px", borderRadius: 6 }}>{platObj.icon}</span>
+            <span style={{ fontFamily: ft, fontSize: 16, fontWeight: 800, color: platObj.color }}>{platObj.label}</span>
+            <span style={{ fontFamily: mn, fontSize: 10, color: C.txm }}>{toneObj.label} Tone</span>
+            {isThread && <span style={{ fontFamily: mn, fontSize: 9, color: C.violet, background: C.violet + "15", padding: "2px 8px", borderRadius: 4 }}>Thread</span>}
           </div>
 
-          {/* YouTube title */}
-          {platform === "youtube" && r.title && <div style={{ marginBottom: 10 }}>
-            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4, textTransform: "uppercase", letterSpacing: "1px" }}>Title ({r.title.length} chars)</div>
-            <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: C.tx, padding: "8px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 6, border: "1px solid " + borderC }}>{r.title}</div>
-          </div>}
+          {platResults.map(function(r, i) {
+            var regenKey = platKey + "_" + i;
+            var isRegen = regenL[regenKey];
 
-          {/* Caption body */}
-          <div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.6)", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>{cap}</div>
+            if (isThread) {
+              /* Thread / multi-post output */
+              var posts = r.posts || [];
+              var fullText = posts.map(function(p) { return "Post " + p.number + ": " + p.text; }).join("\n\n");
+              return <div key={i} style={{ background: cardBg, border: "1px solid " + borderC, borderLeft: "3px solid " + platObj.color, borderRadius: 12, padding: "18px 20px", marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.3)", transition: "all 0.2s ease" }}>
+                {/* Header */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontFamily: mn, fontSize: 11, color: C.txm }}>Variation {i + 1}</span>
+                    <span style={{ fontFamily: mn, fontSize: 9, color: C.violet, background: C.violet + "12", padding: "2px 8px", borderRadius: 4 }}>{posts.length} posts</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 5 }}>
+                    <CopyBtn text={fullText} />
+                    <span onClick={function() { if (!isRegen) regenerateOne(platKey, i); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: isRegen ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + borderC, opacity: isRegen ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>{isRegen ? "..." : "\u21BB"}</span>
+                  </div>
+                </div>
+                {/* Thread posts */}
+                {posts.map(function(post) {
+                  return <div key={post.number} style={{ marginBottom: 10, padding: "12px 14px", background: "rgba(255,255,255,0.02)", borderRadius: 8, border: "1px solid " + borderC }}>
+                    <div style={{ fontFamily: mn, fontSize: 9, color: platObj.color, fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: "1px" }}>Post {post.number}/{posts.length}</div>
+                    <div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.6)", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>{post.text}</div>
+                  </div>;
+                })}
+              </div>;
+            }
 
-          {/* X reply format */}
-          {platform === "x" && r.reply && <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed " + borderC }}>
-            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4, textTransform: "uppercase", letterSpacing: "1px" }}>Reply</div>
-            <div style={{ fontFamily: ft, fontSize: 13, color: "rgba(255,255,255,0.45)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{r.reply}</div>
-          </div>}
+            /* Standard single-post output */
+            var cap = r.caption || "";
+            return <div key={i} style={{ background: cardBg, border: "1px solid " + borderC, borderLeft: "3px solid " + platObj.color, borderRadius: 12, padding: "18px 20px", marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.3)", transition: "all 0.2s ease" }}>
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontFamily: mn, fontSize: 11, color: C.txm }}>Variation {i + 1}</span>
+                  <span style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>{charCount(cap)} chars</span>
+                </div>
+                <div style={{ display: "flex", gap: 5 }}>
+                  <CopyBtn text={cap + (r.reply ? "\n\n[Reply]\n" + r.reply : "") + (r.title ? "\n\n[Title]\n" + r.title : "")} />
+                  <span onClick={function() { if (!isRegen) regenerateOne(platKey, i); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: isRegen ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + borderC, opacity: isRegen ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>{isRegen ? "..." : "\u21BB"}</span>
+                </div>
+              </div>
+
+              {/* YouTube title */}
+              {platKey === "youtube" && r.title && <div style={{ marginBottom: 10 }}>
+                <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4, textTransform: "uppercase", letterSpacing: "1px" }}>Title ({r.title.length} chars)</div>
+                <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: C.tx, padding: "8px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 6, border: "1px solid " + borderC }}>{r.title}</div>
+              </div>}
+
+              {/* Caption body */}
+              <div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.6)", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>{cap}</div>
+
+              {/* X reply format */}
+              {platKey === "x" && r.reply && <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed " + borderC }}>
+                <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4, textTransform: "uppercase", letterSpacing: "1px" }}>Reply</div>
+                <div style={{ fontFamily: ft, fontSize: 13, color: "rgba(255,255,255,0.45)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{r.reply}</div>
+              </div>}
+            </div>;
+          })}
         </div>;
       })}
     </div>}
@@ -1414,6 +1506,7 @@ export default function App() {
         {sec === "fk" && <FabricatedKnowledge />}
         {sec === "outreach" && <Outreach />}
         {sec === "trends" && <Trends />}
+        {sec === "ideation" && <IdeationNation />}
         {sec === "gtc" && <GTCFlow />}
         {sec === "news" && <NewsFlow />}
         {/* P2P stays mounted but hidden so production doesn't stop */}
