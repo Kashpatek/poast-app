@@ -1170,37 +1170,85 @@ function renderSlideToCanvas(slide, bgUrl) {
         });
       }
 
-      var COVER_MX = 60; // 5.5% margins for cover
-      var TOP_Y = Math.round(FULL_H * 0.06); // 6% from top, below logo
-      var BOTTOM_Y = Math.round(FULL_H * 0.08); // 8% from bottom, above arrow
+      var COVER_MX = 60;
+      var TOP_Y = Math.round(FULL_H * 0.10); // 10% — matches editor exactly
+      var BOTTOM_Y = Math.round(FULL_H * 0.08);
       var contentWidth = FULL_W - MARGIN_X * 2;
       var coverContentWidth = FULL_W - COVER_MX * 2;
+      var availH = FULL_H - TOP_Y - BOTTOM_Y;
 
       async function drawContent() {
+        // Date + title stamp at very top left (small, subtle)
+        var dateStr = new Date().toLocaleDateString("en-US", { month: "numeric", day: "numeric" }) + "." + String(new Date().getFullYear()).slice(2);
+        var stampTitle = (slide._carouselTitle || "").slice(0, 20);
+        var stamp = stampTitle ? dateStr + " - " + stampTitle : dateStr;
+        // Drawn small in top-left, below logo line
+        // (skip — logo area is sacred, stamp goes nowhere visible on the slide itself)
+
         if (slide.type === "cover") {
-          var imgH = Math.round(FULL_H * 0.48);
+          var imgHPct = (slide.imageHeight || 46) / 100;
+          var imgH = Math.round(availH * imgHPct);
           await drawImage(slide.imageUrl, COVER_MX, TOP_Y, coverContentWidth, imgH, 20);
           var titleY = TOP_Y + imgH + 20;
           var afterTitle = drawText(slide.title || "", COVER_MX, titleY, coverContentWidth, slide.titleSize, "800", "#ffffff", 1.15);
           drawText(slide.subtitle || "", COVER_MX, afterTitle + 8, coverContentWidth, slide.subtitleSize, "400", "rgba(255,255,255,0.78)", 1.4);
+
         } else if (slide.type === "body") {
-          // Full content area between logo and arrow
-          var availH = FULL_H - TOP_Y - BOTTOM_Y;
-          var textHeight = 600; // estimated
-          var bodyY = TOP_Y + Math.max(0, (availH - textHeight) / 2);
-          drawText(slide.bodyText || "", MARGIN_X, bodyY, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.55);
+          if (slide.imageUrl && !slide.inverted) {
+            // Image on top, text below
+            var bImgH = Math.round(availH * ((slide.imageHeight || 45) / 100));
+            await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, bImgH, 20);
+            drawText(slide.bodyText || "", MARGIN_X, TOP_Y + bImgH + 16, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.55);
+          } else if (slide.imageUrl && slide.inverted) {
+            // Text on top, image below
+            var bImgH2 = Math.round(availH * ((slide.imageHeight || 45) / 100));
+            var textEndY = drawText(slide.bodyText || "", MARGIN_X, TOP_Y, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.55);
+            await drawImage(slide.imageUrl, MARGIN_X, textEndY + 16, contentWidth, bImgH2, 20);
+          } else {
+            // Text only — vertically center
+            // Measure text height first
+            ctx.font = "400 " + slide.bodySize + "px Grift, Outfit, sans-serif";
+            var words = (slide.bodyText || "").split(" ");
+            var lines = [];
+            var line = "";
+            for (var wi = 0; wi < words.length; wi++) {
+              var test = line + words[wi] + " ";
+              if (ctx.measureText(test).width > contentWidth && wi > 0) { lines.push(line.trim()); line = words[wi] + " "; }
+              else { line = test; }
+            }
+            if (line.trim()) lines.push(line.trim());
+            var lh = slide.bodySize * 1.55;
+            var totalTextH = lines.length * lh;
+            var bodyY = TOP_Y + Math.max(0, (availH - totalTextH) / 2);
+            drawText(slide.bodyText || "", MARGIN_X, bodyY, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.55);
+          }
+
         } else if (slide.type === "image_text") {
-          var availH2 = FULL_H - TOP_Y - BOTTOM_Y;
-          var imgH2 = Math.round(availH2 * 0.50);
-          await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, imgH2, 20);
-          var textY = TOP_Y + imgH2 + 16;
-          drawText(slide.bodyText || "", MARGIN_X, textY, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.5);
+          var itImgH = Math.round(availH * ((slide.imageHeight || 50) / 100));
+          if (!slide.inverted) {
+            await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, itImgH, 20);
+            drawText(slide.bodyText || "", MARGIN_X, TOP_Y + itImgH + 16, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.5);
+          } else {
+            var itTextEnd = drawText(slide.bodyText || "", MARGIN_X, TOP_Y, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.5);
+            await drawImage(slide.imageUrl, MARGIN_X, itTextEnd + 16, contentWidth, itImgH, 20);
+          }
+
         } else if (slide.type === "large_image") {
-          var availH3 = FULL_H - TOP_Y - BOTTOM_Y;
-          var imgH3 = Math.round(availH3 * 0.72);
-          await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, imgH3, 20);
-          var capY = TOP_Y + imgH3 + 12;
-          drawText(slide.caption || "", MARGIN_X, capY, contentWidth, slide.captionSize || 18, "400", "rgba(255,255,255,0.65)", 1.4);
+          var liImgH = Math.round(availH * ((slide.imageHeight || 72) / 100));
+          if (!slide.inverted) {
+            await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, liImgH, 20);
+            drawText(slide.caption || "", MARGIN_X, TOP_Y + liImgH + 12, contentWidth, slide.captionSize || 18, "400", "rgba(255,255,255,0.65)", 1.4);
+          } else {
+            var liCapEnd = drawText(slide.caption || "", MARGIN_X, TOP_Y, contentWidth, slide.captionSize || 18, "400", "rgba(255,255,255,0.65)", 1.4);
+            await drawImage(slide.imageUrl, MARGIN_X, liCapEnd + 12, contentWidth, liImgH, 20);
+          }
+
+        } else if (slide.type === "dual_image") {
+          var halfH = Math.round((availH - 16) / 2);
+          await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, halfH - 20, 16);
+          drawText(slide.caption || "", MARGIN_X, TOP_Y + halfH - 16, contentWidth, slide.captionSize || 16, "400", "rgba(255,255,255,0.65)", 1.3);
+          await drawImage(slide.imageUrl2, MARGIN_X, TOP_Y + halfH + 8, contentWidth, halfH - 20, 16);
+          drawText(slide.caption2 || "", MARGIN_X, TOP_Y + halfH * 2 - 8, contentWidth, slide.captionSize || 16, "400", "rgba(255,255,255,0.65)", 1.3);
         }
 
         // CTA text on closer (position 4)
@@ -1282,6 +1330,10 @@ function ExportStep({ slides, theme, caption, setCaption, onBack, sourceUrl, onS
     }).catch(function() { setPlatLoading(false); });
   }
 
+  var coverTitle = (slides.find(function(s) { return s.type === "cover"; }) || {}).title || "carousel";
+  var dateStamp = (new Date().getMonth() + 1) + "." + new Date().getDate() + "." + String(new Date().getFullYear()).slice(2);
+  var filePrefix = dateStamp + " - " + coverTitle.replace(/[^a-zA-Z0-9 ]/g, "").slice(0, 20).trim().replace(/\s+/g, "_");
+
   function downloadSlide(index) {
     var sl = slides[index];
     var bgUrl = getBackdropUrl(theme, sl.position);
@@ -1290,7 +1342,7 @@ function ExportStep({ slides, theme, caption, setCaption, onBack, sourceUrl, onS
       var url = URL.createObjectURL(blob);
       var a = document.createElement("a");
       a.href = url;
-      a.download = "sa-carousel-slide-" + (index + 1) + ".png";
+      a.download = filePrefix + "_slide" + (index + 1) + ".png";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1314,7 +1366,7 @@ function ExportStep({ slides, theme, caption, setCaption, onBack, sourceUrl, onS
         var url = URL.createObjectURL(blob);
         var a = document.createElement("a");
         a.href = url;
-        a.download = "sa-carousel-slide-" + (currentIdx + 1) + ".png";
+        a.download = filePrefix + "_slide" + (currentIdx + 1) + ".png";
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
