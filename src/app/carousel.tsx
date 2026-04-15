@@ -261,7 +261,7 @@ function SlideCanvas({ slide, theme, onUpdate }) {
         style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.92)", lineHeight: 1.55, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", overflow: "hidden" }}
       >{slide.bodyText || "Body text"}</div>
       {/* CTA text on closer (position 4) */}
-      {slide.position === 4 && slide.ctaText && <div style={{ position: "absolute", bottom: 14 * SCALE, left: slide.ctaPosition === "bottom-center" ? 0 : "auto", right: slide.ctaPosition === "bottom-center" ? 0 : (60 * SCALE), width: slide.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: slide.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * SCALE, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 10px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.4)", letterSpacing: "1px" }}>{slide.ctaText}</div>}
+      {slide.position === 4 && slide.ctaText && <div style={{ position: "absolute", bottom: (28 - FULL_H * 0.08) * SCALE, left: slide.ctaPosition === "bottom-center" ? 0 : "auto", right: slide.ctaPosition === "bottom-center" ? 0 : (60 * SCALE), width: slide.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: slide.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * SCALE, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 10px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.4)", letterSpacing: "1px" }}>{slide.ctaText}</div>}
     </div>}
 
     {/* ─── IMAGE + TEXT SLIDE ─── */}
@@ -1066,7 +1066,7 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.9)", lineHeight: 1.5, overflow: "hidden", whiteSpace: "pre-wrap" }}>{sl.bodyText || ""}</div>
-                {sl.position === 4 && sl.ctaText && <div style={{ position: "absolute", bottom: 6, left: sl.ctaPosition === "bottom-center" ? 0 : "auto", right: sl.ctaPosition === "bottom-center" ? 0 : sidePad, width: sl.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: sl.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * rScale, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.5)", letterSpacing: "1px" }}>{sl.ctaText}</div>}
+                {sl.position === 4 && sl.ctaText && <div style={{ position: "absolute", bottom: (28 - FULL_H * 0.08) * rScale, left: sl.ctaPosition === "bottom-center" ? 0 : "auto", right: sl.ctaPosition === "bottom-center" ? 0 : sidePad, width: sl.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: sl.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * rScale, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.5)", letterSpacing: "1px" }}>{sl.ctaText}</div>}
               </div>}
               {sl.type === "image_text" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
                 {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 50) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
@@ -1427,7 +1427,7 @@ function renderSlideToCanvas(slide, bgUrl) {
           ctx.shadowBlur = 8;
           ctx.shadowOffsetX = 0;
           ctx.shadowOffsetY = 2;
-          var ctaY = FULL_H - BOTTOM_Y - ctaFontSize - 12;
+          var ctaY = FULL_H - ctaFontSize - 28;
           if (slide.ctaPosition === "bottom-center") {
             ctx.textAlign = "center";
             ctx.fillText(slide.ctaText, FULL_W / 2, ctaY);
