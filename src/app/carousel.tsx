@@ -500,74 +500,90 @@ function GenerateStep() {
 function VariantSelectStep({ variants, theme, onSelect, onBack }) {
   var variantKeys = Object.keys(variants || {}).filter(function(k) { return variants[k] && variants[k].slides; });
   var varColors = { A: C.amber, B: C.blue, C: C.teal };
-
-  function renderMiniSlides(v, color) {
-    var slides = v.slides || [];
-    var positions = getSlidePositions(slides.length);
-    return <div style={{ display: "flex", gap: 4, marginTop: 10, overflowX: "auto", paddingBottom: 4 }}>
-      {slides.map(function(sl, i) {
-        var pos = positions[i] || 2;
-        var bgUrl = getBackdropUrl(theme, pos);
-        var tw = 64;
-        var th = 80;
-        var tScale = tw / FULL_W;
-        return <div key={i} style={{ width: tw, height: th, borderRadius: 4, overflow: "hidden", position: "relative", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, border: "1px solid rgba(255,255,255,0.08)" }}>
-          <div style={{ position: "absolute", inset: 0, padding: 3 }}>
-            {sl.type === "COVER" && <div>
-              <div style={{ fontFamily: gf, fontSize: 4, fontWeight: 800, color: "#fff", lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{sl.title || ""}</div>
-            </div>}
-            {sl.type !== "COVER" && <div style={{ display: "flex", alignItems: "center", height: "100%" }}>
-              <div style={{ fontFamily: gf, fontSize: 3.5, color: "rgba(255,255,255,0.6)", lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical" }}>{sl.body_text || sl.subtext || ""}</div>
-            </div>}
-          </div>
-          <div style={{ position: "absolute", bottom: 1, right: 2, fontFamily: mn, fontSize: 5, color: "rgba(255,255,255,0.3)" }}>{i + 1}</div>
-        </div>;
-      })}
-    </div>;
-  }
+  var varLabels = { A: "Concise", B: "Deep Dive", C: "Visual Story" };
+  var _hover = useState(null), hoverKey = _hover[0], setHoverKey = _hover[1];
 
   return <div>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-      <div>
-        <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx }}>Choose a Variant</div>
-        <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginTop: 2 }}>Select an editorial approach. Each variant has a different angle on the content.</div>
-      </div>
-      <button onClick={onBack} style={{ padding: "8px 16px", background: "transparent", color: C.txm, border: "1px solid " + C.border, borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Back</button>
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ fontFamily: ft, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.5, marginBottom: 4 }}>Choose Your Approach</div>
+      <div style={{ fontFamily: ft, fontSize: 14, color: C.txm }}>Each variant is a different structure. Preview the slides, then pick one to edit.</div>
     </div>
 
-    <div style={{ display: "grid", gridTemplateColumns: variantKeys.length <= 2 ? "1fr 1fr" : "1fr 1fr 1fr", gap: 16, marginTop: 24 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {variantKeys.map(function(k) {
         var v = variants[k];
         var color = varColors[k] || C.amber;
         var slides = v.slides || [];
-        var typeSeq = slides.map(function(sl) {
-          if (sl.type === "COVER") return "Cover";
-          if (sl.type === "BODY_FINAL") return "Closer";
-          if (sl.type === "BODY_IMAGE") return "Img+Text";
-          if (sl.type === "BODY_LARGE_IMAGE") return "LargeImg";
-          return "Body";
-        }).join(" > ");
+        var positions = getSlidePositions(slides.length);
+        var isHovered = hoverKey === k;
+        var hasImages = slides.some(function(sl) { return sl.image_url; });
+        var typeBreakdown = {};
+        slides.forEach(function(sl) {
+          var label = sl.type === "COVER" ? "Cover" : sl.type === "BODY_FINAL" ? "Closer" : sl.type === "BODY_IMAGE" ? "Image+Text" : sl.type === "BODY_LARGE_IMAGE" ? "Large Image" : "Text";
+          typeBreakdown[label] = (typeBreakdown[label] || 0) + 1;
+        });
 
-        return <div key={k} style={{ padding: "20px", borderRadius: 12, background: color + "06", border: "1px solid " + color + "25", cursor: "pointer", transition: "all 0.2s", display: "flex", flexDirection: "column" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = color; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 32px " + color + "15"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = color + "25"; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-            <div style={{ width: 32, height: 32, borderRadius: "50%", background: color + "15", border: "2px solid " + color + "40", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 14, fontWeight: 800, color: color }}>{k}</div>
-            <div>
-              <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 800, color: color }}>{v.label || "Variant " + k}</div>
-              {v.topic && <div style={{ fontFamily: ft, fontSize: 11, color: C.txm, marginTop: 1 }}>{v.topic}</div>}
+        return <div key={k} onMouseEnter={function() { setHoverKey(k); }} onMouseLeave={function() { setHoverKey(null); }} style={{ background: isHovered ? color + "08" : C.card, border: "1px solid " + (isHovered ? color + "50" : C.border), borderRadius: 16, padding: "24px 28px", transition: "all 0.25s", boxShadow: isHovered ? "0 8px 40px " + color + "12" : "none", transform: isHovered ? "translateY(-2px)" : "none" }}>
+          {/* Header row */}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: color + "15", border: "2px solid " + color + "30", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 18, fontWeight: 900, color: color }}>{k}</div>
+              <div>
+                <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: C.tx }}>{v.label || varLabels[k] || "Variant " + k}</div>
+                {v.topic && <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginTop: 2, maxWidth: 500 }}>{v.topic}</div>}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+              {Object.keys(typeBreakdown).map(function(label) {
+                return <div key={label} style={{ fontFamily: mn, fontSize: 9, color: C.txd, padding: "3px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 6, border: "1px solid " + C.border }}>{typeBreakdown[label]}x {label}</div>;
+              })}
+              <div style={{ fontFamily: mn, fontSize: 11, color: color, padding: "3px 10px", background: color + "10", borderRadius: 6, border: "1px solid " + color + "25", fontWeight: 700 }}>{slides.length} slides</div>
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, padding: "3px 8px", background: "rgba(255,255,255,0.04)", borderRadius: 4 }}>{slides.length} slides</div>
+          {/* Slide previews — large enough to actually read */}
+          <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8, marginBottom: 16 }}>
+            {slides.map(function(sl, i) {
+              var pos = positions[i] || 2;
+              var bgUrl = getBackdropUrl(theme, pos);
+              var tw = 140;
+              var th = 175;
+              var tScale = tw / FULL_W;
+              return <div key={i} style={{ width: tw, height: th, borderRadius: 8, overflow: "hidden", position: "relative", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
+                <div style={{ position: "absolute", inset: 0, padding: "12px 8px 8px" }}>
+                  {sl.type === "COVER" && <div>
+                    {sl.image_url && <div style={{ width: "100%", height: "38%", borderRadius: 4, overflow: "hidden", marginBottom: 4, background: "rgba(255,255,255,0.05)" }}>
+                      <img src={sl.image_url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                    </div>}
+                    <div style={{ fontFamily: gf, fontSize: 9, fontWeight: 800, color: "#fff", lineHeight: 1.15, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{sl.title || ""}</div>
+                    <div style={{ fontFamily: gf, fontSize: 6, color: "rgba(255,255,255,0.6)", lineHeight: 1.3, marginTop: 3, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{sl.subtitle || ""}</div>
+                  </div>}
+                  {(sl.type === "BODY_A" || sl.type === "BODY_B" || sl.type === "BODY_FINAL") && <div style={{ display: "flex", alignItems: "center", height: "100%" }}>
+                    <div style={{ fontFamily: gf, fontSize: 6, color: "rgba(255,255,255,0.75)", lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 10, WebkitBoxOrient: "vertical", whiteSpace: "pre-wrap" }}>{sl.body_text || ""}</div>
+                  </div>}
+                  {sl.type === "BODY_IMAGE" && <div>
+                    {sl.image_url && <div style={{ width: "100%", height: "45%", borderRadius: 4, overflow: "hidden", marginBottom: 3, background: "rgba(255,255,255,0.05)" }}>
+                      <img src={sl.image_url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                    </div>}
+                    <div style={{ fontFamily: gf, fontSize: 5.5, color: "rgba(255,255,255,0.7)", lineHeight: 1.3, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical" }}>{sl.body_text || ""}</div>
+                  </div>}
+                  {sl.type === "BODY_LARGE_IMAGE" && <div>
+                    {sl.image_url && <div style={{ width: "100%", height: "65%", borderRadius: 4, overflow: "hidden", marginBottom: 3, background: "rgba(255,255,255,0.05)" }}>
+                      <img src={sl.image_url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                    </div>}
+                    <div style={{ fontFamily: gf, fontSize: 5, color: "rgba(255,255,255,0.5)", lineHeight: 1.2 }}>{sl.subtext || ""}</div>
+                  </div>}
+                </div>
+                {/* Slide number */}
+                <div style={{ position: "absolute", bottom: 4, left: 6, fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.3)", fontWeight: 700 }}>{i + 1}</div>
+                {/* Type badge */}
+                <div style={{ position: "absolute", bottom: 4, right: 6, fontFamily: mn, fontSize: 6, color: sl.type === "COVER" ? color : sl.type === "BODY_FINAL" ? C.teal : "rgba(255,255,255,0.25)", textTransform: "uppercase" }}>{sl.type === "COVER" ? "COVER" : sl.type === "BODY_FINAL" ? "END" : sl.type === "BODY_IMAGE" ? "IMG" : sl.type === "BODY_LARGE_IMAGE" ? "IMG" : ""}</div>
+              </div>;
+            })}
           </div>
 
-          <div style={{ fontFamily: mn, fontSize: 8, color: C.txd, lineHeight: 1.4, marginBottom: 6 }}>{typeSeq}</div>
-
-          {/* Mini thumbnail previews */}
-          {renderMiniSlides(v, color)}
-
-          <div style={{ flex: 1 }} />
-          <button onClick={function(e) { e.stopPropagation(); onSelect(k); }} style={{ marginTop: 14, width: "100%", padding: "10px 0", background: color + "15", color: color, border: "1px solid " + color + "35", borderRadius: 8, fontFamily: ft, fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.background = color + "25"; }} onMouseLeave={function(e) { e.currentTarget.style.background = color + "15"; }}>Continue with Variant {k}</button>
+          {/* Select button */}
+          <button onClick={function() { onSelect(k); }} style={{ width: "100%", padding: "14px 0", background: isHovered ? "linear-gradient(135deg, " + color + ", " + color + "CC)" : color + "12", color: isHovered ? "#060608" : color, border: isHovered ? "none" : "1px solid " + color + "30", borderRadius: 10, fontFamily: ft, fontSize: 15, fontWeight: 800, cursor: "pointer", transition: "all 0.2s", letterSpacing: -0.3 }}>Continue with {v.label || "Variant " + k}</button>
         </div>;
       })}
     </div>
