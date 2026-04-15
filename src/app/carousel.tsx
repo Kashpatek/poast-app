@@ -1289,11 +1289,9 @@ function renderSlideToCanvas(slide, bgUrl) {
       function drawImage(imageUrl, x, y, w, h, radius) {
         return new Promise(function(resolveImg) {
           if (!imageUrl) { resolveImg(); return; }
-          var img = new Image();
-          img.crossOrigin = "anonymous";
-          img.onload = function() {
+
+          function renderImg(img) {
             ctx.save();
-            // Rounded rect clip
             ctx.beginPath();
             ctx.moveTo(x + radius, y);
             ctx.lineTo(x + w - radius, y);
@@ -1306,27 +1304,29 @@ function renderSlideToCanvas(slide, bgUrl) {
             ctx.arcTo(x, y, x + radius, y, radius);
             ctx.closePath();
             ctx.clip();
-
-            // Cover fill
             var imgAspect = img.width / img.height;
             var frameAspect = w / h;
             var dw, dh, dx, dy;
-            if (imgAspect > frameAspect) {
-              dh = h;
-              dw = dh * imgAspect;
-              dx = x + (w - dw) / 2;
-              dy = y;
-            } else {
-              dw = w;
-              dh = dw / imgAspect;
-              dx = x;
-              dy = y + (h - dh) / 2;
-            }
+            if (imgAspect > frameAspect) { dh = h; dw = dh * imgAspect; dx = x + (w - dw) / 2; dy = y; }
+            else { dw = w; dh = dw / imgAspect; dx = x; dy = y + (h - dh) / 2; }
             ctx.drawImage(img, dx, dy, dw, dh);
             ctx.restore();
             resolveImg();
+          }
+
+          // Try direct load first, fall back to proxy for CORS-blocked images
+          var img = new Image();
+          img.crossOrigin = "anonymous";
+          img.onload = function() { renderImg(img); };
+          img.onerror = function() {
+            // External image likely blocked by CORS — proxy it
+            var proxyUrl = "/api/image-proxy?url=" + encodeURIComponent(imageUrl);
+            var img2 = new Image();
+            img2.crossOrigin = "anonymous";
+            img2.onload = function() { renderImg(img2); };
+            img2.onerror = function() { resolveImg(); }; // give up silently
+            img2.src = proxyUrl;
           };
-          img.onerror = function() { resolveImg(); };
           img.src = imageUrl;
         });
       }
@@ -1367,19 +1367,24 @@ function renderSlideToCanvas(slide, bgUrl) {
             await drawImage(slide.imageUrl, MARGIN_X, textEndY + 16, contentWidth, bImgH2, 20);
           } else {
             // Text only — vertically center
-            // Measure text height first
+            // Measure text height accounting for paragraph breaks
             ctx.font = "400 " + slide.bodySize + "px Grift, Outfit, sans-serif";
-            var words = (slide.bodyText || "").split(" ");
-            var lines = [];
-            var line = "";
-            for (var wi = 0; wi < words.length; wi++) {
-              var test = line + words[wi] + " ";
-              if (ctx.measureText(test).width > contentWidth && wi > 0) { lines.push(line.trim()); line = words[wi] + " "; }
-              else { line = test; }
-            }
-            if (line.trim()) lines.push(line.trim());
             var lh = slide.bodySize * 1.55;
-            var totalTextH = lines.length * lh;
+            var totalLines = 0;
+            var paragraphs = (slide.bodyText || "").split(/\n/);
+            for (var pi = 0; pi < paragraphs.length; pi++) {
+              var para = paragraphs[pi].trim();
+              if (!para) { totalLines += 0.6; continue; } // paragraph gap
+              var words = para.split(" ");
+              var line = "";
+              for (var wi = 0; wi < words.length; wi++) {
+                var test = line + words[wi] + " ";
+                if (ctx.measureText(test).width > contentWidth && wi > 0) { totalLines++; line = words[wi] + " "; }
+                else { line = test; }
+              }
+              if (line.trim()) totalLines++;
+            }
+            var totalTextH = totalLines * lh;
             var bodyY = TOP_Y + Math.max(0, (availH - totalTextH) / 2);
             drawText(slide.bodyText || "", MARGIN_X, bodyY, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.55);
           }
