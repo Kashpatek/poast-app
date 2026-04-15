@@ -1977,6 +1977,42 @@ export default function SlopTop() {
             }}>{factoryImagePrompt}</div>}
           </div>
         </div>
+        {/* Refine prompt */}
+        <div style={{ padding: "0 18px 12px", display: "flex", gap: 8 }}>
+          <input type="text" id="factory-refine" placeholder="Add to prompt... (e.g. make it more dramatic, add fire)" style={{
+            flex: 1, padding: "8px 12px", background: "rgba(0,255,65,0.05)", border: "1px solid rgba(0,255,65,0.2)",
+            borderRadius: 6, color: "#00FF41", fontFamily: mn, fontSize: 11, outline: "none",
+          }} onKeyDown={function(e) {
+            if (e.key === "Enter" && e.target.value.trim()) {
+              var addition = e.target.value.trim();
+              e.target.value = "";
+              var fmt = FACTORY_FORMATS.find(function(f) { return f.id === factoryFormat; });
+              if (!fmt) return;
+              setFactoryPhase("crafting");
+              factoryAsk(fmt.imageSystem, factoryInput.trim() + "\n\nAdditional instructions: " + addition + "\n\nPrevious prompt to refine: " + factoryImagePrompt).then(function(text) {
+                setFactoryImagePrompt(text);
+                setFactoryPhase("image_ready");
+              }).catch(function(e2) { setFactoryError(String(e2.message || e2)); setFactoryPhase("error"); });
+            }
+          }} />
+          <button onClick={function() {
+            var el = document.getElementById("factory-refine");
+            if (!el || !el.value.trim()) return;
+            var addition = el.value.trim();
+            el.value = "";
+            var fmt = FACTORY_FORMATS.find(function(f) { return f.id === factoryFormat; });
+            if (!fmt) return;
+            setFactoryPhase("crafting");
+            factoryAsk(fmt.imageSystem, factoryInput.trim() + "\n\nAdditional instructions: " + addition + "\n\nPrevious prompt to refine: " + factoryImagePrompt).then(function(text) {
+              setFactoryImagePrompt(text);
+              setFactoryPhase("image_ready");
+            }).catch(function(e2) { setFactoryError(String(e2.message || e2)); setFactoryPhase("error"); });
+          }} style={{
+            padding: "8px 16px", borderRadius: 6, cursor: "pointer",
+            background: "rgba(0,255,65,0.1)", border: "1px solid rgba(0,255,65,0.3)",
+            color: "#00FF41", fontFamily: mn, fontSize: 10, fontWeight: 700,
+          }}>REFINE</button>
+        </div>
         {/* Action buttons */}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button onClick={function() { setFactoryPromptEditing(!factoryPromptEditing); }} style={{
@@ -2038,8 +2074,36 @@ export default function SlopTop() {
           }} />
         </div>
 
+        {/* Refine after image */}
+        {factoryPhase === "image_ready" && <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+          <input type="text" id="factory-refine-img" placeholder="Refine... (e.g. more dramatic, less busy, change angle)" style={{
+            flex: 1, padding: "8px 12px", background: "rgba(0,255,65,0.05)", border: "1px solid rgba(0,255,65,0.2)",
+            borderRadius: 6, color: "#00FF41", fontFamily: mn, fontSize: 11, outline: "none",
+          }} onKeyDown={function(e) {
+            if (e.key === "Enter" && e.target.value.trim()) {
+              var addition = e.target.value.trim();
+              e.target.value = "";
+              setFactoryImagePrompt(factoryImagePrompt + ". " + addition);
+              setFactoryImageUrl(null);
+              setTimeout(handleFactoryGenerateImage, 100);
+            }
+          }} />
+          <button onClick={function() {
+            var el = document.getElementById("factory-refine-img");
+            if (!el || !el.value.trim()) return;
+            setFactoryImagePrompt(factoryImagePrompt + ". " + el.value.trim());
+            el.value = "";
+            setFactoryImageUrl(null);
+            setTimeout(handleFactoryGenerateImage, 100);
+          }} style={{
+            padding: "8px 16px", borderRadius: 6, cursor: "pointer",
+            background: "rgba(0,255,65,0.1)", border: "1px solid rgba(0,255,65,0.3)",
+            color: "#00FF41", fontFamily: mn, fontSize: 10, fontWeight: 700,
+          }}>REFINE + REGEN</button>
+        </div>}
+
         {/* Image Review Buttons */}
-        {factoryPhase === "image_ready" && <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+        {factoryPhase === "image_ready" && <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
           <button onClick={function() {
             setFactoryImageUrl(null);
             handleFactoryGenerateImage();
