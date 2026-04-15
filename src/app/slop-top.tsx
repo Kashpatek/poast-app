@@ -516,7 +516,8 @@ export default function SlopTop() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ concept: fullPrompt, style: "cinematic" }),
     }).then(function(r) { return r.json(); }).then(function(d) {
-      if (d.url) setMemeImg(d.url);
+      var mUrl = d.url || (d.images && d.images[0]) || null;
+      if (mUrl) setMemeImg(mUrl);
       else if (d.error) setSlopError(d.error);
       setMemeImgLoading(false);
     }).catch(function(e) { setSlopError(String(e)); setMemeImgLoading(false); });
@@ -698,8 +699,9 @@ export default function SlopTop() {
     }).then(function(r) { return r.json(); }).then(function(d) {
       clearInterval(progInterval);
       setFactoryProgress(100);
-      if (d.url) {
-        setFactoryImageUrl(d.url);
+      var imgUrl = d.url || (d.images && d.images[0]) || null;
+      if (imgUrl) {
+        setFactoryImageUrl(imgUrl);
         setFactoryCredits(function(c) { return c + 1; });
         setFactoryPhase("image_ready");
       } else {
