@@ -562,15 +562,15 @@ function VariantSelectStep({ variants, theme, onSelect, onBack }) {
                     <div style={{ fontFamily: gf, fontSize: 6, color: "rgba(255,255,255,0.75)", lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 10, WebkitBoxOrient: "vertical", whiteSpace: "pre-wrap" }}>{sl.body_text || ""}</div>
                   </div>}
                   {sl.type === "BODY_IMAGE" && <div>
-                    {sl.image_url && <div style={{ width: "100%", height: "45%", borderRadius: 4, overflow: "hidden", marginBottom: 3, background: "rgba(255,255,255,0.05)" }}>
-                      <img src={sl.image_url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
-                    </div>}
+                    <div style={{ width: "100%", height: "45%", borderRadius: 4, overflow: "hidden", marginBottom: 3, background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {sl.image_url ? <img src={sl.image_url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} /> : <div style={{ fontFamily: mn, fontSize: 7, color: "rgba(255,255,255,0.15)" }}>IMAGE</div>}
+                    </div>
                     <div style={{ fontFamily: gf, fontSize: 5.5, color: "rgba(255,255,255,0.7)", lineHeight: 1.3, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical" }}>{sl.body_text || ""}</div>
                   </div>}
                   {sl.type === "BODY_LARGE_IMAGE" && <div>
-                    {sl.image_url && <div style={{ width: "100%", height: "65%", borderRadius: 4, overflow: "hidden", marginBottom: 3, background: "rgba(255,255,255,0.05)" }}>
-                      <img src={sl.image_url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
-                    </div>}
+                    <div style={{ width: "100%", height: "65%", borderRadius: 4, overflow: "hidden", marginBottom: 3, background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {sl.image_url ? <img src={sl.image_url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} /> : <div style={{ fontFamily: mn, fontSize: 7, color: "rgba(255,255,255,0.15)" }}>IMAGE</div>}
+                    </div>
                     <div style={{ fontFamily: gf, fontSize: 5, color: "rgba(255,255,255,0.5)", lineHeight: 1.2 }}>{sl.subtext || ""}</div>
                   </div>}
                 </div>

@@ -137,8 +137,8 @@ Variant B: "Deep Dive" approach
 - Break the story into distinct chapters/angles across slides.
 ${hasImages ? "- Use cover image + 1-2 BODY_IMAGE slides where charts/data directly support the point being made on that slide. Pick the most relevant images." : ""}
 
-Variant C: "Visual Story" approach
-- 4-6 slides. ${hasImages ? "Image-heavy. Use BODY_IMAGE and BODY_LARGE_IMAGE slides to let data/charts do the talking. Less text per slide, more visual impact." : "Mix of text-heavy and text-light slides. Some slides with shorter, punchier text. Vary the density."}
+Variant C: "${hasImages ? "Visual Story" : "Key Takeaways"}" approach
+- ${hasImages ? "4-6 slides. Image-heavy. Use BODY_IMAGE and BODY_LARGE_IMAGE slides to let data/charts do the talking. Less text per slide, more visual impact. Every image slide must have image_url set." : "6-8 slides. Each body slide covers ONE specific point or takeaway, not a narrative. Shorter text per slide (50-70 words), more slides. Like a listicle format but without numbers or bullets. Each slide is a standalone insight."}
 
 Return JSON:
 {
