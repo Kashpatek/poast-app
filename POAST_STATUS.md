@@ -1,5 +1,5 @@
 # POAST Platform Status Report
-**v3.0 // April 14, 2026 // SemiAnalysis Content Command Center**
+**v3.1 // April 15, 2026 // SemiAnalysis Content Command Center**
 
 ---
 
@@ -8,7 +8,7 @@
 | Section | Category | Supabase | V3 Changes |
 |---------|----------|----------|------------|
 | Slop Top | PRODUCE | No | Emoji cleanup (all unicode escapes → real chars) |
-| Carousel | PRODUCE | No | **NEW: Browse B-Roll popover for slide images** |
+| Carousel | PRODUCE | Yes | **NEW: CORS image proxy for export, captions .docx download, archive with date/source/title naming** |
 | Capper | PRODUCE | No | **NEW: Send to Buffer (per-platform + Send All as drafts)** |
 | Press to Premier | PRODUCE | Yes | **NEW: Browse B-Roll overlay in script step** |
 | B-Roll Library | PRODUCE | Yes | Now accessible from P2P + Carousel |
@@ -72,6 +72,7 @@
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v3.1 | Apr 15 | Carousel: CORS image proxy fixes export images, paragraph break centering, CTA repositioned, captions .docx download, archive saves with date/source/title |
 | v3.0 | Apr 14 | Pipeline integration: 5 cross-module flows, Buffer compose, GTC CRUD, IdeationNation persistence, shared constants, emoji fixes |
 | v2.9 | Apr 14 | FACTORY refine inputs, image/video gen fixes |
 | v2.8.1 | Apr 14 | Full polish sweep across all 9 components |
@@ -87,5 +88,5 @@
 
 ---
 
-*POAST v3.0 // SemiAnalysis Content Command Center // 13 sections, 15,901 LOC, 5 data flows*
+*POAST v3.1 // SemiAnalysis Content Command Center // 13 sections, 5 data flows*
 *Built with Claude Opus 4.6 // Deployed on Vercel*

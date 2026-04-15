@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SA CAROUSEL v2.0 -- Visual Slide Editor with Real Branded Backgrounds
+   SA CAROUSEL v3.1 -- Visual Slide Editor with Real Branded Backgrounds
    ═══════════════════════════════════════════════════════════════════════════ */
 
 var C = {
