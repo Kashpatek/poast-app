@@ -1,6 +1,10 @@
 // @ts-nocheck
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SA CAROUSEL v2.0 -- Visual Slide Editor with Real Branded Backgrounds
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 var C = {
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
@@ -10,29 +14,53 @@ var C = {
 };
 var ft = "'Outfit',sans-serif";
 var mn = "'JetBrains Mono',monospace";
+var gf = "'Grift','Outfit',sans-serif";
 
-// SA Carousel Schema v1.0 -- slide backgrounds
-var BG_DARK = "radial-gradient(ellipse at bottom left, #3D2800, #1A1200)";
-var BG_LIGHT = "radial-gradient(ellipse at center, #2A1800, #1A1200)";
-
-var SLIDE_META = {
-  COVER: { label: "Cover", color: C.amber, bg: BG_DARK, hasArrow: true },
-  BODY_A: { label: "Body A", color: "#fff", bg: BG_DARK, hasArrow: true },
-  BODY_B: { label: "Body B", color: "#fff", bg: BG_LIGHT, hasArrow: true },
-  BODY_FINAL: { label: "Body Final", color: "#fff", bg: BG_DARK, hasArrow: false },
-  BODY_IMAGE: { label: "Body + Image", color: "#fff", bg: BG_DARK, hasArrow: true },
-  BODY_LARGE_IMAGE: { label: "Large Image", color: "#fff", bg: BG_DARK, hasArrow: false },
+// ═══ THEME / BACKDROP MAPPING ═══
+var THEMES = {
+  general:  { prefix: "YB", label: "General",  color: "#D4A853", desc: "Industry news, trends, analysis" },
+  internal: { prefix: "Y",  label: "Internal", color: "#F7B041", desc: "SA original research and findings" },
+  external: { prefix: "B",  label: "External", color: "#0B86D1", desc: "Third-party content with SA commentary" },
+  capital:  { prefix: "G",  label: "Capital",  color: "#2EAD8E", desc: "Financial and investment analysis" },
 };
 
-var CATEGORIES = [
-  { id: "general", label: "General", desc: "Industry news, trends, analysis", color: "#D4A853" },
-  { id: "internal", label: "Internal", desc: "SA original research and findings", color: "#F7B041" },
-  { id: "external", label: "External", desc: "Third-party content with SA commentary", color: "#0B86D1" },
-  { id: "capital", label: "Capital", desc: "Financial and investment analysis", color: "#2EAD8E" },
-];
+function getBackdropUrl(theme, position) {
+  return "/backdrops/" + THEMES[theme].prefix + position + ".jpg";
+}
 
-var STEPS = ["Input", "Generate", "Select", "Caption", "Export"];
+function getSlidePositions(count) {
+  if (count === 1) return [4];
+  if (count === 2) return [1, 4];
+  if (count === 3) return [1, 2, 4];
+  var positions = [1];
+  for (var i = 1; i < count - 1; i++) {
+    positions.push(i % 2 === 1 ? 2 : 3);
+  }
+  positions.push(4);
+  return positions;
+}
 
+function getSlideType(position) {
+  if (position === 1) return "cover";
+  if (position === 4) return "body"; // closer is body layout, no arrow is baked in bg
+  return "body";
+}
+
+// Canvas dimensions at full resolution
+var FULL_W = 1080;
+var FULL_H = 1350;
+// Display scale: ~450px wide
+var DISPLAY_W = 450;
+var DISPLAY_H = 562; // 450 * (1350/1080)
+var SCALE = DISPLAY_W / FULL_W; // ~0.4167
+
+// Margins at full res: 7% = ~76px
+var MARGIN_X = 76;
+var MARGIN_Y = 95;
+
+var STEPS = ["Input", "Generate", "Edit", "Review", "Export"];
+
+// ═══ STEP BAR ═══
 function StepBar({ step, setStep, maxStep }) {
   return <div style={{ display: "flex", gap: 0, marginBottom: 28 }}>
     {STEPS.map(function(s, i) {
@@ -52,7 +80,7 @@ function StepBar({ step, setStep, maxStep }) {
   </div>;
 }
 
-// ═══ B-ROLL PICKER (inline popover for browsing B-Roll library images) ═══
+// ═══ B-ROLL PICKER ═══
 function BRollPicker({ onSelect }) {
   var _open = useState(false), open = _open[0], setOpen = _open[1];
   var _assets = useState([]), assets = _assets[0], setAssets = _assets[1];
@@ -74,20 +102,11 @@ function BRollPicker({ onSelect }) {
     }).catch(function() { setLoadState("loaded"); });
   }
 
-  function handleOpen() {
-    setOpen(!open);
-    if (!open) loadAssets();
-  }
-
-  function handlePick(asset) {
-    onSelect(asset.url);
-    setOpen(false);
-  }
+  function handleOpen() { setOpen(!open); if (!open) loadAssets(); }
+  function handlePick(asset) { onSelect(asset.url); setOpen(false); }
 
   var categories = [];
-  assets.forEach(function(a) {
-    if (a.category && categories.indexOf(a.category) === -1) categories.push(a.category);
-  });
+  assets.forEach(function(a) { if (a.category && categories.indexOf(a.category) === -1) categories.push(a.category); });
 
   var filtered = assets.filter(function(a) {
     if (catFilter !== "all" && a.category !== catFilter) return false;
@@ -101,12 +120,11 @@ function BRollPicker({ onSelect }) {
   });
 
   return <div style={{ position: "relative", display: "inline-block" }}>
-    <button onClick={handleOpen} style={{ padding: "6px 12px", background: C.blue + "12", color: C.blue, border: "1px solid " + C.blue + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.blue + "60"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.blue + "30"; }}>Browse B-Roll</button>
+    <button onClick={handleOpen} style={{ padding: "6px 12px", background: C.blue + "12", color: C.blue, border: "1px solid " + C.blue + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}>Browse B-Roll</button>
     {open && <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 6, width: 320, maxHeight: 360, background: C.card, border: "1px solid " + C.border, borderRadius: 12, boxShadow: "0 12px 40px rgba(0,0,0,0.6)", zIndex: 100, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      {/* Header */}
       <div style={{ padding: "10px 12px 8px", borderBottom: "1px solid " + C.border }}>
         <div style={{ fontFamily: mn, fontSize: 9, color: C.blue, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 6 }}>B-Roll Library</div>
-        <input value={search} onChange={function(e) { setSearch(e.target.value); }} placeholder="Search..." style={{ width: "100%", padding: "6px 10px", background: C.surface, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: ft, fontSize: 11, outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.blue; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+        <input value={search} onChange={function(e) { setSearch(e.target.value); }} placeholder="Search..." style={{ width: "100%", padding: "6px 10px", background: C.surface, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: ft, fontSize: 11, outline: "none", boxSizing: "border-box" }} />
         {categories.length > 0 && <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
           <span onClick={function() { setCatFilter("all"); }} style={{ fontFamily: mn, fontSize: 9, padding: "2px 7px", borderRadius: 4, cursor: "pointer", background: catFilter === "all" ? C.blue + "20" : "transparent", color: catFilter === "all" ? C.blue : C.txd, border: "1px solid " + (catFilter === "all" ? C.blue + "40" : "transparent") }}>All</span>
           {categories.map(function(cat) {
@@ -114,7 +132,6 @@ function BRollPicker({ onSelect }) {
           })}
         </div>}
       </div>
-      {/* Grid */}
       <div style={{ flex: 1, overflowY: "auto", padding: 8 }}>
         {loadState === "loading" && <div style={{ textAlign: "center", padding: 20, fontFamily: ft, fontSize: 11, color: C.txm }}>Loading...</div>}
         {loadState === "loaded" && filtered.length === 0 && <div style={{ textAlign: "center", padding: 20, fontFamily: ft, fontSize: 11, color: C.txd }}>No images found</div>}
@@ -130,63 +147,173 @@ function BRollPicker({ onSelect }) {
   </div>;
 }
 
-// ═══ SLIDE PREVIEW (mimics 1080x1350 at small scale) ═══
-function SlidePreview({ slide, index, small }) {
-  var meta = SLIDE_META[slide.type] || SLIDE_META.BODY_A;
-  var scale = small ? 0.55 : 1;
-  var w = 180 * scale;
-  var h = 225 * scale;
-
-  return <div style={{ width: w, height: h, borderRadius: 8 * scale, overflow: "hidden", position: "relative", background: meta.bg, border: "1px solid rgba(255,255,255,0.08)", flexShrink: 0 }}>
-    {/* Grid overlay */}
-    <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)", backgroundSize: (20 * scale) + "px " + (20 * scale) + "px", pointerEvents: "none" }} />
-    {/* SA logo bug top-right */}
-    <div style={{ position: "absolute", top: 4 * scale, right: 4 * scale, fontFamily: mn, fontSize: 6 * scale, color: "rgba(255,255,255,0.5)", fontWeight: 700 }}>SA</div>
-
-    {slide.type === "COVER" && <div style={{ padding: 8 * scale, display: "flex", flexDirection: "column", height: "100%" }}>
-      {slide.image_url && <div style={{ width: "100%", height: "40%", borderRadius: 6 * scale, background: "rgba(255,255,255,0.08)", marginBottom: 6 * scale, overflow: "hidden" }}>
-        <img src={slide.image_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={function(e) { e.target.style.display = "none"; }} />
-      </div>}
-      {!slide.image_url && <div style={{ width: "100%", height: "40%", borderRadius: 6 * scale, background: "rgba(255,255,255,0.05)", marginBottom: 6 * scale, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ fontFamily: mn, fontSize: 7 * scale, color: "rgba(255,255,255,0.15)" }}>IMAGE</span>
-      </div>}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
-        <div style={{ fontFamily: ft, fontSize: 11 * scale, fontWeight: 800, color: C.amber, lineHeight: 1.2, marginBottom: 3 * scale }}>{slide.title || "Title"}</div>
-        <div style={{ fontFamily: ft, fontSize: 7 * scale, color: "rgba(255,255,255,0.7)", lineHeight: 1.3 }}>{(slide.subtitle || "").slice(0, 60)}{(slide.subtitle || "").length > 60 ? "..." : ""}</div>
-      </div>
-    </div>}
-
-    {(slide.type === "BODY_A" || slide.type === "BODY_B" || slide.type === "BODY_FINAL") && <div style={{ padding: 8 * scale, display: "flex", flexDirection: "column", justifyContent: "center", height: "100%" }}>
-      <div style={{ fontFamily: ft, fontSize: 7 * scale, color: "rgba(255,255,255,0.85)", lineHeight: 1.4 }}>{(slide.body_text || "").slice(0, 120)}{(slide.body_text || "").length > 120 ? "..." : ""}</div>
-    </div>}
-
-    {slide.type === "BODY_IMAGE" && <div style={{ padding: 8 * scale, height: "100%" }}>
-      <div style={{ width: "100%", height: "40%", borderRadius: 6 * scale, background: "rgba(255,255,255,0.05)", marginBottom: 4 * scale, overflow: "hidden" }}>
-        {slide.image_url && <img src={slide.image_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={function(e) { e.target.style.display = "none"; }} />}
-      </div>
-      <div style={{ fontFamily: ft, fontSize: 6 * scale, color: "rgba(255,255,255,0.8)", lineHeight: 1.3 }}>{(slide.body_text || "").slice(0, 80)}</div>
-    </div>}
-
-    {slide.type === "BODY_LARGE_IMAGE" && <div style={{ padding: 8 * scale, height: "100%" }}>
-      <div style={{ width: "100%", height: "80%", borderRadius: 6 * scale, background: "rgba(255,255,255,0.05)", marginBottom: 4 * scale, overflow: "hidden" }}>
-        {slide.image_url && <img src={slide.image_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={function(e) { e.target.style.display = "none"; }} />}
-      </div>
-      <div style={{ fontFamily: ft, fontSize: 6 * scale, color: "rgba(255,255,255,0.6)", lineHeight: 1.2 }}>{slide.subtext || ""}</div>
-    </div>}
-
-    {/* Arrow CTA bottom-right */}
-    {meta.hasArrow && <div style={{ position: "absolute", bottom: 6 * scale, right: 6 * scale, width: 16 * scale, height: 10 * scale, borderRadius: 5 * scale, background: C.amber, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <span style={{ fontSize: 7 * scale, color: "#1A1200" }}>\u2192</span>
-    </div>}
-
-    {/* Type badge */}
-    <div style={{ position: "absolute", top: 4 * scale, left: 4 * scale, fontFamily: mn, fontSize: 5 * scale, color: slide.type === "COVER" ? C.amber : "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: 0.5 }}>{index + 1}</div>
+// ═══ FONT SIZE CONTROL ═══
+function FontSizeControl({ value, onChange, label }) {
+  return <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, minWidth: 40 }}>{label}</span>
+    <button onClick={function() { onChange(Math.max(12, value - 1)); }} style={{ width: 22, height: 22, borderRadius: 4, background: C.surface, border: "1px solid " + C.border, color: C.txm, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>-</button>
+    <span style={{ fontFamily: mn, fontSize: 10, color: C.tx, minWidth: 24, textAlign: "center" }}>{value}</span>
+    <button onClick={function() { onChange(Math.min(80, value + 1)); }} style={{ width: 22, height: 22, borderRadius: 4, background: C.surface, border: "1px solid " + C.border, color: C.txm, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>+</button>
   </div>;
 }
+
+// ═══ IMAGE FRAME (clickable area for image insertion) ═══
+function ImageFrame({ imageUrl, onImageChange, style: frameStyle, slideId }) {
+  var fileRef = useRef(null);
+
+  function handleClick() {
+    if (fileRef.current) fileRef.current.click();
+  }
+
+  function handleFile(e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) { onImageChange(ev.target.result); };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  return <div onClick={handleClick} style={Object.assign({}, { borderRadius: 20 * SCALE, overflow: "hidden", cursor: "pointer", position: "relative", background: "rgba(255,255,255,0.04)", border: "1px dashed rgba(255,255,255,0.12)" }, frameStyle)}>
+    {imageUrl ? <img src={imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.opacity = "0.3"; }} /> : <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
+      <div style={{ fontSize: 24, color: "rgba(255,255,255,0.15)" }}>+</div>
+      <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.2)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Click to add image</div>
+    </div>}
+    <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFile} style={{ display: "none" }} />
+  </div>;
+}
+
+// ═══ SLIDE CANVAS (the large visual editor canvas) ═══
+function SlideCanvas({ slide, theme, onUpdate }) {
+  var bgUrl = getBackdropUrl(theme, slide.position);
+  var mx = MARGIN_X * SCALE; // ~32px
+  var my = MARGIN_Y * SCALE; // ~40px
+
+  function updateField(field, value) {
+    onUpdate(Object.assign({}, slide, { [field]: value }));
+  }
+
+  // Shared text shadow for readability
+  var textShadow = "0 2px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3)";
+
+  return <div style={{ width: DISPLAY_W, height: DISPLAY_H, position: "relative", borderRadius: 8, overflow: "hidden", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}>
+
+    {/* ─── COVER SLIDE ─── */}
+    {slide.type === "cover" && <div style={{ position: "absolute", inset: 0, padding: my + "px " + mx + "px" }}>
+      {/* Image frame: top area */}
+      <ImageFrame
+        imageUrl={slide.imageUrl}
+        onImageChange={function(url) { updateField("imageUrl", url); }}
+        slideId={slide.id}
+        style={{ width: "100%", height: "41%", marginBottom: 12, borderRadius: 20 * SCALE }}
+      />
+      {/* Title */}
+      <div
+        contentEditable
+        suppressContentEditableWarning
+        onBlur={function(e) { updateField("title", e.currentTarget.innerText); }}
+        style={{ fontFamily: gf, fontSize: slide.titleSize * SCALE, fontWeight: 800, color: "#ffffff", lineHeight: 1.15, textShadow: textShadow, outline: "none", cursor: "text", marginBottom: 6, wordBreak: "break-word" }}
+      >{slide.title || "Title"}</div>
+      {/* Subtitle */}
+      <div
+        contentEditable
+        suppressContentEditableWarning
+        onBlur={function(e) { updateField("subtitle", e.currentTarget.innerText); }}
+        style={{ fontFamily: gf, fontSize: slide.subtitleSize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.78)", lineHeight: 1.4, textShadow: textShadow, outline: "none", cursor: "text", wordBreak: "break-word" }}
+      >{slide.subtitle || "Subtitle"}</div>
+    </div>}
+
+    {/* ─── BODY TEXT SLIDE (positions 2, 3, 4) ─── */}
+    {slide.type === "body" && <div style={{ position: "absolute", inset: 0, padding: my + "px " + mx + "px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <div
+        contentEditable
+        suppressContentEditableWarning
+        onBlur={function(e) { updateField("bodyText", e.currentTarget.innerText); }}
+        style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.92)", lineHeight: 1.55, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+      >{slide.bodyText || "Body text"}</div>
+    </div>}
+
+    {/* ─── IMAGE + TEXT SLIDE ─── */}
+    {slide.type === "image_text" && <div style={{ position: "absolute", inset: 0, padding: my + "px " + mx + "px", display: "flex", flexDirection: "column" }}>
+      <ImageFrame
+        imageUrl={slide.imageUrl}
+        onImageChange={function(url) { updateField("imageUrl", url); }}
+        slideId={slide.id}
+        style={{ width: "100%", height: "55%", marginBottom: 12, borderRadius: 20 * SCALE }}
+      />
+      <div
+        contentEditable
+        suppressContentEditableWarning
+        onBlur={function(e) { updateField("bodyText", e.currentTarget.innerText); }}
+        style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.92)", lineHeight: 1.5, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+      >{slide.bodyText || "Body text"}</div>
+    </div>}
+
+    {/* ─── LARGE IMAGE SLIDE ─── */}
+    {slide.type === "large_image" && <div style={{ position: "absolute", inset: 0, padding: my + "px " + mx + "px", display: "flex", flexDirection: "column" }}>
+      <ImageFrame
+        imageUrl={slide.imageUrl}
+        onImageChange={function(url) { updateField("imageUrl", url); }}
+        slideId={slide.id}
+        style={{ width: "100%", height: "75%", marginBottom: 10, borderRadius: 20 * SCALE }}
+      />
+      <div
+        contentEditable
+        suppressContentEditableWarning
+        onBlur={function(e) { updateField("caption", e.currentTarget.innerText); }}
+        style={{ fontFamily: gf, fontSize: (slide.captionSize || 18) * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.65)", lineHeight: 1.4, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+      >{slide.caption || "Caption"}</div>
+    </div>}
+
+    {/* Slide position badge */}
+    <div style={{ position: "absolute", top: 8, left: 8, fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.35)", background: "rgba(0,0,0,0.3)", padding: "2px 6px", borderRadius: 4 }}>
+      {slide.position === 1 ? "COVER" : slide.position === 4 ? "CLOSER" : "BODY " + (slide.position === 2 ? "A" : "B")} // pos {slide.position}
+    </div>
+  </div>;
+}
+
+// ═══ SLIDE THUMBNAIL (small preview for strip) ═══
+function SlideThumbnail({ slide, theme, isActive, onClick, index }) {
+  var bgUrl = getBackdropUrl(theme, slide.position);
+  var tw = 120;
+  var th = 150; // 4:5 ratio
+  var tScale = tw / FULL_W;
+
+  return <div onClick={onClick} style={{ width: tw, height: th, borderRadius: 6, overflow: "hidden", cursor: "pointer", position: "relative", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, border: "2px solid " + (isActive ? C.amber : "transparent"), boxShadow: isActive ? "0 0 12px " + C.amber + "40" : "0 2px 8px rgba(0,0,0,0.3)", transition: "all 0.2s", opacity: isActive ? 1 : 0.7 }} onMouseEnter={function(e) { if (!isActive) e.currentTarget.style.opacity = "0.9"; }} onMouseLeave={function(e) { if (!isActive) e.currentTarget.style.opacity = "0.7"; }}>
+    {/* Mini content overlay */}
+    <div style={{ position: "absolute", inset: 0, padding: 6 }}>
+      {slide.type === "cover" && <div>
+        {slide.imageUrl && <div style={{ width: "100%", height: "40%", borderRadius: 3, overflow: "hidden", marginBottom: 3, background: "rgba(255,255,255,0.05)" }}>
+          <img src={slide.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+        </div>}
+        <div style={{ fontFamily: gf, fontSize: 7, fontWeight: 800, color: "#fff", lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{slide.title || ""}</div>
+      </div>}
+      {(slide.type === "body") && <div style={{ display: "flex", alignItems: "center", height: "100%" }}>
+        <div style={{ fontFamily: gf, fontSize: 5, color: "rgba(255,255,255,0.7)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 6, WebkitBoxOrient: "vertical" }}>{slide.bodyText || ""}</div>
+      </div>}
+      {slide.type === "image_text" && <div>
+        {slide.imageUrl && <div style={{ width: "100%", height: "50%", borderRadius: 3, overflow: "hidden", marginBottom: 2, background: "rgba(255,255,255,0.05)" }}>
+          <img src={slide.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+        </div>}
+        <div style={{ fontFamily: gf, fontSize: 5, color: "rgba(255,255,255,0.7)", lineHeight: 1.2, overflow: "hidden" }}>{(slide.bodyText || "").slice(0, 40)}</div>
+      </div>}
+      {slide.type === "large_image" && <div>
+        {slide.imageUrl && <div style={{ width: "100%", height: "70%", borderRadius: 3, overflow: "hidden", marginBottom: 2, background: "rgba(255,255,255,0.05)" }}>
+          <img src={slide.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+        </div>}
+        <div style={{ fontFamily: gf, fontSize: 5, color: "rgba(255,255,255,0.5)", lineHeight: 1.2 }}>{(slide.caption || "").slice(0, 30)}</div>
+      </div>}
+    </div>
+    {/* Index badge */}
+    <div style={{ position: "absolute", bottom: 4, right: 4, fontFamily: mn, fontSize: 8, color: isActive ? C.amber : "rgba(255,255,255,0.4)", fontWeight: 700 }}>{index + 1}</div>
+  </div>;
+}
+
 
 // ═══ STEP 0: INPUT ═══
 function InputStep({ state, setState, onNext }) {
   var _dragging = useState(false), dragging = _dragging[0], setDragging = _dragging[1];
+  var themeKeys = Object.keys(THEMES);
 
   function handleFile(file) {
     if (!file) return;
@@ -197,53 +324,46 @@ function InputStep({ state, setState, onNext }) {
 
   return <div>
     <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx, marginBottom: 4 }}>Content Input</div>
-    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 24 }}>Paste Content / Context to generate carousel slides following SA Schema v1.0.</div>
+    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 24 }}>Paste content to generate carousel slides with real SA branded backgrounds.</div>
 
-    {/* Category */}
+    {/* Category / Theme */}
     <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Category</div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 24 }}>
-      {CATEGORIES.map(function(cat) {
-        var sel = state.category === cat.id;
-        return <div key={cat.id} onClick={function() { setState(function(s) { return Object.assign({}, s, { category: cat.id }); }); }} style={{ padding: "14px 16px", borderRadius: 10, cursor: "pointer", background: sel ? cat.color + "10" : C.card, border: "1px solid " + (sel ? cat.color : C.border), transition: "all 0.2s" }} onMouseEnter={function(e) { if (!sel) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.3)"; } }} onMouseLeave={function(e) { if (!sel) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; } }}>
+      {themeKeys.map(function(key) {
+        var t = THEMES[key];
+        var sel = state.category === key;
+        return <div key={key} onClick={function() { setState(function(s) { return Object.assign({}, s, { category: key }); }); }} style={{ padding: "14px 16px", borderRadius: 10, cursor: "pointer", background: sel ? t.color + "10" : C.card, border: "1px solid " + (sel ? t.color : C.border), transition: "all 0.2s" }} onMouseEnter={function(e) { if (!sel) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.transform = "translateY(-1px)"; } }} onMouseLeave={function(e) { if (!sel) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; } }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 10, height: 10, borderRadius: "50%", background: sel ? cat.color : C.border, boxShadow: sel ? "0 0 8px " + cat.color + "60" : "none" }} />
-            <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: sel ? cat.color : C.tx }}>{cat.label}</div>
+            <div style={{ width: 10, height: 10, borderRadius: "50%", background: sel ? t.color : C.border, boxShadow: sel ? "0 0 8px " + t.color + "60" : "none" }} />
+            <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: sel ? t.color : C.tx }}>{t.label}</div>
+            <div style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: C.txd }}>{t.prefix}</div>
           </div>
-          <div style={{ fontFamily: ft, fontSize: 11, color: C.txm, paddingLeft: 18, marginTop: 2 }}>{cat.desc}</div>
+          <div style={{ fontFamily: ft, fontSize: 11, color: C.txm, paddingLeft: 18, marginTop: 2 }}>{t.desc}</div>
+          {/* Mini backdrop previews */}
+          {sel && <div style={{ display: "flex", gap: 4, marginTop: 8, paddingLeft: 18 }}>
+            {[1, 2, 3, 4].map(function(pos) {
+              return <div key={pos} style={{ width: 32, height: 40, borderRadius: 3, overflow: "hidden", backgroundImage: "url(" + getBackdropUrl(key, pos) + ")", backgroundSize: "cover", backgroundPosition: "center", border: "1px solid rgba(255,255,255,0.1)" }} />;
+            })}
+          </div>}
         </div>;
       })}
     </div>
 
     {/* Slide count */}
     <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Slide Count</div>
-    <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
-      <div onClick={function() { setState(function(s) { return Object.assign({}, s, { mode: "auto" }); }); }} style={{ flex: 1, padding: "12px 14px", borderRadius: 8, cursor: "pointer", background: state.mode === "auto" ? C.amber + "10" : C.card, border: "1px solid " + (state.mode === "auto" ? C.amber : C.border), transition: "all 0.2s" }} onMouseEnter={function(e) { if (state.mode !== "auto") { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; } }} onMouseLeave={function(e) { if (state.mode !== "auto") { e.currentTarget.style.borderColor = C.border; } }}>
+    <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
+      <div onClick={function() { setState(function(s) { return Object.assign({}, s, { mode: "auto", pageCount: 0 }); }); }} style={{ padding: "10px 16px", borderRadius: 8, cursor: "pointer", background: state.mode === "auto" ? C.amber + "10" : C.card, border: "1px solid " + (state.mode === "auto" ? C.amber : C.border), transition: "all 0.2s" }}>
         <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: state.mode === "auto" ? C.amber : C.tx }}>Auto</div>
-        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>AI decides (3-6 slides)</div>
+        <div style={{ fontFamily: ft, fontSize: 10, color: C.txm }}>AI decides</div>
       </div>
-      <div onClick={function() { setState(function(s) { return Object.assign({}, s, { mode: "manual" }); }); }} style={{ flex: 1, padding: "12px 14px", borderRadius: 8, cursor: "pointer", background: state.mode === "manual" ? C.amber + "10" : C.card, border: "1px solid " + (state.mode === "manual" ? C.amber : C.border), transition: "all 0.2s" }} onMouseEnter={function(e) { if (state.mode !== "manual") { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; } }} onMouseLeave={function(e) { if (state.mode !== "manual") { e.currentTarget.style.borderColor = C.border; } }}>
-        <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: state.mode === "manual" ? C.amber : C.tx }}>Manual</div>
-        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>Set exact total count</div>
-      </div>
+      {[3, 4, 5, 6, 7, 8].map(function(n) {
+        var sel = state.mode === "manual" && state.pageCount === n;
+        return <div key={n} onClick={function() { setState(function(s) { return Object.assign({}, s, { mode: "manual", pageCount: n }); }); }} style={{ padding: "10px 16px", borderRadius: 8, cursor: "pointer", background: sel ? C.amber + "10" : C.card, border: "1px solid " + (sel ? C.amber : C.border), transition: "all 0.2s", minWidth: 48, textAlign: "center" }}>
+          <div style={{ fontFamily: mn, fontSize: 16, fontWeight: 700, color: sel ? C.amber : C.tx }}>{n}</div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>slides</div>
+        </div>;
+      })}
     </div>
-    {state.mode === "manual" && <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-      <input type="range" min={1} max={8} value={state.pageCount || 4} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { pageCount: parseInt(e.target.value) }); }); }} style={{ flex: 1, accentColor: C.amber }} />
-      <div style={{ fontFamily: mn, fontSize: 18, fontWeight: 700, color: C.amber, width: 30, textAlign: "center" }}>{state.pageCount || 4}</div>
-    </div>}
-
-    {/* Image URLs + Upload */}
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-      <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px" }}>Images: URL or Upload</div>
-      <BRollPicker onSelect={function(url) { setState(function(s) { var existing = s.imageUrls || ""; var sep = existing && !existing.endsWith("\n") ? "\n" : ""; return Object.assign({}, s, { imageUrls: existing + sep + url }); }); }} />
-    </div>
-    <textarea value={state.imageUrls || ""} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { imageUrls: e.target.value }); }); }} placeholder="https://cdn.semianalysis.com/images/example.png" rows={3} style={{ width: "100%", padding: "10px 14px", background: C.card, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: mn, fontSize: 12, lineHeight: 1.6, resize: "none", outline: "none", boxSizing: "border-box", marginBottom: 10 }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
-    <div onDragOver={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = C.amber; e.currentTarget.style.background = C.amber + "08"; }} onDragLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.card; }} onDrop={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.card; var files = Array.prototype.slice.call(e.dataTransfer.files); files.forEach(function(file) { if (!file.type.match(/^image\/(png|jpeg|jpg)$/)) return; var reader = new FileReader(); reader.onload = function(ev) { setState(function(s) { var existing = s.imageUrls || ""; var sep = existing && !existing.endsWith("\n") ? "\n" : ""; return Object.assign({}, s, { imageUrls: existing + sep + ev.target.result }); }); }; reader.readAsDataURL(file); }); }} style={{ padding: "16px", background: C.card, border: "2px dashed " + C.border, borderRadius: 8, textAlign: "center", cursor: "pointer", marginBottom: 10, transition: "all 0.2s" }} onClick={function() { document.getElementById("sa-img-upload").click(); }}>
-      <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, marginBottom: 4 }}>Drag & drop PNG/JPG here or click to browse</div>
-      <div style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>Images will be converted to data URLs</div>
-      <input id="sa-img-upload" type="file" accept="image/png,image/jpeg" multiple onChange={function(e) { var files = Array.prototype.slice.call(e.target.files); files.forEach(function(file) { var reader = new FileReader(); reader.onload = function(ev) { setState(function(s) { var existing = s.imageUrls || ""; var sep = existing && !existing.endsWith("\n") ? "\n" : ""; return Object.assign({}, s, { imageUrls: existing + sep + ev.target.result }); }); }; reader.readAsDataURL(file); }); e.target.value = ""; }} style={{ display: "none" }} />
-    </div>
-    {(function() { var urls = (state.imageUrls || "").split("\n").filter(function(u) { return u.trim().match(/^data:image\//); }); if (urls.length === 0) return null; return <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>{urls.map(function(url, i) { return <div key={i} style={{ position: "relative", width: 56, height: 56, borderRadius: 6, overflow: "hidden", border: "1px solid " + C.border }}><img src={url.trim()} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><div onClick={function(e) { e.stopPropagation(); setState(function(s) { var lines = (s.imageUrls || "").split("\n").filter(function(l) { return l.trim() !== url.trim(); }); return Object.assign({}, s, { imageUrls: lines.join("\n") }); }); }} style={{ position: "absolute", top: 2, right: 2, width: 16, height: 16, borderRadius: "50%", background: "rgba(0,0,0,0.7)", color: "#fff", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", lineHeight: 1, transition: "background 0.15s" }} onMouseEnter={function(ev) { ev.currentTarget.style.background = "rgba(224,99,71,0.9)"; }} onMouseLeave={function(ev) { ev.currentTarget.style.background = "rgba(0,0,0,0.7)"; }}>{"\u00D7"}</div></div>; })}</div>; })()}
-    <div style={{ marginBottom: 20 }} />
 
     {/* Content / Context */}
     <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Content / Context</div>
@@ -261,7 +381,7 @@ function InputStep({ state, setState, onNext }) {
     <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 8 }}>Source URL (optional)</div>
     <input value={state.url || ""} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { url: e.target.value }); }); }} placeholder="https://semianalysis.com/..." style={{ width: "100%", padding: "10px 14px", background: C.card, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 24 }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
 
-    <button onClick={onNext} disabled={!(state.text || "").trim()} style={{ width: "100%", padding: "14px 0", background: (state.text || "").trim() ? C.amber : C.surface, color: (state.text || "").trim() ? C.bg : C.txd, border: "none", borderRadius: 8, fontFamily: ft, fontSize: 15, fontWeight: 800, cursor: (state.text || "").trim() ? "pointer" : "not-allowed" }}>Generate Carousel Variants</button>
+    <button onClick={onNext} disabled={!(state.text || "").trim()} style={{ width: "100%", padding: "14px 0", background: (state.text || "").trim() ? C.amber : C.surface, color: (state.text || "").trim() ? C.bg : C.txd, border: "none", borderRadius: 8, fontFamily: ft, fontSize: 15, fontWeight: 800, cursor: (state.text || "").trim() ? "pointer" : "not-allowed", transition: "all 0.2s" }}>Generate Carousel</button>
   </div>;
 }
 
@@ -269,80 +389,261 @@ function InputStep({ state, setState, onNext }) {
 function GenerateStep() {
   return <div style={{ textAlign: "center", padding: "80px 0" }}>
     <div style={{ width: 48, height: 48, borderRadius: "50%", border: "3px solid " + C.border, borderTopColor: C.amber, margin: "0 auto 24px", animation: "cspin 1s linear infinite" }} />
-    <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 700, color: C.tx, marginBottom: 8 }}>Generating Carousel Variants</div>
-    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm }}>Creating 3 approaches following SA Schema v1.0...</div>
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.txd, marginTop: 16 }}>COVER \u2192 BODY_A \u2192 BODY_B \u2192 ... \u2192 BODY_FINAL</div>
+    <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 700, color: C.tx, marginBottom: 8 }}>Generating Carousel</div>
+    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm }}>Creating slide content with SA voice and structure...</div>
+    <div style={{ fontFamily: mn, fontSize: 10, color: C.txd, marginTop: 16 }}>COVER -- BODY A -- BODY B -- ... -- CLOSER</div>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes cspin{to{transform:rotate(360deg)}}" }} />
   </div>;
 }
 
-// ═══ STEP 2: SELECT VARIANT ═══
-function SelectStep({ variants, selected, setSelected, onNext, onRegenerate, regenerating }) {
-  if (!variants) return null;
-  var keys = Object.keys(variants).filter(function(k) { return variants[k] && variants[k].slides; });
-  var varColors = { A: C.amber, B: C.blue, C: C.teal };
+
+// ═══ STEP 2: EDIT (Visual Slide Editor) ═══
+function EditStep({ slides, setSlides, theme, onNext, onBack }) {
+  var _currentIdx = useState(0), currentIdx = _currentIdx[0], setCurrentIdx = _currentIdx[1];
+  var currentSlide = slides[currentIdx] || slides[0];
+
+  function updateSlide(updated) {
+    var newSlides = slides.slice();
+    newSlides[currentIdx] = updated;
+    setSlides(newSlides);
+  }
+
+  function changeSlideType(newType) {
+    var updated = Object.assign({}, currentSlide, { type: newType });
+    // Ensure the right fields exist
+    if (newType === "cover" && !updated.title) updated.title = "Title";
+    if (newType === "cover" && !updated.subtitle) updated.subtitle = "Subtitle";
+    if ((newType === "body") && !updated.bodyText) updated.bodyText = currentSlide.bodyText || currentSlide.title || "Body text";
+    if ((newType === "image_text" || newType === "large_image") && !updated.imageUrl) updated.imageUrl = "";
+    if (newType === "image_text" && !updated.bodyText) updated.bodyText = "Body text";
+    if (newType === "large_image" && !updated.caption) updated.caption = "Caption";
+    updateSlide(updated);
+  }
+
+  function addSlide() {
+    var positions = getSlidePositions(slides.length + 1);
+    // Re-map positions across all slides
+    var newSlides = slides.slice();
+    // Insert a new body slide before the closer
+    var closerIdx = newSlides.length - 1;
+    var newPos = positions[newSlides.length - 1]; // position for new slide before closer
+    var newSlide = {
+      id: "slide-" + Date.now(),
+      position: newPos,
+      type: "body",
+      title: "", subtitle: "", titleSize: 54, subtitleSize: 22,
+      bodyText: "New slide content.", bodySize: 28,
+      imageUrl: "", caption: "", captionSize: 18,
+    };
+    newSlides.splice(closerIdx, 0, newSlide);
+    // Reassign all positions
+    var newPositions = getSlidePositions(newSlides.length);
+    newSlides = newSlides.map(function(sl, i) {
+      var pos = newPositions[i];
+      return Object.assign({}, sl, {
+        position: pos,
+        type: pos === 1 ? "cover" : (sl.type === "image_text" || sl.type === "large_image") ? sl.type : "body",
+      });
+    });
+    setSlides(newSlides);
+  }
+
+  function removeSlide() {
+    if (slides.length <= 2) return;
+    var newSlides = slides.filter(function(_, i) { return i !== currentIdx; });
+    var newPositions = getSlidePositions(newSlides.length);
+    newSlides = newSlides.map(function(sl, i) {
+      var pos = newPositions[i];
+      return Object.assign({}, sl, {
+        position: pos,
+        type: pos === 1 ? "cover" : (sl.type === "image_text" || sl.type === "large_image") ? sl.type : "body",
+      });
+    });
+    setSlides(newSlides);
+    if (currentIdx >= newSlides.length) setCurrentIdx(newSlides.length - 1);
+  }
+
+  // Keyboard nav
+  useEffect(function() {
+    function handleKey(e) {
+      if (e.key === "ArrowLeft" && currentIdx > 0) setCurrentIdx(currentIdx - 1);
+      if (e.key === "ArrowRight" && currentIdx < slides.length - 1) setCurrentIdx(currentIdx + 1);
+    }
+    window.addEventListener("keydown", handleKey);
+    return function() { window.removeEventListener("keydown", handleKey); };
+  }, [currentIdx, slides.length]);
+
+  // Available slide types depending on position
+  var typeOptions = currentSlide.position === 1
+    ? [{ value: "cover", label: "Cover" }]
+    : [
+        { value: "body", label: "Body Text" },
+        { value: "image_text", label: "Image + Text" },
+        { value: "large_image", label: "Large Image" },
+      ];
 
   return <div>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-      <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx }}>Select Variant</div>
-      <button onClick={onRegenerate} disabled={regenerating} style={{ padding: "8px 16px", background: "transparent", color: C.amber, border: "1px solid " + C.amber + "40", borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: regenerating ? "wait" : "pointer", opacity: regenerating ? 0.5 : 1 }}>
-        {regenerating ? "Regenerating..." : "\u21BB Regenerate"}
-      </button>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+      <div>
+        <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx }}>Visual Editor</div>
+        <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, marginTop: 2 }}>Click text to edit directly on the slide. Arrow keys to navigate.</div>
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={onBack} style={{ padding: "8px 16px", background: "transparent", color: C.txm, border: "1px solid " + C.border, borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Back</button>
+        <button onClick={onNext} style={{ padding: "8px 20px", background: C.amber, color: C.bg, border: "none", borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Review</button>
+      </div>
     </div>
-    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 24 }}>Each variant follows SA Schema v1.0: COVER \u2192 alternating BODY slides \u2192 BODY_FINAL.</div>
 
-    {keys.map(function(k) {
-      var v = variants[k];
-      var isSel = selected === k;
-      var color = varColors[k] || C.amber;
+    {/* Main editor area */}
+    <div style={{ display: "flex", gap: 24, marginBottom: 20 }}>
+      {/* Slide canvas with nav arrows */}
+      <div style={{ position: "relative", flexShrink: 0 }}>
+        {/* Left arrow */}
+        <button onClick={function() { if (currentIdx > 0) setCurrentIdx(currentIdx - 1); }} disabled={currentIdx === 0} style={{ position: "absolute", left: -20, top: "50%", transform: "translateY(-50%)", width: 36, height: 36, borderRadius: "50%", background: currentIdx === 0 ? C.surface : C.card, border: "1px solid " + (currentIdx === 0 ? C.border : C.amber + "40"), color: currentIdx === 0 ? C.txd : C.amber, fontSize: 16, cursor: currentIdx === 0 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, transition: "all 0.2s" }}>{"\u2190"}</button>
 
-      return <div key={k} onClick={function() { setSelected(k); }} style={{ marginBottom: 16, background: isSel ? color + "08" : C.card, border: "1px solid " + (isSel ? color : C.border), borderRadius: 12, padding: "20px", cursor: "pointer", transition: "all 0.25s", boxShadow: isSel ? "0 0 24px " + color + "12" : "none" }} onMouseEnter={function(e) { if (!isSel) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.4)"; } }} onMouseLeave={function(e) { if (!isSel) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; } }}>
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: "50%", background: isSel ? color : C.border, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 15, fontWeight: 800, color: isSel ? "#1A1200" : C.txd }}>{k}</div>
-            <div>
-              <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: isSel ? color : C.tx }}>{v.label || "Variant " + k}</div>
-              <div style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>{v.slides.length} slides // {v.slides.map(function(s) { return s.type; }).join(" \u2192 ")}</div>
-            </div>
-          </div>
-          <div style={{ width: 22, height: 22, borderRadius: "50%", border: "2px solid " + (isSel ? color : C.border), display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {isSel && <div style={{ width: 10, height: 10, borderRadius: "50%", background: color }} />}
-          </div>
+        <SlideCanvas slide={currentSlide} theme={theme} onUpdate={updateSlide} />
+
+        {/* Right arrow */}
+        <button onClick={function() { if (currentIdx < slides.length - 1) setCurrentIdx(currentIdx + 1); }} disabled={currentIdx === slides.length - 1} style={{ position: "absolute", right: -20, top: "50%", transform: "translateY(-50%)", width: 36, height: 36, borderRadius: "50%", background: currentIdx === slides.length - 1 ? C.surface : C.card, border: "1px solid " + (currentIdx === slides.length - 1 ? C.border : C.amber + "40"), color: currentIdx === slides.length - 1 ? C.txd : C.amber, fontSize: 16, cursor: currentIdx === slides.length - 1 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, transition: "all 0.2s" }}>{"\u2192"}</button>
+
+        {/* Slide counter */}
+        <div style={{ textAlign: "center", marginTop: 10, fontFamily: mn, fontSize: 11, color: C.txm }}>
+          Slide {currentIdx + 1} of {slides.length}
         </div>
+      </div>
 
-        {/* Slide previews */}
-        <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
-          {v.slides.map(function(slide, si) {
-            return <SlidePreview key={si} slide={slide} index={si} small={true} />;
+      {/* Controls panel */}
+      <div style={{ flex: 1, minWidth: 240 }}>
+        {/* Slide type selector */}
+        <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Slide Type</div>
+        <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
+          {typeOptions.map(function(opt) {
+            var sel = currentSlide.type === opt.value;
+            return <button key={opt.value} onClick={function() { changeSlideType(opt.value); }} style={{ padding: "6px 12px", borderRadius: 6, background: sel ? C.amber + "15" : C.surface, border: "1px solid " + (sel ? C.amber + "40" : C.border), color: sel ? C.amber : C.txm, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer", transition: "all 0.15s" }}>{opt.label}</button>;
           })}
         </div>
-      </div>;
-    })}
 
-    <button onClick={onNext} disabled={!selected} style={{ width: "100%", padding: "14px 0", marginTop: 8, background: selected ? C.amber : C.surface, color: selected ? "#1A1200" : C.txd, border: "none", borderRadius: 8, fontFamily: ft, fontSize: 15, fontWeight: 800, cursor: selected ? "pointer" : "not-allowed" }}>Continue with Variant {selected || "..."}</button>
+        {/* Font size controls */}
+        <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Font Sizes (at 1080px)</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+          {currentSlide.type === "cover" && <div>
+            <FontSizeControl label="Title" value={currentSlide.titleSize} onChange={function(v) { updateSlide(Object.assign({}, currentSlide, { titleSize: v })); }} />
+            <div style={{ height: 6 }} />
+            <FontSizeControl label="Subtitle" value={currentSlide.subtitleSize} onChange={function(v) { updateSlide(Object.assign({}, currentSlide, { subtitleSize: v })); }} />
+          </div>}
+          {(currentSlide.type === "body" || currentSlide.type === "image_text") && <FontSizeControl label="Body" value={currentSlide.bodySize} onChange={function(v) { updateSlide(Object.assign({}, currentSlide, { bodySize: v })); }} />}
+          {currentSlide.type === "large_image" && <FontSizeControl label="Caption" value={currentSlide.captionSize || 18} onChange={function(v) { updateSlide(Object.assign({}, currentSlide, { captionSize: v })); }} />}
+        </div>
+
+        {/* Image controls */}
+        {(currentSlide.type === "cover" || currentSlide.type === "image_text" || currentSlide.type === "large_image") && <div style={{ marginBottom: 20 }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Image</div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <BRollPicker onSelect={function(url) { updateSlide(Object.assign({}, currentSlide, { imageUrl: url })); }} />
+            {currentSlide.imageUrl && <button onClick={function() { updateSlide(Object.assign({}, currentSlide, { imageUrl: "" })); }} style={{ padding: "6px 12px", background: C.coral + "12", color: C.coral, border: "1px solid " + C.coral + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Remove</button>}
+          </div>
+          {currentSlide.imageUrl && <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{currentSlide.imageUrl.slice(0, 60)}...</div>}
+        </div>}
+
+        {/* Slide management */}
+        <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Manage Slides</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={addSlide} style={{ padding: "8px 14px", background: C.teal + "12", color: C.teal, border: "1px solid " + C.teal + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>+ Add Slide</button>
+          <button onClick={removeSlide} disabled={slides.length <= 2} style={{ padding: "8px 14px", background: slides.length <= 2 ? C.surface : C.coral + "12", color: slides.length <= 2 ? C.txd : C.coral, border: "1px solid " + (slides.length <= 2 ? C.border : C.coral + "30"), borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: slides.length <= 2 ? "not-allowed" : "pointer" }}>Remove Slide</button>
+        </div>
+
+        {/* Text editing panel */}
+        <div style={{ marginTop: 20, fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Edit Text (fallback)</div>
+        {currentSlide.type === "cover" && <div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Title</div>
+          <textarea value={currentSlide.title || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { title: e.target.value })); }} rows={2} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 13, lineHeight: 1.4, resize: "none", outline: "none", boxSizing: "border-box", marginBottom: 8 }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Subtitle</div>
+          <textarea value={currentSlide.subtitle || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { subtitle: e.target.value })); }} rows={2} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 12, lineHeight: 1.4, resize: "none", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+        </div>}
+        {(currentSlide.type === "body" || currentSlide.type === "image_text") && <div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Body Text</div>
+          <textarea value={currentSlide.bodyText || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { bodyText: e.target.value })); }} rows={6} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 12, lineHeight: 1.5, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+        </div>}
+        {currentSlide.type === "large_image" && <div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Caption</div>
+          <textarea value={currentSlide.caption || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { caption: e.target.value })); }} rows={2} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 12, lineHeight: 1.4, resize: "none", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+        </div>}
+      </div>
+    </div>
+
+    {/* Thumbnail strip */}
+    <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>All Slides</div>
+    <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8 }}>
+      {slides.map(function(sl, i) {
+        return <SlideThumbnail key={sl.id} slide={sl} theme={theme} isActive={i === currentIdx} onClick={function() { setCurrentIdx(i); }} index={i} />;
+      })}
+    </div>
   </div>;
 }
 
-// ═══ STEP 3: CAPTION ═══
-function CaptionStep({ slides, caption, setCaption, loading, onGenerate, onNext }) {
-  return <div>
-    <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx, marginBottom: 4 }}>Caption + Hashtags</div>
-    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 24 }}>Generate or write the Instagram caption.</div>
 
-    {/* Slide summary strip */}
-    <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 24, paddingBottom: 4 }}>
-      {slides.map(function(sl, i) { return <SlidePreview key={i} slide={sl} index={i} small={true} />; })}
+// ═══ STEP 3: REVIEW ═══
+function ReviewStep({ slides, theme, caption, setCaption, captionLoading, onGenerateCaption, onNext, onBack }) {
+  return <div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+      <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx }}>Review</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={onBack} style={{ padding: "8px 16px", background: "transparent", color: C.txm, border: "1px solid " + C.border, borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Back to Editor</button>
+        <button onClick={onNext} style={{ padding: "8px 20px", background: C.amber, color: C.bg, border: "none", borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Export</button>
+      </div>
+    </div>
+    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 24 }}>Review all slides side by side. Scroll horizontally to see all.</div>
+
+    {/* All slides side by side */}
+    <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 16, marginBottom: 28 }}>
+      {slides.map(function(sl, i) {
+        var bgUrl = getBackdropUrl(theme, sl.position);
+        var rw = 280;
+        var rh = 350;
+        var rScale = rw / FULL_W;
+
+        return <div key={sl.id} style={{ flexShrink: 0 }}>
+          <div style={{ width: rw, height: rh, borderRadius: 6, overflow: "hidden", position: "relative", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
+            {/* Content overlay */}
+            <div style={{ position: "absolute", inset: 0, padding: MARGIN_X * rScale + "px " + MARGIN_Y * rScale + "px" }}>
+              {sl.type === "cover" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: "41%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0 }}>
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                </div>}
+                {!sl.imageUrl && <div style={{ width: "100%", height: "41%", borderRadius: 8 * rScale, background: "rgba(255,255,255,0.04)", marginBottom: 6, flexShrink: 0 }} />}
+                <div style={{ fontFamily: gf, fontSize: sl.titleSize * rScale, fontWeight: 800, color: "#fff", lineHeight: 1.15, marginBottom: 4, overflow: "hidden" }}>{sl.title || ""}</div>
+                <div style={{ fontFamily: gf, fontSize: sl.subtitleSize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.75)", lineHeight: 1.35, overflow: "hidden" }}>{sl.subtitle || ""}</div>
+              </div>}
+              {sl.type === "body" && <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.9)", lineHeight: 1.5, overflow: "hidden", whiteSpace: "pre-wrap" }}>{sl.bodyText || ""}</div>
+              </div>}
+              {sl.type === "image_text" && <div>
+                {sl.imageUrl && <div style={{ width: "100%", height: "55%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6 }}>
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                </div>}
+                <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, color: "rgba(255,255,255,0.9)", lineHeight: 1.4 }}>{sl.bodyText || ""}</div>
+              </div>}
+              {sl.type === "large_image" && <div>
+                {sl.imageUrl && <div style={{ width: "100%", height: "75%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6 }}>
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                </div>}
+                <div style={{ fontFamily: gf, fontSize: (sl.captionSize || 18) * rScale, color: "rgba(255,255,255,0.6)", lineHeight: 1.3 }}>{sl.caption || ""}</div>
+              </div>}
+            </div>
+          </div>
+          <div style={{ textAlign: "center", fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6 }}>Slide {i + 1}</div>
+        </div>;
+      })}
     </div>
 
+    {/* Caption */}
+    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Caption</div>
     <div style={{ marginBottom: 16 }}>
-      <button onClick={onGenerate} disabled={loading} style={{ padding: "10px 20px", background: C.amber + "15", color: C.amber, border: "1px solid " + C.amber + "30", borderRadius: 8, fontFamily: ft, fontSize: 13, fontWeight: 700, cursor: loading ? "wait" : "pointer", opacity: loading ? 0.5 : 1 }}>
-        {loading ? "Generating..." : caption ? "\u21BB Regenerate Caption" : "Generate Caption"}
+      <button onClick={onGenerateCaption} disabled={captionLoading} style={{ padding: "10px 20px", background: C.amber + "15", color: C.amber, border: "1px solid " + C.amber + "30", borderRadius: 8, fontFamily: ft, fontSize: 13, fontWeight: 700, cursor: captionLoading ? "wait" : "pointer", opacity: captionLoading ? 0.5 : 1 }}>
+        {captionLoading ? "Generating..." : caption ? "Regenerate Caption" : "Generate Caption"}
       </button>
     </div>
-
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 8 }}>Caption</div>
-    <textarea value={(caption && caption.caption) || ""} onChange={function(e) { setCaption(function(c) { return Object.assign({}, c, { caption: e.target.value }); }); }} placeholder="Caption will appear here..." rows={8} style={{ width: "100%", padding: "14px 16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, color: C.tx, fontFamily: ft, fontSize: 13, lineHeight: 1.7, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+    <textarea value={(caption && caption.caption) || ""} onChange={function(e) { setCaption(function(c) { return Object.assign({}, c || {}, { caption: e.target.value }); }); }} placeholder="Caption will appear here..." rows={6} style={{ width: "100%", padding: "14px 16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, color: C.tx, fontFamily: ft, fontSize: 13, lineHeight: 1.7, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
     <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, marginBottom: 20 }}>
       <div style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>{((caption && caption.caption) || "").length} / 2200</div>
       {caption && caption.caption && <span onClick={function() { navigator.clipboard.writeText(caption.caption); }} style={{ fontFamily: mn, fontSize: 10, color: C.txd, cursor: "pointer", padding: "2px 8px", border: "1px solid " + C.border, borderRadius: 4 }}>Copy</span>}
@@ -356,171 +657,370 @@ function CaptionStep({ slides, caption, setCaption, loading, onGenerate, onNext 
         })}
       </div>
     </div>}
-
-    <button onClick={onNext} disabled={!caption || !caption.caption} style={{ width: "100%", padding: "14px 0", background: caption && caption.caption ? C.amber : C.surface, color: caption && caption.caption ? "#1A1200" : C.txd, border: "none", borderRadius: 8, fontFamily: ft, fontSize: 15, fontWeight: 800, cursor: caption && caption.caption ? "pointer" : "not-allowed" }}>Continue to Export</button>
   </div>;
 }
 
-// ═══ STEP 4: EXPORT ═══
-function ExportStep({ state, caption, selectedVariant, variants }) {
-  var _rendering = useState(false), rendering = _rendering[0], setRendering = _rendering[1];
-  var _canvaStatus = useState(null), canvaStatus = _canvaStatus[0], setCanvaStatus = _canvaStatus[1];
-  var slides = variants && selectedVariant && variants[selectedVariant] ? variants[selectedVariant].slides : [];
-  var variantData = variants && selectedVariant ? variants[selectedVariant] : {};
 
-  function copyAll() {
-    var text = "SA CAROUSEL: " + (variantData.label || "Variant " + selectedVariant) + "\n";
-    text += "Schema: SA Carousel Schema v1.0\n\n";
-    slides.forEach(function(sl, i) {
-      text += "[" + sl.type + "] Slide " + (i + 1) + "\n";
-      if (sl.title) text += "Title: " + sl.title + "\n";
-      if (sl.subtitle) text += "Subtitle: " + sl.subtitle + "\n";
-      if (sl.body_text) text += sl.body_text + "\n";
-      if (sl.subtext) text += "Caption: " + sl.subtext + "\n";
-      if (sl.image_url) text += "Image: " + sl.image_url + "\n";
-      text += "\n";
+// ═══ CANVAS RENDERER (for export) ═══
+function renderSlideToCanvas(slide, bgUrl) {
+  return new Promise(function(resolve, reject) {
+    var canvas = document.createElement("canvas");
+    canvas.width = FULL_W;
+    canvas.height = FULL_H;
+    var ctx = canvas.getContext("2d");
+
+    // Load background image
+    var bgImg = new Image();
+    bgImg.crossOrigin = "anonymous";
+    bgImg.onload = function() {
+      // Draw background scaled to fill
+      var bgAspect = bgImg.width / bgImg.height;
+      var canvasAspect = FULL_W / FULL_H;
+      var sx, sy, sw, sh;
+      if (bgAspect > canvasAspect) {
+        sh = bgImg.height;
+        sw = sh * canvasAspect;
+        sx = (bgImg.width - sw) / 2;
+        sy = 0;
+      } else {
+        sw = bgImg.width;
+        sh = sw / canvasAspect;
+        sx = 0;
+        sy = (bgImg.height - sh) / 2;
+      }
+      ctx.drawImage(bgImg, sx, sy, sw, sh, 0, 0, FULL_W, FULL_H);
+
+      // Draw content
+      function drawText(text, x, y, maxWidth, fontSize, fontWeight, color, lineHeight) {
+        ctx.font = fontWeight + " " + fontSize + "px Grift, Outfit, sans-serif";
+        ctx.fillStyle = color;
+        ctx.textBaseline = "top";
+
+        // Shadow
+        ctx.shadowColor = "rgba(0,0,0,0.4)";
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 2;
+
+        var words = (text || "").split(" ");
+        var line = "";
+        var currentY = y;
+        var lh = fontSize * (lineHeight || 1.4);
+
+        for (var i = 0; i < words.length; i++) {
+          var testLine = line + words[i] + " ";
+          var metrics = ctx.measureText(testLine);
+          if (metrics.width > maxWidth && i > 0) {
+            ctx.fillText(line.trim(), x, currentY);
+            line = words[i] + " ";
+            currentY += lh;
+          } else {
+            line = testLine;
+          }
+        }
+        if (line.trim()) ctx.fillText(line.trim(), x, currentY);
+
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
+
+        return currentY + lh;
+      }
+
+      function drawImage(imageUrl, x, y, w, h, radius) {
+        return new Promise(function(resolveImg) {
+          if (!imageUrl) { resolveImg(); return; }
+          var img = new Image();
+          img.crossOrigin = "anonymous";
+          img.onload = function() {
+            ctx.save();
+            // Rounded rect clip
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + w - radius, y);
+            ctx.arcTo(x + w, y, x + w, y + radius, radius);
+            ctx.lineTo(x + w, y + h - radius);
+            ctx.arcTo(x + w, y + h, x + w - radius, y + h, radius);
+            ctx.lineTo(x + radius, y + h);
+            ctx.arcTo(x, y + h, x, y + h - radius, radius);
+            ctx.lineTo(x, y + radius);
+            ctx.arcTo(x, y, x + radius, y, radius);
+            ctx.closePath();
+            ctx.clip();
+
+            // Cover fill
+            var imgAspect = img.width / img.height;
+            var frameAspect = w / h;
+            var dw, dh, dx, dy;
+            if (imgAspect > frameAspect) {
+              dh = h;
+              dw = dh * imgAspect;
+              dx = x + (w - dw) / 2;
+              dy = y;
+            } else {
+              dw = w;
+              dh = dw / imgAspect;
+              dx = x;
+              dy = y + (h - dh) / 2;
+            }
+            ctx.drawImage(img, dx, dy, dw, dh);
+            ctx.restore();
+            resolveImg();
+          };
+          img.onerror = function() { resolveImg(); };
+          img.src = imageUrl;
+        });
+      }
+
+      var contentWidth = FULL_W - MARGIN_X * 2;
+
+      async function drawContent() {
+        if (slide.type === "cover") {
+          var imgH = FULL_H * 0.41;
+          await drawImage(slide.imageUrl, MARGIN_X, MARGIN_Y, contentWidth, imgH, 20);
+          var titleY = MARGIN_Y + imgH + 20;
+          var afterTitle = drawText(slide.title || "", MARGIN_X, titleY, contentWidth, slide.titleSize, "800", "#ffffff", 1.15);
+          drawText(slide.subtitle || "", MARGIN_X, afterTitle + 8, contentWidth, slide.subtitleSize, "400", "rgba(255,255,255,0.78)", 1.4);
+        } else if (slide.type === "body") {
+          var bodyY = (FULL_H - 400) / 2; // roughly centered
+          drawText(slide.bodyText || "", MARGIN_X, bodyY, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.55);
+        } else if (slide.type === "image_text") {
+          var imgH2 = FULL_H * 0.55;
+          await drawImage(slide.imageUrl, MARGIN_X, MARGIN_Y, contentWidth, imgH2, 20);
+          var textY = MARGIN_Y + imgH2 + 16;
+          drawText(slide.bodyText || "", MARGIN_X, textY, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.5);
+        } else if (slide.type === "large_image") {
+          var imgH3 = FULL_H * 0.75;
+          await drawImage(slide.imageUrl, MARGIN_X, MARGIN_Y, contentWidth, imgH3, 20);
+          var capY = MARGIN_Y + imgH3 + 12;
+          drawText(slide.caption || "", MARGIN_X, capY, contentWidth, slide.captionSize || 18, "400", "rgba(255,255,255,0.65)", 1.4);
+        }
+
+        canvas.toBlob(function(blob) {
+          if (blob) resolve(blob);
+          else reject(new Error("Canvas toBlob failed"));
+        }, "image/png");
+      }
+
+      drawContent().catch(reject);
+    };
+    bgImg.onerror = function() { reject(new Error("Failed to load background: " + bgUrl)); };
+    bgImg.src = bgUrl;
+  });
+}
+
+
+// ═══ STEP 4: EXPORT ═══
+function ExportStep({ slides, theme, caption, onBack }) {
+  var _downloading = useState(null), downloading = _downloading[0], setDownloading = _downloading[1];
+  var _downloadAll = useState(false), downloadingAll = _downloadAll[0], setDownloadingAll = _downloadAll[1];
+  var _copied = useState(false), copied = _copied[0], setCopied = _copied[1];
+
+  function downloadSlide(index) {
+    var sl = slides[index];
+    var bgUrl = getBackdropUrl(theme, sl.position);
+    setDownloading(index);
+    renderSlideToCanvas(sl, bgUrl).then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "sa-carousel-slide-" + (index + 1) + ".png";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setDownloading(null);
+    }).catch(function(err) {
+      alert("Export failed: " + err.message);
+      setDownloading(null);
     });
-    if (caption && caption.caption) text += "CAPTION:\n" + caption.caption + "\n";
-    if (caption && caption.hashtags) text += "\nHASHTAGS: " + caption.hashtags.map(function(t) { return "#" + t.replace(/^#/, ""); }).join(" ") + "\n";
-    navigator.clipboard.writeText(text);
+  }
+
+  function downloadAll() {
+    setDownloadingAll(true);
+    var idx = 0;
+    function nextSlide() {
+      if (idx >= slides.length) { setDownloadingAll(false); return; }
+      var sl = slides[idx];
+      var bgUrl = getBackdropUrl(theme, sl.position);
+      var currentIdx = idx;
+      renderSlideToCanvas(sl, bgUrl).then(function(blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = "sa-carousel-slide-" + (currentIdx + 1) + ".png";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        idx++;
+        setTimeout(nextSlide, 400);
+      }).catch(function() {
+        idx++;
+        setTimeout(nextSlide, 400);
+      });
+    }
+    nextSlide();
+  }
+
+  function copyCaption() {
+    if (caption && caption.caption) {
+      var text = caption.caption;
+      if (caption.hashtags && caption.hashtags.length > 0) {
+        text += "\n\n" + caption.hashtags.map(function(t) { return "#" + t.replace(/^#/, ""); }).join(" ");
+      }
+      navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(function() { setCopied(false); }, 2000);
+    }
   }
 
   function exportJSON() {
     var payload = {
       carousel_id: "carousel_" + Date.now(),
-      topic: variantData.topic || variantData.label || "",
-      source_article: state.url || "",
-      generated_by: "Claude (claude-sonnet-4-20250514)",
+      theme: theme,
       slides: slides,
       caption: caption,
     };
     var blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     var url = URL.createObjectURL(blob);
-    var a = document.createElement("a"); a.href = url; a.download = "sa-carousel-schema.json"; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-  }
-
-  async function sendToCanva() {
-    setRendering(true);
-    setCanvaStatus("Building Canva autofill payload...");
-    try {
-      var r = await fetch("/api/carousel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "render",
-          slides: slides,
-          carouselId: "carousel_" + Date.now(),
-          topic: variantData.topic || variantData.label || "",
-          sourceUrl: state.url || "",
-        }),
-      });
-      var d = await r.json();
-      if (d.canvaPayload) {
-        setCanvaStatus("Payload ready. Sending to Canva autofill...");
-        // Try autofill
-        var ar = await fetch("/api/canva/autofill", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            slides: slides,
-            category: state.category,
-          }),
-        });
-        var ad = await ar.json();
-        if (ad.needsAuth) {
-          setCanvaStatus("Canva not connected. Complete OAuth first at /api/canva/auth");
-        } else if (ad.error) {
-          setCanvaStatus("Canva: " + ad.error + ". Use JSON export + manual upload for now.");
-        } else {
-          setCanvaStatus("Canva autofill job created. Check Canva for your design.");
-        }
-      }
-    } catch (e) {
-      setCanvaStatus("Error: " + e.message);
-    }
-    setRendering(false);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "sa-carousel.json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   return <div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
       <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx }}>Export</div>
-      <button onClick={copyAll} style={{ padding: "8px 16px", background: "transparent", color: C.amber, border: "1px solid " + C.amber + "40", borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Copy All</button>
+      <button onClick={onBack} style={{ padding: "8px 16px", background: "transparent", color: C.txm, border: "1px solid " + C.border, borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Back to Review</button>
     </div>
-    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 28 }}>Review slides and export to Canva or download.</div>
+    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 28 }}>Download slides as PNGs at 1080x1350 resolution. Click individual slides or download all.</div>
 
-    {/* Variant info */}
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 12 }}>
-      Variant {selectedVariant} // {variantData.label} // {slides.length} slides // SA Schema v1.0
-    </div>
-
-    {/* Full slide preview grid */}
-    <div style={{ display: "flex", gap: 12, overflowX: "auto", marginBottom: 28, paddingBottom: 8 }}>
-      {slides.map(function(sl, i) { return <SlidePreview key={i} slide={sl} index={i} />; })}
-    </div>
-
-    {/* Slide detail cards */}
-    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28 }}>
+    {/* Slide grid with download buttons */}
+    <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 16, marginBottom: 28 }}>
       {slides.map(function(sl, i) {
-        var meta = SLIDE_META[sl.type] || SLIDE_META.BODY_A;
-        return <div key={i} style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: "14px 16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <span style={{ fontFamily: mn, fontSize: 9, color: C.bg, background: sl.type === "COVER" ? C.amber : sl.type === "BODY_FINAL" ? C.teal : C.txm, padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>{sl.type}</span>
-            <span style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>Slide {i + 1}</span>
-            <span style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>{sl.template_id || ""}</span>
-            <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: meta.hasArrow ? C.amber : C.txd }}>{meta.hasArrow ? "\u2192 arrow" : "no arrow"}</span>
+        var bgUrl = getBackdropUrl(theme, sl.position);
+        var rw = 220;
+        var rh = 275;
+        var rScale = rw / FULL_W;
+        var isDownloading = downloading === i;
+
+        return <div key={sl.id} style={{ flexShrink: 0 }}>
+          <div style={{ width: rw, height: rh, borderRadius: 6, overflow: "hidden", position: "relative", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.4)", cursor: "pointer" }} onClick={function() { downloadSlide(i); }}>
+            {/* Mini content overlay */}
+            <div style={{ position: "absolute", inset: 0, padding: MARGIN_X * rScale + "px " + MARGIN_Y * rScale + "px" }}>
+              {sl.type === "cover" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: "41%", borderRadius: 6 * rScale, overflow: "hidden", marginBottom: 4, flexShrink: 0 }}>
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                </div>}
+                <div style={{ fontFamily: gf, fontSize: sl.titleSize * rScale, fontWeight: 800, color: "#fff", lineHeight: 1.15, overflow: "hidden" }}>{sl.title || ""}</div>
+                <div style={{ fontFamily: gf, fontSize: sl.subtitleSize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.75)", lineHeight: 1.3, overflow: "hidden" }}>{sl.subtitle || ""}</div>
+              </div>}
+              {sl.type === "body" && <div style={{ height: "100%", display: "flex", alignItems: "center" }}>
+                <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, color: "rgba(255,255,255,0.9)", lineHeight: 1.5, overflow: "hidden", whiteSpace: "pre-wrap" }}>{sl.bodyText || ""}</div>
+              </div>}
+              {sl.type === "image_text" && <div>
+                {sl.imageUrl && <div style={{ width: "100%", height: "55%", borderRadius: 6 * rScale, overflow: "hidden", marginBottom: 4 }}>
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                </div>}
+                <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, color: "rgba(255,255,255,0.9)", lineHeight: 1.4, overflow: "hidden" }}>{sl.bodyText || ""}</div>
+              </div>}
+              {sl.type === "large_image" && <div>
+                {sl.imageUrl && <div style={{ width: "100%", height: "75%", borderRadius: 6 * rScale, overflow: "hidden", marginBottom: 4 }}>
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                </div>}
+                <div style={{ fontFamily: gf, fontSize: (sl.captionSize || 18) * rScale, color: "rgba(255,255,255,0.6)", lineHeight: 1.3 }}>{sl.caption || ""}</div>
+              </div>}
+            </div>
+
+            {/* Download overlay */}
+            <div style={{ position: "absolute", inset: 0, background: isDownloading ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0)", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }} onMouseEnter={function(e) { if (!isDownloading) e.currentTarget.style.background = "rgba(0,0,0,0.4)"; }} onMouseLeave={function(e) { if (!isDownloading) e.currentTarget.style.background = "rgba(0,0,0,0)"; }}>
+              {isDownloading ? <div style={{ width: 24, height: 24, borderRadius: "50%", border: "2px solid " + C.border, borderTopColor: C.amber, animation: "cspin 1s linear infinite" }} /> : <div style={{ fontFamily: ft, fontSize: 12, color: "#fff", fontWeight: 700, opacity: 0, transition: "opacity 0.2s", padding: "6px 14px", background: "rgba(0,0,0,0.6)", borderRadius: 6 }} className="dl-label">PNG</div>}
+            </div>
           </div>
-          {sl.title && <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: C.amber, marginBottom: 4 }}>{sl.title}</div>}
-          {sl.subtitle && <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, marginBottom: 4 }}>{sl.subtitle}</div>}
-          {sl.body_text && <div style={{ fontFamily: ft, fontSize: 13, color: C.tx, lineHeight: 1.6 }}>{sl.body_text}</div>}
-          {sl.subtext && <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, fontStyle: "italic" }}>{sl.subtext}</div>}
-          {sl.image_url && <div style={{ fontFamily: mn, fontSize: 10, color: C.blue, marginTop: 4 }}>Image: {sl.image_url}</div>}
+          <div style={{ textAlign: "center", fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6 }}>Slide {i + 1}</div>
         </div>;
       })}
     </div>
 
-    {/* Caption preview */}
-    {caption && caption.caption && <div style={{ marginBottom: 28 }}>
-      <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Caption</div>
-      <div style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: "16px" }}>
-        <div style={{ fontFamily: ft, fontSize: 13, color: C.tx, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{caption.caption}</div>
-      </div>
-    </div>}
-
     {/* Export actions */}
     <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 12 }}>Export Options</div>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-      <button onClick={sendToCanva} disabled={rendering} style={{ padding: "16px", background: C.violet + "10", border: "1px solid " + C.violet + "30", borderRadius: 10, cursor: rendering ? "wait" : "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.violet + "60"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(144,92,203,0.1)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.violet + "30"; e.currentTarget.style.boxShadow = "none"; }}>
-        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.violet, marginBottom: 4 }}>Send to Canva</div>
-        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>Autofill TEMPLATES folder via API</div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 24 }}>
+      <button onClick={downloadAll} disabled={downloadingAll} style={{ padding: "16px", background: C.amber + "10", border: "1px solid " + C.amber + "30", borderRadius: 10, cursor: downloadingAll ? "wait" : "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.amber + "60"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.amber + "30"; }}>
+        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.amber, marginBottom: 4 }}>{downloadingAll ? "Downloading..." : "Download All PNGs"}</div>
+        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>{slides.length} slides at 1080x1350</div>
       </button>
-      <button onClick={exportJSON} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.transform = "translateY(-1px)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; }}>
+      <button onClick={copyCaption} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; }}>
+        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 4 }}>{copied ? "Copied!" : "Copy Caption"}</div>
+        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>Caption + hashtags to clipboard</div>
+      </button>
+      <button onClick={exportJSON} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 4 }}>Download JSON</div>
-        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>SA Schema v1.0 export</div>
+        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>Structured slide data</div>
       </button>
-      <button onClick={copyAll} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.transform = "translateY(-1px)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; }}>
-        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 4 }}>Copy to Clipboard</div>
-        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>All slide text + caption</div>
-      </button>
-      <button onClick={function() { window.open("https://publish.buffer.com", "_blank"); }} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.transform = "translateY(-1px)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; }}>
-        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 4 }}>Open Buffer</div>
-        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>Schedule in Buffer</div>
+      <button onClick={function() { window.open("https://publish.buffer.com", "_blank"); }} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; }}>
+        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 4 }}>Send to Buffer</div>
+        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>Open Buffer to schedule post</div>
       </button>
     </div>
 
-    {/* Canva status */}
-    {canvaStatus && <div style={{ padding: "12px 16px", background: C.violet + "08", border: "1px solid " + C.violet + "20", borderRadius: 8, marginTop: 8 }}>
-      <div style={{ fontFamily: mn, fontSize: 11, color: C.violet }}>{canvaStatus}</div>
+    {/* Caption preview */}
+    {caption && caption.caption && <div style={{ marginBottom: 20 }}>
+      <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Caption Preview</div>
+      <div style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: "16px" }}>
+        <div style={{ fontFamily: ft, fontSize: 13, color: C.tx, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{caption.caption}</div>
+        {caption.hashtags && caption.hashtags.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
+          {caption.hashtags.map(function(tag, i) {
+            return <span key={i} style={{ fontFamily: ft, fontSize: 12, color: C.blue, padding: "4px 10px", background: C.blue + "10", border: "1px solid " + C.blue + "20", borderRadius: 20 }}>#{tag.replace(/^#/, "")}</span>;
+          })}
+        </div>}
+      </div>
     </div>}
+
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes cspin{to{transform:rotate(360deg)}} .dl-label { opacity: 0; } div:hover > .dl-label { opacity: 1 !important; }" }} />
   </div>;
 }
+
+
+// ═══ CONVERT API RESPONSE TO EDITOR SLIDES ═══
+function apiSlidesToEditorSlides(apiSlides, slideCount) {
+  var positions = getSlidePositions(slideCount);
+  return apiSlides.map(function(apiSl, i) {
+    var pos = positions[i] || (i === apiSlides.length - 1 ? 4 : 2);
+    var type = "body";
+    if (pos === 1) type = "cover";
+    else if (apiSl.type === "BODY_IMAGE") type = "image_text";
+    else if (apiSl.type === "BODY_LARGE_IMAGE") type = "large_image";
+    // else body (for BODY_A, BODY_B, BODY_FINAL, CLOSER)
+
+    return {
+      id: "slide-" + i,
+      position: pos,
+      type: type,
+      title: apiSl.title || "",
+      titleSize: 54,
+      subtitle: apiSl.subtitle || "",
+      subtitleSize: 22,
+      bodyText: apiSl.body_text || "",
+      bodySize: 28,
+      imageUrl: apiSl.image_url || "",
+      caption: apiSl.subtext || "",
+      captionSize: 18,
+    };
+  });
+}
+
 
 // ═══ MAIN CAROUSEL COMPONENT ═══
 export default function Carousel() {
   var _step = useState(0), step = _step[0], setStep = _step[1];
   var _maxStep = useState(0), maxStep = _maxStep[0], setMaxStep = _maxStep[1];
-  var _state = useState({ category: "general", mode: "auto", pageCount: 4, text: "", url: "", imageUrls: "" }), state = _state[0], setState = _state[1];
+  var _state = useState({ category: "general", mode: "auto", pageCount: 4, text: "", url: "" }), state = _state[0], setState = _state[1];
+  var _slides = useState([]), slides = _slides[0], setSlides = _slides[1];
   var _variants = useState(null), variants = _variants[0], setVariants = _variants[1];
-  var _selected = useState(null), selected = _selected[0], setSelected = _selected[1];
   var _caption = useState(null), caption = _caption[0], setCaption = _caption[1];
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
   var _captionLoading = useState(false), captionLoading = _captionLoading[0], setCaptionLoading = _captionLoading[1];
@@ -531,7 +1031,6 @@ export default function Carousel() {
     setLoading(true);
     goStep(1);
     try {
-      var imgUrls = (state.imageUrls || "").split("\n").map(function(u) { return u.trim(); }).filter(Boolean);
       var r = await fetch("/api/carousel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -541,52 +1040,136 @@ export default function Carousel() {
           url: state.url,
           category: state.category,
           mode: state.mode,
-          pageCount: state.pageCount,
-          imageUrls: imgUrls.length > 0 ? imgUrls : undefined,
+          pageCount: state.pageCount || 4,
         }),
       });
       var d = await r.json();
-      if (d.error) { alert("Generation failed: " + d.error); goStep(0); }
-      else { setVariants(d.variants); setSelected(null); goStep(2); }
-    } catch (e) { alert("Network error: " + e.message); goStep(0); }
+      if (d.error) {
+        alert("Generation failed: " + d.error);
+        goStep(0);
+      } else if (d.variants) {
+        setVariants(d.variants);
+        // Auto-pick variant A and convert to editor format
+        var keys = Object.keys(d.variants).filter(function(k) { return d.variants[k] && d.variants[k].slides; });
+        if (keys.length > 0) {
+          var picked = d.variants[keys[0]];
+          var editorSlides = apiSlidesToEditorSlides(picked.slides, picked.slides.length);
+          setSlides(editorSlides);
+          goStep(2);
+        } else {
+          alert("No valid variants returned.");
+          goStep(0);
+        }
+      }
+    } catch (e) {
+      alert("Network error: " + e.message);
+      goStep(0);
+    }
     setLoading(false);
   }
 
   async function generateCaption() {
-    if (!variants || !selected) return;
     setCaptionLoading(true);
     try {
+      // Convert back to API format for caption generation
+      var apiSlides = slides.map(function(sl) {
+        var apiType = "BODY_A";
+        if (sl.type === "cover") apiType = "COVER";
+        else if (sl.position === 4) apiType = "BODY_FINAL";
+        else if (sl.type === "image_text") apiType = "BODY_IMAGE";
+        else if (sl.type === "large_image") apiType = "BODY_LARGE_IMAGE";
+        else if (sl.position === 3) apiType = "BODY_B";
+
+        return {
+          type: apiType,
+          title: sl.title,
+          subtitle: sl.subtitle,
+          body_text: sl.bodyText,
+          subtext: sl.caption,
+          image_url: sl.imageUrl,
+        };
+      });
       var r = await fetch("/api/carousel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "caption", slides: variants[selected].slides }),
+        body: JSON.stringify({ action: "caption", slides: apiSlides }),
       });
       var d = await r.json();
       if (d.caption) setCaption(d.caption);
-    } catch (e) { alert("Caption error: " + e.message); }
+    } catch (e) {
+      alert("Caption error: " + e.message);
+    }
     setCaptionLoading(false);
   }
 
-  var slides = variants && selected && variants[selected] ? variants[selected].slides : [];
+  // Variant picker overlay for step 1 result
+  var _showVariantPicker = useState(false), showVariantPicker = _showVariantPicker[0], setShowVariantPicker = _showVariantPicker[1];
 
-  return <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 0" }}>
+  function pickVariant(key) {
+    var picked = variants[key];
+    if (!picked || !picked.slides) return;
+    var editorSlides = apiSlidesToEditorSlides(picked.slides, picked.slides.length);
+    setSlides(editorSlides);
+    setShowVariantPicker(false);
+  }
+
+  return <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 0" }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
       <div>
-        <div style={{ fontFamily: ft, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.5 }}>Carousel</div>
-        <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 2 }}>SA Schema v1.0 // 1080x1350 // Canva TEMPLATES</div>
+        <div style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.5 }}>Carousel</div>
+        <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 2 }}>SA Branded // 1080x1350 // Real Backgrounds</div>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <div style={{ width: 8, height: 8, borderRadius: "50%", background: CATEGORIES.find(function(c) { return c.id === state.category; })?.color || C.amber, boxShadow: "0 0 8px " + (CATEGORIES.find(function(c) { return c.id === state.category; })?.color || C.amber) + "60" }} />
-        <span style={{ fontFamily: mn, fontSize: 10, color: C.txm }}>{state.category}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ width: 8, height: 8, borderRadius: "50%", background: THEMES[state.category].color, boxShadow: "0 0 8px " + THEMES[state.category].color + "60" }} />
+        <span style={{ fontFamily: mn, fontSize: 10, color: C.txm }}>{state.category} // {THEMES[state.category].prefix}</span>
+        {/* Variant picker button (when we have variants and are in edit mode) */}
+        {variants && step >= 2 && <button onClick={function() { setShowVariantPicker(!showVariantPicker); }} style={{ padding: "4px 10px", background: C.surface, border: "1px solid " + C.border, borderRadius: 4, fontFamily: mn, fontSize: 9, color: C.txm, cursor: "pointer" }}>Variants</button>}
       </div>
     </div>
 
-    <StepBar step={step} setStep={setStep} maxStep={maxStep} />
+    <StepBar step={step} setStep={function(n) { if (n <= maxStep) goStep(n); }} maxStep={maxStep} />
+
+    {/* Variant picker dropdown */}
+    {showVariantPicker && variants && <div style={{ marginBottom: 20, background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: 16 }}>
+      <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 10 }}>Switch Variant</div>
+      <div style={{ display: "flex", gap: 10 }}>
+        {Object.keys(variants).filter(function(k) { return variants[k] && variants[k].slides; }).map(function(k) {
+          var v = variants[k];
+          var varColors = { A: C.amber, B: C.blue, C: C.teal };
+          var color = varColors[k] || C.amber;
+          return <div key={k} onClick={function() { pickVariant(k); }} style={{ flex: 1, padding: "12px 14px", borderRadius: 8, cursor: "pointer", background: color + "08", border: "1px solid " + color + "30", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = color; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = color + "30"; }}>
+            <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: color, marginBottom: 2 }}>Variant {k}</div>
+            <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>{v.label || ""}</div>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 2 }}>{v.slides.length} slides</div>
+          </div>;
+        })}
+      </div>
+    </div>}
 
     {step === 0 && <InputStep state={state} setState={setState} onNext={generate} />}
     {step === 1 && loading && <GenerateStep />}
-    {step === 2 && <SelectStep variants={variants} selected={selected} setSelected={setSelected} onNext={function() { goStep(3); }} onRegenerate={generate} regenerating={loading} />}
-    {step === 3 && <CaptionStep slides={slides} caption={caption} setCaption={setCaption} loading={captionLoading} onGenerate={generateCaption} onNext={function() { goStep(4); }} />}
-    {step === 4 && <ExportStep state={state} caption={caption} selectedVariant={selected} variants={variants} />}
+    {step === 2 && <EditStep
+      slides={slides}
+      setSlides={setSlides}
+      theme={state.category}
+      onNext={function() { goStep(3); }}
+      onBack={function() { goStep(0); }}
+    />}
+    {step === 3 && <ReviewStep
+      slides={slides}
+      theme={state.category}
+      caption={caption}
+      setCaption={setCaption}
+      captionLoading={captionLoading}
+      onGenerateCaption={generateCaption}
+      onNext={function() { goStep(4); }}
+      onBack={function() { goStep(2); }}
+    />}
+    {step === 4 && <ExportStep
+      slides={slides}
+      theme={state.category}
+      caption={caption}
+      onBack={function() { goStep(3); }}
+    />}
   </div>;
 }
