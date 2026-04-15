@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// SA Carousel Schema v1.0 -- Template IDs map to Canva TEMPLATES folder
+// SA Carousel Schema v1.0
 const TEMPLATE_IDS: Record<string, string> = {
   COVER: "sa_research_cover_v1",
   BODY_A: "sa_research_body_dark_v1",
@@ -255,27 +255,6 @@ Return JSON: { "caption": "full caption text", "hashtags": ["tag1", "tag2", ...]
       const data = await r.json();
       const rawText = (data.content || []).map((c: { text?: string }) => c.text || "").join("").trim();
       return NextResponse.json({ text: rawText, ts: Date.now() });
-    }
-
-    if (action === "render") {
-      // Build Canva autofill payload from slides array
-      const { slides, carouselId, topic, sourceUrl } = body;
-      const canvaPayload = {
-        carousel_id: carouselId || "carousel_" + Date.now(),
-        topic: topic || "",
-        source_article: sourceUrl || "",
-        generated_by: "Claude (claude-sonnet-4-20250514)",
-        slides: (slides || []).map((s: Record<string, string>) => {
-          const obj: Record<string, string> = { type: s.type, template_id: s.template_id || TEMPLATE_IDS[s.type] || "" };
-          if (s.title) obj.title = s.title;
-          if (s.subtitle) obj.subtitle = s.subtitle;
-          if (s.body_text) obj.body_text = s.body_text;
-          if (s.subtext) obj.subtext = s.subtext;
-          if (s.image_url) obj.image_url = s.image_url;
-          return obj;
-        }),
-      };
-      return NextResponse.json({ canvaPayload, ts: Date.now() });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });

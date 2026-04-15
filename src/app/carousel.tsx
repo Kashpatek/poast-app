@@ -260,6 +260,8 @@ function SlideCanvas({ slide, theme, onUpdate }) {
         onBlur={function(e) { updateField("bodyText", e.currentTarget.innerText); }}
         style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.92)", lineHeight: 1.55, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", overflow: "hidden" }}
       >{slide.bodyText || "Body text"}</div>
+      {/* CTA text on closer (position 4) */}
+      {slide.position === 4 && slide.ctaText && <div style={{ position: "absolute", bottom: 10 * SCALE, left: slide.ctaPosition === "bottom-right" ? "auto" : 0, right: slide.ctaPosition === "bottom-right" ? mx : "auto", width: slide.ctaPosition === "bottom-right" ? "auto" : "100%", textAlign: slide.ctaPosition === "bottom-right" ? "right" : "center", fontFamily: gf, fontSize: 24 * SCALE, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3)", letterSpacing: "0.5px" }}>{slide.ctaText}</div>}
     </div>}
 
     {/* ─── IMAGE + TEXT SLIDE ─── */}
@@ -930,43 +932,22 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
 
 
 // ═══ STEP 4: REVIEW ═══
-function ReviewStep({ slides, theme, caption, setCaption, captionLoading, onGenerateCaption, onNext, onBack, sourceUrl, sourceText }) {
-  var _platTab = useState("instagram"), platTab = _platTab[0], setPlatTab = _platTab[1];
-  var _platCaptions = useState({}), platCaptions = _platCaptions[0], setPlatCaptions = _platCaptions[1];
-  var _platLoading = useState(false), platLoading = _platLoading[0], setPlatLoading = _platLoading[1];
-  var _extraContext = useState(""), extraContext = _extraContext[0], setExtraContext = _extraContext[1];
+function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl }) {
   var _showContext = useState(false), showContext = _showContext[0], setShowContext = _showContext[1];
+  var _extraContext = useState(""), extraContext = _extraContext[0], setExtraContext = _extraContext[1];
 
-  var PLATFORMS = [
-    { key: "instagram", label: "Instagram", color: "#E4405F", charLimit: 2200, rules: "Include Save this for later CTA. 5-8 hashtags. Location: San Francisco, CA. No em dashes." },
-    { key: "tiktok", label: "TikTok", color: "#00F2EA", charLimit: 2200, rules: "All lowercase. 4-6 hashtags. Hook in first line. Casual but informed. No em dashes." },
-    { key: "shorts", label: "YT Shorts", color: "#FF0000", charLimit: 100, rules: "Title only, under 40 characters. Punchy. No hashtags. No em dashes." },
-  ];
+  // CTA defaults
+  var lastSlide = slides[slides.length - 1];
+  var ctaText = lastSlide ? (lastSlide.ctaText || "") : "";
+  var ctaPosition = lastSlide ? (lastSlide.ctaPosition || "bottom-center") : "bottom-center";
 
-  function generatePlatformCaptions() {
-    setPlatLoading(true);
-    var slideSummary = slides.map(function(sl, i) {
-      return "Slide " + (i + 1) + " (" + sl.type + "): " + (sl.title || sl.bodyText || sl.caption || "").slice(0, 100);
-    }).join("\n");
-
-    fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system: "You write social captions for SemiAnalysis carousel posts. Rules: No em dashes. No emojis. Confident, technical, institutional tone. RESPOND ONLY IN VALID JSON.",
-        prompt: "Generate captions for this carousel across 3 platforms.\n\nSlides:\n" + slideSummary + "\n\n" + (sourceUrl ? "Source: " + sourceUrl + "\n" : "") + (extraContext ? "Additional context: " + extraContext + "\n" : "") + "\nReturn JSON:\n{\n  \"instagram\": { \"caption\": \"full caption with Save CTA + 5-8 hashtags + Location: San Francisco, CA\", \"hashtags\": [\"tag1\"] },\n  \"tiktok\": { \"caption\": \"all lowercase, casual, 4-6 hashtags, hook first line\" },\n  \"shorts\": { \"title\": \"under 40 chars, punchy\" }\n}\n\nIG: under 2200 chars, save CTA, hashtags at end, location.\nTikTok: all lowercase, casual but informed, 4-6 hashtags.\nYT Shorts: title only, under 40 chars."
-      }),
-    }).then(function(r) { return r.json(); }).then(function(d) {
-      var t = (d.content || []).map(function(c) { return c.text || ""; }).join("");
-      try {
-        var parsed = JSON.parse(t.replace(/```json|```/g, "").trim());
-        setPlatCaptions(parsed);
-        // Also set the main caption to IG for backwards compat
-        if (parsed.instagram) setCaption(parsed.instagram);
-      } catch (e) { console.error("Parse error:", t); }
-      setPlatLoading(false);
-    }).catch(function() { setPlatLoading(false); });
+  function updateLastSlideCta(field, value) {
+    var newSlides = slides.slice();
+    var idx = newSlides.length - 1;
+    newSlides[idx] = Object.assign({}, newSlides[idx], { [field]: value });
+    setSlides(newSlides);
   }
+
   return <div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
       <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx }}>Review</div>
@@ -1000,11 +981,12 @@ function ReviewStep({ slides, theme, caption, setCaption, captionLoading, onGene
                 <div style={{ fontFamily: gf, fontSize: sl.titleSize * rScale, fontWeight: 800, color: "#fff", lineHeight: 1.15, marginBottom: 4, overflow: "hidden" }}>{sl.title || ""}</div>
                 <div style={{ fontFamily: gf, fontSize: sl.subtitleSize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.75)", lineHeight: 1.35, overflow: "hidden" }}>{sl.subtitle || ""}</div>
               </div>}
-              {sl.type === "body" && <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: sl.imageUrl ? "flex-start" : "center" }}>
+              {sl.type === "body" && <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: sl.imageUrl ? "flex-start" : "center", position: "relative" }}>
                 {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 45) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.9)", lineHeight: 1.5, overflow: "hidden", whiteSpace: "pre-wrap" }}>{sl.bodyText || ""}</div>
+                {sl.position === 4 && sl.ctaText && <div style={{ position: "absolute", bottom: 4, left: sl.ctaPosition === "bottom-right" ? "auto" : 0, right: sl.ctaPosition === "bottom-right" ? 0 : "auto", width: sl.ctaPosition === "bottom-right" ? "auto" : "100%", textAlign: sl.ctaPosition === "bottom-right" ? "right" : "center", fontFamily: gf, fontSize: 24 * rScale, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3)", letterSpacing: "0.5px" }}>{sl.ctaText}</div>}
               </div>}
               {sl.type === "image_text" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
                 {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 50) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
@@ -1048,62 +1030,25 @@ function ReviewStep({ slides, theme, caption, setCaption, captionLoading, onGene
       <textarea value={extraContext} onChange={function(e) { setExtraContext(e.target.value); }} placeholder="Add extra context for caption generation (key points, tone notes, CTA preferences...)" rows={3} style={{ width: "100%", padding: "10px 14px", background: C.card, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 12, lineHeight: 1.5, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.blue; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
     </div>}
 
-    {/* Platform Captions (Capper) */}
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Captions</div>
-    <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
-      <button onClick={generatePlatformCaptions} disabled={platLoading} style={{ padding: "10px 20px", background: C.amber + "15", color: C.amber, border: "1px solid " + C.amber + "30", borderRadius: 8, fontFamily: ft, fontSize: 13, fontWeight: 700, cursor: platLoading ? "wait" : "pointer", opacity: platLoading ? 0.5 : 1 }}>
-        {platLoading ? "Generating..." : Object.keys(platCaptions).length > 0 ? "Regenerate All" : "Generate Captions"}
-      </button>
-    </div>
-
-    {/* Platform tabs */}
-    <div style={{ display: "flex", gap: 0, marginBottom: 16, background: C.card, borderRadius: 10, border: "1px solid " + C.border, padding: 3 }}>
-      {PLATFORMS.map(function(plat) {
-        var on = platTab === plat.key;
-        var hasContent = platCaptions[plat.key];
-        return <div key={plat.key} onClick={function() { setPlatTab(plat.key); }} style={{ flex: 1, padding: "10px 0", textAlign: "center", cursor: "pointer", borderRadius: 8, background: on ? plat.color + "15" : "transparent", border: on ? "1px solid " + plat.color + "30" : "1px solid transparent", transition: "all 0.15s" }}>
-          <div style={{ fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? plat.color : C.txd }}>{plat.label}</div>
-          {hasContent && <div style={{ width: 5, height: 5, borderRadius: "50%", background: plat.color, margin: "4px auto 0" }} />}
-        </div>;
-      })}
-    </div>
-
-    {/* Active platform caption */}
-    {(function() {
-      var plat = PLATFORMS.find(function(p) { return p.key === platTab; });
-      if (!plat) return null;
-      var data = platCaptions[plat.key] || {};
-      var text = plat.key === "shorts" ? (data.title || "") : (data.caption || "");
-      var charCount = text.length;
-      var overLimit = charCount > plat.charLimit;
-
-      return <div style={{ background: C.card, border: "1px solid " + plat.color + "20", borderRadius: 10, padding: "16px 18px", marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <div style={{ fontFamily: mn, fontSize: 9, color: plat.color, textTransform: "uppercase", letterSpacing: "1px" }}>{plat.label} {plat.key === "shorts" ? "Title" : "Caption"}</div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <span style={{ fontFamily: mn, fontSize: 9, color: overLimit ? C.coral : C.txd }}>{charCount} / {plat.charLimit}</span>
-            {text && <span onClick={function() { navigator.clipboard.writeText(text); }} style={{ fontFamily: mn, fontSize: 9, color: plat.color, cursor: "pointer", padding: "1px 6px", border: "1px solid " + plat.color + "30", borderRadius: 4 }}>Copy</span>}
+    {/* Last Slide CTA */}
+    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Last Slide CTA</div>
+    <div style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: "16px 18px", marginBottom: 20 }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>CTA Text</div>
+          <input value={ctaText} onChange={function(e) { updateLastSlideCta("ctaText", e.target.value); }} placeholder="LINK IN BIO" style={{ width: "100%", padding: "8px 12px", background: C.bg, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 14, fontWeight: 700, outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+        </div>
+        <div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Position</div>
+          <div style={{ display: "flex", gap: 4 }}>
+            <button onClick={function() { updateLastSlideCta("ctaPosition", "bottom-center"); }} style={{ padding: "6px 12px", borderRadius: 6, background: ctaPosition === "bottom-center" || !ctaPosition ? C.amber + "15" : C.surface, border: "1px solid " + (ctaPosition === "bottom-center" || !ctaPosition ? C.amber + "40" : C.border), color: ctaPosition === "bottom-center" || !ctaPosition ? C.amber : C.txd, fontFamily: ft, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Bottom Center</button>
+            <button onClick={function() { updateLastSlideCta("ctaPosition", "bottom-right"); }} style={{ padding: "6px 12px", borderRadius: 6, background: ctaPosition === "bottom-right" ? C.amber + "15" : C.surface, border: "1px solid " + (ctaPosition === "bottom-right" ? C.amber + "40" : C.border), color: ctaPosition === "bottom-right" ? C.amber : C.txd, fontFamily: ft, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Bottom Right</button>
           </div>
         </div>
-        <textarea value={text} onChange={function(e) {
-          var val = e.target.value;
-          setPlatCaptions(function(prev) {
-            var updated = Object.assign({}, prev);
-            if (!updated[plat.key]) updated[plat.key] = {};
-            if (plat.key === "shorts") updated[plat.key].title = val;
-            else updated[plat.key].caption = val;
-            return updated;
-          });
-          if (plat.key === "instagram") setCaption(function(c) { return Object.assign({}, c || {}, { caption: val }); });
-        }} placeholder={plat.key === "shorts" ? "Short title..." : "Caption..."} rows={plat.key === "shorts" ? 2 : 6} style={{ width: "100%", padding: "10px 14px", background: C.bg, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 13, lineHeight: 1.6, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = plat.color; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
-        {plat.key !== "shorts" && data.hashtags && data.hashtags.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
-          {data.hashtags.map(function(tag, i) {
-            return <span key={i} style={{ fontFamily: ft, fontSize: 11, color: plat.color, padding: "3px 8px", background: plat.color + "10", border: "1px solid " + plat.color + "18", borderRadius: 16 }}>#{tag.replace(/^#/, "")}</span>;
-          })}
-        </div>}
-        <div style={{ fontFamily: mn, fontSize: 8, color: C.txd, marginTop: 6 }}>{plat.rules}</div>
-      </div>;
-    })()}
+      </div>
+      {!ctaText && <button onClick={function() { updateLastSlideCta("ctaText", "LINK IN BIO"); if (!ctaPosition) updateLastSlideCta("ctaPosition", "bottom-center"); }} style={{ padding: "6px 14px", background: C.teal + "12", color: C.teal, border: "1px solid " + C.teal + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Add Default CTA</button>}
+      {ctaText && <button onClick={function() { updateLastSlideCta("ctaText", ""); }} style={{ padding: "6px 14px", background: C.coral + "12", color: C.coral, border: "1px solid " + C.coral + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Remove CTA</button>}
+    </div>
   </div>;
 }
 
@@ -1251,6 +1196,29 @@ function renderSlideToCanvas(slide, bgUrl) {
           drawText(slide.caption || "", MARGIN_X, capY, contentWidth, slide.captionSize || 18, "400", "rgba(255,255,255,0.65)", 1.4);
         }
 
+        // CTA text on closer (position 4)
+        if (slide.position === 4 && slide.ctaText) {
+          var ctaFontSize = 24;
+          ctx.font = "700 " + ctaFontSize + "px Grift, Outfit, sans-serif";
+          ctx.fillStyle = "#ffffff";
+          ctx.textBaseline = "top";
+          ctx.shadowColor = "rgba(0,0,0,0.5)";
+          ctx.shadowBlur = 8;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 2;
+          var ctaY = FULL_H - BOTTOM_Y - ctaFontSize - 12;
+          if (slide.ctaPosition === "bottom-right") {
+            ctx.textAlign = "right";
+            ctx.fillText(slide.ctaText, FULL_W - MARGIN_X, ctaY);
+          } else {
+            ctx.textAlign = "center";
+            ctx.fillText(slide.ctaText, FULL_W / 2, ctaY);
+          }
+          ctx.textAlign = "left";
+          ctx.shadowColor = "transparent";
+          ctx.shadowBlur = 0;
+        }
+
         canvas.toBlob(function(blob) {
           if (blob) resolve(blob);
           else reject(new Error("Canvas toBlob failed"));
@@ -1266,10 +1234,46 @@ function renderSlideToCanvas(slide, bgUrl) {
 
 
 // ═══ STEP 5: EXPORT ═══
-function ExportStep({ slides, theme, caption, onBack }) {
+function ExportStep({ slides, theme, caption, setCaption, onBack, sourceUrl, onSaveArchive }) {
   var _downloading = useState(null), downloading = _downloading[0], setDownloading = _downloading[1];
   var _downloadAll = useState(false), downloadingAll = _downloadAll[0], setDownloadingAll = _downloadAll[1];
   var _copied = useState(false), copied = _copied[0], setCopied = _copied[1];
+  var _platTab = useState("instagram"), platTab = _platTab[0], setPlatTab = _platTab[1];
+  var _platCaptions = useState({}), platCaptions = _platCaptions[0], setPlatCaptions = _platCaptions[1];
+  var _platLoading = useState(false), platLoading = _platLoading[0], setPlatLoading = _platLoading[1];
+  var _extraContext = useState(""), extraContext = _extraContext[0], setExtraContext = _extraContext[1];
+  var _archiveSaving = useState(false), archiveSaving = _archiveSaving[0], setArchiveSaving = _archiveSaving[1];
+  var _archiveSaved = useState(false), archiveSaved = _archiveSaved[0], setArchiveSaved = _archiveSaved[1];
+
+  var PLATFORMS = [
+    { key: "instagram", label: "Instagram", color: "#E4405F", charLimit: 2200, rules: "Include Save this for later CTA. 5-8 hashtags. Location: San Francisco, CA. No em dashes." },
+    { key: "tiktok", label: "TikTok", color: "#00F2EA", charLimit: 2200, rules: "All lowercase. 4-6 hashtags. Hook in first line. Casual but informed. No em dashes." },
+    { key: "shorts", label: "YT Shorts", color: "#FF0000", charLimit: 100, rules: "Title only, under 40 characters. Punchy. No hashtags. No em dashes." },
+  ];
+
+  function generatePlatformCaptions() {
+    setPlatLoading(true);
+    var slideSummary = slides.map(function(sl, i) {
+      return "Slide " + (i + 1) + " (" + sl.type + "): " + (sl.title || sl.bodyText || sl.caption || "").slice(0, 100);
+    }).join("\n");
+
+    fetch("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system: "You write social captions for SemiAnalysis carousel posts. Rules: No em dashes. No emojis. Confident, technical, institutional tone. RESPOND ONLY IN VALID JSON.",
+        prompt: "Generate captions for this carousel across 3 platforms.\n\nSlides:\n" + slideSummary + "\n\n" + (sourceUrl ? "Source: " + sourceUrl + "\n" : "") + (extraContext ? "Additional context: " + extraContext + "\n" : "") + "\nReturn JSON:\n{\n  \"instagram\": { \"caption\": \"full caption with Save CTA + 5-8 hashtags + Location: San Francisco, CA\", \"hashtags\": [\"tag1\"] },\n  \"tiktok\": { \"caption\": \"all lowercase, casual, 4-6 hashtags, hook first line\" },\n  \"shorts\": { \"title\": \"under 40 chars, punchy\" }\n}\n\nIG: under 2200 chars, save CTA, hashtags at end, location.\nTikTok: all lowercase, casual but informed, 4-6 hashtags.\nYT Shorts: title only, under 40 chars."
+      }),
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      var t = (d.content || []).map(function(c) { return c.text || ""; }).join("");
+      try {
+        var parsed = JSON.parse(t.replace(/```json|```/g, "").trim());
+        setPlatCaptions(parsed);
+        if (parsed.instagram) setCaption(parsed.instagram);
+      } catch (e) { console.error("Parse error:", t); }
+      setPlatLoading(false);
+    }).catch(function() { setPlatLoading(false); });
+  }
 
   function downloadSlide(index) {
     var sl = slides[index];
@@ -1348,63 +1352,157 @@ function ExportStep({ slides, theme, caption, onBack }) {
     URL.revokeObjectURL(url);
   }
 
+  function handleSaveArchive() {
+    setArchiveSaving(true);
+    var coverSlide = slides.find(function(sl) { return sl.type === "cover"; });
+    var title = (coverSlide && coverSlide.title) || "Untitled Carousel";
+    var archiveData = {
+      slides: slides,
+      caption: caption,
+      platCaptions: platCaptions,
+      theme: theme,
+      sourceUrl: sourceUrl || "",
+      timestamp: new Date().toISOString(),
+      slideCount: slides.length,
+    };
+    fetch("/api/db", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        table: "projects",
+        data: {
+          id: "carousel-" + Date.now(),
+          type: "carousel-archive",
+          name: title,
+          data: archiveData,
+        },
+      }),
+    }).then(function(r) { return r.json(); }).then(function() {
+      setArchiveSaving(false);
+      setArchiveSaved(true);
+      setTimeout(function() { setArchiveSaved(false); }, 3000);
+    }).catch(function() {
+      setArchiveSaving(false);
+      alert("Failed to save archive.");
+    });
+  }
+
   return <div>
+    {/* Header */}
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-      <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx }}>Export</div>
+      <div>
+        <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx }}>Carousel Ready</div>
+      </div>
       <button onClick={onBack} style={{ padding: "8px 16px", background: "transparent", color: C.txm, border: "1px solid " + C.border, borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Back to Review</button>
     </div>
-    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 28 }}>Download slides as PNGs at 1080x1350 resolution. Click individual slides or download all.</div>
+    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 24 }}>{slides.length} slides ready to export at 1080x1350. Generate captions, download, and archive.</div>
 
-    {/* Slide grid with download buttons */}
-    <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 16, marginBottom: 28 }}>
+    {/* Slide preview strip (compact horizontal scroll) */}
+    <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 12, marginBottom: 28 }}>
       {slides.map(function(sl, i) {
         var bgUrl = getBackdropUrl(theme, sl.position);
-        var rw = 220;
-        var rh = 275;
+        var rw = 140;
+        var rh = 175;
         var rScale = rw / FULL_W;
         var isDownloading = downloading === i;
 
         return <div key={sl.id} style={{ flexShrink: 0 }}>
-          <div style={{ width: rw, height: rh, borderRadius: 6, overflow: "hidden", position: "relative", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.4)", cursor: "pointer" }} onClick={function() { downloadSlide(i); }}>
-            {/* Mini content overlay */}
-            <div style={{ position: "absolute", inset: 0, padding: MARGIN_X * rScale + "px " + MARGIN_Y * rScale + "px" }}>
-              {sl.type === "cover" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-                {sl.imageUrl && <div style={{ width: "100%", height: "48%", borderRadius: 6 * rScale, overflow: "hidden", marginBottom: 4, flexShrink: 0 }}>
+          <div style={{ width: rw, height: rh, borderRadius: 6, overflow: "hidden", position: "relative", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", boxShadow: "0 4px 16px rgba(0,0,0,0.4)", cursor: "pointer" }} onClick={function() { downloadSlide(i); }}>
+            <div style={{ position: "absolute", inset: 0, padding: 8 }}>
+              {sl.type === "cover" && <div>
+                {sl.imageUrl && <div style={{ width: "100%", height: "40%", borderRadius: 4, overflow: "hidden", marginBottom: 3, background: "rgba(255,255,255,0.05)" }}>
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
                 </div>}
-                <div style={{ fontFamily: gf, fontSize: sl.titleSize * rScale, fontWeight: 800, color: "#fff", lineHeight: 1.15, overflow: "hidden" }}>{sl.title || ""}</div>
-                <div style={{ fontFamily: gf, fontSize: sl.subtitleSize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.75)", lineHeight: 1.3, overflow: "hidden" }}>{sl.subtitle || ""}</div>
+                <div style={{ fontFamily: gf, fontSize: 7, fontWeight: 800, color: "#fff", lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{sl.title || ""}</div>
               </div>}
-              {sl.type === "body" && <div style={{ height: "100%", display: "flex", alignItems: "center" }}>
-                <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, color: "rgba(255,255,255,0.9)", lineHeight: 1.5, overflow: "hidden", whiteSpace: "pre-wrap" }}>{sl.bodyText || ""}</div>
+              {sl.type === "body" && <div style={{ display: "flex", alignItems: "center", height: "100%" }}>
+                <div style={{ fontFamily: gf, fontSize: 5, color: "rgba(255,255,255,0.7)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 6, WebkitBoxOrient: "vertical" }}>{sl.bodyText || ""}</div>
               </div>}
               {sl.type === "image_text" && <div>
-                {sl.imageUrl && <div style={{ width: "100%", height: "50%", borderRadius: 6 * rScale, overflow: "hidden", marginBottom: 4 }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: "50%", borderRadius: 3, overflow: "hidden", marginBottom: 2, background: "rgba(255,255,255,0.05)" }}>
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
                 </div>}
-                <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, color: "rgba(255,255,255,0.9)", lineHeight: 1.4, overflow: "hidden" }}>{sl.bodyText || ""}</div>
+                <div style={{ fontFamily: gf, fontSize: 5, color: "rgba(255,255,255,0.7)", lineHeight: 1.2, overflow: "hidden" }}>{(sl.bodyText || "").slice(0, 40)}</div>
               </div>}
               {sl.type === "large_image" && <div>
-                {sl.imageUrl && <div style={{ width: "100%", height: "72%", borderRadius: 6 * rScale, overflow: "hidden", marginBottom: 4 }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: "70%", borderRadius: 3, overflow: "hidden", marginBottom: 2, background: "rgba(255,255,255,0.05)" }}>
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
                 </div>}
-                <div style={{ fontFamily: gf, fontSize: (sl.captionSize || 18) * rScale, color: "rgba(255,255,255,0.6)", lineHeight: 1.3 }}>{sl.caption || ""}</div>
+                <div style={{ fontFamily: gf, fontSize: 5, color: "rgba(255,255,255,0.5)", lineHeight: 1.2 }}>{(sl.caption || "").slice(0, 30)}</div>
               </div>}
             </div>
-
-            {/* Download overlay */}
+            {/* Download hover overlay */}
             <div style={{ position: "absolute", inset: 0, background: isDownloading ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0)", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }} onMouseEnter={function(e) { if (!isDownloading) e.currentTarget.style.background = "rgba(0,0,0,0.4)"; }} onMouseLeave={function(e) { if (!isDownloading) e.currentTarget.style.background = "rgba(0,0,0,0)"; }}>
-              {isDownloading ? <div style={{ width: 24, height: 24, borderRadius: "50%", border: "2px solid " + C.border, borderTopColor: C.amber, animation: "cspin 1s linear infinite" }} /> : <div style={{ fontFamily: ft, fontSize: 12, color: "#fff", fontWeight: 700, opacity: 0, transition: "opacity 0.2s", padding: "6px 14px", background: "rgba(0,0,0,0.6)", borderRadius: 6 }} className="dl-label">PNG</div>}
+              {isDownloading ? <div style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid " + C.border, borderTopColor: C.amber, animation: "cspin 1s linear infinite" }} /> : <div style={{ fontFamily: ft, fontSize: 10, color: "#fff", fontWeight: 700, opacity: 0, transition: "opacity 0.2s", padding: "4px 10px", background: "rgba(0,0,0,0.6)", borderRadius: 4 }} className="dl-label">PNG</div>}
             </div>
           </div>
-          <div style={{ textAlign: "center", fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6 }}>Slide {i + 1}</div>
+          <div style={{ textAlign: "center", fontFamily: mn, fontSize: 8, color: C.txd, marginTop: 4 }}>{i + 1}</div>
         </div>;
       })}
     </div>
 
+    {/* Platform Captions (Capper) */}
+    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Platform Captions</div>
+    <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
+      <button onClick={generatePlatformCaptions} disabled={platLoading} style={{ padding: "10px 20px", background: C.amber + "15", color: C.amber, border: "1px solid " + C.amber + "30", borderRadius: 8, fontFamily: ft, fontSize: 13, fontWeight: 700, cursor: platLoading ? "wait" : "pointer", opacity: platLoading ? 0.5 : 1 }}>
+        {platLoading ? "Generating..." : Object.keys(platCaptions).length > 0 ? "Regenerate All" : "Generate Captions"}
+      </button>
+      <div style={{ fontFamily: ft, fontSize: 11, color: C.txd }}>Extra context:</div>
+      <input value={extraContext} onChange={function(e) { setExtraContext(e.target.value); }} placeholder="key points, tone notes..." style={{ flex: 1, padding: "8px 12px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: ft, fontSize: 11, outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+    </div>
+
+    {/* Platform tabs */}
+    <div style={{ display: "flex", gap: 0, marginBottom: 16, background: C.card, borderRadius: 10, border: "1px solid " + C.border, padding: 3 }}>
+      {PLATFORMS.map(function(plat) {
+        var on = platTab === plat.key;
+        var hasContent = platCaptions[plat.key];
+        return <div key={plat.key} onClick={function() { setPlatTab(plat.key); }} style={{ flex: 1, padding: "10px 0", textAlign: "center", cursor: "pointer", borderRadius: 8, background: on ? plat.color + "15" : "transparent", border: on ? "1px solid " + plat.color + "30" : "1px solid transparent", transition: "all 0.15s" }}>
+          <div style={{ fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? plat.color : C.txd }}>{plat.label}</div>
+          {hasContent && <div style={{ width: 5, height: 5, borderRadius: "50%", background: plat.color, margin: "4px auto 0" }} />}
+        </div>;
+      })}
+    </div>
+
+    {/* Active platform caption */}
+    {(function() {
+      var plat = PLATFORMS.find(function(p) { return p.key === platTab; });
+      if (!plat) return null;
+      var data = platCaptions[plat.key] || {};
+      var text = plat.key === "shorts" ? (data.title || "") : (data.caption || "");
+      var charCount = text.length;
+      var overLimit = charCount > plat.charLimit;
+
+      return <div style={{ background: C.card, border: "1px solid " + plat.color + "20", borderRadius: 10, padding: "16px 18px", marginBottom: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: plat.color, textTransform: "uppercase", letterSpacing: "1px" }}>{plat.label} {plat.key === "shorts" ? "Title" : "Caption"}</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <span style={{ fontFamily: mn, fontSize: 9, color: overLimit ? C.coral : C.txd }}>{charCount} / {plat.charLimit}</span>
+            {text && <span onClick={function() { navigator.clipboard.writeText(text); }} style={{ fontFamily: mn, fontSize: 9, color: plat.color, cursor: "pointer", padding: "1px 6px", border: "1px solid " + plat.color + "30", borderRadius: 4 }}>Copy</span>}
+          </div>
+        </div>
+        <textarea value={text} onChange={function(e) {
+          var val = e.target.value;
+          setPlatCaptions(function(prev) {
+            var updated = Object.assign({}, prev);
+            if (!updated[plat.key]) updated[plat.key] = {};
+            if (plat.key === "shorts") updated[plat.key].title = val;
+            else updated[plat.key].caption = val;
+            return updated;
+          });
+          if (plat.key === "instagram") setCaption(function(c) { return Object.assign({}, c || {}, { caption: val }); });
+        }} placeholder={plat.key === "shorts" ? "Short title..." : "Caption..."} rows={plat.key === "shorts" ? 2 : 6} style={{ width: "100%", padding: "10px 14px", background: C.bg, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 13, lineHeight: 1.6, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = plat.color; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+        {plat.key !== "shorts" && data.hashtags && data.hashtags.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
+          {data.hashtags.map(function(tag, i) {
+            return <span key={i} style={{ fontFamily: ft, fontSize: 11, color: plat.color, padding: "3px 8px", background: plat.color + "10", border: "1px solid " + plat.color + "18", borderRadius: 16 }}>#{tag.replace(/^#/, "")}</span>;
+          })}
+        </div>}
+        <div style={{ fontFamily: mn, fontSize: 8, color: C.txd, marginTop: 6 }}>{plat.rules}</div>
+      </div>;
+    })()}
+
     {/* Export actions */}
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 12 }}>Export Options</div>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 24 }}>
+    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 12 }}>Export Actions</div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
       <button onClick={downloadAll} disabled={downloadingAll} style={{ padding: "16px", background: C.amber + "10", border: "1px solid " + C.amber + "30", borderRadius: 10, cursor: downloadingAll ? "wait" : "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.amber + "60"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.amber + "30"; }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.amber, marginBottom: 4 }}>{downloadingAll ? "Downloading..." : "Download All PNGs"}</div>
         <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>{slides.length} slides at 1080x1350</div>
@@ -1413,28 +1511,21 @@ function ExportStep({ slides, theme, caption, onBack }) {
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 4 }}>{copied ? "Copied!" : "Copy Caption"}</div>
         <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>Caption + hashtags to clipboard</div>
       </button>
-      <button onClick={exportJSON} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; }}>
-        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 4 }}>Download JSON</div>
-        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>Structured slide data</div>
-      </button>
       <button onClick={function() { window.open("https://publish.buffer.com", "_blank"); }} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 4 }}>Send to Buffer</div>
         <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>Open Buffer to schedule post</div>
       </button>
+      <button onClick={exportJSON} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; }}>
+        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 4 }}>Download JSON</div>
+        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>Structured slide data</div>
+      </button>
     </div>
 
-    {/* Caption preview */}
-    {caption && caption.caption && <div style={{ marginBottom: 20 }}>
-      <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Caption Preview</div>
-      <div style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: "16px" }}>
-        <div style={{ fontFamily: ft, fontSize: 13, color: C.tx, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{caption.caption}</div>
-        {caption.hashtags && caption.hashtags.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
-          {caption.hashtags.map(function(tag, i) {
-            return <span key={i} style={{ fontFamily: ft, fontSize: 12, color: C.blue, padding: "4px 10px", background: C.blue + "10", border: "1px solid " + C.blue + "20", borderRadius: 20 }}>#{tag.replace(/^#/, "")}</span>;
-          })}
-        </div>}
-      </div>
-    </div>}
+    {/* Save to Archive */}
+    <button onClick={handleSaveArchive} disabled={archiveSaving || archiveSaved} style={{ width: "100%", padding: "16px 0", background: archiveSaved ? C.teal + "15" : C.violet + "10", border: "1px solid " + (archiveSaved ? C.teal + "40" : C.violet + "30"), borderRadius: 10, cursor: archiveSaving ? "wait" : archiveSaved ? "default" : "pointer", transition: "all 0.2s", marginBottom: 8 }} onMouseEnter={function(e) { if (!archiveSaving && !archiveSaved) e.currentTarget.style.borderColor = C.violet + "60"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = archiveSaved ? C.teal + "40" : C.violet + "30"; }}>
+      <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: archiveSaved ? C.teal : C.violet }}>{archiveSaving ? "Saving..." : archiveSaved ? "Saved to Archive" : "Save to Archive"}</div>
+      <div style={{ fontFamily: ft, fontSize: 11, color: C.txm, marginTop: 2 }}>Store carousel data for future reference</div>
+    </button>
 
     <style dangerouslySetInnerHTML={{ __html: "@keyframes cspin{to{transform:rotate(360deg)}} .dl-label { opacity: 0; } div:hover > .dl-label { opacity: 1 !important; }" }} />
   </div>;
@@ -1487,8 +1578,36 @@ export default function Carousel() {
   var _caption = useState(null), caption = _caption[0], setCaption = _caption[1];
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
   var _captionLoading = useState(false), captionLoading = _captionLoading[0], setCaptionLoading = _captionLoading[1];
+  var _showArchive = useState(false), showArchive = _showArchive[0], setShowArchive = _showArchive[1];
+  var _archiveItems = useState([]), archiveItems = _archiveItems[0], setArchiveItems = _archiveItems[1];
+  var _archiveLoading = useState(false), archiveLoading = _archiveLoading[0], setArchiveLoading = _archiveLoading[1];
 
   function goStep(n) { setStep(n); if (n > maxStep) setMaxStep(n); }
+
+  function loadArchive() {
+    setArchiveLoading(true);
+    fetch("/api/db?table=projects").then(function(r) { return r.json(); }).then(function(res) {
+      var items = (res.data || []).filter(function(r) { return r.type === "carousel-archive"; });
+      items.sort(function(a, b) {
+        var ta = a.data && a.data.timestamp ? new Date(a.data.timestamp).getTime() : 0;
+        var tb = b.data && b.data.timestamp ? new Date(b.data.timestamp).getTime() : 0;
+        return tb - ta;
+      });
+      setArchiveItems(items);
+      setArchiveLoading(false);
+    }).catch(function() { setArchiveLoading(false); });
+  }
+
+  function loadFromArchive(item) {
+    if (!item.data) return;
+    var d = item.data;
+    if (d.slides) setSlides(d.slides);
+    if (d.caption) setCaption(d.caption);
+    if (d.theme) setState(function(s) { return Object.assign({}, s, { category: d.theme, url: d.sourceUrl || "" }); });
+    setShowArchive(false);
+    goStep(3);
+    setMaxStep(5);
+  }
 
   async function generate() {
     setLoading(true);
@@ -1513,7 +1632,6 @@ export default function Carousel() {
         goStep(0);
       } else if (d.variants) {
         setVariants(d.variants);
-        // Go to variant selection step (step 2)
         var keys = Object.keys(d.variants).filter(function(k) { return d.variants[k] && d.variants[k].slides; });
         if (keys.length > 0) {
           goStep(2);
@@ -1532,7 +1650,6 @@ export default function Carousel() {
   async function generateCaption() {
     setCaptionLoading(true);
     try {
-      // Convert back to API format for caption generation
       var apiSlides = slides.map(function(sl) {
         var apiType = "BODY_A";
         if (sl.type === "cover") apiType = "COVER";
@@ -1563,7 +1680,6 @@ export default function Carousel() {
     setCaptionLoading(false);
   }
 
-  // Variant picker overlay for step 1 result
   var _showVariantPicker = useState(false), showVariantPicker = _showVariantPicker[0], setShowVariantPicker = _showVariantPicker[1];
 
   function pickVariant(key) {
@@ -1581,12 +1697,34 @@ export default function Carousel() {
         <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 2 }}>SA Branded // 1080x1350 // Real Backgrounds</div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {step === 0 && <button onClick={function() { setShowArchive(!showArchive); if (!showArchive) loadArchive(); }} style={{ padding: "6px 14px", background: showArchive ? C.violet + "15" : C.surface, border: "1px solid " + (showArchive ? C.violet + "40" : C.border), borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, color: showArchive ? C.violet : C.txm, cursor: "pointer", transition: "all 0.2s" }}>Archive</button>}
         <div style={{ width: 8, height: 8, borderRadius: "50%", background: THEMES[state.category].color, boxShadow: "0 0 8px " + THEMES[state.category].color + "60" }} />
         <span style={{ fontFamily: mn, fontSize: 10, color: C.txm }}>{state.category} // {THEMES[state.category].prefix}</span>
-        {/* Variant picker button (when we have variants and are in edit mode) */}
         {variants && step >= 3 && <button onClick={function() { setShowVariantPicker(!showVariantPicker); }} style={{ padding: "4px 10px", background: C.surface, border: "1px solid " + C.border, borderRadius: 4, fontFamily: mn, fontSize: 9, color: C.txm, cursor: "pointer" }}>Variants</button>}
       </div>
     </div>
+
+    {/* Archive panel */}
+    {showArchive && step === 0 && <div style={{ marginBottom: 24, background: C.card, border: "1px solid " + C.violet + "25", borderRadius: 12, padding: "20px 24px" }}>
+      <div style={{ fontFamily: mn, fontSize: 10, color: C.violet, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 14 }}>Saved Carousels</div>
+      {archiveLoading && <div style={{ textAlign: "center", padding: 20, fontFamily: ft, fontSize: 12, color: C.txm }}>Loading archive...</div>}
+      {!archiveLoading && archiveItems.length === 0 && <div style={{ textAlign: "center", padding: 20, fontFamily: ft, fontSize: 12, color: C.txd }}>No archived carousels yet. Save one from the Export step.</div>}
+      {!archiveLoading && archiveItems.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {archiveItems.map(function(item) {
+          var d = item.data || {};
+          var dateStr = d.timestamp ? new Date(d.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Unknown date";
+          var timeStr = d.timestamp ? new Date(d.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "";
+          return <div key={item.id} onClick={function() { loadFromArchive(item); }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 16px", background: C.surface, border: "1px solid " + C.border, borderRadius: 8, cursor: "pointer", transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.violet + "50"; e.currentTarget.style.background = C.violet + "06"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.surface; }}>
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: C.violet + "12", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 14, fontWeight: 700, color: C.violet, flexShrink: 0 }}>{d.slideCount || "?"}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name || "Untitled"}</div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 2 }}>{dateStr} {timeStr} // {d.theme || "general"} // {d.slideCount || 0} slides</div>
+            </div>
+            {d.sourceUrl && <div style={{ fontFamily: mn, fontSize: 8, color: C.txd, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 0 }}>{d.sourceUrl}</div>}
+          </div>;
+        })}
+      </div>}
+    </div>}
 
     <StepBar step={step} setStep={function(n) { if (n <= maxStep) goStep(n); }} maxStep={maxStep} />
 
@@ -1631,21 +1769,19 @@ export default function Carousel() {
     />}
     {step === 4 && <ReviewStep
       slides={slides}
+      setSlides={setSlides}
       theme={state.category}
-      caption={caption}
-      setCaption={setCaption}
-      captionLoading={captionLoading}
-      onGenerateCaption={generateCaption}
       onNext={function() { goStep(5); }}
       onBack={function() { goStep(3); }}
       sourceUrl={state.url || ""}
-      sourceText={state.text || ""}
     />}
     {step === 5 && <ExportStep
       slides={slides}
       theme={state.category}
       caption={caption}
+      setCaption={setCaption}
       onBack={function() { goStep(4); }}
+      sourceUrl={state.url || ""}
     />}
   </div>;
 }
