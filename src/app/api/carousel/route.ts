@@ -114,40 +114,58 @@ export async function POST(req: NextRequest) {
         headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
-          max_tokens: 4000,
+          max_tokens: 6000,
           system: CAROUSEL_SYS,
-          messages: [{ role: "user", content: `Generate a carousel from this article content. Produce 3 variant approaches (A, B, C) with different editorial angles.
+          messages: [{ role: "user", content: `Analyze this article and produce 3 STRUCTURALLY DIFFERENT carousel variants (A, B, C).
 
 Category: ${category || "general"}
-Target slide count: ${slideCount}
 ${imageNote}
 
-Article content:
+Article:
 ${(text || "").slice(0, 10000)}
 ${url ? "\nSource URL: " + url : ""}
 
-Return JSON with 3 variants. Each variant has a slides array following the SA Carousel Schema v1.0:
+CRITICAL: Each variant must have a DIFFERENT structure, not just different words on the same template.
+
+Variant A: "Concise" approach
+- 3-4 slides total. Tight, punchy. Cover + 1-2 body slides + closer.
+- Every word earns its place. Ideal for quick-scroll audiences.
+${hasImages ? "- Use 1 image on cover only." : ""}
+
+Variant B: "Deep Dive" approach
+- 5-7 slides. More detailed narrative with multiple sections.
+- Break the story into distinct chapters/angles across slides.
+${hasImages ? "- Use cover image + 1-2 BODY_IMAGE slides where charts/data directly support the point being made on that slide. Pick the most relevant images." : ""}
+
+Variant C: "Visual Story" approach
+- 4-6 slides. ${hasImages ? "Image-heavy. Use BODY_IMAGE and BODY_LARGE_IMAGE slides to let data/charts do the talking. Less text per slide, more visual impact." : "Mix of text-heavy and text-light slides. Some slides with shorter, punchier text. Vary the density."}
+
+Return JSON:
 {
   "A": {
-    "label": "approach name (e.g. stat-forward, narrative arc, quote-driven)",
-    "topic": "short topic summary",
+    "label": "concise label for this approach",
+    "topic": "1-sentence summary",
     "slides": [
-      { "type": "COVER", "title": "5-8 word title", "subtitle": "20-30 word subtitle" },
-      { "type": "BODY_A", "body_text": "60-80 words on dark background" },
-      { "type": "BODY_B", "body_text": "60-80 words on light background" },
-      { "type": "BODY_FINAL", "body_text": "60-80 words, forward-looking, no arrow" }
+      { "type": "COVER", "title": "5-8 word title", "subtitle": "3-4 sentences, 50-70 words" },
+      { "type": "BODY_A", "body_text": "2-3 paragraphs separated by \\n\\n, 80-120 words" },
+      { "type": "BODY_FINAL", "body_text": "2-3 paragraphs, 80-120 words, forward-looking" }
     ]
   },
-  "B": { ... },
+  "B": {
+    "label": "...", "topic": "...",
+    "slides": [COVER, then mix of BODY_A, BODY_B${hasImages ? ", BODY_IMAGE, BODY_LARGE_IMAGE" : ""}, ending with BODY_FINAL]
+  },
   "C": { ... }
 }
 
 Rules:
-- Every variant MUST start with COVER and end with BODY_FINAL
-- Body slides alternate BODY_A then BODY_B then BODY_A etc.
-- BODY_FINAL uses whichever background comes next in the alternation
-- Only include BODY_IMAGE or BODY_LARGE_IMAGE if image URLs are provided
-- No em dashes anywhere` }],
+- COVER always first, BODY_FINAL always last
+- Body text slides alternate BODY_A (dark bg) then BODY_B (light bg)
+- BODY_IMAGE: include "image_url" field with the exact URL from available images + "body_text" (30-50 words)
+- BODY_LARGE_IMAGE: include "image_url" + "subtext" (10-20 words caption)
+- BODY_FINAL uses whichever background (A or B) comes next in alternation
+- No em dashes. No bullets. No emojis. Paragraphs separated by \\n\\n.
+- Each variant MUST have a DIFFERENT number of slides` }],
         }),
       });
 
