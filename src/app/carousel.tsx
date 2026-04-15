@@ -438,19 +438,44 @@ function InputStep({ state, setState, onNext }) {
       </div>
     </div>}
 
-    {/* Article Images (placeholder - shown when URL is provided) */}
-    {(state.url || "").trim() && <div style={{ marginBottom: 24 }}>
-      <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Article Images</div>
+    {/* Images section — always visible */}
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px" }}>Images</div>
+        <label style={{ padding: "5px 12px", borderRadius: 6, background: C.violet + "12", border: "1px solid " + C.violet + "30", color: C.violet, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+          Upload Images
+          <input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={function(e) {
+            var files = Array.prototype.slice.call(e.target.files);
+            files.forEach(function(file) {
+              var reader = new FileReader();
+              reader.onload = function(ev) {
+                setState(function(s) {
+                  var existing = s.articleImages || [];
+                  return Object.assign({}, s, { articleImages: existing.concat([ev.target.result]) });
+                });
+              };
+              reader.readAsDataURL(file);
+            });
+            e.target.value = "";
+          }} style={{ display: "none" }} />
+        </label>
+      </div>
       {state.articleImages && state.articleImages.length > 0 ? <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8 }}>
         {state.articleImages.map(function(imgUrl, i) {
-          return <div key={i} onClick={function() { setState(function(s) { return Object.assign({}, s, { selectedArticleImage: imgUrl }); }); }} style={{ width: 80, height: 80, borderRadius: 8, overflow: "hidden", cursor: "pointer", flexShrink: 0, border: "2px solid " + (state.selectedArticleImage === imgUrl ? C.amber : "transparent"), opacity: state.selectedArticleImage === imgUrl ? 1 : 0.7, transition: "all 0.2s" }}>
-            <img src={imgUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+          var isSel = state.selectedArticleImage === imgUrl;
+          return <div key={i} style={{ position: "relative", flexShrink: 0 }}>
+            <div onClick={function() { setState(function(s) { return Object.assign({}, s, { selectedArticleImage: isSel ? null : imgUrl }); }); }} style={{ width: 80, height: 80, borderRadius: 8, overflow: "hidden", cursor: "pointer", border: "2px solid " + (isSel ? C.amber : "transparent"), opacity: isSel ? 1 : 0.7, transition: "all 0.2s" }}>
+              <img src={imgUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.parentElement.style.display = "none"; }} />
+            </div>
+            <div onClick={function() { setState(function(s) { var imgs = (s.articleImages || []).filter(function(u) { return u !== imgUrl; }); var sel = s.selectedArticleImage === imgUrl ? null : s.selectedArticleImage; return Object.assign({}, s, { articleImages: imgs, selectedArticleImage: sel }); }); }} style={{ position: "absolute", top: -4, right: -4, width: 18, height: 18, borderRadius: "50%", background: C.coral, color: "#fff", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 700, lineHeight: 1 }}>{"\u00D7"}</div>
           </div>;
         })}
-      </div> : <div style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 8, textAlign: "center" }}>
-        <div style={{ fontFamily: ft, fontSize: 11, color: C.txd }}>Images from the article will appear here after generation</div>
+      </div> : <div style={{ padding: "20px", background: C.card, border: "1px dashed " + C.border, borderRadius: 8, textAlign: "center" }}>
+        <div style={{ fontFamily: ft, fontSize: 12, color: C.txd, marginBottom: 4 }}>No images yet</div>
+        <div style={{ fontFamily: ft, fontSize: 10, color: C.txd }}>Upload images above{(state.url || "").trim() ? " or fetch from article URL" : ""}</div>
       </div>}
-    </div>}
+      {state.selectedArticleImage && <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, marginTop: 6 }}>Selected image will be used as cover</div>}
+    </div>
 
     <button onClick={onNext} disabled={!canProceed} style={{ width: "100%", padding: "14px 0", background: canProceed ? C.amber : C.surface, color: canProceed ? C.bg : C.txd, border: "none", borderRadius: 8, fontFamily: ft, fontSize: 15, fontWeight: 800, cursor: canProceed ? "pointer" : "not-allowed", transition: "all 0.2s" }}>Generate Carousel</button>
   </div>;
