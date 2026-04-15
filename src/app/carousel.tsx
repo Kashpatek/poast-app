@@ -157,11 +157,13 @@ function FontSizeControl({ value, onChange, label }) {
   </div>;
 }
 
-// ═══ IMAGE FRAME (clickable area for image insertion) ═══
-function ImageFrame({ imageUrl, onImageChange, style: frameStyle, slideId }) {
+// ═══ IMAGE FRAME (clickable area for image insertion with position control) ═══
+function ImageFrame({ imageUrl, onImageChange, onPositionChange, imagePosition, style: frameStyle, slideId }) {
   var fileRef = useRef(null);
+  var pos = imagePosition || "center";
 
-  function handleClick() {
+  function handleClick(e) {
+    if (e.target.tagName === "BUTTON" || e.target.closest("button")) return;
     if (fileRef.current) fileRef.current.click();
   }
 
@@ -175,7 +177,19 @@ function ImageFrame({ imageUrl, onImageChange, style: frameStyle, slideId }) {
   }
 
   return <div onClick={handleClick} style={Object.assign({}, { borderRadius: 20 * SCALE, overflow: "hidden", cursor: "pointer", position: "relative", background: "rgba(255,255,255,0.04)", border: "1px dashed rgba(255,255,255,0.12)" }, frameStyle)}>
-    {imageUrl ? <img src={imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.opacity = "0.3"; }} /> : <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
+    {imageUrl ? <div style={{ width: "100%", height: "100%", position: "relative" }}>
+      <img src={imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: pos, display: "block" }} onError={function(e) { e.target.style.opacity = "0.3"; }} />
+      {/* Position controls */}
+      {onPositionChange && <div style={{ position: "absolute", bottom: 6, right: 6, display: "flex", gap: 3, background: "rgba(0,0,0,0.6)", borderRadius: 6, padding: 3 }} onClick={function(e) { e.stopPropagation(); }}>
+        <button onClick={function() { onPositionChange("top"); }} style={{ width: 22, height: 22, borderRadius: 4, background: pos === "top" ? C.amber : "rgba(255,255,255,0.1)", border: "none", color: pos === "top" ? C.bg : "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", fontWeight: 700, fontFamily: mn }}>T</button>
+        <button onClick={function() { onPositionChange("center"); }} style={{ width: 22, height: 22, borderRadius: 4, background: pos === "center" ? C.amber : "rgba(255,255,255,0.1)", border: "none", color: pos === "center" ? C.bg : "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", fontWeight: 700, fontFamily: mn }}>C</button>
+        <button onClick={function() { onPositionChange("bottom"); }} style={{ width: 22, height: 22, borderRadius: 4, background: pos === "bottom" ? C.amber : "rgba(255,255,255,0.1)", border: "none", color: pos === "bottom" ? C.bg : "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", fontWeight: 700, fontFamily: mn }}>B</button>
+      </div>}
+      {/* Remove button */}
+      <div style={{ position: "absolute", top: 6, right: 6 }} onClick={function(e) { e.stopPropagation(); }}>
+        <button onClick={function() { onImageChange(""); }} style={{ width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", color: "rgba(255,255,255,0.7)", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u00D7"}</button>
+      </div>
+    </div> : <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
       <div style={{ fontSize: 24, color: "rgba(255,255,255,0.15)" }}>+</div>
       <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.2)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Click to add image</div>
     </div>}
@@ -199,13 +213,15 @@ function SlideCanvas({ slide, theme, onUpdate }) {
   return <div style={{ width: DISPLAY_W, height: DISPLAY_H, position: "relative", borderRadius: 8, overflow: "hidden", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}>
 
     {/* ─── COVER SLIDE ─── */}
-    {slide.type === "cover" && <div style={{ position: "absolute", inset: 0, padding: (FULL_H * 0.06 * SCALE) + "px " + (60 * SCALE) + "px " + my + "px " + (60 * SCALE) + "px" }}>
-      {/* Image frame: top area, below SA logo */}
+    {slide.type === "cover" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + (60 * SCALE) + "px" }}>
+      {/* Image frame: top area, safely below SA logo (10% from top) */}
       <ImageFrame
         imageUrl={slide.imageUrl}
         onImageChange={function(url) { updateField("imageUrl", url); }}
+        onPositionChange={function(pos) { updateField("imagePosition", pos); }}
+        imagePosition={slide.imagePosition}
         slideId={slide.id}
-        style={{ width: "100%", height: "48%", marginBottom: 12, borderRadius: 20 * SCALE }}
+        style={{ width: "100%", height: "46%", marginBottom: 12, borderRadius: 20 * SCALE }}
       />
       {/* Title */}
       <div
@@ -224,20 +240,31 @@ function SlideCanvas({ slide, theme, onUpdate }) {
     </div>}
 
     {/* ─── BODY TEXT SLIDE (positions 2, 3, 4) ─── */}
-    {slide.type === "body" && <div style={{ position: "absolute", inset: 0, padding: (FULL_H * 0.06 * SCALE) + "px " + mx + "px " + (FULL_H * 0.08 * SCALE) + "px " + mx + "px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+    {slide.type === "body" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: "column", justifyContent: slide.imageUrl ? "flex-start" : "center" }}>
+      {/* Optional image on body slides */}
+      {slide.imageUrl && <ImageFrame
+        imageUrl={slide.imageUrl}
+        onImageChange={function(url) { updateField("imageUrl", url); }}
+        onPositionChange={function(pos) { updateField("imagePosition", pos); }}
+        imagePosition={slide.imagePosition}
+        slideId={slide.id}
+        style={{ width: "100%", height: "45%", marginBottom: 12, borderRadius: 20 * SCALE, flexShrink: 0 }}
+      />}
       <div
         contentEditable
         suppressContentEditableWarning
         onBlur={function(e) { updateField("bodyText", e.currentTarget.innerText); }}
-        style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.92)", lineHeight: 1.55, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+        style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.92)", lineHeight: 1.55, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", overflow: "hidden" }}
       >{slide.bodyText || "Body text"}</div>
     </div>}
 
     {/* ─── IMAGE + TEXT SLIDE (50/50) ─── */}
-    {slide.type === "image_text" && <div style={{ position: "absolute", inset: 0, padding: (FULL_H * 0.06 * SCALE) + "px " + mx + "px " + (FULL_H * 0.08 * SCALE) + "px " + mx + "px", display: "flex", flexDirection: "column" }}>
+    {slide.type === "image_text" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: "column" }}>
       <ImageFrame
         imageUrl={slide.imageUrl}
         onImageChange={function(url) { updateField("imageUrl", url); }}
+        onPositionChange={function(pos) { updateField("imagePosition", pos); }}
+        imagePosition={slide.imagePosition}
         slideId={slide.id}
         style={{ width: "100%", height: "50%", marginBottom: 12, borderRadius: 20 * SCALE }}
       />
@@ -250,10 +277,12 @@ function SlideCanvas({ slide, theme, onUpdate }) {
     </div>}
 
     {/* ─── LARGE IMAGE SLIDE (~72% image) ─── */}
-    {slide.type === "large_image" && <div style={{ position: "absolute", inset: 0, padding: (FULL_H * 0.06 * SCALE) + "px " + mx + "px " + (FULL_H * 0.08 * SCALE) + "px " + mx + "px", display: "flex", flexDirection: "column" }}>
+    {slide.type === "large_image" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: "column" }}>
       <ImageFrame
         imageUrl={slide.imageUrl}
         onImageChange={function(url) { updateField("imageUrl", url); }}
+        onPositionChange={function(pos) { updateField("imagePosition", pos); }}
+        imagePosition={slide.imagePosition}
         slideId={slide.id}
         style={{ width: "100%", height: "72%", marginBottom: 10, borderRadius: 20 * SCALE }}
       />
@@ -381,7 +410,18 @@ function InputStep({ state, setState, onNext }) {
     {(inputMode === "link" || (state.url || "").trim()) && <div style={{ marginBottom: 20 }}>
       <div style={{ fontFamily: mn, fontSize: 9, color: C.blue, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Article URL</div>
       <input value={state.url || ""} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { url: e.target.value }); }); }} placeholder="https://semianalysis.com/p/..." style={{ width: "100%", padding: "14px 18px", background: C.card, border: "1px solid " + C.blue + "30", borderRadius: 10, color: C.tx, fontFamily: ft, fontSize: 15, outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.blue; }} onBlur={function(e) { e.target.style.borderColor = C.blue + "30"; }} />
-      <div style={{ fontFamily: ft, fontSize: 11, color: C.txd, marginTop: 6 }}>The API will fetch the article content. Context below is optional when a link is provided.</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+        <button onClick={function() {
+          var u = (state.url || "").trim();
+          if (!u) return;
+          setState(function(s) { return Object.assign({}, s, { articleImages: null, fetchingImages: true }); });
+          fetch("/api/carousel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "fetchImages", url: u }) })
+            .then(function(r) { return r.json(); })
+            .then(function(d) { setState(function(s) { return Object.assign({}, s, { articleImages: d.images || [], fetchingImages: false }); }); })
+            .catch(function() { setState(function(s) { return Object.assign({}, s, { articleImages: [], fetchingImages: false }); }); });
+        }} disabled={!(state.url || "").trim() || state.fetchingImages} style={{ padding: "6px 14px", borderRadius: 6, background: C.amber + "15", border: "1px solid " + C.amber + "30", color: C.amber, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: state.fetchingImages ? "wait" : "pointer", opacity: state.fetchingImages ? 0.5 : 1 }}>{state.fetchingImages ? "Fetching..." : "Fetch Article Images"}</button>
+        <div style={{ fontFamily: ft, fontSize: 11, color: C.txd }}>Context below is optional when a link is provided.</div>
+      </div>
     </div>}
 
     {/* Context Input */}
@@ -646,11 +686,12 @@ function EditStep({ slides, setSlides, theme, onNext, onBack }) {
         </div>
 
         {/* Image controls */}
-        {(currentSlide.type === "cover" || currentSlide.type === "image_text" || currentSlide.type === "large_image") && <div style={{ marginBottom: 20 }}>
+        {<div style={{ marginBottom: 20 }}>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Image</div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <BRollPicker onSelect={function(url) { updateSlide(Object.assign({}, currentSlide, { imageUrl: url })); }} />
             {currentSlide.imageUrl && <button onClick={function() { updateSlide(Object.assign({}, currentSlide, { imageUrl: "" })); }} style={{ padding: "6px 12px", background: C.coral + "12", color: C.coral, border: "1px solid " + C.coral + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Remove</button>}
+            {!currentSlide.imageUrl && currentSlide.type === "body" && <div style={{ fontFamily: ft, fontSize: 10, color: C.txd }}>Add image to split this into image+text</div>}
           </div>
           {currentSlide.imageUrl && <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{currentSlide.imageUrl.slice(0, 60)}...</div>}
         </div>}

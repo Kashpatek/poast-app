@@ -12,7 +12,7 @@ const TEMPLATE_IDS: Record<string, string> = {
 const CAROUSEL_SYS = `You are a content strategist for SemiAnalysis, creating Instagram carousel content from research articles. You produce structured carousel slide objects following the SA Carousel Schema v1.0.
 
 Slide types:
-- COVER: title (5-8 words, bold claim, no end punctuation), subtitle (20-30 words, one sentence), image_url (if provided)
+- COVER: title (5-8 words, bold claim, no end punctuation), subtitle (exactly 2 sentences, under 45 words total, must fit below title on 1080x1350 slide at 34px), image_url (if provided)
 - BODY_A: body_text (60-80 words, dark background)
 - BODY_B: body_text (60-80 words, light background)
 - BODY_FINAL: body_text (60-80 words, ends with forward-looking statement, no arrow)
@@ -38,6 +38,35 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { action, text, url, category, mode, pageCount, imageUrls } = body;
+
+    if (action === "fetchImages") {
+      // Scrape images from an article URL
+      const { url: fetchUrl } = body;
+      if (!fetchUrl) return NextResponse.json({ images: [] });
+      try {
+        const pageRes = await fetch(fetchUrl, { headers: { "User-Agent": "Mozilla/5.0 (compatible; SemiAnalysis/1.0)" } });
+        const html = await pageRes.text();
+        // Extract img src attributes
+        const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+        const images: string[] = [];
+        let match;
+        while ((match = imgRegex.exec(html)) !== null) {
+          let src = match[1];
+          // Skip tiny/icon images, data URIs, SVGs
+          if (src.startsWith("data:") || src.endsWith(".svg") || src.includes("favicon") || src.includes("logo") || src.includes("icon") || src.includes("avatar") || src.includes("1x1")) continue;
+          // Make absolute URLs
+          if (src.startsWith("//")) src = "https:" + src;
+          else if (src.startsWith("/")) {
+            try { const u = new URL(fetchUrl); src = u.origin + src; } catch {}
+          }
+          if (src.startsWith("http") && images.indexOf(src) === -1) images.push(src);
+          if (images.length >= 12) break;
+        }
+        return NextResponse.json({ images, ts: Date.now() });
+      } catch {
+        return NextResponse.json({ images: [] });
+      }
+    }
 
     if (action === "generate") {
       const slideCount = mode === "manual" ? (pageCount || 4) : "4-6 (your choice based on content density)";
@@ -158,8 +187,8 @@ Return JSON: { "caption": "full caption text", "hashtags": ["tag1", "tag2", ...]
       const { text: rewriteText, direction } = body;
       if (!rewriteText) return NextResponse.json({ error: "No text provided" }, { status: 400 });
       const dirPrompt = direction === "shorten"
-        ? "Make this subtitle shorter and more concise. Keep it to 1-2 sentences max. Maintain the same meaning and SA institutional tone."
-        : "Expand this subtitle to be more detailed. Add 1-2 more sentences of context. Keep the SA institutional, confident, technical tone. No em dashes, no emojis.";
+        ? "Make this subtitle shorter. Maximum 1 sentence, under 15 words. Keep the SA institutional tone. No em dashes."
+        : "Rewrite this subtitle as exactly 2 sentences. Total must be under 45 words. The text needs to fit in a small area below a title on a 1080x1350 carousel slide at 34px font. Be concise but informative. SA institutional, confident, technical tone. No em dashes, no emojis.";
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
