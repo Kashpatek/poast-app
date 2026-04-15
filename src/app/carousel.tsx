@@ -807,7 +807,7 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
             </div>
             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
               <span style={{ fontFamily: mn, fontSize: 8, color: C.txd }}>Fit:</span>
-              <button onClick={function() { updateSlide(Object.assign({}, currentSlide, { imageFit: "cover", imagePosition: "center" })); }} style={{ padding: "2px 8px", borderRadius: 4, background: C.teal + "20", border: "1px solid " + C.teal + "40", color: C.teal, fontFamily: mn, fontSize: 8, cursor: "pointer", fontWeight: 700 }}>Auto</button>
+              <button onClick={function() { updateSlide(Object.assign({}, currentSlide, { imageFit: "contain", imagePosition: "center", imageHeight: currentSlide.type === "cover" ? 46 : currentSlide.type === "large_image" ? 72 : currentSlide.type === "image_text" ? 50 : 45 })); }} style={{ padding: "2px 8px", borderRadius: 4, background: C.teal + "20", border: "1px solid " + C.teal + "40", color: C.teal, fontFamily: mn, fontSize: 8, cursor: "pointer", fontWeight: 700 }}>Auto</button>
               {["cover", "contain", "fill"].map(function(fit) {
                 var active = (currentSlide.imageFit || "cover") === fit;
                 return <button key={fit} onClick={function() { updateSlide(Object.assign({}, currentSlide, { imageFit: fit })); }} style={{ padding: "2px 8px", borderRadius: 4, background: active ? C.amber + "20" : "transparent", border: "1px solid " + (active ? C.amber + "40" : C.border), color: active ? C.amber : C.txd, fontFamily: mn, fontSize: 8, cursor: "pointer", textTransform: "capitalize" }}>{fit}</button>;
