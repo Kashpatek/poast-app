@@ -101,6 +101,103 @@ function Step2({ data, setData, onNext, onBack }) {
   </div>;
 }
 
+// ═══ B-ROLL BROWSER OVERLAY ═══
+var BROLL_CATEGORIES = ["All", "AI", "Semiconductors", "Data Centers", "Networking", "Memory", "Cloud", "Energy", "Packaging", "Software", "Other"];
+
+function BRollBrowser({ open, onClose, onSelect, filterType }) {
+  var _assets = useState([]), assets = _assets[0], setAssets = _assets[1];
+  var _search = useState(""), search = _search[0], setSearch = _search[1];
+  var _cat = useState("All"), cat = _cat[0], setCat = _cat[1];
+  var _loading = useState(true), loading = _loading[0], setLoading = _loading[1];
+  var _hover = useState(null), hover = _hover[0], setHover = _hover[1];
+
+  useEffect(function() {
+    if (!open) return;
+    setLoading(true);
+    fetch("/api/db?table=projects").then(function(r) { return r.json(); }).then(function(res) {
+      if (res.data) {
+        var row = res.data.find(function(r) { return r.type === "broll-asset" && r.id === "broll-master"; });
+        if (row && row.data && row.data.assets) {
+          var a = row.data.assets;
+          if (filterType) a = a.filter(function(x) { return x.type === filterType; });
+          setAssets(a);
+        }
+      }
+      setLoading(false);
+    }).catch(function() { setLoading(false); });
+  }, [open]);
+
+  if (!open) return null;
+
+  var filtered = assets.filter(function(a) {
+    if (cat !== "All" && a.category !== cat) return false;
+    if (search) {
+      var q = search.toLowerCase();
+      var hay = ((a.filename || "") + " " + (a.description || "") + " " + (a.source || "") + " " + (a.category || "")).toLowerCase();
+      if (hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+
+  return <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
+    <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }} />
+    <div style={{ position: "relative", width: "90%", maxWidth: 800, maxHeight: "80vh", background: D.surface, border: "1px solid " + D.border, borderRadius: 16, overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 24px 80px rgba(0,0,0,0.6)" }} onClick={function(e) { e.stopPropagation(); }}>
+      {/* Header */}
+      <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid " + D.border, flexShrink: 0 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div>
+            <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: D.tx, letterSpacing: -0.5 }}>Browse B-Roll</div>
+            <div style={{ fontFamily: mn, fontSize: 10, color: D.txl, marginTop: 2 }}>{assets.length} asset{assets.length !== 1 ? "s" : ""} available{filterType ? " // " + filterType + " only" : ""}</div>
+          </div>
+          <div onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid " + D.border, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: D.txl, fontSize: 16, fontFamily: ft, transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = D.coral; e.currentTarget.style.color = D.coral; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.color = D.txl; }}>{"\u2715"}</div>
+        </div>
+        {/* Search + filter */}
+        <div style={{ display: "flex", gap: 8 }}>
+          <input value={search} onChange={function(e) { setSearch(e.target.value); }} placeholder="Search assets..." style={{ flex: 1, padding: "8px 14px", borderRadius: 8, border: "1px solid " + D.border, background: D.elevated || D.bg, color: D.tx, fontFamily: ft, fontSize: 12, outline: "none" }} />
+          <select value={cat} onChange={function(e) { setCat(e.target.value); }} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid " + D.border, background: D.elevated || D.bg, color: D.tx, fontFamily: ft, fontSize: 11, outline: "none", cursor: "pointer" }}>
+            {BROLL_CATEGORIES.map(function(c) { return <option key={c} value={c}>{c === "All" ? "All Categories" : c}</option>; })}
+          </select>
+        </div>
+      </div>
+      {/* Grid */}
+      <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
+        {loading && <div style={{ textAlign: "center", padding: 48, color: D.txl, fontFamily: ft, fontSize: 14 }}>Loading assets...</div>}
+        {!loading && filtered.length === 0 && <div style={{ textAlign: "center", padding: 48 }}>
+          <div style={{ fontSize: 32, marginBottom: 8, opacity: 0.15 }}>{"\uD83C\uDFA5"}</div>
+          <div style={{ fontFamily: ft, fontSize: 14, color: D.txl }}>{assets.length === 0 ? "No assets in B-Roll Library" : "No matching assets"}</div>
+          <div style={{ fontFamily: ft, fontSize: 12, color: D.txh || D.txl, marginTop: 4 }}>Upload assets via the B-Roll Library module.</div>
+        </div>}
+        {!loading && filtered.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
+          {filtered.map(function(a) {
+            var isHover = hover === a.id;
+            var isVideo = a.type === "video";
+            return <div key={a.id} onClick={function() { onSelect(a); onClose(); }} onMouseEnter={function() { setHover(a.id); }} onMouseLeave={function() { setHover(null); }} style={{ background: D.elevated || D.bg, border: "1px solid " + (isHover ? D.amber + "50" : D.border), borderRadius: 10, overflow: "hidden", cursor: "pointer", transition: "all 0.2s", boxShadow: isHover ? "0 4px 20px " + D.amber + "15" : "none", transform: isHover ? "translateY(-2px)" : "none" }}>
+              {/* Thumbnail */}
+              <div style={{ position: "relative", width: "100%", paddingTop: "56.25%", background: D.bg || "#000", overflow: "hidden" }}>
+                {isVideo ? (
+                  isHover ? <video src={a.url} autoPlay muted loop playsInline style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                  : <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {a.thumbnail ? <img src={a.thumbnail} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 24, opacity: 0.2 }}>{"\uD83C\uDFA5"}</span>}
+                    </div>
+                ) : (
+                  <img src={a.url} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                )}
+                <span style={{ position: "absolute", top: 4, left: 4, padding: "2px 6px", borderRadius: 4, background: isVideo ? (D.blue || "#0B86D1") + "CC" : (D.teal || "#2EAD8E") + "CC", color: "#fff", fontFamily: mn, fontSize: 8, fontWeight: 700, textTransform: "uppercase" }}>{a.type}</span>
+                {a.category && a.category !== "Other" && <span style={{ position: "absolute", top: 4, right: 4, padding: "2px 6px", borderRadius: 4, background: D.amber + "CC", color: D.bg, fontFamily: ft, fontSize: 8, fontWeight: 700 }}>{a.category}</span>}
+              </div>
+              {/* Info */}
+              <div style={{ padding: "8px 10px" }}>
+                <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 600, color: D.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.filename || "Untitled"}</div>
+                {a.description && <div style={{ fontFamily: ft, fontSize: 10, color: D.txl || D.txb, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.description}</div>}
+              </div>
+            </div>;
+          })}
+        </div>}
+      </div>
+    </div>
+  </div>;
+}
+
 // ═══ CHOP SENTENCES HELPER ═══
 function chopSentences(text) {
   if (!text) return [];
@@ -123,6 +220,9 @@ function ChoppedText({ text, chopped, color }) {
 function Step3({ data, setData, onNext, onBack }) {
   var _dur = useState(data.duration || 60), dur = _dur[0], setDur = _dur[1];
   var _chopped = useState(false), chopped = _chopped[0], setChopped = _chopped[1];
+  var _browseOpen = useState(false), browseOpen = _browseOpen[0], setBrowseOpen = _browseOpen[1];
+  var _browseIdx = useState(null), browseIdx = _browseIdx[0], setBrowseIdx = _browseIdx[1];
+  var _selectedBroll = useState({}), selectedBroll = _selectedBroll[0], setSelectedBroll = _selectedBroll[1];
   if (!data.scripts) return <div style={{ textAlign: "center", padding: 60, color: D.txl, fontFamily: ft, fontSize: 15 }}>Writing scripts...</div>;
   return <div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>

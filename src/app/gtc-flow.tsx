@@ -68,6 +68,7 @@ export default function GTCFlow(){
   var [dragId,setDragId]=useState(null);
   var [subV,setSubV]=useState("timeline");
   var [loaded,setLoaded]=useState(false);
+  var [showAdd,setShowAdd]=useState(false);
 
   // Load from localStorage helper
   function loadFromLS(){
@@ -129,8 +130,11 @@ export default function GTCFlow(){
   function markPub(id){setEps(function(p){var a=p.map(function(e){return Object.assign({},e)});var ep=a.find(function(e){return e.id===id});if(ep){ep.status="published";ep.slot=-1}var r=a.filter(function(e){return e.status!=="published"}).sort(function(x,y){return x.slot-y.slot});r.forEach(function(e,i){e.slot=i});return a})}
   function unPub(id){setEps(function(p){var a=p.map(function(e){return Object.assign({},e)});var ep=a.find(function(e){return e.id===id});if(ep){ep.status="scheduled";var maxSlot=a.filter(function(e){return e.status!=="published"}).reduce(function(m,e){return Math.max(m,e.slot)},-1);ep.slot=maxSlot+1}return a})}
   function doDrop(tid){if(!dragId||dragId===tid)return;setEps(function(p){var a=p.map(function(e){return Object.assign({},e)});var f=a.find(function(e){return e.id===dragId});var t=a.find(function(e){return e.id===tid});if(f&&t){var tmp=f.slot;f.slot=t.slot;t.slot=tmp}return a});setDragId(null)}
+  function addEp(ep){setEps(function(p){return p.concat([ep])});setShowAdd(false)}
+  function updateEp(updated){setEps(function(p){return p.map(function(e){return e.id===updated.id?updated:e})})}
+  function deleteEp(id){setEps(function(p){var a=p.filter(function(e){return e.id!==id});var s=a.filter(function(e){return e.status!=="published"}).sort(function(x,y){return x.slot-y.slot});s.forEach(function(e,i){e.slot=i});return a})}
 
-  if(view==="ep"&&sel)return <EpDet ep={sel} cad={cad} onBack={function(){setView("dash");setSel(null)}}/>;
+  if(view==="ep"&&sel)return <EpDet ep={sel} cad={cad} onBack={function(){setView("dash");setSel(null)}} onUpdate={function(u){updateEp(u);setSel(u)}}/>;
 
   return(<div style={{fontFamily:FONT,color:"#E8E4DD"}}><div style={{maxWidth:1140,margin:"0 auto",padding:"28px 32px 60px"}}>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24,flexWrap:"wrap",gap:10}}>
@@ -143,6 +147,7 @@ export default function GTCFlow(){
         <Btn on={subV==="calendar"} onClick={function(){setSubV("calendar")}}>Calendar</Btn>
         <Btn on={showSail} onClick={function(){setShowSail(!showSail)}} sx={{borderColor:BLU}}>SAIL</Btn>
         <Btn on={edit} onClick={function(){setEdit(!edit)}} sx={{marginLeft:4}}>{edit?"Done":"Edit"}</Btn>
+        {edit&&<Btn on={true} onClick={function(){setShowAdd(true)}} sx={{background:AMB+"18",borderColor:AMB,color:AMB}}>+ Add Episode</Btn>}
       </div>
     </div>
 
@@ -183,6 +188,7 @@ export default function GTCFlow(){
         <span style={{fontSize:10,color:"#4b5563"}}>{ep.host}</span>
         <span style={{fontSize:9,color:"#374151"}}>{fs(d)}</span>
         <button onClick={function(){markPub(ep.id)}} style={{background:GRN+"20",border:"2px solid "+GRN,borderRadius:6,color:GRN,cursor:"pointer",fontFamily:FONT,fontSize:11,padding:"5px 12px",fontWeight:700}}>Publish</button>
+        <button onClick={function(){if(confirm("Delete "+ep.guest+"?"))deleteEp(ep.id)}} style={{background:RED+"20",border:"1px solid "+RED,borderRadius:6,color:RED,cursor:"pointer",fontFamily:FONT,fontSize:11,padding:"5px 8px",fontWeight:700,lineHeight:1}}>X</button>
       </div>})}
     </div>}
 
@@ -229,6 +235,7 @@ export default function GTCFlow(){
       <div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:8}}>Rollout</div>
       <p style={{fontSize:12,color:"#9ca3af",lineHeight:1.8,margin:0}}>{cad.label} Wednesdays at 8AM PST. Clip #1 Thursday 10AM. Clip #2 following Tuesday 10AM. All clips go to X, YT Shorts, IG Reels, TikTok (stagger 4-6hr), Story. LinkedIn and Facebook get longer captions. Caithrin/Kai episodes are SAIL's.</p>
     </div>
+    {showAdd&&<AddEpisodeModal onAdd={addEp} onClose={function(){setShowAdd(false)}} maxSlot={sched.length>0?sched.reduce(function(m,e){return Math.max(m,e.slot)},-1):-1}/>}
   </div></div>);
 }
 
@@ -241,8 +248,78 @@ return <div key={mi} style={{padding:14,background:BG1,borderRadius:8,border:"1p
     {cells.map(function(day,ci){if(!day)return <div key={"e"+ci}/>;var epH=m.eps.find(function(e){return e.date.getDate()===day});var has=!!epH;return <div key={ci} onClick={function(){if(has)onSel(epH)}} style={{textAlign:"center",padding:"6px 3px",borderRadius:4,background:epH?BG0:"transparent",border:epH?"2px solid "+GRN:"1px solid transparent",color:epH?"#ffffff":"#9ca3af",cursor:has?"pointer":"default",fontWeight:epH?700:400,fontSize:11}}>{day}{epH&&<div style={{fontSize:8,color:GRN,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:700}}>{epH.guest.split(" ")[0]}</div>}</div>})}
   </div></div>})}</div>}
 
-function EpDet(p){var ep=p.ep,cad=p.cad,onBack=p.onBack;
+var ADD_TAGS=["Cloud/Infra","AI/ML","Hardware","GPU Optimization","Internal","AI Safety","Neocloud","AMD Ecosystem","Energy/Infra"];
+
+function AddEpisodeModal(p){
+  var onAdd=p.onAdd,onClose=p.onClose,maxSlot=p.maxSlot;
+  var [guest,setGuest]=useState("");
+  var [company,setCompany]=useState("");
+  var [title,setTitle]=useState("");
+  var [host,setHost]=useState(HOSTS[1]);
+  var [tier,setTier]=useState(2);
+  var [tag,setTag]=useState("AI/ML");
+  var [virtual_,setVirtual]=useState(false);
+  var [bio,setBio]=useState("");
+  var [companyDesc,setCompanyDesc]=useState("");
+  var [logo,setLogo]=useState("");
+  var [topics,setTopics]=useState("");
+
+  function submit(ev){
+    ev.preventDefault();
+    if(!guest.trim()||!company.trim())return;
+    onAdd({id:"sa-"+Date.now(),guest:guest.trim(),company:company.trim(),title:title.trim(),host:host,tier:Number(tier),tag:tag,slot:maxSlot+1,status:"scheduled",virtual:virtual_,received:false,scheduled:false,bio:bio.trim(),companyDesc:companyDesc.trim(),logo:logo.trim(),topics:topics.trim()});
+  }
+
+  var lbl={fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:4,fontFamily:MONO};
+  var inp={width:"100%",padding:"8px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:8,color:"#d1d5db",fontFamily:FONT,fontSize:12,outline:"none",boxSizing:"border-box"};
+  var sel_={width:"100%",padding:"8px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:8,color:AMB,fontFamily:FONT,fontSize:12,outline:"none",boxSizing:"border-box"};
+  var ta={width:"100%",minHeight:70,padding:"8px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:8,color:"#d1d5db",fontFamily:FONT,fontSize:12,resize:"vertical",outline:"none",boxSizing:"border-box"};
+
+  return <div style={{position:"fixed",inset:0,zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.7)",backdropFilter:"blur(4px)"}}>
+    <div style={{width:540,maxHeight:"85vh",overflow:"auto",background:"#0F0F18",borderRadius:12,border:"1px solid "+BDR,padding:28,fontFamily:FONT}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <div style={{fontSize:20,fontWeight:900,color:"#E8E4DD",letterSpacing:-0.5}}>Add Episode</div>
+        <button onClick={onClose} style={{background:"transparent",border:"1px solid "+BDR,borderRadius:6,color:"rgba(255,255,255,0.4)",cursor:"pointer",fontFamily:FONT,fontSize:16,padding:"4px 10px",lineHeight:1}}>X</button>
+      </div>
+      <form onSubmit={submit}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+          <div><div style={lbl}>Guest *</div><input value={guest} onChange={function(e){setGuest(e.target.value)}} required placeholder="Full name" style={inp}/></div>
+          <div><div style={lbl}>Company *</div><input value={company} onChange={function(e){setCompany(e.target.value)}} required placeholder="Company name" style={inp}/></div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+          <div><div style={lbl}>Title</div><input value={title} onChange={function(e){setTitle(e.target.value)}} placeholder="CEO, CTO, etc." style={inp}/></div>
+          <div><div style={lbl}>Host</div><select value={host} onChange={function(e){setHost(e.target.value)}} style={sel_}>{HOSTS.filter(function(h){return h!=="All"}).map(function(h){return <option key={h} value={h}>{h}</option>})}</select></div>
+          <div><div style={lbl}>Tier</div><select value={tier} onChange={function(e){setTier(e.target.value)}} style={sel_}><option value={1}>1 - Flagship</option><option value={2}>2 - Strong</option><option value={3}>3 - Standard</option></select></div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+          <div><div style={lbl}>Tag</div><select value={tag} onChange={function(e){setTag(e.target.value)}} style={sel_}>{ADD_TAGS.map(function(t){return <option key={t} value={t}>{t}</option>})}</select></div>
+          <div style={{display:"flex",alignItems:"flex-end",paddingBottom:2}}><label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}><input type="checkbox" checked={virtual_} onChange={function(e){setVirtual(e.target.checked)}}/><span style={{fontSize:12,color:virtual_?CYN:"rgba(255,255,255,0.4)",fontFamily:FONT,fontWeight:600}}>Virtual (Riverside)</span></label></div>
+        </div>
+        <div style={{marginBottom:12}}><div style={lbl}>Bio</div><textarea value={bio} onChange={function(e){setBio(e.target.value)}} placeholder="Guest bio..." style={ta}/></div>
+        <div style={{marginBottom:12}}><div style={lbl}>Company Description</div><textarea value={companyDesc} onChange={function(e){setCompanyDesc(e.target.value)}} placeholder="What the company does..." style={ta}/></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+          <div><div style={lbl}>Logo URL</div><input value={logo} onChange={function(e){setLogo(e.target.value)}} placeholder="https://logo.clearbit.com/..." style={inp}/></div>
+          <div><div style={lbl}>Topics (comma-separated)</div><input value={topics} onChange={function(e){setTopics(e.target.value)}} placeholder="AI inference, custom silicon" style={inp}/></div>
+        </div>
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <button type="button" onClick={onClose} style={{padding:"10px 20px",border:"1px solid "+BDR,borderRadius:8,background:"transparent",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontFamily:FONT,fontSize:13,fontWeight:600}}>Cancel</button>
+          <button type="submit" style={{padding:"10px 24px",border:"1px solid "+AMB,borderRadius:8,background:AMB+"18",color:AMB,cursor:"pointer",fontFamily:FONT,fontSize:13,fontWeight:700}}>Add Episode</button>
+        </div>
+      </form>
+    </div>
+  </div>;
+}
+
+function EpDet(p){var ep=p.ep,cad=p.cad,onBack=p.onBack,onUpdate=p.onUpdate;
   var [tab,setTab]=useState("kit");var [genK,setGenK]=useState(false);var [kitOut,setKitOut]=useState("");var [c1,setC1]=useState("");var [c2,setC2]=useState("");var [clipOut,setClipOut]=useState("");var [genC,setGenC]=useState(false);var [cp,setCp]=useState("");
+  var [editing,setEditing]=useState(false);
+  var [eBio,setEBio]=useState(ep.bio||"");
+  var [eTitle,setETitle]=useState(ep.title||"");
+  var [eHost,setEHost]=useState(ep.host||"");
+  var [eCompanyDesc,setECompanyDesc]=useState(ep.companyDesc||"");
+  var [eTopics,setETopics]=useState(ep.topics||"");
+  function saveEdit(){if(!onUpdate)return;onUpdate(Object.assign({},ep,{bio:eBio,title:eTitle,host:eHost,companyDesc:eCompanyDesc,topics:eTopics}));setEditing(false);}
+  function cancelEdit(){setEBio(ep.bio||"");setETitle(ep.title||"");setEHost(ep.host||"");setECompanyDesc(ep.companyDesc||"");setETopics(ep.topics||"");setEditing(false);}
   var d=ep.slot>=0?slotDate(ep.slot,cad.days):new Date(2026,3,2);var tc=TC[ep.tag]||"#6b7280";var thu=new Date(d.getTime()+864e5);var tue=new Date(d.getTime()+6*864e5);
   var ytD=ep.host+" sits down with "+ep.guest+", "+ep.title+" at "+ep.company+", to discuss "+(ep.topics||"[TOPICS]")+".\n\n"+ep.bio+"\n\nResearcher Conversations is a live interview series recorded "+(ep.virtual?"virtually via Riverside":"on-site at NVIDIA GTC 2026 in San Jose")+", produced by SemiAnalysis. Technical conversations with the researchers, founders, and engineers building the future of AI compute.";
   var bio2=ep.bio?ep.bio.split(".").slice(0,2).join(".")+".":"";
@@ -253,7 +330,12 @@ function EpDet(p){var ep=p.ep,cad=p.cad,onBack=p.onBack;
   async function gClip(){setGenC(true);var r=await callAPI(DYLAN_SYS,"2 clips. All casual.\nGuest: "+ep.guest+" ("+ep.company+")\n\nCLIP 1:\n"+(c1||"[no transcript]")+"\n\nCLIP 2:\n"+(c2||"[no transcript]")+"\n\nEach clip: X (no hashtags), YT Shorts (title<40 + #shorts), IG Reels (save CTA + 5-8 hashtags + San Jose), TikTok (lowercase + 4-6 hashtags + on-screen 0s/3s/6s), Story (1 line).\nClip1 Thu 10AM, Clip2 Tue 10AM. TikTok stagger 4-6hr.");setClipOut(r);setGenC(false)}
 
   return <div style={{fontFamily:FONT,color:"#E8E4DD"}}><div style={{maxWidth:960,margin:"0 auto",padding:"28px 32px 60px"}}>
-    <button onClick={onBack} style={{background:"rgba(255,255,255,0.02)",border:"1px solid "+BDR,color:"rgba(255,255,255,0.4)",padding:"10px 20px",borderRadius:8,cursor:"pointer",fontFamily:FONT,fontSize:13,fontWeight:600,marginBottom:24,transition:"all 0.15s"}}>Back</button>
+    <div style={{display:"flex",gap:8,marginBottom:24}}>
+      <button onClick={onBack} style={{background:"rgba(255,255,255,0.02)",border:"1px solid "+BDR,color:"rgba(255,255,255,0.4)",padding:"10px 20px",borderRadius:8,cursor:"pointer",fontFamily:FONT,fontSize:13,fontWeight:600,transition:"all 0.15s"}}>Back</button>
+      {onUpdate&&!editing&&<button onClick={function(){setEditing(true)}} style={{background:AMB+"12",border:"1px solid "+AMB+"50",color:AMB,padding:"10px 20px",borderRadius:8,cursor:"pointer",fontFamily:FONT,fontSize:13,fontWeight:700,transition:"all 0.15s"}}>Edit</button>}
+      {editing&&<button onClick={saveEdit} style={{background:GRN+"18",border:"1px solid "+GRN,color:GRN,padding:"10px 20px",borderRadius:8,cursor:"pointer",fontFamily:FONT,fontSize:13,fontWeight:700,transition:"all 0.15s"}}>Save</button>}
+      {editing&&<button onClick={cancelEdit} style={{background:"rgba(255,255,255,0.02)",border:"1px solid "+BDR,color:"rgba(255,255,255,0.4)",padding:"10px 20px",borderRadius:8,cursor:"pointer",fontFamily:FONT,fontSize:13,fontWeight:600,transition:"all 0.15s"}}>Cancel</button>}
+    </div>
     <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:6,flexWrap:"wrap"}}>
       <Badge bg={AMB} c="#0D0F14">SA</Badge>
       <span style={{fontSize:10,padding:"3px 8px",borderRadius:4,border:"1px solid "+tc+"50",color:tc}}>{ep.tag}</span>
@@ -262,11 +344,15 @@ function EpDet(p){var ep=p.ep,cad=p.cad,onBack=p.onBack;
       {ep.status==="published"&&<Badge bg={GRN+"20"} c={GRN}>PUBLISHED</Badge>}
     </div>
     <h1 style={{fontSize:28,fontWeight:900,color:"#f3f4f6",letterSpacing:-1,margin:"6px 0 2px"}}>{ep.guest}</h1>
-    <p style={{fontSize:14,color:"#6b7280",margin:"0 0 4px"}}>{ep.title} at {ep.company}</p>
-    <p style={{fontSize:12,color:AMB,margin:"0 0 20px",fontWeight:600}}>{fm(d)} 8:00 AM PST{ep.virtual?" // Riverside":""}</p>
+    {editing?<div style={{display:"flex",gap:8,alignItems:"center",marginBottom:4}}>
+      <input value={eTitle} onChange={function(e){setETitle(e.target.value)}} placeholder="Title" style={{padding:"6px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:6,color:"#d1d5db",fontFamily:FONT,fontSize:13,width:160,outline:"none"}}/>
+      <span style={{fontSize:14,color:"#6b7280"}}>at {ep.company}</span>
+    </div>:<p style={{fontSize:14,color:"#6b7280",margin:"0 0 4px"}}>{ep.title} at {ep.company}</p>}
+    {editing?<div style={{marginBottom:20}}><div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:4,fontFamily:MONO}}>Host</div><select value={eHost} onChange={function(e){setEHost(e.target.value)}} style={{padding:"6px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:8,color:AMB,fontFamily:FONT,fontSize:12}}>{HOSTS.filter(function(h){return h!=="All"}).map(function(h){return <option key={h} value={h}>{h}</option>})}</select></div>:<p style={{fontSize:12,color:AMB,margin:"0 0 20px",fontWeight:600}}>{fm(d)} 8:00 AM PST{ep.virtual?" // Riverside":""}</p>}
 
-    {ep.logo&&<div style={{display:"flex",gap:14,marginBottom:16}}><div style={{width:52,height:52,borderRadius:8,border:"1px solid "+BDR,background:BG1,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><img src={ep.logo} alt="" style={{width:36,height:36,objectFit:"contain"}} onError={function(e){e.target.style.display="none"}}/></div><div><div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:4}}>Company</div><p style={{fontSize:12,color:"#9ca3af",margin:0,lineHeight:1.6}}>{ep.companyDesc}</p></div></div>}
-    <div style={{marginBottom:16}}><div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:6}}>Bio</div><p style={{fontSize:12,color:"#d1d5db",margin:0,lineHeight:1.7,padding:14,background:BG1,borderRadius:8,border:"1px solid "+BDR}}>{ep.bio}</p></div>
+    {ep.logo&&<div style={{display:"flex",gap:14,marginBottom:16}}><div style={{width:52,height:52,borderRadius:8,border:"1px solid "+BDR,background:BG1,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><img src={ep.logo} alt="" style={{width:36,height:36,objectFit:"contain"}} onError={function(e){e.target.style.display="none"}}/></div><div style={{flex:1}}><div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:4}}>Company</div>{editing?<textarea value={eCompanyDesc} onChange={function(e){setECompanyDesc(e.target.value)}} style={{width:"100%",minHeight:50,padding:"8px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:6,color:"#d1d5db",fontFamily:FONT,fontSize:12,resize:"vertical",outline:"none",boxSizing:"border-box"}}/>:<p style={{fontSize:12,color:"#9ca3af",margin:0,lineHeight:1.6}}>{ep.companyDesc}</p>}</div></div>}
+    <div style={{marginBottom:16}}><div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:6}}>Bio</div>{editing?<textarea value={eBio} onChange={function(e){setEBio(e.target.value)}} style={{width:"100%",minHeight:80,padding:14,background:BG1,border:"1px solid "+BDR,borderRadius:8,color:"#d1d5db",fontFamily:FONT,fontSize:12,resize:"vertical",outline:"none",boxSizing:"border-box",lineHeight:1.7}}/>:<p style={{fontSize:12,color:"#d1d5db",margin:0,lineHeight:1.7,padding:14,background:BG1,borderRadius:8,border:"1px solid "+BDR}}>{ep.bio}</p>}</div>
+    {editing&&<div style={{marginBottom:16}}><div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:6}}>Topics</div><input value={eTopics} onChange={function(e){setETopics(e.target.value)}} placeholder="Comma-separated topics" style={{width:"100%",padding:"8px 14px",background:BG1,border:"1px solid "+BDR,borderRadius:8,color:"#d1d5db",fontFamily:FONT,fontSize:12,outline:"none",boxSizing:"border-box"}}/></div>}
 
     {ep.slot>=0&&<div style={{padding:14,background:BG1,borderRadius:8,border:"1px solid "+BDR,marginBottom:16}}>
       <div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:8}}>Content Rollout</div>

@@ -52,6 +52,84 @@ function StepBar({ step, setStep, maxStep }) {
   </div>;
 }
 
+// ═══ B-ROLL PICKER (inline popover for browsing B-Roll library images) ═══
+function BRollPicker({ onSelect }) {
+  var _open = useState(false), open = _open[0], setOpen = _open[1];
+  var _assets = useState([]), assets = _assets[0], setAssets = _assets[1];
+  var _loadState = useState("idle"), loadState = _loadState[0], setLoadState = _loadState[1];
+  var _search = useState(""), search = _search[0], setSearch = _search[1];
+  var _catFilter = useState("all"), catFilter = _catFilter[0], setCatFilter = _catFilter[1];
+
+  function loadAssets() {
+    if (loadState === "loaded" || loadState === "loading") return;
+    setLoadState("loading");
+    fetch("/api/db?table=projects").then(function(r) { return r.json(); }).then(function(res) {
+      if (res.data && res.data.length > 0) {
+        var row = res.data.find(function(r) { return r.type === "broll-asset" && r.id === "broll-master"; });
+        if (row && row.data && row.data.assets) {
+          setAssets(row.data.assets.filter(function(a) { return a.type === "image"; }));
+        }
+      }
+      setLoadState("loaded");
+    }).catch(function() { setLoadState("loaded"); });
+  }
+
+  function handleOpen() {
+    setOpen(!open);
+    if (!open) loadAssets();
+  }
+
+  function handlePick(asset) {
+    onSelect(asset.url);
+    setOpen(false);
+  }
+
+  var categories = [];
+  assets.forEach(function(a) {
+    if (a.category && categories.indexOf(a.category) === -1) categories.push(a.category);
+  });
+
+  var filtered = assets.filter(function(a) {
+    if (catFilter !== "all" && a.category !== catFilter) return false;
+    if (search) {
+      var q = search.toLowerCase();
+      return (a.filename || "").toLowerCase().indexOf(q) !== -1 ||
+        (a.description || "").toLowerCase().indexOf(q) !== -1 ||
+        (a.category || "").toLowerCase().indexOf(q) !== -1;
+    }
+    return true;
+  });
+
+  return <div style={{ position: "relative", display: "inline-block" }}>
+    <button onClick={handleOpen} style={{ padding: "6px 12px", background: C.blue + "12", color: C.blue, border: "1px solid " + C.blue + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.blue + "60"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.blue + "30"; }}>Browse B-Roll</button>
+    {open && <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 6, width: 320, maxHeight: 360, background: C.card, border: "1px solid " + C.border, borderRadius: 12, boxShadow: "0 12px 40px rgba(0,0,0,0.6)", zIndex: 100, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {/* Header */}
+      <div style={{ padding: "10px 12px 8px", borderBottom: "1px solid " + C.border }}>
+        <div style={{ fontFamily: mn, fontSize: 9, color: C.blue, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 6 }}>B-Roll Library</div>
+        <input value={search} onChange={function(e) { setSearch(e.target.value); }} placeholder="Search..." style={{ width: "100%", padding: "6px 10px", background: C.surface, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: ft, fontSize: 11, outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.blue; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+        {categories.length > 0 && <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
+          <span onClick={function() { setCatFilter("all"); }} style={{ fontFamily: mn, fontSize: 9, padding: "2px 7px", borderRadius: 4, cursor: "pointer", background: catFilter === "all" ? C.blue + "20" : "transparent", color: catFilter === "all" ? C.blue : C.txd, border: "1px solid " + (catFilter === "all" ? C.blue + "40" : "transparent") }}>All</span>
+          {categories.map(function(cat) {
+            return <span key={cat} onClick={function() { setCatFilter(cat); }} style={{ fontFamily: mn, fontSize: 9, padding: "2px 7px", borderRadius: 4, cursor: "pointer", background: catFilter === cat ? C.blue + "20" : "transparent", color: catFilter === cat ? C.blue : C.txd, border: "1px solid " + (catFilter === cat ? C.blue + "40" : "transparent") }}>{cat}</span>;
+          })}
+        </div>}
+      </div>
+      {/* Grid */}
+      <div style={{ flex: 1, overflowY: "auto", padding: 8 }}>
+        {loadState === "loading" && <div style={{ textAlign: "center", padding: 20, fontFamily: ft, fontSize: 11, color: C.txm }}>Loading...</div>}
+        {loadState === "loaded" && filtered.length === 0 && <div style={{ textAlign: "center", padding: 20, fontFamily: ft, fontSize: 11, color: C.txd }}>No images found</div>}
+        {filtered.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+          {filtered.map(function(asset) {
+            return <div key={asset.id} onClick={function() { handlePick(asset); }} title={asset.filename || asset.description || ""} style={{ width: "100%", aspectRatio: "1", borderRadius: 6, overflow: "hidden", cursor: "pointer", border: "1px solid " + C.border, background: C.surface, transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.blue; e.currentTarget.style.transform = "scale(1.05)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "scale(1)"; }}>
+              <img src={asset.thumbnail || asset.url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+            </div>;
+          })}
+        </div>}
+      </div>
+    </div>}
+  </div>;
+}
+
 // ═══ SLIDE PREVIEW (mimics 1080x1350 at small scale) ═══
 function SlidePreview({ slide, index, small }) {
   var meta = SLIDE_META[slide.type] || SLIDE_META.BODY_A;
@@ -154,7 +232,10 @@ function InputStep({ state, setState, onNext }) {
     </div>}
 
     {/* Image URLs + Upload */}
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 8 }}>Images: URL or Upload</div>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+      <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px" }}>Images: URL or Upload</div>
+      <BRollPicker onSelect={function(url) { setState(function(s) { var existing = s.imageUrls || ""; var sep = existing && !existing.endsWith("\n") ? "\n" : ""; return Object.assign({}, s, { imageUrls: existing + sep + url }); }); }} />
+    </div>
     <textarea value={state.imageUrls || ""} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { imageUrls: e.target.value }); }); }} placeholder="https://cdn.semianalysis.com/images/example.png" rows={3} style={{ width: "100%", padding: "10px 14px", background: C.card, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: mn, fontSize: 12, lineHeight: 1.6, resize: "none", outline: "none", boxSizing: "border-box", marginBottom: 10 }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
     <div onDragOver={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = C.amber; e.currentTarget.style.background = C.amber + "08"; }} onDragLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.card; }} onDrop={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.card; var files = Array.prototype.slice.call(e.dataTransfer.files); files.forEach(function(file) { if (!file.type.match(/^image\/(png|jpeg|jpg)$/)) return; var reader = new FileReader(); reader.onload = function(ev) { setState(function(s) { var existing = s.imageUrls || ""; var sep = existing && !existing.endsWith("\n") ? "\n" : ""; return Object.assign({}, s, { imageUrls: existing + sep + ev.target.result }); }); }; reader.readAsDataURL(file); }); }} style={{ padding: "16px", background: C.card, border: "2px dashed " + C.border, borderRadius: 8, textAlign: "center", cursor: "pointer", marginBottom: 10, transition: "all 0.2s" }} onClick={function() { document.getElementById("sa-img-upload").click(); }}>
       <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, marginBottom: 4 }}>Drag & drop PNG/JPG here or click to browse</div>

@@ -1,6 +1,7 @@
 // @ts-nocheck
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { TEAM } from "./shared-constants";
 
 // ═══ DESIGN ═══
 var D = {
@@ -18,7 +19,7 @@ var DEV_STATUS_C = { Contacted: D.blue, Confirmed: D.amber, Scheduled: D.teal };
 var TIERS = ["S", "A", "B", "C"];
 var TIER_C = { S: D.amber, A: D.blue, B: D.teal, C: D.txm };
 var CATEGORIES = ["Semiconductors", "AI Infra", "Data Center", "Memory", "Geopolitics", "Compute", "Other"];
-var HOST = "Doug O'Laughlin";
+var HOST = TEAM.find(function(t) { return t.id === "do"; }).name;
 
 // ═══ DEFAULT DATA ═══
 var DEFAULT_PROSPECTS = [
@@ -188,6 +189,24 @@ function ProspectsTab({ prospects, setProspects, setTab }) {
     setTab(1);
   }
 
+  function addToOutreach(prospect) {
+    var entry = {
+      show_name: prospect.company + " / " + prospect.name,
+      host: prospect.name,
+      audience_size: "",
+      topic_focus: prospect.topics,
+      tier: prospect.tier,
+      assigned_to: null,
+      status: "identified",
+      contact: "",
+      notes: "Added from FK prospects",
+      created_at: new Date().toISOString(),
+    };
+    fetch("/api/db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ table: "outreach", data: entry }) })
+      .then(function() { toast("Added " + prospect.name + " to Outreach pipeline"); })
+      .catch(function() { toast("Failed to add to Outreach", "error"); });
+  }
+
   function generateBio(id) {
     var p = prospects.find(function(x) { return x.id === id; });
     if (!p) return;
@@ -265,7 +284,10 @@ function ProspectsTab({ prospects, setProspects, setTab }) {
                 {p.company ? " As " + p.role + " at " + p.company + ", they have a front-row seat to industry dynamics." : ""}
               </div>
             </div>
-            <Btn primary onClick={function() { developProspect(p.id); }}>Develop</Btn>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Btn primary onClick={function() { developProspect(p.id); }}>Develop</Btn>
+              <Btn small onClick={function(ev) { ev.stopPropagation(); addToOutreach(p); }} sx={{ borderColor: D.blue, color: D.blue }}>Add to Outreach</Btn>
+            </div>
           </div>}
         </Card>;
       })}

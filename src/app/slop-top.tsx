@@ -24,39 +24,39 @@ var ROTATING_PHRASES = [
   "main character energy",
 ];
 
-var ROTATING_EMOJIS = ["\uD83D\uDC80", "\uD83D\uDD25", "\uD83D\uDCAF", "\uD83D\uDDFF", "\u26A1", "\uD83E\uDDE0", "\uD83D\uDE24", "\uD83E\uDEE0"];
+var ROTATING_EMOJIS = ["💀", "🔥", "💯", "🗿", "⚡", "🧠", "😤", "🫠"];
 
 var BRAINROT_PRESETS = [
-  { label: "\uD83D\uDC80 skibidi sigma", text: "skibidi toilet sigma male grindset energy, maximum aura" },
-  { label: "\uD83D\uDCAF no cap fr fr", text: "deadass no cap, this is real, certified hood classic moment" },
-  { label: "\u2728 it's giving...", text: "it's giving main character energy, the vibes are immaculate" },
-  { label: "\uD83C\uDF1F understood the assignment", text: "absolutely understood the assignment, ate and left no crumbs" },
-  { label: "\uD83C\uDFE0 rent free", text: "living rent free in everyone's head, obsession era" },
-  { label: "\uD83D\uDD25 certified banger", text: "this goes hard, feel free to screenshot, absolute cinema" },
-  { label: "\uD83C\uDF3D Ohio moment", text: "only in Ohio, cursed timeline energy, what is this" },
-  { label: "\uD83D\uDCC9 ratio + L", text: "ratio + L + didn't ask + touch grass + cope + seethe" },
-  { label: "\uD83D\uDE0B lowkey bussin", text: "lowkey bussin no cap, the flavor profile is insane" },
-  { label: "\uD83D\uDCAB delulu is the solulu", text: "manifesting, delusional but make it fashion" },
-  { label: "\uD83D\uDC85 slay era", text: "serving looks, slay era, mother is mothering" },
-  { label: "\uD83D\uDE33 GYATT", text: "maximum gyatt energy, absolutely unhinged" },
-  { label: "\uD83E\uDD16 NPC behavior", text: "NPC energy, running on a script, glitched out" },
-  { label: "\uD83D\uDCA6 hawk tuah", text: "hawk tuah energy, spit on that thang" },
-  { label: "\uD83E\uDEE1 mewing", text: "mewing arc, looksmaxxing, jawline check" },
+  { label: "💀 skibidi sigma", text: "skibidi toilet sigma male grindset energy, maximum aura" },
+  { label: "💯 no cap fr fr", text: "deadass no cap, this is real, certified hood classic moment" },
+  { label: "✨ it's giving...", text: "it's giving main character energy, the vibes are immaculate" },
+  { label: "🌟 understood the assignment", text: "absolutely understood the assignment, ate and left no crumbs" },
+  { label: "🏠 rent free", text: "living rent free in everyone's head, obsession era" },
+  { label: "🔥 certified banger", text: "this goes hard, feel free to screenshot, absolute cinema" },
+  { label: "🌽 Ohio moment", text: "only in Ohio, cursed timeline energy, what is this" },
+  { label: "📉 ratio + L", text: "ratio + L + didn't ask + touch grass + cope + seethe" },
+  { label: "😋 lowkey bussin", text: "lowkey bussin no cap, the flavor profile is insane" },
+  { label: "💫 delulu is the solulu", text: "manifesting, delusional but make it fashion" },
+  { label: "💅 slay era", text: "serving looks, slay era, mother is mothering" },
+  { label: "😳 GYATT", text: "maximum gyatt energy, absolutely unhinged" },
+  { label: "🤖 NPC behavior", text: "NPC energy, running on a script, glitched out" },
+  { label: "💦 hawk tuah", text: "hawk tuah energy, spit on that thang" },
+  { label: "🫡 mewing", text: "mewing arc, looksmaxxing, jawline check" },
 ];
 
 var ITALIAN_BRAINROT_PRESETS = [
-  { label: "\uD83D\uDC0A Bombardino Coccodrillo", text: "bombardino crocodile, cursed 3D Italian brainrot creature, Spore energy" },
-  { label: "\uD83D\uDD7A Tralalero Tralala", text: "tralalero tralala, Italian shitpost creature, dancing cursed 3D animal" },
-  { label: "\uD83E\uDD41 Tung Tung Sahur", text: "tung tung sahur, drumming brainrot creature, chaotic 3D energy" },
-  { label: "\u2744\uFE0F Brr Brr Patapim", text: "brr brr patapim, freezing Italian meme creature, cursed vibes" },
-  { label: "\uD83C\uDFA4 Lirili Larila", text: "lirili larila, singing cursed creature, Italian internet fever dream" },
-  { label: "\u2615 Cappuccino Assassino", text: "cappuccino assassino, coffee-themed Italian brainrot, espresso violence" },
-  { label: "\uD83C\uDF5D Spaghettino Serpentino", text: "spaghetti snake, cursed Italian pasta creature, noodle arms" },
-  { label: "\uD83D\uDC4B Bonjourno Cocaino", text: "bonjourno italian brainrot greeting, chaotic 3D character energy" },
-  { label: "\uD83D\uDC04 La Vacca Saturno", text: "la vacca saturno, saturn cow, Italian space creature brainrot" },
-  { label: "\uD83E\uDEBF Bombombini Gusini", text: "bombombini gusini, explosive goose, Italian chaos creature" },
-  { label: "\uD83D\uDC12 Chimpanzini Bananini", text: "chimpanzini bananini, monkey banana Italian brainrot, primate chaos" },
-  { label: "\uD83D\uDC7E Glorbo", text: "glorbo, the legendary cursed creature, peak brainrot form" },
+  { label: "🐊 Bombardino Coccodrillo", text: "bombardino crocodile, cursed 3D Italian brainrot creature, Spore energy" },
+  { label: "🕺 Tralalero Tralala", text: "tralalero tralala, Italian shitpost creature, dancing cursed 3D animal" },
+  { label: "🥁 Tung Tung Sahur", text: "tung tung sahur, drumming brainrot creature, chaotic 3D energy" },
+  { label: "❄️ Brr Brr Patapim", text: "brr brr patapim, freezing Italian meme creature, cursed vibes" },
+  { label: "🎤 Lirili Larila", text: "lirili larila, singing cursed creature, Italian internet fever dream" },
+  { label: "☕ Cappuccino Assassino", text: "cappuccino assassino, coffee-themed Italian brainrot, espresso violence" },
+  { label: "🍝 Spaghettino Serpentino", text: "spaghetti snake, cursed Italian pasta creature, noodle arms" },
+  { label: "👋 Bonjourno Cocaino", text: "bonjourno italian brainrot greeting, chaotic 3D character energy" },
+  { label: "🐄 La Vacca Saturno", text: "la vacca saturno, saturn cow, Italian space creature brainrot" },
+  { label: "🫿 Bombombini Gusini", text: "bombombini gusini, explosive goose, Italian chaos creature" },
+  { label: "🐒 Chimpanzini Bananini", text: "chimpanzini bananini, monkey banana Italian brainrot, primate chaos" },
+  { label: "👾 Glorbo", text: "glorbo, the legendary cursed creature, peak brainrot form" },
 ];
 
 var BRAINROT_LEVEL_LABELS = {
@@ -78,13 +78,13 @@ var BRAINROT_LEVEL_PROMPTS = {
 };
 
 var SUCCESS_MESSAGES = [
-  "BOMBARDINO ACQUIRED \uD83D\uDC0A",
+  "BOMBARDINO ACQUIRED 🐊",
   "the creature has been born",
   "what have we created",
   "this is peak content",
   "certified Italian moment",
-  "\uD83D\uDD25 this goes HARD \uD83D\uDCAF",
-  "\uD83D\uDC80 slop acquired",
+  "🔥 this goes HARD 💯",
+  "💀 slop acquired",
 ];
 
 var LOADING_PHRASES = [
@@ -489,12 +489,12 @@ export default function SlopTop() {
   var _memeImgLoading = useState(false), memeImgLoading = _memeImgLoading[0], setMemeImgLoading = _memeImgLoading[1];
 
   var MEME_STYLES = [
-    { id: "meme", l: "Classic Meme \uD83D\uDC80", prompt: "internet meme format, bold impact font, funny" },
-    { id: "infographic", l: "Infographic \uD83D\uDCCA", prompt: "clean infographic, data visualization, professional" },
-    { id: "reaction", l: "Reaction \uD83D\uDE31", prompt: "reaction image, expressive, social media ready" },
-    { id: "screenshot", l: "Fake Screenshot \uD83D\uDCF1", prompt: "fake tweet or post screenshot, realistic UI mockup" },
-    { id: "chart", l: "Chart Meme \uD83D\uDCC8", prompt: "funny chart or graph, data humor, tech satire" },
-    { id: "sa-branded", l: "SA Branded \u26A1", prompt: "SemiAnalysis branded, dark theme, amber accents, professional tech" },
+    { id: "meme", l: "Classic Meme 💀", prompt: "internet meme format, bold impact font, funny" },
+    { id: "infographic", l: "Infographic 📊", prompt: "clean infographic, data visualization, professional" },
+    { id: "reaction", l: "Reaction 😱", prompt: "reaction image, expressive, social media ready" },
+    { id: "screenshot", l: "Fake Screenshot 📱", prompt: "fake tweet or post screenshot, realistic UI mockup" },
+    { id: "chart", l: "Chart Meme 📈", prompt: "funny chart or graph, data humor, tech satire" },
+    { id: "sa-branded", l: "SA Branded ⚡", prompt: "SemiAnalysis branded, dark theme, amber accents, professional tech" },
   ];
 
   var handleMemeGenerate = function() {
@@ -617,35 +617,35 @@ export default function SlopTop() {
   var _factoryProgress = useState(0), factoryProgress = _factoryProgress[0], setFactoryProgress = _factoryProgress[1];
 
   var FACTORY_FORMATS = [
-    { id: "lego", label: "Lego World", emoji: "\uD83E\uDDF1", color: "#FFD700", cost: 1,
+    { id: "lego", label: "Lego World", emoji: "🧱", color: "#FFD700", cost: 1,
       placeholder: "A CEO giving a keynote speech...",
       imageSystem: "You are a creative prompt engineer for Grok image generation. The user wants their subject placed in a Lego universe. Write a detailed Grok image prompt (100 words) that transforms the subject into Lego minifigure form in a fully Lego-built environment. Include Lego brick textures, stud details on surfaces, bright primary colors, dramatic Lego lighting. Make it look like an official Lego set box art photo. Include specific Lego details: brick walls, baseplate ground, minifigure proportions with claw hands and C-shaped grip. The scene should be cinematic and high quality.",
       videoSystem: "You are a creative prompt engineer for video generation. The user has an approved Lego-style image. Write a video animation prompt that brings this Lego scene to life with stop-motion style movement, slight wobble of minifigures, bricks clicking into place, smooth camera pan across the Lego diorama. Keep the charming stop-motion aesthetic throughout." },
-    { id: "minecraft", label: "Minecraft Day", emoji: "\u26CF\uFE0F", color: "#5B8731", cost: 1,
+    { id: "minecraft", label: "Minecraft Day", emoji: "⛏️", color: "#5B8731", cost: 1,
       placeholder: "A scientist discovering a new element...",
       imageSystem: "You are a creative prompt engineer for Grok image generation. The user wants their subject in a Minecraft block world. Write a detailed Grok image prompt (100 words) that transforms everything into Minecraft voxel art style. Blocky terrain, pixelated textures, 16x16 texture resolution feel, cubic trees and clouds, torch lighting with warm glow, inventory bar at bottom. The subject should be rendered as a Minecraft skin/character in a recognizable biome. Include details like block types, ore veins, crafting elements, and dramatic Minecraft sunset/sunrise lighting.",
       videoSystem: "You are a creative prompt engineer for video generation. The user has an approved Minecraft-style image. Write a video prompt that animates this scene with Minecraft-style movement: blocky walking animations, block-breaking particles, day/night cycle transition, smooth camera rotation around the scene. Include ambient Minecraft sounds description." },
-    { id: "subway", label: "Subway Surfers Split", emoji: "\uD83D\uDD79\uFE0F", color: "#FF4500", cost: 1,
+    { id: "subway", label: "Subway Surfers Split", emoji: "🕹️", color: "#FF4500", cost: 1,
       placeholder: "An explanation of quantum computing...",
       imageSystem: "You are a creative prompt engineer for Grok image generation. The user wants a vertical split-screen image: meaningful content on top, Subway Surfers gameplay on the bottom third. Write a detailed Grok image prompt (100 words) for the TOP portion showing the subject in crisp, attention-grabbing style with bold text overlays and bright colors. The bottom third should show a stylized Subway Surfers-inspired endless runner scene with colorful trains, coins, and a running character. The split should look like a TikTok screen recording with the gameplay keeping viewers watching.",
       videoSystem: "You are a creative prompt engineer for video generation. Write a video prompt for a vertical split-screen: the top shows the main content with text animations and transitions, while the bottom third has endless runner gameplay with a character dodging trains and collecting coins. Fast-paced, ADHD-optimized visual flow." },
-    { id: "npc", label: "NPC Skit", emoji: "\uD83E\uDD16", color: "#00BFFF", cost: 1,
+    { id: "npc", label: "NPC Skit", emoji: "🤖", color: "#00BFFF", cost: 1,
       placeholder: "A tech CEO announcing layoffs...",
       imageSystem: "You are a creative prompt engineer for Grok image generation. The user wants their subject as an RPG NPC with game UI overlay. Write a detailed Grok image prompt (100 words) showing the subject as a video game NPC with a dialogue box at the bottom, health bar, quest marker floating above their head, inventory slots visible. Style it like a mix of Skyrim and retro JRPG aesthetics. Include XP counter, minimap in corner, quest log notification. The character should have slightly robotic NPC energy with that classic thousand-yard NPC stare. Add pixel art UI elements and a glowing interaction prompt.",
       videoSystem: "You are a creative prompt engineer for video generation. Write a video prompt showing this NPC scene coming to life: the character does a subtle idle animation loop, dialogue text types out letter by letter, UI elements pulse and animate, quest marker bobs up and down. Camera slowly zooms in as if the player is approaching the NPC." },
-    { id: "sigma", label: "Sigma Grindset", emoji: "\uD83E\uDD85", color: "#C0A060", cost: 1,
+    { id: "sigma", label: "Sigma Grindset", emoji: "🦅", color: "#C0A060", cost: 1,
       placeholder: "Waking up at 4am to code...",
       imageSystem: "You are a creative prompt engineer for Grok image generation. The user wants a cinematic lone wolf sigma aesthetic. Write a detailed Grok image prompt (100 words) showing the subject in ultra-cinematic, desaturated teal-and-orange color grading. Dramatic backlit silhouette, rain or city lights in background, stoic expression. Add motivational text overlay in bold sans-serif font. Think Patrick Bateman meets hustle culture. Include lens flare, shallow depth of field, and that specific sigma male energy of someone who chose this path. Dark, moody, but powerful. The composition should scream 'different breed'.",
       videoSystem: "You are a creative prompt engineer for video generation. Write a video prompt for a sigma grindset edit: slow-motion walk with dramatic music cues, camera orbiting the subject, text overlays appearing with impact, desaturated color that shifts to full color at the climax. Cinematic letterbox bars, lens flares tracking across frame." },
-    { id: "ghibli", label: "Ghibli Day", emoji: "\uD83C\uDF3F", color: "#88C070", cost: 1,
+    { id: "ghibli", label: "Ghibli Day", emoji: "🌿", color: "#88C070", cost: 1,
       placeholder: "A programmer debugging at midnight...",
       imageSystem: "You are a creative prompt engineer for Grok image generation. The user wants their subject in Studio Ghibli animated style. Write a detailed Grok image prompt (100 words) that transforms the scene into a Hayao Miyazaki film frame. Soft watercolor backgrounds, gentle lighting with visible light rays, lush green nature elements, puffy cumulus clouds, warm nostalgic color palette. The subject should look like a Ghibli protagonist with large expressive eyes and simple but emotive features. Include signature Ghibli details: detailed food, cozy interiors, magical floating elements, and that specific peaceful-yet-wondrous atmosphere. Hand-painted texture throughout.",
       videoSystem: "You are a creative prompt engineer for video generation. Write a video prompt that animates this Ghibli scene with gentle wind blowing through hair and grass, soft camera pan across a detailed landscape, magical particles floating in sunbeams, smooth character animation with Ghibli-style expressiveness. Peaceful, contemplative movement." },
-    { id: "lore", label: "Lore Drop", emoji: "\uD83D\uDCDC", color: "#DAA520", cost: 1,
+    { id: "lore", label: "Lore Drop", emoji: "📜", color: "#DAA520", cost: 1,
       placeholder: "The real reason GPU prices are rising...",
       imageSystem: "You are a creative prompt engineer for Grok image generation. The user wants their subject presented as ancient lore or prophecy. Write a detailed Grok image prompt (100 words) showing the subject as if it were an ancient manuscript discovery, illuminated manuscript style with gold leaf borders, aged parchment texture, medieval illustrations, mysterious symbols and runes. Include a dramatic aged paper texture, wax seal, quill marks, and the content presented as a sacred text or prophecy scroll. Mix ancient aesthetic with the modern subject for comedic contrast. Dark academia meets shitpost energy.",
       videoSystem: "You are a creative prompt engineer for video generation. Write a video prompt showing this ancient scroll being dramatically unrolled, camera slowly panning across illuminated text that glows, dust particles floating in candlelight, mysterious chanting ambiance, zoom into key prophecy text with dramatic reveal timing." },
-    { id: "brainrot_news", label: "Brain Rot News", emoji: "\uD83D\uDCFA", color: "#FF0000", cost: 1,
+    { id: "brainrot_news", label: "Brain Rot News", emoji: "📺", color: "#FF0000", cost: 1,
       placeholder: "Scientists discover new form of matter...",
       imageSystem: "You are a creative prompt engineer for Grok image generation. The user wants a breaking news broadcast aesthetic. Write a detailed Grok image prompt (100 words) showing the subject as a BREAKING NEWS broadcast: red and white news lower third banner, dramatic headline text, news anchor desk composition, live feed camera angle, 'BREAKING' and 'LIVE' badges, scrolling ticker at bottom, channel logo in corner. Make it look like a legitimate but absurd news broadcast. Include dramatic news lighting, teleprompter reflection in eyes, and that specific cable news urgency energy. The content should look like it interrupted regular programming.",
       videoSystem: "You are a creative prompt engineer for video generation. Write a video prompt for a breaking news broadcast: camera shake as if something big just happened, news ticker scrolling, BREAKING NEWS banner animating in, dramatic zoom on the anchor, graphics flying in from sides. Fast cuts between angles, live feed static glitches." },
@@ -929,10 +929,10 @@ export default function SlopTop() {
   }
 
   var TABS = [
-    { id: "meme", l: "Meme Maker \uD83D\uDC80" },
-    { id: "brief", l: "Brief Generator \uD83D\uDCCB" },
-    { id: "arxiv", l: "arxiv.lol \uD83D\uDCC4", ic: "" },
-    { id: "factory", l: "FACTORY \u2699", ic: "" },
+    { id: "meme", l: "Meme Maker 💀" },
+    { id: "brief", l: "Brief Generator 📋" },
+    { id: "arxiv", l: "arxiv.lol 📄", ic: "" },
+    { id: "factory", l: "FACTORY ⚙", ic: "" },
   ];
 
   // ═══ GLOBAL ANIMATIONS ═══
@@ -1036,9 +1036,9 @@ export default function SlopTop() {
       display: "flex", alignItems: "center", gap: 10,
       backdropFilter: "blur(12px)",
     }}>
-      <span style={{ fontSize: 20 }}>{"\uD83D\uDCC4"}</span>
+      <span style={{ fontSize: 20 }}>{"📄"}</span>
       {arxivToast}
-      <span onClick={function() { setArxivToast(null); }} style={{ cursor: "pointer", marginLeft: 8, color: D.txm, fontSize: 16 }}>{"\u2715"}</span>
+      <span onClick={function() { setArxivToast(null); }} style={{ cursor: "pointer", marginLeft: 8, color: D.txm, fontSize: 16 }}>{"✕"}</span>
     </div>}
 
     {/* ═══ TABS ═══ */}
@@ -1086,7 +1086,7 @@ export default function SlopTop() {
           border: "1px solid " + (memeMode === "link" ? D.amber + "40" : D.border),
           transition: "all 0.2s",
         }}>
-          <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: memeMode === "link" ? D.amber : D.tx }}>Link to Slop \uD83D\uDD17</div>
+          <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: memeMode === "link" ? D.amber : D.tx }}>Link to Slop 🔗</div>
           <div style={{ fontFamily: ft, fontSize: 11, color: D.txm, marginTop: 2 }}>Paste a URL, get meme content + image</div>
         </div>
         <div onClick={function() { setMemeMode("idea"); }} style={{
@@ -1095,7 +1095,7 @@ export default function SlopTop() {
           border: "1px solid " + (memeMode === "idea" ? D.violet + "40" : D.border),
           transition: "all 0.2s",
         }}>
-          <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: memeMode === "idea" ? D.violet : D.tx }}>Idea to Meme \uD83E\uDDE0</div>
+          <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: memeMode === "idea" ? D.violet : D.tx }}>Idea to Meme 🧠</div>
           <div style={{ fontFamily: ft, fontSize: 11, color: D.txm, marginTop: 2 }}>Describe an idea, generate a meme image directly</div>
         </div>
       </div>
@@ -1103,7 +1103,7 @@ export default function SlopTop() {
       {/* ═══ BRAINROT PRESETS ═══ */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontFamily: mn, fontSize: 10, color: D.cyan, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-          <span>{"\uD83E\uDDE0"}</span> Brainrot Presets <span style={{ fontSize: 8, color: D.txd }}>(click to add to prompt)</span>
+          <span>{"🧠"}</span> Brainrot Presets <span style={{ fontSize: 8, color: D.txd }}>(click to add to prompt)</span>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {BRAINROT_PRESETS.map(function(preset, idx) {
@@ -1131,7 +1131,7 @@ export default function SlopTop() {
             WebkitTextFillColor: "transparent",
             backgroundClip: "text",
             whiteSpace: "nowrap",
-          }}>{"ITALIAN BRAINROT \uD83C\uDDEE\uD83C\uDDF9\uD83D\uDC0A"}</span>
+          }}>{"ITALIAN BRAINROT 🇮🇹🐊"}</span>
           <div style={{ flex: 1, height: 1, background: "linear-gradient(90deg, #CE2B37, #fff, #009246)" }} />
         </div>
 
@@ -1177,7 +1177,7 @@ export default function SlopTop() {
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontFamily: mn, fontSize: 10, color: brainrotLevel >= 7 ? D.coral : D.amber, letterSpacing: 2, textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6 }}>
-            <span>{brainrotLevel >= 7 ? "\uD83D\uDC80" : brainrotLevel >= 4 ? "\uD83E\uDDE0" : "\uD83D\uDE36"}</span>{" Brainrot Level"}
+            <span>{brainrotLevel >= 7 ? "💀" : brainrotLevel >= 4 ? "🧠" : "😶"}</span>{" Brainrot Level"}
           </div>
           <div style={{
             fontFamily: ft, fontSize: 16, fontWeight: 900,
@@ -1218,7 +1218,7 @@ export default function SlopTop() {
           border: "1px solid " + D.amber + "25", borderRadius: 12, padding: 28, marginBottom: 24,
         }}>
           <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-            <span>{"\uD83D\uDD17"}</span>{" Paste Link "}<span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// drop the url bro</span>
+            <span>{"🔗"}</span>{" Paste Link "}<span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// drop the url bro</span>
           </div>
           <div style={{ display: "flex", gap: 12 }}>
             <input type="text" value={slopUrl} onChange={function(e) { setSlopUrl(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") handleSlopGenerate(); }} placeholder="Paste any link to get slop..." style={{
@@ -1231,7 +1231,7 @@ export default function SlopTop() {
               color: D.bg, fontFamily: ft, fontSize: 14, fontWeight: 800, opacity: !slopUrl.trim() ? 0.4 : 1, flexShrink: 0,
               boxShadow: slopUrl.trim() && !slopLoading ? "0 4px 16px " + D.amber + "30" : "none",
               animation: slopUrl.trim() && !slopLoading ? "buttonGlow 2s ease-in-out infinite" : "none",
-            }}>{slopLoading ? "\uD83D\uDD25 " + loadingPhrase : "Generate Slop \uD83D\uDC80"}</button>
+            }}>{slopLoading ? "🔥 " + loadingPhrase : "Generate Slop 💀"}</button>
           </div>
           {slopError && <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, background: D.coral + "12", border: "1px solid " + D.coral + "30", fontFamily: mn, fontSize: 11, color: D.coral }}>{slopError}</div>}
         </div>
@@ -1248,17 +1248,17 @@ export default function SlopTop() {
           </div>
           {/* Meme Captions */}
           {slopResults.meme_captions && slopResults.meme_captions.length > 0 && <div style={{ marginBottom: 20 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>{"\uD83D\uDC80 Meme Captions"}</div>
+            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>{"💀 Meme Captions"}</div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>{slopResults.meme_captions.map(function(cap, i) { return <SlopCard key={i} title={"Caption " + (i + 1)} content={cap} />; })}</div>
           </div>}
           {/* Video Hooks */}
           {slopResults.video_hooks && slopResults.video_hooks.length > 0 && <div style={{ marginBottom: 20 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.cyan, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>{"\u26A1 Video Hooks"}</div>
+            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.cyan, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>{"⚡ Video Hooks"}</div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>{slopResults.video_hooks.map(function(hook, i) { return <SlopCard key={i} title={"Hook " + (i + 1)} content={hook} />; })}</div>
           </div>}
           {/* Thread Idea */}
           {slopResults.thread_idea && <div style={{ marginBottom: 20 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.violet, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>{"\uD83E\uDDE0 Thread Idea"}</div>
+            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.violet, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>{"🧠 Thread Idea"}</div>
             <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 18 }}>
               {(Array.isArray(slopResults.thread_idea) ? slopResults.thread_idea : [slopResults.thread_idea]).map(function(post, i) {
                 return <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8 }}>
@@ -1270,7 +1270,7 @@ export default function SlopTop() {
           </div>}
           {/* Image Prompt */}
           {slopResults.image_prompt && <div style={{ marginBottom: 20 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.teal, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>{"\uD83D\uDD25 Image Prompt"}</div>
+            <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.teal, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>{"🔥 Image Prompt"}</div>
             <SlopCard content={slopResults.image_prompt} />
           </div>}
         </div>}
@@ -1282,9 +1282,9 @@ export default function SlopTop() {
         border: "1px solid " + D.violet + "25", borderRadius: 12, padding: 28, marginBottom: 24,
       }}>
         <div style={{ fontFamily: mn, fontSize: 10, color: D.violet, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-          <span>{"\uD83D\uDE24"}</span>{" What's the prompt bro "}<span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// describe your masterpiece</span>
+          <span>{"😤"}</span>{" What's the prompt bro "}<span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// describe your masterpiece</span>
         </div>
-        <textarea value={memeIdea} onChange={function(e) { setMemeIdea(e.target.value); }} placeholder="e.g. Jensen Huang holding a GPU like it's the holy grail, NVIDIA cathedral lighting... \uD83D\uDD25" rows={4} style={{
+        <textarea value={memeIdea} onChange={function(e) { setMemeIdea(e.target.value); }} placeholder="e.g. Jensen Huang holding a GPU like it's the holy grail, NVIDIA cathedral lighting... 🔥" rows={4} style={{
           width: "100%", padding: "14px 16px", borderRadius: 10, background: D.surface, border: "1px solid " + D.border,
           color: D.tx, fontFamily: ft, fontSize: 14, lineHeight: 1.6, resize: "vertical", outline: "none", boxSizing: "border-box",
         }} onFocus={function(e) { e.target.style.borderColor = D.violet; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
@@ -1293,7 +1293,7 @@ export default function SlopTop() {
       {/* Vibe Check (Style selector) - both modes */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-          <span>{"\uD83D\uDCAF"}</span>{" Vibe Check "}<span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// pick your aesthetic</span>
+          <span>{"💯"}</span>{" Vibe Check "}<span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// pick your aesthetic</span>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {MEME_STYLES.map(function(s) {
@@ -1319,7 +1319,7 @@ export default function SlopTop() {
           transition: "all 0.2s",
           opacity: (memeMode === "link" ? !slopResults : !memeIdea.trim()) ? 0.4 : 1,
           animation: !(memeMode === "link" ? !slopResults : !memeIdea.trim()) && !memeImgLoading ? "buttonGlow 2s ease-in-out infinite" : "none",
-        }}>{memeImgLoading ? "\uD83C\uDF73 " + loadingPhrase : "\uD83D\uDDBC\uFE0F Generate Meme Image"}</button>
+        }}>{memeImgLoading ? "🍳 " + loadingPhrase : "🖼️ Generate Meme Image"}</button>
 
         {/* Generate Video button */}
         <button onClick={handleVideoGenerate} disabled={videoLoading || (memeMode === "link" ? !slopResults : !memeIdea.trim())} style={{
@@ -1329,13 +1329,13 @@ export default function SlopTop() {
           transition: "all 0.2s",
           opacity: (memeMode === "link" ? !slopResults : !memeIdea.trim()) ? 0.4 : 1,
           animation: !(memeMode === "link" ? !slopResults : !memeIdea.trim()) && !videoLoading ? "glowPulse 2s ease-in-out infinite" : "none",
-        }}>{videoLoading ? "\uD83C\uDFA5 " + (videoStatus || loadingPhrase) : "\uD83C\uDFA5 Generate Video"}</button>
+        }}>{videoLoading ? "🎥 " + (videoStatus || loadingPhrase) : "🎥 Generate Video"}</button>
       </div>
 
       {/* Generated meme image */}
       {memeImgLoading && <div style={{ marginTop: 24, padding: 40, textAlign: "center", background: D.card, borderRadius: 12, border: "1px solid " + D.border }}>
         <div style={{ width: 40, height: 40, borderRadius: "50%", border: "3px solid " + D.border, borderTopColor: D.violet, margin: "0 auto 16px", animation: "slopSpin 1s linear infinite" }} />
-        <div style={{ fontFamily: ft, fontSize: 14, color: D.txm }}>{loadingPhrase} \uD83D\uDD25</div>
+        <div style={{ fontFamily: ft, fontSize: 14, color: D.txm }}>{loadingPhrase} 🔥</div>
       </div>}
 
       {memeImg && <div style={{ marginTop: 24, animation: "successPop 0.4s ease-out" }}>
@@ -1348,11 +1348,11 @@ export default function SlopTop() {
             <a href={memeImg} download="slop-meme.png" style={{
               padding: "10px 20px", borderRadius: 8, background: D.teal + "18", border: "1px solid " + D.teal + "40",
               color: D.teal, fontFamily: ft, fontSize: 12, fontWeight: 700, textDecoration: "none", cursor: "pointer",
-            }}>{"Download \uD83D\uDC80"}</a>
+            }}>{"Download 💀"}</a>
             <button onClick={handleMemeGenerate} style={{
               padding: "10px 20px", borderRadius: 8, background: "transparent", border: "1px solid " + D.border,
               color: D.txm, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer",
-            }}>{"Regenerate \uD83D\uDD04"}</button>
+            }}>{"Regenerate 🔄"}</button>
           </div>
         </div>
       </div>}
@@ -1360,16 +1360,16 @@ export default function SlopTop() {
       {/* Generated video */}
       {videoLoading && !videoUrl && <div style={{ marginTop: 24, padding: 40, textAlign: "center", background: D.card, borderRadius: 12, border: "1px solid " + D.cyan + "20" }}>
         <div style={{ width: 40, height: 40, borderRadius: "50%", border: "3px solid " + D.border, borderTopColor: D.cyan, margin: "0 auto 16px", animation: "slopSpin 1s linear infinite" }} />
-        <div style={{ fontFamily: ft, fontSize: 14, color: D.txm }}>{videoStatus || loadingPhrase} \uD83C\uDFA5</div>
+        <div style={{ fontFamily: ft, fontSize: 14, color: D.txm }}>{videoStatus || loadingPhrase} 🎥</div>
       </div>}
 
       {videoError && <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 8, background: D.coral + "12", border: "1px solid " + D.coral + "30", fontFamily: mn, fontSize: 11, color: D.coral }}>
-        \uD83D\uDC80 Video error: {videoError}
+        💀 Video error: {videoError}
       </div>}
 
       {videoUrl && <div style={{ marginTop: 24, animation: "successPop 0.4s ease-out" }}>
         <div style={{ fontFamily: mn, fontSize: 10, color: D.cyan, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-          <span>{"\uD83C\uDFA5"}</span>{" absolute cinema "}<span>{"\uD83D\uDD25"}</span>
+          <span>{"🎥"}</span>{" absolute cinema "}<span>{"🔥"}</span>
         </div>
         <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 16, textAlign: "center" }}>
           <video src={videoUrl} controls style={{ maxWidth: "100%", maxHeight: 500, borderRadius: 8 }} />
@@ -1377,11 +1377,11 @@ export default function SlopTop() {
             <a href={videoUrl} download="slop-video.mp4" style={{
               padding: "10px 20px", borderRadius: 8, background: D.cyan + "18", border: "1px solid " + D.cyan + "40",
               color: D.cyan, fontFamily: ft, fontSize: 12, fontWeight: 700, textDecoration: "none", cursor: "pointer",
-            }}>{"Download \uD83C\uDFA5"}</a>
+            }}>{"Download 🎥"}</a>
             <button onClick={handleVideoGenerate} style={{
               padding: "10px 20px", borderRadius: 8, background: "transparent", border: "1px solid " + D.border,
               color: D.txm, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer",
-            }}>{"Regenerate \uD83D\uDD04"}</button>
+            }}>{"Regenerate 🔄"}</button>
           </div>
         </div>
       </div>}
@@ -1630,7 +1630,7 @@ export default function SlopTop() {
         }} />
         <div style={{ position: "relative" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-            <span style={{ fontSize: 28, animation: "paperFloat 3s ease-in-out infinite" }}>{"\uD83D\uDCC4"}</span>
+            <span style={{ fontSize: 28, animation: "paperFloat 3s ease-in-out infinite" }}>{"📄"}</span>
             <div style={{
               fontFamily: ft, fontSize: 26, fontWeight: 900, letterSpacing: -0.5,
               background: "linear-gradient(135deg, " + D.amber + ", " + D.violet + ")",
@@ -1650,7 +1650,7 @@ export default function SlopTop() {
         padding: "24px 28px", marginBottom: 24,
       }}>
         <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 2, textTransform: "uppercase", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
-          <span>{"\uD83D\uDD17"}</span> Submit Paper <span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// your paper just got slopped</span>
+          <span>{"🔗"}</span> Submit Paper <span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// your paper just got slopped</span>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <input
@@ -1681,27 +1681,27 @@ export default function SlopTop() {
               animation: arxivInput.trim() ? "buttonGlow 2s ease-in-out infinite" : "none",
               transition: "all 0.2s",
             }}
-          >Submit to arxiv.lol {"\uD83D\uDCC4"}</button>
+          >Submit to arxiv.lol {"📄"}</button>
         </div>
         {arxivMsg && <div style={{
           marginTop: 14, padding: "12px 16px", borderRadius: 8,
           background: D.teal + "10", border: "1px solid " + D.teal + "30",
           fontFamily: ft, fontSize: 12, fontWeight: 600, color: D.teal,
           animation: "successPop 0.4s ease-out",
-        }}>{"\u2705"} {arxivMsg}</div>}
+        }}>{"✅"} {arxivMsg}</div>}
       </div>
 
       {/* Queue / Jobs Section */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontFamily: mn, fontSize: 10, color: D.violet, letterSpacing: 2, textTransform: "uppercase", marginBottom: 16, display: "flex", alignItems: "center", gap: 6 }}>
-          <span>{"\uD83D\uDCDA"}</span> Slop Queue <span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// {arxivQueue.length} paper{arxivQueue.length !== 1 ? "s" : ""} in the lab</span>
+          <span>{"📚"}</span> Slop Queue <span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// {arxivQueue.length} paper{arxivQueue.length !== 1 ? "s" : ""} in the lab</span>
         </div>
 
         {arxivQueue.length === 0 && <div style={{
           background: D.card, border: "1px solid " + D.border, borderRadius: 12,
           padding: "60px 40px", textAlign: "center",
         }}>
-          <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}>{"\uD83D\uDCC4"}</div>
+          <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}>{"📄"}</div>
           <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 600, color: D.txd }}>No papers in the slop queue</div>
           <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginTop: 6 }}>submit a paper above to start the slopping process</div>
         </div>}
@@ -1745,7 +1745,7 @@ export default function SlopTop() {
                       color: isReady ? D.teal : D.amber,
                       animation: isProcessing ? "amberPulse 2s ease-in-out infinite" : "none",
                     }}>
-                      {isReady ? "\u2705 Ready!" : "\u23F3 Processing..."}
+                      {isReady ? "✅ Ready!" : "⏳ Processing..."}
                     </span>
                   </div>
                   {job.title && <div style={{
@@ -1763,14 +1763,14 @@ export default function SlopTop() {
                     color: "#fff", fontFamily: ft, fontSize: 11, fontWeight: 800, cursor: "pointer",
                     boxShadow: "0 4px 12px " + D.teal + "30",
                     animation: "readyBounce 2s ease-in-out infinite",
-                  }}>View Meme {"\uD83D\uDD25"}</button>}
+                  }}>View Meme {"🔥"}</button>}
                   {isProcessing && <button onClick={function() { handleArxivCheckNow(job.paperId); }} style={{
                     padding: "8px 16px", borderRadius: 8,
                     border: "1px solid " + D.amber + "40",
                     background: D.amber + "10",
                     color: D.amber, fontFamily: ft, fontSize: 11, fontWeight: 700, cursor: "pointer",
                     transition: "all 0.15s",
-                  }}>Check Now {"\u2197\uFE0F"}</button>}
+                  }}>Check Now {"↗️"}</button>}
                   <button onClick={function() { handleArxivRemove(job.paperId); }} style={{
                     padding: "8px 16px", borderRadius: 8,
                     border: "1px solid " + D.border,
@@ -1845,7 +1845,7 @@ export default function SlopTop() {
         padding: "20px 32px", position: "relative", zIndex: 3,
       }}>
         <div style={{ fontFamily: mn, fontSize: 10, color: "#00FF41", letterSpacing: 2, textTransform: "uppercase", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ animation: "factoryBlink 2s ease-in-out infinite" }}>{"\u25B6"}</span> SELECT FORMAT
+          <span style={{ animation: "factoryBlink 2s ease-in-out infinite" }}>{"▶"}</span> SELECT FORMAT
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {FACTORY_FORMATS.map(function(fmt) {
@@ -1925,7 +1925,7 @@ export default function SlopTop() {
             opacity: !factoryInput.trim() ? 0.4 : 1,
             boxShadow: factoryInput.trim() && factoryPhase !== "crafting" ? "0 0 16px rgba(0,255,65,0.2)" : "none",
           }}>
-            {factoryPhase === "crafting" ? "CRAFTING..." : "CRAFT PROMPT \u2192"}
+            {factoryPhase === "crafting" ? "CRAFTING..." : "CRAFT PROMPT →"}
           </button>
         </div>
         {factoryPhase === "crafting" && <div style={{
@@ -2027,7 +2027,7 @@ export default function SlopTop() {
             color: "#00FF41", fontFamily: mn, fontSize: 11, fontWeight: 800,
             letterSpacing: 1, transition: "all 0.2s",
             boxShadow: factoryPhase !== "image_generating" ? "0 0 16px rgba(0,255,65,0.2)" : "none",
-          }}>{factoryPhase === "image_generating" ? "GENERATING..." : "GENERATE IMAGE \u2192"}</button>
+          }}>{factoryPhase === "image_generating" ? "GENERATING..." : "GENERATE IMAGE →"}</button>
           <button onClick={function() {
             setFactoryImagePrompt("");
             setFactoryPhase("idle");
@@ -2126,7 +2126,7 @@ export default function SlopTop() {
             background: "rgba(0,255,65,0.15)", border: "1px solid rgba(0,255,65,0.5)",
             color: "#00FF41", fontFamily: mn, fontSize: 11, fontWeight: 800,
             letterSpacing: 1, boxShadow: "0 0 16px rgba(0,255,65,0.2)",
-          }}>{"\u2713"} LOOKS GOOD {"\u2192"} MAKE VIDEO</button>
+          }}>{"✓"} LOOKS GOOD {"→"} MAKE VIDEO</button>
           <a href={factoryImageUrl} download="factory-image.png" style={{
             padding: "10px 18px", borderRadius: 6, textDecoration: "none",
             background: "transparent", border: "1px solid rgba(0,255,65,0.2)",
@@ -2230,7 +2230,7 @@ export default function SlopTop() {
             background: "rgba(0,255,65,0.15)", border: "1px solid rgba(0,255,65,0.5)",
             color: "#00FF41", fontFamily: mn, fontSize: 11, fontWeight: 800,
             letterSpacing: 1, boxShadow: factoryPhase !== "video_generating" ? "0 0 16px rgba(0,255,65,0.2)" : "none",
-          }}>{factoryPhase === "video_generating" ? "GENERATING..." : "GENERATE VIDEO \u2192"}</button>
+          }}>{factoryPhase === "video_generating" ? "GENERATING..." : "GENERATE VIDEO →"}</button>
         </div>
 
         {/* ASCII Progress Bar */}

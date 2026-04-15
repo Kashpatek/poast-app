@@ -101,6 +101,27 @@ async function fetchTrends() {
   } catch (e) { console.error("Trends fetch failed:", e); return []; }
 }
 
+// ═══ DB SYNC ═══
+async function dbSyncIdeas(ideas, saved) {
+  fetch("/api/db", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ table: "projects", data: { id: "ideation-master", name: "IdeationNation", data: { ideas: ideas, saved: saved }, type: "ideation", updated_at: new Date().toISOString() } }),
+  }).catch(function() {});
+}
+
+async function dbLoadIdeas() {
+  try {
+    var r = await fetch("/api/db?table=projects");
+    var res = await r.json();
+    if (res.data && res.data.length > 0) {
+      var row = res.data.find(function(r) { return r.type === "ideation" && r.id === "ideation-master"; });
+      if (row && row.data) return row.data;
+    }
+    return null;
+  } catch (e) { return null; }
+}
+
 // ═══ SPARKLE PARTICLES ═══
 function SparkleParticles() {
   var particles = [];
@@ -463,24 +484,63 @@ export default function IdeationNation() {
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
   var _trends = useState([]), trends = _trends[0], setTrends = _trends[1];
   var _toast = useState(null), toast = _toast[0], setToast = _toast[1];
+  var _loaded = useState(false), loaded = _loaded[0], setLoaded = _loaded[1];
 
-  // Load trends on mount
+  // Load ideas from Supabase, fall back to localStorage
   useEffect(function() {
+    var settled = false;
+    var timer = setTimeout(function() {
+      if (settled) return;
+      settled = true;
+      // Fallback to localStorage
+      try {
+        var raw = localStorage.getItem("ideation-saved");
+        if (raw) setSaved(JSON.parse(raw));
+      } catch (e) {}
+      setLoaded(true);
+    }, 800);
+
+    dbLoadIdeas().then(function(data) {
+      if (settled) return;
+      clearTimeout(timer);
+      settled = true;
+      if (data) {
+        if (data.ideas && Array.isArray(data.ideas)) setIdeas(data.ideas);
+        if (data.saved && Array.isArray(data.saved)) setSaved(data.saved);
+      } else {
+        // Fallback to localStorage
+        try {
+          var raw = localStorage.getItem("ideation-saved");
+          if (raw) setSaved(JSON.parse(raw));
+        } catch (e) {}
+      }
+      setLoaded(true);
+    }).catch(function() {
+      if (settled) return;
+      clearTimeout(timer);
+      settled = true;
+      try {
+        var raw = localStorage.getItem("ideation-saved");
+        if (raw) setSaved(JSON.parse(raw));
+      } catch (e) {}
+      setLoaded(true);
+    });
+
+    // Load trends
     fetchTrends().then(function(data) {
       if (data && Array.isArray(data)) setTrends(data);
       else if (data && data.trends) setTrends(data.trends);
     });
-    // Load saved ideas from localStorage
-    try {
-      var raw = localStorage.getItem("ideation-saved");
-      if (raw) setSaved(JSON.parse(raw));
-    } catch (e) {}
+
+    return function() { clearTimeout(timer); };
   }, []);
 
-  // Persist saved ideas
+  // Persist saved ideas to localStorage + Supabase
   useEffect(function() {
+    if (!loaded) return;
     try { localStorage.setItem("ideation-saved", JSON.stringify(saved)); } catch (e) {}
-  }, [saved]);
+    dbSyncIdeas(ideas, saved);
+  }, [ideas, saved, loaded]);
 
   var showToast = function(msg) {
     setToast(msg);

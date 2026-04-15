@@ -646,33 +646,231 @@ function StatsTab({ data }) {
 function ComposeModal({ channels, onClose, onRefresh }) {
   var _text = useState(""), text = _text[0], setText = _text[1];
   var _sel = useState([]), sel = _sel[0], setSel = _sel[1];
+  var _mode = useState("now"), mode = _mode[0], setMode = _mode[1];
   var _date = useState(""), date = _date[0], setDate = _date[1];
-  var _time = useState("10:00"), time = _time[0], setTime = _time[1];
+  var _time = useState("08:00"), time = _time[0], setTime = _time[1];
   var _sending = useState(false), sending = _sending[0], setSending = _sending[1];
+
   var toggle = function(id) { setSel(function(p) { return p.indexOf(id) >= 0 ? p.filter(function(x) { return x !== id; }) : p.concat([id]); }); };
-  var send = async function() {
-    if (!text.trim() || sel.length === 0) return; setSending(true);
-    var dueAt = date && time ? new Date(date + "T" + time + ":00").toISOString() : undefined;
-    for (var i = 0; i < sel.length; i++) { try { await fetch("/api/buffer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "createPost", input: { channelId: sel[i], text: text, dueAt: dueAt, schedulingType: dueAt ? "custom" : "now" } }) }); } catch (e) {} }
-    addToast(sel.length + " post(s) " + (dueAt ? "scheduled" : "published"), "success");
-    setSending(false); onRefresh(); onClose();
+
+  // Compute the strictest character limit across selected channels
+  var activeLimit = (function() {
+    if (sel.length === 0) return 5000;
+    var min = 999999;
+    (channels || []).forEach(function(ch) {
+      if (sel.indexOf(ch.id) >= 0) {
+        var p = pl(ch.service);
+        if (p.lim < min) min = p.lim;
+      }
+    });
+    return min === 999999 ? 5000 : min;
+  })();
+  var charCount = text.length;
+  var overLimit = charCount > activeLimit;
+
+  // Per-channel limit warnings
+  var channelWarnings = (function() {
+    var warnings = [];
+    (channels || []).forEach(function(ch) {
+      if (sel.indexOf(ch.id) >= 0) {
+        var p = pl(ch.service);
+        if (charCount > p.lim) {
+          warnings.push(p.s + " (" + charCount + "/" + p.lim + ")");
+        }
+      }
+    });
+    return warnings;
+  })();
+
+  // Smart date: next Tue or Wed at 8:00 AM
+  var nextSmart = function() {
+    var d = new Date(); var day = d.getDay();
+    var daysToTue = (2 - day + 7) % 7 || 7;
+    var daysToWed = (3 - day + 7) % 7 || 7;
+    var target = daysToTue <= daysToWed ? daysToTue : daysToWed;
+    d.setDate(d.getDate() + target);
+    return d.toISOString().slice(0, 10);
   };
+  var smartDate = nextSmart();
+  var smartLabel = new Date(smartDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " at 8:00 AM";
+
+  var canSubmit = text.trim().length > 0 && sel.length > 0 && !overLimit && (mode === "now" || (date && time));
+
+  var send = async function() {
+    if (!canSubmit || sending) return;
+    setSending(true);
+    var successCount = 0;
+    var failCount = 0;
+    var isScheduled = mode === "schedule" && date && time;
+    var dueAt = isScheduled ? new Date(date + "T" + time + ":00").toISOString() : undefined;
+
+    for (var i = 0; i < sel.length; i++) {
+      try {
+        var input = { channelId: sel[i], text: text };
+        if (isScheduled) {
+          input.dueAt = dueAt;
+          input.schedulingType = "custom";
+        } else {
+          input.schedulingType = "now";
+        }
+        var r = await fetch("/api/buffer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "createPost", input: input })
+        });
+        var rd = await r.json();
+        if (rd.error) { failCount++; } else { successCount++; }
+      } catch (e) { failCount++; }
+    }
+
+    if (successCount > 0) {
+      var dateStr = isScheduled
+        ? new Date(dueAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " at " + time
+        : "now";
+      addToast(successCount + " post(s) " + (isScheduled ? "scheduled for " + dateStr : "published"), "success");
+    }
+    if (failCount > 0) {
+      addToast(failCount + " post(s) failed to send", "error");
+    }
+
+    setSending(false);
+    if (successCount > 0) { onRefresh(); onClose(); }
+  };
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }} onClick={onClose}>
-      <div onClick={function(e) { e.stopPropagation(); }} style={{ background: D.card, border: "1px solid " + D.amber + "30", borderRadius: 8, padding: 28, maxWidth: 540, width: "90%", maxHeight: "85vh", overflow: "auto" }}>
-        <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: D.tx, marginBottom: 16 }}>New Post</div>
-        <div style={{ fontFamily: mn, fontSize: 9, color: D.txs, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Channels</div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
-          {(channels || []).map(function(ch) { var pp = pl(ch.service); var on = sel.indexOf(ch.id) >= 0; return <div key={ch.id} onClick={function() { toggle(ch.id); }} style={{ padding: "6px 12px", borderRadius: 6, cursor: "pointer", background: on ? pp.c + "18" : "transparent", border: on ? "2px solid " + pp.c : "1px solid " + D.border, fontFamily: mn, fontSize: 10, color: on ? pp.c : D.txs, display: "flex", alignItems: "center", gap: 4 }}><span style={{ fontSize: 12 }}>{pp.i}</span>{ch.name}</div>; })}
+      <div onClick={function(e) { e.stopPropagation(); }} style={{ background: D.card, border: "1px solid " + D.amber + "30", borderRadius: 12, padding: 0, maxWidth: 580, width: "92%", maxHeight: "88vh", overflow: "auto", boxShadow: "0 12px 48px rgba(0,0,0,0.7)" }}>
+
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px 0" }}>
+          <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 900, color: D.tx }}>New Post</div>
+          <span onClick={onClose} style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid " + D.border, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontFamily: mn, fontSize: 12, color: D.txs }}>x</span>
         </div>
-        <textarea value={text} onChange={function(e) { setText(e.target.value); }} rows={5} placeholder="Write your post..." style={{ width: "100%", padding: "12px", background: D.bg, border: "1px solid " + D.border, borderRadius: 6, color: D.tx, fontFamily: ft, fontSize: 13, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.6, marginBottom: 14 }} />
-        <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-          <div style={{ flex: 1 }}><div style={{ fontFamily: mn, fontSize: 9, color: D.txs, marginBottom: 4 }}>Date</div><input type="date" value={date} onChange={function(e) { setDate(e.target.value); }} style={{ width: "100%", padding: "8px 10px", background: D.bg, border: "1px solid " + D.border, borderRadius: 6, color: D.tx, fontFamily: mn, fontSize: 11, outline: "none" }} /></div>
-          <div style={{ width: 120 }}><div style={{ fontFamily: mn, fontSize: 9, color: D.txs, marginBottom: 4 }}>Time</div><input type="time" value={time} onChange={function(e) { setTime(e.target.value); }} style={{ width: "100%", padding: "8px 10px", background: D.bg, border: "1px solid " + D.border, borderRadius: 6, color: D.tx, fontFamily: mn, fontSize: 11, outline: "none" }} /></div>
-        </div>
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <span onClick={onClose} style={{ padding: "8px 16px", fontFamily: ft, fontSize: 12, color: D.txs, cursor: "pointer" }}>Cancel</span>
-          <span onClick={send} style={{ padding: "8px 24px", background: D.amber, color: D.bg, borderRadius: 6, fontFamily: ft, fontSize: 13, fontWeight: 700, cursor: sending ? "wait" : "pointer", opacity: sending ? 0.5 : 1 }}>{sending ? "Sending..." : date ? "Schedule" : "Post Now"}</span>
+
+        <div style={{ padding: "16px 24px 24px" }}>
+
+          {/* Channel selector */}
+          <div style={{ fontFamily: mn, fontSize: 9, color: D.txs, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>Select Channels</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
+            {(channels || []).filter(function(ch) { return !ch.isDisconnected; }).map(function(ch) {
+              var pp = pl(ch.service);
+              var on = sel.indexOf(ch.id) >= 0;
+              return <div key={ch.id} onClick={function() { toggle(ch.id); }} style={{
+                padding: "8px 14px", borderRadius: 8, cursor: "pointer",
+                background: on ? pp.c + "18" : "transparent",
+                border: on ? "2px solid " + pp.c : "1px solid " + D.border,
+                fontFamily: ft, fontSize: 12, color: on ? pp.c : D.txs,
+                display: "flex", alignItems: "center", gap: 6,
+                transition: "all 0.15s ease"
+              }}>
+                <span style={{ fontSize: 14 }}>{pp.i}</span>
+                <span style={{ fontWeight: on ? 600 : 400 }}>{ch.name}</span>
+                {on && <span style={{ fontFamily: mn, fontSize: 8, color: pp.c, opacity: 0.6 }}>{pp.lim}</span>}
+              </div>;
+            })}
+          </div>
+          {sel.length === 0 && <div style={{ fontFamily: ft, fontSize: 11, color: D.txs, marginTop: -12, marginBottom: 12 }}>Click one or more channels to post to.</div>}
+
+          {/* Text area */}
+          <div style={{ fontFamily: mn, fontSize: 9, color: D.txs, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>Content</div>
+          <textarea value={text} onChange={function(e) { setText(e.target.value); }} rows={6} placeholder="Write your post..." style={{
+            width: "100%", padding: "14px", background: D.bg,
+            border: "1px solid " + (overLimit ? D.coral : D.border),
+            borderRadius: 8, color: D.tx, fontFamily: ft, fontSize: 14,
+            outline: "none", boxSizing: "border-box", resize: "vertical",
+            lineHeight: 1.7, marginBottom: 6
+          }} />
+
+          {/* Character count + warnings */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, minHeight: 18 }}>
+            <div>
+              {channelWarnings.length > 0 && <div style={{ fontFamily: mn, fontSize: 10, color: D.coral, lineHeight: 1.6 }}>
+                Over limit: {channelWarnings.join(", ")}
+              </div>}
+            </div>
+            <span style={{ fontFamily: mn, fontSize: 11, color: overLimit ? D.coral : D.txs, flexShrink: 0 }}>
+              {charCount} / {activeLimit}
+            </span>
+          </div>
+
+          {/* Schedule mode toggle */}
+          <div style={{ fontFamily: mn, fontSize: 9, color: D.txs, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>When</div>
+          <div style={{ display: "flex", gap: 0, marginBottom: 16, background: D.bg, borderRadius: 8, border: "1px solid " + D.border, overflow: "hidden" }}>
+            <span onClick={function() { setMode("now"); }} style={{
+              flex: 1, padding: "10px 0", textAlign: "center", cursor: "pointer",
+              fontFamily: ft, fontSize: 13, fontWeight: mode === "now" ? 700 : 400,
+              color: mode === "now" ? D.bg : D.txs,
+              background: mode === "now" ? D.amber : "transparent",
+              transition: "all 0.15s ease"
+            }}>Post Now</span>
+            <span onClick={function() { setMode("schedule"); if (!date) setDate(smartDate); }} style={{
+              flex: 1, padding: "10px 0", textAlign: "center", cursor: "pointer",
+              fontFamily: ft, fontSize: 13, fontWeight: mode === "schedule" ? 700 : 400,
+              color: mode === "schedule" ? D.bg : D.txs,
+              background: mode === "schedule" ? D.amber : "transparent",
+              transition: "all 0.15s ease"
+            }}>Schedule</span>
+          </div>
+
+          {/* Date/time pickers (only in schedule mode) */}
+          {mode === "schedule" && <div style={{ background: D.bg, border: "1px solid " + D.border, borderRadius: 8, padding: 16, marginBottom: 16 }}>
+            {/* Smart suggestion */}
+            <span onClick={function() { setDate(smartDate); setTime("08:00"); }} style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "6px 12px", borderRadius: 6,
+              border: "1px solid " + D.amber + "40", color: D.amber,
+              fontFamily: mn, fontSize: 10, cursor: "pointer",
+              marginBottom: 12, background: D.amber + "08"
+            }}>
+              <span style={{ fontSize: 11 }}>&#x2728;</span>
+              {smartLabel}
+            </span>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: mn, fontSize: 9, color: D.txs, marginBottom: 4 }}>Date</div>
+                <input type="date" value={date} onChange={function(e) { setDate(e.target.value); }} style={{
+                  width: "100%", padding: "10px 12px", background: D.card,
+                  border: "1px solid " + D.border, borderRadius: 6, color: D.tx,
+                  fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box"
+                }} />
+              </div>
+              <div style={{ width: 130 }}>
+                <div style={{ fontFamily: mn, fontSize: 9, color: D.txs, marginBottom: 4 }}>Time</div>
+                <input type="time" value={time} onChange={function(e) { setTime(e.target.value); }} style={{
+                  width: "100%", padding: "10px 12px", background: D.card,
+                  border: "1px solid " + D.border, borderRadius: 6, color: D.tx,
+                  fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box"
+                }} />
+              </div>
+            </div>
+            {date && time && <div style={{ fontFamily: ft, fontSize: 11, color: D.txs, marginTop: 10 }}>
+              Posting on {new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} at {time}
+            </div>}
+          </div>}
+
+          {/* Summary of what will happen */}
+          {sel.length > 0 && text.trim().length > 0 && <div style={{
+            fontFamily: ft, fontSize: 11, color: D.txs, marginBottom: 16, padding: "8px 12px",
+            background: D.bg, borderRadius: 6, border: "1px solid " + D.border
+          }}>
+            {mode === "now" ? "Will publish" : "Will schedule"} to <span style={{ color: D.tx, fontWeight: 600 }}>{sel.length} channel{sel.length > 1 ? "s" : ""}</span>
+            {mode === "schedule" && date && <span> for <span style={{ color: D.amber }}>{new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} at {time}</span></span>}
+          </div>}
+
+          {/* Actions */}
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center" }}>
+            <span onClick={onClose} style={{ padding: "10px 18px", fontFamily: ft, fontSize: 12, color: D.txs, cursor: "pointer", borderRadius: 6, border: "1px solid " + D.border }}>Cancel</span>
+            <span onClick={send} style={{
+              padding: "10px 28px", borderRadius: 8,
+              background: canSubmit ? D.amber : D.border,
+              color: canSubmit ? D.bg : D.txs,
+              fontFamily: ft, fontSize: 14, fontWeight: 700,
+              cursor: sending ? "wait" : canSubmit ? "pointer" : "not-allowed",
+              opacity: sending ? 0.5 : 1,
+              transition: "all 0.15s ease"
+            }}>{sending ? "Sending..." : mode === "now" ? "Post Now" : "Schedule Post"}</span>
+          </div>
         </div>
       </div>
     </div>

@@ -42,6 +42,21 @@ function SmBtn({ children, onClick, color, on }) {
   return <span onClick={onClick} style={{ fontFamily: mn, fontSize: 8, color: color || T.accent, cursor: "pointer", padding: "2px 7px", borderRadius: 3, border: "1px solid " + (color || T.accent) + (on ? "60" : "25"), background: on ? (color || T.accent) + "15" : "transparent" }}>{children}</span>;
 }
 
+// ═══ SEND TO IDEATION ═══
+function sendToIdeation(item) {
+  try {
+    localStorage.setItem("poast-route-to", JSON.stringify({
+      section: "ideation",
+      data: {
+        prompt: item.title + "\n\n" + (item.description || item.snippet || ""),
+        source: item.source || item.feed || "",
+        url: item.link || item.url || ""
+      }
+    }));
+  } catch (e) {}
+  window.location.hash = "#ideation";
+}
+
 // ═══ NEWS FEED ═══
 function NewsFeed({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize, onDraft }) {
   var _d = useState({ items: [], categories: [], sources: [] }), data = _d[0], setData = _d[1];
@@ -82,7 +97,10 @@ function NewsFeed({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fo
               {item.date && <span style={{ fontFamily: mn, fontSize: 8, color: T.txd }}>{new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>}
             </div>
           </div>
-          <span onClick={function() { onDraft(item); }} style={{ fontFamily: mn, fontSize: 8, color: T.accent2, cursor: "pointer", padding: "3px 7px", borderRadius: 3, border: "1px solid " + T.accent2 + "25", flexShrink: 0, alignSelf: "center" }}>Draft</span>
+          <div style={{ display: "flex", gap: 4, flexShrink: 0, alignSelf: "center" }}>
+            <span onClick={function() { sendToIdeation(item); }} title="Send to IdeationNation" style={{ fontFamily: mn, fontSize: 8, color: T.accent, cursor: "pointer", padding: "3px 7px", borderRadius: 3, border: "1px solid " + T.accent + "25", transition: "all 0.2s ease", background: "transparent" }} onMouseEnter={function(e) { e.currentTarget.style.background = T.accent + "15"; e.currentTarget.style.boxShadow = "0 0 8px " + T.accent + "30"; }} onMouseLeave={function(e) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.boxShadow = "none"; }}>Ideate</span>
+            <span onClick={function() { onDraft(item); }} style={{ fontFamily: mn, fontSize: 8, color: T.accent2, cursor: "pointer", padding: "3px 7px", borderRadius: 3, border: "1px solid " + T.accent2 + "25" }}>Draft</span>
+          </div>
         </div>;
       })}
     </W>
@@ -102,8 +120,9 @@ function SAFeed({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, font
       : items.map(function(item, i) {
         return <div key={i} style={{ padding: "7px 0", borderBottom: "1px solid " + T.border }}>
           <a href={item.link} target="_blank" rel="noopener noreferrer" style={{ fontFamily: ft, fontSize: 11, fontWeight: 600, color: T.accent, textDecoration: "none", lineHeight: 1.4 }}>{item.title}</a>
-          <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
+          <div style={{ display: "flex", gap: 6, marginTop: 2, alignItems: "center" }}>
             {item.date && <span style={{ fontFamily: mn, fontSize: 8, color: T.txd }}>{new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>}
+            <span onClick={function() { sendToIdeation(item); }} title="Send to IdeationNation" style={{ fontFamily: mn, fontSize: 8, color: T.accent, cursor: "pointer", transition: "all 0.2s ease" }} onMouseEnter={function(e) { e.currentTarget.style.textShadow = "0 0 6px " + T.accent + "50"; }} onMouseLeave={function(e) { e.currentTarget.style.textShadow = "none"; }}>Ideate</span>
             <span onClick={function() { onDraft(item); }} style={{ fontFamily: mn, fontSize: 8, color: T.accent2, cursor: "pointer" }}>Draft</span>
           </div>
         </div>;

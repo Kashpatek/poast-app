@@ -175,8 +175,68 @@ function Confetti() {
 
 // ═══ GUEST MANAGER ═══
 function GuestManager({ guests, setGuests }) {
+  var _guestBrowse = useState(false), guestBrowseOpen = _guestBrowse[0], setGuestBrowseOpen = _guestBrowse[1];
+  var _fkGuests = useState([]), fkGuests = _fkGuests[0], setFkGuests = _fkGuests[1];
+  var _fkSearch = useState(""), fkSearch = _fkSearch[0], setFkSearch = _fkSearch[1];
+  var _fkLoading = useState(false), fkLoading = _fkLoading[0], setFkLoading = _fkLoading[1];
+
+  var tierColors = { S: "#F7B041", A: "#0B86D1", B: "#2EAD8E", C: "rgba(255,255,255,0.4)" };
+
+  function loadFKGuests() {
+    setFkLoading(true);
+    fetch("/api/db?table=prospects").then(function(r) { return r.json(); }).then(function(res) {
+      if (res.data) setFkGuests(res.data);
+      setFkLoading(false);
+    }).catch(function() { setFkLoading(false); });
+  }
+
+  function toggleBrowse() {
+    var next = !guestBrowseOpen;
+    setGuestBrowseOpen(next);
+    if (next && fkGuests.length === 0) loadFKGuests();
+    if (!next) setFkSearch("");
+  }
+
+  function addFKGuest(prospect) {
+    var name = prospect.name || "";
+    var handle = "";
+    setGuests(guests.concat([{ name: name, handle: handle }]));
+    setGuestBrowseOpen(false);
+    setFkSearch("");
+    showToast("Added " + name + " from FK prospects");
+  }
+
+  var filteredFK = fkGuests.filter(function(p) {
+    if (!fkSearch) return true;
+    var q = fkSearch.toLowerCase();
+    return (p.name || "").toLowerCase().indexOf(q) > -1 || (p.company || "").toLowerCase().indexOf(q) > -1;
+  });
+
   return (<div style={{ marginBottom: 20 }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}><Label>Guests</Label><span onClick={function() { setGuests(guests.concat([{ name: "", handle: "" }])); }} style={{ fontFamily: mn, fontSize: 10, color: ACC, cursor: "pointer", padding: "4px 10px", borderRadius: 8, border: "1px solid " + D.border, transition: "all 0.2s ease" }}>+ Add</span></div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+      <Label>Guests</Label>
+      <div style={{ display: "flex", gap: 6 }}>
+        <span onClick={toggleBrowse} style={{ fontFamily: mn, fontSize: 10, color: guestBrowseOpen ? D.teal : D.txb, cursor: "pointer", padding: "4px 10px", borderRadius: 8, border: "1px solid " + (guestBrowseOpen ? D.teal + "60" : D.border), background: guestBrowseOpen ? D.teal + "0A" : "transparent", transition: "all 0.2s ease" }}>Browse FK</span>
+        <span onClick={function() { setGuests(guests.concat([{ name: "", handle: "" }])); }} style={{ fontFamily: mn, fontSize: 10, color: ACC, cursor: "pointer", padding: "4px 10px", borderRadius: 8, border: "1px solid " + D.border, transition: "all 0.2s ease" }}>+ Add</span>
+      </div>
+    </div>
+    {/* FK Prospects Browse Panel */}
+    {guestBrowseOpen && <div style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 14, marginBottom: 12, maxHeight: 280, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <input value={fkSearch} onChange={function(e) { setFkSearch(e.target.value); }} placeholder="Search FK prospects..." style={{ width: "100%", padding: "8px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 8, color: D.tx, fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box", marginBottom: 8, transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
+      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+        {fkLoading && <div style={{ fontFamily: mn, fontSize: 10, color: D.txl, textAlign: "center", padding: 16 }}>Loading...</div>}
+        {!fkLoading && filteredFK.length === 0 && <div style={{ fontFamily: mn, fontSize: 10, color: D.txl, textAlign: "center", padding: 16 }}>No prospects found</div>}
+        {!fkLoading && filteredFK.map(function(p) {
+          return <div key={p.id} onClick={function() { addFKGuest(p); }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: D.surface, borderRadius: 8, cursor: "pointer", border: "1px solid " + D.border, transition: "all 0.15s ease" }}>
+            <div>
+              <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: D.tx }}>{p.name}</div>
+              <div style={{ fontFamily: mn, fontSize: 10, color: D.txb }}>{p.role ? p.role + (p.company ? " @ " + p.company : "") : p.company || ""}</div>
+            </div>
+            <span style={{ fontFamily: mn, fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: (tierColors[p.tier] || D.txl) + "18", color: tierColors[p.tier] || D.txl, border: "1px solid " + (tierColors[p.tier] || D.txl) + "30" }}>{p.tier || "-"}</span>
+          </div>;
+        })}
+      </div>
+    </div>}
     {guests.length === 0 && <div onClick={function() { setGuests([{ name: "", handle: "" }]); }} style={{ background: D.surface, border: "1px dashed " + D.border, borderRadius: 10, padding: "16px", cursor: "pointer", textAlign: "center", fontFamily: ft, fontSize: 13, color: D.txl }}>Click to add guests</div>}
     {guests.map(function(g, i) { return (<div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
       <input value={g.name} onChange={function(e) { var c = guests.slice(); c[i] = { name: e.target.value, handle: g.handle }; setGuests(c); }} placeholder="Name" style={{ flex: 1, padding: "10px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, color: D.tx, fontFamily: ft, fontSize: 14, outline: "none", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />

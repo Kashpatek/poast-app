@@ -1,6 +1,7 @@
 // @ts-nocheck
 "use client";
 import { useState, useEffect } from "react";
+import { TEAM } from "./shared-constants";
 
 // ═══ DESIGN ═══
 var D = {
@@ -13,16 +14,6 @@ var ft = "'Outfit',sans-serif";
 var mn = "'JetBrains Mono',monospace";
 
 // ═══ DATA ═══
-var TEAM = [
-  { id: "dp", name: "Dylan Patel", role: "Chief Analyst", initials: "DP", color: D.amber, expertise: ["Semiconductors", "AI Infrastructure", "Supply Chain", "Geopolitics", "Capex Analysis"] },
-  { id: "do", name: "Doug O'Laughlin", role: "Senior Analyst", initials: "DO", color: D.blue, expertise: ["Memory", "Compute", "Data Centers", "Financial Analysis", "HBM"] },
-  { id: "jn", name: "Jordan Nanos", role: "Analyst", initials: "JN", color: D.teal, expertise: ["AI Models", "ML Infrastructure", "Cloud Computing", "Inference"] },
-  { id: "dn", name: "Dan Nishball", role: "Analyst", initials: "DN", color: D.coral, expertise: ["Hardware Design", "Chip Architecture", "Manufacturing", "Defense"] },
-  { id: "kc", name: "Kimbo Chen", role: "Analyst", initials: "KC", color: D.cyan, expertise: ["Semiconductors", "Process Technology", "Foundry", "Advanced Packaging"] },
-  { id: "cq", name: "Cameron Quilici", role: "Analyst", initials: "CQ", color: "#8B5CF6", expertise: ["AI Infrastructure", "Networking", "Optics", "Datacenter Design"] },
-  { id: "wc", name: "Wega Chu", role: "Analyst", initials: "WC", color: "#EC4899", expertise: ["Memory", "NAND", "Storage", "Supply Chain"] },
-];
-
 var PIPELINE_COLS = [
   { key: "identified", label: "Identified", color: D.txm },
   { key: "outreach_sent", label: "Outreach Sent", color: D.blue },
@@ -122,6 +113,7 @@ export default function Outreach() {
   var _filterTopic = useState(""), filterTopic = _filterTopic[0], setFilterTopic = _filterTopic[1];
   var _filterStatus = useState("all"), filterStatus = _filterStatus[0], setFilterStatus = _filterStatus[1];
   var _expandedNotes = useState({}), expandedNotes = _expandedNotes[0], setExpandedNotes = _expandedNotes[1];
+  var _fkProspects = useState([]), fkProspects = _fkProspects[0], setFkProspects = _fkProspects[1];
 
   // Form state
   var _fShow = useState(""), fShow = _fShow[0], setFShow = _fShow[1];
@@ -152,6 +144,19 @@ export default function Outreach() {
     });
     return function() { cancelled = true; };
   }, []);
+
+  // Load FK prospects for cross-referencing
+  useEffect(function() {
+    fetch("/api/db?table=prospects").then(function(r) { return r.json(); }).then(function(res) {
+      if (res.data) setFkProspects(res.data);
+    }).catch(function() {});
+  }, []);
+
+  function findFKMatch(hostName) {
+    return fkProspects.find(function(p) {
+      return hostName && p.name && hostName.toLowerCase().indexOf(p.name.split(" ")[0].toLowerCase()) > -1;
+    });
+  }
 
   function addOpp() {
     if (!fShow.trim()) return;
@@ -400,6 +405,7 @@ export default function Outreach() {
                           background: (tierColors[opp.tier] || D.txm) + "18", color: tierColors[opp.tier] || D.txm,
                           border: "1px solid " + (tierColors[opp.tier] || D.txm) + "30",
                         }}>Tier {opp.tier}</span>
+                        {(function() { var fkMatch = findFKMatch(opp.hostName); if (fkMatch) return <span style={{ padding: "2px 8px", borderRadius: 4, fontFamily: mn, fontSize: 9, fontWeight: 700, background: D.teal + "18", color: D.teal, border: "1px solid " + D.teal + "30" }}>FK Guest {fkMatch.tier ? "(" + fkMatch.tier + ")" : ""}</span>; return null; })()}
                       </div>
                       <div style={{ fontFamily: mn, fontSize: 11, color: D.txm }}>
                         {opp.hostName && <span>Host: {opp.hostName}</span>}
@@ -503,7 +509,8 @@ export default function Outreach() {
                       return (
                         <div key={opp.id} style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 10, padding: 14, transition: "all 0.15s" }}>
                           <div style={{ fontSize: 13, fontWeight: 700, color: D.tx, marginBottom: 4 }}>{opp.showName}</div>
-                          <div style={{ fontFamily: mn, fontSize: 10, color: opp.hostName ? D.txm : D.txd, marginBottom: 8, fontStyle: opp.hostName ? "normal" : "italic" }}>{opp.hostName || "No host"}</div>
+                          <div style={{ fontFamily: mn, fontSize: 10, color: opp.hostName ? D.txm : D.txd, marginBottom: 4, fontStyle: opp.hostName ? "normal" : "italic" }}>{opp.hostName || "No host"}</div>
+                          {(function() { var fkMatch = findFKMatch(opp.hostName); if (fkMatch) return <div style={{ marginBottom: 6 }}><span style={{ padding: "2px 6px", borderRadius: 4, fontFamily: mn, fontSize: 8, fontWeight: 700, background: D.teal + "18", color: D.teal, border: "1px solid " + D.teal + "30" }}>FK Guest {fkMatch.tier ? "(" + fkMatch.tier + ")" : ""}</span></div>; return null; })()}
 
                           {/* Assigned member */}
                           {assigned && (

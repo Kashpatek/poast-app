@@ -452,6 +452,45 @@ function ClipCaptions() {
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
   var _results = useState(null), results = _results[0], setResults = _results[1];
   var _regenL = useState({}), regenL = _regenL[0], setRegenL = _regenL[1];
+  var _bufferSending = useState({}), bufferSending = _bufferSending[0], setBufferSending = _bufferSending[1];
+
+  var PLAT_TO_SERVICE = { x: "twitter", instagram: "instagram", linkedin: "linkedin", tiktok: "tiktok", youtube: "youtube", facebook: "facebook" };
+
+  var sendToBuffer = async function(platKey, text) {
+    setBufferSending(function(p) { var o = Object.assign({}, p); o[platKey] = true; return o; });
+    try {
+      var chRes = await fetch("/api/buffer?type=channels");
+      var chData = await chRes.json();
+      if (!chData.channels || chData.channels.length === 0) { showToast("No Buffer channels found. Connect channels in Buffer first."); setBufferSending(function(p) { var o = Object.assign({}, p); o[platKey] = false; return o; }); return false; }
+      var service = PLAT_TO_SERVICE[platKey] || platKey;
+      var channel = chData.channels.find(function(ch) { return ch.service === service; });
+      if (!channel) { showToast("No Buffer channel found for " + service + ". Connect it in Buffer."); setBufferSending(function(p) { var o = Object.assign({}, p); o[platKey] = false; return o; }); return false; }
+      var postRes = await fetch("/api/buffer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "createPost", input: { channelId: channel.id, text: text, schedulingType: "draft" } }) });
+      var postData = await postRes.json();
+      if (postData.error) { showToast("Buffer error: " + (postData.error.message || postData.error)); setBufferSending(function(p) { var o = Object.assign({}, p); o[platKey] = false; return o; }); return false; }
+      setBufferSending(function(p) { var o = Object.assign({}, p); o[platKey] = false; return o; });
+      return true;
+    } catch (e) { showToast("Failed to send to Buffer: " + e.message); setBufferSending(function(p) { var o = Object.assign({}, p); o[platKey] = false; return o; }); return false; }
+  };
+
+  var sendAllToBuffer = async function() {
+    if (!results) return;
+    setBufferSending(function(p) { var o = Object.assign({}, p); o["_all"] = true; return o; });
+    var sent = 0; var failed = 0;
+    for (var pi = 0; pi < platforms.length; pi++) {
+      var platKey = platforms[pi];
+      var platResults = results[platKey] || [];
+      if (platResults.length === 0) continue;
+      var r = platResults[0];
+      var text = isThread ? (r.posts || []).map(function(p) { return p.text; }).join("\n\n") : (r.caption || "");
+      if (!text) continue;
+      var ok = await sendToBuffer(platKey, text);
+      if (ok) sent++; else failed++;
+    }
+    setBufferSending(function(p) { var o = Object.assign({}, p); o["_all"] = false; return o; });
+    if (sent > 0 && failed === 0) showToast("Sent " + sent + " draft" + (sent > 1 ? "s" : "") + " to Buffer.");
+    else if (sent > 0) showToast("Sent " + sent + " draft" + (sent > 1 ? "s" : "") + " to Buffer. " + failed + " failed.");
+  };
 
   var toneObj = CAPPER_TONES.find(function(t) { return t.key === tone; }) || CAPPER_TONES[0];
   var lenObj = CAPPER_LENGTHS.find(function(l) { return l.key === length; }) || CAPPER_LENGTHS[1];
@@ -683,6 +722,7 @@ function ClipCaptions() {
                   <div style={{ display: "flex", gap: 5 }}>
                     <CopyBtn text={fullText} />
                     <span onClick={function() { if (!isRegen) regenerateOne(platKey, i); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: isRegen ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + borderC, opacity: isRegen ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>{isRegen ? "..." : "\u21BB"}</span>
+                    <span onClick={function() { if (!bufferSending[platKey]) { var threadText = posts.map(function(p) { return p.text; }).join("\n\n"); sendToBuffer(platKey, threadText).then(function(ok) { if (ok) showToast("Sent " + platObj.label + " thread draft to Buffer."); }); } }} style={{ fontFamily: mn, fontSize: 9, color: bufferSending[platKey] ? C.teal : "rgba(255,255,255,0.4)", cursor: bufferSending[platKey] ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + (bufferSending[platKey] ? C.teal + "40" : borderC), background: bufferSending[platKey] ? C.teal + "08" : "transparent", opacity: bufferSending[platKey] ? 0.6 : 1, userSelect: "none", transition: "all 0.2s ease" }} onMouseEnter={function(e) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = C.teal + "40"; e.currentTarget.style.color = C.teal; } }} onMouseLeave={function(e) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; } }}>{bufferSending[platKey] ? "Sending..." : "Buffer"}</span>
                   </div>
                 </div>
                 {/* Thread posts */}
@@ -707,6 +747,7 @@ function ClipCaptions() {
                 <div style={{ display: "flex", gap: 5 }}>
                   <CopyBtn text={cap + (r.reply ? "\n\n[Reply]\n" + r.reply : "") + (r.title ? "\n\n[Title]\n" + r.title : "")} />
                   <span onClick={function() { if (!isRegen) regenerateOne(platKey, i); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: isRegen ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + borderC, opacity: isRegen ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>{isRegen ? "..." : "\u21BB"}</span>
+                  <span onClick={function() { if (!bufferSending[platKey]) { sendToBuffer(platKey, cap).then(function(ok) { if (ok) showToast("Sent " + platObj.label + " draft to Buffer."); }); } }} style={{ fontFamily: mn, fontSize: 9, color: bufferSending[platKey] ? C.teal : "rgba(255,255,255,0.4)", cursor: bufferSending[platKey] ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + (bufferSending[platKey] ? C.teal + "40" : borderC), background: bufferSending[platKey] ? C.teal + "08" : "transparent", opacity: bufferSending[platKey] ? 0.6 : 1, userSelect: "none", transition: "all 0.2s ease" }} onMouseEnter={function(e) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = C.teal + "40"; e.currentTarget.style.color = C.teal; } }} onMouseLeave={function(e) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; } }}>{bufferSending[platKey] ? "Sending..." : "Buffer"}</span>
                 </div>
               </div>
 
@@ -728,6 +769,11 @@ function ClipCaptions() {
           })}
         </div>;
       })}
+      {/* Send All to Buffer */}
+      {platforms.length > 0 && <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid " + borderC, display: "flex", alignItems: "center", gap: 12 }}>
+        <span onClick={function() { if (!bufferSending["_all"]) sendAllToBuffer(); }} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 20px", borderRadius: 10, cursor: bufferSending["_all"] ? "wait" : "pointer", background: bufferSending["_all"] ? C.teal + "15" : "linear-gradient(135deg, " + C.teal + "18, " + C.teal + "08)", border: "1px solid " + C.teal + "40", fontFamily: ft, fontSize: 13, fontWeight: 700, color: C.teal, opacity: bufferSending["_all"] ? 0.6 : 1, transition: "all 0.2s ease", boxShadow: "0 0 16px " + C.teal + "08" }} onMouseEnter={function(e) { if (!bufferSending["_all"]) { e.currentTarget.style.boxShadow = "0 0 24px " + C.teal + "18"; e.currentTarget.style.borderColor = C.teal + "70"; } }} onMouseLeave={function(e) { e.currentTarget.style.boxShadow = "0 0 16px " + C.teal + "08"; e.currentTarget.style.borderColor = C.teal + "40"; }}>{bufferSending["_all"] ? "Sending..." : "Send All to Buffer"}</span>
+        <span style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>Sends first variation of each platform as a draft</span>
+      </div>}
     </div>}
   </div>);
 }
