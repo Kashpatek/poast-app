@@ -198,6 +198,16 @@ function WizardOverlay({ open, onClose, onGenerate, loading }) {
   var _topics = useState([]), topics = _topics[0], setTopics = _topics[1];
   var _angle = useState(""), angle = _angle[0], setAngle = _angle[1];
 
+  // Pick up routed context from News Flow
+  useEffect(function() {
+    if (open) {
+      try {
+        var routed = localStorage.getItem("ideation-routed-angle");
+        if (routed) { setAngle(routed); localStorage.removeItem("ideation-routed-angle"); }
+      } catch (e) {}
+    }
+  }, [open]);
+
   var toggleType = function(key) {
     setTypes(function(p) { return p.indexOf(key) > -1 ? p.filter(function(k) { return k !== key; }) : p.concat([key]); });
   };
@@ -533,6 +543,23 @@ export default function IdeationNation() {
     });
 
     return function() { clearTimeout(timer); };
+  }, []);
+
+  // Check for routed context from News Flow
+  useEffect(function() {
+    try {
+      var raw = localStorage.getItem("poast-route-to");
+      if (raw) {
+        var route = JSON.parse(raw);
+        if (route.section === "ideation" && route.data) {
+          localStorage.removeItem("poast-route-to");
+          setWizardOpen(true);
+          showToast("News item loaded -- generate ideas from it");
+          // Store the context so the wizard can use it as the angle
+          try { localStorage.setItem("ideation-routed-angle", route.data.prompt || ""); } catch (e) {}
+        }
+      }
+    } catch (e) {}
   }, []);
 
   // Persist saved ideas to localStorage + Supabase
