@@ -12,10 +12,10 @@ const TEMPLATE_IDS: Record<string, string> = {
 const CAROUSEL_SYS = `You are a content strategist for SemiAnalysis, creating Instagram carousel content from research articles. You produce structured carousel slide objects following the SA Carousel Schema v1.0.
 
 Slide types:
-- COVER: title (5-8 words, bold claim, no end punctuation), subtitle (exactly 2 sentences, under 45 words total, must fit below title on 1080x1350 slide at 34px), image_url (if provided)
-- BODY_A: body_text (60-80 words, dark background)
-- BODY_B: body_text (60-80 words, light background)
-- BODY_FINAL: body_text (60-80 words, ends with forward-looking statement, no arrow)
+- COVER: title (5-8 words, bold claim, no end punctuation), subtitle (3-4 sentences, 50-70 words, fills the space below the title and image on a 1080x1350 slide. Should give meaningful context about why this matters), image_url (if provided)
+- BODY_A: body_text (2-3 short paragraphs separated by double newlines, 80-120 words total, dark background. Each paragraph is 2-3 sentences. Never use bullets.)
+- BODY_B: body_text (2-3 short paragraphs separated by double newlines, 80-120 words total, light background. Each paragraph is 2-3 sentences. Never use bullets.)
+- BODY_FINAL: body_text (2-3 short paragraphs separated by double newlines, 80-120 words total, ends with forward-looking statement, no arrow. Never use bullets.)
 - BODY_IMAGE: image_url + body_text (30-50 words, optional)
 - BODY_LARGE_IMAGE: image_url + subtext (10-20 words caption, optional)
 
@@ -40,39 +40,74 @@ export async function POST(req: NextRequest) {
     const { action, text, url, category, mode, pageCount, imageUrls } = body;
 
     if (action === "fetchImages") {
-      // Scrape images from an article URL
+      // Scrape images from article URL, then use Claude to pick relevant ones
       const { url: fetchUrl } = body;
       if (!fetchUrl) return NextResponse.json({ images: [] });
       try {
         const pageRes = await fetch(fetchUrl, { headers: { "User-Agent": "Mozilla/5.0 (compatible; SemiAnalysis/1.0)" } });
         const html = await pageRes.text();
-        // Extract img src attributes
-        const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
-        const images: string[] = [];
+
+        // Extract article text for context
+        const textOnly = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+          .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 3000);
+
+        // Extract img tags with src AND alt/context
+        const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*?(?:alt=["']([^"']*)["'])?[^>]*>/gi;
+        const candidates: { src: string; alt: string }[] = [];
         let match;
         while ((match = imgRegex.exec(html)) !== null) {
           let src = match[1];
-          // Skip tiny/icon images, data URIs, SVGs
-          if (src.startsWith("data:") || src.endsWith(".svg") || src.includes("favicon") || src.includes("logo") || src.includes("icon") || src.includes("avatar") || src.includes("1x1")) continue;
-          // Make absolute URLs
+          const alt = match[2] || "";
+          // Skip junk: data URIs, SVGs, tiny markers, UI elements
+          if (src.startsWith("data:") || src.endsWith(".svg") || src.endsWith(".gif")) continue;
+          if (/favicon|logo|icon|avatar|emoji|badge|button|arrow|spinner|loading|pixel|tracking|1x1|spacer/i.test(src)) continue;
+          // Skip tiny dimension hints
+          const widthMatch = src.match(/[?&]w=(\d+)/) || html.slice(Math.max(0, match.index - 200), match.index + match[0].length + 200).match(/width[=:]["'\s]*(\d+)/i);
+          if (widthMatch && parseInt(widthMatch[1]) < 100) continue;
+          // Make absolute
           if (src.startsWith("//")) src = "https:" + src;
-          else if (src.startsWith("/")) {
-            try { const u = new URL(fetchUrl); src = u.origin + src; } catch {}
+          else if (src.startsWith("/")) { try { const u = new URL(fetchUrl); src = u.origin + src; } catch {} }
+          if (src.startsWith("http") && !candidates.some(c => c.src === src)) {
+            candidates.push({ src, alt });
           }
-          if (src.startsWith("http") && images.indexOf(src) === -1) images.push(src);
-          if (images.length >= 12) break;
+          if (candidates.length >= 20) break;
         }
-        return NextResponse.json({ images, ts: Date.now() });
+
+        if (candidates.length === 0) return NextResponse.json({ images: [], ts: Date.now() });
+
+        // Use Claude to pick which images are relevant content images
+        const pickRes = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 500,
+            system: "You select relevant article images for a carousel. Return ONLY a JSON array of indices (0-based) of images that are actual content images (charts, graphs, photos, diagrams, product shots) relevant to the article. Exclude: navigation images, ads, author photos, social sharing buttons, thumbnails under 200px, decorative borders, header/footer images. Pick at most 5 of the best, most visually interesting content images. Return format: [0, 3, 7]",
+            messages: [{ role: "user", content: `Article summary: ${textOnly.slice(0, 1000)}\n\nCandidate images:\n${candidates.map((c, i) => `${i}: ${c.src.slice(-80)} (alt: "${c.alt}")`).join("\n")}\n\nWhich indices are relevant content images? Return JSON array only.` }],
+          }),
+        });
+        const pickData = await pickRes.json();
+        const pickText = (pickData.content || []).map((c: { text?: string }) => c.text || "").join("").trim();
+        try {
+          const indices: number[] = JSON.parse(pickText.replace(/```json|```/g, "").trim());
+          const picked = indices.filter(i => i >= 0 && i < candidates.length).map(i => candidates[i].src);
+          return NextResponse.json({ images: picked, ts: Date.now() });
+        } catch {
+          // Fallback: return first 4 candidates
+          return NextResponse.json({ images: candidates.slice(0, 4).map(c => c.src), ts: Date.now() });
+        }
       } catch {
         return NextResponse.json({ images: [] });
       }
     }
 
     if (action === "generate") {
-      const slideCount = mode === "manual" ? (pageCount || 4) : "4-6 (your choice based on content density)";
+      const hasImages = imageUrls && imageUrls.length > 0;
+      const slideCount = mode === "manual" ? (pageCount || 4) : (hasImages ? "4-6 (include image slides only where charts/data support the narrative)" : "4-5 (text-only, tight and focused)");
       const imageNote = imageUrls && imageUrls.length > 0
-        ? `Available image URLs (use these in COVER and optional image slides):\n${imageUrls.join("\n")}`
-        : "No images provided. Omit image_url fields and do not include BODY_IMAGE or BODY_LARGE_IMAGE slides.";
+        ? `Available images (${imageUrls.length} total):\n${imageUrls.map((u: string, i: number) => `${i}: ${u.slice(-80)}`).join("\n")}\n\nIMPORTANT IMAGE RULES:\n- Use the BEST image for the COVER slide (image_url field). Pick the most visually compelling one.\n- Only use BODY_IMAGE or BODY_LARGE_IMAGE slides if an image is a chart, graph, or diagram that directly supports the text on THAT specific slide.\n- Do NOT put images on every slide. Most body slides should be text-only (BODY_A / BODY_B).\n- A typical 5-slide carousel with images: COVER (with image), BODY_A (text), BODY_B (text), BODY_IMAGE (with relevant chart/data if available), BODY_FINAL (text).\n- Never use more than 2-3 images total across all slides.`
+        : "No images provided. Omit image_url fields. Do not include BODY_IMAGE or BODY_LARGE_IMAGE slides. All body slides should be BODY_A or BODY_B (text only).";
 
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -188,7 +223,7 @@ Return JSON: { "caption": "full caption text", "hashtags": ["tag1", "tag2", ...]
       if (!rewriteText) return NextResponse.json({ error: "No text provided" }, { status: 400 });
       const dirPrompt = direction === "shorten"
         ? "Make this subtitle shorter. Maximum 1 sentence, under 15 words. Keep the SA institutional tone. No em dashes."
-        : "Rewrite this subtitle as exactly 2 sentences. Total must be under 45 words. The text needs to fit in a small area below a title on a 1080x1350 carousel slide at 34px font. Be concise but informative. SA institutional, confident, technical tone. No em dashes, no emojis.";
+        : "Expand this subtitle to 3-4 sentences, 50-70 words total. Fill the space below the title on a carousel slide. Add meaningful context about why this matters, key numbers, or stakes. SA institutional, confident, technical tone. No em dashes, no emojis.";
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },

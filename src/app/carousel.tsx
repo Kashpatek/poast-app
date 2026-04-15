@@ -158,9 +158,11 @@ function FontSizeControl({ value, onChange, label }) {
 }
 
 // ═══ IMAGE FRAME (clickable area for image insertion with position control) ═══
-function ImageFrame({ imageUrl, onImageChange, onPositionChange, imagePosition, style: frameStyle, slideId }) {
+function ImageFrame({ imageUrl, onImageChange, onPositionChange, imagePosition, imageFit, style: frameStyle, slideId }) {
   var fileRef = useRef(null);
+  var _hover = useState(false), hover = _hover[0], setHover = _hover[1];
   var pos = imagePosition || "center";
+  var fit = imageFit || "cover";
 
   function handleClick(e) {
     if (e.target.tagName === "BUTTON" || e.target.closest("button")) return;
@@ -176,19 +178,19 @@ function ImageFrame({ imageUrl, onImageChange, onPositionChange, imagePosition, 
     e.target.value = "";
   }
 
-  return <div onClick={handleClick} style={Object.assign({}, { borderRadius: 20 * SCALE, overflow: "hidden", cursor: "pointer", position: "relative", background: "rgba(255,255,255,0.04)", border: "1px dashed rgba(255,255,255,0.12)" }, frameStyle)}>
+  return <div onClick={handleClick} onMouseEnter={function() { setHover(true); }} onMouseLeave={function() { setHover(false); }} style={Object.assign({}, { borderRadius: 20 * SCALE, overflow: "hidden", cursor: "pointer", position: "relative", background: "rgba(255,255,255,0.04)", border: "1px dashed rgba(255,255,255,0.12)" }, frameStyle)}>
     {imageUrl ? <div style={{ width: "100%", height: "100%", position: "relative" }}>
-      <img src={imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: pos, display: "block" }} onError={function(e) { e.target.style.opacity = "0.3"; }} />
-      {/* Position controls */}
-      {onPositionChange && <div style={{ position: "absolute", bottom: 6, right: 6, display: "flex", gap: 3, background: "rgba(0,0,0,0.6)", borderRadius: 6, padding: 3 }} onClick={function(e) { e.stopPropagation(); }}>
-        <button onClick={function() { onPositionChange("top"); }} style={{ width: 22, height: 22, borderRadius: 4, background: pos === "top" ? C.amber : "rgba(255,255,255,0.1)", border: "none", color: pos === "top" ? C.bg : "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", fontWeight: 700, fontFamily: mn }}>T</button>
-        <button onClick={function() { onPositionChange("center"); }} style={{ width: 22, height: 22, borderRadius: 4, background: pos === "center" ? C.amber : "rgba(255,255,255,0.1)", border: "none", color: pos === "center" ? C.bg : "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", fontWeight: 700, fontFamily: mn }}>C</button>
-        <button onClick={function() { onPositionChange("bottom"); }} style={{ width: 22, height: 22, borderRadius: 4, background: pos === "bottom" ? C.amber : "rgba(255,255,255,0.1)", border: "none", color: pos === "bottom" ? C.bg : "rgba(255,255,255,0.5)", fontSize: 10, cursor: "pointer", fontWeight: 700, fontFamily: mn }}>B</button>
+      <img src={imageUrl} style={{ width: "100%", height: "100%", objectFit: fit, objectPosition: pos, display: "block", background: "#000" }} onError={function(e) { e.target.style.opacity = "0.3"; }} />
+      {/* Position + fit controls (show on hover) */}
+      {hover && onPositionChange && <div style={{ position: "absolute", bottom: 6, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 3, background: "rgba(0,0,0,0.75)", borderRadius: 8, padding: "4px 6px", backdropFilter: "blur(8px)" }} onClick={function(e) { e.stopPropagation(); }}>
+        <button onClick={function() { onPositionChange("top"); }} title="Align top" style={{ padding: "3px 8px", borderRadius: 4, background: pos === "top" ? C.amber : "rgba(255,255,255,0.1)", border: "none", color: pos === "top" ? C.bg : "rgba(255,255,255,0.6)", fontSize: 9, cursor: "pointer", fontFamily: mn }}>Top</button>
+        <button onClick={function() { onPositionChange("center"); }} title="Center" style={{ padding: "3px 8px", borderRadius: 4, background: pos === "center" ? C.amber : "rgba(255,255,255,0.1)", border: "none", color: pos === "center" ? C.bg : "rgba(255,255,255,0.6)", fontSize: 9, cursor: "pointer", fontFamily: mn }}>Center</button>
+        <button onClick={function() { onPositionChange("bottom"); }} title="Align bottom" style={{ padding: "3px 8px", borderRadius: 4, background: pos === "bottom" ? C.amber : "rgba(255,255,255,0.1)", border: "none", color: pos === "bottom" ? C.bg : "rgba(255,255,255,0.6)", fontSize: 9, cursor: "pointer", fontFamily: mn }}>Bottom</button>
       </div>}
-      {/* Remove button */}
-      <div style={{ position: "absolute", top: 6, right: 6 }} onClick={function(e) { e.stopPropagation(); }}>
-        <button onClick={function() { onImageChange(""); }} style={{ width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", color: "rgba(255,255,255,0.7)", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u00D7"}</button>
-      </div>
+      {/* Remove button (show on hover) */}
+      {hover && <div style={{ position: "absolute", top: 6, right: 6 }} onClick={function(e) { e.stopPropagation(); }}>
+        <button onClick={function() { onImageChange(""); }} style={{ width: 24, height: 24, borderRadius: "50%", background: "rgba(0,0,0,0.7)", border: "none", color: "#fff", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>{"\u00D7"}</button>
+      </div>}
     </div> : <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
       <div style={{ fontSize: 24, color: "rgba(255,255,255,0.15)" }}>+</div>
       <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.2)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Click to add image</div>
@@ -220,8 +222,9 @@ function SlideCanvas({ slide, theme, onUpdate }) {
         onImageChange={function(url) { updateField("imageUrl", url); }}
         onPositionChange={function(pos) { updateField("imagePosition", pos); }}
         imagePosition={slide.imagePosition}
+        imageFit={slide.imageFit}
         slideId={slide.id}
-        style={{ width: "100%", height: "46%", marginBottom: 12, borderRadius: 20 * SCALE }}
+        style={{ width: "100%", height: (slide.imageHeight || 46) + "%", marginBottom: 12, borderRadius: 20 * SCALE, flexShrink: 0 }}
       />
       {/* Title */}
       <div
@@ -719,6 +722,20 @@ function EditStep({ slides, setSlides, theme, onNext, onBack }) {
             {!currentSlide.imageUrl && currentSlide.type === "body" && <div style={{ fontFamily: ft, fontSize: 10, color: C.txd }}>Add image to split this into image+text</div>}
           </div>
           {currentSlide.imageUrl && <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{currentSlide.imageUrl.slice(0, 60)}...</div>}
+          {currentSlide.imageUrl && <div style={{ marginTop: 8 }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Image Size</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input type="range" min={25} max={70} value={currentSlide.imageHeight || 46} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { imageHeight: parseInt(e.target.value) })); }} style={{ flex: 1, accentColor: C.amber }} />
+              <span style={{ fontFamily: mn, fontSize: 10, color: C.amber, minWidth: 30 }}>{currentSlide.imageHeight || 46}%</span>
+            </div>
+            <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+              <span style={{ fontFamily: mn, fontSize: 8, color: C.txd }}>Fit:</span>
+              {["cover", "contain", "fill"].map(function(fit) {
+                var active = (currentSlide.imageFit || "cover") === fit;
+                return <button key={fit} onClick={function() { updateSlide(Object.assign({}, currentSlide, { imageFit: fit })); }} style={{ padding: "2px 8px", borderRadius: 4, background: active ? C.amber + "20" : "transparent", border: "1px solid " + (active ? C.amber + "40" : C.border), color: active ? C.amber : C.txd, fontFamily: mn, fontSize: 8, cursor: "pointer", textTransform: "capitalize" }}>{fit}</button>;
+              })}
+            </div>
+          </div>}
         </div>}
 
         {/* Slide management */}
@@ -1245,6 +1262,7 @@ export default function Carousel() {
           category: state.category,
           mode: state.mode,
           pageCount: state.pageCount || 4,
+          imageUrls: (state.articleImages || []).filter(function(u) { return u && !u.startsWith("data:"); }),
         }),
       });
       var d = await r.json();
