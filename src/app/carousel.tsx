@@ -898,20 +898,22 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
         {currentSlide.type === "cover" && <div>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Title</div>
           <textarea value={currentSlide.title || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { title: e.target.value })); }} rows={2} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 13, lineHeight: 1.4, resize: "none", outline: "none", boxSizing: "border-box", marginBottom: 8 }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>Subtitle</div>
-            <div style={{ display: "flex", gap: 4 }}>
-              <button onClick={function() {
+          <div style={{ marginBottom: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>Subtitle Length</div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.amber }}>{(currentSlide.subtitleLength || 3)} sentences</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontFamily: mn, fontSize: 8, color: C.coral }}>Short</span>
+              <input type="range" min={1} max={5} value={currentSlide.subtitleLength || 3} onChange={function(e) {
+                var target = parseInt(e.target.value);
+                updateSlide(Object.assign({}, currentSlide, { subtitleLength: target }));
                 var curr = currentSlide.subtitle || "";
                 if (!curr.trim()) return;
-                var _btn = this;
-                fetch("/api/carousel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "rewrite", text: curr, direction: "shorten" }) }).then(function(r) { return r.json(); }).then(function(d) { if (d.text) updateSlide(Object.assign({}, currentSlide, { subtitle: d.text })); }).catch(function() {});
-              }} style={{ padding: "2px 8px", background: C.coral + "10", color: C.coral, border: "1px solid " + C.coral + "25", borderRadius: 4, fontFamily: mn, fontSize: 8, cursor: "pointer" }}>Shorten</button>
-              <button onClick={function() {
-                var curr = currentSlide.subtitle || "";
-                if (!curr.trim()) return;
-                fetch("/api/carousel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "rewrite", text: curr, direction: "lengthen" }) }).then(function(r) { return r.json(); }).then(function(d) { if (d.text) updateSlide(Object.assign({}, currentSlide, { subtitle: d.text })); }).catch(function() {});
-              }} style={{ padding: "2px 8px", background: C.teal + "10", color: C.teal, border: "1px solid " + C.teal + "25", borderRadius: 4, fontFamily: mn, fontSize: 8, cursor: "pointer" }}>Lengthen</button>
+                var labels = { 1: "1 short sentence, under 15 words", 2: "2 sentences, under 30 words", 3: "3 sentences, 40-50 words", 4: "3-4 sentences, 50-65 words", 5: "4-5 sentences, 65-80 words, fill the space" };
+                fetch("/api/carousel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "rewrite", text: curr, direction: target < 3 ? "shorten" : "lengthen", targetLength: labels[target] }) }).then(function(r) { return r.json(); }).then(function(d) { if (d.text) updateSlide(Object.assign({}, currentSlide, { subtitle: d.text, subtitleLength: target })); }).catch(function() {});
+              }} style={{ flex: 1, accentColor: C.amber }} />
+              <span style={{ fontFamily: mn, fontSize: 8, color: C.teal }}>Long</span>
             </div>
           </div>
           <textarea value={currentSlide.subtitle || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { subtitle: e.target.value })); }} rows={4} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 12, lineHeight: 1.4, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
@@ -1244,40 +1246,44 @@ function renderSlideToCanvas(slide, bgUrl) {
       }
       ctx.drawImage(bgImg, sx, sy, sw, sh, 0, 0, FULL_W, FULL_H);
 
-      // Draw content
+      // Draw content — handles \n paragraph breaks
       function drawText(text, x, y, maxWidth, fontSize, fontWeight, color, lineHeight) {
         ctx.font = fontWeight + " " + fontSize + "px Grift, Outfit, sans-serif";
         ctx.fillStyle = color;
         ctx.textBaseline = "top";
 
-        // Shadow
         ctx.shadowColor = "rgba(0,0,0,0.4)";
         ctx.shadowBlur = 8;
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 2;
 
-        var words = (text || "").split(" ");
-        var line = "";
         var currentY = y;
         var lh = fontSize * (lineHeight || 1.4);
+        var paragraphs = (text || "").split(/\n/);
 
-        for (var i = 0; i < words.length; i++) {
-          var testLine = line + words[i] + " ";
-          var metrics = ctx.measureText(testLine);
-          if (metrics.width > maxWidth && i > 0) {
-            ctx.fillText(line.trim(), x, currentY);
-            line = words[i] + " ";
-            currentY += lh;
-          } else {
-            line = testLine;
+        for (var p = 0; p < paragraphs.length; p++) {
+          var para = paragraphs[p].trim();
+          if (!para) { currentY += lh * 0.6; continue; } // blank line = paragraph gap
+          var words = para.split(" ");
+          var line = "";
+          for (var i = 0; i < words.length; i++) {
+            var testLine = line + words[i] + " ";
+            var metrics = ctx.measureText(testLine);
+            if (metrics.width > maxWidth && i > 0) {
+              ctx.fillText(line.trim(), x, currentY);
+              line = words[i] + " ";
+              currentY += lh;
+            } else {
+              line = testLine;
+            }
           }
+          if (line.trim()) { ctx.fillText(line.trim(), x, currentY); currentY += lh; }
         }
-        if (line.trim()) ctx.fillText(line.trim(), x, currentY);
 
         ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
 
-        return currentY + lh;
+        return currentY;
       }
 
       function drawImage(imageUrl, x, y, w, h, radius) {

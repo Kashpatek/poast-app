@@ -285,11 +285,13 @@ Rules:
     }
 
     if (action === "rewrite") {
-      const { text: rewriteText, direction } = body;
+      const { text: rewriteText, direction, targetLength } = body;
       if (!rewriteText) return NextResponse.json({ error: "No text provided" }, { status: 400 });
-      const dirPrompt = direction === "shorten"
+      const dirPrompt = targetLength
+        ? `Rewrite this subtitle to be exactly ${targetLength}. This must fit below a title on a 1080x1350 carousel slide. SA institutional, confident, technical tone. No em dashes, no emojis.`
+        : direction === "shorten"
         ? "Make this subtitle shorter. Maximum 1 sentence, under 15 words. Keep the SA institutional tone. No em dashes."
-        : "Expand this subtitle to 3-4 sentences, 50-70 words total. Fill the space below the title on a carousel slide. Add meaningful context about why this matters, key numbers, or stakes. SA institutional, confident, technical tone. No em dashes, no emojis.";
+        : "Expand this subtitle to 3-4 sentences, 50-70 words total. SA institutional, confident, technical tone. No em dashes, no emojis.";
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
