@@ -592,7 +592,7 @@ function VariantSelectStep({ variants, theme, onSelect, onBack }) {
 
 
 // ═══ STEP 3: EDIT (Visual Slide Editor) ═══
-function EditStep({ slides, setSlides, theme, onNext, onBack }) {
+function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
   var _currentIdx = useState(0), currentIdx = _currentIdx[0], setCurrentIdx = _currentIdx[1];
   var currentSlide = slides[currentIdx] || slides[0];
 
@@ -752,6 +752,23 @@ function EditStep({ slides, setSlides, theme, onNext, onBack }) {
               })}
             </div>
           </div>}
+        </div>}
+
+        {/* Article images suggestions */}
+        {articleImages && articleImages.length > 0 && <div style={{ marginBottom: 20 }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.violet, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Article Images</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+            {articleImages.map(function(imgUrl, i) {
+              var isUsed = slides.some(function(sl) { return sl.imageUrl === imgUrl; });
+              return <div key={i} style={{ position: "relative" }}>
+                <div onClick={function() { if (!isUsed) updateSlide(Object.assign({}, currentSlide, { imageUrl: imgUrl })); }} style={{ width: "100%", aspectRatio: "4/5", borderRadius: 6, overflow: "hidden", cursor: isUsed ? "default" : "pointer", border: "1px solid " + (isUsed ? C.teal + "50" : C.border), opacity: isUsed ? 0.5 : 1, transition: "all 0.15s" }} onMouseEnter={function(e) { if (!isUsed) { e.currentTarget.style.borderColor = C.violet; e.currentTarget.style.transform = "scale(1.04)"; } }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = isUsed ? C.teal + "50" : C.border; e.currentTarget.style.transform = "scale(1)"; }}>
+                  <img src={imgUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.parentElement.style.display = "none"; }} />
+                </div>
+                {isUsed && <div style={{ position: "absolute", top: 2, right: 2, fontFamily: mn, fontSize: 7, color: C.teal, background: "rgba(0,0,0,0.7)", padding: "1px 4px", borderRadius: 3 }}>In use</div>}
+              </div>;
+            })}
+          </div>
+          <div style={{ fontFamily: ft, fontSize: 9, color: C.txd, marginTop: 6 }}>Click an image to add it to this slide</div>
         </div>}
 
         {/* Slide management */}
@@ -1244,6 +1261,9 @@ function apiSlidesToEditorSlides(apiSlides, slideCount) {
       bodyText: bodyText,
       bodySize: 28,
       imageUrl: apiSl.image_url || "",
+      imageHeight: type === "cover" ? 46 : type === "image_text" ? 50 : type === "large_image" ? 72 : 45,
+      imagePosition: "center",
+      imageFit: "cover",
       caption: apiSl.subtext || "",
       captionSize: 18,
     };
@@ -1399,6 +1419,7 @@ export default function Carousel() {
       slides={slides}
       setSlides={setSlides}
       theme={state.category}
+      articleImages={state.articleImages || []}
       onNext={function() { goStep(4); }}
       onBack={function() { goStep(2); }}
     />}
