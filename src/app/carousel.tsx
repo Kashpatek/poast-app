@@ -939,9 +939,17 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
 
 
 // ═══ STEP 4: REVIEW ═══
-function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl }) {
-  var _showContext = useState(false), showContext = _showContext[0], setShowContext = _showContext[1];
-  var _extraContext = useState(""), extraContext = _extraContext[0], setExtraContext = _extraContext[1];
+function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, variantLabel, captionOptions, setCaptionOptions, selectedCaptionIdx, setSelectedCaptionIdx, setCaption }) {
+  var _showReprompt = useState(false), showReprompt = _showReprompt[0], setShowReprompt = _showReprompt[1];
+  var _repromptText = useState(""), repromptText = _repromptText[0], setRepromptText = _repromptText[1];
+  var _captionLoading = useState(false), captionLoading = _captionLoading[0], setCaptionLoading = _captionLoading[1];
+  var _platTab = useState("instagram"), platTab = _platTab[0], setPlatTab = _platTab[1];
+
+  var PLATFORMS = [
+    { key: "instagram", label: "Instagram", color: "#E4405F", charLimit: 2200 },
+    { key: "tiktok", label: "TikTok", color: "#00F2EA", charLimit: 2200 },
+    { key: "shorts", label: "YT Shorts", color: "#FF0000", charLimit: 100 },
+  ];
 
   // CTA defaults
   var lastSlide = slides[slides.length - 1];
@@ -953,6 +961,69 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl }) {
     var idx = newSlides.length - 1;
     newSlides[idx] = Object.assign({}, newSlides[idx], { [field]: value });
     setSlides(newSlides);
+  }
+
+  function buildApiSlides() {
+    return slides.map(function(sl) {
+      var apiType = "BODY_A";
+      if (sl.type === "cover") apiType = "COVER";
+      else if (sl.position === 4) apiType = "BODY_FINAL";
+      else if (sl.type === "image_text") apiType = "BODY_IMAGE";
+      else if (sl.type === "large_image") apiType = "BODY_LARGE_IMAGE";
+      else if (sl.position === 3) apiType = "BODY_B";
+      return {
+        type: apiType,
+        title: sl.title || "",
+        subtitle: sl.subtitle || "",
+        body_text: sl.bodyText || "",
+        subtext: sl.caption || "",
+        image_url: sl.imageUrl || "",
+      };
+    });
+  }
+
+  function generateCaptions(extraContext) {
+    setCaptionLoading(true);
+    var apiSlides = buildApiSlides();
+    fetch("/api/carousel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "caption",
+        slides: apiSlides,
+        sourceUrl: sourceUrl || "",
+        variantLabel: variantLabel || "",
+        theme: theme,
+        extraContext: extraContext || "",
+      }),
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (d.captionOptions && Array.isArray(d.captionOptions) && d.captionOptions.length > 0) {
+        setCaptionOptions(d.captionOptions);
+        setSelectedCaptionIdx(0);
+        if (d.captionOptions[0] && d.captionOptions[0].instagram) {
+          setCaption(d.captionOptions[0].instagram);
+        }
+      }
+      setCaptionLoading(false);
+    }).catch(function() { setCaptionLoading(false); });
+  }
+
+  // Auto-generate captions on mount if none exist
+  useEffect(function() {
+    if (captionOptions.length > 0 || captionLoading) return;
+    generateCaptions("");
+  }, []);
+
+  function handleSelectOption(idx) {
+    setSelectedCaptionIdx(idx);
+    var opt = captionOptions[idx];
+    if (opt && opt.instagram) setCaption(opt.instagram);
+  }
+
+  function handleReprompt() {
+    generateCaptions(repromptText);
+    setShowReprompt(false);
+    setRepromptText("");
   }
 
   return <div>
@@ -1028,18 +1099,9 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl }) {
       })}
     </div>
 
-    {/* Additional context + source link */}
-    <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center" }}>
-      <button onClick={function() { setShowContext(!showContext); }} style={{ padding: "8px 14px", background: showContext ? C.blue + "15" : C.card, border: "1px solid " + (showContext ? C.blue + "40" : C.border), borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, color: showContext ? C.blue : C.txm, cursor: "pointer" }}>{showContext ? "Hide Context" : "+ Add Context"}</button>
-      {sourceUrl && <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>Source: {sourceUrl}</div>}
-    </div>
-    {showContext && <div style={{ marginBottom: 16 }}>
-      <textarea value={extraContext} onChange={function(e) { setExtraContext(e.target.value); }} placeholder="Add extra context for caption generation (key points, tone notes, CTA preferences...)" rows={3} style={{ width: "100%", padding: "10px 14px", background: C.card, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 12, lineHeight: 1.5, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.blue; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
-    </div>}
-
     {/* Last Slide CTA */}
     <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Last Slide CTA</div>
-    <div style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: "16px 18px", marginBottom: 20 }}>
+    <div style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: "16px 18px", marginBottom: 28 }}>
       <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>CTA Text</div>
@@ -1056,6 +1118,99 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl }) {
       {!ctaText && <button onClick={function() { updateLastSlideCta("ctaText", "LINK IN BIO"); updateLastSlideCta("ctaPosition", "bottom-right"); }} style={{ padding: "6px 14px", background: C.teal + "12", color: C.teal, border: "1px solid " + C.teal + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Add Default CTA</button>}
       {ctaText && <button onClick={function() { updateLastSlideCta("ctaText", ""); }} style={{ padding: "6px 14px", background: C.coral + "12", color: C.coral, border: "1px solid " + C.coral + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Remove CTA</button>}
     </div>
+
+    {/* Caption Generation */}
+    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 12 }}>Captions</div>
+
+    {captionLoading && <div style={{ textAlign: "center", padding: "32px 0" }}>
+      <div style={{ width: 28, height: 28, borderRadius: "50%", border: "2px solid " + C.border, borderTopColor: C.amber, margin: "0 auto 12px", animation: "cspin 1s linear infinite" }} />
+      <div style={{ fontFamily: ft, fontSize: 13, color: C.txm }}>Generating 3 caption options...</div>
+      <style dangerouslySetInnerHTML={{ __html: "@keyframes cspin{to{transform:rotate(360deg)}}" }} />
+    </div>}
+
+    {/* Caption option selector cards */}
+    {!captionLoading && captionOptions.length > 0 && <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+      {captionOptions.map(function(opt, oi) {
+        var isSel = selectedCaptionIdx === oi;
+        var optColors = [C.amber, C.blue, C.teal];
+        var oc = optColors[oi] || C.amber;
+        var igPreview = opt.instagram ? (opt.instagram.caption || "").slice(0, 80) : "";
+        return <div key={oi} onClick={function() { handleSelectOption(oi); }} style={{ flex: 1, padding: "14px 16px", borderRadius: 10, cursor: "pointer", background: isSel ? oc + "10" : C.card, border: "1px solid " + (isSel ? oc + "50" : C.border), transition: "all 0.2s", boxShadow: isSel ? "0 0 16px " + oc + "15" : "none" }} onMouseEnter={function(e) { if (!isSel) e.currentTarget.style.borderColor = oc + "30"; }} onMouseLeave={function(e) { if (!isSel) e.currentTarget.style.borderColor = isSel ? oc + "50" : C.border; }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <div style={{ width: 24, height: 24, borderRadius: 6, background: isSel ? oc : oc + "20", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 11, fontWeight: 800, color: isSel ? C.bg : oc }}>{oi + 1}</div>
+            <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: isSel ? oc : C.tx }}>{opt.label || "Option " + (oi + 1)}</div>
+          </div>
+          <div style={{ fontFamily: ft, fontSize: 11, color: C.txm, lineHeight: 1.5, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{igPreview}...</div>
+        </div>;
+      })}
+    </div>}
+
+    {/* Reprompt button + input */}
+    {!captionLoading && captionOptions.length > 0 && <div style={{ marginBottom: 16 }}>
+      {!showReprompt && <button onClick={function() { setShowReprompt(true); }} style={{ padding: "8px 14px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, color: C.txm, cursor: "pointer", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.blue + "40"; e.currentTarget.style.color = C.blue; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.txm; }}>Reprompt</button>}
+      {showReprompt && <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+        <textarea value={repromptText} onChange={function(e) { setRepromptText(e.target.value); }} placeholder="Add extra context for regeneration (tone, angle, key points to emphasize...)" rows={2} style={{ flex: 1, padding: "10px 14px", background: C.card, border: "1px solid " + C.blue + "30", borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 12, lineHeight: 1.5, resize: "none", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.blue; }} onBlur={function(e) { e.target.style.borderColor = C.blue + "30"; }} />
+        <button onClick={handleReprompt} style={{ padding: "10px 18px", background: C.blue, color: "#fff", border: "none", borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>Generate</button>
+        <button onClick={function() { setShowReprompt(false); setRepromptText(""); }} style={{ padding: "10px 12px", background: "transparent", color: C.txd, border: "1px solid " + C.border, borderRadius: 6, fontFamily: ft, fontSize: 12, cursor: "pointer" }}>{"\u00D7"}</button>
+      </div>}
+    </div>}
+
+    {/* Selected option — platform tabs + editable captions */}
+    {!captionLoading && captionOptions.length > 0 && (function() {
+      var opt = captionOptions[selectedCaptionIdx] || captionOptions[0];
+      if (!opt) return null;
+
+      return <div>
+        {/* Platform tabs */}
+        <div style={{ display: "flex", gap: 0, marginBottom: 12, background: C.card, borderRadius: 10, border: "1px solid " + C.border, padding: 3 }}>
+          {PLATFORMS.map(function(plat) {
+            var on = platTab === plat.key;
+            return <div key={plat.key} onClick={function() { setPlatTab(plat.key); }} style={{ flex: 1, padding: "9px 0", textAlign: "center", cursor: "pointer", borderRadius: 8, background: on ? plat.color + "15" : "transparent", border: on ? "1px solid " + plat.color + "30" : "1px solid transparent", transition: "all 0.15s" }}>
+              <div style={{ fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? plat.color : C.txd }}>{plat.label}</div>
+            </div>;
+          })}
+        </div>
+
+        {/* Active platform caption */}
+        {(function() {
+          var plat = PLATFORMS.find(function(p) { return p.key === platTab; });
+          if (!plat) return null;
+          var data = opt[plat.key] || {};
+          var text = plat.key === "shorts" ? (data.title || "") : (data.caption || "");
+          var charCount = text.length;
+          var overLimit = charCount > plat.charLimit;
+
+          return <div style={{ background: C.card, border: "1px solid " + plat.color + "20", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <div style={{ fontFamily: mn, fontSize: 9, color: plat.color, textTransform: "uppercase", letterSpacing: "1px" }}>{plat.label} {plat.key === "shorts" ? "Title" : "Caption"}</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <span style={{ fontFamily: mn, fontSize: 9, color: overLimit ? C.coral : C.txd }}>{charCount} / {plat.charLimit}</span>
+                {text && <span onClick={function() { navigator.clipboard.writeText(text); }} style={{ fontFamily: mn, fontSize: 9, color: plat.color, cursor: "pointer", padding: "1px 6px", border: "1px solid " + plat.color + "30", borderRadius: 4 }}>Copy</span>}
+              </div>
+            </div>
+            <textarea value={text} onChange={function(e) {
+              var val = e.target.value;
+              setCaptionOptions(function(prev) {
+                var updated = prev.slice();
+                updated[selectedCaptionIdx] = Object.assign({}, updated[selectedCaptionIdx]);
+                if (!updated[selectedCaptionIdx][plat.key]) updated[selectedCaptionIdx][plat.key] = {};
+                if (plat.key === "shorts") updated[selectedCaptionIdx][plat.key].title = val;
+                else updated[selectedCaptionIdx][plat.key].caption = val;
+                return updated;
+              });
+              if (plat.key === "instagram") setCaption(function(c) { return Object.assign({}, c || {}, { caption: val }); });
+            }} rows={plat.key === "shorts" ? 2 : 5} style={{ width: "100%", padding: "10px 12px", background: C.bg, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 13, lineHeight: 1.6, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = plat.color; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+            {plat.key !== "shorts" && data.hashtags && data.hashtags.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
+              {data.hashtags.map(function(tag, i) {
+                return <span key={i} style={{ fontFamily: ft, fontSize: 11, color: plat.color, padding: "3px 8px", background: plat.color + "10", border: "1px solid " + plat.color + "18", borderRadius: 16 }}>#{tag.replace(/^#/, "")}</span>;
+              })}
+            </div>}
+          </div>;
+        })()}
+      </div>;
+    })()}
+
+    {sourceUrl && <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 8 }}>Source: {sourceUrl}</div>}
   </div>;
 }
 
@@ -1289,50 +1444,21 @@ function renderSlideToCanvas(slide, bgUrl) {
 
 
 // ═══ STEP 5: EXPORT ═══
-function ExportStep({ slides, theme, caption, setCaption, onBack, sourceUrl, onSaveArchive }) {
+function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx, onBack, sourceUrl }) {
   var _downloading = useState(null), downloading = _downloading[0], setDownloading = _downloading[1];
   var _downloadAll = useState(false), downloadingAll = _downloadAll[0], setDownloadingAll = _downloadAll[1];
-  var _copied = useState(false), copied = _copied[0], setCopied = _copied[1];
+  var _copied = useState({}), copied = _copied[0], setCopied = _copied[1];
   var _platTab = useState("instagram"), platTab = _platTab[0], setPlatTab = _platTab[1];
-  var _captionOptions = useState([]), captionOptions = _captionOptions[0], setCaptionOptions = _captionOptions[1];
-  var _selectedOption = useState(0), selectedOption = _selectedOption[0], setSelectedOption = _selectedOption[1];
-  var _platLoading = useState(false), platLoading = _platLoading[0], setPlatLoading = _platLoading[1];
   var _archiveSaving = useState(false), archiveSaving = _archiveSaving[0], setArchiveSaving = _archiveSaving[1];
   var _archiveSaved = useState(false), archiveSaved = _archiveSaved[0], setArchiveSaved = _archiveSaved[1];
 
   var PLATFORMS = [
-    { key: "instagram", label: "Instagram", color: "#E4405F", charLimit: 2200 },
-    { key: "tiktok", label: "TikTok", color: "#00F2EA", charLimit: 2200 },
-    { key: "shorts", label: "YT Shorts", color: "#FF0000", charLimit: 100 },
+    { key: "instagram", label: "Instagram", color: "#E4405F" },
+    { key: "tiktok", label: "TikTok", color: "#00F2EA" },
+    { key: "shorts", label: "YT Shorts", color: "#FF0000" },
   ];
 
-  // Auto-generate 3 caption options on mount
-  useEffect(function() {
-    if (captionOptions.length > 0 || platLoading) return;
-    setPlatLoading(true);
-    var slideSummary = slides.map(function(sl, i) {
-      return "Slide " + (i + 1) + " (" + sl.type + "): " + (sl.title || sl.bodyText || sl.caption || "").slice(0, 120);
-    }).join("\n");
-
-    fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system: "You write social captions for SemiAnalysis carousel posts. Rules: No em dashes. No emojis. Confident, technical, institutional tone. RESPOND ONLY IN VALID JSON.",
-        prompt: "Generate 3 different caption OPTIONS for this carousel. Each option should have a different tone/angle.\n\nSlides:\n" + slideSummary + "\n" + (sourceUrl ? "Source: " + sourceUrl + "\n" : "") + "\nReturn JSON array of 3 options. Each option has captions for all 3 platforms:\n[\n  {\n    \"label\": \"Hook-driven\",\n    \"instagram\": { \"caption\": \"full caption with Save CTA + 5-8 hashtags + Location: San Francisco, CA\", \"hashtags\": [\"tag1\"] },\n    \"tiktok\": { \"caption\": \"all lowercase, casual, 4-6 hashtags, hook first line\" },\n    \"shorts\": { \"title\": \"under 40 chars\" }\n  },\n  { \"label\": \"Data-forward\", ... },\n  { \"label\": \"Narrative\", ... }\n]\n\nIG: save CTA, hashtags at end, San Francisco CA location.\nTikTok: all lowercase, casual, 4-6 hashtags.\nYT Shorts: title only, under 40 chars.\nEach option should feel genuinely different, not just rewording."
-      }),
-    }).then(function(r) { return r.json(); }).then(function(d) {
-      var t = (d.content || []).map(function(c) { return c.text || ""; }).join("");
-      try {
-        var parsed = JSON.parse(t.replace(/```json|```/g, "").trim());
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setCaptionOptions(parsed);
-          if (parsed[0] && parsed[0].instagram) setCaption(parsed[0].instagram);
-        }
-      } catch (e) { console.error("Parse error:", t); }
-      setPlatLoading(false);
-    }).catch(function() { setPlatLoading(false); });
-  }, []);
+  var selectedCaption = (captionOptions && captionOptions.length > 0) ? (captionOptions[selectedCaptionIdx] || captionOptions[0]) : null;
 
   var coverTitle = (slides.find(function(s) { return s.type === "cover"; }) || {}).title || "carousel";
   var dateStamp = (new Date().getMonth() + 1) + "." + new Date().getDate() + "." + String(new Date().getFullYear()).slice(2);
@@ -1385,16 +1511,12 @@ function ExportStep({ slides, theme, caption, setCaption, onBack, sourceUrl, onS
     nextSlide();
   }
 
-  function copyCaption() {
-    if (caption && caption.caption) {
-      var text = caption.caption;
-      if (caption.hashtags && caption.hashtags.length > 0) {
-        text += "\n\n" + caption.hashtags.map(function(t) { return "#" + t.replace(/^#/, ""); }).join(" ");
-      }
-      navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(function() { setCopied(false); }, 2000);
-    }
+  function copyText(text, key) {
+    navigator.clipboard.writeText(text);
+    var c = {};
+    c[key] = true;
+    setCopied(c);
+    setTimeout(function() { setCopied({}); }, 2000);
   }
 
   function exportJSON() {
@@ -1422,7 +1544,8 @@ function ExportStep({ slides, theme, caption, setCaption, onBack, sourceUrl, onS
     var archiveData = {
       slides: slides,
       caption: caption,
-      platCaptions: platCaptions,
+      captionOptions: captionOptions,
+      selectedCaptionIdx: selectedCaptionIdx,
       theme: theme,
       sourceUrl: sourceUrl || "",
       timestamp: new Date().toISOString(),
@@ -1458,7 +1581,7 @@ function ExportStep({ slides, theme, caption, setCaption, onBack, sourceUrl, onS
       </div>
       <button onClick={onBack} style={{ padding: "8px 16px", background: "transparent", color: C.txm, border: "1px solid " + C.border, borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Back to Review</button>
     </div>
-    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 24 }}>{slides.length} slides ready to export at 1080x1350. Generate captions, download, and archive.</div>
+    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 24 }}>{slides.length} slides ready to export at 1080x1350. Download and archive.</div>
 
     {/* Slide preview strip (compact horizontal scroll) */}
     <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 12, marginBottom: 28 }}>
@@ -1466,7 +1589,6 @@ function ExportStep({ slides, theme, caption, setCaption, onBack, sourceUrl, onS
         var bgUrl = getBackdropUrl(theme, sl.position);
         var rw = 140;
         var rh = 175;
-        var rScale = rw / FULL_W;
         var isDownloading = downloading === i;
 
         return <div key={sl.id} style={{ flexShrink: 0 }}>
@@ -1504,88 +1626,49 @@ function ExportStep({ slides, theme, caption, setCaption, onBack, sourceUrl, onS
       })}
     </div>
 
-    {/* Caption Options — auto-generated, pick one */}
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 12 }}>Captions</div>
+    {/* Selected caption — read-only display with Copy per platform */}
+    {selectedCaption && <div style={{ marginBottom: 28 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px" }}>Caption</div>
+        {selectedCaption.label && <div style={{ fontFamily: ft, fontSize: 11, color: C.txm, padding: "2px 8px", background: C.card, border: "1px solid " + C.border, borderRadius: 4 }}>{selectedCaption.label}</div>}
+      </div>
 
-    {platLoading && <div style={{ textAlign: "center", padding: "32px 0" }}>
-      <div style={{ width: 28, height: 28, borderRadius: "50%", border: "2px solid " + C.border, borderTopColor: C.amber, margin: "0 auto 12px", animation: "cspin 1s linear infinite" }} />
-      <div style={{ fontFamily: ft, fontSize: 13, color: C.txm }}>Generating 3 caption options...</div>
-    </div>}
-
-    {/* Option selector cards */}
-    {captionOptions.length > 0 && <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-      {captionOptions.map(function(opt, oi) {
-        var isSel = selectedOption === oi;
-        var optColors = [C.amber, C.blue, C.teal];
-        var oc = optColors[oi] || C.amber;
-        var igPreview = opt.instagram ? (opt.instagram.caption || "").slice(0, 80) : "";
-        return <div key={oi} onClick={function() {
-          setSelectedOption(oi);
-          if (opt.instagram) setCaption(opt.instagram);
-        }} style={{ flex: 1, padding: "14px 16px", borderRadius: 10, cursor: "pointer", background: isSel ? oc + "10" : C.card, border: "1px solid " + (isSel ? oc + "50" : C.border), transition: "all 0.2s", boxShadow: isSel ? "0 0 16px " + oc + "15" : "none" }} onMouseEnter={function(e) { if (!isSel) e.currentTarget.style.borderColor = oc + "30"; }} onMouseLeave={function(e) { if (!isSel) e.currentTarget.style.borderColor = C.border; }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <div style={{ width: 24, height: 24, borderRadius: 6, background: isSel ? oc : oc + "20", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 11, fontWeight: 800, color: isSel ? C.bg : oc }}>{oi + 1}</div>
-            <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: isSel ? oc : C.tx }}>{opt.label || "Option " + (oi + 1)}</div>
-          </div>
-          <div style={{ fontFamily: ft, fontSize: 11, color: C.txm, lineHeight: 1.5, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{igPreview}...</div>
-        </div>;
-      })}
-    </div>}
-
-    {/* Selected option — platform tabs + editable captions */}
-    {captionOptions.length > 0 && (function() {
-      var opt = captionOptions[selectedOption] || captionOptions[0];
-      if (!opt) return null;
-
-      return <div>
-        {/* Platform tabs */}
-        <div style={{ display: "flex", gap: 0, marginBottom: 12, background: C.card, borderRadius: 10, border: "1px solid " + C.border, padding: 3 }}>
-          {PLATFORMS.map(function(plat) {
-            var on = platTab === plat.key;
-            return <div key={plat.key} onClick={function() { setPlatTab(plat.key); }} style={{ flex: 1, padding: "9px 0", textAlign: "center", cursor: "pointer", borderRadius: 8, background: on ? plat.color + "15" : "transparent", border: on ? "1px solid " + plat.color + "30" : "1px solid transparent", transition: "all 0.15s" }}>
-              <div style={{ fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? plat.color : C.txd }}>{plat.label}</div>
-            </div>;
-          })}
-        </div>
-
-        {/* Active platform caption */}
-        {(function() {
-          var plat = PLATFORMS.find(function(p) { return p.key === platTab; });
-          if (!plat) return null;
-          var data = opt[plat.key] || {};
-          var text = plat.key === "shorts" ? (data.title || "") : (data.caption || "");
-          var charCount = text.length;
-          var overLimit = charCount > plat.charLimit;
-
-          return <div style={{ background: C.card, border: "1px solid " + plat.color + "20", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <div style={{ fontFamily: mn, fontSize: 9, color: plat.color, textTransform: "uppercase", letterSpacing: "1px" }}>{plat.label} {plat.key === "shorts" ? "Title" : "Caption"}</div>
-              <div style={{ display: "flex", gap: 6 }}>
-                <span style={{ fontFamily: mn, fontSize: 9, color: overLimit ? C.coral : C.txd }}>{charCount} / {plat.charLimit}</span>
-                {text && <span onClick={function() { navigator.clipboard.writeText(text); }} style={{ fontFamily: mn, fontSize: 9, color: plat.color, cursor: "pointer", padding: "1px 6px", border: "1px solid " + plat.color + "30", borderRadius: 4 }}>Copy</span>}
-              </div>
-            </div>
-            <textarea value={text} onChange={function(e) {
-              var val = e.target.value;
-              setCaptionOptions(function(prev) {
-                var updated = prev.slice();
-                updated[selectedOption] = Object.assign({}, updated[selectedOption]);
-                if (!updated[selectedOption][plat.key]) updated[selectedOption][plat.key] = {};
-                if (plat.key === "shorts") updated[selectedOption][plat.key].title = val;
-                else updated[selectedOption][plat.key].caption = val;
-                return updated;
-              });
-              if (plat.key === "instagram") setCaption(function(c) { return Object.assign({}, c || {}, { caption: val }); });
-            }} rows={plat.key === "shorts" ? 2 : 5} style={{ width: "100%", padding: "10px 12px", background: C.bg, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 13, lineHeight: 1.6, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = plat.color; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
-            {plat.key !== "shorts" && data.hashtags && data.hashtags.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
-              {data.hashtags.map(function(tag, i) {
-                return <span key={i} style={{ fontFamily: ft, fontSize: 11, color: plat.color, padding: "3px 8px", background: plat.color + "10", border: "1px solid " + plat.color + "18", borderRadius: 16 }}>#{tag.replace(/^#/, "")}</span>;
-              })}
-            </div>}
+      {/* Platform tabs */}
+      <div style={{ display: "flex", gap: 0, marginBottom: 12, background: C.card, borderRadius: 10, border: "1px solid " + C.border, padding: 3 }}>
+        {PLATFORMS.map(function(plat) {
+          var on = platTab === plat.key;
+          return <div key={plat.key} onClick={function() { setPlatTab(plat.key); }} style={{ flex: 1, padding: "9px 0", textAlign: "center", cursor: "pointer", borderRadius: 8, background: on ? plat.color + "15" : "transparent", border: on ? "1px solid " + plat.color + "30" : "1px solid transparent", transition: "all 0.15s" }}>
+            <div style={{ fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? plat.color : C.txd }}>{plat.label}</div>
           </div>;
-        })()}
-      </div>;
-    })()}
+        })}
+      </div>
+
+      {/* Active platform caption — read only */}
+      {(function() {
+        var plat = PLATFORMS.find(function(p) { return p.key === platTab; });
+        if (!plat) return null;
+        var data = selectedCaption[plat.key] || {};
+        var text = plat.key === "shorts" ? (data.title || "") : (data.caption || "");
+        var isCopied = copied[plat.key];
+
+        return <div style={{ background: C.card, border: "1px solid " + plat.color + "20", borderRadius: 10, padding: "14px 16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: plat.color, textTransform: "uppercase", letterSpacing: "1px" }}>{plat.label} {plat.key === "shorts" ? "Title" : "Caption"}</div>
+            {text && <button onClick={function() { copyText(text, plat.key); }} style={{ padding: "4px 12px", background: isCopied ? plat.color + "20" : "transparent", border: "1px solid " + plat.color + "30", borderRadius: 6, fontFamily: mn, fontSize: 10, fontWeight: 600, color: plat.color, cursor: "pointer", transition: "all 0.15s" }}>{isCopied ? "Copied" : "Copy"}</button>}
+          </div>
+          <div style={{ fontFamily: ft, fontSize: 13, color: C.tx, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word", padding: "10px 12px", background: C.bg, borderRadius: 8, border: "1px solid " + C.border, maxHeight: 200, overflowY: "auto" }}>{text || "No caption generated. Go back to Review to generate captions."}</div>
+          {plat.key !== "shorts" && data.hashtags && data.hashtags.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
+            {data.hashtags.map(function(tag, i) {
+              return <span key={i} style={{ fontFamily: ft, fontSize: 11, color: plat.color, padding: "3px 8px", background: plat.color + "10", border: "1px solid " + plat.color + "18", borderRadius: 16 }}>#{tag.replace(/^#/, "")}</span>;
+            })}
+          </div>}
+        </div>;
+      })()}
+    </div>}
+
+    {!selectedCaption && <div style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: "24px", textAlign: "center", marginBottom: 28 }}>
+      <div style={{ fontFamily: ft, fontSize: 13, color: C.txd }}>No captions generated yet. Go back to Review to generate captions.</div>
+    </div>}
 
     {/* Export actions */}
     <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 12 }}>Export Actions</div>
@@ -1594,17 +1677,9 @@ function ExportStep({ slides, theme, caption, setCaption, onBack, sourceUrl, onS
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.amber, marginBottom: 4 }}>{downloadingAll ? "Downloading..." : "Download All PNGs"}</div>
         <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>{slides.length} slides at 1080x1350</div>
       </button>
-      <button onClick={copyCaption} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; }}>
-        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 4 }}>{copied ? "Copied!" : "Copy Caption"}</div>
-        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>Caption + hashtags to clipboard</div>
-      </button>
       <button onClick={function() { window.open("https://publish.buffer.com", "_blank"); }} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 4 }}>Send to Buffer</div>
         <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>Open Buffer to schedule post</div>
-      </button>
-      <button onClick={exportJSON} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; }}>
-        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 4 }}>Download JSON</div>
-        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>Structured slide data</div>
       </button>
     </div>
 
@@ -1663,8 +1738,10 @@ export default function Carousel() {
   var _slides = useState([]), slides = _slides[0], setSlides = _slides[1];
   var _variants = useState(null), variants = _variants[0], setVariants = _variants[1];
   var _caption = useState(null), caption = _caption[0], setCaption = _caption[1];
+  var _captionOptions = useState([]), captionOptions = _captionOptions[0], setCaptionOptions = _captionOptions[1];
+  var _selectedCaptionIdx = useState(0), selectedCaptionIdx = _selectedCaptionIdx[0], setSelectedCaptionIdx = _selectedCaptionIdx[1];
+  var _selectedVariantLabel = useState(""), selectedVariantLabel = _selectedVariantLabel[0], setSelectedVariantLabel = _selectedVariantLabel[1];
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
-  var _captionLoading = useState(false), captionLoading = _captionLoading[0], setCaptionLoading = _captionLoading[1];
   var _showArchive = useState(false), showArchive = _showArchive[0], setShowArchive = _showArchive[1];
   var _archiveItems = useState([]), archiveItems = _archiveItems[0], setArchiveItems = _archiveItems[1];
   var _archiveLoading = useState(false), archiveLoading = _archiveLoading[0], setArchiveLoading = _archiveLoading[1];
@@ -1734,39 +1811,6 @@ export default function Carousel() {
     setLoading(false);
   }
 
-  async function generateCaption() {
-    setCaptionLoading(true);
-    try {
-      var apiSlides = slides.map(function(sl) {
-        var apiType = "BODY_A";
-        if (sl.type === "cover") apiType = "COVER";
-        else if (sl.position === 4) apiType = "BODY_FINAL";
-        else if (sl.type === "image_text") apiType = "BODY_IMAGE";
-        else if (sl.type === "large_image") apiType = "BODY_LARGE_IMAGE";
-        else if (sl.position === 3) apiType = "BODY_B";
-
-        return {
-          type: apiType,
-          title: sl.title,
-          subtitle: sl.subtitle,
-          body_text: sl.bodyText,
-          subtext: sl.caption,
-          image_url: sl.imageUrl,
-        };
-      });
-      var r = await fetch("/api/carousel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "caption", slides: apiSlides }),
-      });
-      var d = await r.json();
-      if (d.caption) setCaption(d.caption);
-    } catch (e) {
-      alert("Caption error: " + e.message);
-    }
-    setCaptionLoading(false);
-  }
-
   var _showVariantPicker = useState(false), showVariantPicker = _showVariantPicker[0], setShowVariantPicker = _showVariantPicker[1];
 
   function pickVariant(key) {
@@ -1774,6 +1818,9 @@ export default function Carousel() {
     if (!picked || !picked.slides) return;
     var editorSlides = apiSlidesToEditorSlides(picked.slides, picked.slides.length);
     setSlides(editorSlides);
+    setSelectedVariantLabel(picked.label || "Variant " + key);
+    setCaptionOptions([]);
+    setSelectedCaptionIdx(0);
     setShowVariantPicker(false);
   }
 
@@ -1842,6 +1889,9 @@ export default function Carousel() {
         if (!picked || !picked.slides) return;
         var editorSlides = apiSlidesToEditorSlides(picked.slides, picked.slides.length);
         setSlides(editorSlides);
+        setSelectedVariantLabel(picked.label || "Variant " + key);
+        setCaptionOptions([]);
+        setSelectedCaptionIdx(0);
         goStep(3);
       }}
       onBack={function() { goStep(0); }}
@@ -1861,12 +1911,19 @@ export default function Carousel() {
       onNext={function() { goStep(5); }}
       onBack={function() { goStep(3); }}
       sourceUrl={state.url || ""}
+      variantLabel={selectedVariantLabel}
+      captionOptions={captionOptions}
+      setCaptionOptions={setCaptionOptions}
+      selectedCaptionIdx={selectedCaptionIdx}
+      setSelectedCaptionIdx={setSelectedCaptionIdx}
+      setCaption={setCaption}
     />}
     {step === 5 && <ExportStep
       slides={slides}
       theme={state.category}
       caption={caption}
-      setCaption={setCaption}
+      captionOptions={captionOptions}
+      selectedCaptionIdx={selectedCaptionIdx}
       onBack={function() { goStep(4); }}
       sourceUrl={state.url || ""}
     />}

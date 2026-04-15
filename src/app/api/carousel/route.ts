@@ -31,6 +31,13 @@ Rules:
 
 You MUST respond ONLY with valid JSON. No markdown fences. No preamble.`;
 
+const THEMES_MAP: Record<string, string> = {
+  general: "General (industry news, trends, analysis)",
+  internal: "Internal (SA original research)",
+  external: "External (third-party content with SA commentary)",
+  capital: "Capital (financial and investment analysis)",
+};
+
 export async function POST(req: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
@@ -104,10 +111,19 @@ export async function POST(req: NextRequest) {
 
     if (action === "generate") {
       const hasImages = imageUrls && imageUrls.length > 0;
-      const slideCount = mode === "manual" ? (pageCount || 4) : (hasImages ? "4-6 (include image slides only where charts/data support the narrative)" : "4-5 (text-only, tight and focused)");
+      const manualCount = mode === "manual" ? (pageCount || 4) : null;
       const imageNote = imageUrls && imageUrls.length > 0
         ? `Available images (${imageUrls.length} total):\n${imageUrls.map((u: string, i: number) => `${i}: ${u.slice(-80)}`).join("\n")}\n\nIMPORTANT IMAGE RULES:\n- Use the BEST image for the COVER slide (image_url field). Pick the most visually compelling one.\n- Only use BODY_IMAGE or BODY_LARGE_IMAGE slides if an image is a chart, graph, or diagram that directly supports the text on THAT specific slide.\n- Do NOT put images on every slide. Most body slides should be text-only (BODY_A / BODY_B).\n- A typical 5-slide carousel with images: COVER (with image), BODY_A (text), BODY_B (text), BODY_IMAGE (with relevant chart/data if available), BODY_FINAL (text).\n- Never use more than 2-3 images total across all slides.`
         : "No images provided. Omit image_url fields. Do not include BODY_IMAGE or BODY_LARGE_IMAGE slides. All body slides should be BODY_A or BODY_B (text only).";
+
+      const slideCountGuidance = manualCount
+        ? `The user has requested exactly ${manualCount} slides per variant. Respect this count.`
+        : `Analyze the content and determine the best slide count for EACH variant independently. Consider:
+- How much substantive content is there? Short news = fewer slides, deep research = more.
+- How many key data points, statistics, or claims deserve their own slide?
+- How many available images exist? (${hasImages ? imageUrls.length + " images" : "none"}) More images can justify more slides.
+- What slide count best serves THIS specific content?
+Don't pad with filler. Every slide must earn its place. Range: 3-8 slides.`;
 
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -125,20 +141,23 @@ Article:
 ${(text || "").slice(0, 10000)}
 ${url ? "\nSource URL: " + url : ""}
 
+SLIDE COUNT GUIDANCE:
+${slideCountGuidance}
+
 CRITICAL: Each variant must have a DIFFERENT structure, not just different words on the same template.
 
 Variant A: "Concise" approach
-- 3-4 slides total. Tight, punchy. Cover + 1-2 body slides + closer.
+- Tight, punchy. Cover + minimal body slides + closer.
 - Every word earns its place. Ideal for quick-scroll audiences.
 ${hasImages ? "- Use 1 image on cover only." : ""}
 
 Variant B: "Deep Dive" approach
-- 5-7 slides. More detailed narrative with multiple sections.
+- More detailed narrative with multiple sections.
 - Break the story into distinct chapters/angles across slides.
 ${hasImages ? "- Use cover image + 1-2 BODY_IMAGE slides where charts/data directly support the point being made on that slide. Pick the most relevant images." : ""}
 
 Variant C: "${hasImages ? "Visual Story" : "Key Takeaways"}" approach
-- ${hasImages ? "4-6 slides. Image-heavy. Use BODY_IMAGE and BODY_LARGE_IMAGE slides to let data/charts do the talking. Less text per slide, more visual impact. Every image slide must have image_url set." : "6-8 slides. Each body slide covers ONE specific point or takeaway, not a narrative. Shorter text per slide (50-70 words), more slides. Like a listicle format but without numbers or bullets. Each slide is a standalone insight."}
+- ${hasImages ? "Image-heavy. Use BODY_IMAGE and BODY_LARGE_IMAGE slides to let data/charts do the talking. Less text per slide, more visual impact. Every image slide must have image_url set." : "Each body slide covers ONE specific point or takeaway, not a narrative. Shorter text per slide (50-70 words), more slides. Like a listicle format but without numbers or bullets. Each slide is a standalone insight."}
 
 Return JSON:
 {
@@ -203,34 +222,63 @@ Rules:
     }
 
     if (action === "caption") {
+      const { slides: captionSlides, sourceUrl, variantLabel, theme: captionTheme, extraContext } = body;
+      const slideContent = (captionSlides || []).map((sl: { type?: string; title?: string; subtitle?: string; body_text?: string; subtext?: string; image_url?: string }, i: number) => {
+        const typeLabel = sl.type === "COVER" ? "COVER" : sl.type === "BODY_IMAGE" ? "IMAGE+TEXT" : sl.type === "BODY_LARGE_IMAGE" ? "LARGE IMAGE" : sl.type === "BODY_FINAL" ? "CLOSER" : "BODY";
+        let content = (i + 1) + ". [" + typeLabel + "]";
+        if (sl.title) content += " Title: " + sl.title;
+        if (sl.subtitle) content += " | Subtitle: " + sl.subtitle;
+        if (sl.body_text) content += " " + sl.body_text;
+        if (sl.subtext) content += " | Caption: " + sl.subtext;
+        if (sl.image_url) content += " | Image: " + sl.image_url.slice(-60);
+        return content;
+      }).join("\n");
+
+      const themeInfo = captionTheme ? (THEMES_MAP[captionTheme] || captionTheme) : "general";
+
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
+          max_tokens: 2000,
           system: CAROUSEL_SYS,
-          messages: [{ role: "user", content: `Generate an Instagram caption for this carousel.
+          messages: [{ role: "user", content: `Generate 3 caption OPTIONS for this carousel. Each option should take a different angle on presenting this content.
 
-Slides: ${JSON.stringify(body.slides)}
+Source: ${sourceUrl || "N/A"}
+Category: ${themeInfo}
+Variant approach: ${variantLabel || "N/A"}
+${extraContext ? "Extra context from user: " + extraContext + "\n" : ""}
+Slide content:
+${slideContent}
+
+Return a JSON array of 3 options. Each option has captions for Instagram, TikTok, and YT Shorts:
+[
+  {
+    "label": "Hook-driven",
+    "instagram": { "caption": "full caption with Save CTA + 5-8 hashtags + Location: San Francisco, CA. Under 2200 chars.", "hashtags": ["tag1", "tag2"] },
+    "tiktok": { "caption": "all lowercase, casual, 4-6 hashtags, hook first line" },
+    "shorts": { "title": "under 40 chars" }
+  },
+  { "label": "Data-forward", ... },
+  { "label": "Narrative", ... }
+]
 
 Rules:
-- Include a "Save this for later." CTA
-- Add 5-8 relevant hashtags at the bottom
-- Add location: San Francisco, CA
-- Under 2200 characters
 - No em dashes, no emojis
 - Confident, technical, institutional tone
-
-Return JSON: { "caption": "full caption text", "hashtags": ["tag1", "tag2", ...] }` }],
+- Each option should feel genuinely different, not just rewording
+- IG: save CTA, hashtags at end, San Francisco CA location
+- TikTok: all lowercase, casual, 4-6 hashtags
+- YT Shorts: title only, under 40 chars` }],
         }),
       });
 
       const data = await r.json();
       const rawText = (data.content || []).map((c: { text?: string }) => c.text || "").join("");
       try {
-        const caption = JSON.parse(rawText.replace(/```json|```/g, "").trim());
-        return NextResponse.json({ caption, ts: Date.now() });
+        const parsed = JSON.parse(rawText.replace(/```json|```/g, "").trim());
+        return NextResponse.json({ captionOptions: parsed, ts: Date.now() });
       } catch {
         return NextResponse.json({ error: "Failed to parse caption" }, { status: 500 });
       }
