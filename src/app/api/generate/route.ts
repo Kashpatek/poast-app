@@ -1,42 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
+import { callClaudeRaw, AnthropicError } from "@/lib/anthropic";
 
 export async function POST(req: NextRequest) {
   try {
     const { system, prompt } = await req.json();
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
+    const data = await callClaudeRaw({ system, prompt, maxTokens: 4000 });
+    return NextResponse.json(data);
+  } catch (error) {
+    if ((error as AnthropicError).status) {
+      const ae = error as AnthropicError;
+      return NextResponse.json(
+        { error: { message: ae.message } },
+        { status: ae.status }
+      );
+    }
+    if (error instanceof Error && error.message === "ANTHROPIC_API_KEY not configured") {
       return NextResponse.json(
         { error: "ANTHROPIC_API_KEY not configured" },
         { status: 500 }
       );
     }
-
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4000,
-        system: system,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      const msg = data?.error?.message || "Generation failed";
-      return NextResponse.json(
-        { error: { message: msg } },
-        { status: response.status }
-      );
-    }
-    return NextResponse.json(data);
-  } catch (error) {
     console.error("API route error:", error);
     return NextResponse.json(
       { error: "Internal server error" },

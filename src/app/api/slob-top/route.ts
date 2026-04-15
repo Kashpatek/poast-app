@@ -1,22 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-
-function stripHtml(html: string): string {
-  // Remove script and style tags and their content
-  let text = html.replace(/<script[\s\S]*?<\/script>/gi, "");
-  text = text.replace(/<style[\s\S]*?<\/style>/gi, "");
-  // Remove HTML tags
-  text = text.replace(/<[^>]+>/g, " ");
-  // Decode common HTML entities
-  text = text.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&nbsp;/g, " ");
-  // Collapse whitespace
-  text = text.replace(/\s+/g, " ").trim();
-  return text;
-}
+import { generateJSON, AnthropicError } from "@/lib/anthropic";
+import { stripHTML } from "@/lib/html";
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
-
   try {
     const body = await req.json();
 
@@ -40,7 +26,7 @@ export async function POST(req: NextRequest) {
         }
         const rawHtml = await pageRes.text();
         // 2. Extract text (strip HTML)
-        pageText = stripHtml(rawHtml);
+        pageText = stripHTML(rawHtml);
       } catch (fetchErr) {
         return NextResponse.json({ error: "Failed to fetch URL: " + String(fetchErr) }, { status: 400 });
       }
@@ -51,14 +37,11 @@ export async function POST(req: NextRequest) {
       }
 
       // 3. Send to Claude with slop generation prompt
-      const slopRes = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 4000,
+      try {
+        const results = await generateJSON({
           system: "You are a viral content creator for SemiAnalysis. Given this article/page content, generate slop content ideas. Be funny, punchy, technically accurate but accessible. Think TikTok/Twitter energy. Never use em dashes. RESPOND ONLY IN VALID JSON. No markdown fences.",
-          messages: [{ role: "user", content: `Here is the content from a URL the user pasted:
+          maxTokens: 4000,
+          prompt: `Here is the content from a URL the user pasted:
 
 ---
 ${pageText}
@@ -82,24 +65,22 @@ Generate viral slop content ideas based on this. Return JSON in this exact forma
     "Post 4 of thread (the conclusion/CTA)"
   ],
   "image_prompt": "A detailed image generation prompt for Grok that captures the essence of this content in a meme-worthy or visually striking way"
-}` }],
-        }),
-      });
-
-      const slopData = await slopRes.json();
-      if (!slopRes.ok) return NextResponse.json({ error: slopData?.error?.message || "Slop generation failed" }, { status: slopRes.status });
-
-      const slopRawText = (slopData.content || []).map((c: { text?: string }) => c.text || "").join("");
-      try {
-        const results = JSON.parse(slopRawText.replace(/```json|```/g, "").trim());
+}`,
+        });
         return NextResponse.json({ results, ts: Date.now() });
-      } catch {
-        return NextResponse.json({ error: "Failed to parse slop response", raw: slopRawText.slice(0, 300) }, { status: 500 });
+      } catch (e) {
+        if ((e as AnthropicError).status) {
+          return NextResponse.json({ error: (e as Error).message || "Slop generation failed" }, { status: (e as AnthropicError).status });
+        }
+        if (e instanceof SyntaxError) {
+          return NextResponse.json({ error: "Failed to parse slop response", raw: String(e).slice(0, 300) }, { status: 500 });
+        }
+        throw e;
       }
     }
 
     // ═══ ORIGINAL BRIEF GENERATION ═══
-    const { topic, platform, vibe, trendRef, host, assetSwapUrl } = body;
+    const { topic, platform, vibe, trendRef, host } = body;
 
     const platformRules: Record<string, string> = {
       tiktok: "TikTok: all lowercase, 4-6 hashtags, on-screen text at 0s/3s/6s",
@@ -109,14 +90,11 @@ Generate viral slop content ideas based on this. Return JSON in this exact forma
       multi: "Multi-platform: generate captions for all platforms following each platform's rules",
     };
 
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4000,
+    try {
+      const briefs = await generateJSON({
         system: "You are a content strategist for SemiAnalysis, a semiconductor and AI infrastructure research firm. Generate actionable content briefs. Rules: Never use em dashes. No emojis in content. Be direct, technical, not clickbait. RESPOND ONLY IN VALID JSON. No markdown fences.",
-        messages: [{ role: "user", content: `Generate 3 content brief variations for a short-form video.
+        maxTokens: 4000,
+        prompt: `Generate 3 content brief variations for a short-form video.
 
 Topic: ${topic}
 Platform: ${platform} -- ${platformRules[platform] || platformRules.multi}
@@ -137,21 +115,22 @@ Return JSON with 3 variations (A, B, C):
   },
   "B": { ... },
   "C": { ... }
-}` }],
-      }),
-    });
-
-    const data = await r.json();
-    if (!r.ok) return NextResponse.json({ error: data?.error?.message || "Generation failed" }, { status: r.status });
-
-    const rawText = (data.content || []).map((c: { text?: string }) => c.text || "").join("");
-    try {
-      const briefs = JSON.parse(rawText.replace(/```json|```/g, "").trim());
+}`,
+      });
       return NextResponse.json({ briefs, ts: Date.now() });
-    } catch {
-      return NextResponse.json({ error: "Failed to parse response", raw: rawText.slice(0, 300) }, { status: 500 });
+    } catch (e) {
+      if ((e as AnthropicError).status) {
+        return NextResponse.json({ error: (e as Error).message || "Generation failed" }, { status: (e as AnthropicError).status });
+      }
+      if (e instanceof SyntaxError) {
+        return NextResponse.json({ error: "Failed to parse response", raw: String(e).slice(0, 300) }, { status: 500 });
+      }
+      throw e;
     }
   } catch (error) {
+    if (error instanceof Error && error.message === "ANTHROPIC_API_KEY not configured") {
+      return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
+    }
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }

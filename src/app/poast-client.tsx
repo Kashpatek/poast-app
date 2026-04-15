@@ -14,20 +14,7 @@ import IdeationNation from "./ideation-nation";
 import SAWeekly from "./sa-weekly";
 import BRollLibrary from "./broll-library";
 
-var C = {
-  amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
-  violet: "#905CCB", cyan: "#26C9D8", crimson: "#D1334A",
-  bg: "#06060C", card: "#09090D", border: "rgba(255,255,255,0.06)", hover: "#0D0D12",
-  surface: "#0D0D12", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
-  glow: "0 2px 12px rgba(0,0,0,0.4), 0 0 0 0 rgba(247,176,65,0)",
-  glowHover: "0 8px 30px rgba(0,0,0,0.5), 0 0 20px rgba(247,176,65,0.08)",
-  cardGrad: "linear-gradient(135deg, #09090D 0%, #0D0D12 100%)",
-  surfGrad: "linear-gradient(135deg, #0D0D12 0%, #09090D 100%)",
-};
-var PL = { x: "#1DA1F2", li: "#0A66C2", fb: "#1877F2", ig: "#E4405F", yt: "#FF0000", tt: "#00F2EA" };
-var ft = "'Outfit',sans-serif";
-var gf = "'Grift','Outfit',sans-serif";
-var mn = "'JetBrains Mono',monospace";
+import { D as C, PL, ft, gf, mn } from "./shared-constants";
 
 var _toastSet = { current: null };
 var _toastTimer = { current: null };

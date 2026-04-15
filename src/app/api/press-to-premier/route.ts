@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { generateJSON, AnthropicError } from "@/lib/anthropic";
+import { stripHTML } from "@/lib/html";
 
 const CLAUDE_SYS = `You are a video production strategist for SemiAnalysis, a semiconductor and AI infrastructure research firm. You convert research articles into structured video production briefs.
 
@@ -33,17 +35,12 @@ export async function POST(req: NextRequest) {
         clearTimeout(timeout);
         const html = await pageRes.text();
         // Strip HTML tags, scripts, styles to get raw text
-        articleText = html
-          .replace(/<script[\s\S]*?<\/script>/gi, "")
-          .replace(/<style[\s\S]*?<\/style>/gi, "")
+        // Additional stripping for nav/footer/header specific to this route
+        const preprocessed = html
           .replace(/<nav[\s\S]*?<\/nav>/gi, "")
           .replace(/<footer[\s\S]*?<\/footer>/gi, "")
-          .replace(/<header[\s\S]*?<\/header>/gi, "")
-          .replace(/<[^>]*>/g, " ")
-          .replace(/&[^;]+;/g, " ")
-          .replace(/\s+/g, " ")
-          .trim()
-          .slice(0, 15000);
+          .replace(/<header[\s\S]*?<\/header>/gi, "");
+        articleText = stripHTML(preprocessed).slice(0, 15000);
 
         if (articleText.length < 100) {
           return NextResponse.json({ error: "Could not extract meaningful text from URL. Try pasting the article text directly." }, { status: 400 });
@@ -58,11 +55,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 2: Claude generates the full brief
-    const anthropicKey = process.env.ANTHROPIC_API_KEY;
-    if (!anthropicKey) {
-      return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
-    }
-
     const userPrompt = `Convert this article into a video production brief.
 Format: ${format || "Standard"} (${duration || "45-60"} seconds)
 Tone: ${tone || "Data-driven"}
@@ -119,35 +111,26 @@ Return this exact JSON structure:
   "aspectRatio": "16:9"
 }`;
 
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": anthropicKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4000,
-        system: CLAUDE_SYS,
-        messages: [{ role: "user", content: userPrompt }],
-      }),
-    });
-
-    const claudeData = await claudeRes.json();
-    if (!claudeRes.ok) {
-      return NextResponse.json({ error: "Claude error: " + (claudeData?.error?.message || "Generation failed") }, { status: claudeRes.status });
-    }
-
-    const rawText = (claudeData.content || []).map((c: { text?: string }) => c.text || "").join("");
-
     try {
-      const brief = JSON.parse(rawText.replace(/```json|```/g, "").trim());
+      const brief = await generateJSON({
+        system: CLAUDE_SYS,
+        maxTokens: 4000,
+        prompt: userPrompt,
+      });
       return NextResponse.json({ brief, articleText: articleText.slice(0, 500), ts: Date.now() });
-    } catch {
-      return NextResponse.json({ error: "Failed to parse Claude response as JSON", raw: rawText.slice(0, 500) }, { status: 500 });
+    } catch (e) {
+      if ((e as AnthropicError).status) {
+        return NextResponse.json({ error: "Claude error: " + ((e as Error).message || "Generation failed") }, { status: (e as AnthropicError).status });
+      }
+      if (e instanceof SyntaxError) {
+        return NextResponse.json({ error: "Failed to parse Claude response as JSON", raw: String(e).slice(0, 500) }, { status: 500 });
+      }
+      throw e;
     }
   } catch (error) {
+    if (error instanceof Error && error.message === "ANTHROPIC_API_KEY not configured") {
+      return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
+    }
     console.error("Press to Premier error:", error);
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }

@@ -2,20 +2,11 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
+import { D as C, ft, mn, gf } from "./shared-constants";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    SA CAROUSEL v3.1 -- Visual Slide Editor with Real Branded Backgrounds
    ═══════════════════════════════════════════════════════════════════════════ */
-
-var C = {
-  amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
-  violet: "#905CCB", cyan: "#26C9D8", crimson: "#D1334A",
-  bg: "#06060C", card: "#09090D", border: "rgba(255,255,255,0.06)", hover: "#0D0D12",
-  surface: "#0D0D12", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
-};
-var ft = "'Outfit',sans-serif";
-var mn = "'JetBrains Mono',monospace";
-var gf = "'Grift','Outfit',sans-serif";
 
 // ═══ THEME / BACKDROP MAPPING ═══
 var THEMES = {

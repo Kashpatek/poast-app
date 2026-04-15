@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { generateWithClaude, generateJSON, AnthropicError } from "@/lib/anthropic";
+import { stripHTML, extractImages } from "@/lib/html";
 
 // SA Carousel Schema v1.0
 const TEMPLATE_IDS: Record<string, string> = {
@@ -39,9 +41,6 @@ const THEMES_MAP: Record<string, string> = {
 };
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
-
   try {
     const body = await req.json();
     const { action, text, url, category, mode, pageCount, imageUrls } = body;
@@ -55,54 +54,41 @@ export async function POST(req: NextRequest) {
         const html = await pageRes.text();
 
         // Extract article text for context
-        const textOnly = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-          .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 3000);
+        const textOnly = stripHTML(html).slice(0, 3000);
 
-        // Extract img tags with src AND alt/context
-        const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*?(?:alt=["']([^"']*)["'])?[^>]*>/gi;
-        const candidates: { src: string; alt: string }[] = [];
-        let match;
-        while ((match = imgRegex.exec(html)) !== null) {
-          let src = match[1];
-          const alt = match[2] || "";
-          // Skip junk: data URIs, SVGs, tiny markers, UI elements
-          if (src.startsWith("data:") || src.endsWith(".svg") || src.endsWith(".gif")) continue;
-          if (/favicon|logo|icon|avatar|emoji|badge|button|arrow|spinner|loading|pixel|tracking|1x1|spacer/i.test(src)) continue;
-          // Skip tiny dimension hints
-          const widthMatch = src.match(/[?&]w=(\d+)/) || html.slice(Math.max(0, match.index - 200), match.index + match[0].length + 200).match(/width[=:]["'\s]*(\d+)/i);
-          if (widthMatch && parseInt(widthMatch[1]) < 100) continue;
-          // Make absolute
-          if (src.startsWith("//")) src = "https:" + src;
-          else if (src.startsWith("/")) { try { const u = new URL(fetchUrl); src = u.origin + src; } catch {} }
-          if (src.startsWith("http") && !candidates.some(c => c.src === src)) {
-            candidates.push({ src, alt });
-          }
-          if (candidates.length >= 20) break;
-        }
+        // Extract candidate images
+        const candidates = extractImages(html, fetchUrl, 20);
 
         if (candidates.length === 0) return NextResponse.json({ images: [], ts: Date.now() });
 
+        // Also need alt text for Claude to pick images — re-extract with alt info
+        const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*?(?:alt=["']([^"']*)["'])?[^>]*>/gi;
+        const candidatesWithAlt: { src: string; alt: string }[] = [];
+        let match;
+        while ((match = imgRegex.exec(html)) !== null) {
+          const src = match[1];
+          const alt = match[2] || "";
+          if (candidates.includes(src) || candidates.some(c => c.endsWith(src.split("/").pop() || ""))) {
+            candidatesWithAlt.push({ src, alt });
+          }
+        }
+        // Fall back to candidates without alt if regex didn't match well
+        const finalCandidates = candidatesWithAlt.length > 0
+          ? candidatesWithAlt
+          : candidates.map(src => ({ src, alt: "" }));
+
         // Use Claude to pick which images are relevant content images
-        const pickRes = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 500,
-            system: "You select relevant article images for a carousel. Return ONLY a JSON array of indices (0-based) of images that are actual content images (charts, graphs, photos, diagrams, product shots) relevant to the article. Exclude: navigation images, ads, author photos, social sharing buttons, thumbnails under 200px, decorative borders, header/footer images. Pick at most 5 of the best, most visually interesting content images. Return format: [0, 3, 7]",
-            messages: [{ role: "user", content: `Article summary: ${textOnly.slice(0, 1000)}\n\nCandidate images:\n${candidates.map((c, i) => `${i}: ${c.src.slice(-80)} (alt: "${c.alt}")`).join("\n")}\n\nWhich indices are relevant content images? Return JSON array only.` }],
-          }),
-        });
-        const pickData = await pickRes.json();
-        const pickText = (pickData.content || []).map((c: { text?: string }) => c.text || "").join("").trim();
         try {
-          const indices: number[] = JSON.parse(pickText.replace(/```json|```/g, "").trim());
-          const picked = indices.filter(i => i >= 0 && i < candidates.length).map(i => candidates[i].src);
+          const indices = await generateJSON<number[]>({
+            system: "You select relevant article images for a carousel. Return ONLY a JSON array of indices (0-based) of images that are actual content images (charts, graphs, photos, diagrams, product shots) relevant to the article. Exclude: navigation images, ads, author photos, social sharing buttons, thumbnails under 200px, decorative borders, header/footer images. Pick at most 5 of the best, most visually interesting content images. Return format: [0, 3, 7]",
+            maxTokens: 500,
+            prompt: `Article summary: ${textOnly.slice(0, 1000)}\n\nCandidate images:\n${finalCandidates.map((c, i) => `${i}: ${c.src.slice(-80)} (alt: "${c.alt}")`).join("\n")}\n\nWhich indices are relevant content images? Return JSON array only.`,
+          });
+          const picked = indices.filter(i => i >= 0 && i < finalCandidates.length).map(i => finalCandidates[i].src);
           return NextResponse.json({ images: picked, ts: Date.now() });
         } catch {
           // Fallback: return first 4 candidates
-          return NextResponse.json({ images: candidates.slice(0, 4).map(c => c.src), ts: Date.now() });
+          return NextResponse.json({ images: candidates.slice(0, 4), ts: Date.now() });
         }
       } catch {
         return NextResponse.json({ images: [] });
@@ -125,14 +111,11 @@ export async function POST(req: NextRequest) {
 - What slide count best serves THIS specific content?
 Don't pad with filler. Every slide must earn its place. Range: 3-8 slides.`;
 
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 6000,
+      try {
+        const variants = await generateJSON<Record<string, { slides: { type: string }[] }>>({
           system: CAROUSEL_SYS,
-          messages: [{ role: "user", content: `Analyze this article and produce 3 STRUCTURALLY DIFFERENT carousel variants (A, B, C).
+          maxTokens: 6000,
+          prompt: `Analyze this article and produce 3 STRUCTURALLY DIFFERENT carousel variants (A, B, C).
 
 Category: ${category || "general"}
 ${imageNote}
@@ -184,16 +167,8 @@ Rules:
 - BODY_LARGE_IMAGE: include "image_url" + "subtext" (10-20 words caption)
 - BODY_FINAL uses whichever background (A or B) comes next in alternation
 - No em dashes. No bullets. No emojis. Paragraphs separated by \\n\\n.
-- Each variant MUST have a DIFFERENT number of slides` }],
-        }),
-      });
-
-      const data = await r.json();
-      if (!r.ok) return NextResponse.json({ error: data?.error?.message || "Generation failed" }, { status: r.status });
-
-      const rawText = (data.content || []).map((c: { text?: string }) => c.text || "").join("");
-      try {
-        const variants = JSON.parse(rawText.replace(/```json|```/g, "").trim());
+- Each variant MUST have a DIFFERENT number of slides`,
+        });
 
         // Inject template_ids into each slide
         for (const key of Object.keys(variants)) {
@@ -216,8 +191,14 @@ Rules:
         }
 
         return NextResponse.json({ variants, templateIds: TEMPLATE_IDS, ts: Date.now() });
-      } catch {
-        return NextResponse.json({ error: "Failed to parse response", raw: rawText.slice(0, 300) }, { status: 500 });
+      } catch (e) {
+        if ((e as AnthropicError).status) {
+          return NextResponse.json({ error: (e as Error).message || "Generation failed" }, { status: (e as AnthropicError).status });
+        }
+        if (e instanceof SyntaxError) {
+          return NextResponse.json({ error: "Failed to parse response", raw: String(e).slice(0, 300) }, { status: 500 });
+        }
+        throw e;
       }
     }
 
@@ -236,14 +217,11 @@ Rules:
 
       const themeInfo = captionTheme ? (THEMES_MAP[captionTheme] || captionTheme) : "general";
 
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 2000,
+      try {
+        const parsed = await generateJSON({
           system: CAROUSEL_SYS,
-          messages: [{ role: "user", content: `Generate 3 caption OPTIONS for this carousel. Each option should take a different angle on presenting this content.
+          maxTokens: 2000,
+          prompt: `Generate 3 caption OPTIONS for this carousel. Each option should take a different angle on presenting this content.
 
 Source: ${sourceUrl || "N/A"}
 Category: ${themeInfo}
@@ -270,17 +248,14 @@ Rules:
 - Each option should feel genuinely different, not just rewording
 - IG: save CTA, hashtags at end, San Francisco CA location
 - TikTok: all lowercase, casual, 4-6 hashtags
-- YT Shorts: title only, under 40 chars` }],
-        }),
-      });
-
-      const data = await r.json();
-      const rawText = (data.content || []).map((c: { text?: string }) => c.text || "").join("");
-      try {
-        const parsed = JSON.parse(rawText.replace(/```json|```/g, "").trim());
+- YT Shorts: title only, under 40 chars`,
+        });
         return NextResponse.json({ captionOptions: parsed, ts: Date.now() });
-      } catch {
-        return NextResponse.json({ error: "Failed to parse caption" }, { status: 500 });
+      } catch (e) {
+        if (e instanceof SyntaxError) {
+          return NextResponse.json({ error: "Failed to parse caption" }, { status: 500 });
+        }
+        throw e;
       }
     }
 
@@ -292,23 +267,20 @@ Rules:
         : direction === "shorten"
         ? "Make this subtitle shorter. Maximum 1 sentence, under 15 words. Keep the SA institutional tone. No em dashes."
         : "Expand this subtitle to 3-4 sentences, 50-70 words total. SA institutional, confident, technical tone. No em dashes, no emojis.";
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 300,
-          system: "You rewrite text for SemiAnalysis carousel subtitles. Respond with ONLY the rewritten text, no quotes, no preamble.",
-          messages: [{ role: "user", content: `${dirPrompt}\n\nOriginal: ${rewriteText}` }],
-        }),
+
+      const rawText = await generateWithClaude({
+        system: "You rewrite text for SemiAnalysis carousel subtitles. Respond with ONLY the rewritten text, no quotes, no preamble.",
+        maxTokens: 300,
+        prompt: `${dirPrompt}\n\nOriginal: ${rewriteText}`,
       });
-      const data = await r.json();
-      const rawText = (data.content || []).map((c: { text?: string }) => c.text || "").join("").trim();
-      return NextResponse.json({ text: rawText, ts: Date.now() });
+      return NextResponse.json({ text: rawText.trim(), ts: Date.now() });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error) {
+    if (error instanceof Error && error.message === "ANTHROPIC_API_KEY not configured") {
+      return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
+    }
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
