@@ -261,7 +261,7 @@ function SlideCanvas({ slide, theme, onUpdate }) {
         style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.92)", lineHeight: 1.55, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", overflow: "hidden" }}
       >{slide.bodyText || "Body text"}</div>
       {/* CTA text on closer (position 4) */}
-      {slide.position === 4 && slide.ctaText && <div style={{ position: "absolute", bottom: 10 * SCALE, left: slide.ctaPosition === "bottom-center" ? 0 : mx, right: slide.ctaPosition === "bottom-center" ? 0 : "auto", width: slide.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: slide.ctaPosition === "bottom-center" ? "center" : "left", fontFamily: gf, fontSize: 24 * SCALE, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3)", letterSpacing: "0.5px" }}>{slide.ctaText}</div>}
+      {slide.position === 4 && slide.ctaText && <div style={{ position: "absolute", bottom: 14 * SCALE, left: slide.ctaPosition === "bottom-center" ? 0 : "auto", right: slide.ctaPosition === "bottom-center" ? 0 : (60 * SCALE), width: slide.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: slide.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * SCALE, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 10px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.4)", letterSpacing: "1px" }}>{slide.ctaText}</div>}
     </div>}
 
     {/* ─── IMAGE + TEXT SLIDE ─── */}
@@ -993,7 +993,7 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl }) {
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.9)", lineHeight: 1.5, overflow: "hidden", whiteSpace: "pre-wrap" }}>{sl.bodyText || ""}</div>
-                {sl.position === 4 && sl.ctaText && <div style={{ position: "absolute", bottom: 4, left: sl.ctaPosition === "bottom-right" ? "auto" : 0, right: sl.ctaPosition === "bottom-right" ? 0 : "auto", width: sl.ctaPosition === "bottom-right" ? "auto" : "100%", textAlign: sl.ctaPosition === "bottom-right" ? "right" : "center", fontFamily: gf, fontSize: 24 * rScale, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3)", letterSpacing: "0.5px" }}>{sl.ctaText}</div>}
+                {sl.position === 4 && sl.ctaText && <div style={{ position: "absolute", bottom: 6, left: sl.ctaPosition === "bottom-center" ? 0 : "auto", right: sl.ctaPosition === "bottom-center" ? 0 : sidePad, width: sl.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: sl.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * rScale, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.5)", letterSpacing: "1px" }}>{sl.ctaText}</div>}
               </div>}
               {sl.type === "image_text" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
                 {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 50) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
@@ -1048,12 +1048,12 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl }) {
         <div>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Position</div>
           <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={function() { updateLastSlideCta("ctaPosition", "bottom-left"); }} style={{ padding: "6px 12px", borderRadius: 6, background: ctaPosition === "bottom-left" || !ctaPosition ? C.amber + "15" : C.surface, border: "1px solid " + (ctaPosition === "bottom-left" || !ctaPosition ? C.amber + "40" : C.border), color: ctaPosition === "bottom-left" || !ctaPosition ? C.amber : C.txd, fontFamily: ft, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Bottom Left</button>
+            <button onClick={function() { updateLastSlideCta("ctaPosition", "bottom-right"); }} style={{ padding: "6px 12px", borderRadius: 6, background: ctaPosition === "bottom-right" || !ctaPosition ? C.amber + "15" : C.surface, border: "1px solid " + (ctaPosition === "bottom-right" || !ctaPosition ? C.amber + "40" : C.border), color: ctaPosition === "bottom-right" || !ctaPosition ? C.amber : C.txd, fontFamily: ft, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Bottom Right</button>
             <button onClick={function() { updateLastSlideCta("ctaPosition", "bottom-center"); }} style={{ padding: "6px 12px", borderRadius: 6, background: ctaPosition === "bottom-center" ? C.amber + "15" : C.surface, border: "1px solid " + (ctaPosition === "bottom-center" ? C.amber + "40" : C.border), color: ctaPosition === "bottom-center" ? C.amber : C.txd, fontFamily: ft, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Bottom Center</button>
           </div>
         </div>
       </div>
-      {!ctaText && <button onClick={function() { updateLastSlideCta("ctaText", "LINK IN BIO"); updateLastSlideCta("ctaPosition", "bottom-left"); }} style={{ padding: "6px 14px", background: C.teal + "12", color: C.teal, border: "1px solid " + C.teal + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Add Default CTA</button>}
+      {!ctaText && <button onClick={function() { updateLastSlideCta("ctaText", "LINK IN BIO"); updateLastSlideCta("ctaPosition", "bottom-right"); }} style={{ padding: "6px 14px", background: C.teal + "12", color: C.teal, border: "1px solid " + C.teal + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Add Default CTA</button>}
       {ctaText && <button onClick={function() { updateLastSlideCta("ctaText", ""); }} style={{ padding: "6px 14px", background: C.coral + "12", color: C.coral, border: "1px solid " + C.coral + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Remove CTA</button>}
     </div>
   </div>;
@@ -1205,7 +1205,7 @@ function renderSlideToCanvas(slide, bgUrl) {
 
         // CTA text on closer (position 4)
         if (slide.position === 4 && slide.ctaText) {
-          var ctaFontSize = 24;
+          var ctaFontSize = 30;
           ctx.font = "700 " + ctaFontSize + "px Grift, Outfit, sans-serif";
           ctx.fillStyle = "#ffffff";
           ctx.textBaseline = "top";
@@ -1218,8 +1218,8 @@ function renderSlideToCanvas(slide, bgUrl) {
             ctx.textAlign = "center";
             ctx.fillText(slide.ctaText, FULL_W / 2, ctaY);
           } else {
-            ctx.textAlign = "left";
-            ctx.fillText(slide.ctaText, MARGIN_X, ctaY);
+            ctx.textAlign = "right";
+            ctx.fillText(slide.ctaText, FULL_W - MARGIN_X, ctaY);
           }
           ctx.textAlign = "left";
           ctx.shadowColor = "transparent";
