@@ -243,7 +243,7 @@ function SlideCanvas({ slide, theme, onUpdate }) {
     </div>}
 
     {/* ─── BODY TEXT SLIDE (positions 2, 3, 4) ─── */}
-    {slide.type === "body" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: "column", justifyContent: slide.imageUrl ? "flex-start" : "center" }}>
+    {slide.type === "body" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: slide.inverted ? "column-reverse" : "column", justifyContent: slide.imageUrl ? "flex-start" : "center" }}>
       {/* Optional image on body slides */}
       {slide.imageUrl && <ImageFrame
         imageUrl={slide.imageUrl}
@@ -252,7 +252,7 @@ function SlideCanvas({ slide, theme, onUpdate }) {
         imagePosition={slide.imagePosition}
         imageFit={slide.imageFit}
         slideId={slide.id}
-        style={{ width: "100%", height: (slide.imageHeight || 45) + "%", marginBottom: 12, borderRadius: 20 * SCALE, flexShrink: 0 }}
+        style={{ width: "100%", height: (slide.imageHeight || 45) + "%", marginBottom: slide.inverted ? 0 : 12, marginTop: slide.inverted ? 12 : 0, borderRadius: 20 * SCALE, flexShrink: 0 }}
       />}
       <div
         contentEditable
@@ -261,11 +261,11 @@ function SlideCanvas({ slide, theme, onUpdate }) {
         style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.92)", lineHeight: 1.55, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", overflow: "hidden" }}
       >{slide.bodyText || "Body text"}</div>
       {/* CTA text on closer (position 4) */}
-      {slide.position === 4 && slide.ctaText && <div style={{ position: "absolute", bottom: 10 * SCALE, left: slide.ctaPosition === "bottom-right" ? "auto" : 0, right: slide.ctaPosition === "bottom-right" ? mx : "auto", width: slide.ctaPosition === "bottom-right" ? "auto" : "100%", textAlign: slide.ctaPosition === "bottom-right" ? "right" : "center", fontFamily: gf, fontSize: 24 * SCALE, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3)", letterSpacing: "0.5px" }}>{slide.ctaText}</div>}
+      {slide.position === 4 && slide.ctaText && <div style={{ position: "absolute", bottom: 10 * SCALE, left: slide.ctaPosition === "bottom-center" ? 0 : mx, right: slide.ctaPosition === "bottom-center" ? 0 : "auto", width: slide.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: slide.ctaPosition === "bottom-center" ? "center" : "left", fontFamily: gf, fontSize: 24 * SCALE, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3)", letterSpacing: "0.5px" }}>{slide.ctaText}</div>}
     </div>}
 
     {/* ─── IMAGE + TEXT SLIDE ─── */}
-    {slide.type === "image_text" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: "column" }}>
+    {slide.type === "image_text" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: slide.inverted ? "column-reverse" : "column" }}>
       <ImageFrame
         imageUrl={slide.imageUrl}
         onImageChange={function(url) { updateField("imageUrl", url); }}
@@ -284,7 +284,7 @@ function SlideCanvas({ slide, theme, onUpdate }) {
     </div>}
 
     {/* ─── LARGE IMAGE SLIDE ─── */}
-    {slide.type === "large_image" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: "column" }}>
+    {slide.type === "large_image" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: slide.inverted ? "column-reverse" : "column" }}>
       <ImageFrame
         imageUrl={slide.imageUrl}
         onImageChange={function(url) { updateField("imageUrl", url); }}
@@ -805,6 +805,13 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
           })}
         </div>
 
+        {/* Invert layout (image top/bottom) — not on cover or text-only body without image */}
+        {currentSlide.position !== 1 && (currentSlide.imageUrl || currentSlide.type === "image_text" || currentSlide.type === "large_image") && <div style={{ marginBottom: 16 }}>
+          <button onClick={function() { updateSlide(Object.assign({}, currentSlide, { inverted: !currentSlide.inverted })); }} style={{ padding: "7px 14px", borderRadius: 6, background: currentSlide.inverted ? C.violet + "15" : C.surface, border: "1px solid " + (currentSlide.inverted ? C.violet + "40" : C.border), color: currentSlide.inverted ? C.violet : C.txm, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 14 }}>{"\u21C5"}</span> {currentSlide.inverted ? "Inverted (text on top)" : "Invert Layout"}
+          </button>
+        </div>}
+
         {/* Font size controls */}
         <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Font Sizes (at 1080px)</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
@@ -1041,12 +1048,12 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl }) {
         <div>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Position</div>
           <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={function() { updateLastSlideCta("ctaPosition", "bottom-center"); }} style={{ padding: "6px 12px", borderRadius: 6, background: ctaPosition === "bottom-center" || !ctaPosition ? C.amber + "15" : C.surface, border: "1px solid " + (ctaPosition === "bottom-center" || !ctaPosition ? C.amber + "40" : C.border), color: ctaPosition === "bottom-center" || !ctaPosition ? C.amber : C.txd, fontFamily: ft, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Bottom Center</button>
-            <button onClick={function() { updateLastSlideCta("ctaPosition", "bottom-right"); }} style={{ padding: "6px 12px", borderRadius: 6, background: ctaPosition === "bottom-right" ? C.amber + "15" : C.surface, border: "1px solid " + (ctaPosition === "bottom-right" ? C.amber + "40" : C.border), color: ctaPosition === "bottom-right" ? C.amber : C.txd, fontFamily: ft, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Bottom Right</button>
+            <button onClick={function() { updateLastSlideCta("ctaPosition", "bottom-left"); }} style={{ padding: "6px 12px", borderRadius: 6, background: ctaPosition === "bottom-left" || !ctaPosition ? C.amber + "15" : C.surface, border: "1px solid " + (ctaPosition === "bottom-left" || !ctaPosition ? C.amber + "40" : C.border), color: ctaPosition === "bottom-left" || !ctaPosition ? C.amber : C.txd, fontFamily: ft, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Bottom Left</button>
+            <button onClick={function() { updateLastSlideCta("ctaPosition", "bottom-center"); }} style={{ padding: "6px 12px", borderRadius: 6, background: ctaPosition === "bottom-center" ? C.amber + "15" : C.surface, border: "1px solid " + (ctaPosition === "bottom-center" ? C.amber + "40" : C.border), color: ctaPosition === "bottom-center" ? C.amber : C.txd, fontFamily: ft, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Bottom Center</button>
           </div>
         </div>
       </div>
-      {!ctaText && <button onClick={function() { updateLastSlideCta("ctaText", "LINK IN BIO"); if (!ctaPosition) updateLastSlideCta("ctaPosition", "bottom-center"); }} style={{ padding: "6px 14px", background: C.teal + "12", color: C.teal, border: "1px solid " + C.teal + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Add Default CTA</button>}
+      {!ctaText && <button onClick={function() { updateLastSlideCta("ctaText", "LINK IN BIO"); updateLastSlideCta("ctaPosition", "bottom-left"); }} style={{ padding: "6px 14px", background: C.teal + "12", color: C.teal, border: "1px solid " + C.teal + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Add Default CTA</button>}
       {ctaText && <button onClick={function() { updateLastSlideCta("ctaText", ""); }} style={{ padding: "6px 14px", background: C.coral + "12", color: C.coral, border: "1px solid " + C.coral + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Remove CTA</button>}
     </div>
   </div>;
@@ -1207,12 +1214,12 @@ function renderSlideToCanvas(slide, bgUrl) {
           ctx.shadowOffsetX = 0;
           ctx.shadowOffsetY = 2;
           var ctaY = FULL_H - BOTTOM_Y - ctaFontSize - 12;
-          if (slide.ctaPosition === "bottom-right") {
-            ctx.textAlign = "right";
-            ctx.fillText(slide.ctaText, FULL_W - MARGIN_X, ctaY);
-          } else {
+          if (slide.ctaPosition === "bottom-center") {
             ctx.textAlign = "center";
             ctx.fillText(slide.ctaText, FULL_W / 2, ctaY);
+          } else {
+            ctx.textAlign = "left";
+            ctx.fillText(slide.ctaText, MARGIN_X, ctaY);
           }
           ctx.textAlign = "left";
           ctx.shadowColor = "transparent";
