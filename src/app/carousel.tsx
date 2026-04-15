@@ -250,8 +250,9 @@ function SlideCanvas({ slide, theme, onUpdate }) {
         onImageChange={function(url) { updateField("imageUrl", url); }}
         onPositionChange={function(pos) { updateField("imagePosition", pos); }}
         imagePosition={slide.imagePosition}
+        imageFit={slide.imageFit}
         slideId={slide.id}
-        style={{ width: "100%", height: "45%", marginBottom: 12, borderRadius: 20 * SCALE, flexShrink: 0 }}
+        style={{ width: "100%", height: (slide.imageHeight || 45) + "%", marginBottom: 12, borderRadius: 20 * SCALE, flexShrink: 0 }}
       />}
       <div
         contentEditable
@@ -261,15 +262,16 @@ function SlideCanvas({ slide, theme, onUpdate }) {
       >{slide.bodyText || "Body text"}</div>
     </div>}
 
-    {/* ─── IMAGE + TEXT SLIDE (50/50) ─── */}
+    {/* ─── IMAGE + TEXT SLIDE ─── */}
     {slide.type === "image_text" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: "column" }}>
       <ImageFrame
         imageUrl={slide.imageUrl}
         onImageChange={function(url) { updateField("imageUrl", url); }}
         onPositionChange={function(pos) { updateField("imagePosition", pos); }}
         imagePosition={slide.imagePosition}
+        imageFit={slide.imageFit}
         slideId={slide.id}
-        style={{ width: "100%", height: "50%", marginBottom: 12, borderRadius: 20 * SCALE }}
+        style={{ width: "100%", height: (slide.imageHeight || 50) + "%", marginBottom: 12, borderRadius: 20 * SCALE, flexShrink: 0 }}
       />
       <div
         contentEditable
@@ -279,15 +281,16 @@ function SlideCanvas({ slide, theme, onUpdate }) {
       >{slide.bodyText || "Body text"}</div>
     </div>}
 
-    {/* ─── LARGE IMAGE SLIDE (~72% image) ─── */}
+    {/* ─── LARGE IMAGE SLIDE ─── */}
     {slide.type === "large_image" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: "column" }}>
       <ImageFrame
         imageUrl={slide.imageUrl}
         onImageChange={function(url) { updateField("imageUrl", url); }}
         onPositionChange={function(pos) { updateField("imagePosition", pos); }}
         imagePosition={slide.imagePosition}
+        imageFit={slide.imageFit}
         slideId={slide.id}
-        style={{ width: "100%", height: "72%", marginBottom: 10, borderRadius: 20 * SCALE }}
+        style={{ width: "100%", height: (slide.imageHeight || 72) + "%", marginBottom: 10, borderRadius: 20 * SCALE, flexShrink: 0 }}
       />
       <div
         contentEditable
@@ -295,6 +298,46 @@ function SlideCanvas({ slide, theme, onUpdate }) {
         onBlur={function(e) { updateField("caption", e.currentTarget.innerText); }}
         style={{ fontFamily: gf, fontSize: (slide.captionSize || 18) * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.65)", lineHeight: 1.4, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
       >{slide.caption || "Caption"}</div>
+    </div>}
+
+    {/* ─── DUAL IMAGE SLIDE (2 images + 2 captions) ─── */}
+    {slide.type === "dual_image" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: "column", gap: 8 }}>
+      {/* Image 1 + caption */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <ImageFrame
+          imageUrl={slide.imageUrl}
+          onImageChange={function(url) { updateField("imageUrl", url); }}
+          onPositionChange={function(pos) { updateField("imagePosition", pos); }}
+          imagePosition={slide.imagePosition}
+          imageFit={slide.imageFit}
+          slideId={slide.id + "-1"}
+          style={{ width: "100%", flex: 1, borderRadius: 16 * SCALE, marginBottom: 4 }}
+        />
+        <div
+          contentEditable
+          suppressContentEditableWarning
+          onBlur={function(e) { updateField("caption", e.currentTarget.innerText); }}
+          style={{ fontFamily: gf, fontSize: (slide.captionSize || 16) * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.65)", lineHeight: 1.3, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", flexShrink: 0, minHeight: 16 }}
+        >{slide.caption || "Caption 1"}</div>
+      </div>
+      {/* Image 2 + caption */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <ImageFrame
+          imageUrl={slide.imageUrl2}
+          onImageChange={function(url) { updateField("imageUrl2", url); }}
+          onPositionChange={function(pos) { updateField("imagePosition2", pos); }}
+          imagePosition={slide.imagePosition2}
+          imageFit={slide.imageFit}
+          slideId={slide.id + "-2"}
+          style={{ width: "100%", flex: 1, borderRadius: 16 * SCALE, marginBottom: 4 }}
+        />
+        <div
+          contentEditable
+          suppressContentEditableWarning
+          onBlur={function(e) { updateField("caption2", e.currentTarget.innerText); }}
+          style={{ fontFamily: gf, fontSize: (slide.captionSize || 16) * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.65)", lineHeight: 1.3, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", flexShrink: 0, minHeight: 16 }}
+        >{slide.caption2 || "Caption 2"}</div>
+      </div>
     </div>}
 
     {/* Slide position badge */}
@@ -603,14 +646,33 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
   }
 
   function changeSlideType(newType) {
-    var updated = Object.assign({}, currentSlide, { type: newType });
-    // Ensure the right fields exist
-    if (newType === "cover" && !updated.title) updated.title = "Title";
-    if (newType === "cover" && !updated.subtitle) updated.subtitle = "Subtitle";
-    if ((newType === "body") && !updated.bodyText) updated.bodyText = currentSlide.bodyText || currentSlide.title || "Body text";
-    if ((newType === "image_text" || newType === "large_image") && !updated.imageUrl) updated.imageUrl = "";
-    if (newType === "image_text" && !updated.bodyText) updated.bodyText = "Body text";
-    if (newType === "large_image" && !updated.caption) updated.caption = "Caption";
+    var old = currentSlide;
+    // Gather all existing text so nothing is lost
+    var allText = old.bodyText || old.title || old.caption || "";
+    var allCaption = old.caption || old.subtitle || old.bodyText || "";
+    var updated = Object.assign({}, old, { type: newType });
+
+    // Carry text forward into the new type's fields
+    if (newType === "cover") {
+      if (!updated.title) updated.title = old.title || allText.split("\n")[0] || "Title";
+      if (!updated.subtitle) updated.subtitle = old.subtitle || old.caption || old.bodyText || "Subtitle";
+    }
+    if (newType === "body" || newType === "image_text") {
+      if (!updated.bodyText) updated.bodyText = old.bodyText || old.caption || old.subtitle || allText || "Body text";
+    }
+    if (newType === "large_image") {
+      if (!updated.caption) updated.caption = old.caption || old.subtitle || (old.bodyText || "").split("\n\n")[0] || "Caption";
+    }
+    if (newType === "dual_image") {
+      if (!updated.imageUrl) updated.imageUrl = old.imageUrl || "";
+      if (!updated.imageUrl2) updated.imageUrl2 = "";
+      if (!updated.caption) updated.caption = old.caption || old.subtitle || (old.bodyText || "").split("\n\n")[0] || "Caption";
+      if (!updated.caption2) updated.caption2 = (old.bodyText || "").split("\n\n")[1] || "Caption 2";
+      updated.imageHeight = old.imageHeight || 40;
+    }
+    // Ensure image fields exist for image types
+    if ((newType === "image_text" || newType === "large_image" || newType === "dual_image") && !updated.imageUrl) updated.imageUrl = old.imageUrl || "";
+
     updateSlide(updated);
   }
 
@@ -674,6 +736,7 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
         { value: "body", label: "Body Text" },
         { value: "image_text", label: "Image + Text" },
         { value: "large_image", label: "Large Image" },
+        { value: "dual_image", label: "2 Images" },
       ];
 
   return <div>
@@ -726,26 +789,25 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
             <FontSizeControl label="Subtitle" value={currentSlide.subtitleSize} onChange={function(v) { updateSlide(Object.assign({}, currentSlide, { subtitleSize: v })); }} />
           </div>}
           {(currentSlide.type === "body" || currentSlide.type === "image_text") && <FontSizeControl label="Body" value={currentSlide.bodySize} onChange={function(v) { updateSlide(Object.assign({}, currentSlide, { bodySize: v })); }} />}
-          {currentSlide.type === "large_image" && <FontSizeControl label="Caption" value={currentSlide.captionSize || 18} onChange={function(v) { updateSlide(Object.assign({}, currentSlide, { captionSize: v })); }} />}
+          {(currentSlide.type === "large_image" || currentSlide.type === "dual_image") && <FontSizeControl label="Caption" value={currentSlide.captionSize || 18} onChange={function(v) { updateSlide(Object.assign({}, currentSlide, { captionSize: v })); }} />}
         </div>
 
         {/* Image controls */}
         {<div style={{ marginBottom: 20 }}>
-          <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Image</div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <BRollPicker onSelect={function(url) { updateSlide(Object.assign({}, currentSlide, { imageUrl: url })); }} />
-            {currentSlide.imageUrl && <button onClick={function() { updateSlide(Object.assign({}, currentSlide, { imageUrl: "" })); }} style={{ padding: "6px 12px", background: C.coral + "12", color: C.coral, border: "1px solid " + C.coral + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Remove</button>}
-            {!currentSlide.imageUrl && currentSlide.type === "body" && <div style={{ fontFamily: ft, fontSize: 10, color: C.txd }}>Add image to split this into image+text</div>}
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>{currentSlide.type === "dual_image" ? "Image 1" : "Image"}</div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <BRollPicker onSelect={function(url) { updateSlide(Object.assign({}, currentSlide, { imageUrl: url, imageFit: "cover", imagePosition: "center" })); }} />
+            {currentSlide.imageUrl && <button onClick={function() { updateSlide(Object.assign({}, currentSlide, { imageUrl: "" })); }} style={{ padding: "5px 10px", background: C.coral + "12", color: C.coral, border: "1px solid " + C.coral + "30", borderRadius: 6, fontFamily: ft, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Remove</button>}
           </div>
-          {currentSlide.imageUrl && <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{currentSlide.imageUrl.slice(0, 60)}...</div>}
           {currentSlide.imageUrl && <div style={{ marginTop: 8 }}>
-            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Image Size</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <input type="range" min={25} max={70} value={currentSlide.imageHeight || 46} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { imageHeight: parseInt(e.target.value) })); }} style={{ flex: 1, accentColor: C.amber }} />
-              <span style={{ fontFamily: mn, fontSize: 10, color: C.amber, minWidth: 30 }}>{currentSlide.imageHeight || 46}%</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>Size</div>
+              <input type="range" min={20} max={80} value={currentSlide.imageHeight || 46} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { imageHeight: parseInt(e.target.value) })); }} style={{ flex: 1, accentColor: C.amber }} />
+              <span style={{ fontFamily: mn, fontSize: 10, color: C.amber, minWidth: 28 }}>{currentSlide.imageHeight || 46}%</span>
             </div>
-            <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
               <span style={{ fontFamily: mn, fontSize: 8, color: C.txd }}>Fit:</span>
+              <button onClick={function() { updateSlide(Object.assign({}, currentSlide, { imageFit: "cover", imagePosition: "center" })); }} style={{ padding: "2px 8px", borderRadius: 4, background: C.teal + "20", border: "1px solid " + C.teal + "40", color: C.teal, fontFamily: mn, fontSize: 8, cursor: "pointer", fontWeight: 700 }}>Auto</button>
               {["cover", "contain", "fill"].map(function(fit) {
                 var active = (currentSlide.imageFit || "cover") === fit;
                 return <button key={fit} onClick={function() { updateSlide(Object.assign({}, currentSlide, { imageFit: fit })); }} style={{ padding: "2px 8px", borderRadius: 4, background: active ? C.amber + "20" : "transparent", border: "1px solid " + (active ? C.amber + "40" : C.border), color: active ? C.amber : C.txd, fontFamily: mn, fontSize: 8, cursor: "pointer", textTransform: "capitalize" }}>{fit}</button>;
@@ -754,21 +816,42 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
           </div>}
         </div>}
 
+        {/* Image 2 controls (dual_image only) */}
+        {currentSlide.type === "dual_image" && <div style={{ marginBottom: 20 }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.blue, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Image 2</div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <BRollPicker onSelect={function(url) { updateSlide(Object.assign({}, currentSlide, { imageUrl2: url, imageFit: "cover", imagePosition2: "center" })); }} />
+            {currentSlide.imageUrl2 && <button onClick={function() { updateSlide(Object.assign({}, currentSlide, { imageUrl2: "" })); }} style={{ padding: "5px 10px", background: C.coral + "12", color: C.coral, border: "1px solid " + C.coral + "30", borderRadius: 6, fontFamily: ft, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Remove</button>}
+          </div>
+        </div>}
+
         {/* Article images suggestions */}
         {articleImages && articleImages.length > 0 && <div style={{ marginBottom: 20 }}>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.violet, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Article Images</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
-            {articleImages.map(function(imgUrl, i) {
-              var isUsed = slides.some(function(sl) { return sl.imageUrl === imgUrl; });
-              return <div key={i} style={{ position: "relative" }}>
-                <div onClick={function() { if (!isUsed) updateSlide(Object.assign({}, currentSlide, { imageUrl: imgUrl })); }} style={{ width: "100%", aspectRatio: "4/5", borderRadius: 6, overflow: "hidden", cursor: isUsed ? "default" : "pointer", border: "1px solid " + (isUsed ? C.teal + "50" : C.border), opacity: isUsed ? 0.5 : 1, transition: "all 0.15s" }} onMouseEnter={function(e) { if (!isUsed) { e.currentTarget.style.borderColor = C.violet; e.currentTarget.style.transform = "scale(1.04)"; } }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = isUsed ? C.teal + "50" : C.border; e.currentTarget.style.transform = "scale(1)"; }}>
-                  <img src={imgUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.parentElement.style.display = "none"; }} />
-                </div>
-                {isUsed && <div style={{ position: "absolute", top: 2, right: 2, fontFamily: mn, fontSize: 7, color: C.teal, background: "rgba(0,0,0,0.7)", padding: "1px 4px", borderRadius: 3 }}>In use</div>}
-              </div>;
-            })}
+            {(function() {
+              var firstUnused = null;
+              articleImages.forEach(function(u) { if (!firstUnused && !slides.some(function(sl) { return sl.imageUrl === u || sl.imageUrl2 === u; })) firstUnused = u; });
+              return articleImages.map(function(imgUrl, i) {
+                var isUsed = slides.some(function(sl) { return sl.imageUrl === imgUrl || sl.imageUrl2 === imgUrl; });
+                var isSuggested = imgUrl === firstUnused && !currentSlide.imageUrl;
+                var targetField = currentSlide.type === "dual_image" && currentSlide.imageUrl && !currentSlide.imageUrl2 ? "imageUrl2" : "imageUrl";
+                return <div key={i} style={{ position: "relative" }}>
+                  <div onClick={function() {
+                    if (isUsed) return;
+                    var update = { imageFit: "cover", imagePosition: "center" };
+                    update[targetField] = imgUrl;
+                    updateSlide(Object.assign({}, currentSlide, update));
+                  }} style={{ width: "100%", aspectRatio: "4/5", borderRadius: 6, overflow: "hidden", cursor: isUsed ? "default" : "pointer", border: "2px solid " + (isSuggested ? C.amber : isUsed ? C.teal + "50" : C.border), opacity: isUsed ? 0.45 : 1, transition: "all 0.15s", boxShadow: isSuggested ? "0 0 12px " + C.amber + "30" : "none" }} onMouseEnter={function(e) { if (!isUsed) { e.currentTarget.style.borderColor = C.violet; e.currentTarget.style.transform = "scale(1.04)"; } }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = isSuggested ? C.amber : isUsed ? C.teal + "50" : C.border; e.currentTarget.style.transform = "scale(1)"; }}>
+                    <img src={imgUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.parentElement.style.display = "none"; }} />
+                  </div>
+                  {isSuggested && <div style={{ position: "absolute", top: -6, left: "50%", transform: "translateX(-50%)", fontFamily: mn, fontSize: 7, color: C.bg, background: C.amber, padding: "1px 6px", borderRadius: 4, fontWeight: 700, whiteSpace: "nowrap" }}>Best match</div>}
+                  {isUsed && <div style={{ position: "absolute", top: 2, right: 2, fontFamily: mn, fontSize: 7, color: C.teal, background: "rgba(0,0,0,0.7)", padding: "1px 4px", borderRadius: 3 }}>In use</div>}
+                </div>;
+              });
+            })()}
           </div>
-          <div style={{ fontFamily: ft, fontSize: 9, color: C.txd, marginTop: 6 }}>Click an image to add it to this slide</div>
+          <div style={{ fontFamily: ft, fontSize: 9, color: C.txd, marginTop: 6 }}>Click to add to this slide{currentSlide.type === "dual_image" ? " (fills empty slot)" : ""}</div>
         </div>}
 
         {/* Slide management */}
