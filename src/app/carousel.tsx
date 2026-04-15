@@ -641,7 +641,30 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
 
   function updateSlide(updated) {
     var newSlides = slides.slice();
+    var old = newSlides[currentIdx];
     newSlides[currentIdx] = updated;
+
+    // Sync font sizes across same-type slides
+    if (old) {
+      var syncFields = [];
+      if (updated.bodySize !== old.bodySize) syncFields.push({ field: "bodySize", value: updated.bodySize, types: ["body", "image_text"] });
+      if (updated.captionSize !== old.captionSize) syncFields.push({ field: "captionSize", value: updated.captionSize, types: ["large_image", "dual_image"] });
+      if (updated.subtitleSize !== old.subtitleSize) syncFields.push({ field: "subtitleSize", value: updated.subtitleSize, types: ["cover"] });
+      if (updated.titleSize !== old.titleSize) syncFields.push({ field: "titleSize", value: updated.titleSize, types: ["cover"] });
+
+      if (syncFields.length > 0) {
+        for (var si = 0; si < newSlides.length; si++) {
+          if (si === currentIdx) continue;
+          for (var sf = 0; sf < syncFields.length; sf++) {
+            var sync = syncFields[sf];
+            if (sync.types.indexOf(newSlides[si].type) > -1) {
+              newSlides[si] = Object.assign({}, newSlides[si], { [sync.field]: sync.value });
+            }
+          }
+        }
+      }
+    }
+
     setSlides(newSlides);
   }
 
@@ -925,37 +948,57 @@ function ReviewStep({ slides, theme, caption, setCaption, captionLoading, onGene
         var rw = 280;
         var rh = 350;
         var rScale = rw / FULL_W;
+        var topPad = FULL_H * 0.10 * rScale;
+        var botPad = FULL_H * 0.08 * rScale;
+        var sidePad = 60 * rScale;
+        var imgFit = sl.imageFit || "cover";
+        var imgPos = sl.imagePosition || "center";
 
         return <div key={sl.id} style={{ flexShrink: 0 }}>
           <div style={{ width: rw, height: rh, borderRadius: 6, overflow: "hidden", position: "relative", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
-            {/* Content overlay */}
-            <div style={{ position: "absolute", inset: 0, padding: MARGIN_X * rScale + "px " + MARGIN_Y * rScale + "px" }}>
+            <div style={{ position: "absolute", left: 0, right: 0, top: topPad, bottom: botPad, padding: "0 " + sidePad + "px" }}>
               {sl.type === "cover" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-                {sl.imageUrl && <div style={{ width: "100%", height: "48%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0 }}>
-                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 46) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
                 </div>}
-                {!sl.imageUrl && <div style={{ width: "100%", height: "48%", borderRadius: 8 * rScale, background: "rgba(255,255,255,0.04)", marginBottom: 6, flexShrink: 0 }} />}
                 <div style={{ fontFamily: gf, fontSize: sl.titleSize * rScale, fontWeight: 800, color: "#fff", lineHeight: 1.15, marginBottom: 4, overflow: "hidden" }}>{sl.title || ""}</div>
                 <div style={{ fontFamily: gf, fontSize: sl.subtitleSize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.75)", lineHeight: 1.35, overflow: "hidden" }}>{sl.subtitle || ""}</div>
               </div>}
-              {sl.type === "body" && <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+              {sl.type === "body" && <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: sl.imageUrl ? "flex-start" : "center" }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 45) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                </div>}
                 <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.9)", lineHeight: 1.5, overflow: "hidden", whiteSpace: "pre-wrap" }}>{sl.bodyText || ""}</div>
               </div>}
-              {sl.type === "image_text" && <div>
-                {sl.imageUrl && <div style={{ width: "100%", height: "50%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6 }}>
-                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+              {sl.type === "image_text" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 50) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
                 </div>}
-                <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, color: "rgba(255,255,255,0.9)", lineHeight: 1.4 }}>{sl.bodyText || ""}</div>
+                <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, color: "rgba(255,255,255,0.9)", lineHeight: 1.4, overflow: "hidden" }}>{sl.bodyText || ""}</div>
               </div>}
-              {sl.type === "large_image" && <div>
-                {sl.imageUrl && <div style={{ width: "100%", height: "72%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6 }}>
-                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+              {sl.type === "large_image" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 72) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: (sl.captionSize || 18) * rScale, color: "rgba(255,255,255,0.6)", lineHeight: 1.3 }}>{sl.caption || ""}</div>
               </div>}
+              {sl.type === "dual_image" && <div style={{ height: "100%", display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                  {sl.imageUrl && <div style={{ width: "100%", flex: 1, borderRadius: 6 * rScale, overflow: "hidden", marginBottom: 2, background: "#000" }}>
+                    <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                  </div>}
+                  <div style={{ fontFamily: gf, fontSize: (sl.captionSize || 16) * rScale, color: "rgba(255,255,255,0.6)", lineHeight: 1.2, flexShrink: 0 }}>{sl.caption || ""}</div>
+                </div>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                  {sl.imageUrl2 && <div style={{ width: "100%", flex: 1, borderRadius: 6 * rScale, overflow: "hidden", marginBottom: 2, background: "#000" }}>
+                    <img src={sl.imageUrl2} style={{ width: "100%", height: "100%", objectFit: imgFit, display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                  </div>}
+                  <div style={{ fontFamily: gf, fontSize: (sl.captionSize || 16) * rScale, color: "rgba(255,255,255,0.6)", lineHeight: 1.2, flexShrink: 0 }}>{sl.caption2 || ""}</div>
+                </div>
+              </div>}
             </div>
           </div>
-          <div style={{ textAlign: "center", fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6 }}>Slide {i + 1}</div>
+          <div style={{ textAlign: "center", fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6 }}>Slide {i + 1} -- {sl.type === "cover" ? "Cover" : sl.position === 4 ? "Closer" : sl.type === "dual_image" ? "2 Images" : sl.type === "image_text" ? "Img+Text" : sl.type === "large_image" ? "Large Img" : "Body"}</div>
         </div>;
       })}
     </div>
