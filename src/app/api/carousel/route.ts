@@ -154,6 +154,27 @@ Return JSON: { "caption": "full caption text", "hashtags": ["tag1", "tag2", ...]
       }
     }
 
+    if (action === "rewrite") {
+      const { text: rewriteText, direction } = body;
+      if (!rewriteText) return NextResponse.json({ error: "No text provided" }, { status: 400 });
+      const dirPrompt = direction === "shorten"
+        ? "Make this subtitle shorter and more concise. Keep it to 1-2 sentences max. Maintain the same meaning and SA institutional tone."
+        : "Expand this subtitle to be more detailed. Add 1-2 more sentences of context. Keep the SA institutional, confident, technical tone. No em dashes, no emojis.";
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 300,
+          system: "You rewrite text for SemiAnalysis carousel subtitles. Respond with ONLY the rewritten text, no quotes, no preamble.",
+          messages: [{ role: "user", content: `${dirPrompt}\n\nOriginal: ${rewriteText}` }],
+        }),
+      });
+      const data = await r.json();
+      const rawText = (data.content || []).map((c: { text?: string }) => c.text || "").join("").trim();
+      return NextResponse.json({ text: rawText, ts: Date.now() });
+    }
+
     if (action === "render") {
       // Build Canva autofill payload from slides array
       const { slides, carouselId, topic, sourceUrl } = body;

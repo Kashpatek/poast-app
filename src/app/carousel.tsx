@@ -58,7 +58,7 @@ var SCALE = DISPLAY_W / FULL_W; // ~0.4167
 var MARGIN_X = 76;
 var MARGIN_Y = 95;
 
-var STEPS = ["Input", "Generate", "Edit", "Review", "Export"];
+var STEPS = ["Input", "Generate", "Select", "Edit", "Review", "Export"];
 
 // ═══ STEP BAR ═══
 function StepBar({ step, setStep, maxStep }) {
@@ -153,7 +153,7 @@ function FontSizeControl({ value, onChange, label }) {
     <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, minWidth: 40 }}>{label}</span>
     <button onClick={function() { onChange(Math.max(12, value - 1)); }} style={{ width: 22, height: 22, borderRadius: 4, background: C.surface, border: "1px solid " + C.border, color: C.txm, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>-</button>
     <span style={{ fontFamily: mn, fontSize: 10, color: C.tx, minWidth: 24, textAlign: "center" }}>{value}</span>
-    <button onClick={function() { onChange(Math.min(80, value + 1)); }} style={{ width: 22, height: 22, borderRadius: 4, background: C.surface, border: "1px solid " + C.border, color: C.txm, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>+</button>
+    <button onClick={function() { onChange(Math.min(120, value + 1)); }} style={{ width: 22, height: 22, borderRadius: 4, background: C.surface, border: "1px solid " + C.border, color: C.txm, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>+</button>
   </div>;
 }
 
@@ -199,13 +199,13 @@ function SlideCanvas({ slide, theme, onUpdate }) {
   return <div style={{ width: DISPLAY_W, height: DISPLAY_H, position: "relative", borderRadius: 8, overflow: "hidden", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}>
 
     {/* ─── COVER SLIDE ─── */}
-    {slide.type === "cover" && <div style={{ position: "absolute", inset: 0, padding: my + "px " + mx + "px" }}>
-      {/* Image frame: top area */}
+    {slide.type === "cover" && <div style={{ position: "absolute", inset: 0, padding: (FULL_H * 0.06 * SCALE) + "px " + (60 * SCALE) + "px " + my + "px " + (60 * SCALE) + "px" }}>
+      {/* Image frame: top area, below SA logo */}
       <ImageFrame
         imageUrl={slide.imageUrl}
         onImageChange={function(url) { updateField("imageUrl", url); }}
         slideId={slide.id}
-        style={{ width: "100%", height: "41%", marginBottom: 12, borderRadius: 20 * SCALE }}
+        style={{ width: "100%", height: "48%", marginBottom: 12, borderRadius: 20 * SCALE }}
       />
       {/* Title */}
       <div
@@ -224,7 +224,7 @@ function SlideCanvas({ slide, theme, onUpdate }) {
     </div>}
 
     {/* ─── BODY TEXT SLIDE (positions 2, 3, 4) ─── */}
-    {slide.type === "body" && <div style={{ position: "absolute", inset: 0, padding: my + "px " + mx + "px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+    {slide.type === "body" && <div style={{ position: "absolute", inset: 0, padding: (FULL_H * 0.06 * SCALE) + "px " + mx + "px " + (FULL_H * 0.08 * SCALE) + "px " + mx + "px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
       <div
         contentEditable
         suppressContentEditableWarning
@@ -233,29 +233,29 @@ function SlideCanvas({ slide, theme, onUpdate }) {
       >{slide.bodyText || "Body text"}</div>
     </div>}
 
-    {/* ─── IMAGE + TEXT SLIDE ─── */}
-    {slide.type === "image_text" && <div style={{ position: "absolute", inset: 0, padding: my + "px " + mx + "px", display: "flex", flexDirection: "column" }}>
+    {/* ─── IMAGE + TEXT SLIDE (50/50) ─── */}
+    {slide.type === "image_text" && <div style={{ position: "absolute", inset: 0, padding: (FULL_H * 0.06 * SCALE) + "px " + mx + "px " + (FULL_H * 0.08 * SCALE) + "px " + mx + "px", display: "flex", flexDirection: "column" }}>
       <ImageFrame
         imageUrl={slide.imageUrl}
         onImageChange={function(url) { updateField("imageUrl", url); }}
         slideId={slide.id}
-        style={{ width: "100%", height: "55%", marginBottom: 12, borderRadius: 20 * SCALE }}
+        style={{ width: "100%", height: "50%", marginBottom: 12, borderRadius: 20 * SCALE }}
       />
       <div
         contentEditable
         suppressContentEditableWarning
         onBlur={function(e) { updateField("bodyText", e.currentTarget.innerText); }}
-        style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.92)", lineHeight: 1.5, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+        style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.92)", lineHeight: 1.5, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", flex: 1, overflow: "hidden" }}
       >{slide.bodyText || "Body text"}</div>
     </div>}
 
-    {/* ─── LARGE IMAGE SLIDE ─── */}
-    {slide.type === "large_image" && <div style={{ position: "absolute", inset: 0, padding: my + "px " + mx + "px", display: "flex", flexDirection: "column" }}>
+    {/* ─── LARGE IMAGE SLIDE (~72% image) ─── */}
+    {slide.type === "large_image" && <div style={{ position: "absolute", inset: 0, padding: (FULL_H * 0.06 * SCALE) + "px " + mx + "px " + (FULL_H * 0.08 * SCALE) + "px " + mx + "px", display: "flex", flexDirection: "column" }}>
       <ImageFrame
         imageUrl={slide.imageUrl}
         onImageChange={function(url) { updateField("imageUrl", url); }}
         slideId={slide.id}
-        style={{ width: "100%", height: "75%", marginBottom: 10, borderRadius: 20 * SCALE }}
+        style={{ width: "100%", height: "72%", marginBottom: 10, borderRadius: 20 * SCALE }}
       />
       <div
         contentEditable
@@ -313,6 +313,7 @@ function SlideThumbnail({ slide, theme, isActive, onClick, index }) {
 // ═══ STEP 0: INPUT ═══
 function InputStep({ state, setState, onNext }) {
   var _dragging = useState(false), dragging = _dragging[0], setDragging = _dragging[1];
+  var _inputMode = useState(state.url ? "link" : state.text ? "context" : null), inputMode = _inputMode[0], setInputMode = _inputMode[1];
   var themeKeys = Object.keys(THEMES);
 
   function handleFile(file) {
@@ -322,9 +323,11 @@ function InputStep({ state, setState, onNext }) {
     reader.readAsText(file);
   }
 
+  var canProceed = (state.url || "").trim() || (state.text || "").trim();
+
   return <div>
     <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx, marginBottom: 4 }}>Content Input</div>
-    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 24 }}>Paste content to generate carousel slides with real SA branded backgrounds.</div>
+    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 24 }}>Provide a link, context, or both to generate carousel slides with real SA branded backgrounds.</div>
 
     {/* Category / Theme */}
     <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Category</div>
@@ -365,23 +368,51 @@ function InputStep({ state, setState, onNext }) {
       })}
     </div>
 
-    {/* Content / Context */}
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Content / Context</div>
-    <div onDragOver={function(e) { e.preventDefault(); setDragging(true); }} onDragLeave={function() { setDragging(false); }} onDrop={function(e) { e.preventDefault(); setDragging(false); if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); }}>
-      <textarea value={state.text || ""} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { text: e.target.value }); }); }} placeholder="Paste article text here..." rows={10} style={{ width: "100%", padding: "14px 16px", background: dragging ? C.amber + "08" : C.card, border: "1px solid " + (dragging ? C.amber : C.border), borderRadius: 10, color: C.tx, fontFamily: ft, fontSize: 13, lineHeight: 1.7, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, marginBottom: 20 }}>
-        <label style={{ fontFamily: mn, fontSize: 10, color: C.txd, cursor: "pointer", padding: "4px 10px", border: "1px solid " + C.border, borderRadius: 5 }}>
-          Upload .txt <input type="file" accept=".txt,.md" onChange={function(e) { handleFile(e.target.files[0]); }} style={{ display: "none" }} />
-        </label>
-        <div style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>{(state.text || "").length.toLocaleString()} chars</div>
-      </div>
+    {/* Input Mode Toggle: + Link / + Context */}
+    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Source</div>
+    <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      <button onClick={function() { setInputMode(inputMode === "link" && !((state.text || "").trim()) ? null : "link"); }} style={{ padding: "10px 20px", borderRadius: 8, cursor: "pointer", background: inputMode === "link" || (state.url || "").trim() ? C.blue + "15" : C.card, border: "1px solid " + (inputMode === "link" || (state.url || "").trim() ? C.blue + "50" : C.border), fontFamily: ft, fontSize: 13, fontWeight: 700, color: inputMode === "link" || (state.url || "").trim() ? C.blue : C.tx, transition: "all 0.2s" }}>+ Link</button>
+      <button onClick={function() { setInputMode(inputMode === "context" && !((state.url || "").trim()) ? null : "context"); }} style={{ padding: "10px 20px", borderRadius: 8, cursor: "pointer", background: inputMode === "context" || (state.text || "").trim() ? C.teal + "15" : C.card, border: "1px solid " + (inputMode === "context" || (state.text || "").trim() ? C.teal + "50" : C.border), fontFamily: ft, fontSize: 13, fontWeight: 700, color: inputMode === "context" || (state.text || "").trim() ? C.teal : C.tx, transition: "all 0.2s" }}>+ Context</button>
+      <div style={{ flex: 1 }} />
+      <div style={{ fontFamily: ft, fontSize: 11, color: C.txd, alignSelf: "center" }}>At least one required</div>
     </div>
 
-    {/* Source URL */}
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 8 }}>Source URL (optional)</div>
-    <input value={state.url || ""} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { url: e.target.value }); }); }} placeholder="https://semianalysis.com/..." style={{ width: "100%", padding: "10px 14px", background: C.card, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 24 }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+    {/* Link Input */}
+    {(inputMode === "link" || (state.url || "").trim()) && <div style={{ marginBottom: 20 }}>
+      <div style={{ fontFamily: mn, fontSize: 9, color: C.blue, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Article URL</div>
+      <input value={state.url || ""} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { url: e.target.value }); }); }} placeholder="https://semianalysis.com/p/..." style={{ width: "100%", padding: "14px 18px", background: C.card, border: "1px solid " + C.blue + "30", borderRadius: 10, color: C.tx, fontFamily: ft, fontSize: 15, outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.blue; }} onBlur={function(e) { e.target.style.borderColor = C.blue + "30"; }} />
+      <div style={{ fontFamily: ft, fontSize: 11, color: C.txd, marginTop: 6 }}>The API will fetch the article content. Context below is optional when a link is provided.</div>
+    </div>}
 
-    <button onClick={onNext} disabled={!(state.text || "").trim()} style={{ width: "100%", padding: "14px 0", background: (state.text || "").trim() ? C.amber : C.surface, color: (state.text || "").trim() ? C.bg : C.txd, border: "none", borderRadius: 8, fontFamily: ft, fontSize: 15, fontWeight: 800, cursor: (state.text || "").trim() ? "pointer" : "not-allowed", transition: "all 0.2s" }}>Generate Carousel</button>
+    {/* Context Input */}
+    {(inputMode === "context" || (state.text || "").trim()) && <div style={{ marginBottom: 20 }}>
+      <div style={{ fontFamily: mn, fontSize: 9, color: C.teal, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Content / Context</div>
+      <div onDragOver={function(e) { e.preventDefault(); setDragging(true); }} onDragLeave={function() { setDragging(false); }} onDrop={function(e) { e.preventDefault(); setDragging(false); if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); }}>
+        <textarea value={state.text || ""} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { text: e.target.value }); }); }} placeholder="Paste article text here..." rows={10} style={{ width: "100%", padding: "14px 16px", background: dragging ? C.amber + "08" : C.card, border: "1px solid " + (dragging ? C.teal : C.border), borderRadius: 10, color: C.tx, fontFamily: ft, fontSize: 13, lineHeight: 1.7, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.teal; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+          <label style={{ fontFamily: mn, fontSize: 10, color: C.txd, cursor: "pointer", padding: "4px 10px", border: "1px solid " + C.border, borderRadius: 5 }}>
+            Upload .txt <input type="file" accept=".txt,.md" onChange={function(e) { handleFile(e.target.files[0]); }} style={{ display: "none" }} />
+          </label>
+          <div style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>{(state.text || "").length.toLocaleString()} chars</div>
+        </div>
+      </div>
+    </div>}
+
+    {/* Article Images (placeholder - shown when URL is provided) */}
+    {(state.url || "").trim() && <div style={{ marginBottom: 24 }}>
+      <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Article Images</div>
+      {state.articleImages && state.articleImages.length > 0 ? <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8 }}>
+        {state.articleImages.map(function(imgUrl, i) {
+          return <div key={i} onClick={function() { setState(function(s) { return Object.assign({}, s, { selectedArticleImage: imgUrl }); }); }} style={{ width: 80, height: 80, borderRadius: 8, overflow: "hidden", cursor: "pointer", flexShrink: 0, border: "2px solid " + (state.selectedArticleImage === imgUrl ? C.amber : "transparent"), opacity: state.selectedArticleImage === imgUrl ? 1 : 0.7, transition: "all 0.2s" }}>
+            <img src={imgUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+          </div>;
+        })}
+      </div> : <div style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 8, textAlign: "center" }}>
+        <div style={{ fontFamily: ft, fontSize: 11, color: C.txd }}>Images from the article will appear here after generation</div>
+      </div>}
+    </div>}
+
+    <button onClick={onNext} disabled={!canProceed} style={{ width: "100%", padding: "14px 0", background: canProceed ? C.amber : C.surface, color: canProceed ? C.bg : C.txd, border: "none", borderRadius: 8, fontFamily: ft, fontSize: 15, fontWeight: 800, cursor: canProceed ? "pointer" : "not-allowed", transition: "all 0.2s" }}>Generate Carousel</button>
   </div>;
 }
 
@@ -397,7 +428,86 @@ function GenerateStep() {
 }
 
 
-// ═══ STEP 2: EDIT (Visual Slide Editor) ═══
+// ═══ STEP 2: VARIANT SELECTION ═══
+function VariantSelectStep({ variants, theme, onSelect, onBack }) {
+  var variantKeys = Object.keys(variants || {}).filter(function(k) { return variants[k] && variants[k].slides; });
+  var varColors = { A: C.amber, B: C.blue, C: C.teal };
+
+  function renderMiniSlides(v, color) {
+    var slides = v.slides || [];
+    var positions = getSlidePositions(slides.length);
+    return <div style={{ display: "flex", gap: 4, marginTop: 10, overflowX: "auto", paddingBottom: 4 }}>
+      {slides.map(function(sl, i) {
+        var pos = positions[i] || 2;
+        var bgUrl = getBackdropUrl(theme, pos);
+        var tw = 64;
+        var th = 80;
+        var tScale = tw / FULL_W;
+        return <div key={i} style={{ width: tw, height: th, borderRadius: 4, overflow: "hidden", position: "relative", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ position: "absolute", inset: 0, padding: 3 }}>
+            {sl.type === "COVER" && <div>
+              <div style={{ fontFamily: gf, fontSize: 4, fontWeight: 800, color: "#fff", lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{sl.title || ""}</div>
+            </div>}
+            {sl.type !== "COVER" && <div style={{ display: "flex", alignItems: "center", height: "100%" }}>
+              <div style={{ fontFamily: gf, fontSize: 3.5, color: "rgba(255,255,255,0.6)", lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical" }}>{sl.body_text || sl.subtext || ""}</div>
+            </div>}
+          </div>
+          <div style={{ position: "absolute", bottom: 1, right: 2, fontFamily: mn, fontSize: 5, color: "rgba(255,255,255,0.3)" }}>{i + 1}</div>
+        </div>;
+      })}
+    </div>;
+  }
+
+  return <div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+      <div>
+        <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx }}>Choose a Variant</div>
+        <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginTop: 2 }}>Select an editorial approach. Each variant has a different angle on the content.</div>
+      </div>
+      <button onClick={onBack} style={{ padding: "8px 16px", background: "transparent", color: C.txm, border: "1px solid " + C.border, borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Back</button>
+    </div>
+
+    <div style={{ display: "grid", gridTemplateColumns: variantKeys.length <= 2 ? "1fr 1fr" : "1fr 1fr 1fr", gap: 16, marginTop: 24 }}>
+      {variantKeys.map(function(k) {
+        var v = variants[k];
+        var color = varColors[k] || C.amber;
+        var slides = v.slides || [];
+        var typeSeq = slides.map(function(sl) {
+          if (sl.type === "COVER") return "Cover";
+          if (sl.type === "BODY_FINAL") return "Closer";
+          if (sl.type === "BODY_IMAGE") return "Img+Text";
+          if (sl.type === "BODY_LARGE_IMAGE") return "LargeImg";
+          return "Body";
+        }).join(" > ");
+
+        return <div key={k} style={{ padding: "20px", borderRadius: 12, background: color + "06", border: "1px solid " + color + "25", cursor: "pointer", transition: "all 0.2s", display: "flex", flexDirection: "column" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = color; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 32px " + color + "15"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = color + "25"; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 32, height: 32, borderRadius: "50%", background: color + "15", border: "2px solid " + color + "40", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 14, fontWeight: 800, color: color }}>{k}</div>
+            <div>
+              <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 800, color: color }}>{v.label || "Variant " + k}</div>
+              {v.topic && <div style={{ fontFamily: ft, fontSize: 11, color: C.txm, marginTop: 1 }}>{v.topic}</div>}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, padding: "3px 8px", background: "rgba(255,255,255,0.04)", borderRadius: 4 }}>{slides.length} slides</div>
+          </div>
+
+          <div style={{ fontFamily: mn, fontSize: 8, color: C.txd, lineHeight: 1.4, marginBottom: 6 }}>{typeSeq}</div>
+
+          {/* Mini thumbnail previews */}
+          {renderMiniSlides(v, color)}
+
+          <div style={{ flex: 1 }} />
+          <button onClick={function(e) { e.stopPropagation(); onSelect(k); }} style={{ marginTop: 14, width: "100%", padding: "10px 0", background: color + "15", color: color, border: "1px solid " + color + "35", borderRadius: 8, fontFamily: ft, fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.background = color + "25"; }} onMouseLeave={function(e) { e.currentTarget.style.background = color + "15"; }}>Continue with Variant {k}</button>
+        </div>;
+      })}
+    </div>
+  </div>;
+}
+
+
+// ═══ STEP 3: EDIT (Visual Slide Editor) ═══
 function EditStep({ slides, setSlides, theme, onNext, onBack }) {
   var _currentIdx = useState(0), currentIdx = _currentIdx[0], setCurrentIdx = _currentIdx[1];
   var currentSlide = slides[currentIdx] || slides[0];
@@ -431,7 +541,7 @@ function EditStep({ slides, setSlides, theme, onNext, onBack }) {
       id: "slide-" + Date.now(),
       position: newPos,
       type: "body",
-      title: "", subtitle: "", titleSize: 54, subtitleSize: 22,
+      title: "", subtitle: "", titleSize: 74, subtitleSize: 34,
       bodyText: "New slide content.", bodySize: 28,
       imageUrl: "", caption: "", captionSize: 18,
     };
@@ -557,8 +667,23 @@ function EditStep({ slides, setSlides, theme, onNext, onBack }) {
         {currentSlide.type === "cover" && <div>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Title</div>
           <textarea value={currentSlide.title || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { title: e.target.value })); }} rows={2} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 13, lineHeight: 1.4, resize: "none", outline: "none", boxSizing: "border-box", marginBottom: 8 }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
-          <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Subtitle</div>
-          <textarea value={currentSlide.subtitle || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { subtitle: e.target.value })); }} rows={2} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 12, lineHeight: 1.4, resize: "none", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>Subtitle</div>
+            <div style={{ display: "flex", gap: 4 }}>
+              <button onClick={function() {
+                var curr = currentSlide.subtitle || "";
+                if (!curr.trim()) return;
+                var _btn = this;
+                fetch("/api/carousel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "rewrite", text: curr, direction: "shorten" }) }).then(function(r) { return r.json(); }).then(function(d) { if (d.text) updateSlide(Object.assign({}, currentSlide, { subtitle: d.text })); }).catch(function() {});
+              }} style={{ padding: "2px 8px", background: C.coral + "10", color: C.coral, border: "1px solid " + C.coral + "25", borderRadius: 4, fontFamily: mn, fontSize: 8, cursor: "pointer" }}>Shorten</button>
+              <button onClick={function() {
+                var curr = currentSlide.subtitle || "";
+                if (!curr.trim()) return;
+                fetch("/api/carousel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "rewrite", text: curr, direction: "lengthen" }) }).then(function(r) { return r.json(); }).then(function(d) { if (d.text) updateSlide(Object.assign({}, currentSlide, { subtitle: d.text })); }).catch(function() {});
+              }} style={{ padding: "2px 8px", background: C.teal + "10", color: C.teal, border: "1px solid " + C.teal + "25", borderRadius: 4, fontFamily: mn, fontSize: 8, cursor: "pointer" }}>Lengthen</button>
+            </div>
+          </div>
+          <textarea value={currentSlide.subtitle || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { subtitle: e.target.value })); }} rows={4} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 12, lineHeight: 1.4, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
         </div>}
         {(currentSlide.type === "body" || currentSlide.type === "image_text") && <div>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Body Text</div>
@@ -582,7 +707,7 @@ function EditStep({ slides, setSlides, theme, onNext, onBack }) {
 }
 
 
-// ═══ STEP 3: REVIEW ═══
+// ═══ STEP 4: REVIEW ═══
 function ReviewStep({ slides, theme, caption, setCaption, captionLoading, onGenerateCaption, onNext, onBack }) {
   return <div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
@@ -607,10 +732,10 @@ function ReviewStep({ slides, theme, caption, setCaption, captionLoading, onGene
             {/* Content overlay */}
             <div style={{ position: "absolute", inset: 0, padding: MARGIN_X * rScale + "px " + MARGIN_Y * rScale + "px" }}>
               {sl.type === "cover" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-                {sl.imageUrl && <div style={{ width: "100%", height: "41%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0 }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: "48%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0 }}>
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
                 </div>}
-                {!sl.imageUrl && <div style={{ width: "100%", height: "41%", borderRadius: 8 * rScale, background: "rgba(255,255,255,0.04)", marginBottom: 6, flexShrink: 0 }} />}
+                {!sl.imageUrl && <div style={{ width: "100%", height: "48%", borderRadius: 8 * rScale, background: "rgba(255,255,255,0.04)", marginBottom: 6, flexShrink: 0 }} />}
                 <div style={{ fontFamily: gf, fontSize: sl.titleSize * rScale, fontWeight: 800, color: "#fff", lineHeight: 1.15, marginBottom: 4, overflow: "hidden" }}>{sl.title || ""}</div>
                 <div style={{ fontFamily: gf, fontSize: sl.subtitleSize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.75)", lineHeight: 1.35, overflow: "hidden" }}>{sl.subtitle || ""}</div>
               </div>}
@@ -618,13 +743,13 @@ function ReviewStep({ slides, theme, caption, setCaption, captionLoading, onGene
                 <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.9)", lineHeight: 1.5, overflow: "hidden", whiteSpace: "pre-wrap" }}>{sl.bodyText || ""}</div>
               </div>}
               {sl.type === "image_text" && <div>
-                {sl.imageUrl && <div style={{ width: "100%", height: "55%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6 }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: "50%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6 }}>
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, color: "rgba(255,255,255,0.9)", lineHeight: 1.4 }}>{sl.bodyText || ""}</div>
               </div>}
               {sl.type === "large_image" && <div>
-                {sl.imageUrl && <div style={{ width: "100%", height: "75%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6 }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: "72%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6 }}>
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: (sl.captionSize || 18) * rScale, color: "rgba(255,255,255,0.6)", lineHeight: 1.3 }}>{sl.caption || ""}</div>
@@ -771,27 +896,36 @@ function renderSlideToCanvas(slide, bgUrl) {
         });
       }
 
+      var COVER_MX = 60; // 5.5% margins for cover
+      var TOP_Y = Math.round(FULL_H * 0.06); // 6% from top, below logo
+      var BOTTOM_Y = Math.round(FULL_H * 0.08); // 8% from bottom, above arrow
       var contentWidth = FULL_W - MARGIN_X * 2;
+      var coverContentWidth = FULL_W - COVER_MX * 2;
 
       async function drawContent() {
         if (slide.type === "cover") {
-          var imgH = FULL_H * 0.41;
-          await drawImage(slide.imageUrl, MARGIN_X, MARGIN_Y, contentWidth, imgH, 20);
-          var titleY = MARGIN_Y + imgH + 20;
-          var afterTitle = drawText(slide.title || "", MARGIN_X, titleY, contentWidth, slide.titleSize, "800", "#ffffff", 1.15);
-          drawText(slide.subtitle || "", MARGIN_X, afterTitle + 8, contentWidth, slide.subtitleSize, "400", "rgba(255,255,255,0.78)", 1.4);
+          var imgH = Math.round(FULL_H * 0.48);
+          await drawImage(slide.imageUrl, COVER_MX, TOP_Y, coverContentWidth, imgH, 20);
+          var titleY = TOP_Y + imgH + 20;
+          var afterTitle = drawText(slide.title || "", COVER_MX, titleY, coverContentWidth, slide.titleSize, "800", "#ffffff", 1.15);
+          drawText(slide.subtitle || "", COVER_MX, afterTitle + 8, coverContentWidth, slide.subtitleSize, "400", "rgba(255,255,255,0.78)", 1.4);
         } else if (slide.type === "body") {
-          var bodyY = (FULL_H - 400) / 2; // roughly centered
+          // Full content area between logo and arrow
+          var availH = FULL_H - TOP_Y - BOTTOM_Y;
+          var textHeight = 600; // estimated
+          var bodyY = TOP_Y + Math.max(0, (availH - textHeight) / 2);
           drawText(slide.bodyText || "", MARGIN_X, bodyY, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.55);
         } else if (slide.type === "image_text") {
-          var imgH2 = FULL_H * 0.55;
-          await drawImage(slide.imageUrl, MARGIN_X, MARGIN_Y, contentWidth, imgH2, 20);
-          var textY = MARGIN_Y + imgH2 + 16;
+          var availH2 = FULL_H - TOP_Y - BOTTOM_Y;
+          var imgH2 = Math.round(availH2 * 0.50);
+          await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, imgH2, 20);
+          var textY = TOP_Y + imgH2 + 16;
           drawText(slide.bodyText || "", MARGIN_X, textY, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.5);
         } else if (slide.type === "large_image") {
-          var imgH3 = FULL_H * 0.75;
-          await drawImage(slide.imageUrl, MARGIN_X, MARGIN_Y, contentWidth, imgH3, 20);
-          var capY = MARGIN_Y + imgH3 + 12;
+          var availH3 = FULL_H - TOP_Y - BOTTOM_Y;
+          var imgH3 = Math.round(availH3 * 0.72);
+          await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, imgH3, 20);
+          var capY = TOP_Y + imgH3 + 12;
           drawText(slide.caption || "", MARGIN_X, capY, contentWidth, slide.captionSize || 18, "400", "rgba(255,255,255,0.65)", 1.4);
         }
 
@@ -809,7 +943,7 @@ function renderSlideToCanvas(slide, bgUrl) {
 }
 
 
-// ═══ STEP 4: EXPORT ═══
+// ═══ STEP 5: EXPORT ═══
 function ExportStep({ slides, theme, caption, onBack }) {
   var _downloading = useState(null), downloading = _downloading[0], setDownloading = _downloading[1];
   var _downloadAll = useState(false), downloadingAll = _downloadAll[0], setDownloadingAll = _downloadAll[1];
@@ -913,7 +1047,7 @@ function ExportStep({ slides, theme, caption, onBack }) {
             {/* Mini content overlay */}
             <div style={{ position: "absolute", inset: 0, padding: MARGIN_X * rScale + "px " + MARGIN_Y * rScale + "px" }}>
               {sl.type === "cover" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-                {sl.imageUrl && <div style={{ width: "100%", height: "41%", borderRadius: 6 * rScale, overflow: "hidden", marginBottom: 4, flexShrink: 0 }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: "48%", borderRadius: 6 * rScale, overflow: "hidden", marginBottom: 4, flexShrink: 0 }}>
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: sl.titleSize * rScale, fontWeight: 800, color: "#fff", lineHeight: 1.15, overflow: "hidden" }}>{sl.title || ""}</div>
@@ -923,13 +1057,13 @@ function ExportStep({ slides, theme, caption, onBack }) {
                 <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, color: "rgba(255,255,255,0.9)", lineHeight: 1.5, overflow: "hidden", whiteSpace: "pre-wrap" }}>{sl.bodyText || ""}</div>
               </div>}
               {sl.type === "image_text" && <div>
-                {sl.imageUrl && <div style={{ width: "100%", height: "55%", borderRadius: 6 * rScale, overflow: "hidden", marginBottom: 4 }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: "50%", borderRadius: 6 * rScale, overflow: "hidden", marginBottom: 4 }}>
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, color: "rgba(255,255,255,0.9)", lineHeight: 1.4, overflow: "hidden" }}>{sl.bodyText || ""}</div>
               </div>}
               {sl.type === "large_image" && <div>
-                {sl.imageUrl && <div style={{ width: "100%", height: "75%", borderRadius: 6 * rScale, overflow: "hidden", marginBottom: 4 }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: "72%", borderRadius: 6 * rScale, overflow: "hidden", marginBottom: 4 }}>
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: (sl.captionSize || 18) * rScale, color: "rgba(255,255,255,0.6)", lineHeight: 1.3 }}>{sl.caption || ""}</div>
@@ -996,15 +1130,19 @@ function apiSlidesToEditorSlides(apiSlides, slideCount) {
     else if (apiSl.type === "BODY_LARGE_IMAGE") type = "large_image";
     // else body (for BODY_A, BODY_B, BODY_FINAL, CLOSER)
 
+    // Convert bullet points to paragraph breaks in body text
+    var bodyText = apiSl.body_text || "";
+    bodyText = bodyText.replace(/^\s*[-*]\s+/gm, "\n").replace(/^\s*\d+[.)]\s+/gm, "\n").replace(/\n{3,}/g, "\n\n").trim();
+
     return {
       id: "slide-" + i,
       position: pos,
       type: type,
       title: apiSl.title || "",
-      titleSize: 54,
+      titleSize: 74,
       subtitle: apiSl.subtitle || "",
-      subtitleSize: 22,
-      bodyText: apiSl.body_text || "",
+      subtitleSize: 34,
+      bodyText: bodyText,
       bodySize: 28,
       imageUrl: apiSl.image_url || "",
       caption: apiSl.subtext || "",
@@ -1049,12 +1187,9 @@ export default function Carousel() {
         goStep(0);
       } else if (d.variants) {
         setVariants(d.variants);
-        // Auto-pick variant A and convert to editor format
+        // Go to variant selection step (step 2)
         var keys = Object.keys(d.variants).filter(function(k) { return d.variants[k] && d.variants[k].slides; });
         if (keys.length > 0) {
-          var picked = d.variants[keys[0]];
-          var editorSlides = apiSlidesToEditorSlides(picked.slides, picked.slides.length);
-          setSlides(editorSlides);
           goStep(2);
         } else {
           alert("No valid variants returned.");
@@ -1123,7 +1258,7 @@ export default function Carousel() {
         <div style={{ width: 8, height: 8, borderRadius: "50%", background: THEMES[state.category].color, boxShadow: "0 0 8px " + THEMES[state.category].color + "60" }} />
         <span style={{ fontFamily: mn, fontSize: 10, color: C.txm }}>{state.category} // {THEMES[state.category].prefix}</span>
         {/* Variant picker button (when we have variants and are in edit mode) */}
-        {variants && step >= 2 && <button onClick={function() { setShowVariantPicker(!showVariantPicker); }} style={{ padding: "4px 10px", background: C.surface, border: "1px solid " + C.border, borderRadius: 4, fontFamily: mn, fontSize: 9, color: C.txm, cursor: "pointer" }}>Variants</button>}
+        {variants && step >= 3 && <button onClick={function() { setShowVariantPicker(!showVariantPicker); }} style={{ padding: "4px 10px", background: C.surface, border: "1px solid " + C.border, borderRadius: 4, fontFamily: mn, fontSize: 9, color: C.txm, cursor: "pointer" }}>Variants</button>}
       </div>
     </div>
 
@@ -1148,28 +1283,40 @@ export default function Carousel() {
 
     {step === 0 && <InputStep state={state} setState={setState} onNext={generate} />}
     {step === 1 && loading && <GenerateStep />}
-    {step === 2 && <EditStep
+    {step === 2 && variants && <VariantSelectStep
+      variants={variants}
+      theme={state.category}
+      onSelect={function(key) {
+        var picked = variants[key];
+        if (!picked || !picked.slides) return;
+        var editorSlides = apiSlidesToEditorSlides(picked.slides, picked.slides.length);
+        setSlides(editorSlides);
+        goStep(3);
+      }}
+      onBack={function() { goStep(0); }}
+    />}
+    {step === 3 && <EditStep
       slides={slides}
       setSlides={setSlides}
       theme={state.category}
-      onNext={function() { goStep(3); }}
-      onBack={function() { goStep(0); }}
+      onNext={function() { goStep(4); }}
+      onBack={function() { goStep(2); }}
     />}
-    {step === 3 && <ReviewStep
+    {step === 4 && <ReviewStep
       slides={slides}
       theme={state.category}
       caption={caption}
       setCaption={setCaption}
       captionLoading={captionLoading}
       onGenerateCaption={generateCaption}
-      onNext={function() { goStep(4); }}
-      onBack={function() { goStep(2); }}
+      onNext={function() { goStep(5); }}
+      onBack={function() { goStep(3); }}
     />}
-    {step === 4 && <ExportStep
+    {step === 5 && <ExportStep
       slides={slides}
       theme={state.category}
       caption={caption}
-      onBack={function() { goStep(3); }}
+      onBack={function() { goStep(4); }}
     />}
   </div>;
 }
