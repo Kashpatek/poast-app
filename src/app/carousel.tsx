@@ -830,7 +830,7 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
             </div>
             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
               <span style={{ fontFamily: mn, fontSize: 8, color: C.txd }}>Fit:</span>
-              <button onClick={function() { updateSlide(Object.assign({}, currentSlide, { imageFit: "contain", imagePosition: "center", imageHeight: currentSlide.type === "cover" ? 46 : currentSlide.type === "large_image" ? 72 : currentSlide.type === "image_text" ? 50 : 45 })); }} style={{ padding: "2px 8px", borderRadius: 4, background: C.teal + "20", border: "1px solid " + C.teal + "40", color: C.teal, fontFamily: mn, fontSize: 8, cursor: "pointer", fontWeight: 700 }}>Auto</button>
+              <button onClick={function() { updateSlide(Object.assign({}, currentSlide, { imageFit: "cover", imagePosition: "center", imageHeight: currentSlide.type === "cover" ? 46 : currentSlide.type === "large_image" ? 72 : currentSlide.type === "image_text" ? 50 : 45 })); }} style={{ padding: "2px 8px", borderRadius: 4, background: C.teal + "20", border: "1px solid " + C.teal + "40", color: C.teal, fontFamily: mn, fontSize: 8, cursor: "pointer", fontWeight: 700 }}>Auto</button>
               {["cover", "contain", "fill"].map(function(fit) {
                 var active = (currentSlide.imageFit || "cover") === fit;
                 return <button key={fit} onClick={function() { updateSlide(Object.assign({}, currentSlide, { imageFit: fit })); }} style={{ padding: "2px 8px", borderRadius: 4, background: active ? C.amber + "20" : "transparent", border: "1px solid " + (active ? C.amber + "40" : C.border), color: active ? C.amber : C.txd, fontFamily: mn, fontSize: 8, cursor: "pointer", textTransform: "capitalize" }}>{fit}</button>;
@@ -930,7 +930,43 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
 
 
 // ═══ STEP 4: REVIEW ═══
-function ReviewStep({ slides, theme, caption, setCaption, captionLoading, onGenerateCaption, onNext, onBack }) {
+function ReviewStep({ slides, theme, caption, setCaption, captionLoading, onGenerateCaption, onNext, onBack, sourceUrl, sourceText }) {
+  var _platTab = useState("instagram"), platTab = _platTab[0], setPlatTab = _platTab[1];
+  var _platCaptions = useState({}), platCaptions = _platCaptions[0], setPlatCaptions = _platCaptions[1];
+  var _platLoading = useState(false), platLoading = _platLoading[0], setPlatLoading = _platLoading[1];
+  var _extraContext = useState(""), extraContext = _extraContext[0], setExtraContext = _extraContext[1];
+  var _showContext = useState(false), showContext = _showContext[0], setShowContext = _showContext[1];
+
+  var PLATFORMS = [
+    { key: "instagram", label: "Instagram", color: "#E4405F", charLimit: 2200, rules: "Include Save this for later CTA. 5-8 hashtags. Location: San Francisco, CA. No em dashes." },
+    { key: "tiktok", label: "TikTok", color: "#00F2EA", charLimit: 2200, rules: "All lowercase. 4-6 hashtags. Hook in first line. Casual but informed. No em dashes." },
+    { key: "shorts", label: "YT Shorts", color: "#FF0000", charLimit: 100, rules: "Title only, under 40 characters. Punchy. No hashtags. No em dashes." },
+  ];
+
+  function generatePlatformCaptions() {
+    setPlatLoading(true);
+    var slideSummary = slides.map(function(sl, i) {
+      return "Slide " + (i + 1) + " (" + sl.type + "): " + (sl.title || sl.bodyText || sl.caption || "").slice(0, 100);
+    }).join("\n");
+
+    fetch("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system: "You write social captions for SemiAnalysis carousel posts. Rules: No em dashes. No emojis. Confident, technical, institutional tone. RESPOND ONLY IN VALID JSON.",
+        prompt: "Generate captions for this carousel across 3 platforms.\n\nSlides:\n" + slideSummary + "\n\n" + (sourceUrl ? "Source: " + sourceUrl + "\n" : "") + (extraContext ? "Additional context: " + extraContext + "\n" : "") + "\nReturn JSON:\n{\n  \"instagram\": { \"caption\": \"full caption with Save CTA + 5-8 hashtags + Location: San Francisco, CA\", \"hashtags\": [\"tag1\"] },\n  \"tiktok\": { \"caption\": \"all lowercase, casual, 4-6 hashtags, hook first line\" },\n  \"shorts\": { \"title\": \"under 40 chars, punchy\" }\n}\n\nIG: under 2200 chars, save CTA, hashtags at end, location.\nTikTok: all lowercase, casual but informed, 4-6 hashtags.\nYT Shorts: title only, under 40 chars."
+      }),
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      var t = (d.content || []).map(function(c) { return c.text || ""; }).join("");
+      try {
+        var parsed = JSON.parse(t.replace(/```json|```/g, "").trim());
+        setPlatCaptions(parsed);
+        // Also set the main caption to IG for backwards compat
+        if (parsed.instagram) setCaption(parsed.instagram);
+      } catch (e) { console.error("Parse error:", t); }
+      setPlatLoading(false);
+    }).catch(function() { setPlatLoading(false); });
+  }
   return <div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
       <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx }}>Review</div>
@@ -1003,27 +1039,71 @@ function ReviewStep({ slides, theme, caption, setCaption, captionLoading, onGene
       })}
     </div>
 
-    {/* Caption */}
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Caption</div>
-    <div style={{ marginBottom: 16 }}>
-      <button onClick={onGenerateCaption} disabled={captionLoading} style={{ padding: "10px 20px", background: C.amber + "15", color: C.amber, border: "1px solid " + C.amber + "30", borderRadius: 8, fontFamily: ft, fontSize: 13, fontWeight: 700, cursor: captionLoading ? "wait" : "pointer", opacity: captionLoading ? 0.5 : 1 }}>
-        {captionLoading ? "Generating..." : caption ? "Regenerate Caption" : "Generate Caption"}
+    {/* Additional context + source link */}
+    <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center" }}>
+      <button onClick={function() { setShowContext(!showContext); }} style={{ padding: "8px 14px", background: showContext ? C.blue + "15" : C.card, border: "1px solid " + (showContext ? C.blue + "40" : C.border), borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, color: showContext ? C.blue : C.txm, cursor: "pointer" }}>{showContext ? "Hide Context" : "+ Add Context"}</button>
+      {sourceUrl && <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>Source: {sourceUrl}</div>}
+    </div>
+    {showContext && <div style={{ marginBottom: 16 }}>
+      <textarea value={extraContext} onChange={function(e) { setExtraContext(e.target.value); }} placeholder="Add extra context for caption generation (key points, tone notes, CTA preferences...)" rows={3} style={{ width: "100%", padding: "10px 14px", background: C.card, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 12, lineHeight: 1.5, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.blue; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+    </div>}
+
+    {/* Platform Captions (Capper) */}
+    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Captions</div>
+    <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
+      <button onClick={generatePlatformCaptions} disabled={platLoading} style={{ padding: "10px 20px", background: C.amber + "15", color: C.amber, border: "1px solid " + C.amber + "30", borderRadius: 8, fontFamily: ft, fontSize: 13, fontWeight: 700, cursor: platLoading ? "wait" : "pointer", opacity: platLoading ? 0.5 : 1 }}>
+        {platLoading ? "Generating..." : Object.keys(platCaptions).length > 0 ? "Regenerate All" : "Generate Captions"}
       </button>
     </div>
-    <textarea value={(caption && caption.caption) || ""} onChange={function(e) { setCaption(function(c) { return Object.assign({}, c || {}, { caption: e.target.value }); }); }} placeholder="Caption will appear here..." rows={6} style={{ width: "100%", padding: "14px 16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, color: C.tx, fontFamily: ft, fontSize: 13, lineHeight: 1.7, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
-    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, marginBottom: 20 }}>
-      <div style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>{((caption && caption.caption) || "").length} / 2200</div>
-      {caption && caption.caption && <span onClick={function() { navigator.clipboard.writeText(caption.caption); }} style={{ fontFamily: mn, fontSize: 10, color: C.txd, cursor: "pointer", padding: "2px 8px", border: "1px solid " + C.border, borderRadius: 4 }}>Copy</span>}
+
+    {/* Platform tabs */}
+    <div style={{ display: "flex", gap: 0, marginBottom: 16, background: C.card, borderRadius: 10, border: "1px solid " + C.border, padding: 3 }}>
+      {PLATFORMS.map(function(plat) {
+        var on = platTab === plat.key;
+        var hasContent = platCaptions[plat.key];
+        return <div key={plat.key} onClick={function() { setPlatTab(plat.key); }} style={{ flex: 1, padding: "10px 0", textAlign: "center", cursor: "pointer", borderRadius: 8, background: on ? plat.color + "15" : "transparent", border: on ? "1px solid " + plat.color + "30" : "1px solid transparent", transition: "all 0.15s" }}>
+          <div style={{ fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? plat.color : C.txd }}>{plat.label}</div>
+          {hasContent && <div style={{ width: 5, height: 5, borderRadius: "50%", background: plat.color, margin: "4px auto 0" }} />}
+        </div>;
+      })}
     </div>
 
-    {caption && caption.hashtags && caption.hashtags.length > 0 && <div style={{ marginBottom: 24 }}>
-      <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 8 }}>Hashtags</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {caption.hashtags.map(function(tag, i) {
-          return <span key={i} style={{ fontFamily: ft, fontSize: 12, color: C.blue, padding: "4px 10px", background: C.blue + "10", border: "1px solid " + C.blue + "20", borderRadius: 20 }}>#{tag.replace(/^#/, "")}</span>;
-        })}
-      </div>
-    </div>}
+    {/* Active platform caption */}
+    {(function() {
+      var plat = PLATFORMS.find(function(p) { return p.key === platTab; });
+      if (!plat) return null;
+      var data = platCaptions[plat.key] || {};
+      var text = plat.key === "shorts" ? (data.title || "") : (data.caption || "");
+      var charCount = text.length;
+      var overLimit = charCount > plat.charLimit;
+
+      return <div style={{ background: C.card, border: "1px solid " + plat.color + "20", borderRadius: 10, padding: "16px 18px", marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: plat.color, textTransform: "uppercase", letterSpacing: "1px" }}>{plat.label} {plat.key === "shorts" ? "Title" : "Caption"}</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <span style={{ fontFamily: mn, fontSize: 9, color: overLimit ? C.coral : C.txd }}>{charCount} / {plat.charLimit}</span>
+            {text && <span onClick={function() { navigator.clipboard.writeText(text); }} style={{ fontFamily: mn, fontSize: 9, color: plat.color, cursor: "pointer", padding: "1px 6px", border: "1px solid " + plat.color + "30", borderRadius: 4 }}>Copy</span>}
+          </div>
+        </div>
+        <textarea value={text} onChange={function(e) {
+          var val = e.target.value;
+          setPlatCaptions(function(prev) {
+            var updated = Object.assign({}, prev);
+            if (!updated[plat.key]) updated[plat.key] = {};
+            if (plat.key === "shorts") updated[plat.key].title = val;
+            else updated[plat.key].caption = val;
+            return updated;
+          });
+          if (plat.key === "instagram") setCaption(function(c) { return Object.assign({}, c || {}, { caption: val }); });
+        }} placeholder={plat.key === "shorts" ? "Short title..." : "Caption..."} rows={plat.key === "shorts" ? 2 : 6} style={{ width: "100%", padding: "10px 14px", background: C.bg, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 13, lineHeight: 1.6, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = plat.color; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+        {plat.key !== "shorts" && data.hashtags && data.hashtags.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
+          {data.hashtags.map(function(tag, i) {
+            return <span key={i} style={{ fontFamily: ft, fontSize: 11, color: plat.color, padding: "3px 8px", background: plat.color + "10", border: "1px solid " + plat.color + "18", borderRadius: 16 }}>#{tag.replace(/^#/, "")}</span>;
+          })}
+        </div>}
+        <div style={{ fontFamily: mn, fontSize: 8, color: C.txd, marginTop: 6 }}>{plat.rules}</div>
+      </div>;
+    })()}
   </div>;
 }
 
@@ -1558,6 +1638,8 @@ export default function Carousel() {
       onGenerateCaption={generateCaption}
       onNext={function() { goStep(5); }}
       onBack={function() { goStep(3); }}
+      sourceUrl={state.url || ""}
+      sourceText={state.text || ""}
     />}
     {step === 5 && <ExportStep
       slides={slides}
