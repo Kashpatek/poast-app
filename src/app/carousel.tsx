@@ -1,6 +1,7 @@
 // @ts-nocheck
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    SA CAROUSEL v2.0 -- Visual Slide Editor with Real Branded Backgrounds
@@ -1455,7 +1456,7 @@ function renderSlideToCanvas(slide, bgUrl) {
 
 
 // ═══ STEP 5: EXPORT ═══
-function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx, onBack, sourceUrl }) {
+function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx, onBack, sourceUrl, articleTitle }) {
   var _downloading = useState(null), downloading = _downloading[0], setDownloading = _downloading[1];
   var _downloadAll = useState(false), downloadingAll = _downloadAll[0], setDownloadingAll = _downloadAll[1];
   var _copied = useState({}), copied = _copied[0], setCopied = _copied[1];
@@ -1530,6 +1531,82 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
     setTimeout(function() { setCopied({}); }, 2000);
   }
 
+  function downloadCaptionsDocx() {
+    var selectedCap = (captionOptions && captionOptions.length > 0) ? (captionOptions[selectedCaptionIdx] || captionOptions[0]) : null;
+    if (!selectedCap) return;
+    var AMBER = "F7B041";
+    var BLUE = "0B86D1";
+    var BODY = "1A1A1A";
+    var FONT = "Outfit";
+    var children = [];
+
+    // Title
+    children.push(new Paragraph({
+      spacing: { after: 200 },
+      border: { bottom: { color: AMBER, size: 6, space: 8, style: "single" } },
+      children: [new TextRun({ text: coverTitle || "Carousel Captions", bold: true, size: 44, color: AMBER, font: { name: FONT } })],
+    }));
+
+    // Metadata
+    if (sourceUrl) {
+      children.push(new Paragraph({ spacing: { after: 80 }, children: [
+        new TextRun({ text: "Source: ", bold: true, size: 22, color: "666666", font: { name: FONT } }),
+        new TextRun({ text: sourceUrl, size: 22, color: BLUE, font: { name: FONT } }),
+      ]}));
+    }
+    children.push(new Paragraph({ spacing: { after: 80 }, children: [
+      new TextRun({ text: "Date: ", bold: true, size: 22, color: "666666", font: { name: FONT } }),
+      new TextRun({ text: dateStamp, size: 22, color: BODY, font: { name: FONT } }),
+    ]}));
+    children.push(new Paragraph({ spacing: { after: 200 }, children: [
+      new TextRun({ text: "Theme: ", bold: true, size: 22, color: "666666", font: { name: FONT } }),
+      new TextRun({ text: theme || "general", size: 22, color: BODY, font: { name: FONT } }),
+    ]}));
+
+    // Each platform
+    var platNames = { instagram: "Instagram", tiktok: "TikTok", shorts: "YouTube Shorts" };
+    ["instagram", "tiktok", "shorts"].forEach(function(key) {
+      var data = selectedCap[key] || {};
+      var text = key === "shorts" ? (data.title || "") : (data.caption || "");
+      if (!text) return;
+
+      children.push(new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 360, after: 120 },
+        children: [new TextRun({ text: platNames[key], bold: true, size: 32, color: BLUE, font: { name: FONT } })],
+      }));
+
+      var lines = text.split("\n");
+      var runs = [];
+      lines.forEach(function(line, idx) {
+        if (idx > 0) runs.push(new TextRun({ break: 1, text: "", font: { name: "Arial" } }));
+        runs.push(new TextRun({ text: line, size: 22, color: BODY, font: { name: FONT } }));
+      });
+      children.push(new Paragraph({ spacing: { after: 120 }, children: runs }));
+
+      if (key !== "shorts" && data.hashtags && data.hashtags.length > 0) {
+        children.push(new Paragraph({ spacing: { after: 160 }, children: [
+          new TextRun({ text: data.hashtags.map(function(t) { return "#" + t.replace(/^#/, ""); }).join("  "), size: 20, color: BLUE, font: { name: FONT } }),
+        ]}));
+      }
+    });
+
+    var doc = new Document({
+      styles: { default: { document: { run: { font: "Arial", size: 22, color: BODY } } } },
+      sections: [{ properties: {}, children: children }],
+    });
+    Packer.toBlob(doc).then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = filePrefix + "_captions.docx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  }
+
   function exportJSON() {
     var payload = {
       carousel_id: "carousel_" + Date.now(),
@@ -1550,8 +1627,10 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
 
   function handleSaveArchive() {
     setArchiveSaving(true);
-    var coverSlide = slides.find(function(sl) { return sl.type === "cover"; });
-    var title = (coverSlide && coverSlide.title) || "Untitled Carousel";
+    var archiveName = dateStamp + " - " + coverTitle;
+    if (sourceUrl) {
+      try { var hostname = new URL(sourceUrl).hostname.replace("www.", ""); archiveName += " (" + hostname + ")"; } catch(e) {}
+    }
     var archiveData = {
       slides: slides,
       caption: caption,
@@ -1559,6 +1638,7 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
       selectedCaptionIdx: selectedCaptionIdx,
       theme: theme,
       sourceUrl: sourceUrl || "",
+      articleTitle: articleTitle || coverTitle,
       timestamp: new Date().toISOString(),
       slideCount: slides.length,
     };
@@ -1570,7 +1650,7 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
         data: {
           id: "carousel-" + Date.now(),
           type: "carousel-archive",
-          name: title,
+          name: archiveName,
           data: archiveData,
         },
       }),
@@ -1683,10 +1763,14 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
 
     {/* Export actions */}
     <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 12 }}>Export Actions</div>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
       <button onClick={downloadAll} disabled={downloadingAll} style={{ padding: "16px", background: C.amber + "10", border: "1px solid " + C.amber + "30", borderRadius: 10, cursor: downloadingAll ? "wait" : "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.amber + "60"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.amber + "30"; }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.amber, marginBottom: 4 }}>{downloadingAll ? "Downloading..." : "Download All PNGs"}</div>
         <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>{slides.length} slides at 1080x1350</div>
+      </button>
+      <button onClick={downloadCaptionsDocx} disabled={!selectedCaption} style={{ padding: "16px", background: selectedCaption ? C.cyan + "10" : C.surface, border: "1px solid " + (selectedCaption ? C.cyan + "30" : C.border), borderRadius: 10, cursor: selectedCaption ? "pointer" : "default", textAlign: "left", transition: "all 0.2s", opacity: selectedCaption ? 1 : 0.5 }} onMouseEnter={function(e) { if (selectedCaption) e.currentTarget.style.borderColor = C.cyan + "60"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = selectedCaption ? C.cyan + "30" : C.border; }}>
+        <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.cyan, marginBottom: 4 }}>Download Captions</div>
+        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>.docx with all platforms</div>
       </button>
       <button onClick={function() { window.open("https://publish.buffer.com", "_blank"); }} style={{ padding: "16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", textAlign: "left", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, marginBottom: 4 }}>Send to Buffer</div>
@@ -1937,6 +2021,7 @@ export default function Carousel() {
       selectedCaptionIdx={selectedCaptionIdx}
       onBack={function() { goStep(4); }}
       sourceUrl={state.url || ""}
+      articleTitle={(slides.find(function(s) { return s.type === "cover"; }) || {}).title || ""}
     />}
   </div>;
 }
