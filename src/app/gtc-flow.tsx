@@ -1,5 +1,45 @@
 "use client";
 import React, { useState, useEffect, useMemo, Fragment } from "react";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
+
+// ═══ DOCX HELPERS ═══
+async function downloadDocx(title: string, body: string, filename: string) {
+  const paragraphs: Paragraph[] = [
+    new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      spacing: { after: 200 },
+      children: [new TextRun({ text: title, bold: true, size: 32, color: "F7B041", font: { name: "Outfit" } })],
+    }),
+  ];
+  body.split("\n").forEach(function(line) {
+    paragraphs.push(new Paragraph({
+      spacing: { after: 100 },
+      children: [new TextRun({ text: line || " ", size: 22, color: "1A1A1A", font: { name: "Outfit" } })],
+    }));
+  });
+  const doc = new Document({ sections: [{ properties: {}, children: paragraphs }] });
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename.replace(/[^a-zA-Z0-9_.-]/g, "_") + ".docx";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Split Claude output like "--- YOUTUBE TITLE ---\n..." into { YT_TITLE: "...", X_HOOK: "..." }
+function splitKitSections(raw: string): Record<string, string> {
+  const sections: Record<string, string> = {};
+  const regex = /---\s+([^-]+?)\s+---\n([\s\S]*?)(?=\n---\s+[^-]+?\s+---|\s*$)/g;
+  let m;
+  while ((m = regex.exec(raw)) !== null) {
+    const key = m[1].trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+    sections[key] = m[2].trim();
+  }
+  return sections;
+}
 
 interface Episode {
   id: string;
@@ -349,6 +389,7 @@ function AddEpisodeModal(p: { onAdd: (ep: Episode) => void; onClose: () => void;
 
 function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep: Episode) => void }){var ep=p.ep,cad=p.cad,onBack=p.onBack,onUpdate=p.onUpdate;
   var [tab,setTab]=useState("kit");var [genK,setGenK]=useState(false);var [kitOut,setKitOut]=useState("");var [c1,setC1]=useState("");var [c2,setC2]=useState("");var [clipOut,setClipOut]=useState("");var [genC,setGenC]=useState(false);var [cp,setCp]=useState("");
+  var [ytTranscript,setYtTranscript]=useState("");var [ytDuration,setYtDuration]=useState("");var [ytOut,setYtOut]=useState("");var [genYt,setGenYt]=useState(false);
   var [editing,setEditing]=useState(false);
   var [eBio,setEBio]=useState(ep.bio||"");
   var [eTitle,setETitle]=useState(ep.title||"");
@@ -358,12 +399,133 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
   function saveEdit(){onUpdate(Object.assign({},ep,{bio:eBio,title:eTitle,host:eHost,companyDesc:eCompanyDesc,topics:eTopics}));setEditing(false);}
   function cancelEdit(){setEBio(ep.bio||"");setETitle(ep.title||"");setEHost(ep.host||"");setECompanyDesc(ep.companyDesc||"");setETopics(ep.topics||"");setEditing(false);}
   var d=ep.slot>=0?slotDate(ep.slot,cad.days):new Date(2026,3,2);var tc=TC[ep.tag]||"#6b7280";var thu=new Date(d.getTime()+864e5);var tue=new Date(d.getTime()+6*864e5);
-  var ytD=ep.host+" sits down with "+ep.guest+", "+ep.title+" at "+ep.company+", to discuss "+(ep.topics||"[TOPICS]")+".\n\n"+ep.bio+"\n\nResearcher Conversations is a live interview series recorded "+(ep.virtual?"virtually via Riverside":"on-site at NVIDIA GTC 2026 in San Jose")+", produced by SemiAnalysis. Technical conversations with the researchers, founders, and engineers building the future of AI compute.";
+  var seriesPara=ep.virtual
+    ?"Researcher Conversations is a live interview series recorded virtually via Riverside, produced by SAIL in partnership with \u200B@SemiAnalysis\u200B and \u200B@makora-ai\u200B. Check out more technical deep-dives with the researchers, founders, and engineers building the future of AI compute on our YT channel!"
+    :"Researcher Conversations is a live interview series recorded on-site at NVIDIA GTC 2026 in San Jose, produced by SAIL in partnership with \u200B@SemiAnalysis\u200B and \u200B@makora-ai\u200B. Check out more technical deep-dives with the researchers, founders, and engineers building the future of AI compute on our YT channel!";
+  var ytD=ep.host+" sits down with "+ep.guest+", "+ep.title+" at "+ep.company+", to discuss "+(ep.topics||"[TOPICS]")+". "+(ep.guest.split(" ")[0])+" dives into [2-3 specific technical details from the conversation — what they built, specific numbers, concrete wins].\n\n"+(ep.bio||"[GUEST BIO WITH SPECIFIC ACCOMPLISHMENTS AND METRICS]")+"\n\n"+seriesPara+"\n\nKey Highlights:\n[Use Generate with transcript for timestamped chapters]";
   var bio2=ep.bio?ep.bio.split(".").slice(0,2).join(".")+".":"";
   var kit="GTC INTERVIEW LAUNCH KIT\n==============================\n"+ep.guest+" ("+ep.company+")\nHost: "+ep.host+" // "+fm(d)+" 8:00 AM PST"+(ep.virtual?" // Virtual":"")+"\nLink: [INSERT YOUTUBE LINK]\nThumbnail: [ATTACH]\n\n--- YOUTUBE DESCRIPTION ---\n"+ytD+"\n\n--- X (HOOK) ---\n"+(ep.topics?ep.topics.split(",")[0].trim():"[TOPIC]")+" with "+ep.guest+" from "+ep.company+".\n\n--- X (REPLY) ---\n[INSERT YOUTUBE LINK]\n\n--- LINKEDIN ---\n"+ep.guest+", "+ep.title+" at "+ep.company+", on "+(ep.topics||"[topics]")+". "+bio2+" New episode of Researcher Conversations"+(ep.virtual?", recorded via Riverside":"")+". Worth the listen if you care about "+(ep.tag||"this space")+".\n\n[INSERT YOUTUBE LINK]\n\n--- FACEBOOK ---\n"+ep.guest+" from "+ep.company+" on "+(ep.topics||"[topics]")+". "+bio2+" Full Researcher Conversations episode"+(ep.virtual?" recorded virtually":"")+". Good one.\n\n[INSERT YOUTUBE LINK]\n\n--- STORY ---\nNew ep: "+ep.guest+" // "+ep.company+"\n\n--- REGIMENT ---\n"+fm(d)+" 8:00 AM PST    YouTube + X + LinkedIn + Facebook + Story\nThu "+fs(thu)+" 10:00 AM PST    Clip #1 (Shorts + Reels + X + TikTok + Story)\nTue "+fs(tue)+" 10:00 AM PST    Clip #2 (Shorts + Reels + X + TikTok + Story)";
 
+  var firstName = ep.guest.split(" ")[0];
   function doCopy(t: string, l: string){navigator.clipboard.writeText(t);setCp(l);setTimeout(function(){setCp("")},2000)}
-  async function gKit(){setGenK(true);var r=await callAPI(DYLAN_SYS,"Episode launch.\nYT desc: informative, 150 words, include bio. NOT casual.\nX: 1 sentence casual, no link.\nLinkedIn: 3-5 sentences, guest context, why it matters.\nFacebook: 3-5 sentences, conversational.\nStory: 1 line.\n\nGuest: "+ep.guest+", "+ep.title+" at "+ep.company+"\nHost: "+ep.host+"\nBio: "+ep.bio+"\nTopics: "+(ep.topics||"general")+"\nFormat: "+(ep.virtual?"Virtual Riverside":"GTC 2026"));setKitOut(r);setGenK(false)}
+
+  var KIT_SYS = [
+    "You write launch kits for SemiAnalysis GTC interview series (Researcher Conversations by SAIL).",
+    "Every piece of content must be attention-grabbing, specific, and make the reader want to click/watch.",
+    "The user launches with either the video thumbnail OR just the link — so captions must sell the watch on their own.",
+    "",
+    "STYLE RULES:",
+    "- Lead with a specific number, claim, or concrete technical detail. Never vibes. Never marketing fluff.",
+    "- Short sentences. Casual but informed. Direct.",
+    "- No em dashes. No emojis. No generic hype words (revolutionary, game-changing, explores, dives deep, breaks down).",
+    "- Hooks should make readers stop scrolling. Use curiosity gaps, surprising numbers, or contrarian takes.",
+    "- X: NEVER hashtags. 1 sentence hook.",
+    "- LinkedIn: 3-5 sentences, guest context + why it matters to industry.",
+    "- Facebook: 3-5 sentences, conversational, a little more color.",
+    "- Story: 1 punchy line.",
+    "",
+    "REFERENCE YOUTUBE DESCRIPTION (match this quality):",
+    "Jordan Nanos sits down with Thomas Sohmers, Co-Founder & CTO at Positron AI, to discuss AI inference hardware, FPGA, competing with NVIDIA. Thomas dives into how Positron is achieving a 1:1 ratio for matrix-matrix and matrix-vector performance, their strategic shift to LPDDR memory to bypass HBM supply constraints, and how their Titan server is designed to run 16-trillion parameter models with million-token context lengths on a single box.",
+    "",
+    "Thomas Sohmers is a hardware pioneer and the founder of Positron AI, a startup reimagining the infrastructure for large-scale AI inference. By focusing on maximizing memory bandwidth utilization (hitting 93% of theoretical peak) and leveraging commodity supply chains like organic substrates and LPDDR, Thomas and his team are building a more accessible, high-performance path for the world's most demanding LLM workloads."
+  ].join("\n");
+
+  async function gKit(){
+    setGenK(true);
+    var prompt = [
+      "Generate the FULL launch kit for this episode. Every section must pull specific hooks from the bio/topics.",
+      "",
+      "Guest: " + ep.guest + ", " + ep.title + " at " + ep.company,
+      "Host: " + ep.host,
+      "Bio: " + ep.bio,
+      "Topics: " + (ep.topics || "general"),
+      "Company: " + (ep.companyDesc || ""),
+      "Format: " + (ep.virtual ? "virtual via Riverside" : "on-site at NVIDIA GTC 2026 in San Jose"),
+      "",
+      "REQUIREMENTS:",
+      "- Each caption must contain at least ONE concrete detail/metric/claim pulled from bio or topics.",
+      "- YouTube description: 3 paragraphs. Para 1 includes 3 specific technical hooks. Para 2 includes 1+ metric. Para 3 VERBATIM as given below.",
+      "- X hook: one sentence that makes people want to click. Lead with a number/claim from the bio.",
+      "- LinkedIn: set up stakes for industry insiders. Why should someone building AI infra care?",
+      "- Facebook: same substance, more conversational tone.",
+      "- Story: punchy one-liner.",
+      "- Thumbnail headline: 6-8 words, bold claim or number, optimized for video thumbnail text.",
+      "- YouTube title: under 70 chars, front-loads the most clickable hook (not just the guest name).",
+      "",
+      "VERBATIM PARA 3 (do not change):",
+      seriesPara,
+      "",
+      "OUTPUT EXACTLY THIS FORMAT:",
+      "--- YOUTUBE TITLE ---",
+      "[under 70 chars, hooks first]",
+      "",
+      "--- THUMBNAIL HEADLINE ---",
+      "[6-8 words for thumbnail overlay text]",
+      "",
+      "--- YOUTUBE DESCRIPTION ---",
+      "[Para 1: " + ep.host + " sits down with " + ep.guest + ", " + ep.title + " at " + ep.company + ", to discuss [topics]. " + firstName + " dives into [3 specific technical hooks with numbers].]",
+      "",
+      "[Para 2: positioning + specific metric + outcome]",
+      "",
+      seriesPara,
+      "",
+      "Key Highlights:",
+      "[Generate timestamped chapters via YT Description tab with transcript]",
+      "",
+      "--- X (HOOK) ---",
+      "[1 sentence, specific claim, no link, no hashtags]",
+      "",
+      "--- X (REPLY) ---",
+      "[INSERT YOUTUBE LINK]",
+      "",
+      "--- LINKEDIN ---",
+      "[3-5 sentences with specific technical stakes + why industry should care]",
+      "[INSERT YOUTUBE LINK]",
+      "",
+      "--- FACEBOOK ---",
+      "[3-5 sentences conversational, same substance]",
+      "[INSERT YOUTUBE LINK]",
+      "",
+      "--- STORY ---",
+      "[1 punchy line]"
+    ].join("\n");
+    var r = await callAPI(KIT_SYS, prompt);
+    setKitOut(r);
+    setGenK(false);
+  }
+
+  async function gYtDesc(){
+    setGenYt(true);
+    var hasTx = ytTranscript.trim().length > 200;
+    var chapterPrompt = hasTx
+      ? "Then generate 8-12 timestamped chapter markers based on the transcript. Format: MM:SS - Concise descriptive title. First chapter is always \"00:00 - Introduction: " + ep.host + " (SAIL) & " + ep.guest + " (" + ep.company + ")\". Timestamps must reflect actual topic transitions in the transcript. Titles must be specific and technical (e.g. \"The Positron Thesis: Reducing token costs while maintaining speed\", not \"They talk about their thesis\")."
+      : "Then generate 6-8 timestamped chapter markers. Format: MM:SS - Concise descriptive title. First chapter is always \"00:00 - Introduction: " + ep.host + " (SAIL) & " + ep.guest + " (" + ep.company + ")\". No transcript provided, so use reasonable time estimates spaced across a " + (ytDuration || "10-15 min") + " video. Titles must be specific and technical based on topics (" + (ep.topics || "general") + "), NOT generic.";
+    var prompt = [
+      "Generate a full YouTube description for this episode.",
+      "",
+      "Guest: " + ep.guest + ", " + ep.title + " at " + ep.company,
+      "Host: " + ep.host,
+      "Bio: " + ep.bio,
+      "Topics: " + (ep.topics || "general"),
+      "Company: " + (ep.companyDesc || ""),
+      "Format: " + (ep.virtual ? "virtual via Riverside" : "on-site at NVIDIA GTC 2026 in San Jose"),
+      "",
+      hasTx ? "TRANSCRIPT:\n" + ytTranscript.slice(0, 8000) + "\n" : "",
+      "Output in this exact structure:",
+      "",
+      "[Paragraph 1: " + ep.host + " sits down with " + ep.guest + ", " + ep.title + " at " + ep.company + ", to discuss [topics]. " + firstName + " dives into [3 specific technical details with numbers from bio/topics/transcript].]",
+      "",
+      "[Paragraph 2: positioning line + specific metric/approach + outcome. Match the Positron reference style.]",
+      "",
+      seriesPara,
+      "",
+      "Key Highlights:",
+      chapterPrompt
+    ].join("\n");
+    var r = await callAPI(KIT_SYS, prompt);
+    setYtOut(r);
+    setGenYt(false);
+  }
   async function gClip(){setGenC(true);var r=await callAPI(DYLAN_SYS,"2 clips. All casual.\nGuest: "+ep.guest+" ("+ep.company+")\n\nCLIP 1:\n"+(c1||"[no transcript]")+"\n\nCLIP 2:\n"+(c2||"[no transcript]")+"\n\nEach clip: X (no hashtags), YT Shorts (title<40 + #shorts), IG Reels (save CTA + 5-8 hashtags + San Jose), TikTok (lowercase + 4-6 hashtags + on-screen 0s/3s/6s), Story (1 line).\nClip1 Thu 10AM, Clip2 Tue 10AM. TikTok stagger 4-6hr.");setClipOut(r);setGenC(false)}
 
   return <div style={{fontFamily:FONT,color:"#E8E4DD"}}><div style={{maxWidth:960,margin:"0 auto",padding:"28px 32px 60px"}}>
@@ -391,35 +553,127 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
     <div style={{marginBottom:16}}><div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:6}}>Bio</div>{editing?<textarea value={eBio} onChange={function(e){setEBio(e.target.value)}} style={{width:"100%",minHeight:80,padding:14,background:BG1,border:"1px solid "+BDR,borderRadius:8,color:"#d1d5db",fontFamily:FONT,fontSize:12,resize:"vertical",outline:"none",boxSizing:"border-box",lineHeight:1.7}}/>:<p style={{fontSize:12,color:"#d1d5db",margin:0,lineHeight:1.7,padding:14,background:BG1,borderRadius:8,border:"1px solid "+BDR}}>{ep.bio}</p>}</div>
     {editing&&<div style={{marginBottom:16}}><div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:6}}>Topics</div><input value={eTopics} onChange={function(e){setETopics(e.target.value)}} placeholder="Comma-separated topics" style={{width:"100%",padding:"8px 14px",background:BG1,border:"1px solid "+BDR,borderRadius:8,color:"#d1d5db",fontFamily:FONT,fontSize:12,outline:"none",boxSizing:"border-box"}}/></div>}
 
-    {ep.slot>=0&&<div style={{padding:14,background:BG1,borderRadius:8,border:"1px solid "+BDR,marginBottom:16}}>
-      <div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:8}}>Content Rollout</div>
-      <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"5px 14px",fontSize:12}}>
-        {[[fm(d)+" 8:00 AM PST","YouTube + X + LinkedIn + Facebook + Story"],["Thu "+fs(thu)+" 10:00 AM PST","Clip #1 (Shorts + Reels + X + TikTok + Story)"],["Tue "+fs(tue)+" 10:00 AM PST","Clip #2 (Shorts + Reels + X + TikTok + Story)"]].map(function(r,i){return <Fragment key={i}><div style={{color:AMB,fontWeight:600,whiteSpace:"nowrap"}}>{r[0]}</div><div style={{color:"#9ca3af"}}>{r[1]}</div></Fragment>})}
+    {ep.slot>=0&&<div style={{padding:18,background:"linear-gradient(135deg, "+BG1+" 0%, "+BG0+" 100%)",borderRadius:12,border:"1px solid "+BDR,marginBottom:16}}>
+      <div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:14}}>Content Rollout</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3, 1fr)",gap:12}}>
+        {[
+          {date:d,time:"8:00 AM PST",label:"EPISODE LAUNCH",ch:["YouTube","X","LinkedIn","Facebook","Story"],color:AMB,icon:"\u25B6"},
+          {date:thu,time:"10:00 AM PST",label:"CLIP #1",ch:["Shorts","Reels","X","TikTok","Story"],color:BLU,icon:"\u2702"},
+          {date:tue,time:"10:00 AM PST",label:"CLIP #2",ch:["Shorts","Reels","X","TikTok","Story"],color:CYN,icon:"\u2702"}
+        ].map(function(item,i){
+          var dateObj=item.date;
+          var month=dateObj.toLocaleDateString("en-US",{month:"short"}).toUpperCase();
+          var day=dateObj.getDate();
+          var weekday=dateObj.toLocaleDateString("en-US",{weekday:"short"}).toUpperCase();
+          return <div key={i} style={{background:BG0,border:"1px solid "+item.color+"30",borderRadius:10,padding:14,position:"relative",overflow:"hidden"}}>
+            <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:item.color,opacity:0.6}}/>
+            <div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:10}}>
+              <div style={{flexShrink:0,width:58,borderRadius:8,overflow:"hidden",border:"1px solid "+item.color+"40",background:BG1}}>
+                <div style={{background:item.color+"18",padding:"3px 0",textAlign:"center",fontSize:8,fontWeight:800,color:item.color,letterSpacing:1.5,fontFamily:MONO}}>{month}</div>
+                <div style={{padding:"6px 0",textAlign:"center"}}>
+                  <div style={{fontSize:22,fontWeight:900,color:"#f3f4f6",lineHeight:1,fontFamily:FONT}}>{day}</div>
+                  <div style={{fontSize:7,fontWeight:700,color:"#6b7280",letterSpacing:1.2,marginTop:2,fontFamily:MONO}}>{weekday}</div>
+                </div>
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
+                  <span style={{color:item.color,fontSize:10}}>{item.icon}</span>
+                  <span style={{fontSize:9,color:item.color,fontWeight:800,letterSpacing:1,fontFamily:MONO}}>{item.label}</span>
+                </div>
+                <div style={{fontSize:10,color:"#9ca3af",fontFamily:MONO,marginBottom:2}}>{item.time}</div>
+              </div>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+              {item.ch.map(function(c){return <span key={c} style={{fontSize:8,fontWeight:600,padding:"2px 6px",borderRadius:4,background:item.color+"10",color:item.color+"cc",border:"1px solid "+item.color+"20"}}>{c}</span>})}
+            </div>
+          </div>;
+        })}
       </div>
     </div>}
 
     <div style={{display:"flex",gap:8,marginBottom:6}}>
       <Btn on={tab==="kit"} onClick={function(){setTab("kit")}}>Launch Kit</Btn>
+      <Btn on={tab==="yt"} onClick={function(){setTab("yt")}}>YT Description</Btn>
       <Btn on={tab==="clips"} onClick={function(){setTab("clips")}}>Clips Kit</Btn>
     </div>
-    <div style={{fontSize:9,color:"#4b5563",marginBottom:14}}>{tab==="kit"?"YT desc (informative) + X, LinkedIn (long), Facebook (long), Story":"Paste 2 clip transcripts. Generates X, Shorts, Reels, TikTok, Story"}</div>
+    <div style={{fontSize:9,color:"#4b5563",marginBottom:14}}>{tab==="kit"?"Title + thumbnail headline + YT desc + X, LinkedIn, Facebook, Story — all attention-grabbing":tab==="yt"?"Full YouTube description with timestamped chapters (paste transcript for accurate timestamps)":"Paste 2 clip transcripts. Generates X, Shorts, Reels, TikTok, Story"}</div>
 
-    {tab==="kit"&&<div>
-      <div style={{display:"flex",gap:8,marginBottom:10}}>
-        <Btn on={false} onClick={function(){doCopy(kitOut||kit,"kit")}} sx={{borderColor:AMB+"60",color:AMB}}>{cp==="kit"?"Copied!":"Copy"}</Btn>
-        <Btn on={true} onClick={gKit} sx={{opacity:genK?.5:1}}>{genK?"Generating...":"Generate"}</Btn>
+    {tab==="kit"&&(function(){
+      var sections = kitOut ? splitKitSections(kitOut) : {};
+      var epSlug = ep.guest.replace(/[^a-zA-Z0-9]/g, "_");
+      var cards: Array<{key:string;label:string;color:string;lines?:number}> = [
+        { key: "YOUTUBE_TITLE", label: "YouTube Title", color: RED, lines: 1 },
+        { key: "THUMBNAIL_HEADLINE", label: "Thumbnail Headline", color: AMB, lines: 1 },
+        { key: "X_HOOK", label: "X (Hook)", color: "#ffffff", lines: 2 },
+        { key: "LINKEDIN", label: "LinkedIn", color: "#0A66C2", lines: 5 },
+        { key: "FACEBOOK", label: "Facebook", color: "#1877F2", lines: 5 },
+        { key: "STORY", label: "Story", color: CYN, lines: 1 },
+      ];
+      return <div>
+        <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+          <Btn on={true} onClick={gKit} sx={{opacity:genK?.5:1}}>{genK?"Generating...":kitOut?"Regenerate":"Generate Launch Kit"}</Btn>
+          {kitOut&&<Btn on={false} onClick={function(){doCopy(kitOut,"kit")}} sx={{borderColor:AMB+"60",color:AMB}}>{cp==="kit"?"Copied!":"Copy All"}</Btn>}
+          {kitOut&&<Btn on={false} onClick={function(){downloadDocx("Launch Kit - "+ep.guest,kitOut,"LaunchKit_"+epSlug)}} sx={{borderColor:GRN+"60",color:GRN}}>Download .docx</Btn>}
+        </div>
+        {!kitOut&&<div style={{padding:40,background:BG1,borderRadius:8,border:"1px solid "+BDR,color:"#4b5563",fontSize:12,textAlign:"center"}}>Click Generate to create the full launch kit — title, thumbnail headline, and all social captions.</div>}
+        {kitOut&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {cards.map(function(card){
+            var content = sections[card.key] || "";
+            if (!content) return null;
+            return <div key={card.key} style={{background:BG1,border:"1px solid "+card.color+"25",borderRadius:10,padding:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <div style={{fontSize:10,color:card.color,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,fontFamily:MONO}}>{card.label}</div>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={function(){doCopy(content,"sec_"+card.key)}} style={{fontSize:10,padding:"4px 10px",background:"transparent",border:"1px solid "+card.color+"40",borderRadius:5,color:card.color,cursor:"pointer",fontFamily:MONO,fontWeight:600}}>{cp==="sec_"+card.key?"Copied":"Copy"}</button>
+                  <button onClick={function(){downloadDocx(card.label+" - "+ep.guest,content,card.label.replace(/\s+/g,"_")+"_"+epSlug)}} style={{fontSize:10,padding:"4px 10px",background:"transparent",border:"1px solid "+GRN+"40",borderRadius:5,color:GRN,cursor:"pointer",fontFamily:MONO,fontWeight:600}}>.docx</button>
+                </div>
+              </div>
+              <pre style={{fontSize:12,color:"#d1d5db",lineHeight:1.6,whiteSpace:"pre-wrap",fontFamily:FONT,margin:0}}>{content}</pre>
+            </div>;
+          })}
+          {/* Rollout / regimen summary */}
+          {!!sections["YOUTUBE_DESCRIPTION"]&&<div style={{fontSize:10,color:"#6b7280",marginTop:4,padding:"8px 12px",background:"rgba(255,255,255,0.02)",borderRadius:6,fontFamily:MONO}}>YT description is auto-included. For timestamped chapters, use the YT Description tab with transcript.</div>}
+        </div>}
+      </div>;
+    })()}
+
+    {tab==="yt"&&<div>
+      <div style={{marginBottom:12,padding:14,background:BG1,border:"1px solid "+BDR,borderRadius:8}}>
+        <div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,fontFamily:MONO,marginBottom:8}}>Transcript (optional, for accurate chapters)</div>
+        <textarea value={ytTranscript} onChange={function(e){setYtTranscript(e.target.value)}} placeholder="Paste full interview transcript here. AI will generate 8-12 timestamped chapters from actual topic transitions..." style={{width:"100%",minHeight:140,padding:10,background:BG0,border:"1px solid "+BDR,borderRadius:6,color:"#d1d5db",fontFamily:FONT,fontSize:11,resize:"vertical",outline:"none",boxSizing:"border-box"}}/>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginTop:8}}>
+          <span style={{fontSize:10,color:"#6b7280",fontFamily:MONO}}>No transcript? Duration estimate:</span>
+          <input value={ytDuration} onChange={function(e){setYtDuration(e.target.value)}} placeholder="e.g. 12 min" style={{padding:"4px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:5,color:"#d1d5db",fontFamily:MONO,fontSize:11,width:100,outline:"none"}}/>
+        </div>
       </div>
-      <pre style={{fontSize:11,color:"#9ca3af",lineHeight:1.7,padding:14,background:BG1,borderRadius:8,border:"1px solid "+BDR,whiteSpace:"pre-wrap",fontFamily:FONT,maxHeight:520,overflow:"auto"}}>{kitOut||kit}</pre>
+      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+        <Btn on={true} onClick={gYtDesc} sx={{opacity:genYt?.5:1}}>{genYt?"Generating...":ytOut?"Regenerate":"Generate YT Description"}</Btn>
+        {ytOut&&<Btn on={false} onClick={function(){doCopy(ytOut,"yt")}} sx={{borderColor:AMB+"60",color:AMB}}>{cp==="yt"?"Copied!":"Copy"}</Btn>}
+        {ytOut&&<Btn on={false} onClick={function(){downloadDocx("YouTube Description - "+ep.guest,ytOut,"YTDescription_"+ep.guest.replace(/[^a-zA-Z0-9]/g,"_"))}} sx={{borderColor:GRN+"60",color:GRN}}>Download .docx</Btn>}
+      </div>
+      {ytOut&&<pre style={{fontSize:12,color:"#d1d5db",lineHeight:1.7,padding:16,background:BG1,borderRadius:8,border:"1px solid "+BDR,whiteSpace:"pre-wrap",fontFamily:FONT,maxHeight:560,overflow:"auto"}}>{ytOut}</pre>}
+      {!ytOut&&<div style={{padding:40,background:BG1,borderRadius:8,border:"1px solid "+BDR,color:"#4b5563",fontSize:12,textAlign:"center"}}>Generate the full YT description. Paste transcript above for accurate timestamped chapters.</div>}
     </div>}
 
     {tab==="clips"&&<div>
+      <div style={{marginBottom:12,padding:14,background:CYN+"08",border:"1px solid "+CYN+"30",borderRadius:8}}>
+        <div style={{fontSize:10,color:CYN,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,fontFamily:MONO,marginBottom:6}}>How to get clip transcripts fast</div>
+        <ol style={{margin:"0 0 0 18px",padding:0,fontSize:11,color:"#9ca3af",lineHeight:1.7}}>
+          <li><b style={{color:"#d1d5db"}}>YouTube auto-captions (fastest, free):</b> Upload each clip as an unlisted YouTube video. Wait 5-10 min for auto-captions. Click "..." under video → "Show transcript" → copy.</li>
+          <li><b style={{color:"#d1d5db"}}>Mac built-in:</b> Open clip in QuickTime → Edit → Captions → Auto-Generate. Or use Voice Memos app if it's audio-first.</li>
+          <li><b style={{color:"#d1d5db"}}>CLI (if you have it):</b> <code style={{background:BG0,padding:"1px 5px",borderRadius:3,fontFamily:MONO,fontSize:10}}>whisper clip.mp4 --model base</code> — outputs a .txt next to the file.</li>
+          <li><b style={{color:"#d1d5db"}}>Web tools:</b> rev.com, happyscribe.com, or otter.ai (free tier — upload + export).</li>
+        </ol>
+        <div style={{fontSize:10,color:"#6b7280",marginTop:8,fontFamily:MONO}}>For best results paste full transcripts with speaker labels if available. 30 seconds of transcript = ~500 words.</div>
+      </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
         <div><div style={{fontSize:11,color:AMB,fontWeight:600,marginBottom:4}}>Clip 1 Transcript</div><textarea value={c1} onChange={function(e){setC1(e.target.value)}} placeholder="Paste clip 1..." style={{width:"100%",minHeight:130,padding:10,background:BG1,border:"1px solid "+BDR,borderRadius:6,color:"#d1d5db",fontFamily:FONT,fontSize:11,resize:"vertical",outline:"none"}}/></div>
         <div><div style={{fontSize:11,color:BLU,fontWeight:600,marginBottom:4}}>Clip 2 Transcript</div><textarea value={c2} onChange={function(e){setC2(e.target.value)}} placeholder="Paste clip 2..." style={{width:"100%",minHeight:130,padding:10,background:BG1,border:"1px solid "+BDR,borderRadius:6,color:"#d1d5db",fontFamily:FONT,fontSize:11,resize:"vertical",outline:"none"}}/></div>
       </div>
-      <div style={{display:"flex",gap:8,marginBottom:10}}>
+      <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
         <Btn on={true} onClick={gClip} sx={{opacity:genC?.5:1}}>{genC?"Generating...":"Generate"}</Btn>
         {clipOut&&<Btn on={false} onClick={function(){doCopy(clipOut,"clips")}} sx={{borderColor:AMB+"60",color:AMB}}>{cp==="clips"?"Copied!":"Copy"}</Btn>}
+        {clipOut&&<Btn on={false} onClick={function(){downloadDocx("Clips Kit - "+ep.guest,clipOut,"ClipsKit_"+ep.guest.replace(/[^a-zA-Z0-9]/g,"_"))}} sx={{borderColor:GRN+"60",color:GRN}}>Download .docx</Btn>}
       </div>
       {clipOut&&<pre style={{fontSize:11,color:"#9ca3af",lineHeight:1.7,padding:14,background:BG1,borderRadius:8,border:"1px solid "+BDR,whiteSpace:"pre-wrap",fontFamily:FONT,maxHeight:520,overflow:"auto"}}>{clipOut}</pre>}
       {!clipOut&&<div style={{padding:40,background:BG1,borderRadius:8,border:"1px solid "+BDR,color:"#4b5563",fontSize:12,textAlign:"center"}}>Paste transcripts and generate.</div>}
