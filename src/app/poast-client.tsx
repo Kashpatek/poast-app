@@ -966,15 +966,18 @@ function GlitchTransition({ onDone }: { onDone: () => void }) {
 
 function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
   var _h = useState<number | null>(null), h = _h[0], sh = _h[1];
+  var userCtx = useUser();
+  var analyst = isAnalyst(userCtx.user);
   var sections: Record<string, SplashItem[]> = {
     PRODUCE: [{ l: "Slop Top", ic: "\uD83D\uDCA5", id: "sloptop" }, { l: "Carousel", ic: "\uD83D\uDCD0", id: "carousel" }, { l: "Capper", ic: "\uD83C\uDFAC", id: "captions" }, { l: "P2P", ic: "\uD83C\uDFAC", id: "p2p" }, { l: "B-Roll", ic: "\uD83C\uDFA5", id: "broll" }],
     PODCAST: [{ l: "Fab Knowledge", ic: "\uD83C\uDFA7", id: "fk" }, { l: "SA Weekly", ic: "\uD83C\uDF99", id: "weekly" }, { l: "Outreach", ic: "\uD83D\uDCE4", id: "outreach" }],
     PREPARE: [{ l: "Trends", ic: "\uD83D\uDD25", id: "trends" }, { l: "IdeationNation", ic: "\uD83D\uDCA1", id: "ideation" }, { l: "News Flow", ic: "\uD83D\uDCE1", id: "news" }, { l: "GTC Flow", ic: "\uD83D\uDCCA", id: "gtc" }],
     PREMIER: [{ l: "Schedule", ic: "\uD83D\uDCC6", id: "schedule" }],
   };
-  var words = ["PRODUCE", "PODCAST", "PREPARE", "PREMIER"];
-  var colors = [C.amber, C.coral, C.blue, C.teal];
-  var glows = ["rgba(247,176,65,", "rgba(224,99,71,", "rgba(11,134,209,", "rgba(46,173,142,"];
+  var allWords = ["PRODUCE", "PODCAST", "PREPARE", "PREMIER"];
+  var allColors = [C.amber, C.coral, C.blue, C.teal];
+  var words = analyst ? ["PRODUCE"] : allWords;
+  var colors = analyst ? [C.amber] : allColors;
   var appNames: Record<string, string> = { PRODUCE: "Slop Top, Carousel, Capper, P2P, B-Roll", PODCAST: "Fab Knowledge, SA Weekly, Outreach", PREPARE: "Trends, IdeationNation, News Flow, GTC Flow", PREMIER: "Schedule" };
 
   return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "0 8vw" }}>
