@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
+import { log } from "@/lib/logger";
 
 export const maxDuration = 60;
 
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
       ts: Date.now(),
     });
   } catch (error) {
-    console.error("Upload error:", error);
+    log.error("upload-asset error", { error: String(error) });
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }

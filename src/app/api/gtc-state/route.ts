@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
+import { log } from "@/lib/logger";
 
 function getRedis() {
   const url = process.env.KV_REST_API_URL;
@@ -19,7 +20,7 @@ export async function GET() {
     const data = await redis.get(KEY);
     return NextResponse.json(data || {});
   } catch (error) {
-    console.error("GTC state load error:", error);
+    log.error("GTC state load error", { error: String(error) });
     return NextResponse.json({ error: "Failed to load" }, { status: 500 });
   }
 }
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     await redis.set(KEY, body);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("GTC state save error:", error);
+    log.error("GTC state save error", { error: String(error) });
     return NextResponse.json({ error: "Failed to save" }, { status: 500 });
   }
 }

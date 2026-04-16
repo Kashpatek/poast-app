@@ -3,6 +3,7 @@ import { z } from "zod";
 import { generateJSON, AnthropicError } from "@/lib/anthropic";
 import { stripHTML } from "@/lib/html";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { log } from "@/lib/logger";
 
 const PressToPermierSchema = z.object({
   mode: z.enum(["url", "text"]).optional(),
@@ -158,7 +159,7 @@ Return this exact JSON structure:
     if (error instanceof Error && error.message === "ANTHROPIC_API_KEY not configured") {
       return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
     }
-    console.error("Press to Premier error:", error);
+    log.error("press-to-premier error", { error: String(error) });
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }

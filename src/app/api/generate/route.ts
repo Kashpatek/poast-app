@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { callClaudeRaw, AnthropicError } from "@/lib/anthropic";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { log } from "@/lib/logger";
 
 const GenerateSchema = z.object({
   system: z.string(),
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-    console.error("API route error:", error);
+    log.error("generate API error", { error: String(error) });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
