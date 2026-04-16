@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo, Fragment } from "react";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
+import { useUser } from "./user-context";
 
 // ═══ DOCX HELPERS ═══
 async function downloadDocx(title: string, body: string, filename: string) {
@@ -120,7 +121,7 @@ var SAIL_EPS: SailEp[]=[
 ];
 
 // ═══ SUPABASE SYNC ═══
-function dbSyncGtc(config: { eps: Episode[]; cadIdx: number }) {
+function dbSyncGtc(config: { eps: Episode[]; cadIdx: number; createdBy?: string; createdByRole?: string }) {
   fetch("/api/db", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -133,6 +134,7 @@ function Btn(p: { onClick: () => void; on: boolean; sx?: React.CSSProperties; ch
 function Chk(p: { onClick: () => void; on: boolean }){return <span onClick={p.onClick} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:6,border:"2px solid "+(p.on?GRN:BDR),background:p.on?GRN+"20":"transparent",cursor:"pointer",fontSize:12,color:p.on?GRN:"rgba(255,255,255,0.25)",userSelect:"none",fontWeight:700,transition:"all 0.15s"}}>{p.on?"\u2713":""}</span>}
 
 export default function GTCFlow(){
+  var userCtx = useUser();
   var [view,setView]=useState("dash");
   var [eps,setEps]=useState(INIT);
   var [sel,setSel]=useState<Episode|null>(null);
@@ -194,7 +196,8 @@ export default function GTCFlow(){
   useEffect(function(){
     if(!loaded)return;
     try{localStorage.setItem("pv4",JSON.stringify(eps));localStorage.setItem("pv4c",JSON.stringify(cadIdx));}catch(e){}
-    dbSyncGtc({eps:eps,cadIdx:cadIdx});
+    // TODO(akash): GTC Flow config is shared (id: "gtc-master") so createdBy reflects only the most recent editor across all users.
+    dbSyncGtc({eps:eps,cadIdx:cadIdx,createdBy: userCtx.user ? userCtx.user.name : "Unknown", createdByRole: userCtx.user ? userCtx.user.role : ""});
   },[eps,cadIdx,loaded]);
 
   var cad=CADENCES[cadIdx];

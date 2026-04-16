@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { useUser } from "./user-context";
 
 // ═══ TYPES ═══
 interface ToastEntry {
@@ -1512,16 +1513,17 @@ function ProjectList({ projects, onOpen, onNew }: { projects: Project[]; onOpen:
 }
 
 // ═══ SUPABASE SYNC ═══
-function p2pDbSync(projects: Project[]) {
+function p2pDbSync(projects: Project[], createdBy?: string, createdByRole?: string) {
   fetch("/api/db", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ table: "projects", data: { id: "p2p-master", name: "P2P Projects", data: { projects: projects }, type: "p2p", updated_at: new Date().toISOString() } }),
+    body: JSON.stringify({ table: "projects", data: { id: "p2p-master", name: "P2P Projects", data: { projects: projects, createdBy: createdBy || "Unknown", createdByRole: createdByRole || "" }, type: "p2p", updated_at: new Date().toISOString() } }),
   }).catch(function() {});
 }
 
 // ═══ MAIN ═══
 export default function PressToPremi() {
+  var userCtx = useUser();
   var _projects = useState<Project[]>([]), projects = _projects[0], setProjects = _projects[1];
   var _active = useState<string | null>(null), active = _active[0], setActive = _active[1];
   var _step = useState(0), step = _step[0], setStep = _step[1];
@@ -1570,7 +1572,8 @@ export default function PressToPremi() {
   useEffect(function() {
     if (!loaded) return; // Don't write until initial load completes
     try { localStorage.setItem("p2p-projects", JSON.stringify(projects)); } catch (e) {}
-    p2pDbSync(projects);
+    // TODO(akash): P2P projects array is shared (id: "p2p-master") so createdBy reflects only the most recent editor across the whole list, not per-project; if a project is loaded from the archive and re-saved, the original author is overwritten.
+    p2pDbSync(projects, userCtx.user ? userCtx.user.name : "Unknown", userCtx.user ? userCtx.user.role : "");
   }, [projects, loaded]);
 
   var stepNames = ["Input", "Options", "Script", "Review", "Format", "Produce", "Select", "Preview", "Premier"];

@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { exportDocx } from "./docx-export";
+import { useUser } from "./user-context";
 
 // ═══ TYPES ═══
 interface Guest {
@@ -897,6 +898,7 @@ function StepLog({ logData, setLogData }: { logData: LogEntry[]; setLogData: Rea
 
 // ═══ MAIN COMPONENT ═══
 export default function SAWeekly() {
+  var userCtx = useUser();
   var STEPS = ["Setup", "Generate", "Review", "Social", "Clips", "Export", "Log"];
   var _step = useState<number>(0), step = _step[0], setStep = _step[1];
 
@@ -984,7 +986,8 @@ export default function SAWeekly() {
   // Auto-save
   useEffect(function() {
     if (!loaded || !interacted) return;
-    saveState({ ep: ep, guests: guests, opts: opts, sel: sel, fin: fin, thumb: null, launched: launched, descLen: descLen, socialRes: socialRes }, logData);
+    // TODO(akash): SA Weekly state is shared (id: "weekly-master") so createdBy reflects the most recent editor; if a draft is loaded from the archive and re-saved, the original author is overwritten.
+    saveState({ ep: ep, guests: guests, opts: opts, sel: sel, fin: fin, thumb: null, launched: launched, descLen: descLen, socialRes: socialRes, createdBy: userCtx.user ? userCtx.user.name : "Unknown", createdByRole: userCtx.user ? userCtx.user.role : "" }, logData);
   }, [ep, guests, opts, sel, fin, thumb, launched, descLen, socialRes, logData, loaded, interacted]);
 
   // Mark as interacted

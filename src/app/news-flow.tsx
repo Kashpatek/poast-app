@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useUser } from "./user-context";
 
 // ═══ TYPES ═══
 interface WidgetBaseProps {
@@ -896,6 +897,7 @@ function dbSyncNewsflow(config: Record<string, unknown>): void {
 
 // ═══ MAIN DASHBOARD ═══
 export default function NewsFlow() {
+  var userCtx = useUser();
   var _order = useState<string[]>(WIDGET_IDS), order = _order[0], setOrder = _order[1];
   var _disabled = useState<string[]>(DEFAULT_DISABLED), disabled = _disabled[0], setDisabled = _disabled[1];
   var _showWalkthrough = useState<boolean>(false), showWalkthrough = _showWalkthrough[0], setShowWalkthrough = _showWalkthrough[1];
@@ -976,7 +978,8 @@ export default function NewsFlow() {
     try { localStorage.setItem("nf-disabled", JSON.stringify(disabled)); } catch (e) {}
     try { localStorage.setItem("nf-sizes", JSON.stringify(sizes)); } catch (e) {}
     try { localStorage.setItem("nf-fontsize", String(fontSize)); } catch (e) {}
-    dbSyncNewsflow({ order: order, disabled: disabled, sizes: sizes, fontSize: fontSize });
+    // TODO(akash): NewsFlow config is shared across all users (id: "newsflow-master") so createdBy reflects only the most recent editor, not the original author.
+    dbSyncNewsflow({ order: order, disabled: disabled, sizes: sizes, fontSize: fontSize, createdBy: userCtx.user ? userCtx.user.name : "Unknown", createdByRole: userCtx.user ? userCtx.user.role : "" });
   }, [order, disabled, sizes, fontSize, loaded]);
 
   var cycleSize = function(wid: string) {

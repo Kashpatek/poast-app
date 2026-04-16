@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useUser } from "./user-context";
 
 // ═══ TYPES ═══
 interface Idea {
@@ -179,11 +180,11 @@ async function fetchTrends(): Promise<TrendItem[] | { trends?: TrendItem[] }> {
 }
 
 // ═══ DB SYNC ═══
-async function dbSyncIdeas(ideas: Idea[], saved: Idea[]): Promise<void> {
+async function dbSyncIdeas(ideas: Idea[], saved: Idea[], createdBy?: string, createdByRole?: string): Promise<void> {
   fetch("/api/db", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ table: "projects", data: { id: "ideation-master", name: "IdeationNation", data: { ideas: ideas, saved: saved }, type: "ideation", updated_at: new Date().toISOString() } }),
+    body: JSON.stringify({ table: "projects", data: { id: "ideation-master", name: "IdeationNation", data: { ideas: ideas, saved: saved, createdBy: createdBy || "Unknown", createdByRole: createdByRole || "" }, type: "ideation", updated_at: new Date().toISOString() } }),
   }).catch(function() {});
 }
 
@@ -564,6 +565,7 @@ function IdeaCard({ idea, onSendSlopTop, onSendCapper, onExport, onDismiss, onSa
 
 // ═══ MAIN COMPONENT ═══
 export default function IdeationNation() {
+  var userCtx = useUser();
   var _ideas = useState<Idea[]>([]), ideas = _ideas[0], setIdeas = _ideas[1];
   var _saved = useState<Idea[]>([]), saved = _saved[0], setSaved = _saved[1];
   var _view = useState<string>("feed"), view = _view[0], setView = _view[1];
@@ -643,7 +645,8 @@ export default function IdeationNation() {
   useEffect(function() {
     if (!loaded) return;
     try { localStorage.setItem("ideation-saved", JSON.stringify(saved)); } catch (e) {}
-    dbSyncIdeas(ideas, saved);
+    // TODO(akash): IdeationNation state is shared (id: "ideation-master") so createdBy reflects only the most recent editor across all users.
+    dbSyncIdeas(ideas, saved, userCtx.user ? userCtx.user.name : "Unknown", userCtx.user ? userCtx.user.role : "");
   }, [ideas, saved, loaded]);
 
   var showToast = function(msg: string) {

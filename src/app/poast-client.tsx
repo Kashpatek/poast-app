@@ -369,6 +369,9 @@ var CHIP_MOODS = ["happy", "curious", "excited", "sleepy", "focused", "nappy", "
 var CHIP_MSGS = ["I love semiconductors!", "Did you check NVDA today?", "Ship that content!", "CoWoS capacity is wild.", "3nm is the future.", "Don't forget to post!", "I'm a chip off the old block.", "TSMC earnings soon...", "Need more GPU compute!", "Cache me if you can.", "Fab-ulous day!", "HBM4 is coming!", "Click me more!", "Let's make some slop!"];
 
 function ChippySidebar({ onAsk }: { onAsk: () => void }) {
+  var userCtx = useUser();
+  // TODO(akash): Should Ask POAST be hidden or show a gated message for Analysts? Hiding for now.
+  var analyst = isAnalyst(userCtx.user);
   var _face = useState<number>(0), face = _face[0], setFace = _face[1];
   var _mood = useState<number>(0), mood = _mood[0], setMood = _mood[1];
   var _msg = useState<string>("Click me!"), msg = _msg[0], setMsg = _msg[1];
@@ -406,8 +409,8 @@ function ChippySidebar({ onAsk }: { onAsk: () => void }) {
       {/* Message */}
       <div style={{ fontFamily: ft, fontSize: 11, color: C.tx, marginTop: 8, minHeight: 16 }}>{msg}</div>
       <div style={{ fontFamily: mn, fontSize: 8, color: C.txd, marginTop: 2 }}>Mood: {CHIP_MOODS[mood]} // Clicks: {clicks}</div>
-      {/* Ask Chippy button */}
-      <div onClick={onAsk} style={{ marginTop: 8, padding: "8px 0", borderRadius: 8, cursor: "pointer", background: "linear-gradient(135deg, " + C.amber + ", " + C.cyan + ")", fontFamily: ft, fontSize: 12, fontWeight: 800, color: "#060608", letterSpacing: 0.5, transition: "all 0.2s" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.boxShadow = "0 0 16px " + C.amber + "40"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.boxShadow = "none"; }}>Ask Chippy</div>
+      {/* Ask Chippy button — hidden for Analysts (Ask POAST queries data they shouldn't access). */}
+      {!analyst && <div onClick={onAsk} style={{ marginTop: 8, padding: "8px 0", borderRadius: 8, cursor: "pointer", background: "linear-gradient(135deg, " + C.amber + ", " + C.cyan + ")", fontFamily: ft, fontSize: 12, fontWeight: 800, color: "#060608", letterSpacing: 0.5, transition: "all 0.2s" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.boxShadow = "0 0 16px " + C.amber + "40"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.boxShadow = "none"; }}>Ask Chippy</div>}
     </div>
   </div>;
 }
@@ -487,12 +490,14 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
 
     {/* Footer */}
     <div style={{ padding: "14px 18px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-      {userCtx.user && <div onClick={function() { if (confirm("Switch user? Page will reload.")) { userCtx.setUser(null); window.location.reload(); } }} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "6px 8px", borderRadius: 6, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}>
+      {/* Switch User badge — always visible when a user is signed in. */}
+      {userCtx.user && <div onClick={function() { if (confirm("Switch user? Page will reload.")) { userCtx.setUser(null); window.location.reload(); } }} title="Click to switch user" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "6px 8px", borderRadius: 6, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}>
         <div style={{ width: 22, height: 22, borderRadius: 6, background: analyst ? "#905CCB20" : C.amber + "20", border: "1px solid " + (analyst ? "#905CCB40" : C.amber + "40"), display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 10, fontWeight: 800, color: analyst ? "#905CCB" : C.amber }}>{userCtx.user.name[0]}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 700, color: "#E8E4DD", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userCtx.user.name}</div>
           <div style={{ fontFamily: ft, fontSize: 8, fontWeight: 600, color: "rgba(255,255,255,0.35)", letterSpacing: 1 }}>{userCtx.user.role}</div>
         </div>
+        <span style={{ fontFamily: mn, fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.35)", letterSpacing: 1, padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.08)" }}>SWITCH</span>
       </div>}
       <div style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v3.2 // SEMIANALYSIS</div>
     </div>
@@ -936,7 +941,12 @@ function TerminalBoot({ user, onDone }: { user: string | null; onDone: () => voi
     { t: "  [OK] sentiment-agg", c: "#2EAD8E" },
     { t: "Rendering amber glow particles...", c: "rgba(255,255,255,0.2)" },
     { t: "  [OK] vibes.essential", c: "#2EAD8E" },
-    user === "Vansh" ? { t: "  [ALERT] vansh-just-farted.exe", c: "#E06347" } : { t: "  [WARN] max-charisma-detected", c: C.amber },
+    // TODO(akash): These per-user boot lines are guesses for tone — review the Analyst flavor copy.
+    user === "Vansh"
+      ? { t: "  [ALERT] vansh-just-farted.exe", c: "#E06347" }
+      : user === "Analyst"
+        ? { t: "  [OK] pure-creation-mode.init", c: "#905CCB" }
+        : { t: "  [WARN] max-charisma-detected", c: C.amber },
     { t: "  [FAIL] sleep-schedule: not found", c: "#E06347" },
     { t: "Booting content command center...", c: "rgba(255,255,255,0.2)" },
     { t: "", c: "rgba(255,255,255,0.2)" }, { t: "POAST systems nominal. Welcome back.", c: C.amber },
@@ -1064,6 +1074,13 @@ export default function App() {
   if (showIntro) return <><Intro onDone={function(id) { if (id) setSec(id); setShowIntro(false); }} /></>;
 
   return (<div style={{ background: C.bg, minHeight: "100vh", position: "relative" }}>
+    {/* Analyst mode accent bar — subtle violet stripe + small label so the user knows they're in the restricted view. */}
+    {analyst && <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 10000, pointerEvents: "none" }}>
+      <div style={{ height: 2, background: "linear-gradient(90deg, transparent, #905CCB, transparent)", boxShadow: "0 0 12px rgba(144,92,203,0.5)" }} />
+      <div style={{ display: "flex", justifyContent: "center", marginTop: 2 }}>
+        <span style={{ fontFamily: mn, fontSize: 8, fontWeight: 700, color: "#905CCB", letterSpacing: 3, padding: "2px 10px", borderRadius: "0 0 6px 6px", background: "rgba(144,92,203,0.08)", border: "1px solid rgba(144,92,203,0.25)", borderTop: "none" }}>ANALYST MODE</span>
+      </div>
+    </div>}
     {/* Background ambient glow orbs */}
     <style dangerouslySetInnerHTML={{ __html: "@keyframes drift1{0%{transform:translate(0,0)}50%{transform:translate(30px,-20px)}100%{transform:translate(0,0)}}@keyframes drift2{0%{transform:translate(0,0)}50%{transform:translate(-25px,15px)}100%{transform:translate(0,0)}}@keyframes drift3{0%{transform:translate(0,0)}50%{transform:translate(20px,25px)}100%{transform:translate(0,0)}}" }} />
     <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, overflow: "hidden" }}>
@@ -1152,8 +1169,9 @@ export default function App() {
       </div>;
     })()}
 
-    <Sidebar active={sec} onNav={setSec} onAskPoast={function() { setAskPoastOpen(!askPoastOpen); }} />
-    <AskPoast open={askPoastOpen} onToggle={function() { setAskPoastOpen(false); }} />
+    <Sidebar active={sec} onNav={setSec} onAskPoast={function() { if (analyst) return; setAskPoastOpen(!askPoastOpen); }} />
+    {/* Ask POAST panel — never open for Analysts (data access gate). */}
+    <AskPoast open={askPoastOpen && !analyst} onToggle={function() { setAskPoastOpen(false); }} />
     <div style={{ marginLeft: 240, position: "relative", zIndex: 1 }} className="poast-fadein">
       <div style={{ margin: "0 auto", padding: "0 32px" }}>
         <div key={sec} className="poast-section" style={{ paddingBottom: 60 }}>

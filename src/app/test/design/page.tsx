@@ -195,6 +195,10 @@ function MockSchedule() {
 
 // ═══ MAIN ═══
 export default function DesignPage() {
+  // TODO(akash): centralize this prod-guard into a shared <DevOnly/> wrapper or middleware-level redirect.
+  if (typeof process !== "undefined" && process.env.NODE_ENV === "production") {
+    return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#06060C",color:"#4A4858",fontFamily:"'Outfit',sans-serif"}}>404</div>;
+  }
   var _active = useState("weekly"), active = _active[0], setActive = _active[1];
 
   // Determine active category

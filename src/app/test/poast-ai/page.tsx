@@ -287,6 +287,10 @@ function VariantC({ onClose }) {
 
 // ═══ TEST PAGE ═══
 export default function PoastAITest() {
+  // TODO(akash): centralize this prod-guard into a shared <DevOnly/> wrapper or middleware-level redirect.
+  if (typeof process !== "undefined" && process.env.NODE_ENV === "production") {
+    return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#06060C",color:"#4A4858",fontFamily:"'Outfit',sans-serif"}}>404</div>;
+  }
   var _variant = useState(null), variant = _variant[0], setVariant = _variant[1];
 
   return <div style={{ background: BG, minHeight: "100vh", fontFamily: ft, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 40 }}>

@@ -167,6 +167,10 @@ function SplashC() {
 
 // ═══ MAIN TEST PAGE ═══
 export default function TestPage() {
+  // TODO(akash): centralize this prod-guard into a shared <DevOnly/> wrapper or middleware-level redirect.
+  if (typeof process !== "undefined" && process.env.NODE_ENV === "production") {
+    return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#06060C",color:"#4A4858",fontFamily:"'Outfit',sans-serif"}}>404</div>;
+  }
   var _phase = useState("select"), phase = _phase[0], setPhase = _phase[1];
   var _user = useState(null), user = _user[0], setUser = _user[1];
   var _variant = useState("A"), variant = _variant[0], setVariant = _variant[1];

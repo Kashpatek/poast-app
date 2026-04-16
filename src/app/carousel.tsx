@@ -1911,8 +1911,45 @@ export default function Carousel() {
   var _showArchive = useState(false), showArchive = _showArchive[0], setShowArchive = _showArchive[1];
   var _archiveItems = useState<Array<{ id: string; name?: string; data?: Record<string, unknown> }>>([]); var archiveItems = _archiveItems[0], setArchiveItems = _archiveItems[1];
   var _archiveLoading = useState(false), archiveLoading = _archiveLoading[0], setArchiveLoading = _archiveLoading[1];
+  var _archiveFilter = useState<"all" | "mine">("all"), archiveFilter = _archiveFilter[0], setArchiveFilter = _archiveFilter[1];
+  var userCtx = useUser();
 
   function goStep(n: number) { setStep(n); if (n > maxStep) setMaxStep(n); }
+
+  function deleteArchive(item: { id: string }, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm("Delete this archived carousel?")) return;
+    fetch("/api/db", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ table: "projects", id: item.id }),
+    }).then(function(r) { return r.json(); }).then(function() {
+      loadArchive();
+    }).catch(function() { alert("Failed to delete."); });
+  }
+
+  // TODO(akash): replace prompt() with proper modal
+  function renameArchive(item: { id: string; name?: string; data?: Record<string, unknown> }, e: React.MouseEvent) {
+    e.stopPropagation();
+    var current = item.name || "";
+    var next = prompt("Rename carousel:", current);
+    if (next === null) return;
+    var trimmed = next.trim();
+    if (!trimmed || trimmed === current) return;
+    fetch("/api/db", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        table: "projects",
+        id: item.id,
+        type: "carousel-archive",
+        name: trimmed,
+        data: item.data || {},
+      }),
+    }).then(function(r) { return r.json(); }).then(function() {
+      loadArchive();
+    }).catch(function() { alert("Failed to rename."); });
+  }
 
   function loadArchive() {
     setArchiveLoading(true);
@@ -2005,12 +2042,25 @@ export default function Carousel() {
     </div>
 
     {/* Archive panel */}
-    {showArchive && step === 0 && <div style={{ marginBottom: 24, background: C.card, border: "1px solid " + C.violet + "25", borderRadius: 12, padding: "20px 24px" }}>
-      <div style={{ fontFamily: mn, fontSize: 10, color: C.violet, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 14 }}>Saved Carousels</div>
+    {showArchive && step === 0 && (function() {
+      var visibleItems = archiveFilter === "mine"
+        ? archiveItems.filter(function(item) { return item.data && (item.data as Record<string, unknown>).createdBy === (userCtx.user && userCtx.user.name); })
+        : archiveItems;
+      return <div style={{ marginBottom: 24, background: C.card, border: "1px solid " + C.violet + "25", borderRadius: 12, padding: "20px 24px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: C.violet, textTransform: "uppercase", letterSpacing: "1.5px" }}>Saved Carousels</div>
+        <div style={{ display: "flex", gap: 6 }}>
+          {(["all", "mine"] as Array<"all" | "mine">).map(function(opt) {
+            var active = archiveFilter === opt;
+            return <button key={opt} onClick={function() { setArchiveFilter(opt); }} style={{ padding: "4px 12px", background: active ? C.violet + "20" : "transparent", border: "1px solid " + (active ? C.violet + "55" : C.border), borderRadius: 999, fontFamily: mn, fontSize: 9, fontWeight: 700, color: active ? C.violet : C.txm, cursor: "pointer", textTransform: "uppercase", letterSpacing: 0.5, transition: "all 0.15s" }}>{opt === "all" ? "All" : "Mine"}</button>;
+          })}
+        </div>
+      </div>
       {archiveLoading && <div style={{ textAlign: "center", padding: 20, fontFamily: ft, fontSize: 12, color: C.txm }}>Loading archive...</div>}
       {!archiveLoading && archiveItems.length === 0 && <div style={{ textAlign: "center", padding: 20, fontFamily: ft, fontSize: 12, color: C.txd }}>No archived carousels yet. Save one from the Export step.</div>}
-      {!archiveLoading && archiveItems.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {archiveItems.map(function(item) {
+      {!archiveLoading && archiveItems.length > 0 && visibleItems.length === 0 && archiveFilter === "mine" && <div style={{ textAlign: "center", padding: 20, fontFamily: ft, fontSize: 12, color: C.txd }}>You haven&apos;t saved any carousels yet. Create one and click Save to Archive.</div>}
+      {!archiveLoading && visibleItems.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {visibleItems.map(function(item) {
           var d = item.data || {} as Record<string, unknown>;
           var dateStr = d.timestamp ? new Date(d.timestamp as string).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Unknown date";
           var timeStr = d.timestamp ? new Date(d.timestamp as string).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "";
@@ -2027,10 +2077,15 @@ export default function Carousel() {
               <div style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>{dateStr} {timeStr} // {String(d.theme || "general")} // {String(d.slideCount || 0)} slides</div>
             </div>
             {!!d.sourceUrl && <div style={{ fontFamily: mn, fontSize: 8, color: C.txd, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 0 }}>{String(d.sourceUrl)}</div>}
+            <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+              <button title="Rename" onClick={function(e) { renameArchive(item, e); }} style={{ padding: "4px 8px", background: "transparent", border: "1px solid " + C.border, borderRadius: 6, fontFamily: mn, fontSize: 9, fontWeight: 700, color: C.txm, cursor: "pointer", textTransform: "uppercase", letterSpacing: 0.5 }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.violet + "55"; e.currentTarget.style.color = C.violet; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.txm; }}>Rename</button>
+              <button title="Delete" onClick={function(e) { deleteArchive(item, e); }} style={{ padding: "4px 8px", background: "transparent", border: "1px solid " + C.coral + "40", borderRadius: 6, fontFamily: mn, fontSize: 11, fontWeight: 700, color: C.coral + "BB", cursor: "pointer", lineHeight: 1 }} onMouseEnter={function(e) { e.currentTarget.style.background = C.coral + "10"; e.currentTarget.style.color = C.coral; }} onMouseLeave={function(e) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.coral + "BB"; }}>{"\u2715"}</button>
+            </div>
           </div>;
         })}
       </div>}
-    </div>}
+    </div>;
+    })()}
 
     <StepBar step={step} setStep={function(n) { if (n <= maxStep) goStep(n); }} maxStep={maxStep} />
 

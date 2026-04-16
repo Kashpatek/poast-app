@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { useUser } from "./user-context";
 
 interface Asset {
   id: string;
@@ -52,11 +53,11 @@ function uid(): string { return "br-" + Date.now() + "-" + Math.random().toStrin
 function fmtSize(bytes: number): string { if (bytes < 1024) return bytes + " B"; if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB"; return (bytes / 1048576).toFixed(1) + " MB"; }
 function fmtDate(ts: number): string { return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
 
-function dbSyncAssets(assets: Asset[]) {
+function dbSyncAssets(assets: Asset[], createdBy?: string, createdByRole?: string) {
   fetch("/api/db", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ table: "projects", data: { id: "broll-master", name: "B-Roll Library", data: { assets: assets }, type: "broll-asset", updated_at: new Date().toISOString() } }),
+    body: JSON.stringify({ table: "projects", data: { id: "broll-master", name: "B-Roll Library", data: { assets: assets, createdBy: createdBy || "Unknown", createdByRole: createdByRole || "" }, type: "broll-asset", updated_at: new Date().toISOString() } }),
   }).catch(function() {});
 }
 
@@ -159,6 +160,7 @@ function AssetCard({ asset, onUpdate, onDelete }: { asset: Asset; onUpdate: (ass
 
 // ═══ MAIN ═══
 export default function BRollLibrary() {
+  var userCtx = useUser();
   var _assets = useState<Asset[]>([]), assets = _assets[0], setAssets = _assets[1];
   var _search = useState(""), search = _search[0], setSearch = _search[1];
   var _filterCat = useState("All"), filterCat = _filterCat[0], setFilterCat = _filterCat[1];
@@ -205,7 +207,8 @@ export default function BRollLibrary() {
   useEffect(function() {
     if (!loaded) return;
     try { localStorage.setItem("broll-assets", JSON.stringify(assets)); } catch (e) {}
-    dbSyncAssets(assets);
+    // TODO(akash): B-Roll library is shared (id: "broll-master") so createdBy reflects the most recent uploader for the entire asset list, not per-asset.
+    dbSyncAssets(assets, userCtx.user ? userCtx.user.name : "Unknown", userCtx.user ? userCtx.user.role : "");
   }, [assets, loaded]);
 
   // Upload handler
