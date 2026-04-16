@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { generateWithClaude, generateJSON, AnthropicError } from "@/lib/anthropic";
 import { stripHTML, extractImages } from "@/lib/html";
+import { checkRateLimit } from "@/lib/ratelimit";
 
 // SA Carousel Schema v1.0
 const TEMPLATE_IDS: Record<string, string> = {
@@ -40,9 +42,35 @@ const THEMES_MAP: Record<string, string> = {
   capital: "Capital (financial and investment analysis)",
 };
 
+const CarouselSchema = z.object({
+  action: z.enum(["generate", "fetchImages", "caption", "rewrite"]),
+  text: z.string().optional(),
+  url: z.string().optional(),
+  category: z.string().optional(),
+  mode: z.string().optional(),
+  pageCount: z.number().optional(),
+  imageUrls: z.array(z.string()).optional(),
+}).passthrough();
+
 export async function POST(req: NextRequest) {
   try {
+    const { allowed, remaining } = await checkRateLimit(req);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded" },
+        { status: 429, headers: { "X-RateLimit-Remaining": String(remaining ?? 0) } }
+      );
+    }
+
     const body = await req.json();
+    const parsed = CarouselSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid input", details: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+
     const { action, text, url, category, mode, pageCount, imageUrls } = body;
 
     if (action === "fetchImages") {

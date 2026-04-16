@@ -1,21 +1,58 @@
-// @ts-nocheck
 "use client";
-import { useState, useEffect, useMemo, Fragment } from "react";
+import React, { useState, useEffect, useMemo, Fragment } from "react";
+
+interface Episode {
+  id: string;
+  guest: string;
+  company: string;
+  title: string;
+  host: string;
+  tier: number;
+  tag: string;
+  slot: number;
+  status: string;
+  virtual: boolean;
+  received: boolean;
+  scheduled: boolean;
+  bio: string;
+  companyDesc: string;
+  logo: string;
+  topics: string;
+  notes?: string;
+}
+
+interface SailEp {
+  guest: string;
+  company: string;
+  host: string;
+  note?: string;
+}
+
+interface Cadence {
+  label: string;
+  days: number;
+}
+
+interface CalMonth {
+  y: number;
+  m: number;
+  eps: (Episode & { date: Date })[];
+}
 
 var AMB = "#F7B041", BLU = "#0B86D1", BG0 = "#060608", BG1 = "#09090D", BDR = "rgba(255,255,255,0.06)", GRN = "#2EAD8E", RED = "#E06347", CYN = "#26C9D8";
 var FONT = "'Outfit',sans-serif";
 var MONO = "'JetBrains Mono',monospace";
-var TC = {"Cloud/Infra":"#3b82f6","AI/ML":"#8b5cf6","Hardware":"#ef4444","GPU Optimization":"#f97316","Internal":"#6b7280","AI Safety":"#f59e0b","Neocloud":"#0ea5e9","AMD Ecosystem":"#dc2626","Energy/Infra":"#22c55e"};
-var TL = {1:"Flagship",2:"Strong",3:"Standard"};
+var TC: Record<string, string> = {"Cloud/Infra":"#3b82f6","AI/ML":"#8b5cf6","Hardware":"#ef4444","GPU Optimization":"#f97316","Internal":"#6b7280","AI Safety":"#f59e0b","Neocloud":"#0ea5e9","AMD Ecosystem":"#dc2626","Energy/Infra":"#22c55e"};
+var TL: Record<number, string> = {1:"Flagship",2:"Strong",3:"Standard"};
 var DYLAN_SYS = "You write social captions for SemiAnalysis. Match this voice exactly.\n\nRULES:\n- Lead with a number or specific claim. A fact, not a vibe.\n- Casual, informed. Short sentences.\n- NEVER hashtags on X.\n- No marketing language. No breaks down or deep-dive or explores.\n- No em dashes. No emojis.\n- X hook: 1 sentence, no link, no hashtags.\n- X reply: just the link.\n- LinkedIn: 3-5 sentences with guest context.\n- Facebook: 3-5 sentences, conversational.\n- Story: one short line.";
 var CADENCES = [{label:"Weekly",days:7},{label:"Bi-Weekly",days:14},{label:"Every 3 Weeks",days:21}];
 var BASE_DATE = new Date(2026, 3, 9);
-function slotDate(s,cd){var d=new Date(BASE_DATE);d.setDate(d.getDate()+s*cd);return d;}
-function fm(d){return d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});}
-function fs(d){return d.toLocaleDateString("en-US",{month:"short",day:"numeric"});}
+function slotDate(s: number, cd: number){var d=new Date(BASE_DATE);d.setDate(d.getDate()+s*cd);return d;}
+function fm(d: Date){return d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});}
+function fs(d: Date){return d.toLocaleDateString("en-US",{month:"short",day:"numeric"});}
 var HOSTS=["All","Dylan Patel","Kimbo Chen","Wega Chu","Cameron Quilici","Jordan Nanos"];
 
-var INIT=[
+var INIT: Episode[]=[
 {id:"sa-0",guest:"Waleed Atallah",company:"Makora",title:"Co-Founder & CEO",host:"Dylan Patel",tier:1,tag:"GPU Optimization",slot:-1,status:"published",virtual:false,received:true,scheduled:true,bio:"Waleed Atallah is the co-founder and CEO of Makora, building AI agents that write and optimize GPU kernels. $8.5M seed led by M13, backed by Jeff Dean.",companyDesc:"Makora writes, optimizes, and deploys GPU code. MakoraGenerate writes kernels, MakoraOptimize tunes vLLM/SGLang.",logo:"https://logo.clearbit.com/makora.com",topics:"GPU kernel optimization, AI-native compilers"},
 {id:"sa-1",guest:"Bryan Shan",company:"SemiAnalysis",title:"Member of Technical Staff",host:"Cameron Quilici",tier:3,tag:"Internal",slot:-1,status:"published",virtual:false,received:true,scheduled:true,bio:"Bryan Shan is MTS at SemiAnalysis, co-author on InferenceX v2. Nightly sweeps across SGLang, vLLM, TensorRT-LLM on ~1,000 GPUs.",companyDesc:"SemiAnalysis. InferenceX open-source inference benchmarking.",logo:"https://logo.clearbit.com/semianalysis.com",topics:"InferenceX, inference benchmarking, NVIDIA vs AMD"},
 {id:"sa-2",guest:"David Randle",company:"Amazon AWS",title:"Principal Engineer",host:"Wega Chu",tier:1,tag:"Cloud/Infra",slot:0,status:"scheduled",virtual:false,received:false,scheduled:false,bio:"David Randle is a Principal Engineer at AWS focused on AI infrastructure, GPU cluster orchestration, and custom silicon strategy.",companyDesc:"AWS. Trainium, Inferentia, largest cloud platform.",logo:"https://logo.clearbit.com/aws.amazon.com",topics:"AWS AI infra, Trainium, custom silicon"},
@@ -31,7 +68,7 @@ var INIT=[
 {id:"sa-12",guest:"Mishek Musa",company:"Analog",title:"Mechatronics Engineer",host:"Jordan Nanos",tier:3,tag:"Hardware",slot:10,status:"pending",virtual:false,received:false,scheduled:false,notes:"Needs approval",bio:"Mishek Musa, Mechatronics Engineer at Analog.",companyDesc:"Analog. Hardware and sensors.",logo:"",topics:""},
 ];
 
-var SAIL_EPS=[
+var SAIL_EPS: SailEp[]=[
 {guest:"Dan Fu",company:"Together AI",host:"Caithrin Rintoul",note:"SAIL-hosted"},
 {guest:"Valentin Bercovici",company:"WEKA",host:"Kai Williams",note:"SAIL-hosted"},
 {guest:"David Randle (Pt. 2)",company:"Amazon AWS",host:"Kai Williams",note:"SAIL-hosted"},
@@ -43,7 +80,7 @@ var SAIL_EPS=[
 ];
 
 // ═══ SUPABASE SYNC ═══
-function dbSyncGtc(config) {
+function dbSyncGtc(config: { eps: Episode[]; cadIdx: number }) {
   fetch("/api/db", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -51,21 +88,21 @@ function dbSyncGtc(config) {
   }).catch(function() {});
 }
 
-function Badge(p){return <span style={{display:"inline-block",fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:6,background:p.bg,color:p.c||"#fff",letterSpacing:.5,fontFamily:FONT}}>{p.children}</span>}
-function Btn(p){return <button onClick={p.onClick} style={{padding:"8px 16px",border:p.on?"1px solid "+AMB+"50":"1px solid "+BDR,borderRadius:8,background:p.on?AMB+"12":"rgba(255,255,255,0.02)",color:p.on?AMB:"rgba(255,255,255,0.4)",cursor:"pointer",fontFamily:FONT,fontSize:13,fontWeight:p.on?700:500,transition:"all 0.15s",...(p.sx||{})}}>{p.children}</button>}
-function Chk(p){return <span onClick={p.onClick} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:6,border:"2px solid "+(p.on?GRN:BDR),background:p.on?GRN+"20":"transparent",cursor:"pointer",fontSize:12,color:p.on?GRN:"rgba(255,255,255,0.25)",userSelect:"none",fontWeight:700,transition:"all 0.15s"}}>{p.on?"\u2713":""}</span>}
+function Badge(p: { bg: string; c?: string; children: React.ReactNode }){return <span style={{display:"inline-block",fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:6,background:p.bg,color:p.c||"#fff",letterSpacing:.5,fontFamily:FONT}}>{p.children}</span>}
+function Btn(p: { onClick: () => void; on: boolean; sx?: React.CSSProperties; children: React.ReactNode }){return <button onClick={p.onClick} style={{padding:"8px 16px",border:p.on?"1px solid "+AMB+"50":"1px solid "+BDR,borderRadius:8,background:p.on?AMB+"12":"rgba(255,255,255,0.02)",color:p.on?AMB:"rgba(255,255,255,0.4)",cursor:"pointer",fontFamily:FONT,fontSize:13,fontWeight:p.on?700:500,transition:"all 0.15s",...(p.sx||{})}}>{p.children}</button>}
+function Chk(p: { onClick: () => void; on: boolean }){return <span onClick={p.onClick} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:24,borderRadius:6,border:"2px solid "+(p.on?GRN:BDR),background:p.on?GRN+"20":"transparent",cursor:"pointer",fontSize:12,color:p.on?GRN:"rgba(255,255,255,0.25)",userSelect:"none",fontWeight:700,transition:"all 0.15s"}}>{p.on?"\u2713":""}</span>}
 
 export default function GTCFlow(){
   var [view,setView]=useState("dash");
   var [eps,setEps]=useState(INIT);
-  var [sel,setSel]=useState(null);
+  var [sel,setSel]=useState<Episode|null>(null);
   var [edit,setEdit]=useState(false);
   var [hostF,setHostF]=useState("All");
   var [tagF,setTagF]=useState("All");
   var [showSail,setShowSail]=useState(false);
   var [cadIdx,setCadIdx]=useState(1);
   var [cadLocked,setCadLocked]=useState(true);
-  var [dragId,setDragId]=useState(null);
+  var [dragId,setDragId]=useState<string|null>(null);
   var [subV,setSubV]=useState("timeline");
   var [loaded,setLoaded]=useState(false);
   var [showAdd,setShowAdd]=useState(false);
@@ -91,7 +128,7 @@ export default function GTCFlow(){
       clearTimeout(timer);
       settled=true;
       if(res.data&&res.data.length>0){
-        var row=res.data.find(function(r){return r.type==="gtc"&&r.id==="gtc-master"});
+        var row=res.data.find(function(r: Record<string, unknown>){return r.type==="gtc"&&r.id==="gtc-master"});
         if(row&&row.data){
           var cfg=row.data;
           if(cfg.eps&&cfg.eps.length>0)setEps(cfg.eps);
@@ -126,15 +163,15 @@ export default function GTCFlow(){
   var filtered=sched.filter(function(e){return(hostF==="All"||e.host===hostF)&&(tagF==="All"||e.tag===tagF)});
   var allTags=[...new Set(eps.map(function(e){return e.tag}))].sort();
 
-  function tog(id,f){setEps(function(p){return p.map(function(e){if(e.id!==id)return e;var n=Object.assign({},e);n[f]=!n[f];return n})})}
-  function markPub(id){setEps(function(p){var a=p.map(function(e){return Object.assign({},e)});var ep=a.find(function(e){return e.id===id});if(ep){ep.status="published";ep.slot=-1}var r=a.filter(function(e){return e.status!=="published"}).sort(function(x,y){return x.slot-y.slot});r.forEach(function(e,i){e.slot=i});return a})}
-  function unPub(id){setEps(function(p){var a=p.map(function(e){return Object.assign({},e)});var ep=a.find(function(e){return e.id===id});if(ep){ep.status="scheduled";var maxSlot=a.filter(function(e){return e.status!=="published"}).reduce(function(m,e){return Math.max(m,e.slot)},-1);ep.slot=maxSlot+1}return a})}
-  function doDrop(tid){if(!dragId||dragId===tid)return;setEps(function(p){var a=p.map(function(e){return Object.assign({},e)});var f=a.find(function(e){return e.id===dragId});var t=a.find(function(e){return e.id===tid});if(f&&t){var tmp=f.slot;f.slot=t.slot;t.slot=tmp}return a});setDragId(null)}
-  function addEp(ep){setEps(function(p){return p.concat([ep])});setShowAdd(false)}
-  function updateEp(updated){setEps(function(p){return p.map(function(e){return e.id===updated.id?updated:e})})}
-  function deleteEp(id){setEps(function(p){var a=p.filter(function(e){return e.id!==id});var s=a.filter(function(e){return e.status!=="published"}).sort(function(x,y){return x.slot-y.slot});s.forEach(function(e,i){e.slot=i});return a})}
+  function tog(id: string, f: "received" | "scheduled"){setEps(function(p){return p.map(function(e){if(e.id!==id)return e;var n=Object.assign({},e);n[f]=!n[f];return n})})}
+  function markPub(id: string){setEps(function(p){var a=p.map(function(e){return Object.assign({},e)});var ep=a.find(function(e){return e.id===id});if(ep){ep.status="published";ep.slot=-1}var r=a.filter(function(e){return e.status!=="published"}).sort(function(x,y){return x.slot-y.slot});r.forEach(function(e,i){e.slot=i});return a})}
+  function unPub(id: string){setEps(function(p){var a=p.map(function(e){return Object.assign({},e)});var ep=a.find(function(e){return e.id===id});if(ep){ep.status="scheduled";var maxSlot=a.filter(function(e){return e.status!=="published"}).reduce(function(m,e){return Math.max(m,e.slot)},-1);ep.slot=maxSlot+1}return a})}
+  function doDrop(tid: string){if(!dragId||dragId===tid)return;setEps(function(p){var a=p.map(function(e){return Object.assign({},e)});var f=a.find(function(e){return e.id===dragId});var t=a.find(function(e){return e.id===tid});if(f&&t){var tmp=f.slot;f.slot=t.slot;t.slot=tmp}return a});setDragId(null)}
+  function addEp(ep: Episode){setEps(function(p){return p.concat([ep])});setShowAdd(false)}
+  function updateEp(updated: Episode){setEps(function(p){return p.map(function(e){return e.id===updated.id?updated:e})})}
+  function deleteEp(id: string){setEps(function(p){var a=p.filter(function(e){return e.id!==id});var s=a.filter(function(e){return e.status!=="published"}).sort(function(x,y){return x.slot-y.slot});s.forEach(function(e,i){e.slot=i});return a})}
 
-  if(view==="ep"&&sel)return <EpDet ep={sel} cad={cad} onBack={function(){setView("dash");setSel(null)}} onUpdate={function(u){updateEp(u);setSel(u)}}/>;
+  if(view==="ep"&&sel)return <EpDet ep={sel} cad={cad} onBack={function(){setView("dash");setSel(null)}} onUpdate={function(u: Episode){updateEp(u);setSel(u)}}/>;
 
   return(<div style={{fontFamily:FONT,color:"#E8E4DD"}}><div style={{maxWidth:1140,margin:"0 auto",padding:"28px 32px 60px"}}>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24,flexWrap:"wrap",gap:10}}>
@@ -239,18 +276,18 @@ export default function GTCFlow(){
   </div></div>);
 }
 
-function CalV(p){var eps=p.eps,cad=p.cad,onSel=p.onSel;var mo={};eps.forEach(function(ep){var d=slotDate(ep.slot,cad.days);var k=d.getFullYear()+"-"+d.getMonth();if(!mo[k])mo[k]={y:d.getFullYear(),m:d.getMonth(),eps:[]};mo[k].eps.push(Object.assign({},ep,{date:d}))});
-return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>{Object.values(mo).map(function(m,mi){var fd=new Date(m.y,m.m,1).getDay();var dim=new Date(m.y,m.m+1,0).getDate();var cells=[];for(var i=0;i<fd;i++)cells.push(null);for(var d=1;d<=dim;d++)cells.push(d);
+function CalV(p: { eps: Episode[]; cad: Cadence; onSel: (ep: Episode) => void }){var eps=p.eps,cad=p.cad,onSel=p.onSel;var mo: Record<string, CalMonth>={};eps.forEach(function(ep){var d=slotDate(ep.slot,cad.days);var k=d.getFullYear()+"-"+d.getMonth();if(!mo[k])mo[k]={y:d.getFullYear(),m:d.getMonth(),eps:[]};mo[k].eps.push(Object.assign({},ep,{date:d}))});
+return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>{Object.values(mo).map(function(m: CalMonth,mi: number){var fd=new Date(m.y,m.m,1).getDay();var dim=new Date(m.y,m.m+1,0).getDate();var cells: (number|null)[] =[];for(var i=0;i<fd;i++)cells.push(null);for(var d=1;d<=dim;d++)cells.push(d);
 return <div key={mi} style={{padding:14,background:BG1,borderRadius:8,border:"1px solid "+BDR}}>
   <div style={{fontSize:13,fontWeight:700,color:AMB,marginBottom:8}}>{new Date(m.y,m.m).toLocaleDateString("en-US",{month:"long",year:"numeric"})}</div>
   <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,fontSize:9}}>
     {["Su","Mo","Tu","We","Th","Fr","Sa"].map(function(dn){return <div key={dn} style={{textAlign:"center",color:"#4b5563",padding:3,fontWeight:700}}>{dn}</div>})}
-    {cells.map(function(day,ci){if(!day)return <div key={"e"+ci}/>;var epH=m.eps.find(function(e){return e.date.getDate()===day});var has=!!epH;return <div key={ci} onClick={function(){if(has)onSel(epH)}} style={{textAlign:"center",padding:"6px 3px",borderRadius:4,background:epH?BG0:"transparent",border:epH?"2px solid "+GRN:"1px solid transparent",color:epH?"#ffffff":"#9ca3af",cursor:has?"pointer":"default",fontWeight:epH?700:400,fontSize:11}}>{day}{epH&&<div style={{fontSize:8,color:GRN,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:700}}>{epH.guest.split(" ")[0]}</div>}</div>})}
+    {cells.map(function(day,ci){if(!day)return <div key={"e"+ci}/>;var epH=m.eps.find(function(e){return e.date.getDate()===day});var has=!!epH;return <div key={ci} onClick={function(){if(has && epH)onSel(epH)}} style={{textAlign:"center",padding:"6px 3px",borderRadius:4,background:epH?BG0:"transparent",border:epH?"2px solid "+GRN:"1px solid transparent",color:epH?"#ffffff":"#9ca3af",cursor:has?"pointer":"default",fontWeight:epH?700:400,fontSize:11}}>{day}{epH&&<div style={{fontSize:8,color:GRN,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:700}}>{epH.guest.split(" ")[0]}</div>}</div>})}
   </div></div>})}</div>}
 
 var ADD_TAGS=["Cloud/Infra","AI/ML","Hardware","GPU Optimization","Internal","AI Safety","Neocloud","AMD Ecosystem","Energy/Infra"];
 
-function AddEpisodeModal(p){
+function AddEpisodeModal(p: { onAdd: (ep: Episode) => void; onClose: () => void; maxSlot: number }){
   var onAdd=p.onAdd,onClose=p.onClose,maxSlot=p.maxSlot;
   var [guest,setGuest]=useState("");
   var [company,setCompany]=useState("");
@@ -264,16 +301,16 @@ function AddEpisodeModal(p){
   var [logo,setLogo]=useState("");
   var [topics,setTopics]=useState("");
 
-  function submit(ev){
+  function submit(ev: React.FormEvent){
     ev.preventDefault();
     if(!guest.trim()||!company.trim())return;
     onAdd({id:"sa-"+Date.now(),guest:guest.trim(),company:company.trim(),title:title.trim(),host:host,tier:Number(tier),tag:tag,slot:maxSlot+1,status:"scheduled",virtual:virtual_,received:false,scheduled:false,bio:bio.trim(),companyDesc:companyDesc.trim(),logo:logo.trim(),topics:topics.trim()});
   }
 
-  var lbl={fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:4,fontFamily:MONO};
-  var inp={width:"100%",padding:"8px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:8,color:"#d1d5db",fontFamily:FONT,fontSize:12,outline:"none",boxSizing:"border-box"};
-  var sel_={width:"100%",padding:"8px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:8,color:AMB,fontFamily:FONT,fontSize:12,outline:"none",boxSizing:"border-box"};
-  var ta={width:"100%",minHeight:70,padding:"8px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:8,color:"#d1d5db",fontFamily:FONT,fontSize:12,resize:"vertical",outline:"none",boxSizing:"border-box"};
+  var lbl: React.CSSProperties={fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:4,fontFamily:MONO};
+  var inp: React.CSSProperties={width:"100%",padding:"8px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:8,color:"#d1d5db",fontFamily:FONT,fontSize:12,outline:"none",boxSizing:"border-box"};
+  var sel_: React.CSSProperties={width:"100%",padding:"8px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:8,color:AMB,fontFamily:FONT,fontSize:12,outline:"none",boxSizing:"border-box"};
+  var ta: React.CSSProperties={width:"100%",minHeight:70,padding:"8px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:8,color:"#d1d5db",fontFamily:FONT,fontSize:12,resize:"vertical",outline:"none",boxSizing:"border-box"};
 
   return <div style={{position:"fixed",inset:0,zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.7)",backdropFilter:"blur(4px)"}}>
     <div style={{width:540,maxHeight:"85vh",overflow:"auto",background:"#0F0F18",borderRadius:12,border:"1px solid "+BDR,padding:28,fontFamily:FONT}}>
@@ -289,7 +326,7 @@ function AddEpisodeModal(p){
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
           <div><div style={lbl}>Title</div><input value={title} onChange={function(e){setTitle(e.target.value)}} placeholder="CEO, CTO, etc." style={inp}/></div>
           <div><div style={lbl}>Host</div><select value={host} onChange={function(e){setHost(e.target.value)}} style={sel_}>{HOSTS.filter(function(h){return h!=="All"}).map(function(h){return <option key={h} value={h}>{h}</option>})}</select></div>
-          <div><div style={lbl}>Tier</div><select value={tier} onChange={function(e){setTier(e.target.value)}} style={sel_}><option value={1}>1 - Flagship</option><option value={2}>2 - Strong</option><option value={3}>3 - Standard</option></select></div>
+          <div><div style={lbl}>Tier</div><select value={tier} onChange={function(e){setTier(Number(e.target.value))}} style={sel_}><option value={1}>1 - Flagship</option><option value={2}>2 - Strong</option><option value={3}>3 - Standard</option></select></div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
           <div><div style={lbl}>Tag</div><select value={tag} onChange={function(e){setTag(e.target.value)}} style={sel_}>{ADD_TAGS.map(function(t){return <option key={t} value={t}>{t}</option>})}</select></div>
@@ -310,7 +347,7 @@ function AddEpisodeModal(p){
   </div>;
 }
 
-function EpDet(p){var ep=p.ep,cad=p.cad,onBack=p.onBack,onUpdate=p.onUpdate;
+function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep: Episode) => void }){var ep=p.ep,cad=p.cad,onBack=p.onBack,onUpdate=p.onUpdate;
   var [tab,setTab]=useState("kit");var [genK,setGenK]=useState(false);var [kitOut,setKitOut]=useState("");var [c1,setC1]=useState("");var [c2,setC2]=useState("");var [clipOut,setClipOut]=useState("");var [genC,setGenC]=useState(false);var [cp,setCp]=useState("");
   var [editing,setEditing]=useState(false);
   var [eBio,setEBio]=useState(ep.bio||"");
@@ -318,21 +355,21 @@ function EpDet(p){var ep=p.ep,cad=p.cad,onBack=p.onBack,onUpdate=p.onUpdate;
   var [eHost,setEHost]=useState(ep.host||"");
   var [eCompanyDesc,setECompanyDesc]=useState(ep.companyDesc||"");
   var [eTopics,setETopics]=useState(ep.topics||"");
-  function saveEdit(){if(!onUpdate)return;onUpdate(Object.assign({},ep,{bio:eBio,title:eTitle,host:eHost,companyDesc:eCompanyDesc,topics:eTopics}));setEditing(false);}
+  function saveEdit(){onUpdate(Object.assign({},ep,{bio:eBio,title:eTitle,host:eHost,companyDesc:eCompanyDesc,topics:eTopics}));setEditing(false);}
   function cancelEdit(){setEBio(ep.bio||"");setETitle(ep.title||"");setEHost(ep.host||"");setECompanyDesc(ep.companyDesc||"");setETopics(ep.topics||"");setEditing(false);}
   var d=ep.slot>=0?slotDate(ep.slot,cad.days):new Date(2026,3,2);var tc=TC[ep.tag]||"#6b7280";var thu=new Date(d.getTime()+864e5);var tue=new Date(d.getTime()+6*864e5);
   var ytD=ep.host+" sits down with "+ep.guest+", "+ep.title+" at "+ep.company+", to discuss "+(ep.topics||"[TOPICS]")+".\n\n"+ep.bio+"\n\nResearcher Conversations is a live interview series recorded "+(ep.virtual?"virtually via Riverside":"on-site at NVIDIA GTC 2026 in San Jose")+", produced by SemiAnalysis. Technical conversations with the researchers, founders, and engineers building the future of AI compute.";
   var bio2=ep.bio?ep.bio.split(".").slice(0,2).join(".")+".":"";
   var kit="GTC INTERVIEW LAUNCH KIT\n==============================\n"+ep.guest+" ("+ep.company+")\nHost: "+ep.host+" // "+fm(d)+" 8:00 AM PST"+(ep.virtual?" // Virtual":"")+"\nLink: [INSERT YOUTUBE LINK]\nThumbnail: [ATTACH]\n\n--- YOUTUBE DESCRIPTION ---\n"+ytD+"\n\n--- X (HOOK) ---\n"+(ep.topics?ep.topics.split(",")[0].trim():"[TOPIC]")+" with "+ep.guest+" from "+ep.company+".\n\n--- X (REPLY) ---\n[INSERT YOUTUBE LINK]\n\n--- LINKEDIN ---\n"+ep.guest+", "+ep.title+" at "+ep.company+", on "+(ep.topics||"[topics]")+". "+bio2+" New episode of Researcher Conversations"+(ep.virtual?", recorded via Riverside":"")+". Worth the listen if you care about "+(ep.tag||"this space")+".\n\n[INSERT YOUTUBE LINK]\n\n--- FACEBOOK ---\n"+ep.guest+" from "+ep.company+" on "+(ep.topics||"[topics]")+". "+bio2+" Full Researcher Conversations episode"+(ep.virtual?" recorded virtually":"")+". Good one.\n\n[INSERT YOUTUBE LINK]\n\n--- STORY ---\nNew ep: "+ep.guest+" // "+ep.company+"\n\n--- REGIMENT ---\n"+fm(d)+" 8:00 AM PST    YouTube + X + LinkedIn + Facebook + Story\nThu "+fs(thu)+" 10:00 AM PST    Clip #1 (Shorts + Reels + X + TikTok + Story)\nTue "+fs(tue)+" 10:00 AM PST    Clip #2 (Shorts + Reels + X + TikTok + Story)";
 
-  function doCopy(t,l){navigator.clipboard.writeText(t);setCp(l);setTimeout(function(){setCp("")},2000)}
+  function doCopy(t: string, l: string){navigator.clipboard.writeText(t);setCp(l);setTimeout(function(){setCp("")},2000)}
   async function gKit(){setGenK(true);var r=await callAPI(DYLAN_SYS,"Episode launch.\nYT desc: informative, 150 words, include bio. NOT casual.\nX: 1 sentence casual, no link.\nLinkedIn: 3-5 sentences, guest context, why it matters.\nFacebook: 3-5 sentences, conversational.\nStory: 1 line.\n\nGuest: "+ep.guest+", "+ep.title+" at "+ep.company+"\nHost: "+ep.host+"\nBio: "+ep.bio+"\nTopics: "+(ep.topics||"general")+"\nFormat: "+(ep.virtual?"Virtual Riverside":"GTC 2026"));setKitOut(r);setGenK(false)}
   async function gClip(){setGenC(true);var r=await callAPI(DYLAN_SYS,"2 clips. All casual.\nGuest: "+ep.guest+" ("+ep.company+")\n\nCLIP 1:\n"+(c1||"[no transcript]")+"\n\nCLIP 2:\n"+(c2||"[no transcript]")+"\n\nEach clip: X (no hashtags), YT Shorts (title<40 + #shorts), IG Reels (save CTA + 5-8 hashtags + San Jose), TikTok (lowercase + 4-6 hashtags + on-screen 0s/3s/6s), Story (1 line).\nClip1 Thu 10AM, Clip2 Tue 10AM. TikTok stagger 4-6hr.");setClipOut(r);setGenC(false)}
 
   return <div style={{fontFamily:FONT,color:"#E8E4DD"}}><div style={{maxWidth:960,margin:"0 auto",padding:"28px 32px 60px"}}>
     <div style={{display:"flex",gap:8,marginBottom:24}}>
       <button onClick={onBack} style={{background:"rgba(255,255,255,0.02)",border:"1px solid "+BDR,color:"rgba(255,255,255,0.4)",padding:"10px 20px",borderRadius:8,cursor:"pointer",fontFamily:FONT,fontSize:13,fontWeight:600,transition:"all 0.15s"}}>Back</button>
-      {onUpdate&&!editing&&<button onClick={function(){setEditing(true)}} style={{background:AMB+"12",border:"1px solid "+AMB+"50",color:AMB,padding:"10px 20px",borderRadius:8,cursor:"pointer",fontFamily:FONT,fontSize:13,fontWeight:700,transition:"all 0.15s"}}>Edit</button>}
+      {!editing&&<button onClick={function(){setEditing(true)}} style={{background:AMB+"12",border:"1px solid "+AMB+"50",color:AMB,padding:"10px 20px",borderRadius:8,cursor:"pointer",fontFamily:FONT,fontSize:13,fontWeight:700,transition:"all 0.15s"}}>Edit</button>}
       {editing&&<button onClick={saveEdit} style={{background:GRN+"18",border:"1px solid "+GRN,color:GRN,padding:"10px 20px",borderRadius:8,cursor:"pointer",fontFamily:FONT,fontSize:13,fontWeight:700,transition:"all 0.15s"}}>Save</button>}
       {editing&&<button onClick={cancelEdit} style={{background:"rgba(255,255,255,0.02)",border:"1px solid "+BDR,color:"rgba(255,255,255,0.4)",padding:"10px 20px",borderRadius:8,cursor:"pointer",fontFamily:FONT,fontSize:13,fontWeight:600,transition:"all 0.15s"}}>Cancel</button>}
     </div>
@@ -350,7 +387,7 @@ function EpDet(p){var ep=p.ep,cad=p.cad,onBack=p.onBack,onUpdate=p.onUpdate;
     </div>:<p style={{fontSize:14,color:"#6b7280",margin:"0 0 4px"}}>{ep.title} at {ep.company}</p>}
     {editing?<div style={{marginBottom:20}}><div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:4,fontFamily:MONO}}>Host</div><select value={eHost} onChange={function(e){setEHost(e.target.value)}} style={{padding:"6px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:8,color:AMB,fontFamily:FONT,fontSize:12}}>{HOSTS.filter(function(h){return h!=="All"}).map(function(h){return <option key={h} value={h}>{h}</option>})}</select></div>:<p style={{fontSize:12,color:AMB,margin:"0 0 20px",fontWeight:600}}>{fm(d)} 8:00 AM PST{ep.virtual?" // Riverside":""}</p>}
 
-    {ep.logo&&<div style={{display:"flex",gap:14,marginBottom:16}}><div style={{width:52,height:52,borderRadius:8,border:"1px solid "+BDR,background:BG1,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><img src={ep.logo} alt="" style={{width:36,height:36,objectFit:"contain"}} onError={function(e){e.target.style.display="none"}}/></div><div style={{flex:1}}><div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:4}}>Company</div>{editing?<textarea value={eCompanyDesc} onChange={function(e){setECompanyDesc(e.target.value)}} style={{width:"100%",minHeight:50,padding:"8px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:6,color:"#d1d5db",fontFamily:FONT,fontSize:12,resize:"vertical",outline:"none",boxSizing:"border-box"}}/>:<p style={{fontSize:12,color:"#9ca3af",margin:0,lineHeight:1.6}}>{ep.companyDesc}</p>}</div></div>}
+    {ep.logo&&<div style={{display:"flex",gap:14,marginBottom:16}}><div style={{width:52,height:52,borderRadius:8,border:"1px solid "+BDR,background:BG1,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><img src={ep.logo} alt="" style={{width:36,height:36,objectFit:"contain"}} onError={function(e){(e.target as HTMLImageElement).style.display="none"}}/></div><div style={{flex:1}}><div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:4}}>Company</div>{editing?<textarea value={eCompanyDesc} onChange={function(e){setECompanyDesc(e.target.value)}} style={{width:"100%",minHeight:50,padding:"8px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:6,color:"#d1d5db",fontFamily:FONT,fontSize:12,resize:"vertical",outline:"none",boxSizing:"border-box"}}/>:<p style={{fontSize:12,color:"#9ca3af",margin:0,lineHeight:1.6}}>{ep.companyDesc}</p>}</div></div>}
     <div style={{marginBottom:16}}><div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:6}}>Bio</div>{editing?<textarea value={eBio} onChange={function(e){setEBio(e.target.value)}} style={{width:"100%",minHeight:80,padding:14,background:BG1,border:"1px solid "+BDR,borderRadius:8,color:"#d1d5db",fontFamily:FONT,fontSize:12,resize:"vertical",outline:"none",boxSizing:"border-box",lineHeight:1.7}}/>:<p style={{fontSize:12,color:"#d1d5db",margin:0,lineHeight:1.7,padding:14,background:BG1,borderRadius:8,border:"1px solid "+BDR}}>{ep.bio}</p>}</div>
     {editing&&<div style={{marginBottom:16}}><div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:6}}>Topics</div><input value={eTopics} onChange={function(e){setETopics(e.target.value)}} placeholder="Comma-separated topics" style={{width:"100%",padding:"8px 14px",background:BG1,border:"1px solid "+BDR,borderRadius:8,color:"#d1d5db",fontFamily:FONT,fontSize:12,outline:"none",boxSizing:"border-box"}}/></div>}
 
@@ -390,4 +427,4 @@ function EpDet(p){var ep=p.ep,cad=p.cad,onBack=p.onBack,onUpdate=p.onUpdate;
   </div></div>
 }
 
-async function callAPI(sys,usr){try{var r=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:sys,prompt:usr})});var d=await r.json();return(d.content||[]).map(function(b){return b.text||""}).join("\n")||"Failed.";}catch(e){return"Error: "+e.message}}
+async function callAPI(sys: string, usr: string): Promise<string>{try{var r=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:sys,prompt:usr})});var d=await r.json();return(d.content||[]).map(function(b: { text?: string }){return b.text||""}).join("\n")||"Failed.";}catch(e){return"Error: "+(e instanceof Error ? e.message : String(e))}}

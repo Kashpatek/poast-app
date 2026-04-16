@@ -1,4 +1,3 @@
-// @ts-nocheck
 // ═══ POAST SHARED CONSTANTS ═══
 
 // ─── Design Tokens ───
@@ -52,14 +51,14 @@ export var TIERS = ["S", "A", "B", "C"];
 export var TIER_COLORS = { S: "#F7B041", A: "#0B86D1", B: "#2EAD8E", C: "#8A8690" };
 
 // ─── Shared Utilities ───
-export function copyText(str) {
+export function copyText(str: string): boolean {
   try { var ta = document.createElement("textarea"); ta.value = str; ta.style.position = "fixed"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); return true; } catch (e) { try { navigator.clipboard.writeText(str); return true; } catch (e2) { return false; } }
 }
 
-export function uid(prefix) { return (prefix || "id") + "-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8); }
+export function uid(prefix?: string): string { return (prefix || "id") + "-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8); }
 
 // ─── API Helpers ───
-export async function askAPI(sys, prompt) {
+export async function askAPI(sys: string, prompt: string): Promise<Record<string, unknown> | null> {
   try {
     var r = await fetch("/api/generate", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -68,14 +67,14 @@ export async function askAPI(sys, prompt) {
     var d = await r.json();
     if (d.error) { console.error("API Error:", d.error); return null; }
     if (!d.content) { return null; }
-    var t = (d.content || []).map(function(c) { return c.text || ""; }).join("");
+    var t = (d.content || []).map(function(c: { text?: string }) { return c.text || ""; }).join("");
     try {
       return JSON.parse(t.replace(/\`\`\`json|\`\`\`/g, "").trim());
     } catch (pe) { console.error("Parse error:", t); return null; }
   } catch (e) { console.error("API:", e); return null; }
 }
 
-export async function askAPIRaw(sys, prompt) {
+export async function askAPIRaw(sys: string, prompt: string): Promise<string | null> {
   try {
     var r = await fetch("/api/generate", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -84,12 +83,12 @@ export async function askAPIRaw(sys, prompt) {
     var d = await r.json();
     if (d.error) return null;
     if (!d.content) return null;
-    return (d.content || []).map(function(c) { return c.text || ""; }).join("");
+    return (d.content || []).map(function(c: { text?: string }) { return c.text || ""; }).join("");
   } catch (e) { return null; }
 }
 
 // ─── DB Helpers ───
-export async function dbGet(table, id) {
+export async function dbGet(table: string, id?: string): Promise<Record<string, unknown>[]> {
   try {
     var url = "/api/db?table=" + table;
     if (id) url += "&id=" + id;
@@ -99,7 +98,7 @@ export async function dbGet(table, id) {
   } catch (e) { return []; }
 }
 
-export async function dbSave(table, data) {
+export async function dbSave(table: string, data: Record<string, unknown>): Promise<void> {
   try {
     await fetch("/api/db", {
       method: "POST",
@@ -109,7 +108,7 @@ export async function dbSave(table, data) {
   } catch (e) {}
 }
 
-export async function dbDelete(table, id) {
+export async function dbDelete(table: string, id: string): Promise<void> {
   try {
     await fetch("/api/db", {
       method: "DELETE",

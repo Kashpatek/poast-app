@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/lib/logger";
 
 const BUFFER_API = "https://api.buffer.com";
 
@@ -30,6 +31,7 @@ export async function GET(req: NextRequest) {
   const type = req.nextUrl.searchParams.get("type");
 
   try {
+    log.info("Buffer GET request", { type: type || "all" });
     // Get org ID first
     const acct = await gql(`query { account { organizations { id } } }`);
     const orgId = acct?.account?.organizations?.[0]?.id;
@@ -105,7 +107,7 @@ export async function GET(req: NextRequest) {
     _cache = { data: result, ts: Date.now() };
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Buffer API error:", error);
+    log.error("Buffer API error", { error: String(error), type: type || "all" });
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
@@ -115,19 +117,23 @@ export async function POST(req: NextRequest) {
   if (!token) return NextResponse.json({ error: "BUFFER_API_KEY not configured" }, { status: 500 });
 
   try {
-    _cache = null; // Invalidate cache on any mutation
     const body = await req.json();
     const { action } = body;
+    log.info("Buffer POST request", { action });
 
     if (action === "createPost") {
       const data = await gql(`mutation($input: CreatePostInput!) {
         createPost(input: $input) { id text status dueAt channel { name service } }
       }`, { input: body.input });
+      _cache = null;
+      log.info("Buffer cache invalidated", { action });
       return NextResponse.json({ post: data?.createPost, ts: Date.now() });
     }
 
     if (action === "deletePost") {
       await gql(`mutation($input: DeletePostInput!) { deletePost(input: $input) { id } }`, { input: { postId: body.postId } });
+      _cache = null;
+      log.info("Buffer cache invalidated", { action });
       return NextResponse.json({ ok: true, ts: Date.now() });
     }
 
@@ -137,12 +143,14 @@ export async function POST(req: NextRequest) {
       const data = await gql(`mutation($input: CreateIdeaInput!) {
         createIdea(input: $input) { id }
       }`, { input: { organizationId: orgId, content: body.content } });
+      _cache = null;
+      log.info("Buffer cache invalidated", { action });
       return NextResponse.json({ idea: data?.createIdea, ts: Date.now() });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error) {
-    console.error("Buffer mutation error:", error);
+    log.error("Buffer mutation error", { error: String(error) });
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }

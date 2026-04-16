@@ -1,7 +1,171 @@
-// @ts-nocheck
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { TEAM } from "./shared-constants";
+
+// ═══ TYPES ═══
+interface Prospect {
+  id: string;
+  name: string;
+  company: string;
+  role: string;
+  topics: string;
+  tier: string;
+  bio: string;
+  devStatus: string;
+  recordDate?: string;
+  added: number;
+}
+
+interface Episode {
+  id: string;
+  number: string;
+  guestId: string;
+  guestName?: string;
+  topic: string;
+  recordDate: string;
+  releaseDate: string;
+  status: string;
+  notes: string;
+  added: number;
+}
+
+interface ArchiveEntry {
+  id: string;
+  number: string;
+  guest: string;
+  company: string;
+  topic: string;
+  category: string;
+  releaseDate: string;
+  plays: number;
+}
+
+interface ToastItem {
+  id: number;
+  m: string;
+  t: string;
+}
+
+interface EmailData {
+  subject: string;
+  body: string;
+}
+
+interface Clip {
+  id: string;
+  timestamp: string;
+  text: string;
+  flagged: boolean;
+}
+
+interface BtnProps {
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  primary?: boolean;
+  small?: boolean;
+  sx?: React.CSSProperties;
+}
+
+interface InputProps {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  sx?: React.CSSProperties;
+}
+
+interface SelectOption {
+  value: string;
+  label: string;
+}
+
+interface SelectProps {
+  value: string;
+  onChange: (val: string) => void;
+  options: (string | SelectOption)[];
+  sx?: React.CSSProperties;
+}
+
+interface TextAreaProps {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  rows?: number;
+  mono?: boolean;
+  sx?: React.CSSProperties;
+}
+
+interface CardProps {
+  children: React.ReactNode;
+  onClick?: () => void;
+  pad?: number;
+  sx?: React.CSSProperties;
+}
+
+interface SectionLabelProps {
+  children: React.ReactNode;
+}
+
+interface CopyBtnProps {
+  text: string;
+}
+
+interface BadgeProps {
+  children: React.ReactNode;
+  bg?: string;
+}
+
+interface TagProps {
+  children: React.ReactNode;
+}
+
+interface ProspectsTabProps {
+  prospects: Prospect[];
+  setProspects: React.Dispatch<React.SetStateAction<Prospect[]>>;
+  setTab: (tab: number) => void;
+}
+
+interface DevelopmentTabProps {
+  prospects: Prospect[];
+  setProspects: React.Dispatch<React.SetStateAction<Prospect[]>>;
+  setTab: (tab: number) => void;
+}
+
+interface ScheduledTabProps {
+  prospects: Prospect[];
+  setProspects: React.Dispatch<React.SetStateAction<Prospect[]>>;
+  setTab: (tab: number) => void;
+}
+
+interface PostProductionTabProps {
+  episodes: Episode[];
+  prospects: Prospect[];
+}
+
+interface ReleasedTabProps {
+  episodes: Episode[];
+  prospects: Prospect[];
+  archive: ArchiveEntry[];
+  setArchive: React.Dispatch<React.SetStateAction<ArchiveEntry[]>>;
+}
+
+interface ProspectForm {
+  name: string;
+  company: string;
+  role: string;
+  topics: string;
+  tier: string;
+}
+
+interface ArchiveForm {
+  number: string;
+  guest: string;
+  company: string;
+  topic: string;
+  category: string;
+  releaseDate: string;
+  plays: string;
+}
 
 // ═══ DESIGN ═══
 var D = {
@@ -15,11 +179,11 @@ var mn = "'JetBrains Mono',monospace";
 
 var TABS = ["Prospects", "Development", "Scheduled", "Post-Production", "Released"];
 var DEV_STATUSES = ["Contacted", "Confirmed", "Scheduled"];
-var DEV_STATUS_C = { Contacted: D.blue, Confirmed: D.amber, Scheduled: D.teal };
+var DEV_STATUS_C: Record<string, string> = { Contacted: D.blue, Confirmed: D.amber, Scheduled: D.teal };
 var TIERS = ["S", "A", "B", "C"];
-var TIER_C = { S: D.amber, A: D.blue, B: D.teal, C: D.txm };
+var TIER_C: Record<string, string> = { S: D.amber, A: D.blue, B: D.teal, C: D.txm };
 var CATEGORIES = ["Semiconductors", "AI Infra", "Data Center", "Memory", "Geopolitics", "Compute", "Other"];
-var HOST = TEAM.find(function(t) { return t.id === "do"; }).name;
+var HOST = TEAM.find(function(t: { id: string; name: string }) { return t.id === "do"; })?.name || "Doug O'Laughlin";
 
 // ═══ DEFAULT DATA ═══
 var DEFAULT_PROSPECTS = [
@@ -54,57 +218,57 @@ var DEFAULT_ARCHIVE = [
   { id: "fk-arc-default-8", number: "8", guest: "Val Bercovici", company: "WEKA", topic: "Memory Markets, HBM Pricing, Agentic Demand", category: "Memory", releaseDate: "2026-02-16", plays: 0 },
 ];
 
-function uid() { return "fk-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8); }
-function ls(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
-function ss(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function uid(): string { return "fk-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8); }
+function ls(k: string): Prospect[] | Episode[] | ArchiveEntry[] | null { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+function ss(k: string, v: Prospect[] | Episode[] | ArchiveEntry[]): void { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 
 // ═══ SUPABASE API HELPERS ═══
-function dbFetch(table) {
+function dbFetch(table: string): Promise<Prospect[] | Episode[] | ArchiveEntry[] | null> {
   return fetch("/api/db?table=" + encodeURIComponent(table))
-    .then(function(r) { if (!r.ok) throw new Error("API " + r.status); return r.json(); })
-    .then(function(d) {
+    .then(function(r: Response) { if (!r.ok) throw new Error("API " + r.status); return r.json(); })
+    .then(function(d: { data?: Record<string, unknown>[] }) {
       if (!d.data || d.data.length === 0) return null;
       if (table === "prospects") {
-        return d.data.map(function(r) {
-          return { id: r.id, name: r.name, company: r.company, role: r.role, topics: Array.isArray(r.topics) ? r.topics.join(", ") : (r.topics || ""), tier: r.tier, bio: r.bio || "", devStatus: r.dev_status || "", recordDate: r.record_date || "", added: new Date(r.created_at).getTime() };
-        });
+        return d.data.map(function(r: Record<string, unknown>) {
+          return { id: r.id as string, name: r.name as string, company: r.company as string, role: r.role as string, topics: Array.isArray(r.topics) ? (r.topics as string[]).join(", ") : ((r.topics as string) || ""), tier: r.tier as string, bio: (r.bio as string) || "", devStatus: (r.dev_status as string) || "", recordDate: (r.record_date as string) || "", added: new Date(r.created_at as string).getTime() };
+        }) as Prospect[];
       }
       if (table === "episodes") {
-        return d.data.map(function(r) {
-          return { id: r.id, number: String(r.number || ""), guestId: "", guestName: r.guest_name || "", topic: r.topic || "", recordDate: r.record_date || "", releaseDate: r.release_date || "", status: r.status || "", notes: r.notes || "", added: new Date(r.created_at).getTime() };
-        });
+        return d.data.map(function(r: Record<string, unknown>) {
+          return { id: r.id as string, number: String(r.number || ""), guestId: "", guestName: (r.guest_name as string) || "", topic: (r.topic as string) || "", recordDate: (r.record_date as string) || "", releaseDate: (r.release_date as string) || "", status: (r.status as string) || "", notes: (r.notes as string) || "", added: new Date(r.created_at as string).getTime() };
+        }) as Episode[];
       }
       if (table === "archive") {
-        return d.data.map(function(r) {
-          return { id: r.id, number: String(r.episode_number || ""), guest: r.guest || "", company: r.company || "", topic: r.topic || "", category: r.category || "", releaseDate: r.release_date || "", plays: r.plays || 0 };
-        });
+        return d.data.map(function(r: Record<string, unknown>) {
+          return { id: r.id as string, number: String(r.episode_number || ""), guest: (r.guest as string) || "", company: (r.company as string) || "", topic: (r.topic as string) || "", category: (r.category as string) || "", releaseDate: (r.release_date as string) || "", plays: (r.plays as number) || 0 };
+        }) as ArchiveEntry[];
       }
-      return d.data;
+      return d.data as unknown as null;
     });
 }
 
-function dbUpsert(table, row) {
+function dbUpsert(table: string, row: Record<string, unknown>): Promise<unknown> {
   return fetch("/api/db", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ table: table, data: row }),
-  }).then(function(r) { if (!r.ok) throw new Error("API " + r.status); return r.json(); });
+  }).then(function(r: Response) { if (!r.ok) throw new Error("API " + r.status); return r.json(); });
 }
 
-function dbDelete(table, id) {
+function dbDelete(table: string, id: string): Promise<unknown> {
   return fetch("/api/db", {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ table: table, id: id }),
-  }).then(function(r) { if (!r.ok) throw new Error("API " + r.status); return r.json(); });
+  }).then(function(r: Response) { if (!r.ok) throw new Error("API " + r.status); return r.json(); });
 }
 
 // ═══ TOAST ═══
-var _toast = { current: null };
-function toast(msg, type) { if (_toast.current) _toast.current(msg, type); }
+var _toast: { current: ((m: string, t?: string) => void) | null } = { current: null };
+function toast(msg: string, type?: string): void { if (_toast.current) _toast.current(msg, type); }
 function Toasts() {
-  var _l = useState([]), l = _l[0], sl = _l[1];
-  _toast.current = function(m, t) { var id = Date.now(); sl(function(p) { return [{ id: id, m: m, t: t || "success" }].concat(p).slice(0, 4); }); setTimeout(function() { sl(function(p) { return p.filter(function(x) { return x.id !== id; }); }); }, 3500); };
+  var _l = useState<ToastItem[]>([]), l = _l[0], sl = _l[1];
+  _toast.current = function(m: string, t?: string) { var id = Date.now(); sl(function(p) { return [{ id: id, m: m, t: t || "success" }].concat(p).slice(0, 4); }); setTimeout(function() { sl(function(p) { return p.filter(function(x) { return x.id !== id; }); }); }, 3500); };
   return <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 10000, display: "flex", flexDirection: "column", gap: 8 }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes fkIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes fkDr{from{width:100%}to{width:0}}" }} />
     {l.map(function(t) { var c = t.t === "error" ? D.coral : t.t === "info" ? D.amber : D.teal; return <div key={t.id} style={{ background: D.card, border: "1px solid " + D.border, borderLeft: "3px solid " + c, borderRadius: 10, padding: "12px 16px", minWidth: 280, boxShadow: "0 4px 24px rgba(0,0,0,0.5)", animation: "fkIn 0.25s ease" }}>
@@ -115,81 +279,81 @@ function Toasts() {
 }
 
 // ═══ REUSABLE COMPONENTS ═══
-function Btn(p) {
+function Btn(p: BtnProps) {
   var primary = p.primary;
   return <button onClick={p.onClick} disabled={p.disabled} style={{ padding: p.small ? "6px 12px" : "10px 18px", borderRadius: 8, cursor: p.disabled ? "not-allowed" : "pointer", fontFamily: ft, fontSize: p.small ? 11 : 13, fontWeight: 700, border: primary ? "none" : "1px solid " + D.coral, background: primary ? D.coral : "transparent", color: primary ? "#fff" : D.coral, opacity: p.disabled ? 0.4 : 1, transition: "all 0.15s", ...(p.sx || {}) }}>{p.children}</button>;
 }
 
-function CopyBtn(p) {
+function CopyBtn(p: CopyBtnProps) {
   return <Btn small onClick={function() { navigator.clipboard.writeText(p.text); toast("Copied", "success"); }}>Copy</Btn>;
 }
 
-function Badge(p) {
+function Badge(p: BadgeProps) {
   return <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: (p.bg || D.txd) + "20", color: p.bg || D.txd, letterSpacing: 0.5, fontFamily: mn }}>{p.children}</span>;
 }
 
-function Tag(p) {
+function Tag(p: TagProps) {
   return <span style={{ display: "inline-block", fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 4, background: D.coral + "15", color: D.coral, fontFamily: ft, marginRight: 4, marginBottom: 4 }}>{p.children}</span>;
 }
 
-function Input(p) {
-  return <input value={p.value} onChange={function(e) { p.onChange(e.target.value); }} placeholder={p.placeholder || ""} style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid " + D.border, background: D.surface, color: D.tx, fontFamily: ft, fontSize: 13, outline: "none", boxSizing: "border-box", ...(p.sx || {}) }} />;
+function Input(p: InputProps) {
+  return <input value={p.value} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { p.onChange(e.target.value); }} placeholder={p.placeholder || ""} style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid " + D.border, background: D.surface, color: D.tx, fontFamily: ft, fontSize: 13, outline: "none", boxSizing: "border-box", ...(p.sx || {}) }} />;
 }
 
-function Select(p) {
-  return <select value={p.value} onChange={function(e) { p.onChange(e.target.value); }} style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid " + D.border, background: D.surface, color: D.tx, fontFamily: ft, fontSize: 13, outline: "none", cursor: "pointer", ...(p.sx || {}) }}>
+function Select(p: SelectProps) {
+  return <select value={p.value} onChange={function(e: React.ChangeEvent<HTMLSelectElement>) { p.onChange(e.target.value); }} style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid " + D.border, background: D.surface, color: D.tx, fontFamily: ft, fontSize: 13, outline: "none", cursor: "pointer", ...(p.sx || {}) }}>
     {p.options.map(function(o) { var val = typeof o === "string" ? o : o.value; var lab = typeof o === "string" ? o : o.label; return <option key={val} value={val}>{lab}</option>; })}
   </select>;
 }
 
-function TextArea(p) {
-  return <textarea value={p.value} onChange={function(e) { p.onChange(e.target.value); }} placeholder={p.placeholder || ""} rows={p.rows || 6} style={{ width: "100%", padding: "12px 14px", borderRadius: 8, border: "1px solid " + D.border, background: D.surface, color: D.tx, fontFamily: p.mono ? mn : ft, fontSize: 13, outline: "none", resize: "vertical", boxSizing: "border-box", lineHeight: 1.6, ...(p.sx || {}) }} />;
+function TextArea(p: TextAreaProps) {
+  return <textarea value={p.value} onChange={function(e: React.ChangeEvent<HTMLTextAreaElement>) { p.onChange(e.target.value); }} placeholder={p.placeholder || ""} rows={p.rows || 6} style={{ width: "100%", padding: "12px 14px", borderRadius: 8, border: "1px solid " + D.border, background: D.surface, color: D.tx, fontFamily: p.mono ? mn : ft, fontSize: 13, outline: "none", resize: "vertical", boxSizing: "border-box", lineHeight: 1.6, ...(p.sx || {}) }} />;
 }
 
-function Card(p) {
+function Card(p: CardProps) {
   return <div onClick={p.onClick} style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: p.pad || 20, cursor: p.onClick ? "pointer" : "default", transition: "all 0.15s", ...(p.sx || {}) }}>{p.children}</div>;
 }
 
-function SectionLabel(p) {
+function SectionLabel(p: SectionLabelProps) {
   return <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txm, letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>{p.children}</div>;
 }
 
 // ═══ TAB 1: PROSPECTS ═══
-function ProspectsTab({ prospects, setProspects, setTab }) {
-  var _show = useState(false), showForm = _show[0], setShowForm = _show[1];
-  var _filtTier = useState("All"), filtTier = _filtTier[0], setFiltTier = _filtTier[1];
-  var _search = useState(""), search = _search[0], setSearch = _search[1];
-  var _expanded = useState(null), expanded = _expanded[0], setExpanded = _expanded[1];
-  var _bioLoading = useState(null), bioLoading = _bioLoading[0], setBioLoading = _bioLoading[1];
-  var _form = useState({ name: "", company: "", role: "", topics: "", tier: "B" }), form = _form[0], setForm = _form[1];
+function ProspectsTab({ prospects, setProspects, setTab }: ProspectsTabProps) {
+  var _show = useState<boolean>(false), showForm = _show[0], setShowForm = _show[1];
+  var _filtTier = useState<string>("All"), filtTier = _filtTier[0], setFiltTier = _filtTier[1];
+  var _search = useState<string>(""), search = _search[0], setSearch = _search[1];
+  var _expanded = useState<string | null>(null), expanded = _expanded[0], setExpanded = _expanded[1];
+  var _bioLoading = useState<string | null>(null), bioLoading = _bioLoading[0], setBioLoading = _bioLoading[1];
+  var _form = useState<ProspectForm>({ name: "", company: "", role: "", topics: "", tier: "B" }), form = _form[0], setForm = _form[1];
 
   // Only show prospects NOT in development pipeline
-  var filtered = prospects.filter(function(p) {
+  var filtered = prospects.filter(function(p: Prospect) {
     if (p.devStatus) return false;
     if (filtTier !== "All" && p.tier !== filtTier) return false;
     if (search && !(p.name || "").toLowerCase().includes(search.toLowerCase()) && !(p.company || "").toLowerCase().includes(search.toLowerCase())) return false;
     return true;
-  }).sort(function(a, b) { return TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier); });
+  }).sort(function(a: Prospect, b: Prospect) { return TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier); });
 
   function addProspect() {
     if (!form.name.trim()) { toast("Name required", "error"); return; }
-    var p = { id: uid(), name: form.name, company: form.company, role: form.role, topics: form.topics, tier: form.tier, bio: "", devStatus: "", added: Date.now() };
-    setProspects(function(prev) { return [p].concat(prev); });
+    var p: Prospect = { id: uid(), name: form.name, company: form.company, role: form.role, topics: form.topics, tier: form.tier, bio: "", devStatus: "", added: Date.now() };
+    setProspects(function(prev: Prospect[]) { return [p].concat(prev); });
     setForm({ name: "", company: "", role: "", topics: "", tier: "B" });
     setShowForm(false);
     toast("Prospect added");
-    dbUpsert("prospects", p).catch(function() { toast("Saved locally only", "info"); });
+    dbUpsert("prospects", p as unknown as Record<string, unknown>).catch(function() { toast("Saved locally only", "info"); });
   }
 
-  function developProspect(id) {
-    setProspects(function(prev) { return prev.map(function(p) { return p.id === id ? { ...p, devStatus: "Contacted" } : p; }); });
-    var target = prospects.find(function(p) { return p.id === id; });
-    if (target) dbUpsert("prospects", { ...target, devStatus: "Contacted" }).catch(function() {});
+  function developProspect(id: string) {
+    setProspects(function(prev: Prospect[]) { return prev.map(function(p: Prospect) { return p.id === id ? { ...p, devStatus: "Contacted" } : p; }); });
+    var target = prospects.find(function(p: Prospect) { return p.id === id; });
+    if (target) dbUpsert("prospects", { ...target, devStatus: "Contacted" } as unknown as Record<string, unknown>).catch(function() {});
     toast("Moved to Development");
     setTab(1);
   }
 
-  function addToOutreach(prospect) {
+  function addToOutreach(prospect: Prospect) {
     var entry = {
       show_name: prospect.company + " / " + prospect.name,
       host: prospect.name,
@@ -207,23 +371,24 @@ function ProspectsTab({ prospects, setProspects, setTab }) {
       .catch(function() { toast("Failed to add to Outreach", "error"); });
   }
 
-  function generateBio(id) {
-    var p = prospects.find(function(x) { return x.id === id; });
-    if (!p) return;
+  function generateBio(id: string) {
+    var found = prospects.find(function(x: Prospect) { return x.id === id; });
+    if (!found) return;
+    var p = found;
     setBioLoading(id);
     fetch("/api/fk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "generate-bio", guestName: p.name, guestCompany: p.company, guestRole: p.role, guestTopics: p.topics }),
-    }).then(function(r) { return r.json(); }).then(function(d) {
+    }).then(function(r: Response) { return r.json(); }).then(function(d: { bio?: string }) {
       var bio = d.bio || (p.name + " is " + p.role + " at " + p.company + ", working on " + (p.topics || "semiconductor technology") + ".");
-      setProspects(function(prev) { return prev.map(function(x) { return x.id === id ? { ...x, bio: bio } : x; }); });
-      dbUpsert("prospects", { ...p, bio: bio }).catch(function() {});
+      setProspects(function(prev: Prospect[]) { return prev.map(function(x: Prospect) { return x.id === id ? { ...x, bio: bio } : x; }); });
+      dbUpsert("prospects", { ...p, bio: bio } as unknown as Record<string, unknown>).catch(function() {});
       setBioLoading(null);
       toast("Bio generated");
     }).catch(function() {
       var bio = p.name + " is " + p.role + " at " + p.company + ". " + (p.topics ? "Their expertise spans " + p.topics.split(",").slice(0, 3).join(", ") + "." : "");
-      setProspects(function(prev) { return prev.map(function(x) { return x.id === id ? { ...x, bio: bio } : x; }); });
+      setProspects(function(prev: Prospect[]) { return prev.map(function(x: Prospect) { return x.id === id ? { ...x, bio: bio } : x; }); });
       setBioLoading(null);
       toast("Generated locally", "info");
     });
@@ -239,21 +404,21 @@ function ProspectsTab({ prospects, setProspects, setTab }) {
 
     {showForm && <Card sx={{ marginBottom: 20, borderColor: D.coral + "40" }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
-        <div><SectionLabel>Name</SectionLabel><Input value={form.name} onChange={function(v) { setForm({ ...form, name: v }); }} placeholder="Guest name" /></div>
-        <div><SectionLabel>Company</SectionLabel><Input value={form.company} onChange={function(v) { setForm({ ...form, company: v }); }} placeholder="Company" /></div>
-        <div><SectionLabel>Role</SectionLabel><Input value={form.role} onChange={function(v) { setForm({ ...form, role: v }); }} placeholder="Title / Role" /></div>
+        <div><SectionLabel>Name</SectionLabel><Input value={form.name} onChange={function(v: string) { setForm({ ...form, name: v }); }} placeholder="Guest name" /></div>
+        <div><SectionLabel>Company</SectionLabel><Input value={form.company} onChange={function(v: string) { setForm({ ...form, company: v }); }} placeholder="Company" /></div>
+        <div><SectionLabel>Role</SectionLabel><Input value={form.role} onChange={function(v: string) { setForm({ ...form, role: v }); }} placeholder="Title / Role" /></div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 16 }}>
-        <div><SectionLabel>Topics (comma-separated)</SectionLabel><Input value={form.topics} onChange={function(v) { setForm({ ...form, topics: v }); }} placeholder="e.g. DRAM, HBM, AI" /></div>
-        <div><SectionLabel>Tier</SectionLabel><Select value={form.tier} onChange={function(v) { setForm({ ...form, tier: v }); }} options={TIERS} sx={{ width: "100%" }} /></div>
+        <div><SectionLabel>Topics (comma-separated)</SectionLabel><Input value={form.topics} onChange={function(v: string) { setForm({ ...form, topics: v }); }} placeholder="e.g. DRAM, HBM, AI" /></div>
+        <div><SectionLabel>Tier</SectionLabel><Select value={form.tier} onChange={function(v: string) { setForm({ ...form, tier: v }); }} options={TIERS} sx={{ width: "100%" }} /></div>
       </div>
       <Btn primary onClick={addProspect}>Save Prospect</Btn>
     </Card>}
 
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-      {filtered.map(function(p) {
+      {filtered.map(function(p: Prospect) {
         var isExp = expanded === p.id;
-        var topics = (p.topics || "").split(",").map(function(t) { return t.trim(); }).filter(Boolean);
+        var topics = (p.topics || "").split(",").map(function(t: string) { return t.trim(); }).filter(Boolean);
         return <Card key={p.id} onClick={function() { setExpanded(isExp ? null : p.id); }} sx={{ borderColor: isExp ? D.coral + "40" : D.border, cursor: "pointer" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
             <div>
@@ -262,9 +427,9 @@ function ProspectsTab({ prospects, setProspects, setTab }) {
             </div>
             <Badge bg={TIER_C[p.tier]}>{p.tier}</Badge>
           </div>
-          {topics.length > 0 && <div style={{ marginBottom: 8 }}>{topics.slice(0, 4).map(function(t) { return <Tag key={t}>{t}</Tag>; })}{topics.length > 4 && <Tag>+{topics.length - 4}</Tag>}</div>}
+          {topics.length > 0 && <div style={{ marginBottom: 8 }}>{topics.slice(0, 4).map(function(t: string) { return <Tag key={t}>{t}</Tag>; })}{topics.length > 4 && <Tag>+{topics.length - 4}</Tag>}</div>}
 
-          {isExp && <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid " + D.border }} onClick={function(ev) { ev.stopPropagation(); }}>
+          {isExp && <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid " + D.border }} onClick={function(ev: React.MouseEvent) { ev.stopPropagation(); }}>
             {/* Bio */}
             <div style={{ marginBottom: 12 }}>
               <SectionLabel>Bio</SectionLabel>
@@ -274,7 +439,7 @@ function ProspectsTab({ prospects, setProspects, setTab }) {
             {/* All topic tags */}
             {topics.length > 0 && <div style={{ marginBottom: 12 }}>
               <SectionLabel>Topic Expertise</SectionLabel>
-              <div>{topics.map(function(t) { return <Tag key={t}>{t}</Tag>; })}</div>
+              <div>{topics.map(function(t: string) { return <Tag key={t}>{t}</Tag>; })}</div>
             </div>}
             {/* Why they'd be good */}
             <div style={{ marginBottom: 14 }}>
@@ -286,7 +451,7 @@ function ProspectsTab({ prospects, setProspects, setTab }) {
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <Btn primary onClick={function() { developProspect(p.id); }}>Develop</Btn>
-              <Btn small onClick={function(ev) { ev.stopPropagation(); addToOutreach(p); }} sx={{ borderColor: D.blue, color: D.blue }}>Add to Outreach</Btn>
+              <Btn small onClick={function() { addToOutreach(p); }} sx={{ borderColor: D.blue, color: D.blue }}>Add to Outreach</Btn>
             </div>
           </div>}
         </Card>;
@@ -297,24 +462,24 @@ function ProspectsTab({ prospects, setProspects, setTab }) {
 }
 
 // ═══ TAB 2: DEVELOPMENT ═══
-function DevelopmentTab({ prospects, setProspects, setTab }) {
-  var _emailTarget = useState(null), emailTarget = _emailTarget[0], setEmailTarget = _emailTarget[1];
-  var _emailData = useState(null), emailData = _emailData[0], setEmailData = _emailData[1];
-  var _emailLoading = useState(false), emailLoading = _emailLoading[0], setEmailLoading = _emailLoading[1];
+function DevelopmentTab({ prospects, setProspects, setTab }: DevelopmentTabProps) {
+  var _emailTarget = useState<string | null>(null), emailTarget = _emailTarget[0], setEmailTarget = _emailTarget[1];
+  var _emailData = useState<EmailData | null>(null), emailData = _emailData[0], setEmailData = _emailData[1];
+  var _emailLoading = useState<boolean>(false), emailLoading = _emailLoading[0], setEmailLoading = _emailLoading[1];
 
-  var devProspects = prospects.filter(function(p) { return p.devStatus && p.devStatus !== ""; });
-  var grouped = {};
-  DEV_STATUSES.forEach(function(s) { grouped[s] = devProspects.filter(function(p) { return p.devStatus === s; }); });
+  var devProspects = prospects.filter(function(p: Prospect) { return p.devStatus && p.devStatus !== ""; });
+  var grouped: Record<string, Prospect[]> = {};
+  DEV_STATUSES.forEach(function(s) { grouped[s] = devProspects.filter(function(p: Prospect) { return p.devStatus === s; }); });
 
-  function updateDevStatus(id, newStatus) {
-    setProspects(function(prev) { return prev.map(function(p) { return p.id === id ? { ...p, devStatus: newStatus } : p; }); });
-    var target = prospects.find(function(p) { return p.id === id; });
-    if (target) dbUpsert("prospects", { ...target, devStatus: newStatus }).catch(function() {});
+  function updateDevStatus(id: string, newStatus: string) {
+    setProspects(function(prev: Prospect[]) { return prev.map(function(p: Prospect) { return p.id === id ? { ...p, devStatus: newStatus } : p; }); });
+    var target = prospects.find(function(p: Prospect) { return p.id === id; });
+    if (target) dbUpsert("prospects", { ...target, devStatus: newStatus } as unknown as Record<string, unknown>).catch(function() {});
     if (newStatus === "Scheduled") toast("Moved to Scheduled");
     else toast("Status updated");
   }
 
-  function generateColdEmail(p) {
+  function generateColdEmail(p: Prospect) {
     setEmailTarget(p.id);
     setEmailLoading(true);
     setEmailData(null);
@@ -322,7 +487,7 @@ function DevelopmentTab({ prospects, setProspects, setTab }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "cold-email", guestName: p.name, guestCompany: p.company, guestRole: p.role, guestTopics: p.topics }),
-    }).then(function(r) { return r.json(); }).then(function(d) {
+    }).then(function(r: Response) { return r.json(); }).then(function(d: { email?: EmailData }) {
       setEmailData(d.email || { subject: "Fabricated Knowledge: Interview with " + p.name, body: "Hi " + p.name.split(" ")[0] + ",\n\nI'm Doug O'Laughlin, host of Fabricated Knowledge, the audio interview series from SemiAnalysis. We cover the deepest corners of semiconductors, AI infrastructure, and compute.\n\nI've been following your work at " + p.company + " on " + (p.topics || "your area of expertise") + ", and I think our listeners would love to hear your perspective.\n\nWould you be open to a 45-60 minute conversation? We record remotely via Riverside, audio only, totally conversational.\n\nLooking forward to hearing from you.\n\nBest,\nDoug O'Laughlin\nSemiAnalysis / Fabricated Knowledge" });
       setEmailLoading(false);
       toast("Cold email generated");
@@ -335,7 +500,7 @@ function DevelopmentTab({ prospects, setProspects, setTab }) {
 
   function openInGmail() {
     if (!emailData) return;
-    var target = prospects.find(function(p) { return p.id === emailTarget; });
+    var target = prospects.find(function(p: Prospect) { return p.id === emailTarget; });
     var mailto = "mailto:?subject=" + encodeURIComponent(emailData.subject) + "&body=" + encodeURIComponent(emailData.body);
     window.open(mailto);
   }
@@ -351,19 +516,19 @@ function DevelopmentTab({ prospects, setProspects, setTab }) {
         </div>
         {group.length === 0 && <div style={{ fontFamily: ft, fontSize: 13, color: D.txm, padding: "16px 0" }}>No prospects at this stage. Move someone from the Prospects tab.</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {group.map(function(p) {
-            var topics = (p.topics || "").split(",").map(function(t) { return t.trim(); }).filter(Boolean);
+          {group.map(function(p: Prospect) {
+            var topics = (p.topics || "").split(",").map(function(t: string) { return t.trim(); }).filter(Boolean);
             var isEmailOpen = emailTarget === p.id && emailData;
             return <Card key={p.id}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
                   <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 800, color: D.tx }}>{p.name}</div>
                   <div style={{ fontFamily: ft, fontSize: 12, color: D.txm }}>{p.role}{p.company ? " @ " + p.company : ""}</div>
-                  {topics.length > 0 && <div style={{ marginTop: 6 }}>{topics.slice(0, 4).map(function(t) { return <Tag key={t}>{t}</Tag>; })}</div>}
+                  {topics.length > 0 && <div style={{ marginTop: 6 }}>{topics.slice(0, 4).map(function(t: string) { return <Tag key={t}>{t}</Tag>; })}</div>}
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <Badge bg={TIER_C[p.tier]}>{p.tier}</Badge>
-                  <Select value={p.devStatus} onChange={function(v) { updateDevStatus(p.id, v); }} options={DEV_STATUSES} sx={{ fontSize: 11, padding: "4px 8px" }} />
+                  <Select value={p.devStatus} onChange={function(v: string) { updateDevStatus(p.id, v); }} options={DEV_STATUSES} sx={{ fontSize: 11, padding: "4px 8px" }} />
                 </div>
               </div>
               {/* Cold email action */}
@@ -378,15 +543,15 @@ function DevelopmentTab({ prospects, setProspects, setTab }) {
                 </div>
                 <div style={{ marginBottom: 10 }}>
                   <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 600, color: D.txm, letterSpacing: 1, marginBottom: 4 }}>SUBJECT</div>
-                  <Input value={emailData.subject} onChange={function(v) { setEmailData({ ...emailData, subject: v }); }} />
+                  <Input value={emailData!.subject} onChange={function(v: string) { setEmailData({ ...emailData!, subject: v }); }} />
                 </div>
                 <div style={{ marginBottom: 14 }}>
                   <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 600, color: D.txm, letterSpacing: 1, marginBottom: 4 }}>BODY</div>
-                  <TextArea value={emailData.body} onChange={function(v) { setEmailData({ ...emailData, body: v }); }} rows={10} />
+                  <TextArea value={emailData!.body} onChange={function(v: string) { setEmailData({ ...emailData!, body: v }); }} rows={10} />
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <Btn small onClick={function() { generateColdEmail(p); }}>Regenerate</Btn>
-                  <CopyBtn text={emailData.subject + "\n\n" + emailData.body} />
+                  <CopyBtn text={emailData!.subject + "\n\n" + emailData!.body} />
                   <Btn small onClick={openInGmail} sx={{ borderColor: D.blue, color: D.blue }}>Open in Gmail</Btn>
                   <div style={{ flex: 1 }} />
                   <Btn small onClick={function() { setEmailTarget(null); setEmailData(null); }} sx={{ borderColor: D.txd, color: D.txd }}>Close</Btn>
@@ -405,16 +570,16 @@ function DevelopmentTab({ prospects, setProspects, setTab }) {
 }
 
 // ═══ TAB 3: SCHEDULED ═══
-function ScheduledTab({ prospects, setProspects, setTab }) {
-  var scheduled = prospects.filter(function(p) { return p.devStatus === "Scheduled"; });
+function ScheduledTab({ prospects, setProspects, setTab }: ScheduledTabProps) {
+  var scheduled = prospects.filter(function(p: Prospect) { return p.devStatus === "Scheduled"; });
 
-  function updateRecordDate(id, val) {
-    setProspects(function(prev) { return prev.map(function(p) { return p.id === id ? { ...p, recordDate: val } : p; }); });
-    var target = prospects.find(function(p) { return p.id === id; });
-    if (target) dbUpsert("prospects", { ...target, recordDate: val }).catch(function() {});
+  function updateRecordDate(id: string, val: string) {
+    setProspects(function(prev: Prospect[]) { return prev.map(function(p: Prospect) { return p.id === id ? { ...p, recordDate: val } : p; }); });
+    var target = prospects.find(function(p: Prospect) { return p.id === id; });
+    if (target) dbUpsert("prospects", { ...target, recordDate: val } as unknown as Record<string, unknown>).catch(function() {});
   }
 
-  var sorted = scheduled.sort(function(a, b) {
+  var sorted = scheduled.sort(function(a: Prospect, b: Prospect) {
     if (!a.recordDate && !b.recordDate) return 0;
     if (!a.recordDate) return 1;
     if (!b.recordDate) return -1;
@@ -427,8 +592,8 @@ function ScheduledTab({ prospects, setProspects, setTab }) {
         {sorted.length} upcoming recording{sorted.length !== 1 ? "s" : ""}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {sorted.map(function(p) {
-          var topics = (p.topics || "").split(",").map(function(t) { return t.trim(); }).filter(Boolean);
+        {sorted.map(function(p: Prospect) {
+          var topics = (p.topics || "").split(",").map(function(t: string) { return t.trim(); }).filter(Boolean);
           return <Card key={p.id}>
             <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
               {/* Date block */}
@@ -442,11 +607,11 @@ function ScheduledTab({ prospects, setProspects, setTab }) {
               <div style={{ flex: 1 }}>
                 <div style={{ fontFamily: ft, fontSize: 17, fontWeight: 800, color: D.tx }}>{p.name}</div>
                 <div style={{ fontFamily: ft, fontSize: 12, color: D.txm }}>{p.role}{p.company ? " @ " + p.company : ""}</div>
-                {topics.length > 0 && <div style={{ marginTop: 6 }}>{topics.slice(0, 3).map(function(t) { return <Tag key={t}>{t}</Tag>; })}</div>}
+                {topics.length > 0 && <div style={{ marginTop: 6 }}>{topics.slice(0, 3).map(function(t: string) { return <Tag key={t}>{t}</Tag>; })}</div>}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
                 <Badge bg={D.teal}>Scheduled</Badge>
-                <Input value={p.recordDate || ""} onChange={function(v) { updateRecordDate(p.id, v); }} placeholder="YYYY-MM-DD" sx={{ width: 130, fontSize: 11, padding: "6px 10px" }} />
+                <Input value={p.recordDate || ""} onChange={function(v: string) { updateRecordDate(p.id, v); }} placeholder="YYYY-MM-DD" sx={{ width: 130, fontSize: 11, padding: "6px 10px" }} />
               </div>
             </div>
           </Card>;
@@ -461,18 +626,18 @@ function ScheduledTab({ prospects, setProspects, setTab }) {
 }
 
 // ═══ TAB 4: POST-PRODUCTION ═══
-function PostProductionTab({ episodes, prospects }) {
-  var _sel = useState(""), selId = _sel[0], setSelId = _sel[1];
-  var _transcript = useState(""), transcript = _transcript[0], setTranscript = _transcript[1];
-  var _titles = useState([]), titles = _titles[0], setTitles = _titles[1];
-  var _longDesc = useState(""), longDesc = _longDesc[0], setLongDesc = _longDesc[1];
-  var _shortDesc = useState(""), shortDesc = _shortDesc[0], setShortDesc = _shortDesc[1];
-  var _chapters = useState(""), chapters = _chapters[0], setChapters = _chapters[1];
-  var _clips = useState([]), clips = _clips[0], setClips = _clips[1];
-  var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
+function PostProductionTab({ episodes, prospects }: PostProductionTabProps) {
+  var _sel = useState<string>(""), selId = _sel[0], setSelId = _sel[1];
+  var _transcript = useState<string>(""), transcript = _transcript[0], setTranscript = _transcript[1];
+  var _titles = useState<string[]>([]), titles = _titles[0], setTitles = _titles[1];
+  var _longDesc = useState<string>(""), longDesc = _longDesc[0], setLongDesc = _longDesc[1];
+  var _shortDesc = useState<string>(""), shortDesc = _shortDesc[0], setShortDesc = _shortDesc[1];
+  var _chapters = useState<string>(""), chapters = _chapters[0], setChapters = _chapters[1];
+  var _clips = useState<Clip[]>([]), clips = _clips[0], setClips = _clips[1];
+  var _loading = useState<boolean>(false), loading = _loading[0], setLoading = _loading[1];
 
-  var ep = episodes.find(function(e) { return e.id === selId; });
-  var guest = ep ? prospects.find(function(p) { return p.id === ep.guestId; }) : null;
+  var ep = episodes.find(function(e: Episode) { return e.id === selId; });
+  var guest = ep ? prospects.find(function(p: Prospect) { return p.id === ep!.guestId; }) : null;
 
   function processTranscript() {
     if (!transcript.trim()) { toast("Paste a transcript first", "error"); return; }
@@ -481,12 +646,12 @@ function PostProductionTab({ episodes, prospects }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "process", transcript: transcript, guest: guest ? { name: guest.name, company: guest.company } : null, host: HOST, episodeTopic: ep ? ep.topic : "" }),
-    }).then(function(r) { return r.json(); }).then(function(d) {
+    }).then(function(r: Response) { return r.json(); }).then(function(d: { titles?: string[]; longDesc?: string; shortDesc?: string; chapters?: string; clips?: { timestamp: string; text: string }[] }) {
       if (d.titles) setTitles(d.titles);
       if (d.longDesc) setLongDesc(d.longDesc);
       if (d.shortDesc) setShortDesc(d.shortDesc);
       if (d.chapters) setChapters(d.chapters);
-      if (d.clips) setClips(d.clips.map(function(c) { return { ...c, id: uid(), flagged: false }; }));
+      if (d.clips) setClips(d.clips.map(function(c: { timestamp: string; text: string }) { return { ...c, id: uid(), flagged: false }; }));
       setLoading(false);
       toast("Transcript processed");
     }).catch(function() {
@@ -507,14 +672,14 @@ function PostProductionTab({ episodes, prospects }) {
     });
   }
 
-  function toggleFlag(clipId) {
-    setClips(function(prev) { return prev.map(function(c) { return c.id === clipId ? { ...c, flagged: !c.flagged } : c; }); });
+  function toggleFlag(clipId: string) {
+    setClips(function(prev: Clip[]) { return prev.map(function(c: Clip) { return c.id === clipId ? { ...c, flagged: !c.flagged } : c; }); });
   }
 
-  var releasedEpisodes = episodes.filter(function(e) { return e.status === "Released"; });
+  var releasedEpisodes = episodes.filter(function(e: Episode) { return e.status === "Released"; });
 
-  function epLabel(e) {
-    var g = prospects.find(function(p) { return p.id === e.guestId; });
+  function epLabel(e: Episode) {
+    var g = prospects.find(function(p: Prospect) { return p.id === e.guestId; });
     var gName = g ? g.name : (e.guestName || "TBD");
     return "EP " + e.number + " - " + gName;
   }
@@ -522,7 +687,7 @@ function PostProductionTab({ episodes, prospects }) {
   return <div>
     <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 24 }}>
       <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txm, letterSpacing: 3, textTransform: "uppercase" }}>Episode</div>
-      <Select value={selId} onChange={setSelId} options={[{ value: "", label: "Select released episode..." }].concat(releasedEpisodes.map(function(e) { return { value: e.id, label: epLabel(e) }; }))} sx={{ minWidth: 300 }} />
+      <Select value={selId} onChange={setSelId} options={([{ value: "", label: "Select released episode..." }] as SelectOption[]).concat(releasedEpisodes.map(function(e: Episode) { return { value: e.id, label: epLabel(e) }; }))} sx={{ minWidth: 300 }} />
     </div>
 
     <Card sx={{ marginBottom: 20 }}>
@@ -538,7 +703,7 @@ function PostProductionTab({ episodes, prospects }) {
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Title Options</div>
         <span style={{ fontFamily: mn, fontSize: 10, color: D.txm }}>{titles.length} options</span>
       </div>
-      {titles.map(function(t, i) {
+      {titles.map(function(t: string, i: number) {
         return <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: D.surface, borderRadius: 8, marginBottom: 8, border: "1px solid " + D.border }}>
           <span style={{ fontFamily: ft, fontSize: 14, fontWeight: 600, color: D.tx }}>{i + 1}. {t}</span>
           <CopyBtn text={t} />
@@ -573,9 +738,9 @@ function PostProductionTab({ episodes, prospects }) {
     {clips.length > 0 && <Card>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx }}>Clip Highlights</div>
-        <span style={{ fontFamily: mn, fontSize: 10, color: D.txm }}>{clips.filter(function(c) { return c.flagged; }).length} flagged</span>
+        <span style={{ fontFamily: mn, fontSize: 10, color: D.txm }}>{clips.filter(function(c: Clip) { return c.flagged; }).length} flagged</span>
       </div>
-      {clips.map(function(c) {
+      {clips.map(function(c: Clip) {
         return <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: c.flagged ? D.amber + "10" : D.surface, borderRadius: 8, marginBottom: 8, border: "1px solid " + (c.flagged ? D.amber + "40" : D.border) }}>
           <div style={{ flex: 1 }}>
             <span style={{ fontFamily: mn, fontSize: 11, color: D.coral, marginRight: 10 }}>[{c.timestamp}]</span>
@@ -594,38 +759,38 @@ function PostProductionTab({ episodes, prospects }) {
 }
 
 // ═══ TAB 5: RELEASED (ARCHIVE) ═══
-function ReleasedTab({ episodes, prospects, archive, setArchive }) {
-  var _search = useState(""), search = _search[0], setSearch = _search[1];
-  var _catFilt = useState("All"), catFilt = _catFilt[0], setCatFilt = _catFilt[1];
-  var _showAdd = useState(false), showAdd = _showAdd[0], setShowAdd = _showAdd[1];
-  var _form = useState({ number: "", guest: "", company: "", topic: "", category: "Other", releaseDate: "", plays: "" }), form = _form[0], setForm = _form[1];
+function ReleasedTab({ episodes, prospects, archive, setArchive }: ReleasedTabProps) {
+  var _search = useState<string>(""), search = _search[0], setSearch = _search[1];
+  var _catFilt = useState<string>("All"), catFilt = _catFilt[0], setCatFilt = _catFilt[1];
+  var _showAdd = useState<boolean>(false), showAdd = _showAdd[0], setShowAdd = _showAdd[1];
+  var _form = useState<ArchiveForm>({ number: "", guest: "", company: "", topic: "", category: "Other", releaseDate: "", plays: "" }), form = _form[0], setForm = _form[1];
 
-  var filtered = archive.filter(function(a) {
+  var filtered = archive.filter(function(a: ArchiveEntry) {
     var q = search.toLowerCase();
     if (q && !(a.guest || "").toLowerCase().includes(q) && !(a.topic || "").toLowerCase().includes(q) && !(a.category || "").toLowerCase().includes(q) && !(a.company || "").toLowerCase().includes(q)) return false;
     if (catFilt !== "All" && a.category !== catFilt) return false;
     return true;
-  }).sort(function(a, b) { return (parseInt(b.number) || 0) - (parseInt(a.number) || 0); });
+  }).sort(function(a: ArchiveEntry, b: ArchiveEntry) { return (parseInt(b.number) || 0) - (parseInt(a.number) || 0); });
 
   function addArchiveEntry() {
     if (!form.number || !form.guest) { toast("Number and guest required", "error"); return; }
-    var entry = { id: uid(), ...form, plays: parseInt(form.plays) || 0 };
-    setArchive(function(prev) { return [entry].concat(prev); });
+    var entry: ArchiveEntry = { id: uid(), number: form.number, guest: form.guest, company: form.company, topic: form.topic, category: form.category, releaseDate: form.releaseDate, plays: parseInt(form.plays) || 0 };
+    setArchive(function(prev: ArchiveEntry[]) { return [entry].concat(prev); });
     setForm({ number: "", guest: "", company: "", topic: "", category: "Other", releaseDate: "", plays: "" });
     setShowAdd(false);
     toast("Episode archived");
-    dbUpsert("archive", entry).catch(function() { toast("Saved locally only", "info"); });
+    dbUpsert("archive", entry as unknown as Record<string, unknown>).catch(function() { toast("Saved locally only", "info"); });
   }
 
-  function updatePlays(id, val) {
-    setArchive(function(prev) { return prev.map(function(a) { return a.id === id ? { ...a, plays: parseInt(val) || 0 } : a; }); });
-    var target = archive.find(function(a) { return a.id === id; });
-    if (target) dbUpsert("archive", { ...target, plays: parseInt(val) || 0 }).catch(function() {});
+  function updatePlays(id: string, val: string) {
+    setArchive(function(prev: ArchiveEntry[]) { return prev.map(function(a: ArchiveEntry) { return a.id === id ? { ...a, plays: parseInt(val) || 0 } : a; }); });
+    var target = archive.find(function(a: ArchiveEntry) { return a.id === id; });
+    if (target) dbUpsert("archive", { ...target, plays: parseInt(val) || 0 } as unknown as Record<string, unknown>).catch(function() {});
   }
 
-  var catCounts = {};
-  archive.forEach(function(a) { var c = a.category || "Other"; catCounts[c] = (catCounts[c] || 0) + 1; });
-  var maxCount = Math.max.apply(null, Object.values(catCounts).concat([1]));
+  var catCounts: Record<string, number> = {};
+  archive.forEach(function(a: ArchiveEntry) { var c = a.category || "Other"; catCounts[c] = (catCounts[c] || 0) + 1; });
+  var maxCount = Math.max.apply(null, (Object.values(catCounts) as number[]).concat([1]));
 
   return <div>
     <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "center" }}>
@@ -636,15 +801,15 @@ function ReleasedTab({ episodes, prospects, archive, setArchive }) {
 
     {showAdd && <Card sx={{ marginBottom: 20, borderColor: D.coral + "40" }}>
       <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
-        <div><SectionLabel>EP #</SectionLabel><Input value={form.number} onChange={function(v) { setForm({ ...form, number: v }); }} /></div>
-        <div><SectionLabel>Guest</SectionLabel><Input value={form.guest} onChange={function(v) { setForm({ ...form, guest: v }); }} /></div>
-        <div><SectionLabel>Company</SectionLabel><Input value={form.company} onChange={function(v) { setForm({ ...form, company: v }); }} /></div>
-        <div><SectionLabel>Topic</SectionLabel><Input value={form.topic} onChange={function(v) { setForm({ ...form, topic: v }); }} /></div>
+        <div><SectionLabel>EP #</SectionLabel><Input value={form.number} onChange={function(v: string) { setForm({ ...form, number: v }); }} /></div>
+        <div><SectionLabel>Guest</SectionLabel><Input value={form.guest} onChange={function(v: string) { setForm({ ...form, guest: v }); }} /></div>
+        <div><SectionLabel>Company</SectionLabel><Input value={form.company} onChange={function(v: string) { setForm({ ...form, company: v }); }} /></div>
+        <div><SectionLabel>Topic</SectionLabel><Input value={form.topic} onChange={function(v: string) { setForm({ ...form, topic: v }); }} /></div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
-        <div><SectionLabel>Category</SectionLabel><Select value={form.category} onChange={function(v) { setForm({ ...form, category: v }); }} options={CATEGORIES} sx={{ width: "100%" }} /></div>
-        <div><SectionLabel>Release Date</SectionLabel><Input value={form.releaseDate} onChange={function(v) { setForm({ ...form, releaseDate: v }); }} placeholder="YYYY-MM-DD" /></div>
-        <div><SectionLabel>Play Count</SectionLabel><Input value={form.plays} onChange={function(v) { setForm({ ...form, plays: v }); }} placeholder="0" /></div>
+        <div><SectionLabel>Category</SectionLabel><Select value={form.category} onChange={function(v: string) { setForm({ ...form, category: v }); }} options={CATEGORIES} sx={{ width: "100%" }} /></div>
+        <div><SectionLabel>Release Date</SectionLabel><Input value={form.releaseDate} onChange={function(v: string) { setForm({ ...form, releaseDate: v }); }} placeholder="YYYY-MM-DD" /></div>
+        <div><SectionLabel>Play Count</SectionLabel><Input value={form.plays} onChange={function(v: string) { setForm({ ...form, plays: v }); }} placeholder="0" /></div>
       </div>
       <Btn primary onClick={addArchiveEntry}>Add to Archive</Btn>
     </Card>}
@@ -656,7 +821,7 @@ function ReleasedTab({ episodes, prospects, archive, setArchive }) {
       </div>
       <SectionLabel>Episodes by Category</SectionLabel>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {Object.keys(catCounts).sort(function(a, b) { return catCounts[b] - catCounts[a]; }).map(function(cat) {
+        {Object.keys(catCounts).sort(function(a: string, b: string) { return catCounts[b] - catCounts[a]; }).map(function(cat: string) {
           var pct = (catCounts[cat] / maxCount) * 100;
           return <div key={cat} style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ fontFamily: ft, fontSize: 12, color: D.txm, width: 120, textAlign: "right", flexShrink: 0 }}>{cat}</span>
@@ -671,7 +836,7 @@ function ReleasedTab({ episodes, prospects, archive, setArchive }) {
     </Card>}
 
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-      {filtered.map(function(a) {
+      {filtered.map(function(a: ArchiveEntry) {
         return <Card key={a.id}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
             <div>
@@ -686,7 +851,7 @@ function ReleasedTab({ episodes, prospects, archive, setArchive }) {
             <span style={{ fontFamily: mn, fontSize: 10, color: D.txd }}>{a.releaseDate || "No date"}</span>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontFamily: mn, fontSize: 10, color: D.txm }}>plays:</span>
-              <input value={a.plays || 0} onChange={function(e) { updatePlays(a.id, e.target.value); }} style={{ width: 60, padding: "4px 8px", borderRadius: 6, border: "1px solid " + D.border, background: D.surface, color: D.tx, fontFamily: mn, fontSize: 11, outline: "none", textAlign: "right" }} />
+              <input value={a.plays || 0} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { updatePlays(a.id, e.target.value); }} style={{ width: 60, padding: "4px 8px", borderRadius: 6, border: "1px solid " + D.border, background: D.surface, color: D.tx, fontFamily: mn, fontSize: 11, outline: "none", textAlign: "right" }} />
             </div>
           </div>
         </Card>;
@@ -699,22 +864,22 @@ function ReleasedTab({ episodes, prospects, archive, setArchive }) {
 
 // ═══ MAIN EXPORT ═══
 export default function FabricatedKnowledge() {
-  var _tab = useState(0), tab = _tab[0], setTab = _tab[1];
-  var _prospects = useState([]), prospects = _prospects[0], setProspects = _prospects[1];
-  var _episodes = useState([]), episodes = _episodes[0], setEpisodes = _episodes[1];
-  var _archive = useState([]), archive = _archive[0], setArchive = _archive[1];
-  var _loaded = useState(false), loaded = _loaded[0], setLoaded = _loaded[1];
+  var _tab = useState<number>(0), tab = _tab[0], setTab = _tab[1];
+  var _prospects = useState<Prospect[]>([]), prospects = _prospects[0], setProspects = _prospects[1];
+  var _episodes = useState<Episode[]>([]), episodes = _episodes[0], setEpisodes = _episodes[1];
+  var _archive = useState<ArchiveEntry[]>([]), archive = _archive[0], setArchive = _archive[1];
+  var _loaded = useState<boolean>(false), loaded = _loaded[0], setLoaded = _loaded[1];
 
   useEffect(function() {
     var settled = false;
     function loadFallback() {
       if (settled) return;
       settled = true;
-      var p = ls("fk-prospects");
+      var p = ls("fk-prospects") as Prospect[] | null;
       if (p && p.length > 0) { setProspects(p); } else { setProspects(DEFAULT_PROSPECTS); }
-      var e = ls("fk-episodes");
+      var e = ls("fk-episodes") as Episode[] | null;
       if (e && e.length > 0) { setEpisodes(e); } else { setEpisodes(DEFAULT_EPISODES); }
-      var a = ls("fk-archive");
+      var a = ls("fk-archive") as ArchiveEntry[] | null;
       if (a && a.length > 0) { setArchive(a); } else { setArchive(DEFAULT_ARCHIVE); }
       setLoaded(true);
     }
@@ -723,16 +888,16 @@ export default function FabricatedKnowledge() {
       dbFetch("prospects").catch(function() { return null; }),
       dbFetch("episodes").catch(function() { return null; }),
       dbFetch("archive").catch(function() { return null; }),
-    ]).then(function(results) {
+    ]).then(function(results: (Prospect[] | Episode[] | ArchiveEntry[] | null)[]) {
       if (settled) return;
       settled = true;
-      var p = results[0], e = results[1], a = results[2];
+      var p = results[0] as Prospect[] | null, e = results[1] as Episode[] | null, a = results[2] as ArchiveEntry[] | null;
       if (p && p.length > 0) { setProspects(p); }
-      else { var lp = ls("fk-prospects"); if (lp && lp.length > 0) { setProspects(lp); } else { setProspects(DEFAULT_PROSPECTS); } }
+      else { var lp = ls("fk-prospects") as Prospect[] | null; if (lp && lp.length > 0) { setProspects(lp); } else { setProspects(DEFAULT_PROSPECTS); } }
       if (e && e.length > 0) { setEpisodes(e); }
-      else { var le = ls("fk-episodes"); if (le && le.length > 0) { setEpisodes(le); } else { setEpisodes(DEFAULT_EPISODES); } }
+      else { var le = ls("fk-episodes") as Episode[] | null; if (le && le.length > 0) { setEpisodes(le); } else { setEpisodes(DEFAULT_EPISODES); } }
       if (a && a.length > 0) { setArchive(a); }
-      else { var la = ls("fk-archive"); if (la && la.length > 0) { setArchive(la); } else { setArchive(DEFAULT_ARCHIVE); } }
+      else { var la = ls("fk-archive") as ArchiveEntry[] | null; if (la && la.length > 0) { setArchive(la); } else { setArchive(DEFAULT_ARCHIVE); } }
       setLoaded(true);
     }).catch(function() { loadFallback(); });
 
@@ -752,7 +917,7 @@ export default function FabricatedKnowledge() {
     </div>
 
     <div style={{ display: "flex", gap: 0, padding: "20px 40px 0 40px", borderBottom: "1px solid " + D.border, marginBottom: 28 }}>
-      {TABS.map(function(t, i) {
+      {TABS.map(function(t: string, i: number) {
         var active = tab === i;
         return <div key={t} onClick={function() { setTab(i); }} style={{ padding: "12px 22px", cursor: "pointer", fontFamily: ft, fontSize: 13, fontWeight: active ? 700 : 500, color: active ? D.coral : D.txm, borderBottom: active ? "2px solid " + D.coral : "2px solid transparent", transition: "all 0.15s", marginBottom: -1 }}>{t}</div>;
       })}

@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
@@ -8,19 +7,85 @@ import { D as C, ft, mn, gf } from "./shared-constants";
    SA CAROUSEL v3.1 -- Visual Slide Editor with Real Branded Backgrounds
    ═══════════════════════════════════════════════════════════════════════════ */
 
+// ═══ TYPES ═══
+type ThemeKey = "general" | "internal" | "external" | "capital";
+
+interface Slide {
+  type: string;
+  title?: string;
+  subtitle?: string;
+  bodyText?: string;
+  imageUrl?: string;
+  imageUrl2?: string;
+  imageHeight?: number;
+  imagePosition?: string;
+  imagePosition2?: string;
+  imageFit?: string;
+  bodySize: number;
+  titleSize: number;
+  subtitleSize: number;
+  captionSize: number;
+  caption?: string;
+  caption2?: string;
+  ctaText?: string;
+  ctaPosition?: string;
+  position: number;
+  id: string;
+  inverted?: boolean;
+  subtitleLength?: number;
+  _carouselTitle?: string;
+}
+
+interface GeneratedSlide {
+  type: string;
+  title?: string;
+  subtitle?: string;
+  body_text?: string;
+  image_url?: string;
+  subtext?: string;
+}
+
+interface Variant {
+  label?: string;
+  topic?: string;
+  slides: GeneratedSlide[];
+}
+
+interface BRollImageAsset {
+  id: string;
+  type: string;
+  url: string;
+  thumbnail?: string;
+  filename?: string;
+  description?: string;
+  category?: string;
+}
+
+interface CarouselState {
+  category: ThemeKey;
+  url?: string;
+  text?: string;
+  mode: string;
+  pageCount: number;
+  fileName?: string;
+  articleImages?: string[];
+  selectedArticleImage?: string | null;
+  fetchingImages?: boolean;
+}
+
 // ═══ THEME / BACKDROP MAPPING ═══
-var THEMES = {
+var THEMES: Record<ThemeKey, { prefix: string; label: string; color: string; desc: string }> = {
   general:  { prefix: "YB", label: "General",  color: "#D4A853", desc: "Industry news, trends, analysis" },
   internal: { prefix: "Y",  label: "Internal", color: "#F7B041", desc: "SA original research and findings" },
   external: { prefix: "B",  label: "External", color: "#0B86D1", desc: "Third-party content with SA commentary" },
   capital:  { prefix: "G",  label: "Capital",  color: "#2EAD8E", desc: "Financial and investment analysis" },
 };
 
-function getBackdropUrl(theme, position) {
+function getBackdropUrl(theme: ThemeKey, position: number) {
   return "/backdrops/" + THEMES[theme].prefix + position + ".jpg";
 }
 
-function getSlidePositions(count) {
+function getSlidePositions(count: number) {
   if (count === 1) return [4];
   if (count === 2) return [1, 4];
   if (count === 3) return [1, 2, 4];
@@ -32,7 +97,7 @@ function getSlidePositions(count) {
   return positions;
 }
 
-function getSlideType(position) {
+function getSlideType(position: number) {
   if (position === 1) return "cover";
   if (position === 4) return "body"; // closer is body layout, no arrow is baked in bg
   return "body";
@@ -53,7 +118,7 @@ var MARGIN_Y = 95;
 var STEPS = ["Input", "Generate", "Select", "Edit", "Review", "Export"];
 
 // ═══ STEP BAR ═══
-function StepBar({ step, setStep, maxStep }) {
+function StepBar({ step, setStep, maxStep }: { step: number; setStep: (n: number) => void; maxStep: number }) {
   return <div style={{ display: "flex", gap: 0, marginBottom: 28 }}>
     {STEPS.map(function(s, i) {
       var done = i < step;
@@ -73,17 +138,17 @@ function StepBar({ step, setStep, maxStep }) {
 }
 
 // ═══ B-ROLL PICKER ═══
-function BRollPicker({ onSelect }) {
+function BRollPicker({ onSelect }: { onSelect: (url: string) => void }) {
   var _open = useState(false), open = _open[0], setOpen = _open[1];
-  var _assets = useState([]), assets = _assets[0], setAssets = _assets[1];
-  var _loadState = useState("idle"), loadState = _loadState[0], setLoadState = _loadState[1];
+  var _assets = useState<BRollImageAsset[]>([]), assets = _assets[0], setAssets = _assets[1];
+  var _loadState = useState<string>("idle"), loadState = _loadState[0], setLoadState = _loadState[1];
   var _search = useState(""), search = _search[0], setSearch = _search[1];
   var _catFilter = useState("all"), catFilter = _catFilter[0], setCatFilter = _catFilter[1];
 
   function loadAssets() {
     if (loadState === "loaded" || loadState === "loading") return;
     setLoadState("loading");
-    fetch("/api/db?table=projects").then(function(r) { return r.json(); }).then(function(res) {
+    fetch("/api/db?table=projects").then(function(r) { return r.json(); }).then(function(res: { data?: Array<{ type: string; id: string; data?: { assets?: BRollImageAsset[] } }> }) {
       if (res.data && res.data.length > 0) {
         var row = res.data.find(function(r) { return r.type === "broll-asset" && r.id === "broll-master"; });
         if (row && row.data && row.data.assets) {
@@ -95,9 +160,9 @@ function BRollPicker({ onSelect }) {
   }
 
   function handleOpen() { setOpen(!open); if (!open) loadAssets(); }
-  function handlePick(asset) { onSelect(asset.url); setOpen(false); }
+  function handlePick(asset: BRollImageAsset) { onSelect(asset.url); setOpen(false); }
 
-  var categories = [];
+  var categories: string[] = [];
   assets.forEach(function(a) { if (a.category && categories.indexOf(a.category) === -1) categories.push(a.category); });
 
   var filtered = assets.filter(function(a) {
@@ -130,7 +195,7 @@ function BRollPicker({ onSelect }) {
         {filtered.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
           {filtered.map(function(asset) {
             return <div key={asset.id} onClick={function() { handlePick(asset); }} title={asset.filename || asset.description || ""} style={{ width: "100%", aspectRatio: "1", borderRadius: 6, overflow: "hidden", cursor: "pointer", border: "1px solid " + C.border, background: C.surface, transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.blue; e.currentTarget.style.transform = "scale(1.05)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "scale(1)"; }}>
-              <img src={asset.thumbnail || asset.url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+              <img src={asset.thumbnail || asset.url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
             </div>;
           })}
         </div>}
@@ -140,7 +205,7 @@ function BRollPicker({ onSelect }) {
 }
 
 // ═══ FONT SIZE CONTROL ═══
-function FontSizeControl({ value, onChange, label }) {
+function FontSizeControl({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) {
   return <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
     <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, minWidth: 40 }}>{label}</span>
     <button onClick={function() { onChange(Math.max(12, value - 1)); }} style={{ width: 22, height: 22, borderRadius: 4, background: C.surface, border: "1px solid " + C.border, color: C.txm, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>-</button>
@@ -150,29 +215,29 @@ function FontSizeControl({ value, onChange, label }) {
 }
 
 // ═══ IMAGE FRAME (clickable area for image insertion with position control) ═══
-function ImageFrame({ imageUrl, onImageChange, onPositionChange, imagePosition, imageFit, style: frameStyle, slideId }) {
-  var fileRef = useRef(null);
+function ImageFrame({ imageUrl, onImageChange, onPositionChange, imagePosition, imageFit, style: frameStyle, slideId }: { imageUrl?: string; onImageChange: (url: string) => void; onPositionChange?: (pos: string) => void; imagePosition?: string; imageFit?: string; style?: React.CSSProperties; slideId: string }) {
+  var fileRef = useRef<HTMLInputElement>(null);
   var _hover = useState(false), hover = _hover[0], setHover = _hover[1];
   var pos = imagePosition || "center";
-  var fit = imageFit || "cover";
+  var fit: "cover" | "contain" | "fill" = (imageFit as "cover" | "contain" | "fill") || "cover";
 
-  function handleClick(e) {
-    if (e.target.tagName === "BUTTON" || e.target.closest("button")) return;
+  function handleClick(e: React.MouseEvent<HTMLDivElement>) {
+    if ((e.target as HTMLElement).tagName === "BUTTON" || (e.target as HTMLElement).closest("button")) return;
     if (fileRef.current) fileRef.current.click();
   }
 
-  function handleFile(e) {
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     var file = e.target.files && e.target.files[0];
     if (!file) return;
     var reader = new FileReader();
-    reader.onload = function(ev) { onImageChange(ev.target.result); };
+    reader.onload = function(ev) { onImageChange(ev.target?.result as string); };
     reader.readAsDataURL(file);
     e.target.value = "";
   }
 
   return <div onClick={handleClick} onMouseEnter={function() { setHover(true); }} onMouseLeave={function() { setHover(false); }} style={Object.assign({}, { borderRadius: 20 * SCALE, overflow: "hidden", cursor: "pointer", position: "relative", background: "rgba(255,255,255,0.04)", border: "1px dashed rgba(255,255,255,0.12)" }, frameStyle)}>
     {imageUrl ? <div style={{ width: "100%", height: "100%", position: "relative" }}>
-      <img src={imageUrl} style={{ width: "100%", height: "100%", objectFit: fit, objectPosition: pos, display: "block", background: "#000" }} onError={function(e) { e.target.style.opacity = "0.3"; }} />
+      <img src={imageUrl} style={{ width: "100%", height: "100%", objectFit: fit, objectPosition: pos, display: "block", background: "#000" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.opacity = "0.3"; }} />
       {/* Position + fit controls (show on hover) */}
       {hover && onPositionChange && <div style={{ position: "absolute", bottom: 6, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 3, background: "rgba(0,0,0,0.75)", borderRadius: 8, padding: "4px 6px", backdropFilter: "blur(8px)" }} onClick={function(e) { e.stopPropagation(); }}>
         <button onClick={function() { onPositionChange("top"); }} title="Align top" style={{ padding: "3px 8px", borderRadius: 4, background: pos === "top" ? C.amber : "rgba(255,255,255,0.1)", border: "none", color: pos === "top" ? C.bg : "rgba(255,255,255,0.6)", fontSize: 9, cursor: "pointer", fontFamily: mn }}>Top</button>
@@ -192,12 +257,12 @@ function ImageFrame({ imageUrl, onImageChange, onPositionChange, imagePosition, 
 }
 
 // ═══ SLIDE CANVAS (the large visual editor canvas) ═══
-function SlideCanvas({ slide, theme, onUpdate }) {
+function SlideCanvas({ slide, theme, onUpdate }: { slide: Slide; theme: ThemeKey; onUpdate: (s: Slide) => void }) {
   var bgUrl = getBackdropUrl(theme, slide.position);
   var mx = MARGIN_X * SCALE; // ~32px
   var my = MARGIN_Y * SCALE; // ~40px
 
-  function updateField(field, value) {
+  function updateField(field: string, value: string | number) {
     onUpdate(Object.assign({}, slide, { [field]: value }));
   }
 
@@ -342,7 +407,7 @@ function SlideCanvas({ slide, theme, onUpdate }) {
 }
 
 // ═══ SLIDE THUMBNAIL (small preview for strip) ═══
-function SlideThumbnail({ slide, theme, isActive, onClick, index }) {
+function SlideThumbnail({ slide, theme, isActive, onClick, index }: { slide: Slide; theme: ThemeKey; isActive: boolean; onClick: () => void; index: number }) {
   var bgUrl = getBackdropUrl(theme, slide.position);
   var tw = 120;
   var th = 150; // 4:5 ratio
@@ -353,7 +418,7 @@ function SlideThumbnail({ slide, theme, isActive, onClick, index }) {
     <div style={{ position: "absolute", inset: 0, padding: 6 }}>
       {slide.type === "cover" && <div>
         {slide.imageUrl && <div style={{ width: "100%", height: "40%", borderRadius: 3, overflow: "hidden", marginBottom: 3, background: "rgba(255,255,255,0.05)" }}>
-          <img src={slide.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+          <img src={slide.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
         </div>}
         <div style={{ fontFamily: gf, fontSize: 7, fontWeight: 800, color: "#fff", lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{slide.title || ""}</div>
       </div>}
@@ -362,13 +427,13 @@ function SlideThumbnail({ slide, theme, isActive, onClick, index }) {
       </div>}
       {slide.type === "image_text" && <div>
         {slide.imageUrl && <div style={{ width: "100%", height: "50%", borderRadius: 3, overflow: "hidden", marginBottom: 2, background: "rgba(255,255,255,0.05)" }}>
-          <img src={slide.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+          <img src={slide.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
         </div>}
         <div style={{ fontFamily: gf, fontSize: 5, color: "rgba(255,255,255,0.7)", lineHeight: 1.2, overflow: "hidden" }}>{(slide.bodyText || "").slice(0, 40)}</div>
       </div>}
       {slide.type === "large_image" && <div>
         {slide.imageUrl && <div style={{ width: "100%", height: "70%", borderRadius: 3, overflow: "hidden", marginBottom: 2, background: "rgba(255,255,255,0.05)" }}>
-          <img src={slide.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+          <img src={slide.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
         </div>}
         <div style={{ fontFamily: gf, fontSize: 5, color: "rgba(255,255,255,0.5)", lineHeight: 1.2 }}>{(slide.caption || "").slice(0, 30)}</div>
       </div>}
@@ -380,15 +445,15 @@ function SlideThumbnail({ slide, theme, isActive, onClick, index }) {
 
 
 // ═══ STEP 0: INPUT ═══
-function InputStep({ state, setState, onNext }) {
+function InputStep({ state, setState, onNext }: { state: CarouselState; setState: React.Dispatch<React.SetStateAction<CarouselState>>; onNext: () => void }) {
   var _dragging = useState(false), dragging = _dragging[0], setDragging = _dragging[1];
-  var _inputMode = useState(state.url ? "link" : state.text ? "context" : null), inputMode = _inputMode[0], setInputMode = _inputMode[1];
-  var themeKeys = Object.keys(THEMES);
+  var _inputMode = useState<string | null>(state.url ? "link" : state.text ? "context" : null), inputMode = _inputMode[0], setInputMode = _inputMode[1];
+  var themeKeys = Object.keys(THEMES) as ThemeKey[];
 
-  function handleFile(file) {
+  function handleFile(file: File | null | undefined) {
     if (!file) return;
     var reader = new FileReader();
-    reader.onload = function(e) { setState(function(s) { return Object.assign({}, s, { text: e.target.result, fileName: file.name }); }); };
+    reader.onload = function(e) { setState(function(s) { return Object.assign({}, s, { text: e.target?.result as string, fileName: file.name }); }); };
     reader.readAsText(file);
   }
 
@@ -449,7 +514,7 @@ function InputStep({ state, setState, onNext }) {
     {/* Link Input */}
     {(inputMode === "link" || (state.url || "").trim()) && <div style={{ marginBottom: 20 }}>
       <div style={{ fontFamily: mn, fontSize: 9, color: C.blue, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Article URL</div>
-      <input value={state.url || ""} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { url: e.target.value }); }); }} placeholder="https://semianalysis.com/p/..." style={{ width: "100%", padding: "14px 18px", background: C.card, border: "1px solid " + C.blue + "30", borderRadius: 10, color: C.tx, fontFamily: ft, fontSize: 15, outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.blue; }} onBlur={function(e) { e.target.style.borderColor = C.blue + "30"; }} />
+      <input value={state.url || ""} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { url: e.target.value }); }); }} placeholder="https://semianalysis.com/p/..." style={{ width: "100%", padding: "14px 18px", background: C.card, border: "1px solid " + C.blue + "30", borderRadius: 10, color: C.tx, fontFamily: ft, fontSize: 15, outline: "none", boxSizing: "border-box" }} onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.blue; }} onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.blue + "30"; }} />
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
         <button onClick={function() {
           var u = (state.url || "").trim();
@@ -468,10 +533,10 @@ function InputStep({ state, setState, onNext }) {
     {(inputMode === "context" || (state.text || "").trim()) && <div style={{ marginBottom: 20 }}>
       <div style={{ fontFamily: mn, fontSize: 9, color: C.teal, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Content / Context</div>
       <div onDragOver={function(e) { e.preventDefault(); setDragging(true); }} onDragLeave={function() { setDragging(false); }} onDrop={function(e) { e.preventDefault(); setDragging(false); if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); }}>
-        <textarea value={state.text || ""} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { text: e.target.value }); }); }} placeholder="Paste article text here..." rows={10} style={{ width: "100%", padding: "14px 16px", background: dragging ? C.amber + "08" : C.card, border: "1px solid " + (dragging ? C.teal : C.border), borderRadius: 10, color: C.tx, fontFamily: ft, fontSize: 13, lineHeight: 1.7, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.teal; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+        <textarea value={state.text || ""} onChange={function(e) { setState(function(s) { return Object.assign({}, s, { text: e.target.value }); }); }} placeholder="Paste article text here..." rows={10} style={{ width: "100%", padding: "14px 16px", background: dragging ? C.amber + "08" : C.card, border: "1px solid " + (dragging ? C.teal : C.border), borderRadius: 10, color: C.tx, fontFamily: ft, fontSize: 13, lineHeight: 1.7, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.teal; }} onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.border; }} />
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
           <label style={{ fontFamily: mn, fontSize: 10, color: C.txd, cursor: "pointer", padding: "4px 10px", border: "1px solid " + C.border, borderRadius: 5 }}>
-            Upload .txt <input type="file" accept=".txt,.md" onChange={function(e) { handleFile(e.target.files[0]); }} style={{ display: "none" }} />
+            Upload .txt <input type="file" accept=".txt,.md" onChange={function(e) { handleFile(e.target.files && e.target.files[0]); }} style={{ display: "none" }} />
           </label>
           <div style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>{(state.text || "").length.toLocaleString()} chars</div>
         </div>
@@ -485,13 +550,13 @@ function InputStep({ state, setState, onNext }) {
         <label style={{ padding: "5px 12px", borderRadius: 6, background: C.violet + "12", border: "1px solid " + C.violet + "30", color: C.violet, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
           Upload Images
           <input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={function(e) {
-            var files = Array.prototype.slice.call(e.target.files);
+            var files = Array.prototype.slice.call(e.target.files || []) as File[];
             files.forEach(function(file) {
               var reader = new FileReader();
               reader.onload = function(ev) {
                 setState(function(s) {
                   var existing = s.articleImages || [];
-                  return Object.assign({}, s, { articleImages: existing.concat([ev.target.result]) });
+                  return Object.assign({}, s, { articleImages: existing.concat([ev.target?.result as string]) });
                 });
               };
               reader.readAsDataURL(file);
@@ -505,7 +570,7 @@ function InputStep({ state, setState, onNext }) {
           var isSel = state.selectedArticleImage === imgUrl;
           return <div key={i} style={{ position: "relative", flexShrink: 0 }}>
             <div onClick={function() { setState(function(s) { return Object.assign({}, s, { selectedArticleImage: isSel ? null : imgUrl }); }); }} style={{ width: 80, height: 80, borderRadius: 8, overflow: "hidden", cursor: "pointer", border: "2px solid " + (isSel ? C.amber : "transparent"), opacity: isSel ? 1 : 0.7, transition: "all 0.2s" }}>
-              <img src={imgUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.parentElement.style.display = "none"; }} />
+              <img src={imgUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { if (e.currentTarget.parentElement) e.currentTarget.parentElement.style.display = "none"; }} />
             </div>
             <div onClick={function() { setState(function(s) { var imgs = (s.articleImages || []).filter(function(u) { return u !== imgUrl; }); var sel = s.selectedArticleImage === imgUrl ? null : s.selectedArticleImage; return Object.assign({}, s, { articleImages: imgs, selectedArticleImage: sel }); }); }} style={{ position: "absolute", top: -4, right: -4, width: 18, height: 18, borderRadius: "50%", background: C.coral, color: "#fff", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 700, lineHeight: 1 }}>{"\u00D7"}</div>
           </div>;
@@ -534,11 +599,11 @@ function GenerateStep() {
 
 
 // ═══ STEP 2: VARIANT SELECTION ═══
-function VariantSelectStep({ variants, theme, onSelect, onBack }) {
+function VariantSelectStep({ variants, theme, onSelect, onBack }: { variants: Record<string, Variant>; theme: ThemeKey; onSelect: (key: string) => void; onBack: () => void }) {
   var variantKeys = Object.keys(variants || {}).filter(function(k) { return variants[k] && variants[k].slides; });
-  var varColors = { A: C.amber, B: C.blue, C: C.teal };
-  var varLabels = { A: "Concise", B: "Deep Dive", C: "Visual Story" };
-  var _hover = useState(null), hoverKey = _hover[0], setHoverKey = _hover[1];
+  var varColors: Record<string, string> = { A: C.amber, B: C.blue, C: C.teal };
+  var varLabels: Record<string, string> = { A: "Concise", B: "Deep Dive", C: "Visual Story" };
+  var _hover = useState<string | null>(null), hoverKey = _hover[0], setHoverKey = _hover[1];
 
   return <div>
     <div style={{ marginBottom: 28 }}>
@@ -554,7 +619,7 @@ function VariantSelectStep({ variants, theme, onSelect, onBack }) {
         var positions = getSlidePositions(slides.length);
         var isHovered = hoverKey === k;
         var hasImages = slides.some(function(sl) { return sl.image_url; });
-        var typeBreakdown = {};
+        var typeBreakdown: Record<string, number> = {};
         slides.forEach(function(sl) {
           var label = sl.type === "COVER" ? "Cover" : sl.type === "BODY_FINAL" ? "Closer" : sl.type === "BODY_IMAGE" ? "Image+Text" : sl.type === "BODY_LARGE_IMAGE" ? "Large Image" : "Text";
           typeBreakdown[label] = (typeBreakdown[label] || 0) + 1;
@@ -590,7 +655,7 @@ function VariantSelectStep({ variants, theme, onSelect, onBack }) {
                 <div style={{ position: "absolute", inset: 0, padding: "12px 8px 8px" }}>
                   {sl.type === "COVER" && <div>
                     {sl.image_url && <div style={{ width: "100%", height: "38%", borderRadius: 4, overflow: "hidden", marginBottom: 4, background: "rgba(255,255,255,0.05)" }}>
-                      <img src={sl.image_url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                      <img src={sl.image_url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                     </div>}
                     <div style={{ fontFamily: gf, fontSize: 9, fontWeight: 800, color: "#fff", lineHeight: 1.15, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{sl.title || ""}</div>
                     <div style={{ fontFamily: gf, fontSize: 6, color: "rgba(255,255,255,0.6)", lineHeight: 1.3, marginTop: 3, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{sl.subtitle || ""}</div>
@@ -600,13 +665,13 @@ function VariantSelectStep({ variants, theme, onSelect, onBack }) {
                   </div>}
                   {sl.type === "BODY_IMAGE" && <div>
                     <div style={{ width: "100%", height: "45%", borderRadius: 4, overflow: "hidden", marginBottom: 3, background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {sl.image_url ? <img src={sl.image_url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} /> : <div style={{ fontFamily: mn, fontSize: 7, color: "rgba(255,255,255,0.15)" }}>IMAGE</div>}
+                      {sl.image_url ? <img src={sl.image_url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} /> : <div style={{ fontFamily: mn, fontSize: 7, color: "rgba(255,255,255,0.15)" }}>IMAGE</div>}
                     </div>
                     <div style={{ fontFamily: gf, fontSize: 5.5, color: "rgba(255,255,255,0.7)", lineHeight: 1.3, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical" }}>{sl.body_text || ""}</div>
                   </div>}
                   {sl.type === "BODY_LARGE_IMAGE" && <div>
                     <div style={{ width: "100%", height: "65%", borderRadius: 4, overflow: "hidden", marginBottom: 3, background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {sl.image_url ? <img src={sl.image_url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} /> : <div style={{ fontFamily: mn, fontSize: 7, color: "rgba(255,255,255,0.15)" }}>IMAGE</div>}
+                      {sl.image_url ? <img src={sl.image_url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} /> : <div style={{ fontFamily: mn, fontSize: 7, color: "rgba(255,255,255,0.15)" }}>IMAGE</div>}
                     </div>
                     <div style={{ fontFamily: gf, fontSize: 5, color: "rgba(255,255,255,0.5)", lineHeight: 1.2 }}>{sl.subtext || ""}</div>
                   </div>}
@@ -629,11 +694,11 @@ function VariantSelectStep({ variants, theme, onSelect, onBack }) {
 
 
 // ═══ STEP 3: EDIT (Visual Slide Editor) ═══
-function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
+function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: { slides: Slide[]; setSlides: (s: Slide[]) => void; theme: ThemeKey; onNext: () => void; onBack: () => void; articleImages?: string[] }) {
   var _currentIdx = useState(0), currentIdx = _currentIdx[0], setCurrentIdx = _currentIdx[1];
   var currentSlide = slides[currentIdx] || slides[0];
 
-  function updateSlide(updated) {
+  function updateSlide(updated: Slide) {
     var newSlides = slides.slice();
     var old = newSlides[currentIdx];
     newSlides[currentIdx] = updated;
@@ -662,7 +727,7 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
     setSlides(newSlides);
   }
 
-  function changeSlideType(newType) {
+  function changeSlideType(newType: string) {
     var old = currentSlide;
     // Gather all existing text so nothing is lost
     var allText = old.bodyText || old.title || old.caption || "";
@@ -738,7 +803,7 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
 
   // Keyboard nav
   useEffect(function() {
-    function handleKey(e) {
+    function handleKey(e: KeyboardEvent) {
       if (e.key === "ArrowLeft" && currentIdx > 0) setCurrentIdx(currentIdx - 1);
       if (e.key === "ArrowRight" && currentIdx < slides.length - 1) setCurrentIdx(currentIdx + 1);
     }
@@ -854,7 +919,7 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
           <div style={{ fontFamily: mn, fontSize: 9, color: C.violet, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Article Images</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
             {(function() {
-              var firstUnused = null;
+              var firstUnused: string | null = null;
               articleImages.forEach(function(u) { if (!firstUnused && !slides.some(function(sl) { return sl.imageUrl === u || sl.imageUrl2 === u; })) firstUnused = u; });
               return articleImages.map(function(imgUrl, i) {
                 var isUsed = slides.some(function(sl) { return sl.imageUrl === imgUrl || sl.imageUrl2 === imgUrl; });
@@ -863,11 +928,11 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
                 return <div key={i} style={{ position: "relative" }}>
                   <div onClick={function() {
                     if (isUsed) return;
-                    var update = { imageFit: "cover", imagePosition: "center" };
+                    var update: Record<string, string> = { imageFit: "cover", imagePosition: "center" };
                     update[targetField] = imgUrl;
                     updateSlide(Object.assign({}, currentSlide, update));
                   }} style={{ width: "100%", aspectRatio: "4/5", borderRadius: 6, overflow: "hidden", cursor: isUsed ? "default" : "pointer", border: "2px solid " + (isSuggested ? C.amber : isUsed ? C.teal + "50" : C.border), opacity: isUsed ? 0.45 : 1, transition: "all 0.15s", boxShadow: isSuggested ? "0 0 12px " + C.amber + "30" : "none" }} onMouseEnter={function(e) { if (!isUsed) { e.currentTarget.style.borderColor = C.violet; e.currentTarget.style.transform = "scale(1.04)"; } }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = isSuggested ? C.amber : isUsed ? C.teal + "50" : C.border; e.currentTarget.style.transform = "scale(1)"; }}>
-                    <img src={imgUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.parentElement.style.display = "none"; }} />
+                    <img src={imgUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { if (e.currentTarget.parentElement) e.currentTarget.parentElement.style.display = "none"; }} />
                   </div>
                   {isSuggested && <div style={{ position: "absolute", top: -6, left: "50%", transform: "translateX(-50%)", fontFamily: mn, fontSize: 7, color: C.bg, background: C.amber, padding: "1px 6px", borderRadius: 4, fontWeight: 700, whiteSpace: "nowrap" }}>Best match</div>}
                   {isUsed && <div style={{ position: "absolute", top: 2, right: 2, fontFamily: mn, fontSize: 7, color: C.teal, background: "rgba(0,0,0,0.7)", padding: "1px 4px", borderRadius: 3 }}>In use</div>}
@@ -889,7 +954,7 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
         <div style={{ marginTop: 20, fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Edit Text (fallback)</div>
         {currentSlide.type === "cover" && <div>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Title</div>
-          <textarea value={currentSlide.title || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { title: e.target.value })); }} rows={2} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 13, lineHeight: 1.4, resize: "none", outline: "none", boxSizing: "border-box", marginBottom: 8 }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+          <textarea value={currentSlide.title || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { title: e.target.value })); }} rows={2} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 13, lineHeight: 1.4, resize: "none", outline: "none", boxSizing: "border-box", marginBottom: 8 }} onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.amber; }} onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.border; }} />
           <div style={{ marginBottom: 6 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
               <div style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>Subtitle Length</div>
@@ -902,21 +967,21 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
                 updateSlide(Object.assign({}, currentSlide, { subtitleLength: target }));
                 var curr = currentSlide.subtitle || "";
                 if (!curr.trim()) return;
-                var labels = { 1: "1 short sentence, under 15 words", 2: "2 sentences, under 30 words", 3: "3 sentences, 40-50 words", 4: "3-4 sentences, 50-65 words", 5: "4-5 sentences, 65-80 words, fill the space" };
+                var labels: Record<number, string> = { 1: "1 short sentence, under 15 words", 2: "2 sentences, under 30 words", 3: "3 sentences, 40-50 words", 4: "3-4 sentences, 50-65 words", 5: "4-5 sentences, 65-80 words, fill the space" };
                 fetch("/api/carousel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "rewrite", text: curr, direction: target < 3 ? "shorten" : "lengthen", targetLength: labels[target] }) }).then(function(r) { return r.json(); }).then(function(d) { if (d.text) updateSlide(Object.assign({}, currentSlide, { subtitle: d.text, subtitleLength: target })); }).catch(function() {});
               }} style={{ flex: 1, accentColor: C.amber }} />
               <span style={{ fontFamily: mn, fontSize: 8, color: C.teal }}>Long</span>
             </div>
           </div>
-          <textarea value={currentSlide.subtitle || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { subtitle: e.target.value })); }} rows={4} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 12, lineHeight: 1.4, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+          <textarea value={currentSlide.subtitle || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { subtitle: e.target.value })); }} rows={4} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 12, lineHeight: 1.4, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.amber; }} onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.border; }} />
         </div>}
         {(currentSlide.type === "body" || currentSlide.type === "image_text") && <div>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Body Text</div>
-          <textarea value={currentSlide.bodyText || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { bodyText: e.target.value })); }} rows={6} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 12, lineHeight: 1.5, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+          <textarea value={currentSlide.bodyText || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { bodyText: e.target.value })); }} rows={6} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 12, lineHeight: 1.5, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.amber; }} onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.border; }} />
         </div>}
         {currentSlide.type === "large_image" && <div>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Caption</div>
-          <textarea value={currentSlide.caption || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { caption: e.target.value })); }} rows={2} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 12, lineHeight: 1.4, resize: "none", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+          <textarea value={currentSlide.caption || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { caption: e.target.value })); }} rows={2} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 12, lineHeight: 1.4, resize: "none", outline: "none", boxSizing: "border-box" }} onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.amber; }} onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.border; }} />
         </div>}
       </div>
     </div>
@@ -933,7 +998,15 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }) {
 
 
 // ═══ STEP 4: REVIEW ═══
-function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, variantLabel, captionOptions, setCaptionOptions, selectedCaptionIdx, setSelectedCaptionIdx, setCaption }) {
+interface CaptionOption {
+  label?: string;
+  instagram?: { caption?: string; hashtags?: string[] };
+  tiktok?: { caption?: string; hashtags?: string[] };
+  shorts?: { title?: string; hashtags?: string[] };
+  [key: string]: unknown;
+}
+
+function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, variantLabel, captionOptions, setCaptionOptions, selectedCaptionIdx, setSelectedCaptionIdx, setCaption }: { slides: Slide[]; setSlides: (s: Slide[]) => void; theme: ThemeKey; onNext: () => void; onBack: () => void; sourceUrl: string; variantLabel: string; captionOptions: CaptionOption[]; setCaptionOptions: React.Dispatch<React.SetStateAction<CaptionOption[]>>; selectedCaptionIdx: number; setSelectedCaptionIdx: (i: number) => void; setCaption: (c: unknown) => void }) {
   var _showReprompt = useState(false), showReprompt = _showReprompt[0], setShowReprompt = _showReprompt[1];
   var _repromptText = useState(""), repromptText = _repromptText[0], setRepromptText = _repromptText[1];
   var _captionLoading = useState(false), captionLoading = _captionLoading[0], setCaptionLoading = _captionLoading[1];
@@ -950,7 +1023,7 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
   var ctaText = lastSlide ? (lastSlide.ctaText || "") : "";
   var ctaPosition = lastSlide ? (lastSlide.ctaPosition || "bottom-center") : "bottom-center";
 
-  function updateLastSlideCta(field, value) {
+  function updateLastSlideCta(field: string, value: string) {
     var newSlides = slides.slice();
     var idx = newSlides.length - 1;
     newSlides[idx] = Object.assign({}, newSlides[idx], { [field]: value });
@@ -958,7 +1031,7 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
   }
 
   function buildApiSlides() {
-    return slides.map(function(sl) {
+    return slides.map(function(sl: Slide) {
       var apiType = "BODY_A";
       if (sl.type === "cover") apiType = "COVER";
       else if (sl.position === 4) apiType = "BODY_FINAL";
@@ -976,7 +1049,7 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
     });
   }
 
-  function generateCaptions(extraContext) {
+  function generateCaptions(extraContext: string) {
     setCaptionLoading(true);
     var apiSlides = buildApiSlides();
     fetch("/api/carousel", {
@@ -1008,7 +1081,7 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
     generateCaptions("");
   }, []);
 
-  function handleSelectOption(idx) {
+  function handleSelectOption(idx: number) {
     setSelectedCaptionIdx(idx);
     var opt = captionOptions[idx];
     if (opt && opt.instagram) setCaption(opt.instagram);
@@ -1032,7 +1105,7 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
 
     {/* All slides side by side */}
     <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 16, marginBottom: 28 }}>
-      {slides.map(function(sl, i) {
+      {slides.map(function(sl: Slide, i: number) {
         var bgUrl = getBackdropUrl(theme, sl.position);
         var rw = 280;
         var rh = 350;
@@ -1040,7 +1113,7 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
         var topPad = FULL_H * 0.10 * rScale;
         var botPad = FULL_H * 0.08 * rScale;
         var sidePad = 60 * rScale;
-        var imgFit = sl.imageFit || "cover";
+        var imgFit = (sl.imageFit || "cover") as "cover" | "contain" | "fill";
         var imgPos = sl.imagePosition || "center";
 
         return <div key={sl.id} style={{ flexShrink: 0 }}>
@@ -1048,40 +1121,40 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
             <div style={{ position: "absolute", left: 0, right: 0, top: topPad, bottom: botPad, padding: "0 " + sidePad + "px" }}>
               {sl.type === "cover" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
                 {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 46) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
-                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: sl.titleSize * rScale, fontWeight: 800, color: "#fff", lineHeight: 1.15, marginBottom: 4, overflow: "hidden" }}>{sl.title || ""}</div>
                 <div style={{ fontFamily: gf, fontSize: sl.subtitleSize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.75)", lineHeight: 1.35, overflow: "hidden" }}>{sl.subtitle || ""}</div>
               </div>}
               {sl.type === "body" && <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: sl.imageUrl ? "flex-start" : "center", position: "relative" }}>
                 {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 45) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
-                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.9)", lineHeight: 1.5, overflow: "hidden", whiteSpace: "pre-wrap" }}>{sl.bodyText || ""}</div>
                 {sl.position === 4 && sl.ctaText && <div style={{ position: "absolute", bottom: (16 - FULL_H * 0.08) * rScale, left: sl.ctaPosition === "bottom-center" ? 0 : "auto", right: sl.ctaPosition === "bottom-center" ? 0 : sidePad, width: sl.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: sl.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * rScale, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.5)", letterSpacing: "1px" }}>{sl.ctaText}</div>}
               </div>}
               {sl.type === "image_text" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
                 {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 50) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
-                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, color: "rgba(255,255,255,0.9)", lineHeight: 1.4, overflow: "hidden" }}>{sl.bodyText || ""}</div>
               </div>}
               {sl.type === "large_image" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
                 {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 72) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
-                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: (sl.captionSize || 18) * rScale, color: "rgba(255,255,255,0.6)", lineHeight: 1.3 }}>{sl.caption || ""}</div>
               </div>}
               {sl.type === "dual_image" && <div style={{ height: "100%", display: "flex", flexDirection: "column", gap: 4 }}>
                 <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
                   {sl.imageUrl && <div style={{ width: "100%", flex: 1, borderRadius: 6 * rScale, overflow: "hidden", marginBottom: 2, background: "#000" }}>
-                    <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                    <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                   </div>}
                   <div style={{ fontFamily: gf, fontSize: (sl.captionSize || 16) * rScale, color: "rgba(255,255,255,0.6)", lineHeight: 1.2, flexShrink: 0 }}>{sl.caption || ""}</div>
                 </div>
                 <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
                   {sl.imageUrl2 && <div style={{ width: "100%", flex: 1, borderRadius: 6 * rScale, overflow: "hidden", marginBottom: 2, background: "#000" }}>
-                    <img src={sl.imageUrl2} style={{ width: "100%", height: "100%", objectFit: imgFit, display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                    <img src={sl.imageUrl2} style={{ width: "100%", height: "100%", objectFit: imgFit, display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                   </div>}
                   <div style={{ fontFamily: gf, fontSize: (sl.captionSize || 16) * rScale, color: "rgba(255,255,255,0.6)", lineHeight: 1.2, flexShrink: 0 }}>{sl.caption2 || ""}</div>
                 </div>
@@ -1099,7 +1172,7 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
       <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>CTA Text</div>
-          <input value={ctaText} onChange={function(e) { updateLastSlideCta("ctaText", e.target.value); }} placeholder="LINK IN BIO" style={{ width: "100%", padding: "8px 12px", background: C.bg, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 14, fontWeight: 700, outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
+          <input value={ctaText} onChange={function(e) { updateLastSlideCta("ctaText", e.target.value); }} placeholder="LINK IN BIO" style={{ width: "100%", padding: "8px 12px", background: C.bg, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 14, fontWeight: 700, outline: "none", boxSizing: "border-box" }} onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.amber; }} onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.border; }} />
         </div>
         <div>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Position</div>
@@ -1124,7 +1197,7 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
 
     {/* Caption option selector cards */}
     {!captionLoading && captionOptions.length > 0 && <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-      {captionOptions.map(function(opt, oi) {
+      {captionOptions.map(function(opt: CaptionOption, oi: number) {
         var isSel = selectedCaptionIdx === oi;
         var optColors = [C.amber, C.blue, C.teal];
         var oc = optColors[oi] || C.amber;
@@ -1143,7 +1216,7 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
     {!captionLoading && captionOptions.length > 0 && <div style={{ marginBottom: 16 }}>
       {!showReprompt && <button onClick={function() { setShowReprompt(true); }} style={{ padding: "8px 14px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, color: C.txm, cursor: "pointer", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.blue + "40"; e.currentTarget.style.color = C.blue; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.txm; }}>Reprompt</button>}
       {showReprompt && <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-        <textarea value={repromptText} onChange={function(e) { setRepromptText(e.target.value); }} placeholder="Add extra context for regeneration (tone, angle, key points to emphasize...)" rows={2} style={{ flex: 1, padding: "10px 14px", background: C.card, border: "1px solid " + C.blue + "30", borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 12, lineHeight: 1.5, resize: "none", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = C.blue; }} onBlur={function(e) { e.target.style.borderColor = C.blue + "30"; }} />
+        <textarea value={repromptText} onChange={function(e) { setRepromptText(e.target.value); }} placeholder="Add extra context for regeneration (tone, angle, key points to emphasize...)" rows={2} style={{ flex: 1, padding: "10px 14px", background: C.card, border: "1px solid " + C.blue + "30", borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 12, lineHeight: 1.5, resize: "none", outline: "none", boxSizing: "border-box" }} onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.blue; }} onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.blue + "30"; }} />
         <button onClick={handleReprompt} style={{ padding: "10px 18px", background: C.blue, color: "#fff", border: "none", borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>Generate</button>
         <button onClick={function() { setShowReprompt(false); setRepromptText(""); }} style={{ padding: "10px 12px", background: "transparent", color: C.txd, border: "1px solid " + C.border, borderRadius: 6, fontFamily: ft, fontSize: 12, cursor: "pointer" }}>{"\u00D7"}</button>
       </div>}
@@ -1169,8 +1242,8 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
         {(function() {
           var plat = PLATFORMS.find(function(p) { return p.key === platTab; });
           if (!plat) return null;
-          var data = opt[plat.key] || {};
-          var text = plat.key === "shorts" ? (data.title || "") : (data.caption || "");
+          var data = (opt[plat.key] || {}) as Record<string, unknown>;
+          var text = plat.key === "shorts" ? (String(data.title || "")) : (String(data.caption || ""));
           var charCount = text.length;
           var overLimit = charCount > plat.charLimit;
 
@@ -1184,19 +1257,20 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
             </div>
             <textarea value={text} onChange={function(e) {
               var val = e.target.value;
-              setCaptionOptions(function(prev) {
+              setCaptionOptions(function(prev: CaptionOption[]) {
                 var updated = prev.slice();
                 updated[selectedCaptionIdx] = Object.assign({}, updated[selectedCaptionIdx]);
-                if (!updated[selectedCaptionIdx][plat.key]) updated[selectedCaptionIdx][plat.key] = {};
-                if (plat.key === "shorts") updated[selectedCaptionIdx][plat.key].title = val;
-                else updated[selectedCaptionIdx][plat.key].caption = val;
+                if (!updated[selectedCaptionIdx][plat!.key]) updated[selectedCaptionIdx][plat!.key] = {};
+                var platData = updated[selectedCaptionIdx][plat!.key] as Record<string, unknown>;
+                if (plat!.key === "shorts") platData.title = val;
+                else platData.caption = val;
                 return updated;
               });
-              if (plat.key === "instagram") setCaption(function(c) { return Object.assign({}, c || {}, { caption: val }); });
-            }} rows={plat.key === "shorts" ? 2 : 5} style={{ width: "100%", padding: "10px 12px", background: C.bg, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 13, lineHeight: 1.6, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e) { e.target.style.borderColor = plat.color; }} onBlur={function(e) { e.target.style.borderColor = C.border; }} />
-            {plat.key !== "shorts" && data.hashtags && data.hashtags.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
-              {data.hashtags.map(function(tag, i) {
-                return <span key={i} style={{ fontFamily: ft, fontSize: 11, color: plat.color, padding: "3px 8px", background: plat.color + "10", border: "1px solid " + plat.color + "18", borderRadius: 16 }}>#{tag.replace(/^#/, "")}</span>;
+              if (plat!.key === "instagram") setCaption({ caption: val });
+            }} rows={plat!.key === "shorts" ? 2 : 5} style={{ width: "100%", padding: "10px 12px", background: C.bg, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 13, lineHeight: 1.6, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = plat!.color; }} onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.border; }} />
+            {plat!.key !== "shorts" && !!data.hashtags && (data.hashtags as string[]).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
+              {(data.hashtags as string[]).map(function(tag: string, i: number) {
+                return <span key={i} style={{ fontFamily: ft, fontSize: 11, color: plat!.color, padding: "3px 8px", background: plat!.color + "10", border: "1px solid " + plat!.color + "18", borderRadius: 16 }}>#{tag.replace(/^#/, "")}</span>;
               })}
             </div>}
           </div>;
@@ -1210,12 +1284,12 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
 
 
 // ═══ CANVAS RENDERER (for export) ═══
-function renderSlideToCanvas(slide, bgUrl) {
-  return new Promise(function(resolve, reject) {
+function renderSlideToCanvas(slide: Slide, bgUrl: string): Promise<Blob> {
+  return new Promise<Blob>(function(resolve, reject) {
     var canvas = document.createElement("canvas");
     canvas.width = FULL_W;
     canvas.height = FULL_H;
-    var ctx = canvas.getContext("2d");
+    var ctx = canvas.getContext("2d")!;
 
     // Load background image
     var bgImg = new Image();
@@ -1239,7 +1313,7 @@ function renderSlideToCanvas(slide, bgUrl) {
       ctx.drawImage(bgImg, sx, sy, sw, sh, 0, 0, FULL_W, FULL_H);
 
       // Draw content — handles \n paragraph breaks
-      function drawText(text, x, y, maxWidth, fontSize, fontWeight, color, lineHeight) {
+      function drawText(text: string, x: number, y: number, maxWidth: number, fontSize: number, fontWeight: string, color: string, lineHeight?: number) {
         ctx.font = fontWeight + " " + fontSize + "px Grift, Outfit, sans-serif";
         ctx.fillStyle = color;
         ctx.textBaseline = "top";
@@ -1278,11 +1352,11 @@ function renderSlideToCanvas(slide, bgUrl) {
         return currentY;
       }
 
-      function drawImage(imageUrl, x, y, w, h, radius) {
-        return new Promise(function(resolveImg) {
+      function drawImage(imageUrl: string | undefined, x: number, y: number, w: number, h: number, radius: number) {
+        return new Promise<void>(function(resolveImg) {
           if (!imageUrl) { resolveImg(); return; }
 
-          function renderImg(img) {
+          function renderImg(img: HTMLImageElement) {
             ctx.save();
             ctx.beginPath();
             ctx.moveTo(x + radius, y);
@@ -1447,10 +1521,10 @@ function renderSlideToCanvas(slide, bgUrl) {
 
 
 // ═══ STEP 5: EXPORT ═══
-function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx, onBack, sourceUrl, articleTitle }) {
-  var _downloading = useState(null), downloading = _downloading[0], setDownloading = _downloading[1];
+function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx, onBack, sourceUrl, articleTitle }: { slides: Slide[]; theme: ThemeKey; caption: unknown; captionOptions: CaptionOption[]; selectedCaptionIdx: number; onBack: () => void; sourceUrl: string; articleTitle: string }) {
+  var _downloading = useState<number | null>(null), downloading = _downloading[0], setDownloading = _downloading[1];
   var _downloadAll = useState(false), downloadingAll = _downloadAll[0], setDownloadingAll = _downloadAll[1];
-  var _copied = useState({}), copied = _copied[0], setCopied = _copied[1];
+  var _copied = useState<Record<string, boolean>>({}), copied = _copied[0], setCopied = _copied[1];
   var _platTab = useState("instagram"), platTab = _platTab[0], setPlatTab = _platTab[1];
   var _archiveSaving = useState(false), archiveSaving = _archiveSaving[0], setArchiveSaving = _archiveSaving[1];
   var _archiveSaved = useState(false), archiveSaved = _archiveSaved[0], setArchiveSaved = _archiveSaved[1];
@@ -1463,11 +1537,11 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
 
   var selectedCaption = (captionOptions && captionOptions.length > 0) ? (captionOptions[selectedCaptionIdx] || captionOptions[0]) : null;
 
-  var coverTitle = (slides.find(function(s) { return s.type === "cover"; }) || {}).title || "carousel";
+  var coverTitle = (slides.find(function(s) { return s.type === "cover"; }) || {} as Partial<Slide>).title || "carousel";
   var dateStamp = (new Date().getMonth() + 1) + "." + new Date().getDate() + "." + String(new Date().getFullYear()).slice(2);
   var filePrefix = dateStamp + " - " + coverTitle.replace(/[^a-zA-Z0-9 ]/g, "").slice(0, 20).trim().replace(/\s+/g, "_");
 
-  function downloadSlide(index) {
+  function downloadSlide(index: number) {
     var sl = slides[index];
     var bgUrl = getBackdropUrl(theme, sl.position);
     setDownloading(index);
@@ -1514,9 +1588,9 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
     nextSlide();
   }
 
-  function copyText(text, key) {
+  function copyText(text: string, key: string) {
     navigator.clipboard.writeText(text);
-    var c = {};
+    var c: Record<string, boolean> = {};
     c[key] = true;
     setCopied(c);
     setTimeout(function() { setCopied({}); }, 2000);
@@ -1555,10 +1629,10 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
     ]}));
 
     // Each platform
-    var platNames = { instagram: "Instagram", tiktok: "TikTok", shorts: "YouTube Shorts" };
+    var platNames: Record<string, string> = { instagram: "Instagram", tiktok: "TikTok", shorts: "YouTube Shorts" };
     ["instagram", "tiktok", "shorts"].forEach(function(key) {
-      var data = selectedCap[key] || {};
-      var text = key === "shorts" ? (data.title || "") : (data.caption || "");
+      var data = (selectedCap![key] || {}) as Record<string, unknown>;
+      var text = key === "shorts" ? String(data.title || "") : String(data.caption || "");
       if (!text) return;
 
       children.push(new Paragraph({
@@ -1568,16 +1642,16 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
       }));
 
       var lines = text.split("\n");
-      var runs = [];
-      lines.forEach(function(line, idx) {
+      var runs: TextRun[] = [];
+      lines.forEach(function(line: string, idx: number) {
         if (idx > 0) runs.push(new TextRun({ break: 1, text: "", font: { name: "Arial" } }));
         runs.push(new TextRun({ text: line, size: 22, color: BODY, font: { name: FONT } }));
       });
       children.push(new Paragraph({ spacing: { after: 120 }, children: runs }));
 
-      if (key !== "shorts" && data.hashtags && data.hashtags.length > 0) {
+      if (key !== "shorts" && data.hashtags && (data.hashtags as string[]).length > 0) {
         children.push(new Paragraph({ spacing: { after: 160 }, children: [
-          new TextRun({ text: data.hashtags.map(function(t) { return "#" + t.replace(/^#/, ""); }).join("  "), size: 20, color: BLUE, font: { name: FONT } }),
+          new TextRun({ text: (data.hashtags as string[]).map(function(t: string) { return "#" + t.replace(/^#/, ""); }).join("  "), size: 20, color: BLUE, font: { name: FONT } }),
         ]}));
       }
     });
@@ -1678,7 +1752,7 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
             <div style={{ position: "absolute", inset: 0, padding: 8 }}>
               {sl.type === "cover" && <div>
                 {sl.imageUrl && <div style={{ width: "100%", height: "40%", borderRadius: 4, overflow: "hidden", marginBottom: 3, background: "rgba(255,255,255,0.05)" }}>
-                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: 7, fontWeight: 800, color: "#fff", lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{sl.title || ""}</div>
               </div>}
@@ -1687,13 +1761,13 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
               </div>}
               {sl.type === "image_text" && <div>
                 {sl.imageUrl && <div style={{ width: "100%", height: "50%", borderRadius: 3, overflow: "hidden", marginBottom: 2, background: "rgba(255,255,255,0.05)" }}>
-                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: 5, color: "rgba(255,255,255,0.7)", lineHeight: 1.2, overflow: "hidden" }}>{(sl.bodyText || "").slice(0, 40)}</div>
               </div>}
               {sl.type === "large_image" && <div>
                 {sl.imageUrl && <div style={{ width: "100%", height: "70%", borderRadius: 3, overflow: "hidden", marginBottom: 2, background: "rgba(255,255,255,0.05)" }}>
-                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e) { e.target.style.display = "none"; }} />
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: 5, color: "rgba(255,255,255,0.5)", lineHeight: 1.2 }}>{(sl.caption || "").slice(0, 30)}</div>
               </div>}
@@ -1729,19 +1803,19 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
       {(function() {
         var plat = PLATFORMS.find(function(p) { return p.key === platTab; });
         if (!plat) return null;
-        var data = selectedCaption[plat.key] || {};
-        var text = plat.key === "shorts" ? (data.title || "") : (data.caption || "");
+        var data = ((selectedCaption as Record<string, unknown>)[plat.key] || {}) as Record<string, unknown>;
+        var text = plat.key === "shorts" ? String(data.title || "") : String(data.caption || "");
         var isCopied = copied[plat.key];
 
         return <div style={{ background: C.card, border: "1px solid " + plat.color + "20", borderRadius: 10, padding: "14px 16px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <div style={{ fontFamily: mn, fontSize: 9, color: plat.color, textTransform: "uppercase", letterSpacing: "1px" }}>{plat.label} {plat.key === "shorts" ? "Title" : "Caption"}</div>
-            {text && <button onClick={function() { copyText(text, plat.key); }} style={{ padding: "4px 12px", background: isCopied ? plat.color + "20" : "transparent", border: "1px solid " + plat.color + "30", borderRadius: 6, fontFamily: mn, fontSize: 10, fontWeight: 600, color: plat.color, cursor: "pointer", transition: "all 0.15s" }}>{isCopied ? "Copied" : "Copy"}</button>}
+            {text && <button onClick={function() { copyText(text, plat!.key); }} style={{ padding: "4px 12px", background: isCopied ? plat.color + "20" : "transparent", border: "1px solid " + plat.color + "30", borderRadius: 6, fontFamily: mn, fontSize: 10, fontWeight: 600, color: plat.color, cursor: "pointer", transition: "all 0.15s" }}>{isCopied ? "Copied" : "Copy"}</button>}
           </div>
           <div style={{ fontFamily: ft, fontSize: 13, color: C.tx, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word", padding: "10px 12px", background: C.bg, borderRadius: 8, border: "1px solid " + C.border, maxHeight: 200, overflowY: "auto" }}>{text || "No caption generated. Go back to Review to generate captions."}</div>
-          {plat.key !== "shorts" && data.hashtags && data.hashtags.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
-            {data.hashtags.map(function(tag, i) {
-              return <span key={i} style={{ fontFamily: ft, fontSize: 11, color: plat.color, padding: "3px 8px", background: plat.color + "10", border: "1px solid " + plat.color + "18", borderRadius: 16 }}>#{tag.replace(/^#/, "")}</span>;
+          {plat.key !== "shorts" && !!data.hashtags && (data.hashtags as string[]).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
+            {(data.hashtags as string[]).map(function(tag: string, i: number) {
+              return <span key={i} style={{ fontFamily: ft, fontSize: 11, color: plat!.color, padding: "3px 8px", background: plat!.color + "10", border: "1px solid " + plat!.color + "18", borderRadius: 16 }}>#{tag.replace(/^#/, "")}</span>;
             })}
           </div>}
         </div>;
@@ -1781,7 +1855,7 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
 
 
 // ═══ CONVERT API RESPONSE TO EDITOR SLIDES ═══
-function apiSlidesToEditorSlides(apiSlides, slideCount) {
+function apiSlidesToEditorSlides(apiSlides: GeneratedSlide[], slideCount: number): Slide[] {
   var positions = getSlidePositions(slideCount);
   return apiSlides.map(function(apiSl, i) {
     var pos = positions[i] || (i === apiSlides.length - 1 ? 4 : 2);
@@ -1820,27 +1894,27 @@ function apiSlidesToEditorSlides(apiSlides, slideCount) {
 export default function Carousel() {
   var _step = useState(0), step = _step[0], setStep = _step[1];
   var _maxStep = useState(0), maxStep = _maxStep[0], setMaxStep = _maxStep[1];
-  var _state = useState({ category: "general", mode: "auto", pageCount: 4, text: "", url: "" }), state = _state[0], setState = _state[1];
-  var _slides = useState([]), slides = _slides[0], setSlides = _slides[1];
-  var _variants = useState(null), variants = _variants[0], setVariants = _variants[1];
-  var _caption = useState(null), caption = _caption[0], setCaption = _caption[1];
-  var _captionOptions = useState([]), captionOptions = _captionOptions[0], setCaptionOptions = _captionOptions[1];
+  var _state = useState<CarouselState>({ category: "general", mode: "auto", pageCount: 4, text: "", url: "" }), state = _state[0], setState = _state[1];
+  var _slides = useState<Slide[]>([]), slides = _slides[0], setSlides = _slides[1];
+  var _variants = useState<Record<string, Variant> | null>(null), variants = _variants[0], setVariants = _variants[1];
+  var _caption = useState<unknown>(null), caption = _caption[0], setCaption = _caption[1];
+  var _captionOptions = useState<CaptionOption[]>([]), captionOptions = _captionOptions[0], setCaptionOptions = _captionOptions[1];
   var _selectedCaptionIdx = useState(0), selectedCaptionIdx = _selectedCaptionIdx[0], setSelectedCaptionIdx = _selectedCaptionIdx[1];
   var _selectedVariantLabel = useState(""), selectedVariantLabel = _selectedVariantLabel[0], setSelectedVariantLabel = _selectedVariantLabel[1];
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
   var _showArchive = useState(false), showArchive = _showArchive[0], setShowArchive = _showArchive[1];
-  var _archiveItems = useState([]), archiveItems = _archiveItems[0], setArchiveItems = _archiveItems[1];
+  var _archiveItems = useState<Array<{ id: string; name?: string; data?: Record<string, unknown> }>>([]); var archiveItems = _archiveItems[0], setArchiveItems = _archiveItems[1];
   var _archiveLoading = useState(false), archiveLoading = _archiveLoading[0], setArchiveLoading = _archiveLoading[1];
 
-  function goStep(n) { setStep(n); if (n > maxStep) setMaxStep(n); }
+  function goStep(n: number) { setStep(n); if (n > maxStep) setMaxStep(n); }
 
   function loadArchive() {
     setArchiveLoading(true);
-    fetch("/api/db?table=projects").then(function(r) { return r.json(); }).then(function(res) {
-      var items = (res.data || []).filter(function(r) { return r.type === "carousel-archive"; });
-      items.sort(function(a, b) {
-        var ta = a.data && a.data.timestamp ? new Date(a.data.timestamp).getTime() : 0;
-        var tb = b.data && b.data.timestamp ? new Date(b.data.timestamp).getTime() : 0;
+    fetch("/api/db?table=projects&type=carousel-archive").then(function(r) { return r.json(); }).then(function(res) {
+      var items = (res.data || []);
+      items.sort(function(a: { data?: Record<string, unknown> }, b: { data?: Record<string, unknown> }) {
+        var ta = a.data && a.data.timestamp ? new Date(a.data.timestamp as string).getTime() : 0;
+        var tb = b.data && b.data.timestamp ? new Date(b.data.timestamp as string).getTime() : 0;
         return tb - ta;
       });
       setArchiveItems(items);
@@ -1848,12 +1922,12 @@ export default function Carousel() {
     }).catch(function() { setArchiveLoading(false); });
   }
 
-  function loadFromArchive(item) {
+  function loadFromArchive(item: { id: string; data?: Record<string, unknown> }) {
     if (!item.data) return;
     var d = item.data;
-    if (d.slides) setSlides(d.slides);
+    if (d.slides) setSlides(d.slides as Slide[]);
     if (d.caption) setCaption(d.caption);
-    if (d.theme) setState(function(s) { return Object.assign({}, s, { category: d.theme, url: d.sourceUrl || "" }); });
+    if (d.theme) setState(function(s) { return Object.assign({}, s, { category: d.theme as ThemeKey, url: String(d.sourceUrl || "") }); });
     setShowArchive(false);
     goStep(3);
     setMaxStep(5);
@@ -1891,7 +1965,7 @@ export default function Carousel() {
         }
       }
     } catch (e) {
-      alert("Network error: " + e.message);
+      alert("Network error: " + (e instanceof Error ? e.message : String(e)));
       goStep(0);
     }
     setLoading(false);
@@ -1899,8 +1973,8 @@ export default function Carousel() {
 
   var _showVariantPicker = useState(false), showVariantPicker = _showVariantPicker[0], setShowVariantPicker = _showVariantPicker[1];
 
-  function pickVariant(key) {
-    var picked = variants[key];
+  function pickVariant(key: string) {
+    var picked = variants![key];
     if (!picked || !picked.slides) return;
     var editorSlides = apiSlidesToEditorSlides(picked.slides, picked.slides.length);
     setSlides(editorSlides);
@@ -1931,16 +2005,16 @@ export default function Carousel() {
       {!archiveLoading && archiveItems.length === 0 && <div style={{ textAlign: "center", padding: 20, fontFamily: ft, fontSize: 12, color: C.txd }}>No archived carousels yet. Save one from the Export step.</div>}
       {!archiveLoading && archiveItems.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {archiveItems.map(function(item) {
-          var d = item.data || {};
-          var dateStr = d.timestamp ? new Date(d.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Unknown date";
-          var timeStr = d.timestamp ? new Date(d.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "";
+          var d = item.data || {} as Record<string, unknown>;
+          var dateStr = d.timestamp ? new Date(d.timestamp as string).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Unknown date";
+          var timeStr = d.timestamp ? new Date(d.timestamp as string).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "";
           return <div key={item.id} onClick={function() { loadFromArchive(item); }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 16px", background: C.surface, border: "1px solid " + C.border, borderRadius: 8, cursor: "pointer", transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.violet + "50"; e.currentTarget.style.background = C.violet + "06"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.surface; }}>
-            <div style={{ width: 36, height: 36, borderRadius: 8, background: C.violet + "12", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 14, fontWeight: 700, color: C.violet, flexShrink: 0 }}>{d.slideCount || "?"}</div>
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: C.violet + "12", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 14, fontWeight: 700, color: C.violet, flexShrink: 0 }}>{String(d.slideCount || "?")}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name || "Untitled"}</div>
-              <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 2 }}>{dateStr} {timeStr} // {d.theme || "general"} // {d.slideCount || 0} slides</div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 2 }}>{dateStr} {timeStr} // {String(d.theme || "general")} // {String(d.slideCount || 0)} slides</div>
             </div>
-            {d.sourceUrl && <div style={{ fontFamily: mn, fontSize: 8, color: C.txd, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 0 }}>{d.sourceUrl}</div>}
+            {!!d.sourceUrl && <div style={{ fontFamily: mn, fontSize: 8, color: C.txd, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 0 }}>{String(d.sourceUrl)}</div>}
           </div>;
         })}
       </div>}
@@ -1952,9 +2026,9 @@ export default function Carousel() {
     {showVariantPicker && variants && <div style={{ marginBottom: 20, background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: 16 }}>
       <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 10 }}>Switch Variant</div>
       <div style={{ display: "flex", gap: 10 }}>
-        {Object.keys(variants).filter(function(k) { return variants[k] && variants[k].slides; }).map(function(k) {
-          var v = variants[k];
-          var varColors = { A: C.amber, B: C.blue, C: C.teal };
+        {Object.keys(variants!).filter(function(k) { return variants![k] && variants![k].slides; }).map(function(k) {
+          var v = variants![k];
+          var varColors: Record<string, string> = { A: C.amber, B: C.blue, C: C.teal };
           var color = varColors[k] || C.amber;
           return <div key={k} onClick={function() { pickVariant(k); }} style={{ flex: 1, padding: "12px 14px", borderRadius: 8, cursor: "pointer", background: color + "08", border: "1px solid " + color + "30", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = color; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = color + "30"; }}>
             <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: color, marginBottom: 2 }}>Variant {k}</div>
@@ -1971,7 +2045,7 @@ export default function Carousel() {
       variants={variants}
       theme={state.category}
       onSelect={function(key) {
-        var picked = variants[key];
+        var picked = variants![key];
         if (!picked || !picked.slides) return;
         var editorSlides = apiSlidesToEditorSlides(picked.slides, picked.slides.length);
         setSlides(editorSlides);

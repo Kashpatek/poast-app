@@ -1,6 +1,56 @@
-// @ts-nocheck
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+
+// ═══ INTERFACES ═══
+interface PlatInfo {
+  n: string;
+  i: string;
+  c: string;
+  s: string;
+  lim: number;
+}
+
+interface BufferChannel {
+  id: string;
+  name: string;
+  service: string;
+  isDisconnected?: boolean;
+}
+
+interface BufferPost {
+  id: string;
+  text?: string;
+  status?: string;
+  dueAt?: string;
+  sentAt?: string;
+  channel?: BufferChannel;
+  channelService?: string;
+  tags?: Array<{ name: string }>;
+}
+
+interface BufferData {
+  channels: BufferChannel[];
+  scheduled: BufferPost[];
+  sent: BufferPost[];
+  drafts: BufferPost[];
+  error?: string;
+}
+
+interface ToastItem {
+  id: number;
+  msg: string;
+  type: string;
+}
+
+interface StatChip {
+  l: string;
+  v: number;
+  c: string;
+}
+
+interface APIContentBlock {
+  text?: string;
+}
 
 // ═══ DESIGN LANGUAGE ═══
 var D = {
@@ -11,7 +61,7 @@ var D = {
 };
 var ft = "'Outfit',sans-serif";
 var mn = "'JetBrains Mono',monospace";
-var PLATS = {
+var PLATS: Record<string, PlatInfo> = {
   twitter: { n: "X / Twitter", i: "\uD83D\uDC26", c: "#1DA1F2", s: "X", lim: 280 },
   linkedin: { n: "LinkedIn", i: "\uD83D\uDCBC", c: "#0A66C2", s: "LI", lim: 3000 },
   facebook: { n: "Facebook", i: "\uD83D\uDCD8", c: "#1877F2", s: "FB", lim: 63206 },
@@ -21,20 +71,20 @@ var PLATS = {
   threads: { n: "Threads", i: "\uD83E\uDDF5", c: "#999", s: "TH", lim: 500 },
   bluesky: { n: "Bluesky", i: "\u2601\uFE0F", c: "#0085FF", s: "BS", lim: 300 },
 };
-function pl(svc) { return PLATS[svc] || { n: svc, i: "\uD83D\uDCE2", c: D.txs, s: svc, lim: 5000 }; }
+function pl(svc: string): PlatInfo { return PLATS[svc] || { n: svc, i: "\uD83D\uDCE2", c: D.txs, s: svc, lim: 5000 }; }
 
 // ═══ TOAST SYSTEM ═══
-var _toasts = { current: null };
-function addToast(msg, type) { if (_toasts.current) _toasts.current(msg, type); }
+var _toasts: { current: ((msg: string, type?: string) => void) | null } = { current: null };
+function addToast(msg: string, type?: string) { if (_toasts.current) _toasts.current(msg, type); }
 
 function ToastContainer() {
-  var _list = useState([]), list = _list[0], setList = _list[1];
-  _toasts.current = function(msg, type) {
+  var _list = useState<ToastItem[]>([]), list = _list[0], setList = _list[1];
+  _toasts.current = function(msg: string, type?: string) {
     var id = Date.now();
-    setList(function(p) { return [{ id: id, msg: msg, type: type || "success" }].concat(p).slice(0, 5); });
-    setTimeout(function() { setList(function(p) { return p.filter(function(t) { return t.id !== id; }); }); }, 3200);
+    setList(function(p: ToastItem[]) { return [{ id: id, msg: msg, type: type || "success" }].concat(p).slice(0, 5); });
+    setTimeout(function() { setList(function(p: ToastItem[]) { return p.filter(function(t: ToastItem) { return t.id !== id; }); }); }, 3200);
   };
-  var colors = { success: D.teal, error: D.coral, info: D.amber };
+  var colors: Record<string, string> = { success: D.teal, error: D.coral, info: D.amber };
   return <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 10000, display: "flex", flexDirection: "column", gap: 8 }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes toastIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes toastDrain{from{width:100%}to{width:0}}" }} />
     {list.map(function(t) {
@@ -48,9 +98,9 @@ function ToastContainer() {
 }
 
 // ═══ STAT CHIPS ═══
-function StatRow({ data }) {
+function StatRow({ data }: { data: BufferData | null }) {
   if (!data) return null;
-  var chips = [
+  var chips: StatChip[] = [
     { l: "Scheduled", v: (data.scheduled || []).length, c: D.amber },
     { l: "Sent", v: (data.sent || []).length, c: D.teal },
     { l: "Drafts", v: (data.drafts || []).length, c: D.blue },
@@ -68,13 +118,13 @@ function StatRow({ data }) {
 }
 
 // ═══ TAB BAR ═══
-function Tab({ label, active, onClick, count }) {
-  return <div onClick={onClick} style={{ padding: "10px 18px", cursor: "pointer", fontFamily: ft, fontSize: 13, fontWeight: active ? 700 : 500, color: active ? D.amber : D.txs, borderBottom: active ? "2px solid " + D.amber : "2px solid transparent", display: "flex", alignItems: "center", gap: 6, transition: "all 0.15s ease" }}>{label}{count > 0 && <span style={{ fontFamily: mn, fontSize: 11, background: D.border, color: D.amber, padding: "1px 7px", borderRadius: 10 }}>{count}</span>}</div>;
+function Tab({ label, active, onClick, count }: { label: string; active: boolean; onClick: () => void; count?: number }) {
+  return <div onClick={onClick} style={{ padding: "10px 18px", cursor: "pointer", fontFamily: ft, fontSize: 13, fontWeight: active ? 700 : 500, color: active ? D.amber : D.txs, borderBottom: active ? "2px solid " + D.amber : "2px solid transparent", display: "flex", alignItems: "center", gap: 6, transition: "all 0.15s ease" }}>{label}{(count ?? 0) > 0 && <span style={{ fontFamily: mn, fontSize: 11, background: D.border, color: D.amber, padding: "1px 7px", borderRadius: 10 }}>{count}</span>}</div>;
 }
 
 // ═══ PLATFORM FILTER ═══
-function PlatFilter({ channels, active, setActive }) {
-  var svcs = []; (channels || []).forEach(function(ch) { if (svcs.indexOf(ch.service) < 0) svcs.push(ch.service); });
+function PlatFilter({ channels, active, setActive }: { channels: BufferChannel[]; active: string | null; setActive: (v: string | null) => void }) {
+  var svcs: string[] = []; (channels || []).forEach(function(ch: BufferChannel) { if (svcs.indexOf(ch.service) < 0) svcs.push(ch.service); });
   return <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
     <span onClick={function() { setActive(null); }} style={{ height: 30, display: "inline-flex", alignItems: "center", gap: 4, padding: "0 12px", borderRadius: 6, cursor: "pointer", background: !active ? D.amber : "transparent", border: !active ? "none" : "1px solid " + D.border, color: !active ? D.bg : D.txs, fontFamily: ft, fontSize: 12, fontWeight: !active ? 600 : 400, transition: "all 0.15s ease" }}>All</span>
     {svcs.map(function(s) {
@@ -85,7 +135,7 @@ function PlatFilter({ channels, active, setActive }) {
 }
 
 // ═══ DRAFT CARD ═══
-function DraftCard({ post, channels, onDelete, onRefresh, selected, onToggleSelect, showCheck }) {
+function DraftCard({ post, channels, onDelete, onRefresh, selected, onToggleSelect, showCheck }: { post: BufferPost; channels: BufferChannel[]; onDelete: () => void; onRefresh: () => void; selected: boolean; onToggleSelect: (id: string) => void; showCheck: boolean }) {
   var svc = post.channel ? post.channel.service : post.channelService || "";
   var p = pl(svc);
   var _exp = useState(false), expanded = _exp[0], setExpanded = _exp[1];
@@ -94,7 +144,7 @@ function DraftCard({ post, channels, onDelete, onRefresh, selected, onToggleSele
   var _rewriting = useState(false), rewriting = _rewriting[0], setRewriting = _rewriting[1];
   var _rwInput = useState(""), rwInput = _rwInput[0], setRwInput = _rwInput[1];
   var _rwLoading = useState(false), rwLoading = _rwLoading[0], setRwLoading = _rwLoading[1];
-  var _rwResult = useState(null), rwResult = _rwResult[0], setRwResult = _rwResult[1];
+  var _rwResult = useState<string | null>(null), rwResult = _rwResult[0], setRwResult = _rwResult[1];
   var _scheduling = useState(false), scheduling = _scheduling[0], setScheduling = _scheduling[1];
   var _schedDate = useState(""), schedDate = _schedDate[0], setSchedDate = _schedDate[1];
   var _schedTime = useState("08:00"), schedTime = _schedTime[0], setSchedTime = _schedTime[1];
@@ -119,9 +169,9 @@ function DraftCard({ post, channels, onDelete, onRefresh, selected, onToggleSele
   };
   if (!schedDate) setTimeout(function() { setSchedDate(nextSmart()); }, 0);
 
-  var renderText = function(t) {
+  var renderText = function(t: string) {
     var parts = t.split(/(#\w+)/g);
-    return parts.map(function(part, i) {
+    return parts.map(function(part: string, i: number) {
       if (part.startsWith("#")) return <span key={i} style={{ display: "inline-block", fontFamily: mn, fontSize: 11, color: D.amber, background: "rgba(247,176,65,0.12)", border: "1px solid rgba(247,176,65,0.25)", padding: "2px 8px", borderRadius: 4, margin: "1px 2px" }}>{part}</span>;
       return <span key={i}>{part}</span>;
     });
@@ -131,7 +181,7 @@ function DraftCard({ post, channels, onDelete, onRefresh, selected, onToggleSele
     setRwLoading(true);
     try {
       var r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: "You are editing a social media post for SemiAnalysis. Follow SA brand rules: no em dashes, no emojis, no hashtags on Twitter. Return only the rewritten post text, nothing else.", prompt: "Original post:\n" + text + "\n\nInstruction: " + rwInput }) });
-      var d = await r.json(); var t = (d.content || []).map(function(c) { return c.text || ""; }).join("");
+      var d = await r.json(); var t = ((d.content || []) as APIContentBlock[]).map(function(c: APIContentBlock) { return c.text || ""; }).join("");
       setRwResult(t); setRewriting(false); setEditing(true);
     } catch (e) { addToast("Rewrite failed", "error"); }
     setRwLoading(false);
@@ -172,11 +222,11 @@ function DraftCard({ post, channels, onDelete, onRefresh, selected, onToggleSele
   if (exiting) return <div style={{ overflow: "hidden", transition: "all 0.25s ease", maxHeight: 0, opacity: 0, marginBottom: 0 }} />;
 
   return (
-    <div style={{ background: selected ? D.cardActive : editing ? D.card : D.card, border: editing ? "1px solid " + D.amber : delConfirm ? "1px solid " + D.crimson : "1px solid " + D.border, borderLeft: selected ? "3px solid " + D.amber : editing ? "3px solid " + D.amber : "1px solid " + D.border, borderRadius: 8, marginBottom: 16, padding: 0, transition: "all 0.15s ease", overflow: "hidden" }} onMouseEnter={function(e) { if (!editing && !delConfirm) { e.currentTarget.style.borderColor = "rgba(247,176,65,0.4)"; e.currentTarget.style.background = D.cardHover; } }} onMouseLeave={function(e) { if (!editing && !delConfirm) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.background = D.card; } }}>
+    <div style={{ background: selected ? D.cardActive : editing ? D.card : D.card, border: editing ? "1px solid " + D.amber : delConfirm ? "1px solid " + D.crimson : "1px solid " + D.border, borderLeft: selected ? "3px solid " + D.amber : editing ? "3px solid " + D.amber : "1px solid " + D.border, borderRadius: 8, marginBottom: 16, padding: 0, transition: "all 0.15s ease", overflow: "hidden" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!editing && !delConfirm) { e.currentTarget.style.borderColor = "rgba(247,176,65,0.4)"; e.currentTarget.style.background = D.cardHover; } }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!editing && !delConfirm) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.background = D.card; } }}>
 
       {/* ZONE 1: Top row */}
       <div style={{ display: "flex", alignItems: "center", padding: "14px 20px", gap: 10 }}>
-        {showCheck && <span onClick={function(e) { e.stopPropagation(); onToggleSelect(post.id); }} style={{ width: 18, height: 18, borderRadius: 4, border: "2px solid " + (selected ? D.amber : D.border), background: selected ? D.amber : "transparent", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: D.bg, fontWeight: 700 }}>{selected ? "\u2713" : ""}</span>}
+        {showCheck && <span onClick={function(e: React.MouseEvent<HTMLElement>) { e.stopPropagation(); onToggleSelect(post.id); }} style={{ width: 18, height: 18, borderRadius: 4, border: "2px solid " + (selected ? D.amber : D.border), background: selected ? D.amber : "transparent", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: D.bg, fontWeight: 700 }}>{selected ? "\u2713" : ""}</span>}
         <div style={{ width: 32, height: 32, borderRadius: "50%", background: p.c + "18", border: "1px solid " + p.c + "30", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, flexShrink: 0 }}>{p.i}</div>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: ft, fontSize: 13, color: D.tx }}>{post.channel ? post.channel.name : svc}</div>
@@ -188,10 +238,10 @@ function DraftCard({ post, channels, onDelete, onRefresh, selected, onToggleSele
       {/* ZONE 2: Body */}
       <div style={{ padding: "0 20px 12px" }}>
         {editing ? <div>
-          <textarea value={text} onChange={function(e) { var v = e.target.value; if (rwResult) setRwResult(v); else setEditText(v); }} style={{ width: "100%", minHeight: 100, padding: "12px", background: D.bg, border: "1px solid " + D.border, borderRadius: 6, color: D.tx, fontFamily: ft, fontSize: 14, lineHeight: 1.7, outline: "none", boxSizing: "border-box", resize: "vertical" }} />
+          <textarea value={text} onChange={function(e: React.ChangeEvent<HTMLTextAreaElement>) { var v = e.target.value; if (rwResult) setRwResult(v); else setEditText(v); }} style={{ width: "100%", minHeight: 100, padding: "12px", background: D.bg, border: "1px solid " + D.border, borderRadius: 6, color: D.tx, fontFamily: ft, fontSize: 14, lineHeight: 1.7, outline: "none", boxSizing: "border-box", resize: "vertical" }} />
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
             {rwResult && <div style={{ display: "flex", gap: 6 }}>
-              <span onClick={function() { setEditText(rwResult); setRwResult(null); addToast("Rewrite applied", "success"); }} style={{ fontFamily: mn, fontSize: 10, color: D.amber, cursor: "pointer", padding: "3px 8px", borderRadius: 4, background: D.amber + "15" }}>Keep</span>
+              <span onClick={function() { setEditText(rwResult!); setRwResult(null); addToast("Rewrite applied", "success"); }} style={{ fontFamily: mn, fontSize: 10, color: D.amber, cursor: "pointer", padding: "3px 8px", borderRadius: 4, background: D.amber + "15" }}>Keep</span>
               <span onClick={function() { setRwResult(null); }} style={{ fontFamily: mn, fontSize: 10, color: D.txs, cursor: "pointer", padding: "3px 8px", borderRadius: 4, border: "1px solid " + D.border }}>Undo</span>
             </div>}
             <span style={{ fontFamily: mn, fontSize: 11, color: overLimit ? D.coral : D.txs }}>{charCount} / {charLimit}</span>
@@ -209,7 +259,7 @@ function DraftCard({ post, channels, onDelete, onRefresh, selected, onToggleSele
       {/* Rewrite input */}
       {rewriting && <div style={{ padding: "0 20px 12px", overflow: "hidden", transition: "all 0.2s ease" }}>
         <div style={{ display: "flex", gap: 6 }}>
-          <input value={rwInput} onChange={function(e) { setRwInput(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") doRewrite(); }} placeholder="What should I change?" style={{ flex: 1, padding: "8px 12px", background: D.bg, border: "1px solid " + D.border, borderRadius: 6, color: D.tx, fontFamily: ft, fontSize: 12, outline: "none" }} />
+          <input value={rwInput} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { setRwInput(e.target.value); }} onKeyDown={function(e: React.KeyboardEvent<HTMLInputElement>) { if (e.key === "Enter") doRewrite(); }} placeholder="What should I change?" style={{ flex: 1, padding: "8px 12px", background: D.bg, border: "1px solid " + D.border, borderRadius: 6, color: D.tx, fontFamily: ft, fontSize: 12, outline: "none" }} />
           <span onClick={doRewrite} style={{ padding: "8px 14px", background: D.amber, color: D.bg, borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: rwLoading ? "wait" : "pointer", opacity: rwLoading ? 0.5 : 1 }}>{rwLoading ? "\u25CF\u25CF\u25CF" : "Generate"}</span>
         </div>
       </div>}
@@ -223,8 +273,8 @@ function DraftCard({ post, channels, onDelete, onRefresh, selected, onToggleSele
           </div>
           <span onClick={function() { setSchedDate(nextSmart()); setSchedTime("08:00"); }} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 4, border: "1px solid " + D.amber + "40", color: D.amber, fontFamily: mn, fontSize: 10, cursor: "pointer", marginBottom: 10 }}>Next {new Date(nextSmart()).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} at 8:00 AM</span>
           <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            <input type="date" value={schedDate} onChange={function(e) { setSchedDate(e.target.value); }} style={{ flex: 1, padding: "8px 10px", background: D.bg, border: "1px solid " + D.border, borderRadius: 6, color: D.tx, fontFamily: mn, fontSize: 11, outline: "none" }} />
-            <input type="time" value={schedTime} onChange={function(e) { setSchedTime(e.target.value); }} style={{ width: 100, padding: "8px 10px", background: D.bg, border: "1px solid " + D.border, borderRadius: 6, color: D.tx, fontFamily: mn, fontSize: 11, outline: "none" }} />
+            <input type="date" value={schedDate} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { setSchedDate(e.target.value); }} style={{ flex: 1, padding: "8px 10px", background: D.bg, border: "1px solid " + D.border, borderRadius: 6, color: D.tx, fontFamily: mn, fontSize: 11, outline: "none" }} />
+            <input type="time" value={schedTime} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { setSchedTime(e.target.value); }} style={{ width: 100, padding: "8px 10px", background: D.bg, border: "1px solid " + D.border, borderRadius: 6, color: D.tx, fontFamily: mn, fontSize: 11, outline: "none" }} />
           </div>
           {schedDate && <div style={{ fontFamily: ft, fontSize: 11, color: D.txs, marginBottom: 10 }}>Posting to {p.i} {post.channel ? post.channel.name : ""} on {new Date(schedDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} at {schedTime}</div>}
           <span onClick={doSchedule} style={{ display: "block", textAlign: "center", padding: "8px", background: D.amber, color: D.bg, borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: schedLoading ? "wait" : "pointer", opacity: schedLoading ? 0.5 : 1 }}>{schedLoading ? "Scheduling..." : "Confirm Schedule"}</span>
@@ -245,10 +295,10 @@ function DraftCard({ post, channels, onDelete, onRefresh, selected, onToggleSele
           <span onClick={doSave} style={{ padding: "6px 14px", background: D.amber, color: D.bg, borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{saving ? "Saving..." : "Save"}</span>
           <span onClick={function() { setEditing(false); setRwResult(null); setEditText(post.text || ""); }} style={{ padding: "6px 14px", border: "1px solid " + D.border, color: D.txs, borderRadius: 6, fontFamily: ft, fontSize: 12, cursor: "pointer" }}>Cancel</span>
         </> : <>
-          <span onClick={function() { setEditing(true); setRewriting(false); }} style={{ padding: "6px 14px", border: "1px solid " + D.border, color: D.txs, borderRadius: 6, fontFamily: ft, fontSize: 12, cursor: "pointer", transition: "all 0.15s ease" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = D.amber + "66"; e.currentTarget.style.color = D.amber; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.color = D.txs; }}>Edit</span>
-          <span onClick={function() { setRewriting(!rewriting); setEditing(false); }} style={{ padding: "6px 14px", border: "1px solid " + D.border, color: D.txs, borderRadius: 6, fontFamily: ft, fontSize: 12, cursor: "pointer", transition: "all 0.15s ease" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = D.amber + "66"; e.currentTarget.style.color = D.amber; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.color = D.txs; }}><span style={{ color: D.amber }}>&#x2726;</span> Rewrite</span>
+          <span onClick={function() { setEditing(true); setRewriting(false); }} style={{ padding: "6px 14px", border: "1px solid " + D.border, color: D.txs, borderRadius: 6, fontFamily: ft, fontSize: 12, cursor: "pointer", transition: "all 0.15s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = D.amber + "66"; e.currentTarget.style.color = D.amber; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.color = D.txs; }}>Edit</span>
+          <span onClick={function() { setRewriting(!rewriting); setEditing(false); }} style={{ padding: "6px 14px", border: "1px solid " + D.border, color: D.txs, borderRadius: 6, fontFamily: ft, fontSize: 12, cursor: "pointer", transition: "all 0.15s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = D.amber + "66"; e.currentTarget.style.color = D.amber; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.color = D.txs; }}><span style={{ color: D.amber }}>&#x2726;</span> Rewrite</span>
           <span onClick={function() { setScheduling(!scheduling); }} style={{ padding: "6px 16px", background: D.amber, color: D.bg, borderRadius: 6, fontFamily: ft, fontSize: 14, fontWeight: 600, cursor: "pointer", transition: "all 0.15s ease" }}>Approve & Schedule</span>
-          <span onClick={function() { setDelConfirm(true); }} style={{ padding: "6px 14px", border: "1px solid " + D.border, color: D.txs, borderRadius: 6, fontFamily: ft, fontSize: 12, cursor: "pointer", marginLeft: "auto", transition: "all 0.15s ease" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = D.coral + "66"; e.currentTarget.style.color = D.coral; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.color = D.txs; }}>Delete</span>
+          <span onClick={function() { setDelConfirm(true); }} style={{ padding: "6px 14px", border: "1px solid " + D.border, color: D.txs, borderRadius: 6, fontFamily: ft, fontSize: 12, cursor: "pointer", marginLeft: "auto", transition: "all 0.15s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = D.coral + "66"; e.currentTarget.style.color = D.coral; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.color = D.txs; }}>Delete</span>
         </>}
       </div>}
     </div>
@@ -256,16 +306,16 @@ function DraftCard({ post, channels, onDelete, onRefresh, selected, onToggleSele
 }
 
 // ═══ DRAFTS TAB ═══
-function DraftsTab({ drafts, channels, onRefresh }) {
-  var _pf = useState(null), platF = _pf[0], setPlatF = _pf[1];
-  var _sel = useState([]), sel = _sel[0], setSel = _sel[1];
+function DraftsTab({ drafts, channels, onRefresh }: { drafts: BufferPost[]; channels: BufferChannel[]; onRefresh: () => void }) {
+  var _pf = useState<string | null>(null), platF = _pf[0], setPlatF = _pf[1];
+  var _sel = useState<string[]>([]), sel = _sel[0], setSel = _sel[1];
   var _bulkDate = useState(""), bulkDate = _bulkDate[0], setBulkDate = _bulkDate[1];
   var _bulkTime = useState("08:00"), bulkTime = _bulkTime[0], setBulkTime = _bulkTime[1];
   var _showBulkSched = useState(false), showBulkSched = _showBulkSched[0], setShowBulkSched = _showBulkSched[1];
   var _bulkLoading = useState(false), bulkLoading = _bulkLoading[0], setBulkLoading = _bulkLoading[1];
 
   var filtered = platF ? drafts.filter(function(p) { return (p.channel ? p.channel.service : p.channelService) === platF; }) : drafts;
-  var toggleSel = function(id) { setSel(function(p) { return p.indexOf(id) >= 0 ? p.filter(function(x) { return x !== id; }) : p.concat([id]); }); };
+  var toggleSel = function(id: string) { setSel(function(p) { return p.indexOf(id) >= 0 ? p.filter(function(x) { return x !== id; }) : p.concat([id]); }); };
   var allSelected = filtered.length > 0 && filtered.every(function(p) { return sel.indexOf(p.id) >= 0; });
   var toggleAll = function() { if (allSelected) setSel([]); else setSel(filtered.map(function(p) { return p.id; })); };
 
@@ -305,8 +355,8 @@ function DraftsTab({ drafts, channels, onRefresh }) {
         <span onClick={function() { setShowBulkSched(!showBulkSched); }} style={{ padding: "6px 14px", background: D.amber, color: D.bg, borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Approve All</span>
         {showBulkSched && <div style={{ position: "absolute", top: "100%", right: 80, marginTop: 6, background: D.card, border: "1px solid " + D.border, borderRadius: 10, padding: 14, zIndex: 20, minWidth: 250, boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
           <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-            <input type="date" value={bulkDate} onChange={function(e) { setBulkDate(e.target.value); }} style={{ flex: 1, padding: "6px 8px", background: D.bg, border: "1px solid " + D.border, borderRadius: 4, color: D.tx, fontFamily: mn, fontSize: 10, outline: "none" }} />
-            <input type="time" value={bulkTime} onChange={function(e) { setBulkTime(e.target.value); }} style={{ width: 80, padding: "6px 8px", background: D.bg, border: "1px solid " + D.border, borderRadius: 4, color: D.tx, fontFamily: mn, fontSize: 10, outline: "none" }} />
+            <input type="date" value={bulkDate} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { setBulkDate(e.target.value); }} style={{ flex: 1, padding: "6px 8px", background: D.bg, border: "1px solid " + D.border, borderRadius: 4, color: D.tx, fontFamily: mn, fontSize: 10, outline: "none" }} />
+            <input type="time" value={bulkTime} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { setBulkTime(e.target.value); }} style={{ width: 80, padding: "6px 8px", background: D.bg, border: "1px solid " + D.border, borderRadius: 4, color: D.tx, fontFamily: mn, fontSize: 10, outline: "none" }} />
           </div>
           <span onClick={bulkSchedule} style={{ display: "block", textAlign: "center", padding: "6px", background: D.amber, color: D.bg, borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: bulkLoading ? "wait" : "pointer", opacity: bulkLoading ? 0.5 : 1 }}>{bulkLoading ? "Scheduling..." : "Confirm"}</span>
         </div>}
@@ -325,9 +375,9 @@ function DraftsTab({ drafts, channels, onRefresh }) {
 }
 
 // ═══ GENERIC POST LIST (Scheduled / Sent) ═══
-function PostList({ posts, channels, emptyLabel, showSearch, showEdit, onDelete }) {
-  var _pf = useState(null), platF = _pf[0], setPlatF = _pf[1];
-  var _search = useState(""), search = _search[0], setSearch = _search[1];
+function PostList({ posts, channels, emptyLabel, showSearch, showEdit, onDelete }: { posts: BufferPost[]; channels: BufferChannel[]; emptyLabel?: string; showSearch?: boolean; showEdit?: boolean; onDelete?: (id: string) => void }) {
+  var _pf = useState<string | null>(null), platF = _pf[0], setPlatF = _pf[1];
+  var _search = useState<string>(""), search = _search[0], setSearch = _search[1];
   var filtered = posts;
   if (platF) filtered = filtered.filter(function(p) { return (p.channel ? p.channel.service : p.channelService) === platF; });
   if (search.trim()) { var q = search.toLowerCase(); filtered = filtered.filter(function(p) { return (p.text || "").toLowerCase().includes(q); }); }
@@ -335,7 +385,7 @@ function PostList({ posts, channels, emptyLabel, showSearch, showEdit, onDelete 
   return (<div>
     <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 4 }}>
       <div style={{ flex: 1 }}><PlatFilter channels={channels} active={platF} setActive={setPlatF} /></div>
-      {showSearch && <input value={search} onChange={function(e) { setSearch(e.target.value); }} placeholder="Search..." style={{ padding: "6px 12px", background: D.card, border: "1px solid " + D.border, borderRadius: 6, color: D.tx, fontFamily: mn, fontSize: 11, outline: "none", width: 200 }} />}
+      {showSearch && <input value={search} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { setSearch(e.target.value); }} placeholder="Search..." style={{ padding: "6px 12px", background: D.card, border: "1px solid " + D.border, borderRadius: 6, color: D.tx, fontFamily: mn, fontSize: 11, outline: "none", width: 200 }} />}
     </div>
     {filtered.length === 0 ? <div style={{ textAlign: "center", padding: 50, color: D.txs, fontFamily: ft, fontSize: 13 }}>{emptyLabel || "No posts"}</div>
     : filtered.map(function(p) {
@@ -346,7 +396,7 @@ function PostList({ posts, channels, emptyLabel, showSearch, showEdit, onDelete 
       var time = p.dueAt ? new Date(p.dueAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
       var sentTime = p.sentAt ? new Date(p.sentAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 
-      return <div key={p.id} style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, marginBottom: 16, transition: "all 0.15s ease" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = "rgba(247,176,65,0.4)"; e.currentTarget.style.background = D.cardHover; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.background = D.card; }}>
+      return <div key={p.id} style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, marginBottom: 16, transition: "all 0.15s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = "rgba(247,176,65,0.4)"; e.currentTarget.style.background = D.cardHover; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.background = D.card; }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 32, height: 32, borderRadius: "50%", background: pl2.c + "18", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>{pl2.i}</div>
@@ -375,16 +425,16 @@ function PostList({ posts, channels, emptyLabel, showSearch, showEdit, onDelete 
 // ═══ CHANNELS / STATS / CALENDAR / COMPOSE (kept from previous build, applying new design tokens) ═══
 // [Calendar, Channels, Stats, Compose reuse same logic but with D.* tokens]
 
-function CalendarTab({ posts, channels }) {
-  var _m = useState(new Date().getMonth()), month = _m[0], setMonth = _m[1];
-  var _y = useState(new Date().getFullYear()), year = _y[0], setYear = _y[1];
-  var _pf = useState(null), platF = _pf[0], setPlatF = _pf[1];
-  var _hover = useState(null), hoverDay = _hover[0], setHoverDay = _hover[1];
-  var _hp = useState({ x: 0, y: 0 }), hp = _hp[0], setHp = _hp[1];
+function CalendarTab({ posts, channels }: { posts: BufferPost[]; channels: BufferChannel[] }) {
+  var _m = useState<number>(new Date().getMonth()), month = _m[0], setMonth = _m[1];
+  var _y = useState<number>(new Date().getFullYear()), year = _y[0], setYear = _y[1];
+  var _pf = useState<string | null>(null), platF = _pf[0], setPlatF = _pf[1];
+  var _hover = useState<number | null>(null), hoverDay = _hover[0], setHoverDay = _hover[1];
+  var _hp = useState<{ x: number; y: number }>({ x: 0, y: 0 }), hp = _hp[0], setHp = _hp[1];
   var filtered = platF ? posts.filter(function(p) { return (p.channel ? p.channel.service : p.channelService) === platF; }) : posts;
   var fd = new Date(year, month, 1).getDay(); var dim = new Date(year, month + 1, 0).getDate();
-  var cells = []; for (var i = 0; i < fd; i++) cells.push(null); for (var d = 1; d <= dim; d++) cells.push(d);
-  var onDay = function(day) { return filtered.filter(function(p) { if (!p.dueAt) return false; var pd = new Date(p.dueAt); return pd.getDate() === day && pd.getMonth() === month && pd.getFullYear() === year; }); };
+  var cells: (number | null)[] = []; for (var i = 0; i < fd; i++) cells.push(null); for (var d = 1; d <= dim; d++) cells.push(d);
+  var onDay = function(day: number): BufferPost[] { return filtered.filter(function(p) { if (!p.dueAt) return false; var pd = new Date(p.dueAt); return pd.getDate() === day && pd.getMonth() === month && pd.getFullYear() === year; }); };
 
   return (<div>
     <PlatFilter channels={channels} active={platF} setActive={setPlatF} />
@@ -398,8 +448,8 @@ function CalendarTab({ posts, channels }) {
       {cells.map(function(day, ci) {
         if (!day) return <div key={"e" + ci} />;
         var dp = onDay(day); var isToday = day === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear();
-        var svcs = {}; dp.forEach(function(p) { var s = p.channel ? p.channel.service : ""; svcs[s] = (svcs[s] || 0) + 1; });
-        return <div key={ci} onMouseEnter={function(e) { if (dp.length > 0) { setHoverDay(day); setHp({ x: e.clientX, y: e.clientY }); } }} onMouseMove={function(e) { if (dp.length > 0) setHp({ x: e.clientX, y: e.clientY }); }} onMouseLeave={function() { setHoverDay(null); }} style={{ minHeight: 90, padding: "6px 8px", borderRadius: 8, background: D.card, border: isToday ? "2px solid " + D.amber : "1px solid " + D.border, boxShadow: isToday ? "0 0 12px " + D.amber + "20" : "none" }}>
+        var svcs: Record<string, number> = {}; dp.forEach(function(p) { var s = p.channel ? p.channel.service : ""; svcs[s] = (svcs[s] || 0) + 1; });
+        return <div key={ci} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (dp.length > 0) { setHoverDay(day); setHp({ x: e.clientX, y: e.clientY }); } }} onMouseMove={function(e: React.MouseEvent<HTMLElement>) { if (dp.length > 0) setHp({ x: e.clientX, y: e.clientY }); }} onMouseLeave={function() { setHoverDay(null); }} style={{ minHeight: 90, padding: "6px 8px", borderRadius: 8, background: D.card, border: isToday ? "2px solid " + D.amber : "1px solid " + D.border, boxShadow: isToday ? "0 0 12px " + D.amber + "20" : "none" }}>
           <div style={{ fontFamily: mn, fontSize: 11, fontWeight: isToday ? 800 : 500, color: isToday ? D.amber : D.tx, marginBottom: 4 }}>{day}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
             {Object.keys(svcs).map(function(s) { var pp = pl(s); return <div key={s} style={{ display: "flex", alignItems: "center", gap: 2, padding: "1px 5px", borderRadius: 4, background: pp.c + "15", border: "1px solid " + pp.c + "25" }}><span style={{ fontSize: 9 }}>{pp.i}</span><span style={{ fontFamily: mn, fontSize: 8, color: pp.c, fontWeight: 700 }}>{svcs[s]}</span></div>; })}
@@ -413,14 +463,14 @@ function CalendarTab({ posts, channels }) {
   </div>);
 }
 
-function ChannelsTab({ channels, data, onFilter }) {
+function ChannelsTab({ channels, data, onFilter }: { channels: BufferChannel[]; data: BufferData; onFilter: (svc: string) => void }) {
   return (<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
     {(channels || []).map(function(ch) {
       var pp = pl(ch.service);
       var sched = (data.scheduled || []).filter(function(p) { return p.channel && p.channel.id === ch.id; }).length;
       var sent = (data.sent || []).filter(function(p) { return p.channel && p.channel.id === ch.id; }).length;
-      var last = (data.sent || []).filter(function(p) { return p.channel && p.channel.id === ch.id; }).sort(function(a, b) { return new Date(b.sentAt || 0) - new Date(a.sentAt || 0); })[0];
-      return <div key={ch.id} onClick={function() { onFilter(ch.service); }} style={{ padding: "16px 18px", background: D.card, borderRadius: 8, border: "1px solid " + D.border, borderLeft: "3px solid " + pp.c, cursor: "pointer", transition: "all 0.15s ease" }} onMouseEnter={function(e) { e.currentTarget.style.boxShadow = D.glow; }} onMouseLeave={function(e) { e.currentTarget.style.boxShadow = "none"; }}>
+      var last = (data.sent || []).filter(function(p) { return p.channel && p.channel.id === ch.id; }).sort(function(a, b) { return new Date(b.sentAt || 0).getTime() - new Date(a.sentAt || 0).getTime(); })[0];
+      return <div key={ch.id} onClick={function() { onFilter(ch.service); }} style={{ padding: "16px 18px", background: D.card, borderRadius: 8, border: "1px solid " + D.border, borderLeft: "3px solid " + pp.c, cursor: "pointer", transition: "all 0.15s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.boxShadow = D.glow; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.boxShadow = "none"; }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
           <div style={{ width: 40, height: 40, borderRadius: 10, background: pp.c + "15", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{pp.i}</div>
           <div><div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: pp.c }}>{ch.name}</div><div style={{ fontFamily: mn, fontSize: 9, color: D.txs }}>{pp.n}</div></div>
@@ -436,7 +486,7 @@ function ChannelsTab({ channels, data, onFilter }) {
 }
 
 // ═══ HOME HUB ═══
-function HomeTab({ data, onTab, onCompose }) {
+function HomeTab({ data, onTab, onCompose }: { data: BufferData; onTab: (tab: string) => void; onCompose: () => void }) {
   var now = new Date();
   var todayStr = now.toISOString().slice(0, 10);
   var scheduled = data.scheduled || [];
@@ -447,7 +497,7 @@ function HomeTab({ data, onTab, onCompose }) {
   // Today's posts
   var todayPosts = scheduled.filter(function(p) { return p.dueAt && p.dueAt.slice(0, 10) === todayStr; });
   // Next up (soonest 5 scheduled)
-  var nextUp = scheduled.filter(function(p) { return p.dueAt && new Date(p.dueAt) > now; }).sort(function(a, b) { return new Date(a.dueAt) - new Date(b.dueAt); }).slice(0, 5);
+  var nextUp = scheduled.filter(function(p) { return p.dueAt && new Date(p.dueAt) > now; }).sort(function(a, b) { return new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime(); }).slice(0, 5);
   // Recent (last 5 sent)
   var recent = sent.slice(0, 5);
 
@@ -466,8 +516,8 @@ function HomeTab({ data, onTab, onCompose }) {
         {todayPosts.length === 0 ? <div style={{ fontFamily: ft, fontSize: 12, color: D.txs, padding: "12px 0" }}>Nothing scheduled for today.</div>
         : todayPosts.map(function(p, i) {
           var pp = pl(p.channel ? p.channel.service : "");
-          var t = new Date(p.dueAt);
-          var diff = t - now;
+          var t = new Date(p.dueAt!);
+          var diff = t.getTime() - now.getTime();
           var hrs = Math.floor(diff / 3600000);
           var mins = Math.floor((diff % 3600000) / 60000);
           var countdown = diff > 0 ? (hrs > 0 ? hrs + "h " : "") + mins + "m" : "Now";
@@ -492,7 +542,7 @@ function HomeTab({ data, onTab, onCompose }) {
             <div style={{ width: 28, height: 28, borderRadius: 6, background: pp.c + "15", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{pp.i}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: ft, fontSize: 11, color: D.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(p.text || "Media post").slice(0, 60)}</div>
-              <div style={{ fontFamily: mn, fontSize: 8, color: D.txs }}>{pp.s} // {new Date(p.dueAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</div>
+              <div style={{ fontFamily: mn, fontSize: 8, color: D.txs }}>{pp.s} // {new Date(p.dueAt!).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</div>
             </div>
           </div>;
         })}
@@ -536,10 +586,10 @@ function HomeTab({ data, onTab, onCompose }) {
 }
 
 // ═══ STATS ═══
-function StatsTab({ data }) {
-  var byPlat = {}; (data.sent || []).forEach(function(p) { var s = p.channel ? p.channel.service : ""; byPlat[s] = (byPlat[s] || 0) + 1; });
+function StatsTab({ data }: { data: BufferData }) {
+  var byPlat: Record<string, number> = {}; (data.sent || []).forEach(function(p) { var s = p.channel ? p.channel.service : ""; byPlat[s] = (byPlat[s] || 0) + 1; });
   var max = Math.max(1, ...Object.values(byPlat));
-  var byFull = {}; (data.scheduled || []).concat(data.sent || []).forEach(function(p) { var s = p.channel ? p.channel.service : ""; if (!byFull[s]) byFull[s] = { q: 0, s: 0 }; if (p.status === "sent") byFull[s].s++; else byFull[s].q++; });
+  var byFull: Record<string, { q: number; s: number }> = {}; (data.scheduled || []).concat(data.sent || []).forEach(function(p) { var s = p.channel ? p.channel.service : ""; if (!byFull[s]) byFull[s] = { q: 0, s: 0 }; if (p.status === "sent") byFull[s].s++; else byFull[s].q++; });
 
   return (<div>
     <div style={{ display: "flex", gap: 12, marginBottom: 28 }}>
@@ -606,8 +656,8 @@ function StatsTab({ data }) {
         var sched = data.scheduled || [];
         var queueDays = 0;
         if (sched.length > 0) {
-          var latest = sched.reduce(function(m, p) { var d = new Date(p.dueAt || 0); return d > m ? d : m; }, new Date(0));
-          queueDays = Math.max(0, Math.ceil((latest - new Date()) / 86400000));
+          var latest = sched.reduce(function(m: Date, p: BufferPost) { var d = new Date(p.dueAt || 0); return d > m ? d : m; }, new Date(0));
+          queueDays = Math.max(0, Math.ceil((latest.getTime() - new Date().getTime()) / 86400000));
         }
         // Streak
         var streak = 0;
@@ -643,15 +693,15 @@ function StatsTab({ data }) {
   </div>);
 }
 
-function ComposeModal({ channels, onClose, onRefresh }) {
-  var _text = useState(""), text = _text[0], setText = _text[1];
-  var _sel = useState([]), sel = _sel[0], setSel = _sel[1];
+function ComposeModal({ channels, onClose, onRefresh }: { channels: BufferChannel[]; onClose: () => void; onRefresh: () => void }) {
+  var _text = useState<string>(""), text = _text[0], setText = _text[1];
+  var _sel = useState<string[]>([]), sel = _sel[0], setSel = _sel[1];
   var _mode = useState("now"), mode = _mode[0], setMode = _mode[1];
   var _date = useState(""), date = _date[0], setDate = _date[1];
   var _time = useState("08:00"), time = _time[0], setTime = _time[1];
   var _sending = useState(false), sending = _sending[0], setSending = _sending[1];
 
-  var toggle = function(id) { setSel(function(p) { return p.indexOf(id) >= 0 ? p.filter(function(x) { return x !== id; }) : p.concat([id]); }); };
+  var toggle = function(id: string) { setSel(function(p) { return p.indexOf(id) >= 0 ? p.filter(function(x) { return x !== id; }) : p.concat([id]); }); };
 
   // Compute the strictest character limit across selected channels
   var activeLimit = (function() {
@@ -670,7 +720,7 @@ function ComposeModal({ channels, onClose, onRefresh }) {
 
   // Per-channel limit warnings
   var channelWarnings = (function() {
-    var warnings = [];
+    var warnings: string[] = [];
     (channels || []).forEach(function(ch) {
       if (sel.indexOf(ch.id) >= 0) {
         var p = pl(ch.service);
@@ -706,7 +756,7 @@ function ComposeModal({ channels, onClose, onRefresh }) {
 
     for (var i = 0; i < sel.length; i++) {
       try {
-        var input = { channelId: sel[i], text: text };
+        var input: Record<string, string | undefined> = { channelId: sel[i], text: text };
         if (isScheduled) {
           input.dueAt = dueAt;
           input.schedulingType = "custom";
@@ -718,14 +768,14 @@ function ComposeModal({ channels, onClose, onRefresh }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "createPost", input: input })
         });
-        var rd = await r.json();
+        var rd = (await r.json()) as { error?: string };
         if (rd.error) { failCount++; } else { successCount++; }
       } catch (e) { failCount++; }
     }
 
     if (successCount > 0) {
       var dateStr = isScheduled
-        ? new Date(dueAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " at " + time
+        ? new Date(dueAt!).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " at " + time
         : "now";
       addToast(successCount + " post(s) " + (isScheduled ? "scheduled for " + dateStr : "published"), "success");
     }
@@ -739,7 +789,7 @@ function ComposeModal({ channels, onClose, onRefresh }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }} onClick={onClose}>
-      <div onClick={function(e) { e.stopPropagation(); }} style={{ background: D.card, border: "1px solid " + D.amber + "30", borderRadius: 12, padding: 0, maxWidth: 580, width: "92%", maxHeight: "88vh", overflow: "auto", boxShadow: "0 12px 48px rgba(0,0,0,0.7)" }}>
+      <div onClick={function(e: React.MouseEvent<HTMLElement>) { e.stopPropagation(); }} style={{ background: D.card, border: "1px solid " + D.amber + "30", borderRadius: 12, padding: 0, maxWidth: 580, width: "92%", maxHeight: "88vh", overflow: "auto", boxShadow: "0 12px 48px rgba(0,0,0,0.7)" }}>
 
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px 0" }}>
@@ -773,7 +823,7 @@ function ComposeModal({ channels, onClose, onRefresh }) {
 
           {/* Text area */}
           <div style={{ fontFamily: mn, fontSize: 9, color: D.txs, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>Content</div>
-          <textarea value={text} onChange={function(e) { setText(e.target.value); }} rows={6} placeholder="Write your post..." style={{
+          <textarea value={text} onChange={function(e: React.ChangeEvent<HTMLTextAreaElement>) { setText(e.target.value); }} rows={6} placeholder="Write your post..." style={{
             width: "100%", padding: "14px", background: D.bg,
             border: "1px solid " + (overLimit ? D.coral : D.border),
             borderRadius: 8, color: D.tx, fontFamily: ft, fontSize: 14,
@@ -829,7 +879,7 @@ function ComposeModal({ channels, onClose, onRefresh }) {
             <div style={{ display: "flex", gap: 10 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontFamily: mn, fontSize: 9, color: D.txs, marginBottom: 4 }}>Date</div>
-                <input type="date" value={date} onChange={function(e) { setDate(e.target.value); }} style={{
+                <input type="date" value={date} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { setDate(e.target.value); }} style={{
                   width: "100%", padding: "10px 12px", background: D.card,
                   border: "1px solid " + D.border, borderRadius: 6, color: D.tx,
                   fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box"
@@ -837,7 +887,7 @@ function ComposeModal({ channels, onClose, onRefresh }) {
               </div>
               <div style={{ width: 130 }}>
                 <div style={{ fontFamily: mn, fontSize: 9, color: D.txs, marginBottom: 4 }}>Time</div>
-                <input type="time" value={time} onChange={function(e) { setTime(e.target.value); }} style={{
+                <input type="time" value={time} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { setTime(e.target.value); }} style={{
                   width: "100%", padding: "10px 12px", background: D.card,
                   border: "1px solid " + D.border, borderRadius: 6, color: D.tx,
                   fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box"
@@ -879,22 +929,22 @@ function ComposeModal({ channels, onClose, onRefresh }) {
 
 // ═══ MAIN ═══
 export default function BufferSchedule() {
-  var _tab = useState("home"), tab = _tab[0], setTab = _tab[1];
-  var _data = useState(null), data = _data[0], setData = _data[1];
-  var _loading = useState(true), loading = _loading[0], setLoading = _loading[1];
-  var _error = useState(null), error = _error[0], setError = _error[1];
-  var _compose = useState(false), compose = _compose[0], setCompose = _compose[1];
-  var _chanFilter = useState(null), chanFilter = _chanFilter[0], setChanFilter = _chanFilter[1];
+  var _tab = useState<string>("home"), tab = _tab[0], setTab = _tab[1];
+  var _data = useState<BufferData | null>(null), data = _data[0], setData = _data[1];
+  var _loading = useState<boolean>(true), loading = _loading[0], setLoading = _loading[1];
+  var _error = useState<string | null>(null), error = _error[0], setError = _error[1];
+  var _compose = useState<boolean>(false), compose = _compose[0], setCompose = _compose[1];
+  var _chanFilter = useState<string | null>(null), chanFilter = _chanFilter[0], setChanFilter = _chanFilter[1];
 
   var load = useCallback(function() {
-    fetch("/api/buffer").then(function(r) { return r.json(); }).then(function(d) {
-      if (d.error) { setError(d.error); setLoading(false); return; }
+    fetch("/api/buffer").then(function(r) { return r.json(); }).then(function(d: BufferData) {
+      if (d.error) { setError(d.error as string); setLoading(false); return; }
       setData(d); setError(null); setLoading(false);
-    }).catch(function(e) { setError(String(e)); setLoading(false); });
+    }).catch(function(e: unknown) { setError(String(e)); setLoading(false); });
   }, []);
 
   useEffect(function() { load(); var iv = setInterval(load, 60000); return function() { clearInterval(iv); }; }, [load]);
-  var deletePost = function(id) { fetch("/api/buffer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "deletePost", postId: id }) }).then(load); };
+  var deletePost = function(id: string) { fetch("/api/buffer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "deletePost", postId: id }) }).then(load); };
   var allPosts = data ? (data.scheduled || []).concat(data.sent || []) : [];
 
   return (<div>
@@ -927,13 +977,13 @@ export default function BufferSchedule() {
     {loading ? <div style={{ textAlign: "center", padding: 80 }}><style dangerouslySetInnerHTML={{ __html: "@keyframes bL{0%{opacity:0.3}50%{opacity:1}100%{opacity:0.3}}" }} /><div style={{ fontFamily: mn, fontSize: 12, color: D.amber, animation: "bL 1.5s ease-in-out infinite" }}>Loading Buffer...</div></div>
     : error ? <div style={{ textAlign: "center", padding: 50, maxWidth: 440, margin: "0 auto" }}><div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: D.tx, marginBottom: 8 }}>Connect Buffer</div><div style={{ fontFamily: ft, fontSize: 12, color: D.txs, lineHeight: 1.7, marginBottom: 16 }}>Generate an API key from your Buffer settings.</div><div style={{ padding: "14px 16px", background: D.card, borderRadius: 8, border: "1px solid " + D.border, textAlign: "left", marginBottom: 14, fontFamily: mn, fontSize: 10, color: D.tx, lineHeight: 2.2 }}><span style={{ color: D.amber }}>1.</span> Go to publish.buffer.com/settings/api{"\n"}<span style={{ color: D.amber }}>2.</span> Generate a key{"\n"}<span style={{ color: D.amber }}>3.</span> Add to Vercel as <span style={{ color: D.amber }}>BUFFER_API_KEY</span>{"\n"}<span style={{ color: D.amber }}>4.</span> Redeploy</div><a href="https://publish.buffer.com/settings/api" target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", fontFamily: ft, fontSize: 13, fontWeight: 700, color: D.bg, background: D.amber, padding: "10px 24px", borderRadius: 6, textDecoration: "none" }}>Get API Key</a>{error !== "BUFFER_API_KEY not configured" && <div style={{ fontFamily: mn, fontSize: 9, color: D.coral, marginTop: 14 }}>{error}</div>}</div>
     : <div>
-      {tab === "home" && <HomeTab data={data} onTab={setTab} onCompose={function() { setCompose(true); }} />}
-      {tab === "calendar" && <CalendarTab posts={allPosts} channels={data.channels} />}
-      {tab === "scheduled" && <PostList posts={chanFilter ? (data.scheduled || []).filter(function(p) { return (p.channel ? p.channel.service : "") === chanFilter; }) : data.scheduled || []} channels={data.channels} onDelete={deletePost} showEdit emptyLabel="No scheduled posts" />}
-      {tab === "sent" && <PostList posts={data.sent || []} channels={data.channels} emptyLabel="No sent posts" showSearch />}
-      {tab === "drafts" && <DraftsTab drafts={data.drafts || []} channels={data.channels} onRefresh={load} />}
-      {tab === "channels" && <ChannelsTab channels={data.channels} data={data} onFilter={function(svc) { setChanFilter(svc); setTab("scheduled"); }} />}
-      {tab === "stats" && <StatsTab data={data} />}
+      {tab === "home" && <HomeTab data={data!} onTab={setTab} onCompose={function() { setCompose(true); }} />}
+      {tab === "calendar" && <CalendarTab posts={allPosts} channels={data!.channels} />}
+      {tab === "scheduled" && <PostList posts={chanFilter ? (data!.scheduled || []).filter(function(p) { return (p.channel ? p.channel.service : "") === chanFilter; }) : data!.scheduled || []} channels={data!.channels} onDelete={deletePost} showEdit emptyLabel="No scheduled posts" />}
+      {tab === "sent" && <PostList posts={data!.sent || []} channels={data!.channels} emptyLabel="No sent posts" showSearch />}
+      {tab === "drafts" && <DraftsTab drafts={data!.drafts || []} channels={data!.channels} onRefresh={load} />}
+      {tab === "channels" && <ChannelsTab channels={data!.channels} data={data!} onFilter={function(svc: string) { setChanFilter(svc); setTab("scheduled"); }} />}
+      {tab === "stats" && <StatsTab data={data!} />}
     </div>}
 
     {compose && <ComposeModal channels={data ? data.channels : []} onClose={function() { setCompose(false); }} onRefresh={load} />}

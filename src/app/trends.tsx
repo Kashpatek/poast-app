@@ -1,6 +1,50 @@
-// @ts-nocheck
 "use client";
 import { useState, useEffect } from "react";
+
+interface ToastItem {
+  id: number;
+  msg: string;
+  type: string;
+}
+
+interface TrendItem {
+  title: string;
+  metric: string;
+  url?: string;
+  timestamp?: string;
+  tags?: string[];
+}
+
+interface FeedSource {
+  source: string;
+  items: TrendItem[];
+  error?: string;
+}
+
+interface ManualTrend {
+  id: string;
+  url: string;
+  platform: string;
+  format: string;
+  audio: string;
+  visual: string;
+  sentiment: string;
+  audience: string;
+  ctaType: string;
+  relevance: number;
+  saAngle: string;
+  status: string;
+  date: string;
+  _manual: true;
+  _onRemove?: () => void;
+}
+
+interface ContentIdea {
+  title: string;
+  hook: string;
+  format: string;
+  trendReference: string;
+}
 
 // ═══ DESIGN LANGUAGE ═══
 var D = {
@@ -52,17 +96,17 @@ var PLATFORMS_MANUAL = {
 };
 
 // ═══ TOAST SYSTEM ═══
-var _toasts = { current: null };
-function addToast(msg, type) { if (_toasts.current) _toasts.current(msg, type); }
+var _toasts: { current: ((msg: string, type?: string) => void) | null } = { current: null };
+function addToast(msg: string, type?: string) { if (_toasts.current) _toasts.current(msg, type); }
 
 function ToastContainer() {
-  var _list = useState([]), list = _list[0], setList = _list[1];
-  _toasts.current = function(msg, type) {
+  var _list = useState<ToastItem[]>([]), list = _list[0], setList = _list[1];
+  _toasts.current = function(msg: string, type?: string) {
     var id = Date.now();
     setList(function(p) { return [{ id: id, msg: msg, type: type || "success" }].concat(p).slice(0, 5); });
     setTimeout(function() { setList(function(p) { return p.filter(function(t) { return t.id !== id; }); }); }, 3200);
   };
-  var colors = { success: D.teal, error: D.coral, info: D.blue };
+  var colors: Record<string, string> = { success: D.teal, error: D.coral, info: D.blue };
   return <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 10000, display: "flex", flexDirection: "column", gap: 8 }}>
     {list.map(function(t) {
       var c = colors[t.type] || D.teal;
@@ -75,10 +119,10 @@ function ToastContainer() {
 }
 
 // ═══ HELPERS ═══
-function srcColor(key) { var m = SOURCE_META[key]; return m ? m.color : D.txm; }
-function truncText(text, max) { if (!text) return ""; if (text.length <= (max || 80)) return text; return text.slice(0, max || 80) + "\u2026"; }
+function srcColor(key: string) { var m = SOURCE_META[key as keyof typeof SOURCE_META]; return m ? m.color : D.txm; }
+function truncText(text: string, max?: number) { if (!text) return ""; if (text.length <= (max || 80)) return text; return text.slice(0, max || 80) + "\u2026"; }
 function makeId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
-function timeAgo(ts) {
+function timeAgo(ts: string | undefined) {
   if (!ts) return "";
   var diff = Date.now() - new Date(ts).getTime();
   var mins = Math.floor(diff / 60000);
@@ -88,17 +132,17 @@ function timeAgo(ts) {
   if (hrs < 24) return hrs + "h ago";
   return Math.floor(hrs / 24) + "d ago";
 }
-function fromDbRow(row) {
-  return { id: row.id, url: row.url || "", platform: row.platform || "", format: row.format || "", audio: row.audio || "", visual: row.visual || "", sentiment: row.sentiment || "", audience: row.audience || "", ctaType: row.cta_type || "", relevance: row.relevance_score != null ? row.relevance_score : 5, saAngle: row.sa_angle || "", status: row.status || "Active", date: row.created_at || new Date().toISOString(), _manual: true };
+function fromDbRow(row: Record<string, unknown>): ManualTrend {
+  return { id: row.id as string, url: (row.url as string) || "", platform: (row.platform as string) || "", format: (row.format as string) || "", audio: (row.audio as string) || "", visual: (row.visual as string) || "", sentiment: (row.sentiment as string) || "", audience: (row.audience as string) || "", ctaType: (row.cta_type as string) || "", relevance: row.relevance_score != null ? row.relevance_score as number : 5, saAngle: (row.sa_angle as string) || "", status: (row.status as string) || "Active", date: (row.created_at as string) || new Date().toISOString(), _manual: true };
 }
-function toDbRow(t) {
-  var row = { url: t.url || "", platform: t.platform || "", format: t.format || "", audio: t.audio || "", visual: t.visual || "", sentiment: t.sentiment || "", audience: t.audience || "", cta_type: t.ctaType || "", relevance_score: t.relevance != null ? t.relevance : 5, sa_angle: t.saAngle || "", status: t.status || "Active" };
+function toDbRow(t: ManualTrend) {
+  var row: Record<string, unknown> = { url: t.url || "", platform: t.platform || "", format: t.format || "", audio: t.audio || "", visual: t.visual || "", sentiment: t.sentiment || "", audience: t.audience || "", cta_type: t.ctaType || "", relevance_score: t.relevance != null ? t.relevance : 5, sa_angle: t.saAngle || "", status: t.status || "Active" };
   if (t.id) row.id = t.id;
   return row;
 }
 
 // ═══ TREND CARD (240x180) ═══
-function TrendCard({ item, sourceKey }) {
+function TrendCard({ item, sourceKey }: { item: TrendItem; sourceKey: string }) {
   var c = srcColor(sourceKey);
   var _hov = useState(false), hov = _hov[0], setHov = _hov[1];
   var ta = timeAgo(item.timestamp);
@@ -117,7 +161,7 @@ function TrendCard({ item, sourceKey }) {
         <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: D.tx, lineHeight: 1.4, marginBottom: 10, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.title}</div>
         {/* Tags */}
         {item.tags && item.tags.length > 0 && <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
-          {item.tags.slice(0, 2).map(function(tag, i) {
+          {item.tags.slice(0, 2).map(function(tag: string, i: number) {
             return <span key={i} style={{ fontFamily: mn, fontSize: 9, color: D.txm, padding: "2px 7px", borderRadius: 8, background: D.surface, border: "1px solid " + D.border }}>{tag}</span>;
           })}
         </div>}
@@ -132,9 +176,9 @@ function TrendCard({ item, sourceKey }) {
 }
 
 // ═══ MANUAL TREND CARD ═══
-function ManualTrendCard({ trend, onRemove }) {
+function ManualTrendCard({ trend, onRemove }: { trend: ManualTrend; onRemove: () => void }) {
   var _hov = useState(false), hov = _hov[0], setHov = _hov[1];
-  var pc = PLATFORMS_MANUAL[trend.platform];
+  var pc = PLATFORMS_MANUAL[trend.platform as keyof typeof PLATFORMS_MANUAL];
   var c = pc ? pc.color : D.amber;
   return <div
     onMouseEnter={function() { setHov(true); }}
@@ -162,7 +206,7 @@ function ManualTrendCard({ trend, onRemove }) {
 }
 
 // ═══ HORIZONTAL SCROLL ROW ═══
-function HScrollRow({ label, icon, sourceKey, items, color }) {
+function HScrollRow({ label, icon, sourceKey, items, color }: { label: string; icon: string; sourceKey: string; items: (TrendItem | (ManualTrend & { _onRemove?: () => void }))[]; color?: string }) {
   var c = color || srcColor(sourceKey);
   if (!items || items.length === 0) return null;
   return <div style={{ marginBottom: 28 }}>
@@ -173,16 +217,16 @@ function HScrollRow({ label, icon, sourceKey, items, color }) {
       <span style={{ fontFamily: mn, fontSize: 10, color: D.txd }}>({items.length})</span>
     </div>
     <div className="hscroll-row" style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4, paddingLeft: 2, paddingRight: 12 }}>
-      {items.map(function(item, i) {
-        if (item._manual) return <ManualTrendCard key={"m-" + item.id} trend={item} onRemove={item._onRemove} />;
-        return <TrendCard key={sourceKey + "-" + i} item={item} sourceKey={sourceKey} />;
+      {items.map(function(item: TrendItem | ManualTrend, i: number) {
+        if ("_manual" in item && item._manual) return <ManualTrendCard key={"m-" + item.id} trend={item as ManualTrend} onRemove={(item as ManualTrend)._onRemove || function(){}} />;
+        return <TrendCard key={sourceKey + "-" + i} item={item as TrendItem} sourceKey={sourceKey} />;
       })}
     </div>
   </div>;
 }
 
 // ═══ PILL COMPONENT ═══
-function Pill({ label, active, onClick, color }) {
+function Pill({ label, active, onClick, color }: { label: string; active: boolean; onClick: () => void; color?: string }) {
   var bg = active ? (color || D.blue) + "25" : "transparent";
   var bc = active ? (color || D.blue) : D.border;
   var tx = active ? (color || D.blue) : D.txm;
@@ -190,10 +234,10 @@ function Pill({ label, active, onClick, color }) {
 }
 
 // ═══ WIZARD OVERLAY ═══
-function WizardOverlay({ visible, onClose, feedData }) {
+function WizardOverlay({ visible, onClose, feedData }: { visible: boolean; onClose: () => void; feedData: FeedSource[] }) {
   var _contentType = useState(""), contentType = _contentType[0], setContentType = _contentType[1];
   var _topic = useState(""), topic = _topic[0], setTopic = _topic[1];
-  var _ideas = useState(null), ideas = _ideas[0], setIdeas = _ideas[1];
+  var _ideas = useState<ContentIdea[] | null>(null), ideas = _ideas[0], setIdeas = _ideas[1];
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
   var _error = useState(""), error = _error[0], setError = _error[1];
 
@@ -205,10 +249,10 @@ function WizardOverlay({ visible, onClose, feedData }) {
     setLoading(true); setError(""); setIdeas(null);
     var trendSummary = "";
     if (feedData && feedData.length > 0) {
-      feedData.forEach(function(src) {
+      feedData.forEach(function(src: FeedSource) {
         if (src.items && src.items.length > 0) {
           trendSummary += "\n[" + src.source.toUpperCase() + "]\n";
-          src.items.slice(0, 5).forEach(function(item) { trendSummary += "- " + item.title + " (" + item.metric + ")\n"; });
+          src.items.slice(0, 5).forEach(function(item: TrendItem) { trendSummary += "- " + item.title + " (" + item.metric + ")\n"; });
         }
       });
     }
@@ -224,7 +268,7 @@ function WizardOverlay({ visible, onClose, feedData }) {
       }).catch(function(e) { setLoading(false); setError(e.message || "Network error"); });
   }
 
-  function sendIdea(idea, dest) { addToast("Sent \"" + truncText(idea.title, 30) + "\" to " + dest, "success"); }
+  function sendIdea(idea: ContentIdea, dest: string) { addToast("Sent \"" + truncText(idea.title, 30) + "\" to " + dest, "success"); }
 
   if (!visible) return null;
   return <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(0,0,0,0.85)", animation: "overlayIn 0.2s ease", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
@@ -253,7 +297,7 @@ function WizardOverlay({ visible, onClose, feedData }) {
       </div>
       {error && <div style={{ fontFamily: mn, fontSize: 11, color: D.coral, marginBottom: 16, padding: "8px 12px", background: D.coral + "10", borderRadius: 6, border: "1px solid " + D.coral + "30" }}>{error}</div>}
       {ideas && ideas.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {ideas.map(function(idea, i) {
+        {ideas.map(function(idea: ContentIdea, i: number) {
           return <div key={i} style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 10, padding: 16 }}>
             <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.tx, marginBottom: 6 }}>{(i + 1) + ". " + idea.title}</div>
             <div style={{ fontFamily: ft, fontSize: 12, color: D.txm, marginBottom: 6, lineHeight: 1.5 }}><span style={{ color: D.amber, fontWeight: 600 }}>Hook:</span> {idea.hook}</div>
@@ -271,7 +315,7 @@ function WizardOverlay({ visible, onClose, feedData }) {
 }
 
 // ═══ MANUAL ADD FORM ═══
-function ManualAddForm({ onAdd, onClose }) {
+function ManualAddForm({ onAdd, onClose }: { onAdd: (entry: Omit<ManualTrend, "id" | "_manual">) => void; onClose: () => void }) {
   var _url = useState(""), url = _url[0], setUrl = _url[1];
   var _platform = useState("tiktok"), platform = _platform[0], setPlatform = _platform[1];
   var _format = useState(""), format = _format[0], setFormat = _format[1];
@@ -288,7 +332,7 @@ function ManualAddForm({ onAdd, onClose }) {
     onClose();
   }
 
-  function InputField({ label, value, onChange, placeholder, mono }) {
+  function InputField({ label, value, onChange, placeholder, mono }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; mono?: boolean }) {
     return <div style={{ marginBottom: 10 }}>
       <div style={{ fontFamily: mn, fontSize: 9, color: D.txm, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>{label}</div>
       <input value={value} onChange={function(e) { onChange(e.target.value); }} placeholder={placeholder || ""} style={{ width: "100%", background: D.surface, border: "1px solid " + D.border, borderRadius: 6, padding: "8px 10px", color: D.tx, fontFamily: mono ? mn : ft, fontSize: 12, outline: "none", boxSizing: "border-box" }} />
@@ -306,7 +350,7 @@ function ManualAddForm({ onAdd, onClose }) {
         <div style={{ fontFamily: mn, fontSize: 9, color: D.txm, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>PLATFORM</div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {Object.keys(PLATFORMS_MANUAL).map(function(pk) {
-            var p = PLATFORMS_MANUAL[pk]; var active = platform === pk;
+            var p = PLATFORMS_MANUAL[pk as keyof typeof PLATFORMS_MANUAL]; var active = platform === pk;
             return <span key={pk} onClick={function() { setPlatform(pk); }} style={{ fontFamily: mn, fontSize: 10, color: active ? "#fff" : D.txm, padding: "5px 12px", borderRadius: 6, border: "1px solid " + (active ? p.color : D.border), background: active ? p.color + "30" : "transparent", cursor: "pointer", userSelect: "none" }}>{p.name}</span>;
           })}
         </div>
@@ -338,10 +382,10 @@ function ManualAddForm({ onAdd, onClose }) {
 // ═══ MAIN COMPONENT ═══
 export default function Trends() {
   var _tab = useState("social"), tab = _tab[0], setTab = _tab[1];
-  var _feedData = useState([]), feedData = _feedData[0], setFeedData = _feedData[1];
-  var _manualTrends = useState([]), manualTrends = _manualTrends[0], setManualTrends = _manualTrends[1];
+  var _feedData = useState<FeedSource[]>([]), feedData = _feedData[0], setFeedData = _feedData[1];
+  var _manualTrends = useState<ManualTrend[]>([]), manualTrends = _manualTrends[0], setManualTrends = _manualTrends[1];
   var _loading = useState(true), loading = _loading[0], setLoading = _loading[1];
-  var _lastUpdated = useState(null), lastUpdated = _lastUpdated[0], setLastUpdated = _lastUpdated[1];
+  var _lastUpdated = useState<number | null>(null), lastUpdated = _lastUpdated[0], setLastUpdated = _lastUpdated[1];
   var _wizardOpen = useState(false), wizardOpen = _wizardOpen[0], setWizardOpen = _wizardOpen[1];
   var _addFormOpen = useState(false), addFormOpen = _addFormOpen[0], setAddFormOpen = _addFormOpen[1];
 
@@ -349,7 +393,7 @@ export default function Trends() {
   function fetchFeed() {
     setLoading(true);
     fetch("/api/trends-feed?source=all").then(function(r) { return r.json(); }).then(function(data) {
-      if (data.sources) { var valid = data.sources.filter(function(s) { return s.items && !s.error; }); setFeedData(valid); }
+      if (data.sources) { var valid = data.sources.filter(function(s: FeedSource) { return s.items && !s.error; }); setFeedData(valid); }
       setLastUpdated(Date.now());
       setLoading(false);
     }).catch(function() { setLoading(false); addToast("Failed to load trends feed", "error"); });
@@ -362,30 +406,31 @@ export default function Trends() {
   useEffect(function() { fetchFeed(); fetchManual(); }, []);
 
   // ═══ MANUAL CRUD ═══
-  function handleManualAdd(entry) {
-    fetch("/api/db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ table: "trends", data: toDbRow(entry) }) })
+  function handleManualAdd(entry: Omit<ManualTrend, "id" | "_manual">) {
+    var fullEntry = Object.assign({}, entry, { id: makeId(), _manual: true as const });
+    fetch("/api/db", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ table: "trends", data: toDbRow(fullEntry) }) })
       .then(function(r) { return r.json(); })
       .then(function(res) {
         if (res.data && res.data[0]) setManualTrends(function(p) { return [fromDbRow(res.data[0])].concat(p); });
-        else setManualTrends(function(p) { return [Object.assign({}, entry, { id: makeId(), _manual: true })].concat(p); });
+        else setManualTrends(function(p) { return [fullEntry].concat(p); });
       })
-      .catch(function() { setManualTrends(function(p) { return [Object.assign({}, entry, { id: makeId(), _manual: true })].concat(p); }); });
+      .catch(function() { setManualTrends(function(p) { return [fullEntry].concat(p); }); });
     addToast("Manual trend added", "success");
   }
-  function handleManualRemove(id) {
+  function handleManualRemove(id: string) {
     fetch("/api/db", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ table: "trends", id: id }) }).catch(function() {});
     setManualTrends(function(p) { return p.filter(function(t) { return t.id !== id; }); });
     addToast("Manual trend removed", "info");
   }
 
   // ═══ DATA GROUPING ═══
-  function getSourceItems(key) {
+  function getSourceItems(key: string) {
     var src = feedData.find(function(s) { return s.source === key; });
     return src ? src.items : [];
   }
-  function getManualForTab(tabKey) {
+  function getManualForTab(tabKey: string) {
     return manualTrends.filter(function(t) {
-      var pm = PLATFORMS_MANUAL[t.platform];
+      var pm = PLATFORMS_MANUAL[t.platform as keyof typeof PLATFORMS_MANUAL];
       var mtab = pm ? pm.tab : "social";
       return mtab === tabKey;
     }).map(function(t) {
@@ -402,12 +447,12 @@ export default function Trends() {
 
   // ═══ RENDER ROWS FOR ACTIVE TAB ═══
   function renderTabContent() {
-    var sources = TAB_SOURCES[tab] || [];
+    var sources = TAB_SOURCES[tab as keyof typeof TAB_SOURCES] || [];
     var manualForTab = getManualForTab(tab);
     var hasAny = false;
 
-    var rows = sources.map(function(srcKey) {
-      var meta = SOURCE_META[srcKey];
+    var rows = sources.map(function(srcKey: string) {
+      var meta = SOURCE_META[srcKey as keyof typeof SOURCE_META];
       var items = getSourceItems(srcKey);
       if (items.length > 0) hasAny = true;
       if (!meta) return null;

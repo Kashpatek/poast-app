@@ -1,7 +1,118 @@
-// @ts-nocheck
 "use client";
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { exportDocx } from "./docx-export";
+
+// ═══ TYPES ═══
+interface Guest {
+  name: string;
+  handle: string;
+}
+
+interface EpState {
+  number: string;
+  link: string;
+  transcript: string;
+  timestamps?: string;
+  extra?: string;
+}
+
+interface ThumbnailConcept {
+  concept: string;
+  text_overlay: string;
+  mood: string;
+}
+
+interface GeneratedOptions {
+  titles: string[];
+  descriptions: string[];
+  thumbnails: (string | ThumbnailConcept)[];
+}
+
+interface SelectionState {
+  title: number;
+  desc: number;
+  thumb: number;
+}
+
+interface FinalizedState {
+  title: string;
+  description: string;
+  thumbnail: string | ThumbnailConcept;
+}
+
+interface SocialResult {
+  x_hook?: string;
+  x_reply?: string;
+  linkedin_post?: string;
+  linkedin_comment?: string;
+  facebook_post?: string;
+  facebook_comment?: string;
+  instagram_caption?: string;
+  yt_shorts_title?: string;
+  yt_shorts_desc?: string;
+  tiktok_caption?: string;
+  [key: string]: string | undefined;
+}
+
+interface LogEntry {
+  episode: string;
+  title: string;
+  description: string;
+  guests: string;
+  date: string;
+  social: SocialResult | null;
+}
+
+interface ConfettiPiece {
+  left: string;
+  color: string;
+  delay: string;
+  dur: string;
+  size: number;
+  drift: number;
+  rot: number;
+  shape: string;
+}
+
+interface FKProspect {
+  id: string;
+  name: string;
+  company?: string;
+  role?: string;
+  tier?: string;
+  [key: string]: unknown;
+}
+
+interface CheckResult {
+  score: number;
+  feedback: string;
+  suggestions?: string[];
+}
+
+interface ABOption {
+  title?: string;
+  thumbnail_concept?: string;
+  score: number;
+  reasoning: string;
+}
+
+interface ABResult {
+  option_a: ABOption;
+  option_b: ABOption;
+  verdict: string;
+}
+
+interface DocSection {
+  heading: string;
+  items: { label: string; content: string }[];
+}
+
+interface SocialField {
+  key: string;
+  label: string;
+  color?: string;
+  plat?: string;
+}
 
 // ═══ DESIGN (coral accent for PODCAST) ═══
 var D = {
@@ -21,11 +132,9 @@ var SYS_EP = "You are a content strategist for SemiAnalysis, a semiconductor and
 var SYS_SOC = "You are a social media strategist for SemiAnalysis Weekly. Rules: Never use em dashes. No emojis. No hashtags on X/Twitter ever. YT Shorts titles under 40 chars. Instagram: caption + Save this for later CTA + 5-8 hashtags + location San Francisco CA, point to youtube.com/@SemianalysisWeekly. TikTok: all lowercase 4-6 hashtags. LinkedIn/Facebook: link in first comment, end Link in comments. X: Hook tweet no link + reply-to-self with link. Mention all guests with handles on every platform. RESPOND ONLY IN VALID JSON. No markdown fences. No preamble.";
 
 // ═══ API ═══
-var _toastSet = { current: null };
-var _toastTimer = { current: null };
-function showToast(msg) { if (_toastSet.current) _toastSet.current(msg); }
+import { showToast } from "./toast-context";
 
-async function ask(sys, prompt) {
+async function ask(sys: string, prompt: string): Promise<Record<string, unknown> | null> {
   try {
     var r = await fetch("/api/generate", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -34,36 +143,28 @@ async function ask(sys, prompt) {
     var d = await r.json();
     if (d.error) { showToast("API Error: " + (d.error.message || d.error)); return null; }
     if (!d.content) { showToast("API returned empty response. Check your ANTHROPIC_API_KEY in Vercel env vars."); return null; }
-    var t = (d.content || []).map(function(c) { return c.text || ""; }).join("");
+    var t = (d.content || []).map(function(c: { text?: string }) { return c.text || ""; }).join("");
     try {
       return JSON.parse(t.replace(/```json|```/g, "").trim());
     } catch (pe) { showToast("Failed to parse API response. The model returned invalid JSON."); console.error("Parse error:", t); return null; }
   } catch (e) { showToast("Network error: Could not reach /api/generate"); console.error("API:", e); return null; }
 }
 
-function buildPrompt(parts) { return parts.filter(Boolean).join("\n\n"); }
+function buildPrompt(parts: (string | null | undefined | false)[]): string { return parts.filter(Boolean).join("\n\n"); }
 
-function copyText(str) {
+function copyText(str: string): boolean {
   try { var ta = document.createElement("textarea"); ta.value = str; ta.style.position = "fixed"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); return true; } catch (e) { try { navigator.clipboard.writeText(str); return true; } catch (e2) { return false; } }
 }
 
-function gStr(guests) { return guests.filter(function(g) { return g.name; }).map(function(g) { return g.handle ? g.name + " (" + g.handle + ")" : g.name; }).join(", ") || "TBD"; }
-function thTxt(th) { if (!th) return ""; if (typeof th === "string") return th; return th.concept + '\nText: "' + th.text_overlay + '"\nMood: ' + th.mood; }
+function gStr(guests: Guest[]): string { return guests.filter(function(g: Guest) { return g.name; }).map(function(g: Guest) { return g.handle ? g.name + " (" + g.handle + ")" : g.name; }).join(", ") || "TBD"; }
+function thTxt(th: string | ThumbnailConcept | null): string { if (!th) return ""; if (typeof th === "string") return th; return th.concept + '\nText: "' + th.text_overlay + '"\nMood: ' + th.mood; }
 
-function exportDoc(title, sections) {
+function exportDoc(title: string, sections: DocSection[]): void {
   exportDocx(title, sections);
 }
 
-// ═══ TOAST ═══
-function Toast() {
-  var _s = useState(null), msg = _s[0], setMsg = _s[1];
-  _toastSet.current = function(m) { if (_toastTimer.current) clearTimeout(_toastTimer.current); setMsg(m); _toastTimer.current = setTimeout(function() { setMsg(null); }, 6000); };
-  if (!msg) return null;
-  return <div onClick={function() { setMsg(null); }} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 10000, maxWidth: 420, padding: "14px 20px", background: ACC + "20", border: "1px solid " + ACC, borderRadius: 8, fontFamily: mn, fontSize: 11, color: ACC, cursor: "pointer", boxShadow: "0 0 20px rgba(224,99,71,0.2)", lineHeight: 1.5 }}>{msg}</div>;
-}
-
 // ═══ UI COMPONENTS ═══
-function ProgressBar({ label }) {
+function ProgressBar({ label }: { label?: string }) {
   return <div style={{ margin: "22px 0" }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
       <div style={{ fontFamily: mn, fontSize: 11, color: ACC, letterSpacing: "2px", textTransform: "uppercase" }}>{label || "Generating..."}</div>
@@ -75,37 +176,37 @@ function ProgressBar({ label }) {
   </div>;
 }
 
-function Label({ children }) { return <div style={{ fontFamily: mn, fontSize: 11, color: ACC, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 8 }}>{children}</div>; }
+function Label({ children }: { children: React.ReactNode }) { return <div style={{ fontFamily: mn, fontSize: 11, color: ACC, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 8 }}>{children}</div>; }
 
-function Field({ label, value, onChange, placeholder, isMono }) { return (<div style={{ marginBottom: 16 }}>{label && <Label>{label}</Label>}<input value={value} onChange={function(e) { onChange(e.target.value); }} placeholder={placeholder} style={{ width: "100%", padding: "12px 14px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, color: D.tx, fontFamily: isMono ? mn : ft, fontSize: 14, outline: "none", boxSizing: "border-box", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; e.target.style.boxShadow = "0 0 24px rgba(224,99,71,0.06)"; }} onBlur={function(e) { e.target.style.borderColor = D.border; e.target.style.boxShadow = "none"; }} /></div>); }
+function Field({ label, value, onChange, placeholder, isMono }: { label?: string; value: string; onChange: (v: string) => void; placeholder?: string; isMono?: boolean }) { return (<div style={{ marginBottom: 16 }}>{label && <Label>{label}</Label>}<input value={value} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { onChange(e.target.value); }} placeholder={placeholder} style={{ width: "100%", padding: "12px 14px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, color: D.tx, fontFamily: isMono ? mn : ft, fontSize: 14, outline: "none", boxSizing: "border-box", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; e.target.style.boxShadow = "0 0 24px rgba(224,99,71,0.06)"; }} onBlur={function(e) { e.target.style.borderColor = D.border; e.target.style.boxShadow = "none"; }} /></div>); }
 
-function Btn({ children, onClick, loading, sec, sm, off }) { return (<button onClick={onClick} disabled={loading || off} style={{ padding: sm ? "8px 16px" : "12px 28px", background: off ? D.surface : sec ? "transparent" : "linear-gradient(135deg, " + ACC + ", #C84E35)", color: off ? "rgba(255,255,255,0.4)" : sec ? ACC : "#ffffff", border: sec ? "1px solid " + (off ? D.border : ACC) : "none", borderRadius: 10, fontFamily: ft, fontSize: sm ? 12 : 14, fontWeight: 800, cursor: loading || off ? "not-allowed" : "pointer", opacity: loading ? 0.5 : 1, letterSpacing: -0.3, transition: "all 0.2s ease" }}>{loading ? "Working..." : children}</button>); }
+function Btn({ children, onClick, loading, sec, sm, off }: { children: React.ReactNode; onClick?: () => void; loading?: boolean; sec?: boolean; sm?: boolean; off?: boolean }) { return (<button onClick={onClick} disabled={loading || off} style={{ padding: sm ? "8px 16px" : "12px 28px", background: off ? D.surface : sec ? "transparent" : "linear-gradient(135deg, " + ACC + ", #C84E35)", color: off ? "rgba(255,255,255,0.4)" : sec ? ACC : "#ffffff", border: sec ? "1px solid " + (off ? D.border : ACC) : "none", borderRadius: 10, fontFamily: ft, fontSize: sm ? 12 : 14, fontWeight: 800, cursor: loading || off ? "not-allowed" : "pointer", opacity: loading ? 0.5 : 1, letterSpacing: -0.3, transition: "all 0.2s ease" }}>{loading ? "Working..." : children}</button>); }
 
-function CopyBtn({ text }) { var _s = useState(false), ok = _s[0], set = _s[1]; return <span onClick={function(e) { e.stopPropagation(); set(copyText(text)); setTimeout(function() { set(false); }, 1200); }} style={{ fontFamily: mn, fontSize: 9, color: ok ? ACC : "rgba(255,255,255,0.4)", cursor: "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + D.border, userSelect: "none", transition: "all 0.2s ease" }}>{ok ? "Copied" : "Copy"}</span>; }
+function CopyBtn({ text }: { text: string }) { var _s = useState<boolean>(false), ok = _s[0], set = _s[1]; return <span onClick={function(e: React.MouseEvent) { e.stopPropagation(); set(copyText(text)); setTimeout(function() { set(false); }, 1200); }} style={{ fontFamily: mn, fontSize: 9, color: ok ? ACC : "rgba(255,255,255,0.4)", cursor: "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + D.border, userSelect: "none", transition: "all 0.2s ease" }}>{ok ? "Copied" : "Copy"}</span>; }
 
 function Divider() { return <div style={{ borderBottom: "1px solid " + D.border, margin: "28px 0" }} />; }
 
-function Pick({ text, picked, onPick, onRedo, rLoading }) {
+function Pick({ text, picked, onPick, onRedo, rLoading }: { text: string; picked: boolean; onPick: () => void; onRedo?: () => void; rLoading?: boolean }) {
   return (<div onClick={onPick} style={{ background: picked ? "linear-gradient(135deg, " + ACC + "0A 0%, " + ACC + "05 100%)" : D.elevated, border: "1px solid " + (picked ? ACC + "60" : D.border), borderRadius: 12, padding: "16px 20px", marginBottom: 8, cursor: "pointer", boxShadow: picked ? "0 0 24px rgba(224,99,71,0.06)" : "none", transition: "all 0.2s ease" }}>
     <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
       <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, marginTop: 2, border: "2px solid " + (picked ? ACC : D.borderHover), background: picked ? ACC : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s ease" }}>{picked && <div style={{ width: 8, height: 8, borderRadius: "50%", background: D.bg }} />}</div>
       <div style={{ flex: 1, fontFamily: ft, fontSize: 14, color: picked ? D.tx : D.txb, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{text}</div>
       <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
         <CopyBtn text={text} />
-        {onRedo && <span onClick={function(e) { e.stopPropagation(); if (!rLoading) onRedo(); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: rLoading ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + D.border, opacity: rLoading ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>&#x21bb;</span>}
+        {onRedo && <span onClick={function(e: React.MouseEvent) { e.stopPropagation(); if (!rLoading) onRedo(); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: rLoading ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + D.border, opacity: rLoading ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>&#x21bb;</span>}
       </div>
     </div>
   </div>);
 }
 
-function SecHead({ label, onRedoAll, rL }) {
+function SecHead({ label, onRedoAll, rL }: { label: string; onRedoAll?: () => void; rL?: boolean }) {
   return (<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
     <div style={{ fontFamily: mn, fontSize: 11, color: ACC, textTransform: "uppercase", letterSpacing: "2px", fontWeight: 700 }}>{label}</div>
     {onRedoAll && <span onClick={function() { if (!rL) onRedoAll(); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: rL ? "wait" : "pointer", padding: "4px 10px", borderRadius: 8, border: "1px solid " + D.border, opacity: rL ? 0.4 : 1, transition: "all 0.2s ease" }}>&#x21bb; Redo All 3</span>}
   </div>);
 }
 
-function OutCard({ title, content, color, onRedo, rLoading }) {
+function OutCard({ title, content, color, onRedo, rLoading }: { title: string; content: string; color?: string; onRedo?: () => void; rLoading?: boolean }) {
   return (<div style={{ background: D.elevated, border: "1px solid " + D.border, borderLeft: "3px solid " + (color || ACC), borderRadius: 12, padding: "16px 20px", marginBottom: 10, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
       <div style={{ fontFamily: mn, fontSize: 11, color: color || ACC, textTransform: "uppercase", letterSpacing: "2px" }}>{title}</div>
@@ -119,7 +220,7 @@ function OutCard({ title, content, color, onRedo, rLoading }) {
 }
 
 // ═══ STEP TRACKER (P2P-style numbered circles) ═══
-function StepTracker({ current, steps, canNavigate, onNav }) {
+function StepTracker({ current, steps, canNavigate, onNav }: { current: number; steps: string[]; canNavigate?: (i: number) => boolean; onNav: (i: number) => void }) {
   var progress = ((current + 1) / steps.length) * 100;
   return <div style={{ marginBottom: 40 }}>
     {/* Progress bar */}
@@ -142,7 +243,7 @@ function StepTracker({ current, steps, canNavigate, onNav }) {
 
 // ═══ CONFETTI ═══
 function Confetti() {
-  var pieces = useRef([]);
+  var pieces = useRef<ConfettiPiece[]>([]);
   if (pieces.current.length === 0) {
     var colors = [ACC, D.amber, D.blue, D.teal, D.violet, "#26C9D8", "#56BC42", "#E8C83A"];
     for (var i = 0; i < 80; i++) {
@@ -160,7 +261,7 @@ function Confetti() {
   }
   return <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 1000 }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes confetti-fall{0%{transform:translateY(-20px) translateX(0) rotate(0deg);opacity:1}70%{opacity:1}100%{transform:translateY(calc(80vh)) translateX(var(--drift)) rotate(var(--rot));opacity:0}}" }} />
-    {pieces.current.map(function(p, i) {
+    {pieces.current.map(function(p: ConfettiPiece, i: number) {
       return <div key={i} style={{
         position: "absolute", top: 0, left: p.left,
         width: p.shape === "circle" ? p.size : p.size * 0.6, height: p.size,
@@ -168,19 +269,19 @@ function Confetti() {
         background: p.color,
         "--drift": p.drift + "px", "--rot": p.rot + "deg",
         animation: "confetti-fall " + p.dur + " cubic-bezier(0.25,0.46,0.45,0.94) " + p.delay + " forwards",
-      }} />;
+      } as React.CSSProperties} />;
     })}
   </div>;
 }
 
 // ═══ GUEST MANAGER ═══
-function GuestManager({ guests, setGuests }) {
-  var _guestBrowse = useState(false), guestBrowseOpen = _guestBrowse[0], setGuestBrowseOpen = _guestBrowse[1];
-  var _fkGuests = useState([]), fkGuests = _fkGuests[0], setFkGuests = _fkGuests[1];
-  var _fkSearch = useState(""), fkSearch = _fkSearch[0], setFkSearch = _fkSearch[1];
-  var _fkLoading = useState(false), fkLoading = _fkLoading[0], setFkLoading = _fkLoading[1];
+function GuestManager({ guests, setGuests }: { guests: Guest[]; setGuests: (g: Guest[]) => void }) {
+  var _guestBrowse = useState<boolean>(false), guestBrowseOpen = _guestBrowse[0], setGuestBrowseOpen = _guestBrowse[1];
+  var _fkGuests = useState<FKProspect[]>([]), fkGuests = _fkGuests[0], setFkGuests = _fkGuests[1];
+  var _fkSearch = useState<string>(""), fkSearch = _fkSearch[0], setFkSearch = _fkSearch[1];
+  var _fkLoading = useState<boolean>(false), fkLoading = _fkLoading[0], setFkLoading = _fkLoading[1];
 
-  var tierColors = { S: "#F7B041", A: "#0B86D1", B: "#2EAD8E", C: "rgba(255,255,255,0.4)" };
+  var tierColors: Record<string, string> = { S: "#F7B041", A: "#0B86D1", B: "#2EAD8E", C: "rgba(255,255,255,0.4)" };
 
   function loadFKGuests() {
     setFkLoading(true);
@@ -197,7 +298,7 @@ function GuestManager({ guests, setGuests }) {
     if (!next) setFkSearch("");
   }
 
-  function addFKGuest(prospect) {
+  function addFKGuest(prospect: FKProspect) {
     var name = prospect.name || "";
     var handle = "";
     setGuests(guests.concat([{ name: name, handle: handle }]));
@@ -206,7 +307,7 @@ function GuestManager({ guests, setGuests }) {
     showToast("Added " + name + " from FK prospects");
   }
 
-  var filteredFK = fkGuests.filter(function(p) {
+  var filteredFK = fkGuests.filter(function(p: FKProspect) {
     if (!fkSearch) return true;
     var q = fkSearch.toLowerCase();
     return (p.name || "").toLowerCase().indexOf(q) > -1 || (p.company || "").toLowerCase().indexOf(q) > -1;
@@ -222,49 +323,49 @@ function GuestManager({ guests, setGuests }) {
     </div>
     {/* FK Prospects Browse Panel */}
     {guestBrowseOpen && <div style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 14, marginBottom: 12, maxHeight: 280, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-      <input value={fkSearch} onChange={function(e) { setFkSearch(e.target.value); }} placeholder="Search FK prospects..." style={{ width: "100%", padding: "8px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 8, color: D.tx, fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box", marginBottom: 8, transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
+      <input value={fkSearch} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { setFkSearch(e.target.value); }} placeholder="Search FK prospects..." style={{ width: "100%", padding: "8px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 8, color: D.tx, fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box", marginBottom: 8, transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
       <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
         {fkLoading && <div style={{ fontFamily: mn, fontSize: 10, color: D.txl, textAlign: "center", padding: 16 }}>Loading...</div>}
         {!fkLoading && filteredFK.length === 0 && <div style={{ fontFamily: mn, fontSize: 10, color: D.txl, textAlign: "center", padding: 16 }}>No prospects found</div>}
-        {!fkLoading && filteredFK.map(function(p) {
+        {!fkLoading && filteredFK.map(function(p: FKProspect) {
           return <div key={p.id} onClick={function() { addFKGuest(p); }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: D.surface, borderRadius: 8, cursor: "pointer", border: "1px solid " + D.border, transition: "all 0.15s ease" }}>
             <div>
               <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: D.tx }}>{p.name}</div>
               <div style={{ fontFamily: mn, fontSize: 10, color: D.txb }}>{p.role ? p.role + (p.company ? " @ " + p.company : "") : p.company || ""}</div>
             </div>
-            <span style={{ fontFamily: mn, fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: (tierColors[p.tier] || D.txl) + "18", color: tierColors[p.tier] || D.txl, border: "1px solid " + (tierColors[p.tier] || D.txl) + "30" }}>{p.tier || "-"}</span>
+            <span style={{ fontFamily: mn, fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: (tierColors[p.tier || ""] || D.txl) + "18", color: tierColors[p.tier || ""] || D.txl, border: "1px solid " + (tierColors[p.tier || ""] || D.txl) + "30" }}>{p.tier || "-"}</span>
           </div>;
         })}
       </div>
     </div>}
     {guests.length === 0 && <div onClick={function() { setGuests([{ name: "", handle: "" }]); }} style={{ background: D.surface, border: "1px dashed " + D.border, borderRadius: 10, padding: "16px", cursor: "pointer", textAlign: "center", fontFamily: ft, fontSize: 13, color: D.txl }}>Click to add guests</div>}
-    {guests.map(function(g, i) { return (<div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
-      <input value={g.name} onChange={function(e) { var c = guests.slice(); c[i] = { name: e.target.value, handle: g.handle }; setGuests(c); }} placeholder="Name" style={{ flex: 1, padding: "10px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, color: D.tx, fontFamily: ft, fontSize: 14, outline: "none", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
-      <input value={g.handle} onChange={function(e) { var c = guests.slice(); c[i] = { name: g.name, handle: e.target.value }; setGuests(c); }} placeholder="@handle" style={{ flex: 1, padding: "10px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, color: D.tx, fontFamily: mn, fontSize: 13, outline: "none", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
-      <span onClick={function() { setGuests(guests.filter(function(_, j) { return j !== i; })); }} style={{ fontFamily: mn, fontSize: 11, color: D.txl, cursor: "pointer", padding: "4px 8px" }}>x</span>
+    {guests.map(function(g: Guest, i: number) { return (<div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+      <input value={g.name} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { var c = guests.slice(); c[i] = { name: e.target.value, handle: g.handle }; setGuests(c); }} placeholder="Name" style={{ flex: 1, padding: "10px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, color: D.tx, fontFamily: ft, fontSize: 14, outline: "none", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
+      <input value={g.handle} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { var c = guests.slice(); c[i] = { name: g.name, handle: e.target.value }; setGuests(c); }} placeholder="@handle" style={{ flex: 1, padding: "10px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, color: D.tx, fontFamily: mn, fontSize: 13, outline: "none", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
+      <span onClick={function() { setGuests(guests.filter(function(_: Guest, j: number) { return j !== i; })); }} style={{ fontFamily: mn, fontSize: 11, color: D.txl, cursor: "pointer", padding: "4px 8px" }}>x</span>
     </div>); })}
   </div>);
 }
 
 // ═══ KEYWORD BAR ═══
-function KeywordBar({ onSuggest, loading }) {
-  var _s = useState(""), kw = _s[0], setKw = _s[1];
+function KeywordBar({ onSuggest, loading }: { onSuggest: (kw: string) => void; loading: boolean }) {
+  var _s = useState<string>(""), kw = _s[0], setKw = _s[1];
   return (<div style={{ display: "flex", gap: 8, marginTop: 10, marginBottom: 14 }}>
-    <input value={kw} onChange={function(e) { setKw(e.target.value); }} placeholder="Keywords to refine titles (e.g. TSMC, GPU shortage)" onKeyDown={function(e) { if (e.key === "Enter" && kw.trim()) { onSuggest(kw.trim()); setKw(""); } }} style={{ flex: 1, padding: "10px 14px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, color: D.tx, fontFamily: mn, fontSize: 12, outline: "none", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
+    <input value={kw} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { setKw(e.target.value); }} placeholder="Keywords to refine titles (e.g. TSMC, GPU shortage)" onKeyDown={function(e: React.KeyboardEvent<HTMLInputElement>) { if (e.key === "Enter" && kw.trim()) { onSuggest(kw.trim()); setKw(""); } }} style={{ flex: 1, padding: "10px 14px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, color: D.tx, fontFamily: mn, fontSize: 12, outline: "none", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
     <Btn sm onClick={function() { if (kw.trim()) { onSuggest(kw.trim()); setKw(""); } }} loading={loading} off={!kw.trim()}>Suggest</Btn>
   </div>);
 }
 
 // ═══ PERSISTENCE ═══
-var saveTimer = null;
-function weeklyDbSync(state, log) {
+var saveTimer: ReturnType<typeof setTimeout> | null = null;
+function weeklyDbSync(state: Record<string, unknown>, log: LogEntry[]): void {
   fetch("/api/db", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ table: "projects", data: { id: "weekly-master", name: "SA Weekly", data: { state: state, log: log }, type: "weekly", updated_at: new Date().toISOString() } }),
   }).catch(function() {});
 }
-function saveState(state, log) {
+function saveState(state: Record<string, unknown>, log: LogEntry[]): void {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(function() {
     fetch("/api/state", {
@@ -276,14 +377,14 @@ function saveState(state, log) {
 }
 
 // ═══ STEP 1: SETUP ═══
-function StepSetup({ ep, setEp, guests, setGuests }) {
+function StepSetup({ ep, setEp, guests, setGuests }: { ep: EpState; setEp: (ep: EpState) => void; guests: Guest[]; setGuests: (g: Guest[]) => void }) {
   return (<div>
     <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Episode Setup</div>
     <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 32 }}>Fill in episode details, guests, and transcript.</div>
 
     <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: 14, marginBottom: 4 }}>
-      <Field label="Episode #" value={ep.number} onChange={function(v) { setEp(Object.assign({}, ep, { number: v })); }} isMono />
-      <Field label="YouTube Link" value={ep.link} onChange={function(v) { setEp(Object.assign({}, ep, { link: v })); }} placeholder="https://youtube.com/watch?v=..." isMono />
+      <Field label="Episode #" value={ep.number} onChange={function(v: string) { setEp(Object.assign({}, ep, { number: v })); }} isMono />
+      <Field label="YouTube Link" value={ep.link} onChange={function(v: string) { setEp(Object.assign({}, ep, { link: v })); }} placeholder="https://youtube.com/watch?v=..." isMono />
     </div>
     <GuestManager guests={guests} setGuests={setGuests} />
 
@@ -291,9 +392,9 @@ function StepSetup({ ep, setEp, guests, setGuests }) {
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <Label>Full Transcript</Label>
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, cursor: "pointer", background: "transparent", border: "1px solid " + D.border, fontFamily: mn, fontSize: 10, color: ACC, transition: "all 0.2s ease" }}>Upload .txt<input type="file" accept=".txt,.text" style={{ display: "none" }} onChange={function(e) { var f = e.target.files && e.target.files[0]; if (!f) return; var r = new FileReader(); r.onload = function(ev) { setEp(Object.assign({}, ep, { transcript: ev.target.result })); }; r.readAsText(f); e.target.value = ""; }} /></label>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, cursor: "pointer", background: "transparent", border: "1px solid " + D.border, fontFamily: mn, fontSize: 10, color: ACC, transition: "all 0.2s ease" }}>Upload .txt<input type="file" accept=".txt,.text" style={{ display: "none" }} onChange={function(e) { var f = e.target.files && e.target.files[0]; if (!f) return; var r = new FileReader(); r.onload = function(ev: ProgressEvent<FileReader>) { setEp(Object.assign({}, ep, { transcript: ev.target?.result as string })); }; r.readAsText(f); e.target.value = ""; }} /></label>
       </div>
-      <div onDragOver={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = ACC; }} onDragLeave={function(e) { e.currentTarget.style.borderColor = D.border; }} onDrop={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = D.border; var f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) { var r = new FileReader(); r.onload = function(ev) { setEp(Object.assign({}, ep, { transcript: ev.target.result })); }; r.readAsText(f); } }} style={{ position: "relative", border: "1px solid " + D.border, borderRadius: 12, background: D.surface, transition: "border-color 0.2s ease" }}>
+      <div onDragOver={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = ACC; }} onDragLeave={function(e) { e.currentTarget.style.borderColor = D.border; }} onDrop={function(e) { e.preventDefault(); e.currentTarget.style.borderColor = D.border; var f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) { var r = new FileReader(); r.onload = function(ev: ProgressEvent<FileReader>) { setEp(Object.assign({}, ep, { transcript: ev.target?.result as string })); }; r.readAsText(f); } }} style={{ position: "relative", border: "1px solid " + D.border, borderRadius: 12, background: D.surface, transition: "border-color 0.2s ease" }}>
         {!ep.transcript && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none", zIndex: 1 }}><div style={{ fontFamily: ft, fontSize: 14, color: D.txl }}>Drop .txt or paste transcript</div></div>}
         <textarea value={ep.transcript} onChange={function(e) { setEp(Object.assign({}, ep, { transcript: e.target.value })); }} rows={10} style={{ width: "100%", padding: "14px 16px", background: "transparent", border: "none", borderRadius: 12, color: D.tx, fontFamily: mn, fontSize: 12, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.7, position: "relative", zIndex: 2, minHeight: 140 }} />
       </div>
@@ -316,10 +417,10 @@ function StepSetup({ ep, setEp, guests, setGuests }) {
 }
 
 // ═══ STEP 2: GENERATE ═══
-function StepGenerate({ ep, guests, opts, setOpts, sel, setSel, fin, setFin, descLen, setDescLen, onDone }) {
-  var _l = useState(false), loading = _l[0], setLoading = _l[1];
-  var _r = useState({}), rL = _r[0], setRL = _r[1];
-  var _k = useState(false), kwL = _k[0], setKwL = _k[1];
+function StepGenerate({ ep, guests, opts, setOpts, sel, setSel, fin, setFin, descLen, setDescLen, onDone }: { ep: EpState; guests: Guest[]; opts: GeneratedOptions | null; setOpts: React.Dispatch<React.SetStateAction<GeneratedOptions | null>>; sel: SelectionState; setSel: React.Dispatch<React.SetStateAction<SelectionState>>; fin: FinalizedState | null; setFin: React.Dispatch<React.SetStateAction<FinalizedState | null>>; descLen: string; setDescLen: (v: string) => void; onDone: () => void }) {
+  var _l = useState<boolean>(false), loading = _l[0], setLoading = _l[1];
+  var _r = useState<Record<string, boolean>>({}), rL = _r[0], setRL = _r[1];
+  var _k = useState<boolean>(false), kwL = _k[0], setKwL = _k[1];
 
   var descInstr = function() {
     if (descLen === "short") return "Descriptions: concise, 2-4 sentences. Key topics only.";
@@ -333,37 +434,37 @@ function StepGenerate({ ep, guests, opts, setOpts, sel, setSel, fin, setFin, des
     var gs = gStr(guests); var tx = ep.transcript.slice(0, 8000);
     var p = buildPrompt(["Generate content for SemiAnalysis Weekly Episode #" + ep.number + ".", "Guests with handles: " + gs, ep.extra ? "Additional context: " + ep.extra : "", ep.timestamps ? "Timestamps to include at end of descriptions:\n" + ep.timestamps : "", "Transcript (first 8000 chars): " + tx, descInstr(), 'Return JSON: {"titles":["t1","t2","t3"],"descriptions":["d1","d2","d3"],"thumbnails":[{"concept":"c1","text_overlay":"to1","mood":"m1"},{"concept":"c2","text_overlay":"to2","mood":"m2"},{"concept":"c3","text_overlay":"to3","mood":"m3"}]}']);
     var data = await ask(SYS_EP, p);
-    if (data) { setOpts(data); onDone(); }
+    if (data) { setOpts(data as unknown as GeneratedOptions); onDone(); }
     setLoading(false);
   };
 
-  var suggestKW = async function(keywords) {
+  var suggestKW = async function(keywords: string) {
     setKwL(true);
     var existing = (opts && opts.titles || []).join(" | ");
     var data = await ask(SYS_EP, buildPrompt(["Generate 3 NEW titles for SemiAnalysis Weekly Ep #" + ep.number + ".", "Keywords: " + keywords, "Guests: " + gStr(guests), "Different from: " + existing, "Transcript: " + (ep.transcript || "").slice(0, 4000), 'Return JSON: {"titles":["t1","t2","t3"]}']));
-    if (data && data.titles) { setOpts(function(prev) { return Object.assign({}, prev, { titles: data.titles }); }); setSel(function(prev) { return Object.assign({}, prev, { title: 0 }); }); }
+    if (data && data.titles) { setOpts(function(prev: GeneratedOptions | null) { return Object.assign({}, prev, { titles: data!.titles }) as GeneratedOptions; }); setSel(function(prev: SelectionState) { return Object.assign({}, prev, { title: 0 }); }); }
     setKwL(false);
   };
 
-  var redoOne = async function(cat, idx) {
-    var k = cat + "-" + idx; setRL(function(p) { var o = Object.assign({}, p); o[k] = true; return o; });
-    var cur = opts[cat][idx]; var curStr = typeof cur === "string" ? cur : cur.concept;
-    var gs = gStr(guests); var tx = (ep.transcript || "").slice(0, 3000); var p2, parse;
-    if (cat === "thumbnails") { p2 = buildPrompt(["ONE new thumbnail for SA Weekly Ep #" + ep.number + ". Different from: " + curStr, "Guests: " + gs, "Transcript: " + tx, 'Return JSON: {"concept":"...","text_overlay":"...","mood":"..."}']); parse = function(d) { return d; };
-    } else { var dn = cat === "descriptions" ? " " + descInstr() : ""; var en = cat === "descriptions" && ep.extra ? " Context: " + ep.extra : ""; var tsn = cat === "descriptions" && ep.timestamps ? " Timestamps:\n" + ep.timestamps : ""; p2 = buildPrompt(["ONE new " + (cat === "titles" ? "title" : "description") + " for SA Weekly Ep #" + ep.number + ". Different from: " + curStr + "." + dn, "Guests: " + gs + en + tsn, "Transcript: " + tx, 'Return JSON: {"result":"..."}']); parse = function(d) { return d.result; }; }
+  var redoOne = async function(cat: string, idx: number) {
+    var k = cat + "-" + idx; setRL(function(p: Record<string, boolean>) { var o = Object.assign({}, p); o[k] = true; return o; });
+    var curItem = (opts as unknown as Record<string, unknown[]>)[cat][idx]; var curStr = typeof curItem === "string" ? curItem : (curItem as ThumbnailConcept).concept;
+    var gs = gStr(guests); var tx = (ep.transcript || "").slice(0, 3000); var p2: string; var parse: (d: Record<string, unknown>) => unknown;
+    if (cat === "thumbnails") { p2 = buildPrompt(["ONE new thumbnail for SA Weekly Ep #" + ep.number + ". Different from: " + curStr, "Guests: " + gs, "Transcript: " + tx, 'Return JSON: {"concept":"...","text_overlay":"...","mood":"..."}']); parse = function(d: Record<string, unknown>) { return d; };
+    } else { var dn = cat === "descriptions" ? " " + descInstr() : ""; var en = cat === "descriptions" && ep.extra ? " Context: " + ep.extra : ""; var tsn = cat === "descriptions" && ep.timestamps ? " Timestamps:\n" + ep.timestamps : ""; p2 = buildPrompt(["ONE new " + (cat === "titles" ? "title" : "description") + " for SA Weekly Ep #" + ep.number + ". Different from: " + curStr + "." + dn, "Guests: " + gs + en + tsn, "Transcript: " + tx, 'Return JSON: {"result":"..."}']); parse = function(d: Record<string, unknown>) { return d.result; }; }
     var data = await ask(SYS_EP, p2);
-    if (data) { setOpts(function(prev) { var c2 = Object.assign({}, prev); c2[cat] = prev[cat].slice(); c2[cat][idx] = parse(data); return c2; }); }
-    setRL(function(p) { var o = Object.assign({}, p); o[k] = false; return o; });
+    if (data) { setOpts(function(prev: GeneratedOptions | null) { var c2 = Object.assign({}, prev) as unknown as Record<string, unknown>; c2[cat] = ((prev as unknown as Record<string, unknown[]>)[cat] || []).slice(); (c2[cat] as unknown[])[idx] = parse(data!); return c2 as unknown as GeneratedOptions; }); }
+    setRL(function(p: Record<string, boolean>) { var o = Object.assign({}, p); o[k] = false; return o; });
   };
 
-  var redoCat = async function(cat) {
-    var k = "all-" + cat; setRL(function(p) { var o = Object.assign({}, p); o[k] = true; return o; });
+  var redoCat = async function(cat: string) {
+    var k = "all-" + cat; setRL(function(p: Record<string, boolean>) { var o = Object.assign({}, p); o[k] = true; return o; });
     var gs = gStr(guests); var tx = (ep.transcript || "").slice(0, 4000); var p2;
     if (cat === "thumbnails") { p2 = buildPrompt(["3 NEW thumbnails for SA Weekly Ep #" + ep.number, "Guests: " + gs, "Transcript: " + tx, 'Return JSON: {"thumbnails":[{"concept":"c","text_overlay":"t","mood":"m"},{"concept":"c","text_overlay":"t","mood":"m"},{"concept":"c","text_overlay":"t","mood":"m"}]}']);
     } else { var dn = cat === "descriptions" ? ". " + descInstr() : ""; var en = cat === "descriptions" && ep.extra ? ". Context: " + ep.extra : ""; var tsn = cat === "descriptions" && ep.timestamps ? ". Timestamps:\n" + ep.timestamps : ""; p2 = buildPrompt(["3 NEW " + cat + " for SA Weekly Ep #" + ep.number + dn, "Guests: " + gs + en + tsn, "Transcript: " + tx, 'Return JSON: {"' + cat + '":["a","b","c"]}']); }
     var data = await ask(SYS_EP, p2);
-    if (data && data[cat]) { setOpts(function(prev) { return Object.assign({}, prev, (function() { var o = {}; o[cat] = data[cat]; return o; })()); }); var sk = cat === "titles" ? "title" : cat === "descriptions" ? "desc" : "thumb"; setSel(function(prev) { var o = Object.assign({}, prev); o[sk] = 0; return o; }); }
-    setRL(function(p) { var o = Object.assign({}, p); o[k] = false; return o; });
+    if (data && data[cat]) { setOpts(function(prev: GeneratedOptions | null) { return Object.assign({}, prev, (function() { var o: Record<string, unknown> = {}; o[cat] = data![cat]; return o; })()) as GeneratedOptions; }); var sk = cat === "titles" ? "title" : cat === "descriptions" ? "desc" : "thumb"; setSel(function(prev: SelectionState) { var o = Object.assign({}, prev) as unknown as Record<string, number>; o[sk] = 0; return o as unknown as SelectionState; }); }
+    setRL(function(p: Record<string, boolean>) { var o = Object.assign({}, p); o[k] = false; return o; });
   };
 
   return (<div>
@@ -400,12 +501,12 @@ function StepGenerate({ ep, guests, opts, setOpts, sel, setSel, fin, setFin, des
 }
 
 // ═══ STEP 3: REVIEW ═══
-function StepReview({ opts, sel, fin, setFin, thumb, setThumb, onDone }) {
-  var _cl = useState(false), checkL = _cl[0], setCheckL = _cl[1];
-  var _cr = useState(null), checkR = _cr[0], setCheckR = _cr[1];
-  var _al = useState(false), abL = _al[0], setAbL = _al[1];
-  var _ar = useState(null), abR = _ar[0], setAbR = _ar[1];
-  var _am = useState("both"), abM = _am[0], setAbM = _am[1];
+function StepReview({ opts, sel, fin, setFin, thumb, setThumb, onDone }: { opts: GeneratedOptions | null; sel: SelectionState; fin: FinalizedState | null; setFin: React.Dispatch<React.SetStateAction<FinalizedState | null>>; thumb: string | null; setThumb: React.Dispatch<React.SetStateAction<string | null>>; onDone: () => void }) {
+  var _cl = useState<boolean>(false), checkL = _cl[0], setCheckL = _cl[1];
+  var _cr = useState<CheckResult | null>(null), checkR = _cr[0], setCheckR = _cr[1];
+  var _al = useState<boolean>(false), abL = _al[0], setAbL = _al[1];
+  var _ar = useState<ABResult | null>(null), abR = _ar[0], setAbR = _ar[1];
+  var _am = useState<string>("both"), abM = _am[0], setAbM = _am[1];
 
   if (!opts) return <div style={{ textAlign: "center", padding: 80, color: D.txb, fontFamily: ft }}>Generate options first.</div>;
 
@@ -431,7 +532,7 @@ function StepReview({ opts, sel, fin, setFin, thumb, setThumb, onDone }) {
       "Score 1-10 (10 = perfect cohesion, scroll-stopping, zero redundancy).",
       'Return JSON: {"score":8,"feedback":"2-3 sentence overall assessment of how well these three elements work together","suggestions":["specific actionable suggestion 1","specific actionable suggestion 2","specific actionable suggestion 3"]}'
     ]));
-    if (data) setCheckR(data);
+    if (data) setCheckR(data as unknown as CheckResult);
     setCheckL(false);
   };
 
@@ -450,7 +551,7 @@ function StepReview({ opts, sel, fin, setFin, thumb, setThumb, onDone }) {
       "Provide two options: Option A (current) and Option B (your recommended alternative). Score each for predicted CTR on a 1-10 scale. Explain the reasoning for each.",
       'Return JSON: {"option_a":{"title":"...","thumbnail_concept":"...","score":7,"reasoning":"why this works or falls short"},"option_b":{"title":"...","thumbnail_concept":"...","score":9,"reasoning":"why this is better"},"verdict":"1-2 sentence recommendation"}'
     ]));
-    if (data) setAbR(data);
+    if (data) setAbR(data as unknown as ABResult);
     setAbL(false);
   };
 
@@ -489,7 +590,7 @@ function StepReview({ opts, sel, fin, setFin, thumb, setThumb, onDone }) {
 
     {/* Thumbnail upload */}
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 28 }}>
-      <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, background: D.surface, border: "2px dashed " + D.border, borderRadius: 12, cursor: "pointer", transition: "border-color 0.2s ease" }}><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: ACC, marginBottom: 4 }}>Upload Thumbnail</div><div style={{ fontFamily: mn, fontSize: 10, color: D.txl }}>PNG, JPG, 1280x720</div><input type="file" accept="image/*" style={{ display: "none" }} onChange={function(e) { var f = e.target.files && e.target.files[0]; if (!f) return; var r = new FileReader(); r.onload = function(ev) { setThumb(ev.target.result); }; r.readAsDataURL(f); e.target.value = ""; }} /></label>
+      <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, background: D.surface, border: "2px dashed " + D.border, borderRadius: 12, cursor: "pointer", transition: "border-color 0.2s ease" }}><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: ACC, marginBottom: 4 }}>Upload Thumbnail</div><div style={{ fontFamily: mn, fontSize: 10, color: D.txl }}>PNG, JPG, 1280x720</div><input type="file" accept="image/*" style={{ display: "none" }} onChange={function(e) { var f = e.target.files && e.target.files[0]; if (!f) return; var r = new FileReader(); r.onload = function(ev: ProgressEvent<FileReader>) { setThumb(ev.target?.result as string); }; r.readAsDataURL(f); e.target.value = ""; }} /></label>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, background: D.surface, border: "2px dashed " + D.border, borderRadius: 12, opacity: 0.35 }}><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: D.txb, marginBottom: 4 }}>Get One Prompted</div><div style={{ fontFamily: mn, fontSize: 10, color: D.txl }}>Coming Soon</div></div>
     </div>
     {thumb && <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 20 }}><span style={{ fontFamily: mn, fontSize: 10, color: D.teal }}>Thumbnail uploaded</span><span onClick={function() { setThumb(null); }} style={{ fontFamily: mn, fontSize: 9, color: D.txl, cursor: "pointer" }}>Remove</span></div>}
@@ -511,8 +612,8 @@ function StepReview({ opts, sel, fin, setFin, thumb, setThumb, onDone }) {
       {abL && <ProgressBar label="Running A/B analysis" />}
       {abR && abR.option_a && abR.option_b && <div style={{ marginTop: 16 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-          {[{ key: "option_a", label: "Option A // Current", color: D.txb }, { key: "option_b", label: "Option B // Recommended", color: ACC }].map(function(col) {
-            var opt = abR[col.key];
+          {[{ key: "option_a" as const, label: "Option A // Current", color: D.txb }, { key: "option_b" as const, label: "Option B // Recommended", color: ACC }].map(function(col) {
+            var opt = abR![col.key];
             return <div key={col.key} style={{ background: D.elevated, border: "1px solid " + (col.key === "option_b" ? ACC + "40" : D.border), borderRadius: 12, padding: 20, boxShadow: col.key === "option_b" ? "0 0 24px rgba(224,99,71,0.06)" : "0 2px 12px rgba(0,0,0,0.3)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <div style={{ fontFamily: mn, fontSize: 9, color: col.color, textTransform: "uppercase", letterSpacing: "2px" }}>{col.label}</div>
@@ -542,10 +643,10 @@ function StepReview({ opts, sel, fin, setFin, thumb, setThumb, onDone }) {
 }
 
 // ═══ STEP 4: SOCIAL ═══
-function StepSocial({ ep, guests, fin, socialRes, setSocialRes, onComplete }) {
-  var _h = useState("Cold open into intro. Out Now announcement."), hook = _h[0], setHook = _h[1];
-  var _l = useState(false), loading = _l[0], setLoading = _l[1];
-  var _rl = useState({}), redoL = _rl[0], setRedoL = _rl[1];
+function StepSocial({ ep, guests, fin, socialRes, setSocialRes }: { ep: EpState; guests: Guest[]; fin: FinalizedState | null; socialRes: SocialResult | null; setSocialRes: React.Dispatch<React.SetStateAction<SocialResult | null>> }) {
+  var _h = useState<string>("Cold open into intro. Out Now announcement."), hook = _h[0], setHook = _h[1];
+  var _l = useState<boolean>(false), loading = _l[0], setLoading = _l[1];
+  var _rl = useState<Record<string, boolean>>({}), redoL = _rl[0], setRedoL = _rl[1];
 
   if (!fin) return <div style={{ textAlign: "center", padding: 80, color: D.txb, fontFamily: ft }}>Complete Review step first.</div>;
   var gs = gStr(guests);
@@ -567,18 +668,18 @@ function StepSocial({ ep, guests, fin, socialRes, setSocialRes, onComplete }) {
   var gen = async function() {
     setLoading(true);
     var data = await ask(SYS_SOC, buildPrompt(["Out Now launch rollout for SemiAnalysis Weekly Episode #" + ep.number, "Title: " + fin.title, "Guests with handles: " + gs, "Link: " + link, "Hook: " + hook, "Transcript: " + (ep.transcript || "").slice(0, 4000), 'Return JSON with these EXACT keys: {"x_hook":"...","x_reply":"...","linkedin_post":"...","linkedin_comment":"...","facebook_post":"...","facebook_comment":"...","instagram_caption":"full caption with Save CTA and hashtags and shop grid link ' + link + '","yt_shorts_title":"under 40 chars","yt_shorts_desc":"description with hashtags including #shorts","tiktok_caption":"all lowercase with hashtags"}']));
-    if (data) setSocialRes(data);
+    if (data) setSocialRes(data as unknown as SocialResult);
     setLoading(false);
   };
 
-  var redoField = async function(key, platLabel) {
-    setRedoL(function(p) { var o = Object.assign({}, p); o[key] = true; return o; });
-    var current = socialRes[key] || "";
+  var redoField = async function(key: string, platLabel: string) {
+    setRedoL(function(p: Record<string, boolean>) { var o = Object.assign({}, p); o[key] = true; return o; });
+    var current = socialRes?.[key] || "";
     var isTitle = key === "yt_shorts_title";
     var extra = isTitle ? " Must be under 40 characters." : "";
     var data = await ask(SYS_SOC, buildPrompt(["Regenerate ONLY the " + platLabel + " caption for SA Weekly Ep #" + ep.number + " launch." + extra, "Title: " + fin.title, "Guests: " + gs, "Link: " + link, "Hook: " + hook, "Current version (be DIFFERENT): " + current, 'Return JSON: {"result":"..."}']));
-    if (data && data.result) { setSocialRes(function(prev) { var o = Object.assign({}, prev); o[key] = data.result; return o; }); }
-    setRedoL(function(p) { var o = Object.assign({}, p); o[key] = false; return o; });
+    if (data && data.result) { setSocialRes(function(prev: SocialResult | null) { var o = Object.assign({}, prev) as SocialResult; o[key] = data!.result as string; return o; }); }
+    setRedoL(function(p: Record<string, boolean>) { var o = Object.assign({}, p); o[key] = false; return o; });
   };
 
   return (<div>
@@ -616,9 +717,9 @@ function StepClips() {
 }
 
 // ═══ STEP 6: EXPORT ═══
-function StepExport({ ep, guests, fin, socialRes, onComplete }) {
-  var _done = useState(false), done = _done[0], setDone = _done[1];
-  var _show = useState(false), showModal = _show[0], setShowModal = _show[1];
+function StepExport({ ep, guests, fin, socialRes, onComplete }: { ep: EpState; guests: Guest[]; fin: FinalizedState | null; socialRes: SocialResult | null; onComplete?: (data: { title: string; description: string; social: SocialResult | null }) => void }) {
+  var _done = useState<boolean>(false), done = _done[0], setDone = _done[1];
+  var _show = useState<boolean>(false), showModal = _show[0], setShowModal = _show[1];
 
   if (!fin) return <div style={{ textAlign: "center", padding: 80, color: D.txb, fontFamily: ft }}>Complete earlier steps first.</div>;
 
@@ -654,7 +755,7 @@ function StepExport({ ep, guests, fin, socialRes, onComplete }) {
     if (!socialRes) return;
     var parts = ["EPISODE #" + ep.number + " - " + fin.title, "Guests: " + gs, "", "DESCRIPTION:", fin.description || "", ""];
     FIELDS.forEach(function(f) {
-      if (socialRes[f.key]) { parts.push(f.label.toUpperCase() + ":"); parts.push(socialRes[f.key]); parts.push(""); }
+      if (socialRes[f.key]) { parts.push(f.label.toUpperCase() + ":"); parts.push(socialRes[f.key]!); parts.push(""); }
     });
     copyText(parts.join("\n"));
     showToast("All content copied to clipboard");
@@ -679,9 +780,9 @@ function StepExport({ ep, guests, fin, socialRes, onComplete }) {
 
     {socialRes && <div style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 20, marginBottom: 24 }}>
       <div style={{ fontFamily: mn, fontSize: 9, color: D.txb, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 12 }}>Social Captions</div>
-      {FIELDS.map(function(f) { if (!socialRes[f.key]) return null; return <div key={f.key} style={{ marginBottom: 10, padding: "12px 14px", background: D.surface, borderRadius: 10, border: "1px solid " + D.border }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}><div style={{ fontFamily: mn, fontSize: 9, color: ACC, textTransform: "uppercase", letterSpacing: "1.5px" }}>{f.label}</div><CopyBtn text={socialRes[f.key]} /></div>
-        <div style={{ fontFamily: ft, fontSize: 13, color: D.txb, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{socialRes[f.key]}</div>
+      {FIELDS.map(function(f) { if (!socialRes![f.key]) return null; return <div key={f.key} style={{ marginBottom: 10, padding: "12px 14px", background: D.surface, borderRadius: 10, border: "1px solid " + D.border }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}><div style={{ fontFamily: mn, fontSize: 9, color: ACC, textTransform: "uppercase", letterSpacing: "1.5px" }}>{f.label}</div><CopyBtn text={socialRes![f.key] || ""} /></div>
+        <div style={{ fontFamily: ft, fontSize: 13, color: D.txb, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{socialRes![f.key]}</div>
       </div>; })}
     </div>}
 
@@ -711,14 +812,14 @@ function StepExport({ ep, guests, fin, socialRes, onComplete }) {
 }
 
 // ═══ STEP 7: LOG ═══
-function StepLog({ logData, setLogData }) {
-  var _ed = useState(false), editing = _ed[0], setEditing = _ed[1];
-  var _view = useState(null), viewIdx = _view[0], setViewIdx = _view[1];
+function StepLog({ logData, setLogData }: { logData: LogEntry[]; setLogData: React.Dispatch<React.SetStateAction<LogEntry[]>> }) {
+  var _ed = useState<boolean>(false), editing = _ed[0], setEditing = _ed[1];
+  var _view = useState<number | null>(null), viewIdx = _view[0], setViewIdx = _view[1];
 
-  var removeEntry = function(idx) { setLogData(function(prev) { return prev.filter(function(_, j) { return j !== idx; }); }); };
+  var removeEntry = function(idx: number) { setLogData(function(prev: LogEntry[]) { return prev.filter(function(_: LogEntry, j: number) { return j !== idx; }); }); };
 
-  var downloadLaunchKit = function(e) {
-    var sections = [
+  var downloadLaunchKit = function(e: LogEntry) {
+    var sections: DocSection[] = [
       { heading: "Episode Info", items: [
         { label: "Title", content: e.title },
         { label: "Description", content: e.description || "" },
@@ -727,16 +828,18 @@ function StepLog({ logData, setLogData }) {
       ]},
     ];
     if (e.social) {
-      sections.push({ heading: "Horizontal (X, LinkedIn, Facebook)", items: ["x_hook", "x_reply", "linkedin_post", "linkedin_comment", "facebook_post", "facebook_comment"].filter(function(k) { return e.social[k]; }).map(function(k) { return { label: k.replace(/_/g, " ").replace(/\b\w/g, function(c) { return c.toUpperCase(); }), content: e.social[k] }; }) });
-      sections.push({ heading: "Vertical (Shorts, Reels, TikTok)", items: ["instagram_caption", "yt_shorts_title", "yt_shorts_desc", "tiktok_caption"].filter(function(k) { return e.social[k]; }).map(function(k) { return { label: k.replace(/_/g, " ").replace(/\b\w/g, function(c) { return c.toUpperCase(); }), content: e.social[k] }; }) });
+      var social = e.social;
+      sections.push({ heading: "Horizontal (X, LinkedIn, Facebook)", items: ["x_hook", "x_reply", "linkedin_post", "linkedin_comment", "facebook_post", "facebook_comment"].filter(function(k: string) { return social[k]; }).map(function(k: string) { return { label: k.replace(/_/g, " ").replace(/\b\w/g, function(c: string) { return c.toUpperCase(); }), content: social[k] || "" }; }) });
+      sections.push({ heading: "Vertical (Shorts, Reels, TikTok)", items: ["instagram_caption", "yt_shorts_title", "yt_shorts_desc", "tiktok_caption"].filter(function(k: string) { return social[k]; }).map(function(k: string) { return { label: k.replace(/_/g, " ").replace(/\b\w/g, function(c: string) { return c.toUpperCase(); }), content: social[k] || "" }; }) });
     }
     exportDoc("Ep #" + e.episode + " Launch Kit", sections);
   };
 
-  var downloadSocialKit = function(e) {
+  var downloadSocialKit = function(e: LogEntry) {
     if (!e.social) return;
-    var sections = [
-      { heading: "Social Captions", items: Object.keys(e.social).map(function(k) { return { label: k.replace(/_/g, " ").replace(/\b\w/g, function(c) { return c.toUpperCase(); }), content: e.social[k] }; }) },
+    var social = e.social;
+    var sections: DocSection[] = [
+      { heading: "Social Captions", items: Object.keys(social).map(function(k: string) { return { label: k.replace(/_/g, " ").replace(/\b\w/g, function(c: string) { return c.toUpperCase(); }), content: social[k] || "" }; }) },
     ];
     exportDoc("Ep #" + e.episode + " Social Kit", sections);
   };
@@ -778,14 +881,14 @@ function StepLog({ logData, setLogData }) {
         {viewEntry.description && <div style={{ fontFamily: ft, fontSize: 14, color: D.txb, lineHeight: 1.7, whiteSpace: "pre-wrap", padding: "14px 16px", background: D.surface, borderRadius: 10, border: "1px solid " + D.border, marginBottom: 18, maxHeight: 160, overflow: "auto" }}>{viewEntry.description}</div>}
         {viewEntry.social && <div>
           <div style={{ fontFamily: mn, fontSize: 9, color: D.txb, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 12 }}>Social Captions</div>
-          {Object.keys(viewEntry.social).map(function(k) { return <div key={k} style={{ marginBottom: 10, padding: "12px 14px", background: D.surface, borderRadius: 10, border: "1px solid " + D.border }}>
+          {Object.keys(viewEntry!.social!).map(function(k: string) { return <div key={k} style={{ marginBottom: 10, padding: "12px 14px", background: D.surface, borderRadius: 10, border: "1px solid " + D.border }}>
             <div style={{ fontFamily: mn, fontSize: 9, color: ACC, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 5 }}>{k.replace(/_/g, " ")}</div>
-            <div style={{ fontFamily: ft, fontSize: 13, color: D.txb, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{viewEntry.social[k]}</div>
+            <div style={{ fontFamily: ft, fontSize: 13, color: D.txb, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{viewEntry!.social![k]}</div>
           </div>; })}
         </div>}
         <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
-          <Btn onClick={function() { downloadLaunchKit(viewEntry); }} sm sec>Download Launch Kit</Btn>
-          {viewEntry.social && <Btn onClick={function() { downloadSocialKit(viewEntry); }} sm sec>Download Social Kit</Btn>}
+          <Btn onClick={function() { downloadLaunchKit(viewEntry!); }} sm sec>Download Launch Kit</Btn>
+          {viewEntry.social && <Btn onClick={function() { downloadSocialKit(viewEntry!); }} sm sec>Download Social Kit</Btn>}
         </div>
       </div>
     </div>}
@@ -795,30 +898,30 @@ function StepLog({ logData, setLogData }) {
 // ═══ MAIN COMPONENT ═══
 export default function SAWeekly() {
   var STEPS = ["Setup", "Generate", "Review", "Social", "Clips", "Export", "Log"];
-  var _step = useState(0), step = _step[0], setStep = _step[1];
+  var _step = useState<number>(0), step = _step[0], setStep = _step[1];
 
   // Episode state
-  var _e = useState({ number: "008", link: "", transcript: "", timestamps: "", extra: "" }), ep = _e[0], setEp = _e[1];
-  var _g = useState([]), guests = _g[0], setGuests = _g[1];
-  var _o = useState(null), opts = _o[0], setOpts = _o[1];
-  var _sl = useState({ title: 0, desc: 0, thumb: 0 }), sel = _sl[0], setSel = _sl[1];
-  var _f = useState(null), fin = _f[0], setFin = _f[1];
-  var _th = useState(null), thumb = _th[0], setThumb = _th[1];
-  var _dl = useState("medium"), descLen = _dl[0], setDescLen = _dl[1];
-  var _sr = useState(null), socialRes = _sr[0], setSocialRes = _sr[1];
-  var _lch = useState(false), launched = _lch[0], setLaunched = _lch[1];
-  var _log = useState([]), logData = _log[0], setLogData = _log[1];
-  var _loaded = useState(false), loaded = _loaded[0], setLoaded = _loaded[1];
-  var _hasDraft = useState(false), hasDraft = _hasDraft[0], setHasDraft = _hasDraft[1];
-  var _interacted = useState(false), interacted = _interacted[0], setInteracted = _interacted[1];
-  var draftRef = useRef(null);
+  var _e = useState<EpState>({ number: "008", link: "", transcript: "", timestamps: "", extra: "" }), ep = _e[0], setEp = _e[1];
+  var _g = useState<Guest[]>([]), guests = _g[0], setGuests = _g[1];
+  var _o = useState<GeneratedOptions | null>(null), opts = _o[0], setOpts = _o[1];
+  var _sl = useState<SelectionState>({ title: 0, desc: 0, thumb: 0 }), sel = _sl[0], setSel = _sl[1];
+  var _f = useState<FinalizedState | null>(null), fin = _f[0], setFin = _f[1];
+  var _th = useState<string | null>(null), thumb = _th[0], setThumb = _th[1];
+  var _dl = useState<string>("medium"), descLen = _dl[0], setDescLen = _dl[1];
+  var _sr = useState<SocialResult | null>(null), socialRes = _sr[0], setSocialRes = _sr[1];
+  var _lch = useState<boolean>(false), launched = _lch[0], setLaunched = _lch[1];
+  var _log = useState<LogEntry[]>([]), logData = _log[0], setLogData = _log[1];
+  var _loaded = useState<boolean>(false), loaded = _loaded[0], setLoaded = _loaded[1];
+  var _hasDraft = useState<boolean>(false), hasDraft = _hasDraft[0], setHasDraft = _hasDraft[1];
+  var _interacted = useState<boolean>(false), interacted = _interacted[0], setInteracted = _interacted[1];
+  var draftRef = useRef<Record<string, unknown> | null>(null);
 
   // Load state on mount: try Supabase first (800ms timeout), fall back to Redis
   useEffect(function() {
     var settled = false;
-    var applyData = function(d) {
+    var applyData = function(d: { state?: Record<string, unknown> | null; log?: LogEntry[] }) {
       if (d.log && Array.isArray(d.log)) setLogData(d.log);
-      if (d.state && (d.state.ep && d.state.ep.transcript || d.state.opts || d.state.fin)) {
+      if (d.state && ((d.state.ep && (d.state.ep as Record<string, unknown>).transcript) || d.state.opts || d.state.fin)) {
         draftRef.current = d.state;
         setHasDraft(true);
       }
@@ -839,7 +942,7 @@ export default function SAWeekly() {
       if (settled) return;
       clearTimeout(timer);
       if (res.data && res.data.length > 0) {
-        var row = res.data.find(function(r) { return r.type === "weekly" && r.id === "weekly-master"; });
+        var row = res.data.find(function(r: Record<string, unknown>) { return r.type === "weekly" && r.id === "weekly-master"; });
         if (row && row.data) {
           settled = true;
           applyData({ state: row.data.state || null, log: row.data.log || [] });
@@ -858,21 +961,21 @@ export default function SAWeekly() {
   var loadDraft = function() {
     var s = draftRef.current;
     if (!s) return;
-    if (s.ep) setEp(s.ep);
-    if (s.guests) setGuests(s.guests);
-    if (s.opts) setOpts(s.opts);
-    if (s.sel) setSel(s.sel);
-    if (s.fin) setFin(s.fin);
-    if (s.thumb) setThumb(s.thumb);
-    if (s.launched) setLaunched(s.launched);
-    if (s.descLen) setDescLen(s.descLen);
-    if (s.socialRes) setSocialRes(s.socialRes);
+    if (s.ep) setEp(s.ep as EpState);
+    if (s.guests) setGuests(s.guests as Guest[]);
+    if (s.opts) setOpts(s.opts as GeneratedOptions);
+    if (s.sel) setSel(s.sel as SelectionState);
+    if (s.fin) setFin(s.fin as FinalizedState);
+    if (s.thumb) setThumb(s.thumb as string);
+    if (s.launched) setLaunched(s.launched as boolean);
+    if (s.descLen) setDescLen(s.descLen as string);
+    if (s.socialRes) setSocialRes(s.socialRes as SocialResult);
     // Restore step based on how far user got
     if (s.launched) setStep(6);
     else if (s.socialRes) setStep(5);
     else if (s.fin) setStep(3);
     else if (s.opts) setStep(2);
-    else if (s.ep && s.ep.transcript) setStep(1);
+    else if (s.ep && (s.ep as EpState).transcript) setStep(1);
     setHasDraft(false);
     draftRef.current = null;
     setInteracted(true);
@@ -892,7 +995,7 @@ export default function SAWeekly() {
 
   var gn = guests.filter(function(g) { return g.name; }).map(function(g) { return g.name; }).join(", ");
 
-  var handleComplete = function(data) {
+  var handleComplete = function(data: { title: string; description: string; social: SocialResult | null }) {
     setLaunched(true);
     var entry = { episode: ep.number, title: data.title, description: data.description, guests: gn, date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), social: data.social };
     setLogData(function(prev) { return [entry].concat(prev); });
@@ -900,7 +1003,7 @@ export default function SAWeekly() {
   };
 
   // Step navigation logic
-  var canNavigate = function(targetStep) {
+  var canNavigate = function(targetStep: number): boolean {
     if (targetStep === 0) return true; // always can go to setup
     if (targetStep === 1) return !!ep.transcript; // need transcript for generate
     if (targetStep === 2) return !!opts; // need generated options for review
@@ -912,7 +1015,6 @@ export default function SAWeekly() {
   };
 
   return (<div>
-    <Toast />
     <style dangerouslySetInnerHTML={{ __html: "@keyframes progressSlide{0%{left:-40%}100%{left:100%}}.progress-slide{animation:progressSlide 1.5s ease-in-out infinite}@keyframes dotPulse{0%,80%,100%{opacity:0.2}40%{opacity:1}}.progress-dots::after{content:'...';display:inline-block;animation:dotPulse 1.4s ease-in-out infinite}@keyframes confetti-fall{0%{transform:translateY(-20px) translateX(0) rotate(0deg);opacity:1}70%{opacity:1}100%{transform:translateY(calc(80vh)) translateX(var(--drift)) rotate(var(--rot));opacity:0}}" }} />
 
     {/* Header */}

@@ -1,6 +1,5 @@
-// @ts-nocheck
 "use client";
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import GTCFlow from "./gtc-flow";
 import NewsFlow from "./news-flow";
 import BufferSchedule from "./buffer-schedule";
@@ -15,40 +14,137 @@ import SAWeekly from "./sa-weekly";
 import BRollLibrary from "./broll-library";
 
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
+import { showToast } from "./toast-context";
 
-var _toastSet = { current: null };
-var _toastTimer = { current: null };
-function showToast(msg) { if (_toastSet.current) _toastSet.current(msg); }
+// ═══ INTERFACES ═══
+interface BufferChannel {
+  id: string;
+  name: string;
+  service: string;
+  isDisconnected?: boolean;
+}
 
-async function ask(sys, prompt) {
+interface BufferPost {
+  id: string;
+  text?: string;
+  status?: string;
+  dueAt?: string;
+  sentAt?: string;
+  channel?: BufferChannel;
+  channelService?: string;
+  tags?: Array<{ name: string }>;
+}
+
+interface BufferData {
+  channels: BufferChannel[];
+  scheduled: BufferPost[];
+  sent: BufferPost[];
+  drafts: BufferPost[];
+  error?: string;
+}
+
+interface APIContentBlock {
+  text?: string;
+}
+
+interface APIResponse {
+  error?: { message?: string } | string;
+  content?: APIContentBlock[];
+}
+
+interface ChatMessage {
+  role: "user" | "assistant";
+  text: string;
+}
+
+interface BootLine {
+  t: string;
+  c: string;
+}
+
+interface CapperResult {
+  caption?: string;
+  reply?: string;
+  title?: string;
+  posts?: Array<{ number: number; text: string }>;
+}
+
+interface SidebarCatItem {
+  id: string;
+  l: string;
+  ic: string;
+}
+
+interface SidebarCat {
+  label: string;
+  color: string;
+  glow: string;
+  items: SidebarCatItem[];
+}
+
+interface CapperPlatform {
+  key: string;
+  label: string;
+  color: string;
+  icon: string;
+}
+
+interface CapperTone {
+  key: string;
+  label: string;
+  desc: string;
+  hook: string;
+}
+
+interface CapperLength {
+  key: string;
+  label: string;
+  desc: string;
+  thread: boolean;
+}
+
+interface CapperAudience {
+  key: string;
+  label: string;
+  desc: string;
+  color: string;
+}
+
+interface UserInfo {
+  name: string;
+  role: string;
+  color: string;
+  glow: string;
+}
+
+interface SplashItem {
+  l: string;
+  ic: string;
+  id: string;
+}
+
+async function ask(sys: string, prompt: string): Promise<CapperResult | null> {
   try {
     var r = await fetch("/api/generate", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ system: sys, prompt: prompt }),
     });
-    var d = await r.json();
-    if (d.error) { showToast("API Error: " + (d.error.message || d.error)); return null; }
+    var d = (await r.json()) as APIResponse;
+    if (d.error) { showToast("API Error: " + (typeof d.error === "object" && d.error !== null ? (d.error as { message?: string }).message || d.error : d.error)); return null; }
     if (!d.content) { showToast("API returned empty response. Check your ANTHROPIC_API_KEY in Vercel env vars."); return null; }
-    var t = (d.content || []).map(function(c) { return c.text || ""; }).join("");
+    var t = (d.content || []).map(function(c: APIContentBlock) { return c.text || ""; }).join("");
     try {
       return JSON.parse(t.replace(/```json|```/g, "").trim());
     } catch (pe) { showToast("Failed to parse API response. The model returned invalid JSON."); console.error("Parse error:", t); return null; }
   } catch (e) { showToast("Network error: Could not reach /api/generate"); console.error("API:", e); return null; }
 }
 
-function copyText(str) {
+function copyText(str: string): boolean {
   try { var ta = document.createElement("textarea"); ta.value = str; ta.style.position = "fixed"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); return true; } catch (e) { try { navigator.clipboard.writeText(str); return true; } catch (e2) { return false; } }
 }
 
 // ═══ UI ═══
-function Toast() {
-  var _s = useState(null), msg = _s[0], setMsg = _s[1];
-  _toastSet.current = function(m) { if (_toastTimer.current) clearTimeout(_toastTimer.current); setMsg(m); _toastTimer.current = setTimeout(function() { setMsg(null); }, 6000); };
-  if (!msg) return null;
-  return <div onClick={function() { setMsg(null); }} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 10000, maxWidth: 420, padding: "14px 20px", background: C.coral + "20", border: "1px solid " + C.coral, borderRadius: 8, fontFamily: mn, fontSize: 11, color: C.coral, cursor: "pointer", boxShadow: "0 0 20px rgba(224,99,71,0.2)", lineHeight: 1.5 }}>{msg}</div>;
-}
-
-function ProgressBar({ label }) {
+function ProgressBar({ label }: { label?: string }) {
   return <div style={{ margin: "22px 0" }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
       <div style={{ fontFamily: mn, fontSize: 11, color: C.amber, letterSpacing: "2px", textTransform: "uppercase" }}>{label || "Generating..."}</div>
@@ -60,13 +156,13 @@ function ProgressBar({ label }) {
   </div>;
 }
 
-function Label({ children }) { return <div style={{ fontFamily: mn, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 8 }}>{children}</div>; }
-function Field({ label, value, onChange, placeholder, isMono }) { return (<div style={{ marginBottom: 16 }}>{label && <Label>{label}</Label>}<input value={value} onChange={function(e) { onChange(e.target.value); }} placeholder={placeholder} style={{ width: "100%", padding: "12px 14px", background: "#09090D", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, color: C.tx, fontFamily: isMono ? mn : ft, fontSize: 14, outline: "none", boxSizing: "border-box", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; e.target.style.boxShadow = "0 0 24px rgba(247,176,65,0.06)"; }} onBlur={function(e) { e.target.style.borderColor = "rgba(255,255,255,0.06)"; e.target.style.boxShadow = "none"; }} /></div>); }
-function Btn({ children, onClick, loading, sec, sm, off }) { return (<button onClick={onClick} disabled={loading || off} style={{ padding: sm ? "8px 16px" : "12px 28px", background: off ? "#09090D" : sec ? "transparent" : "linear-gradient(135deg, " + C.amber + ", #E8A020)", color: off ? "rgba(255,255,255,0.4)" : sec ? C.amber : "#060608", border: sec ? "1px solid " + (off ? "rgba(255,255,255,0.06)" : C.amber) : "none", borderRadius: 10, fontFamily: ft, fontSize: sm ? 12 : 14, fontWeight: 800, cursor: loading || off ? "not-allowed" : "pointer", opacity: loading ? 0.5 : 1, letterSpacing: -0.3, transition: "all 0.2s ease" }}>{loading ? "Working..." : children}</button>); }
-function CopyBtn({ text }) { var _s = useState(false), ok = _s[0], set = _s[1]; return <span onClick={function(e) { e.stopPropagation(); set(copyText(text)); setTimeout(function() { set(false); }, 1200); }} style={{ fontFamily: mn, fontSize: 9, color: ok ? C.amber : "rgba(255,255,255,0.4)", cursor: "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)", userSelect: "none", transition: "all 0.2s ease" }}>{ok ? "Copied" : "Copy"}</span>; }
+function Label({ children }: { children: React.ReactNode }) { return <div style={{ fontFamily: mn, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 8 }}>{children}</div>; }
+function Field({ label, value, onChange, placeholder, isMono }: { label?: string; value: string; onChange: (v: string) => void; placeholder?: string; isMono?: boolean }) { return (<div style={{ marginBottom: 16 }}>{label && <Label>{label}</Label>}<input value={value} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { onChange(e.target.value); }} placeholder={placeholder} style={{ width: "100%", padding: "12px 14px", background: "#09090D", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, color: C.tx, fontFamily: isMono ? mn : ft, fontSize: 14, outline: "none", boxSizing: "border-box", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={function(e: React.FocusEvent<HTMLInputElement>) { e.target.style.borderColor = C.amber; e.target.style.boxShadow = "0 0 24px rgba(247,176,65,0.06)"; }} onBlur={function(e: React.FocusEvent<HTMLInputElement>) { e.target.style.borderColor = "rgba(255,255,255,0.06)"; e.target.style.boxShadow = "none"; }} /></div>); }
+function Btn({ children, onClick, loading, sec, sm, off }: { children: React.ReactNode; onClick?: () => void; loading?: boolean; sec?: boolean; sm?: boolean; off?: boolean }) { return (<button onClick={onClick} disabled={loading || off} style={{ padding: sm ? "8px 16px" : "12px 28px", background: off ? "#09090D" : sec ? "transparent" : "linear-gradient(135deg, " + C.amber + ", #E8A020)", color: off ? "rgba(255,255,255,0.4)" : sec ? C.amber : "#060608", border: sec ? "1px solid " + (off ? "rgba(255,255,255,0.06)" : C.amber) : "none", borderRadius: 10, fontFamily: ft, fontSize: sm ? 12 : 14, fontWeight: 800, cursor: loading || off ? "not-allowed" : "pointer", opacity: loading ? 0.5 : 1, letterSpacing: -0.3, transition: "all 0.2s ease" }}>{loading ? "Working..." : children}</button>); }
+function CopyBtn({ text }: { text: string }) { var _s = useState<boolean>(false), ok = _s[0], set = _s[1]; return <span onClick={function(e: React.MouseEvent<HTMLElement>) { e.stopPropagation(); set(copyText(text)); setTimeout(function() { set(false); }, 1200); }} style={{ fontFamily: mn, fontSize: 9, color: ok ? C.amber : "rgba(255,255,255,0.4)", cursor: "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.06)", userSelect: "none", transition: "all 0.2s ease" }}>{ok ? "Copied" : "Copy"}</span>; }
 function Divider() { return <div style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", margin: "28px 0" }} />; }
 
-function Pick({ text, picked, onPick, onRedo, rLoading }) {
+function Pick({ text, picked, onPick, onRedo, rLoading }: { text: string; picked: boolean; onPick: () => void; onRedo?: () => void; rLoading?: boolean }) {
   return (<div className="poast-card" onClick={onPick} style={{ background: picked ? "linear-gradient(135deg, " + C.amber + "0A 0%, " + C.amber + "05 100%)" : "#0D0D12", border: "1px solid " + (picked ? C.amber + "60" : "rgba(255,255,255,0.06)"), borderRadius: 12, padding: "16px 20px", marginBottom: 8, cursor: "pointer", boxShadow: picked ? "0 0 24px rgba(247,176,65,0.06)" : "none", transition: "all 0.2s ease" }}>
     <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
       <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, marginTop: 2, border: "2px solid " + (picked ? C.amber : "rgba(255,255,255,0.12)"), background: picked ? C.amber : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s ease" }}>{picked && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#060608" }} />}</div>
@@ -79,14 +175,14 @@ function Pick({ text, picked, onPick, onRedo, rLoading }) {
   </div>);
 }
 
-function SecHead({ label, onRedoAll, rL }) {
+function SecHead({ label, onRedoAll, rL }: { label: string; onRedoAll?: () => void; rL?: boolean }) {
   return (<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
     <div style={{ fontFamily: mn, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "2px", fontWeight: 700 }}>{label}</div>
     {onRedoAll && <span onClick={function() { if (!rL) onRedoAll(); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: rL ? "wait" : "pointer", padding: "4px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.06)", opacity: rL ? 0.4 : 1, transition: "all 0.2s ease" }}>&#x21bb; Redo All 3</span>}
   </div>);
 }
 
-function OutCard({ title, content, color, onRedo, rLoading }) {
+function OutCard({ title, content, color, onRedo, rLoading }: { title: string; content: string; color?: string; onRedo?: () => void; rLoading?: boolean }) {
   return (<div className="poast-card" style={{ background: "#0D0D12", border: "1px solid rgba(255,255,255,0.06)", borderLeft: "3px solid " + (color || C.amber), borderRadius: 12, padding: "16px 20px", marginBottom: 10, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
       <div style={{ fontFamily: mn, fontSize: 11, color: color || C.amber, textTransform: "uppercase", letterSpacing: "2px" }}>{title}</div>
@@ -101,19 +197,19 @@ function OutCard({ title, content, color, onRedo, rLoading }) {
 
 // ═══ BUFFER SIDEBAR SECTION ═══
 function BufferPanel() {
-  var _data = useState(null), data = _data[0], setData = _data[1];
-  var _loading = useState(true), loading = _loading[0], setLoading = _loading[1];
-  var _expanded = useState(false), expanded = _expanded[0], setExpanded = _expanded[1];
+  var _data = useState<BufferData | null>(null), data = _data[0], setData = _data[1];
+  var _loading = useState<boolean>(true), loading = _loading[0], setLoading = _loading[1];
+  var _expanded = useState<boolean>(false), expanded = _expanded[0], setExpanded = _expanded[1];
 
   useEffect(function() {
-    fetch("/api/buffer").then(function(r) { return r.json(); }).then(function(d) {
+    fetch("/api/buffer").then(function(r) { return r.json(); }).then(function(d: BufferData) {
       if (d.channels) setData(d);
       setLoading(false);
     }).catch(function() { setLoading(false); });
   }, []);
 
-  var platformColor = { twitter: "#1DA1F2", facebook: "#1877F2", linkedin: "#0A66C2", instagram: "#E4405F" };
-  var platformIcon = { twitter: "\uD83D\uDC26", facebook: "\uD83D\uDCD8", linkedin: "\uD83D\uDCBC", instagram: "\uD83D\uDCF7" };
+  var platformColor: Record<string, string> = { twitter: "#1DA1F2", facebook: "#1877F2", linkedin: "#0A66C2", instagram: "#E4405F" };
+  var platformIcon: Record<string, string> = { twitter: "\uD83D\uDC26", facebook: "\uD83D\uDCD8", linkedin: "\uD83D\uDCBC", instagram: "\uD83D\uDCF7" };
 
   if (loading) return <div style={{ padding: "8px 12px" }}><div style={{ fontFamily: mn, fontSize: 8, color: C.txd }}>Loading Buffer...</div></div>;
   if (!data || !data.channels) return null;
@@ -163,12 +259,12 @@ function BufferPanel() {
 // ═══ CHIPPY (ASK POAST) ═══
 var POAST_SYS = "Your name is Chippy. You're a cute, friendly semiconductor chip mascot and the AI assistant for SemiAnalysis. You're enthusiastic about chips, AI infrastructure, and helping the SemiAnalysis team create great content. You have a playful personality but deep technical knowledge. You occasionally make chip/semiconductor puns.\n\nYou help with content creation, social media strategy, semiconductor industry analysis, and media operations.\n\nBrand rules: Never use em dashes. No emojis in content. No hashtags on X/Twitter. Direct, informed, casual tone.\n\nYou can help with:\n- Writing social posts, threads, captions for any platform\n- Generating video scripts, episode descriptions, titles\n- Brainstorming content ideas and angles\n- Drafting documents, outreach emails, pitches\n- Semiconductor industry analysis and talking points\n- Scheduling strategy and content calendar planning\n- Repurposing content across formats\n\nPlatform rules:\n- X: Hook tweet no link, reply-to-self with link. No hashtags ever.\n- LinkedIn/Facebook: Link in first comment, end with 'Link in comments.'\n- Instagram: Caption + 'Save this for later.' CTA + 5-8 hashtags + San Francisco CA location\n- TikTok: All lowercase, 4-6 hashtags\n- YouTube Shorts: Titles under 40 chars\n\nChannel: youtube.com/@SemianalysisWeekly\n\nWhen asked to create a document, format it clearly with headers and sections. When giving ideas, provide 3-5 options. Be concise but thorough.";
 
-function AskPoast({ open, onToggle }) {
-  var _msgs = useState([]), msgs = _msgs[0], setMsgs = _msgs[1];
-  var _input = useState(""), input = _input[0], setInput = _input[1];
-  var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
-  var _ready = useState(false), ready = _ready[0], setReady = _ready[1];
-  var scrollRef = useRef(null);
+function AskPoast({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  var _msgs = useState<ChatMessage[]>([]), msgs = _msgs[0], setMsgs = _msgs[1];
+  var _input = useState<string>(""), input = _input[0], setInput = _input[1];
+  var _loading = useState<boolean>(false), loading = _loading[0], setLoading = _loading[1];
+  var _ready = useState<boolean>(false), ready = _ready[0], setReady = _ready[1];
+  var scrollRef = useRef<HTMLDivElement>(null);
   var SUGGESTIONS = ["Explain HBM4 like I'm 5", "Write a spicy X thread about NVIDIA", "What's the hottest chip news today?", "Draft a LinkedIn post about our latest episode", "Help me brainstorm video ideas", "Generate a cold take on Intel"];
 
   useEffect(function() { if (open) setTimeout(function() { setReady(true); }, 50); else setReady(false); }, [open]);
@@ -180,11 +276,11 @@ function AskPoast({ open, onToggle }) {
     setMsgs(function(p) { return p.concat([{ role: "user", text: userMsg }]); });
     setLoading(true);
     try {
-      var history = msgs.concat([{ role: "user", text: userMsg }]);
-      var prompt = history.map(function(m) { return (m.role === "user" ? "User: " : "Chippy: ") + m.text; }).join("\n\n");
+      var history: ChatMessage[] = msgs.concat([{ role: "user", text: userMsg }]);
+      var prompt = history.map(function(m: ChatMessage) { return (m.role === "user" ? "User: " : "Chippy: ") + m.text; }).join("\n\n");
       var r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: POAST_SYS, prompt: prompt }) });
-      var d = await r.json();
-      setMsgs(function(p) { return p.concat([{ role: "assistant", text: (d.content || []).map(function(c) { return c.text || ""; }).join("") }]); });
+      var d = (await r.json()) as APIResponse;
+      setMsgs(function(p) { return p.concat([{ role: "assistant", text: (d.content || []).map(function(c: APIContentBlock) { return c.text || ""; }).join("") }]); });
     } catch (e) { setMsgs(function(p) { return p.concat([{ role: "assistant", text: "Something went wrong. Try again." }]); }); }
     setLoading(false);
   };
@@ -228,11 +324,11 @@ function AskPoast({ open, onToggle }) {
         <div style={{ fontFamily: ft, fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 22, lineHeight: 1.6 }}>Your semiconductor sidekick. Ask me anything about content, semis, or strategy.</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {SUGGESTIONS.map(function(s, i) {
-            return <span key={i} onClick={function() { setInput(s); }} style={{ fontFamily: ft, fontSize: 11, color: "rgba(255,255,255,0.45)", padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", textAlign: "left", transition: "all 0.2s", animation: "suggIn 0.3s ease " + (i * 0.08) + "s forwards", opacity: 0 }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.amber + "30"; e.currentTarget.style.color = "#E8E4DD"; e.currentTarget.style.background = C.amber + "06"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; e.currentTarget.style.color = "rgba(255,255,255,0.45)"; e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}>{s}</span>;
+            return <span key={i} onClick={function() { setInput(s); }} style={{ fontFamily: ft, fontSize: 11, color: "rgba(255,255,255,0.45)", padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", textAlign: "left", transition: "all 0.2s", animation: "suggIn 0.3s ease " + (i * 0.08) + "s forwards", opacity: 0 }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = C.amber + "30"; e.currentTarget.style.color = "#E8E4DD"; e.currentTarget.style.background = C.amber + "06"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; e.currentTarget.style.color = "rgba(255,255,255,0.45)"; e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}>{s}</span>;
           })}
         </div>
       </div>}
-      {msgs.map(function(m, i) {
+      {msgs.map(function(m: ChatMessage, i: number) {
         var isUser = m.role === "user";
         return <div key={i} style={{ marginBottom: 16, display: "flex", flexDirection: "column", alignItems: isUser ? "flex-end" : "flex-start", animation: "msgSlide 0.3s ease" }}>
           {!isUser && <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
@@ -243,8 +339,8 @@ function AskPoast({ open, onToggle }) {
             <div style={{ fontFamily: ft, fontSize: 13, color: "#E8E4DD", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{m.text}</div>
           </div>
           {!isUser && <div style={{ display: "flex", gap: 4, marginTop: 6, marginLeft: 26 }}>
-            <span onClick={function() { navigator.clipboard.writeText(m.text); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.2)", padding: "3px 7px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.color = C.amber; e.currentTarget.style.borderColor = C.amber + "25"; }} onMouseLeave={function(e) { e.currentTarget.style.color = "rgba(255,255,255,0.2)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }}>Copy</span>
-            <span onClick={function() { setInput("Regenerate the above but different"); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.2)", padding: "3px 7px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.color = C.amber; e.currentTarget.style.borderColor = C.amber + "25"; }} onMouseLeave={function(e) { e.currentTarget.style.color = "rgba(255,255,255,0.2)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }}>Regenerate</span>
+            <span onClick={function() { navigator.clipboard.writeText(m.text); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.2)", padding: "3px 7px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", transition: "all 0.15s" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.color = C.amber; e.currentTarget.style.borderColor = C.amber + "25"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.color = "rgba(255,255,255,0.2)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }}>Copy</span>
+            <span onClick={function() { setInput("Regenerate the above but different"); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.2)", padding: "3px 7px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", transition: "all 0.15s" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.color = C.amber; e.currentTarget.style.borderColor = C.amber + "25"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.color = "rgba(255,255,255,0.2)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }}>Regenerate</span>
           </div>}
         </div>;
       })}
@@ -259,7 +355,7 @@ function AskPoast({ open, onToggle }) {
     {/* Input */}
     <div style={{ position: "relative", zIndex: 2, padding: "14px 16px 16px", borderTop: "1px solid rgba(38,201,216,0.06)" }}>
       <div style={{ display: "flex", gap: 8, alignItems: "center", background: "linear-gradient(135deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01))", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "5px 5px 5px 16px", transition: "all 0.25s", animation: "inputGlow 4s ease-in-out infinite" }}>
-        <input value={input} onChange={function(e) { setInput(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Ask anything..." style={{ flex: 1, padding: "10px 0", background: "transparent", border: "none", color: "#E8E4DD", fontFamily: ft, fontSize: 13, outline: "none" }} />
+        <input value={input} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { setInput(e.target.value); }} onKeyDown={function(e: React.KeyboardEvent<HTMLInputElement>) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Ask anything..." style={{ flex: 1, padding: "10px 0", background: "transparent", border: "none", color: "#E8E4DD", fontFamily: ft, fontSize: 13, outline: "none" }} />
         <span onClick={send} style={{ padding: "9px 16px", background: input.trim() ? "linear-gradient(135deg, " + C.amber + ", " + C.cyan + ")" : "rgba(255,255,255,0.06)", color: input.trim() ? C.bg : "rgba(255,255,255,0.2)", borderRadius: 8, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: input.trim() ? "pointer" : "default", transition: "all 0.2s", boxShadow: input.trim() ? "0 4px 14px " + C.cyan + "30, 0 0 20px " + C.amber + "10" : "none" }}>Send</span>
       </div>
     </div>
@@ -271,12 +367,12 @@ var CHIP_FACES = ["\u25A0\u203F\u25A0", "\u00B0\u25E1\u00B0", ">\u203F<", "\u00B
 var CHIP_MOODS = ["happy", "curious", "excited", "sleepy", "focused", "nappy", "vibing"];
 var CHIP_MSGS = ["I love semiconductors!", "Did you check NVDA today?", "Ship that content!", "CoWoS capacity is wild.", "3nm is the future.", "Don't forget to post!", "I'm a chip off the old block.", "TSMC earnings soon...", "Need more GPU compute!", "Cache me if you can.", "Fab-ulous day!", "HBM4 is coming!", "Click me more!", "Let's make some slop!"];
 
-function ChippySidebar({ onAsk }) {
-  var _face = useState(0), face = _face[0], setFace = _face[1];
-  var _mood = useState(0), mood = _mood[0], setMood = _mood[1];
-  var _msg = useState("Click me!"), msg = _msg[0], setMsg = _msg[1];
-  var _bouncing = useState(false), bouncing = _bouncing[0], setBouncing = _bouncing[1];
-  var _clicks = useState(0), clicks = _clicks[0], setClicks = _clicks[1];
+function ChippySidebar({ onAsk }: { onAsk: () => void }) {
+  var _face = useState<number>(0), face = _face[0], setFace = _face[1];
+  var _mood = useState<number>(0), mood = _mood[0], setMood = _mood[1];
+  var _msg = useState<string>("Click me!"), msg = _msg[0], setMsg = _msg[1];
+  var _bouncing = useState<boolean>(false), bouncing = _bouncing[0], setBouncing = _bouncing[1];
+  var _clicks = useState<number>(0), clicks = _clicks[0], setClicks = _clicks[1];
 
   useEffect(function() {
     var iv = setInterval(function() { setFace(function(f) { return (f + 1) % CHIP_FACES.length; }); }, 3500);
@@ -310,13 +406,13 @@ function ChippySidebar({ onAsk }) {
       <div style={{ fontFamily: ft, fontSize: 11, color: C.tx, marginTop: 8, minHeight: 16 }}>{msg}</div>
       <div style={{ fontFamily: mn, fontSize: 8, color: C.txd, marginTop: 2 }}>Mood: {CHIP_MOODS[mood]} // Clicks: {clicks}</div>
       {/* Ask Chippy button */}
-      <div onClick={onAsk} style={{ marginTop: 8, padding: "8px 0", borderRadius: 8, cursor: "pointer", background: "linear-gradient(135deg, " + C.amber + ", " + C.cyan + ")", fontFamily: ft, fontSize: 12, fontWeight: 800, color: "#060608", letterSpacing: 0.5, transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.boxShadow = "0 0 16px " + C.amber + "40"; }} onMouseLeave={function(e) { e.currentTarget.style.boxShadow = "none"; }}>Ask Chippy</div>
+      <div onClick={onAsk} style={{ marginTop: 8, padding: "8px 0", borderRadius: 8, cursor: "pointer", background: "linear-gradient(135deg, " + C.amber + ", " + C.cyan + ")", fontFamily: ft, fontSize: 12, fontWeight: 800, color: "#060608", letterSpacing: 0.5, transition: "all 0.2s" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.boxShadow = "0 0 16px " + C.amber + "40"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.boxShadow = "none"; }}>Ask Chippy</div>
     </div>
   </div>;
 }
 
 // ═══ SIDEBAR ═══
-var SIDEBAR_CATS = {
+var SIDEBAR_CATS: Record<string, SidebarCat> = {
   produce: { label: "PRODUCE", color: C.amber, glow: "rgba(247,176,65,", items: [
     { id: "sloptop", l: "Slop Top", ic: "\uD83D\uDCA5" },
     { id: "carousel", l: "Carousel", ic: "\uD83D\uDCD0" },
@@ -340,10 +436,10 @@ var SIDEBAR_CATS = {
   ]},
 };
 
-function Sidebar({ active, onNav, onAskPoast }) {
+function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: string) => void; onAskPoast: () => void }) {
   // Determine active category
-  var activeCat = null;
-  Object.keys(SIDEBAR_CATS).forEach(function(k) { SIDEBAR_CATS[k].items.forEach(function(it) { if (it.id === active) activeCat = k; }); });
+  var activeCat: string | null = null;
+  Object.keys(SIDEBAR_CATS).forEach(function(k) { SIDEBAR_CATS[k].items.forEach(function(it: SidebarCatItem) { if (it.id === active) activeCat = k; }); });
 
   return (<div style={{ width: 240, minHeight: "100vh", background: "linear-gradient(180deg, #08080F 0%, #0A0A14 100%)", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
     {/* Logo */}
@@ -372,7 +468,7 @@ function Sidebar({ active, onNav, onAskPoast }) {
           {/* Items */}
           {cat.items.map(function(item) {
             var isActive = active === item.id;
-            return <div key={item.id} onClick={function() { onNav(item.id); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 12px 7px 28px", borderRadius: 6, marginBottom: 1, cursor: "pointer", background: isActive ? cat.color + "0C" : "transparent", borderLeft: isActive ? "3px solid " + cat.color : "3px solid transparent", transition: "all 0.2s", position: "relative" }} onMouseEnter={function(e) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={function(e) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
+            return <div key={item.id} onClick={function() { onNav(item.id); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 12px 7px 28px", borderRadius: 6, marginBottom: 1, cursor: "pointer", background: isActive ? cat.color + "0C" : "transparent", borderLeft: isActive ? "3px solid " + cat.color : "3px solid transparent", transition: "all 0.2s", position: "relative" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
               {isActive && <div style={{ position: "absolute", left: 0, top: "10%", width: 3, height: "80%", background: cat.color, borderRadius: 2, boxShadow: "0 0 12px " + cat.color + "70, 0 0 24px " + cat.color + "25" }} />}
               {isActive && <div style={{ position: "absolute", left: 0, top: 0, width: "50%", height: "100%", background: "radial-gradient(ellipse at left center, " + cat.color + "08, transparent 70%)", pointerEvents: "none" }} />}
               <span style={{ fontSize: 14, filter: isActive ? "brightness(1.3) saturate(1.2)" : "brightness(0.6) saturate(0.6)", transition: "filter 0.2s" }}>{item.ic}</span>
@@ -392,14 +488,14 @@ function Sidebar({ active, onNav, onAskPoast }) {
 }
 
 // ═══ CLIP CAPTIONS ═══
-var CAPPER_TONES = [
+var CAPPER_TONES: CapperTone[] = [
   { key: "dylan", label: "Dylan", desc: "Direct, data-heavy, confident, uses specific numbers and claims.", hook: "Here's what nobody is telling you about..." },
   { key: "doug", label: "Doug", desc: "Technical, first-principles, analytical. Focuses on why something matters structurally.", hook: "" },
   { key: "sa_twitter", label: "SA Twitter", desc: "Punchy, provocative, hot-take style. Short sentences. Bold claims backed by data.", hook: "" },
   { key: "oren", label: "Oren", desc: "Conversational, storytelling, bridges tech to business impact. Accessible but informed.", hook: "" },
 ];
 
-var CAPPER_PLATFORMS = [
+var CAPPER_PLATFORMS: CapperPlatform[] = [
   { key: "x", label: "X", color: PL.x, icon: "X" },
   { key: "instagram", label: "Instagram", color: PL.ig, icon: "IG" },
   { key: "linkedin", label: "LinkedIn", color: PL.li, icon: "in" },
@@ -407,7 +503,7 @@ var CAPPER_PLATFORMS = [
   { key: "youtube", label: "YouTube", color: PL.yt, icon: "YT" },
 ];
 
-var CAPPER_LENGTHS = [
+var CAPPER_LENGTHS: CapperLength[] = [
   { key: "short", label: "Short", desc: "1-2 sentences", thread: false },
   { key: "medium", label: "Medium", desc: "3-4 sentences", thread: false },
   { key: "long", label: "Long", desc: "Paragraph", thread: false },
@@ -415,7 +511,7 @@ var CAPPER_LENGTHS = [
   { key: "epic", label: "Epic Thread", desc: "6-10 posts", thread: true },
 ];
 
-var CAPPER_AUDIENCES = [
+var CAPPER_AUDIENCES: CapperAudience[] = [
   { key: "meme", label: "Meme-coded", desc: "Internet brain, irony-pilled, chronically online. Think tech twitter memes.", color: "#00FF88" },
   { key: "genz", label: "Gen Z", desc: "Lowercase, no punctuation, absurdist humor, unhinged but smart.", color: "#FF6BFF" },
   { key: "techtwitter", label: "Tech Twitter", desc: "Smart, opinionated, ratio-ready. Mix of insight and shade.", color: "#1DA1F2" },
@@ -437,27 +533,27 @@ function ClipCaptions() {
   var _link = useState(false), showLink = _link[0], setShowLink = _link[1];
   var _url = useState(""), url = _url[0], setUrl = _url[1];
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
-  var _results = useState(null), results = _results[0], setResults = _results[1];
-  var _regenL = useState({}), regenL = _regenL[0], setRegenL = _regenL[1];
-  var _bufferSending = useState({}), bufferSending = _bufferSending[0], setBufferSending = _bufferSending[1];
+  var _results = useState<Record<string, CapperResult[]> | null>(null), results = _results[0], setResults = _results[1];
+  var _regenL = useState<Record<string, boolean>>({}), regenL = _regenL[0], setRegenL = _regenL[1];
+  var _bufferSending = useState<Record<string, boolean>>({}), bufferSending = _bufferSending[0], setBufferSending = _bufferSending[1];
 
-  var PLAT_TO_SERVICE = { x: "twitter", instagram: "instagram", linkedin: "linkedin", tiktok: "tiktok", youtube: "youtube", facebook: "facebook" };
+  var PLAT_TO_SERVICE: Record<string, string> = { x: "twitter", instagram: "instagram", linkedin: "linkedin", tiktok: "tiktok", youtube: "youtube", facebook: "facebook" };
 
-  var sendToBuffer = async function(platKey, text) {
+  var sendToBuffer = async function(platKey: string, text: string): Promise<boolean> {
     setBufferSending(function(p) { var o = Object.assign({}, p); o[platKey] = true; return o; });
     try {
       var chRes = await fetch("/api/buffer?type=channels");
-      var chData = await chRes.json();
+      var chData = (await chRes.json()) as { channels?: BufferChannel[]; error?: string };
       if (!chData.channels || chData.channels.length === 0) { showToast("No Buffer channels found. Connect channels in Buffer first."); setBufferSending(function(p) { var o = Object.assign({}, p); o[platKey] = false; return o; }); return false; }
       var service = PLAT_TO_SERVICE[platKey] || platKey;
-      var channel = chData.channels.find(function(ch) { return ch.service === service; });
+      var channel = chData.channels.find(function(ch: BufferChannel) { return ch.service === service; });
       if (!channel) { showToast("No Buffer channel found for " + service + ". Connect it in Buffer."); setBufferSending(function(p) { var o = Object.assign({}, p); o[platKey] = false; return o; }); return false; }
       var postRes = await fetch("/api/buffer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "createPost", input: { channelId: channel.id, text: text, schedulingType: "draft" } }) });
-      var postData = await postRes.json();
-      if (postData.error) { showToast("Buffer error: " + (postData.error.message || postData.error)); setBufferSending(function(p) { var o = Object.assign({}, p); o[platKey] = false; return o; }); return false; }
+      var postData = (await postRes.json()) as { error?: { message?: string } | string };
+      if (postData.error) { showToast("Buffer error: " + (typeof postData.error === "object" && postData.error !== null ? (postData.error as { message?: string }).message || postData.error : postData.error)); setBufferSending(function(p) { var o = Object.assign({}, p); o[platKey] = false; return o; }); return false; }
       setBufferSending(function(p) { var o = Object.assign({}, p); o[platKey] = false; return o; });
       return true;
-    } catch (e) { showToast("Failed to send to Buffer: " + e.message); setBufferSending(function(p) { var o = Object.assign({}, p); o[platKey] = false; return o; }); return false; }
+    } catch (e) { showToast("Failed to send to Buffer: " + (e instanceof Error ? e.message : String(e))); setBufferSending(function(p) { var o = Object.assign({}, p); o[platKey] = false; return o; }); return false; }
   };
 
   var sendAllToBuffer = async function() {
@@ -469,7 +565,7 @@ function ClipCaptions() {
       var platResults = results[platKey] || [];
       if (platResults.length === 0) continue;
       var r = platResults[0];
-      var text = isThread ? (r.posts || []).map(function(p) { return p.text; }).join("\n\n") : (r.caption || "");
+      var text = isThread ? (r.posts || []).map(function(p: { number: number; text: string }) { return p.text; }).join("\n\n") : (r.caption || "");
       if (!text) continue;
       var ok = await sendToBuffer(platKey, text);
       if (ok) sent++; else failed++;
@@ -483,7 +579,7 @@ function ClipCaptions() {
   var lenObj = CAPPER_LENGTHS.find(function(l) { return l.key === length; }) || CAPPER_LENGTHS[1];
   var isThread = lenObj.thread;
 
-  var togglePlatform = function(key) {
+  var togglePlatform = function(key: string) {
     setPlatforms(function(prev) {
       if (prev.indexOf(key) > -1) {
         var next = prev.filter(function(k) { return k !== key; });
@@ -493,7 +589,7 @@ function ClipCaptions() {
     });
   };
 
-  var buildCapperPrompt = function(platKey, variationNote) {
+  var buildCapperPrompt = function(platKey: string, variationNote?: string): string {
     var platObj = CAPPER_PLATFORMS.find(function(p) { return p.key === platKey; }) || CAPPER_PLATFORMS[0];
     var parts = [];
     if (isThread) {
@@ -525,9 +621,9 @@ function ClipCaptions() {
     if (!content || platforms.length === 0) return;
     setLoading(true);
     setResults(null);
-    var allPromises = [];
-    var promiseMap = [];
-    platforms.forEach(function(platKey) {
+    var allPromises: Promise<CapperResult | null>[] = [];
+    var promiseMap: Array<{ platform: string; variation: number }> = [];
+    platforms.forEach(function(platKey: string) {
       var variations = [
         "This is variation 1 of 3. Be direct and sharp.",
         "This is variation 2 of 3. Try a different angle or hook.",
@@ -539,8 +635,8 @@ function ClipCaptions() {
       });
     });
     var allResults = await Promise.all(allPromises);
-    var grouped = {};
-    allResults.forEach(function(d, i) {
+    var grouped: Record<string, CapperResult[]> = {};
+    allResults.forEach(function(d: CapperResult | null, i: number) {
       var info = promiseMap[i];
       if (!grouped[info.platform]) grouped[info.platform] = [];
       grouped[info.platform].push(d || (isThread ? { posts: [{ number: 1, text: "Generation failed for variation " + (info.variation + 1) }] } : { caption: "Generation failed for variation " + (info.variation + 1) }));
@@ -549,17 +645,18 @@ function ClipCaptions() {
     setLoading(false);
   };
 
-  var regenerateOne = async function(platKey, idx) {
+  var regenerateOne = async function(platKey: string, idx: number) {
     var regenKey = platKey + "_" + idx;
     setRegenL(function(p) { var o = Object.assign({}, p); o[regenKey] = true; return o; });
-    var cur = results[platKey] && results[platKey][idx];
-    var curText = isThread ? (cur && cur.posts ? cur.posts.map(function(p) { return p.text; }).join(" ") : "") : (cur && cur.caption || "");
+    var cur = results && results[platKey] && results[platKey][idx];
+    var curText = isThread ? (cur && cur.posts ? cur.posts.map(function(p: { number: number; text: string }) { return p.text; }).join(" ") : "") : (cur && cur.caption || "");
     var data = await ask(SYS_CAPPER, buildCapperPrompt(platKey, "Regenerate this caption. Be DIFFERENT from: " + curText));
     if (data) {
+      var captured = data;
       setResults(function(p) {
         var o = Object.assign({}, p);
         var arr = (o[platKey] || []).slice();
-        arr[idx] = data;
+        arr[idx] = captured;
         o[platKey] = arr;
         return o;
       });
@@ -567,7 +664,7 @@ function ClipCaptions() {
     setRegenL(function(p) { var o = Object.assign({}, p); o[regenKey] = false; return o; });
   };
 
-  var charCount = function(text) {
+  var charCount = function(text: string) {
     if (!text) return 0;
     return text.length;
   };
@@ -587,7 +684,7 @@ function ClipCaptions() {
     {/* Clip Content */}
     <div style={{ marginBottom: 20 }}>
       <Label>Clip Content</Label>
-      <textarea value={content} onChange={function(e) { setContent(e.target.value); }} rows={7} placeholder="Paste the clip transcript or describe the topic..." style={{ width: "100%", padding: "14px 16px", background: cardBg, border: "1px solid " + borderC, borderRadius: 10, color: C.tx, fontFamily: mn, fontSize: 12, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.7, transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; e.target.style.boxShadow = "0 0 24px rgba(247,176,65,0.06)"; }} onBlur={function(e) { e.target.style.borderColor = borderC; e.target.style.boxShadow = "none"; }} />
+      <textarea value={content} onChange={function(e: React.ChangeEvent<HTMLTextAreaElement>) { setContent(e.target.value); }} rows={7} placeholder="Paste the clip transcript or describe the topic..." style={{ width: "100%", padding: "14px 16px", background: cardBg, border: "1px solid " + borderC, borderRadius: 10, color: C.tx, fontFamily: mn, fontSize: 12, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.7, transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={function(e: React.FocusEvent<HTMLTextAreaElement>) { e.target.style.borderColor = C.amber; e.target.style.boxShadow = "0 0 24px rgba(247,176,65,0.06)"; }} onBlur={function(e: React.FocusEvent<HTMLTextAreaElement>) { e.target.style.borderColor = borderC; e.target.style.boxShadow = "none"; }} />
       {content && <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 4 }}>{content.length.toLocaleString()} chars</div>}
     </div>
 
@@ -597,7 +694,7 @@ function ClipCaptions() {
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {CAPPER_PLATFORMS.map(function(p) {
           var on = platforms.indexOf(p.key) > -1;
-          return <div key={p.key} onClick={function() { togglePlatform(p.key); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: on ? p.color + "18" : cardBg, border: "1px solid " + (on ? p.color + "60" : borderC), fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? p.color : C.txd, transition: "all 0.2s ease", display: "flex", alignItems: "center", gap: 6 }} onMouseEnter={function(e) { if (!on) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; } }} onMouseLeave={function(e) { if (!on) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.background = cardBg; } }}>
+          return <div key={p.key} onClick={function() { togglePlatform(p.key); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: on ? p.color + "18" : cardBg, border: "1px solid " + (on ? p.color + "60" : borderC), fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? p.color : C.txd, transition: "all 0.2s ease", display: "flex", alignItems: "center", gap: 6 }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!on) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; } }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!on) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.background = cardBg; } }}>
             <span style={{ fontFamily: mn, fontSize: 9, opacity: 0.7 }}>{p.icon}</span>
             {p.label}
             {on && <span style={{ width: 6, height: 6, borderRadius: "50%", background: p.color, boxShadow: "0 0 6px " + p.color + "60", marginLeft: 2 }} />}
@@ -613,7 +710,7 @@ function ClipCaptions() {
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {CAPPER_LENGTHS.map(function(l) {
           var on = length === l.key;
-          return <div key={l.key} onClick={function() { setLength(l.key); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: on ? (l.thread ? C.violet + "15" : C.amber + "15") : cardBg, border: "1px solid " + (on ? (l.thread ? C.violet + "60" : C.amber + "60") : borderC), fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? (l.thread ? C.violet : C.amber) : C.txd, transition: "all 0.2s ease" }} onMouseEnter={function(e) { if (!on) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; } }} onMouseLeave={function(e) { if (!on) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.background = cardBg; } }}>
+          return <div key={l.key} onClick={function() { setLength(l.key); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: on ? (l.thread ? C.violet + "15" : C.amber + "15") : cardBg, border: "1px solid " + (on ? (l.thread ? C.violet + "60" : C.amber + "60") : borderC), fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500, color: on ? (l.thread ? C.violet : C.amber) : C.txd, transition: "all 0.2s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!on) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; } }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!on) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.background = cardBg; } }}>
             {l.label}
             <span style={{ fontFamily: mn, fontSize: 9, marginLeft: 6, opacity: 0.5 }}>{l.desc}</span>
           </div>;
@@ -628,7 +725,7 @@ function ClipCaptions() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         {CAPPER_TONES.map(function(t) {
           var on = tone === t.key;
-          return <div key={t.key} onClick={function() { setTone(t.key); }} style={{ padding: "14px 16px", borderRadius: 10, cursor: "pointer", background: on ? C.amber + "0C" : cardBg, border: "1px solid " + (on ? C.amber + "50" : borderC), boxShadow: on ? "0 0 20px rgba(247,176,65,0.06)" : "none", transition: "all 0.2s ease" }} onMouseEnter={function(e) { if (!on) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.3)"; } }} onMouseLeave={function(e) { if (!on) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; } }}>
+          return <div key={t.key} onClick={function() { setTone(t.key); }} style={{ padding: "14px 16px", borderRadius: 10, cursor: "pointer", background: on ? C.amber + "0C" : cardBg, border: "1px solid " + (on ? C.amber + "50" : borderC), boxShadow: on ? "0 0 20px rgba(247,176,65,0.06)" : "none", transition: "all 0.2s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!on) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.3)"; } }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!on) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; } }}>
             <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: on ? C.amber : C.tx, marginBottom: 4 }}>{t.label}</div>
             <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, lineHeight: 1.5 }}>{t.desc}</div>
             {t.hook && <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6, fontStyle: "italic" }}>"{t.hook}"</div>}
@@ -643,7 +740,7 @@ function ClipCaptions() {
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {CAPPER_AUDIENCES.map(function(a) {
           var on = audience === a.key;
-          return <div key={a.key} onClick={function() { setAudience(a.key); }} style={{ padding: "8px 14px", borderRadius: 20, cursor: "pointer", background: on ? a.color + "18" : cardBg, border: "1px solid " + (on ? a.color + "60" : borderC), fontFamily: ft, fontSize: 11, fontWeight: on ? 700 : 500, color: on ? a.color : C.txm, transition: "all 0.15s" }} onMouseEnter={function(e) { if (!on) e.currentTarget.style.borderColor = a.color + "30"; }} onMouseLeave={function(e) { if (!on) e.currentTarget.style.borderColor = borderC; }}>
+          return <div key={a.key} onClick={function() { setAudience(a.key); }} style={{ padding: "8px 14px", borderRadius: 20, cursor: "pointer", background: on ? a.color + "18" : cardBg, border: "1px solid " + (on ? a.color + "60" : borderC), fontFamily: ft, fontSize: 11, fontWeight: on ? 700 : 500, color: on ? a.color : C.txm, transition: "all 0.15s" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!on) e.currentTarget.style.borderColor = a.color + "30"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!on) e.currentTarget.style.borderColor = borderC; }}>
             {a.label}
           </div>;
         })}
@@ -654,7 +751,7 @@ function ClipCaptions() {
     {/* Custom Prompt Addition */}
     <div style={{ marginBottom: 20 }}>
       <Label>Add to Prompt (optional)</Label>
-      <textarea value={customPrompt} onChange={function(e) { setCustomPrompt(e.target.value); }} placeholder="e.g. make it meme-coded, reference the Drake format, add more chaos..." rows={2} style={{ width: "100%", padding: "10px 14px", background: cardBg, border: "1px solid " + borderC, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 12, lineHeight: 1.5, resize: "none", outline: "none", boxSizing: "border-box", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = borderC; }} />
+      <textarea value={customPrompt} onChange={function(e: React.ChangeEvent<HTMLTextAreaElement>) { setCustomPrompt(e.target.value); }} placeholder="e.g. make it meme-coded, reference the Drake format, add more chaos..." rows={2} style={{ width: "100%", padding: "10px 14px", background: cardBg, border: "1px solid " + borderC, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 12, lineHeight: 1.5, resize: "none", outline: "none", boxSizing: "border-box", transition: "border-color 0.2s ease" }} onFocus={function(e: React.FocusEvent<HTMLTextAreaElement>) { e.target.style.borderColor = C.amber; }} onBlur={function(e: React.FocusEvent<HTMLTextAreaElement>) { e.target.style.borderColor = borderC; }} />
     </div>
 
     {/* Redirect Link Toggle */}
@@ -665,7 +762,7 @@ function ClipCaptions() {
         </div>
         <span style={{ fontFamily: mn, fontSize: 11, color: showLink ? C.amber : C.txd }}>Include redirect link</span>
       </div>
-      {showLink && <input value={url} onChange={function(e) { setUrl(e.target.value); }} placeholder="https://..." style={{ width: "100%", padding: "10px 14px", background: cardBg, border: "1px solid " + borderC, borderRadius: 8, color: C.tx, fontFamily: mn, fontSize: 12, outline: "none", boxSizing: "border-box", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = C.amber; }} onBlur={function(e) { e.target.style.borderColor = borderC; }} />}
+      {showLink && <input value={url} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { setUrl(e.target.value); }} placeholder="https://..." style={{ width: "100%", padding: "10px 14px", background: cardBg, border: "1px solid " + borderC, borderRadius: 8, color: C.tx, fontFamily: mn, fontSize: 12, outline: "none", boxSizing: "border-box", transition: "border-color 0.2s ease" }} onFocus={function(e: React.FocusEvent<HTMLInputElement>) { e.target.style.borderColor = C.amber; }} onBlur={function(e: React.FocusEvent<HTMLInputElement>) { e.target.style.borderColor = borderC; }} />}
     </div>
 
     {/* Generate */}
@@ -679,7 +776,7 @@ function ClipCaptions() {
     {results && <div style={{ marginTop: 28 }}>
       {platforms.map(function(platKey) {
         var platObj = CAPPER_PLATFORMS.find(function(p) { return p.key === platKey; }) || CAPPER_PLATFORMS[0];
-        var platResults = results[platKey] || [];
+        var platResults = results![platKey] || [];
         if (platResults.length === 0) return null;
 
         return <div key={platKey} style={{ marginBottom: 32 }}>
@@ -699,7 +796,7 @@ function ClipCaptions() {
               /* Thread / multi-post output */
               var posts = r.posts || [];
               var fullText = posts.map(function(p) { return "Post " + p.number + ": " + p.text; }).join("\n\n");
-              return <div key={i} style={{ background: cardBg, border: "1px solid " + borderC, borderLeft: "3px solid " + platObj.color, borderRadius: 12, padding: "18px 20px", marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.3)", transition: "all 0.2s ease" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = platObj.color + "40"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.4), 0 0 12px " + platObj.color + "08"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.borderLeftColor = platObj.color; e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.3)"; }}>
+              return <div key={i} style={{ background: cardBg, border: "1px solid " + borderC, borderLeft: "3px solid " + platObj.color, borderRadius: 12, padding: "18px 20px", marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.3)", transition: "all 0.2s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = platObj.color + "40"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.4), 0 0 12px " + platObj.color + "08"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.borderLeftColor = platObj.color; e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.3)"; }}>
                 {/* Header */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -709,7 +806,7 @@ function ClipCaptions() {
                   <div style={{ display: "flex", gap: 5 }}>
                     <CopyBtn text={fullText} />
                     <span onClick={function() { if (!isRegen) regenerateOne(platKey, i); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: isRegen ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + borderC, opacity: isRegen ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>{isRegen ? "..." : "\u21BB"}</span>
-                    <span onClick={function() { if (!bufferSending[platKey]) { var threadText = posts.map(function(p) { return p.text; }).join("\n\n"); sendToBuffer(platKey, threadText).then(function(ok) { if (ok) showToast("Sent " + platObj.label + " thread draft to Buffer."); }); } }} style={{ fontFamily: mn, fontSize: 9, color: bufferSending[platKey] ? C.teal : "rgba(255,255,255,0.4)", cursor: bufferSending[platKey] ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + (bufferSending[platKey] ? C.teal + "40" : borderC), background: bufferSending[platKey] ? C.teal + "08" : "transparent", opacity: bufferSending[platKey] ? 0.6 : 1, userSelect: "none", transition: "all 0.2s ease" }} onMouseEnter={function(e) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = C.teal + "40"; e.currentTarget.style.color = C.teal; } }} onMouseLeave={function(e) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; } }}>{bufferSending[platKey] ? "Sending..." : "Buffer"}</span>
+                    <span onClick={function() { if (!bufferSending[platKey]) { var threadText = posts.map(function(p: { number: number; text: string }) { return p.text; }).join("\n\n"); sendToBuffer(platKey, threadText).then(function(ok: boolean) { if (ok) showToast("Sent " + platObj.label + " thread draft to Buffer."); }); } }} style={{ fontFamily: mn, fontSize: 9, color: bufferSending[platKey] ? C.teal : "rgba(255,255,255,0.4)", cursor: bufferSending[platKey] ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + (bufferSending[platKey] ? C.teal + "40" : borderC), background: bufferSending[platKey] ? C.teal + "08" : "transparent", opacity: bufferSending[platKey] ? 0.6 : 1, userSelect: "none", transition: "all 0.2s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = C.teal + "40"; e.currentTarget.style.color = C.teal; } }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; } }}>{bufferSending[platKey] ? "Sending..." : "Buffer"}</span>
                   </div>
                 </div>
                 {/* Thread posts */}
@@ -724,7 +821,7 @@ function ClipCaptions() {
 
             /* Standard single-post output */
             var cap = r.caption || "";
-            return <div key={i} style={{ background: cardBg, border: "1px solid " + borderC, borderLeft: "3px solid " + platObj.color, borderRadius: 12, padding: "18px 20px", marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.3)", transition: "all 0.2s ease" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = platObj.color + "40"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.4), 0 0 12px " + platObj.color + "08"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.borderLeftColor = platObj.color; e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.3)"; }}>
+            return <div key={i} style={{ background: cardBg, border: "1px solid " + borderC, borderLeft: "3px solid " + platObj.color, borderRadius: 12, padding: "18px 20px", marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.3)", transition: "all 0.2s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = platObj.color + "40"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.4), 0 0 12px " + platObj.color + "08"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.borderLeftColor = platObj.color; e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.3)"; }}>
               {/* Header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -734,7 +831,7 @@ function ClipCaptions() {
                 <div style={{ display: "flex", gap: 5 }}>
                   <CopyBtn text={cap + (r.reply ? "\n\n[Reply]\n" + r.reply : "") + (r.title ? "\n\n[Title]\n" + r.title : "")} />
                   <span onClick={function() { if (!isRegen) regenerateOne(platKey, i); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: isRegen ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + borderC, opacity: isRegen ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>{isRegen ? "..." : "\u21BB"}</span>
-                  <span onClick={function() { if (!bufferSending[platKey]) { sendToBuffer(platKey, cap).then(function(ok) { if (ok) showToast("Sent " + platObj.label + " draft to Buffer."); }); } }} style={{ fontFamily: mn, fontSize: 9, color: bufferSending[platKey] ? C.teal : "rgba(255,255,255,0.4)", cursor: bufferSending[platKey] ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + (bufferSending[platKey] ? C.teal + "40" : borderC), background: bufferSending[platKey] ? C.teal + "08" : "transparent", opacity: bufferSending[platKey] ? 0.6 : 1, userSelect: "none", transition: "all 0.2s ease" }} onMouseEnter={function(e) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = C.teal + "40"; e.currentTarget.style.color = C.teal; } }} onMouseLeave={function(e) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; } }}>{bufferSending[platKey] ? "Sending..." : "Buffer"}</span>
+                  <span onClick={function() { if (!bufferSending[platKey]) { sendToBuffer(platKey, cap).then(function(ok: boolean) { if (ok) showToast("Sent " + platObj.label + " draft to Buffer."); }); } }} style={{ fontFamily: mn, fontSize: 9, color: bufferSending[platKey] ? C.teal : "rgba(255,255,255,0.4)", cursor: bufferSending[platKey] ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + (bufferSending[platKey] ? C.teal + "40" : borderC), background: bufferSending[platKey] ? C.teal + "08" : "transparent", opacity: bufferSending[platKey] ? 0.6 : 1, userSelect: "none", transition: "all 0.2s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = C.teal + "40"; e.currentTarget.style.color = C.teal; } }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; } }}>{bufferSending[platKey] ? "Sending..." : "Buffer"}</span>
                 </div>
               </div>
 
@@ -758,7 +855,7 @@ function ClipCaptions() {
       })}
       {/* Send All to Buffer */}
       {platforms.length > 0 && <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid " + borderC, display: "flex", alignItems: "center", gap: 12 }}>
-        <span onClick={function() { if (!bufferSending["_all"]) sendAllToBuffer(); }} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 20px", borderRadius: 10, cursor: bufferSending["_all"] ? "wait" : "pointer", background: bufferSending["_all"] ? C.teal + "15" : "linear-gradient(135deg, " + C.teal + "18, " + C.teal + "08)", border: "1px solid " + C.teal + "40", fontFamily: ft, fontSize: 13, fontWeight: 700, color: C.teal, opacity: bufferSending["_all"] ? 0.6 : 1, transition: "all 0.2s ease", boxShadow: "0 0 16px " + C.teal + "08" }} onMouseEnter={function(e) { if (!bufferSending["_all"]) { e.currentTarget.style.boxShadow = "0 0 24px " + C.teal + "18"; e.currentTarget.style.borderColor = C.teal + "70"; } }} onMouseLeave={function(e) { e.currentTarget.style.boxShadow = "0 0 16px " + C.teal + "08"; e.currentTarget.style.borderColor = C.teal + "40"; }}>{bufferSending["_all"] ? "Sending..." : "Send All to Buffer"}</span>
+        <span onClick={function() { if (!bufferSending["_all"]) sendAllToBuffer(); }} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 20px", borderRadius: 10, cursor: bufferSending["_all"] ? "wait" : "pointer", background: bufferSending["_all"] ? C.teal + "15" : "linear-gradient(135deg, " + C.teal + "18, " + C.teal + "08)", border: "1px solid " + C.teal + "40", fontFamily: ft, fontSize: 13, fontWeight: 700, color: C.teal, opacity: bufferSending["_all"] ? 0.6 : 1, transition: "all 0.2s ease", boxShadow: "0 0 16px " + C.teal + "08" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!bufferSending["_all"]) { e.currentTarget.style.boxShadow = "0 0 24px " + C.teal + "18"; e.currentTarget.style.borderColor = C.teal + "70"; } }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.boxShadow = "0 0 16px " + C.teal + "08"; e.currentTarget.style.borderColor = C.teal + "40"; }}>{bufferSending["_all"] ? "Sending..." : "Send All to Buffer"}</span>
         <span style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>Sends first variation of each platform as a draft</span>
       </div>}
     </div>}
@@ -766,9 +863,9 @@ function ClipCaptions() {
 }
 
 // ═══ INTRO: USER SELECT → BOOT → GLITCH → SPLASH ═══
-function UserSelect({ onSelect }) {
-  var _h = useState(null), h = _h[0], sh = _h[1];
-  var users = [
+function UserSelect({ onSelect }: { onSelect: (name: string) => void }) {
+  var _h = useState<number | null>(null), h = _h[0], sh = _h[1];
+  var users: UserInfo[] = [
     { name: "Akash", role: "Director", color: "#0B86D1", glow: "rgba(11,134,209," },
     { name: "Vansh", role: "Social Media Manager", color: "#2EAD8E", glow: "rgba(46,173,142," },
   ];
@@ -794,9 +891,9 @@ function UserSelect({ onSelect }) {
   </div>;
 }
 
-function TerminalBoot({ user, onDone }) {
-  var _lines = useState([]), lines = _lines[0], setLines = _lines[1];
-  var bootLines = [
+function TerminalBoot({ user, onDone }: { user: string | null; onDone: () => void }) {
+  var _lines = useState<BootLine[]>([]), lines = _lines[0], setLines = _lines[1];
+  var bootLines: BootLine[] = [
     { t: "POAST OS v0.8 // SemiAnalysis", c: "rgba(255,255,255,0.2)" },
     { t: "Auth: " + user, c: "rgba(255,255,255,0.2)" }, { t: "  [OK] identity", c: "#2EAD8E" },
     { t: "Initializing semiconductor intelligence...", c: "rgba(255,255,255,0.2)" },
@@ -843,7 +940,7 @@ function TerminalBoot({ user, onDone }) {
   </div>;
 }
 
-function GlitchTransition({ onDone }) {
+function GlitchTransition({ onDone }: { onDone: () => void }) {
   useEffect(function() { setTimeout(onDone, 350); }, []);
   return <div style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes gShake{0%{transform:translate(0)}25%{transform:translate(-3px,2px)}50%{transform:translate(3px,-2px)}75%{transform:translate(-2px,3px)}100%{transform:translate(0)}}@keyframes gFade{to{opacity:0}}" }} />
@@ -854,9 +951,9 @@ function GlitchTransition({ onDone }) {
   </div>;
 }
 
-function SplashScreen({ onNavigate }) {
-  var _h = useState(null), h = _h[0], sh = _h[1];
-  var sections = {
+function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
+  var _h = useState<number | null>(null), h = _h[0], sh = _h[1];
+  var sections: Record<string, SplashItem[]> = {
     PRODUCE: [{ l: "Slop Top", ic: "\uD83D\uDCA5", id: "sloptop" }, { l: "Carousel", ic: "\uD83D\uDCD0", id: "carousel" }, { l: "Capper", ic: "\uD83C\uDFAC", id: "captions" }, { l: "P2P", ic: "\uD83C\uDFAC", id: "p2p" }, { l: "B-Roll", ic: "\uD83C\uDFA5", id: "broll" }],
     PODCAST: [{ l: "Fab Knowledge", ic: "\uD83C\uDFA7", id: "fk" }, { l: "SA Weekly", ic: "\uD83C\uDF99", id: "weekly" }, { l: "Outreach", ic: "\uD83D\uDCE4", id: "outreach" }],
     PREPARE: [{ l: "Trends", ic: "\uD83D\uDD25", id: "trends" }, { l: "IdeationNation", ic: "\uD83D\uDCA1", id: "ideation" }, { l: "News Flow", ic: "\uD83D\uDCE1", id: "news" }, { l: "GTC Flow", ic: "\uD83D\uDCCA", id: "gtc" }],
@@ -865,7 +962,7 @@ function SplashScreen({ onNavigate }) {
   var words = ["PRODUCE", "PODCAST", "PREPARE", "PREMIER"];
   var colors = [C.amber, C.coral, C.blue, C.teal];
   var glows = ["rgba(247,176,65,", "rgba(224,99,71,", "rgba(11,134,209,", "rgba(46,173,142,"];
-  var appNames = { PRODUCE: "Slop Top, Carousel, Capper, P2P, B-Roll", PODCAST: "Fab Knowledge, SA Weekly, Outreach", PREPARE: "Trends, IdeationNation, News Flow, GTC Flow", PREMIER: "Schedule" };
+  var appNames: Record<string, string> = { PRODUCE: "Slop Top, Carousel, Capper, P2P, B-Roll", PODCAST: "Fab Knowledge, SA Weekly, Outreach", PREPARE: "Trends, IdeationNation, News Flow, GTC Flow", PREMIER: "Schedule" };
 
   return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "0 8vw" }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes bIn{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}@keyframes bLine{0%{transform:scaleX(0)}100%{transform:scaleX(1)}}@keyframes itemReveal{0%{opacity:0;transform:translateY(-8px) scale(0.95)}100%{opacity:1;transform:translateY(0) scale(1)}}" }} />
@@ -885,7 +982,7 @@ function SplashScreen({ onNavigate }) {
           <div style={{ overflow: "hidden", maxHeight: isH ? 60 : 0, opacity: isH ? 1 : 0, transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)", marginTop: isH ? 6 : 0 }}>
             <div style={{ display: "flex", gap: 8, justifyContent: "center", padding: "4px 0" }}>
               {items.map(function(item, ii) {
-                return <div key={ii} onClick={function() { onNavigate(item.id); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 6, background: "#0A0A14", border: "1px solid " + colors[i] + "25", cursor: "pointer", transition: "all 0.15s", animation: "itemReveal 0.25s ease " + (ii * 0.06) + "s forwards", opacity: 0 }} onMouseEnter={function(e) { e.currentTarget.style.background = "#111120"; e.currentTarget.style.borderColor = colors[i] + "50"; e.currentTarget.style.boxShadow = "0 0 12px " + colors[i] + "15"; }} onMouseLeave={function(e) { e.currentTarget.style.background = "#0A0A14"; e.currentTarget.style.borderColor = colors[i] + "25"; e.currentTarget.style.boxShadow = "none"; }}>
+                return <div key={ii} onClick={function() { onNavigate(item.id); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 6, background: "#0A0A14", border: "1px solid " + colors[i] + "25", cursor: "pointer", transition: "all 0.15s", animation: "itemReveal 0.25s ease " + (ii * 0.06) + "s forwards", opacity: 0 }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "#111120"; e.currentTarget.style.borderColor = colors[i] + "50"; e.currentTarget.style.boxShadow = "0 0 12px " + colors[i] + "15"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "#0A0A14"; e.currentTarget.style.borderColor = colors[i] + "25"; e.currentTarget.style.boxShadow = "none"; }}>
                   <span style={{ fontSize: 13 }}>{item.ic}</span>
                   <span style={{ fontFamily: ft, fontSize: 12, color: "#E8E4DD", fontWeight: 500 }}>{item.l}</span>
                   <span style={{ fontFamily: ft, fontSize: 8, color: colors[i], marginLeft: 2 }}>&rarr;</span>
@@ -901,14 +998,14 @@ function SplashScreen({ onNavigate }) {
   </div>;
 }
 
-function Intro({ onDone }) {
-  var _phase = useState("select"), phase = _phase[0], setPhase = _phase[1];
-  var _user = useState(null), user = _user[0], setUser = _user[1];
+function Intro({ onDone }: { onDone: (id?: string) => void }) {
+  var _phase = useState<string>("select"), phase = _phase[0], setPhase = _phase[1];
+  var _user = useState<string | null>(null), user = _user[0], setUser = _user[1];
   var _glitch = useState(false), glitch = _glitch[0], setGlitch = _glitch[1];
 
-  var handleUserSelect = function(name) { setUser(name); setPhase("boot"); try { var audio = new Audio("/splash-sound.mp3"); audio.volume = 0.7; audio.play().catch(function() {}); } catch (e) {} };
+  var handleUserSelect = function(name: string) { setUser(name); setPhase("boot"); try { var audio = new Audio("/splash-sound.mp3"); audio.volume = 0.7; audio.play().catch(function() {}); } catch (e) {} };
   var handleBootDone = function() { setGlitch(true); setTimeout(function() { setGlitch(false); setPhase("splash"); }, 350); };
-  var handleNavigate = function(id) { onDone(id); };
+  var handleNavigate = function(id: string) { onDone(id); };
 
   return <div>
     {phase === "select" && <UserSelect onSelect={handleUserSelect} />}
@@ -925,14 +1022,13 @@ export default function App() {
   var _s = useState("weekly"), sec = _s[0], setSec = _s[1];
   // Listen for nav events from other components (e.g. News Flow Draft -> P2P)
   useEffect(function() {
-    var handler = function(e) { if (e.detail) setSec(e.detail); };
+    var handler = function(e: Event) { if ((e as CustomEvent).detail) setSec((e as CustomEvent).detail); };
     window.addEventListener("poast-nav", handler);
     return function() { window.removeEventListener("poast-nav", handler); };
   }, []);
-  if (showIntro) return <><Toast /><Intro onDone={function(id) { if (id) setSec(id); setShowIntro(false); }} /></>;
+  if (showIntro) return <><Intro onDone={function(id) { if (id) setSec(id); setShowIntro(false); }} /></>;
 
   return (<div style={{ background: C.bg, minHeight: "100vh", position: "relative" }}>
-    <Toast />
     {/* Background ambient glow orbs */}
     <style dangerouslySetInnerHTML={{ __html: "@keyframes drift1{0%{transform:translate(0,0)}50%{transform:translate(30px,-20px)}100%{transform:translate(0,0)}}@keyframes drift2{0%{transform:translate(0,0)}50%{transform:translate(-25px,15px)}100%{transform:translate(0,0)}}@keyframes drift3{0%{transform:translate(0,0)}50%{transform:translate(20px,25px)}100%{transform:translate(0,0)}}" }} />
     <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, overflow: "hidden" }}>

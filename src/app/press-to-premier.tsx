@@ -1,6 +1,116 @@
-// @ts-nocheck
 "use client";
 import { useState, useEffect, useRef } from "react";
+
+// ═══ TYPES ═══
+interface ToastEntry {
+  id: number;
+  m: string;
+  t: "success" | "error" | "info" | "warn";
+  code?: number;
+}
+
+interface BRollShot {
+  description: string;
+  prompt: string;
+  timing?: string;
+  camera?: string;
+  shot?: number;
+}
+
+interface Script {
+  hook: string;
+  intro: string;
+  body: string[];
+  outro: string;
+  broll?: BRollShot[];
+}
+
+interface OptionsData {
+  titles: string[];
+  hooks: string[];
+  descriptions: string[];
+}
+
+interface Clip {
+  taskId?: string;
+  videoUrl?: string;
+  shot: number;
+  pending?: boolean;
+  provider?: string;
+  progress?: number;
+  error?: string;
+  variation?: number;
+}
+
+interface Assets {
+  voiceover: string | null;
+  clips: Clip[];
+  music: string | null;
+}
+
+interface AudioMixData {
+  clipVol: number;
+  voVol: number;
+  musicVol: number;
+}
+
+interface ProjectData {
+  mode?: string;
+  url?: string;
+  text?: string;
+  options?: OptionsData;
+  selTitle?: number;
+  selHook?: number;
+  selDesc?: number;
+  scripts?: Script[];
+  selScript?: number;
+  duration?: number;
+  aspect?: string;
+  captionStyle?: string;
+  fontId?: string;
+  fontFamily?: string;
+  fontSize?: number;
+  assets?: Assets;
+  selectedClips?: Record<string, number>;
+  audioMix?: AudioMixData;
+}
+
+interface Project {
+  id: string;
+  title: string;
+  status: string;
+  step: number;
+  data: ProjectData;
+  ts: number;
+}
+
+interface LogEntry {
+  msg: string;
+  type: string;
+  ts: string;
+}
+
+interface BRollAsset {
+  id: string;
+  type: string;
+  url: string;
+  thumbnail?: string;
+  filename?: string;
+  description?: string;
+  source?: string;
+  category?: string;
+}
+
+interface Voice {
+  id: string;
+  name: string;
+}
+
+interface RenderVideo {
+  url: string;
+  name?: string;
+  size?: number;
+}
 
 // ═══ DESIGN ═══
 var D = {
@@ -13,11 +123,11 @@ var ft = "'Outfit',sans-serif";
 var mn = "'JetBrains Mono',monospace";
 
 // ═══ TOAST ═══
-var _toast = { current: null };
-function toast(msg, type, code) { if (_toast.current) _toast.current(msg, type, code); }
+var _toast: { current: ((msg: string, type?: string, code?: number) => void) | null } = { current: null };
+function toast(msg: string, type?: string, code?: number) { if (_toast.current) _toast.current(msg, type, code); }
 function Toasts() {
-  var _l = useState([]), l = _l[0], sl = _l[1];
-  _toast.current = function(m, t, code) { var id = Date.now(); sl(function(p) { return [{ id: id, m: m, t: t || "success", code: code }].concat(p).slice(0, 5); }); setTimeout(function() { sl(function(p) { return p.filter(function(x) { return x.id !== id; }); }); }, 5000); };
+  var _l = useState<ToastEntry[]>([]), l = _l[0], sl = _l[1];
+  _toast.current = function(m: string, t?: string, code?: number) { var id = Date.now(); sl(function(p) { var entry: ToastEntry = { id: id, m: m, t: (t || "success") as ToastEntry["t"], code: code }; return [entry].concat(p).slice(0, 5); }); setTimeout(function() { sl(function(p) { return p.filter(function(x) { return x.id !== id; }); }); }, 5000); };
   return <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 10000, display: "flex", flexDirection: "column", gap: 8 }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes tIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes tDr{from{width:100%}to{width:0}}" }} />
     {l.map(function(t) { var c = t.t === "error" ? D.coral : t.t === "info" ? D.amber : D.teal; return <div key={t.id} style={{ background: D.elevated, border: "1px solid " + D.border, borderLeft: "3px solid " + c, borderRadius: 10, padding: "14px 18px", minWidth: 300, boxShadow: "0 4px 24px rgba(0,0,0,0.5)", animation: "tIn 0.25s ease" }}>
@@ -29,7 +139,7 @@ function Toasts() {
 }
 
 // ═══ STEP TRACKER (gradient fill) ═══
-function StepTracker({ current, steps }) {
+function StepTracker({ current, steps }: { current: number; steps: string[] }) {
   var progress = ((current + 1) / steps.length) * 100;
   return <div style={{ marginBottom: 40 }}>
     {/* Progress bar */}
@@ -50,7 +160,7 @@ function StepTracker({ current, steps }) {
 }
 
 // ═══ OPTION CARD ═══
-function OptionCards({ options, selected, onSelect, label }) {
+function OptionCards({ options, selected, onSelect, label }: { options: string[]; selected: number; onSelect: (i: number) => void; label: string }) {
   return <div style={{ marginBottom: 28 }}>
     <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txl, letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>{label}</div>
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -68,8 +178,8 @@ function OptionCards({ options, selected, onSelect, label }) {
 }
 
 // ═══ STEP 1: INPUT ═══
-function Step1({ data, setData, onNext }) {
-  var _mode = useState(data.mode || "url"), mode = _mode[0], setMode = _mode[1];
+function Step1({ data, setData, onNext }: { data: ProjectData; setData: React.Dispatch<React.SetStateAction<ProjectData>>; onNext: () => void }) {
+  var _mode = useState<string>(data.mode || "url"), mode = _mode[0], setMode = _mode[1];
   return <div>
     <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>New Project</div>
     <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 32 }}>Paste an article URL or text to begin production.</div>
@@ -86,7 +196,7 @@ function Step1({ data, setData, onNext }) {
 }
 
 // ═══ STEP 2: OPTIONS ═══
-function Step2({ data, setData, onNext, onBack }) {
+function Step2({ data, setData, onNext, onBack }: { data: ProjectData; setData: React.Dispatch<React.SetStateAction<ProjectData>>; onNext: () => void; onBack: () => void }) {
   if (!data.options) return <div style={{ textAlign: "center", padding: 60, color: D.txl, fontFamily: ft, fontSize: 15 }}>Generating options...</div>;
   return <div>
     <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Choose Direction</div>
@@ -104,17 +214,17 @@ function Step2({ data, setData, onNext, onBack }) {
 // ═══ B-ROLL BROWSER OVERLAY ═══
 var BROLL_CATEGORIES = ["All", "AI", "Semiconductors", "Data Centers", "Networking", "Memory", "Cloud", "Energy", "Packaging", "Software", "Other"];
 
-function BRollBrowser({ open, onClose, onSelect, filterType }) {
-  var _assets = useState([]), assets = _assets[0], setAssets = _assets[1];
+function BRollBrowser({ open, onClose, onSelect, filterType }: { open: boolean; onClose: () => void; onSelect: (a: BRollAsset) => void; filterType?: string }) {
+  var _assets = useState<BRollAsset[]>([]), assets = _assets[0], setAssets = _assets[1];
   var _search = useState(""), search = _search[0], setSearch = _search[1];
   var _cat = useState("All"), cat = _cat[0], setCat = _cat[1];
   var _loading = useState(true), loading = _loading[0], setLoading = _loading[1];
-  var _hover = useState(null), hover = _hover[0], setHover = _hover[1];
+  var _hover = useState<string | null>(null), hover = _hover[0], setHover = _hover[1];
 
   useEffect(function() {
     if (!open) return;
     setLoading(true);
-    fetch("/api/db?table=projects").then(function(r) { return r.json(); }).then(function(res) {
+    fetch("/api/db?table=projects").then(function(r) { return r.json(); }).then(function(res: { data?: Array<{ type: string; id: string; data?: { assets?: BRollAsset[] } }> }) {
       if (res.data) {
         var row = res.data.find(function(r) { return r.type === "broll-asset" && r.id === "broll-master"; });
         if (row && row.data && row.data.assets) {
@@ -149,7 +259,7 @@ function BRollBrowser({ open, onClose, onSelect, filterType }) {
             <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: D.tx, letterSpacing: -0.5 }}>Browse B-Roll</div>
             <div style={{ fontFamily: mn, fontSize: 10, color: D.txl, marginTop: 2 }}>{assets.length} asset{assets.length !== 1 ? "s" : ""} available{filterType ? " // " + filterType + " only" : ""}</div>
           </div>
-          <div onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid " + D.border, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: D.txl, fontSize: 16, fontFamily: ft, transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = D.coral; e.currentTarget.style.color = D.coral; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.color = D.txl; }}>{"\u2715"}</div>
+          <div onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid " + D.border, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: D.txl, fontSize: 16, fontFamily: ft, transition: "all 0.15s" }} onMouseEnter={function(e: React.MouseEvent<HTMLDivElement>) { e.currentTarget.style.borderColor = D.coral; e.currentTarget.style.color = D.coral; }} onMouseLeave={function(e: React.MouseEvent<HTMLDivElement>) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.color = D.txl; }}>{"\u2715"}</div>
         </div>
         {/* Search + filter */}
         <div style={{ display: "flex", gap: 8 }}>
@@ -199,12 +309,12 @@ function BRollBrowser({ open, onClose, onSelect, filterType }) {
 }
 
 // ═══ CHOP SENTENCES HELPER ═══
-function chopSentences(text) {
+function chopSentences(text: string): string[] {
   if (!text) return [];
   return text.split(/(?<=[.!?])\s+/).filter(function(s) { return s.trim().length > 0; });
 }
 
-function ChoppedText({ text, chopped, color }) {
+function ChoppedText({ text, chopped, color }: { text: string; chopped: boolean; color?: string }) {
   if (!chopped) return <span>{text}</span>;
   var sentences = chopSentences(text);
   if (sentences.length <= 1) return <span>{text}</span>;
@@ -217,12 +327,12 @@ function ChoppedText({ text, chopped, color }) {
 }
 
 // ═══ STEP 3: SCRIPT (SCREENPLAY FORMAT) ═══
-function Step3({ data, setData, onNext, onBack }) {
-  var _dur = useState(data.duration || 60), dur = _dur[0], setDur = _dur[1];
+function Step3({ data, setData, onNext, onBack }: { data: ProjectData; setData: React.Dispatch<React.SetStateAction<ProjectData>>; onNext: () => void; onBack: () => void }) {
+  var _dur = useState<number>(data.duration || 60), dur = _dur[0], setDur = _dur[1];
   var _chopped = useState(false), chopped = _chopped[0], setChopped = _chopped[1];
   var _browseOpen = useState(false), browseOpen = _browseOpen[0], setBrowseOpen = _browseOpen[1];
-  var _browseIdx = useState(null), browseIdx = _browseIdx[0], setBrowseIdx = _browseIdx[1];
-  var _selectedBroll = useState({}), selectedBroll = _selectedBroll[0], setSelectedBroll = _selectedBroll[1];
+  var _browseIdx = useState<number | null>(null), browseIdx = _browseIdx[0], setBrowseIdx = _browseIdx[1];
+  var _selectedBroll = useState<Record<string, BRollAsset>>({}), selectedBroll = _selectedBroll[0], setSelectedBroll = _selectedBroll[1];
   if (!data.scripts) return <div style={{ textAlign: "center", padding: 60, color: D.txl, fontFamily: ft, fontSize: 15 }}>Writing scripts...</div>;
   return <div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -295,7 +405,7 @@ function Step3({ data, setData, onNext, onBack }) {
 }
 
 // ═══ STEP 4: REVIEW ═══
-function Step4({ data, onNext, onBack }) {
+function Step4({ data, onNext, onBack }: { data: ProjectData; onNext: () => void; onBack: () => void }) {
   var script = data.scripts && data.scripts[data.selScript || 0];
   if (!script) return null;
   return <div>
@@ -354,7 +464,7 @@ var FONT_OPTIONS = [
   { id: "space-grotesk", l: "Space Grotesk", family: "'Space Grotesk',sans-serif" },
 ];
 
-function Step5({ data, setData, onNext, onBack }) {
+function Step5({ data, setData, onNext, onBack }: { data: ProjectData; setData: React.Dispatch<React.SetStateAction<ProjectData>>; onNext: () => void; onBack: () => void }) {
   var _aspect = useState(data.aspect || "16:9"), aspect = _aspect[0], setAspect = _aspect[1];
   var _captionStyle = useState(data.captionStyle || "overlay"), captionStyle = _captionStyle[0], setCaptionStyle = _captionStyle[1];
   var _fontId = useState(data.fontId || "outfit"), fontId = _fontId[0], setFontId = _fontId[1];
@@ -439,17 +549,17 @@ function Step5({ data, setData, onNext, onBack }) {
 }
 
 // ═══ STEP 6: PRODUCE (REAL API CALLS) ═══
-function Step6({ data, setData, onNext, onBack }) {
-  var _phase = useState("idle"), phase = _phase[0], setPhase = _phase[1]; // idle, vo, broll, music, done, error
-  var _log = useState([]), log = _log[0], setLog = _log[1];
-  var _assets = useState({ voiceover: null, clips: [], music: null }), assets = _assets[0], setAssets = _assets[1];
-  var logRef = useRef(null);
+function Step6({ data, setData, onNext, onBack }: { data: ProjectData; setData: React.Dispatch<React.SetStateAction<ProjectData>>; onNext: () => void; onBack: () => void }) {
+  var _phase = useState<string>("idle"), phase = _phase[0], setPhase = _phase[1]; // idle, vo, broll, music, done, error
+  var _log = useState<LogEntry[]>([]), log = _log[0], setLog = _log[1];
+  var _assets = useState<Assets>({ voiceover: null, clips: [], music: null }), assets = _assets[0], setAssets = _assets[1];
+  var logRef = useRef<HTMLDivElement>(null);
   var started = useRef(false);
   // Use refs to track final values since setState is async
-  var voRef = useRef(null);
-  var musicRef = useRef(null);
+  var voRef = useRef<string | null>(null);
+  var musicRef = useRef<string | null>(null);
 
-  var addLog = function(msg, type) { setLog(function(p) { return p.concat([{ msg: msg, type: type || "info", ts: new Date().toLocaleTimeString() }]); }); };
+  var addLog = function(msg: string, type?: string) { setLog(function(p) { return p.concat([{ msg: msg, type: type || "info", ts: new Date().toLocaleTimeString() }]); }); };
 
   useEffect(function() { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [log]);
 
@@ -466,7 +576,7 @@ function Step6({ data, setData, onNext, onBack }) {
     addLog("Script length: " + fullScript.length + " chars", "dim");
     try {
       var voR = await fetch("/api/generate-voiceover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: fullScript }) });
-      var voD = await voR.json();
+      var voD = await voR.json() as { audio?: string; error?: string };
       if (voD.audio) {
         voRef.current = voD.audio;
         setAssets(function(p) { return Object.assign({}, p, { voiceover: voD.audio }); });
@@ -482,13 +592,13 @@ function Step6({ data, setData, onNext, onBack }) {
     addLog("Submitting all " + brollShots.length + " b-roll shots in parallel...", "info");
 
     // Submit clips with 1.5s delay between each (Grok rate limit: 1/sec)
-    var clips = [];
+    var clips: Clip[] = [];
     for (var ci = 0; ci < brollShots.length; ci++) {
-      if (ci > 0) await new Promise(function(res) { setTimeout(res, 1500); });
+      if (ci > 0) await new Promise<void>(function(res) { setTimeout(res, 1500); });
       var shot = brollShots[ci];
       try {
         var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: shot.prompt, engine: "grok" }) });
-        var d = await r.json();
+        var d = await r.json() as { task?: { task_id: string }; error?: string };
         if (d.task && d.task.task_id) {
           addLog("Shot " + (ci + 1) + " submitted (ID: " + d.task.task_id.slice(0, 10) + "...)", "success");
           clips.push({ taskId: d.task.task_id, shot: ci + 1, pending: true, provider: "grok", progress: 0 });
@@ -510,13 +620,13 @@ function Step6({ data, setData, onNext, onBack }) {
       var stillPending = clips.filter(function(c) { return c.pending; });
       if (stillPending.length === 0) break;
 
-      await new Promise(function(res) { setTimeout(res, 8000); });
+      await new Promise<void>(function(res) { setTimeout(res, 8000); });
 
       for (var pi = 0; pi < clips.length; pi++) {
         if (!clips[pi].pending) continue;
         try {
           var stR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", taskId: clips[pi].taskId, engine: "grok" }) });
-          var stD = await stR.json();
+          var stD = await stR.json() as { task?: { task_status: string; task_result?: { videos?: Array<{ url: string }> }; progress?: number } };
           if (stD.task && stD.task.task_status === "succeed" && stD.task.task_result && stD.task.task_result.videos) {
             clips[pi] = Object.assign({}, clips[pi], { videoUrl: stD.task.task_result.videos[0].url, pending: false, progress: 100 });
             addLog("Shot " + clips[pi].shot + " ready!", "success");
@@ -546,7 +656,7 @@ function Step6({ data, setData, onNext, onBack }) {
     addLog("Generating background music...", "info");
     try {
       var muR = await fetch("/api/generate-music", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: "seamless loopable ambient tech background music, cinematic, minimal, dark tone, smooth fade in and fade out for perfect loop, suitable for semiconductor industry video", duration: 30 }) });
-      var muD = await muR.json();
+      var muD = await muR.json() as { audio?: string; error?: string };
       if (muD.audio) {
         musicRef.current = muD.audio;
         setAssets(function(p) { return Object.assign({}, p, { music: muD.audio }); });
@@ -611,7 +721,7 @@ function Step6({ data, setData, onNext, onBack }) {
       <div ref={logRef} style={{ maxHeight: 240, overflow: "auto", padding: "8px 16px" }}>
         {log.length === 0 && <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 500, color: D.txh, padding: "12px 0" }}>Click "Start Production" to begin.</div>}
         {log.map(function(entry, i) {
-          var colors = { info: D.txb, success: D.teal, error: D.coral, warn: D.amber, dim: D.txl };
+          var colors: Record<string, string> = { info: D.txb, success: D.teal, error: D.coral, warn: D.amber, dim: D.txl };
           return <div key={i} style={{ display: "flex", gap: 8, padding: "4px 0", fontFamily: mn, fontSize: 11 }}>
             <span style={{ color: D.txh, flexShrink: 0 }}>{entry.ts}</span>
             <span style={{ color: colors[entry.type] || D.txb }}>{entry.msg}</span>
@@ -627,16 +737,16 @@ function Step6({ data, setData, onNext, onBack }) {
 }
 
 // ═══ CLIP GRID WITH RETRY ═══
-function ClipGrid({ clips, script, onUpdate }) {
-  var _checking = useState({}), checking = _checking[0], setChecking = _checking[1];
+function ClipGrid({ clips, script, onUpdate }: { clips: Clip[]; script: Script | undefined; onUpdate: (clips: Clip[]) => void }) {
+  var _checking = useState<Record<number, boolean>>({}), checking = _checking[0], setChecking = _checking[1];
 
-  var checkClip = async function(idx) {
+  var checkClip = async function(idx: number) {
     var clip = clips[idx];
     if (!clip.taskId) return;
     setChecking(function(p) { var n = Object.assign({}, p); n[idx] = true; return n; });
     try {
       var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", taskId: clip.taskId, engine: clip.provider || "grok" }) });
-      var d = await r.json();
+      var d = await r.json() as { task?: { task_status: string; task_result?: { videos?: Array<{ url: string }> } } };
       if (d.task && d.task.task_status === "succeed" && d.task.task_result && d.task.task_result.videos) {
         var updated = clips.slice();
         updated[idx] = Object.assign({}, clip, { videoUrl: d.task.task_result.videos[0].url, pending: false });
@@ -686,13 +796,13 @@ function ClipGrid({ clips, script, onUpdate }) {
 }
 
 // ═══ VOICE SELECTOR ═══
-function VoiceSelector({ assets, data, setData }) {
-  var _voices = useState([]), voices = _voices[0], setVoices = _voices[1];
+function VoiceSelector({ assets, data, setData }: { assets: Assets; data: ProjectData; setData: React.Dispatch<React.SetStateAction<ProjectData>> }) {
+  var _voices = useState<Voice[]>([]), voices = _voices[0], setVoices = _voices[1];
   var _selVoice = useState("JBFqnCBsd6RMkjVDRZzb"), selVoice = _selVoice[0], setSelVoice = _selVoice[1];
   var _regenning = useState(false), regenning = _regenning[0], setRegenning = _regenning[1];
 
   useEffect(function() {
-    fetch("/api/generate-voiceover").then(function(r) { return r.json(); }).then(function(d) { if (d.voices) setVoices(d.voices.slice(0, 8)); });
+    fetch("/api/generate-voiceover").then(function(r) { return r.json(); }).then(function(d: { voices?: Voice[] }) { if (d.voices) setVoices(d.voices.slice(0, 8)); });
   }, []);
 
   var regen = async function() {
@@ -701,7 +811,7 @@ function VoiceSelector({ assets, data, setData }) {
     var fullScript = script ? (script.hook || "") + "\n\n" + (script.intro || "") + "\n\n" + (script.body || []).join("\n\n") + "\n\n" + (script.outro || "") : "";
     try {
       var r = await fetch("/api/generate-voiceover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: fullScript, voiceId: selVoice }) });
-      var d = await r.json();
+      var d = await r.json() as { audio?: string; error?: string };
       if (d.audio) {
         setData(function(p) { var a = Object.assign({}, p.assets || {}, { voiceover: d.audio }); return Object.assign({}, p, { assets: a }); });
         toast("Voiceover regenerated!", "success");
@@ -733,25 +843,25 @@ function VoiceSelector({ assets, data, setData }) {
 }
 
 // ═══ STEP 7: SELECT CLIPS ═══
-function Step7({ data, setData, onNext, onBack }) {
-  var assets = data.assets || {};
+function Step7({ data, setData, onNext, onBack }: { data: ProjectData; setData: React.Dispatch<React.SetStateAction<ProjectData>>; onNext: () => void; onBack: () => void }) {
+  var assets: Assets = data.assets || { voiceover: null, clips: [], music: null };
   var clips = assets.clips || [];
   var script = data.scripts && data.scripts[data.selScript || 0];
   var brollShots = script && script.broll ? script.broll : [];
 
   // Group clips by shot number
-  var shotGroups = {};
+  var shotGroups: Record<string, Clip[]> = {};
   clips.forEach(function(c) { var s = c.shot || 1; if (!shotGroups[s]) shotGroups[s] = []; shotGroups[s].push(c); });
 
-  var _sel = useState(data.selectedClips || {}), sel = _sel[0], setSel = _sel[1];
-  var _regen = useState({}), regen = _regen[0], setRegen = _regen[1]; // { shotNum: { loading, progress } }
+  var _sel = useState<Record<string, number>>(data.selectedClips || {}), sel = _sel[0], setSel = _sel[1];
+  var _regen = useState<Record<string, { loading: boolean; progress: number }>>({}), regen = _regen[0], setRegen = _regen[1]; // { shotNum: { loading, progress } }
 
-  var selectClip = function(shotNum, clipIdx) {
+  var selectClip = function(shotNum: string, clipIdx: number) {
     setSel(function(p) { var n = Object.assign({}, p); n[shotNum] = clipIdx; return n; });
     setData(function(p) { var n = Object.assign({}, p); n.selectedClips = Object.assign({}, sel, {}); n.selectedClips[shotNum] = clipIdx; return n; });
   };
 
-  var repromptShot = async function(shotNum) {
+  var repromptShot = async function(shotNum: string) {
     var shotIdx = parseInt(shotNum) - 1;
     var shotInfo = brollShots[shotIdx];
     if (!shotInfo) return;
@@ -760,20 +870,20 @@ function Step7({ data, setData, onNext, onBack }) {
     try {
       // Submit
       var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: shotInfo.prompt + ", alternative creative interpretation", engine: "grok" }) });
-      var d = await r.json();
+      var d = await r.json() as { task?: { task_id: string }; error?: string };
       if (!d.task || !d.task.task_id) { toast("Shot " + shotNum + " submit failed", "error"); setRegen(function(p) { var n = Object.assign({}, p); delete n[shotNum]; return n; }); return; }
 
       // Poll
       var taskId = d.task.task_id;
       var pollStart = Date.now();
       while (Date.now() - pollStart < 180000) {
-        await new Promise(function(res) { setTimeout(res, 8000); });
+        await new Promise<void>(function(res) { setTimeout(res, 8000); });
         try {
           var stR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", taskId: taskId, engine: "grok" }) });
-          var stD = await stR.json();
+          var stD = await stR.json() as { task?: { task_status: string; task_result?: { videos?: Array<{ url: string }> }; progress?: number } };
           if (stD.task && stD.task.task_status === "succeed" && stD.task.task_result && stD.task.task_result.videos) {
             var newClip = { taskId: taskId, videoUrl: stD.task.task_result.videos[0].url, shot: parseInt(shotNum), provider: "grok" };
-            setData(function(p) { var a = Object.assign({}, p.assets || {}); a.clips = (a.clips || []).concat([newClip]); return Object.assign({}, p, { assets: a }); });
+            setData(function(p) { var a: Assets = Object.assign({}, p.assets || { voiceover: null, clips: [], music: null }); a.clips = (a.clips || []).concat([newClip]); return Object.assign({}, p, { assets: a }); });
             toast("Shot " + shotNum + " new version ready!", "success");
             setRegen(function(p) { var n = Object.assign({}, p); delete n[shotNum]; return n; });
             return;
@@ -795,7 +905,7 @@ function Step7({ data, setData, onNext, onBack }) {
 
     <VoiceSelector assets={assets} data={data} setData={setData} />
 
-    {Object.keys(shotGroups).sort(function(a, b) { return a - b; }).map(function(shotNum) {
+    {Object.keys(shotGroups).sort(function(a, b) { return Number(a) - Number(b); }).map(function(shotNum) {
       var group = shotGroups[shotNum];
       var shotIdx = parseInt(shotNum) - 1;
       var shotInfo = brollShots[shotIdx];
@@ -817,7 +927,7 @@ function Step7({ data, setData, onNext, onBack }) {
             var isSelected = selected === ci;
             return <div key={ci} onClick={function() { selectClip(shotNum, ci); }} style={{ background: isSelected ? D.elevated : D.surface, border: isSelected ? "2px solid " + D.amber : "1px solid " + D.border, borderRadius: 10, padding: 10, cursor: "pointer", transition: "all 0.2s", boxShadow: isSelected ? "0 0 16px " + D.amber + "10" : "none" }}>
               <div style={{ aspectRatio: "16/9", background: D.bg, borderRadius: 6, marginBottom: 8, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {clip.videoUrl ? <video src={clip.videoUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} onMouseEnter={function(e) { e.target.play(); }} onMouseLeave={function(e) { e.target.pause(); e.target.currentTime = 0; }} muted />
+                {clip.videoUrl ? <video src={clip.videoUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} onMouseEnter={function(e: React.MouseEvent<HTMLVideoElement>) { e.currentTarget.play(); }} onMouseLeave={function(e: React.MouseEvent<HTMLVideoElement>) { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }} muted />
                 : <span style={{ fontFamily: ft, fontSize: 11, color: clip.pending ? D.amber : D.coral }}>{clip.pending ? "Rendering..." : "Failed"}</span>}
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -844,7 +954,7 @@ function Step7({ data, setData, onNext, onBack }) {
 }
 
 // ═══ AUDIO MIXER ═══
-function AudioMixer({ videoRef, voRef, musicRef, assets, onMixChange }) {
+function AudioMixer({ videoRef, voRef, musicRef, assets, onMixChange }: { videoRef: React.RefObject<HTMLVideoElement | null>; voRef: React.RefObject<HTMLAudioElement | null>; musicRef: React.RefObject<HTMLAudioElement | null>; assets: Assets; onMixChange?: (mix: AudioMixData) => void }) {
   var _clipVol = useState(30), clipVol = _clipVol[0], setClipVol = _clipVol[1];
   var _voVol = useState(100), voVol = _voVol[0], setVoVol = _voVol[1];
   var _musicVol = useState(15), musicVol = _musicVol[0], setMusicVol = _musicVol[1];
@@ -889,18 +999,18 @@ function AudioMixer({ videoRef, voRef, musicRef, assets, onMixChange }) {
 }
 
 // ═══ STEP 8: ASSEMBLED PREVIEW ═══
-function Step8({ data, setData, onNext, onBack }) {
-  var assets = data.assets || {};
+function Step8({ data, setData, onNext, onBack }: { data: ProjectData; setData: React.Dispatch<React.SetStateAction<ProjectData>>; onNext: () => void; onBack: () => void }) {
+  var assets: Assets = data.assets || { voiceover: null, clips: [], music: null };
   var script = data.scripts && data.scripts[data.selScript || 0];
   var aspect = data.aspect || "16:9";
   var selectedClips = data.selectedClips || {};
 
   // Build ordered clip list from selections
-  var orderedClips = [];
+  var orderedClips: Clip[] = [];
   if (assets.clips) {
-    var shotGroups = {};
+    var shotGroups: Record<string, Clip[]> = {};
     assets.clips.forEach(function(c) { var s = c.shot || 1; if (!shotGroups[s]) shotGroups[s] = []; shotGroups[s].push(c); });
-    Object.keys(shotGroups).sort(function(a, b) { return a - b; }).forEach(function(s) {
+    Object.keys(shotGroups).sort(function(a, b) { return Number(a) - Number(b); }).forEach(function(s) {
       var sel = selectedClips[s] || 0;
       var clip = shotGroups[s][sel];
       if (clip && clip.videoUrl) orderedClips.push(clip);
@@ -911,12 +1021,12 @@ function Step8({ data, setData, onNext, onBack }) {
   var _currentClip = useState(0), currentClip = _currentClip[0], setCurrentClip = _currentClip[1];
   var _playing = useState(false), playing = _playing[0], setPlaying = _playing[1];
   var _assembling = useState(true), assembling = _assembling[0], setAssembling = _assembling[1];
-  var _log = useState([]), alog = _log[0], setAlog = _log[1];
-  var videoRef = useRef(null);
-  var voRef = useRef(null);
-  var musicRef = useRef(null);
+  var _log = useState<LogEntry[]>([]), alog = _log[0], setAlog = _log[1];
+  var videoRef = useRef<HTMLVideoElement>(null);
+  var voRef = useRef<HTMLAudioElement>(null);
+  var musicRef = useRef<HTMLAudioElement>(null);
 
-  var addLog = function(msg, type) { setAlog(function(p) { return p.concat([{ msg: msg, type: type || "info", ts: new Date().toLocaleTimeString() }]); }); };
+  var addLog = function(msg: string, type?: string) { setAlog(function(p) { return p.concat([{ msg: msg, type: type || "info", ts: new Date().toLocaleTimeString() }]); }); };
 
   // Assembly simulation
   useEffect(function() {
@@ -960,7 +1070,7 @@ function Step8({ data, setData, onNext, onBack }) {
   // When currentClip changes, play the new clip
   useEffect(function() {
     if (playing && videoRef.current && orderedClips[currentClip]) {
-      videoRef.current.src = orderedClips[currentClip].videoUrl;
+      videoRef.current.src = orderedClips[currentClip].videoUrl || "";
       videoRef.current.play().catch(function() {});
     }
   }, [currentClip]);
@@ -973,8 +1083,8 @@ function Step8({ data, setData, onNext, onBack }) {
 
     {/* Video player */}
     <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 20 }}>
-      <div style={Object.assign({}, dimStyle, { aspectRatio: aspect === "9:16" ? "9/16" : aspect === "1:1" ? "1/1" : "16/9", background: D.bg, borderRadius: 10, border: "1px solid " + D.border, overflow: "hidden", position: "relative" })}>
-        {orderedClips.length > 0 ? <video ref={videoRef} src={orderedClips[currentClip] ? orderedClips[currentClip].videoUrl : ""} onEnded={handleClipEnd} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      <div style={Object.assign({}, dimStyle, { aspectRatio: aspect === "9:16" ? "9/16" : aspect === "1:1" ? "1/1" : "16/9", background: D.bg, borderRadius: 10, border: "1px solid " + D.border, overflow: "hidden" as const, position: "relative" as const })}>
+        {orderedClips.length > 0 ? <video ref={videoRef} src={orderedClips[currentClip] ? orderedClips[currentClip].videoUrl || "" : ""} onEnded={handleClipEnd} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
           <span style={{ fontFamily: ft, fontSize: 14, color: D.txl }}>No clips available</span>
         </div>}
@@ -1008,7 +1118,7 @@ function Step8({ data, setData, onNext, onBack }) {
       </div>
       <div style={{ maxHeight: 140, overflow: "auto", padding: "6px 14px" }}>
         {alog.map(function(e, i) {
-          var colors = { info: D.txb, success: D.teal, warn: D.amber, error: D.coral };
+          var colors: Record<string, string> = { info: D.txb, success: D.teal, warn: D.amber, error: D.coral };
           return <div key={i} style={{ display: "flex", gap: 8, padding: "3px 0", fontFamily: mn, fontSize: 10 }}>
             <span style={{ color: D.txh, flexShrink: 0 }}>{e.ts}</span>
             <span style={{ color: colors[e.type] || D.txb }}>{e.msg}</span>
@@ -1032,9 +1142,9 @@ function Step8({ data, setData, onNext, onBack }) {
 }
 
 // ═══ RENDER POLL (progressive status: queued -> in_progress -> uploading -> complete) ═══
-function RenderPoll({ renderId, onComplete }) {
-  var _status = useState("polling"), status = _status[0], setStatus = _status[1];
-  var _video = useState(null), video = _video[0], setVideo = _video[1];
+function RenderPoll({ renderId, onComplete }: { renderId: string | undefined; onComplete?: (video: RenderVideo) => void }) {
+  var _status = useState<string>("polling"), status = _status[0], setStatus = _status[1];
+  var _video = useState<RenderVideo | null>(null), video = _video[0], setVideo = _video[1];
   var _elapsed = useState(0), elapsed = _elapsed[0], setElapsed = _elapsed[1];
   var _runStatus = useState("queued"), runStatus = _runStatus[0], setRunStatus = _runStatus[1];
   var _progressPct = useState(-1), progressPct = _progressPct[0], setProgressPct = _progressPct[1];
@@ -1054,7 +1164,7 @@ function RenderPoll({ renderId, onComplete }) {
     // Poll the unified API every 5 seconds
     var poll = function() {
       if (dead) return;
-      fetch("/api/render-video?id=" + renderId).then(function(r) { return r.json(); }).then(function(d) {
+      fetch("/api/render-video?id=" + renderId).then(function(r) { return r.json(); }).then(function(d: { status?: string; runStatus?: string; message?: string; runUrl?: string; progressPct?: number; assets?: RenderVideo[] }) {
         if (dead) return;
 
         if (d.runStatus) setRunStatus(d.runStatus);
@@ -1115,7 +1225,7 @@ function RenderPoll({ renderId, onComplete }) {
   var showIndeterminate = runStatus === "queued" || (runStatus === "in_progress" && progressPct < 0) || runStatus === "uploading";
   var showDeterminate = runStatus === "in_progress" && progressPct >= 0;
 
-  var formatElapsed = function(s) {
+  var formatElapsed = function(s: number) {
     var m = Math.floor(s / 60);
     var sec = s % 60;
     return m > 0 ? m + "m " + sec + "s" : sec + "s";
@@ -1197,8 +1307,8 @@ function RenderPoll({ renderId, onComplete }) {
 }
 
 // ═══ RENDER BUTTON (uploads assets, then triggers GitHub Actions) ═══
-function RenderButton({ data, assets, onComplete }) {
-  var _status = useState("idle"), status = _status[0], setStatus = _status[1]; // idle, uploading, dispatching, done, error
+function RenderButton({ data, assets, onComplete }: { data: ProjectData; assets: Assets; onComplete?: (video: RenderVideo) => void }) {
+  var _status = useState<string>("idle"), status = _status[0], setStatus = _status[1]; // idle, uploading, dispatching, done, error
   var _progress = useState(""), progress = _progress[0], setProgress = _progress[1];
 
   var render = async function() {
@@ -1210,8 +1320,8 @@ function RenderButton({ data, assets, onComplete }) {
     if (assets.voiceover) {
       try {
         var r = await fetch("/api/upload-asset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: assets.voiceover, filename: "vo-" + Date.now() + ".mp3", contentType: "audio/mpeg" }) });
-        var d = await r.json();
-        if (d.url) { voUrl = d.url; setProgress("Voiceover uploaded (" + Math.round(d.size / 1024) + "KB)"); }
+        var d = await r.json() as { url?: string; size?: number; error?: string };
+        if (d.url) { voUrl = d.url; setProgress("Voiceover uploaded (" + Math.round((d.size || 0) / 1024) + "KB)"); }
         else { toast("VO upload failed: " + (d.error || ""), "error"); }
       } catch (e) { toast("VO upload failed", "error"); }
     }
@@ -1221,8 +1331,8 @@ function RenderButton({ data, assets, onComplete }) {
       setProgress("Uploading music...");
       try {
         var r2 = await fetch("/api/upload-asset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: assets.music, filename: "music-" + Date.now() + ".mp3", contentType: "audio/mpeg" }) });
-        var d2 = await r2.json();
-        if (d2.url) { musicUrl = d2.url; setProgress("Music uploaded (" + Math.round(d2.size / 1024) + "KB)"); }
+        var d2 = await r2.json() as { url?: string; size?: number; error?: string };
+        if (d2.url) { musicUrl = d2.url; setProgress("Music uploaded (" + Math.round((d2.size || 0) / 1024) + "KB)"); }
         else { toast("Music upload failed: " + (d2.error || ""), "warn"); }
       } catch (e) { toast("Music upload failed", "warn"); }
     }
@@ -1231,9 +1341,9 @@ function RenderButton({ data, assets, onComplete }) {
     setStatus("dispatching"); setProgress("Sending to GitHub Actions...");
     var script = data.scripts && data.scripts[data.selScript || 0];
     var selectedClips = data.selectedClips || {};
-    var clipUrls = [];
+    var clipUrls: string[] = [];
     if (assets.clips) {
-      var shotGroups = {};
+      var shotGroups: Record<string, Clip[]> = {};
       assets.clips.forEach(function(c) { var s = c.shot || 1; if (!shotGroups[s]) shotGroups[s] = []; shotGroups[s].push(c); });
       Object.keys(shotGroups).sort().forEach(function(s) { var sel = selectedClips[s] || 0; var clip = shotGroups[s][sel]; if (clip && clip.videoUrl) clipUrls.push(clip.videoUrl); });
     }
@@ -1256,7 +1366,7 @@ function RenderButton({ data, assets, onComplete }) {
         voVolume: data.audioMix ? data.audioMix.voVol / 100 : 1.0,
         musicVolume: data.audioMix ? data.audioMix.musicVol / 100 : 0.15,
       }) });
-      var d3 = await r3.json();
+      var d3 = await r3.json() as { renderId?: string; error?: string };
       if (d3.renderId) {
         setStatus("done"); setProgress("Render submitted! ID: " + d3.renderId);
         toast("Render job dispatched to GitHub Actions.", "success");
@@ -1271,7 +1381,7 @@ function RenderButton({ data, assets, onComplete }) {
   };
 
   return <div>
-    <button onClick={status === "idle" || status === "error" ? render : undefined} disabled={status === "uploading" || status === "dispatching"} style={{ width: "100%", height: 52, background: status === "done" ? D.teal + "15" : D.surface, border: "1px solid " + (status === "done" ? D.teal + "40" : D.border), borderRadius: 10, fontFamily: ft, fontSize: 15, fontWeight: 700, color: status === "done" ? D.teal : D.tx, cursor: status === "uploading" || status === "dispatching" ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }} onMouseEnter={function(e) { if (status === "idle") e.currentTarget.style.borderColor = D.violet + "40"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = status === "done" ? D.teal + "40" : D.border; }}>
+    <button onClick={status === "idle" || status === "error" ? render : undefined} disabled={status === "uploading" || status === "dispatching"} style={{ width: "100%", height: 52, background: status === "done" ? D.teal + "15" : D.surface, border: "1px solid " + (status === "done" ? D.teal + "40" : D.border), borderRadius: 10, fontFamily: ft, fontSize: 15, fontWeight: 700, color: status === "done" ? D.teal : D.tx, cursor: status === "uploading" || status === "dispatching" ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.15s" }} onMouseEnter={function(e: React.MouseEvent<HTMLButtonElement>) { if (status === "idle") e.currentTarget.style.borderColor = D.violet + "40"; }} onMouseLeave={function(e: React.MouseEvent<HTMLButtonElement>) { e.currentTarget.style.borderColor = status === "done" ? D.teal + "40" : D.border; }}>
       {status === "idle" && "Render MP4 (GitHub Actions)"}
       {status === "uploading" && "Uploading assets..."}
       {status === "dispatching" && "Dispatching render..."}
@@ -1284,18 +1394,18 @@ function RenderButton({ data, assets, onComplete }) {
 }
 
 // ═══ STEP 9: PREMIER ═══
-function Step9({ data, onPremier, onDraft }) {
-  var assets = data.assets || {};
+function Step9({ data, onPremier, onDraft }: { data: ProjectData; onPremier: () => void; onDraft: () => void }) {
+  var assets: Assets = data.assets || { voiceover: null, clips: [], music: null };
   var title = data.options ? data.options.titles[data.selTitle || 0] : "Untitled";
   var _renderDone = useState(false), renderDone = _renderDone[0], setRenderDone = _renderDone[1];
-  var _renderVideo = useState(null), renderVideo = _renderVideo[0], setRenderVideo = _renderVideo[1];
+  var _renderVideo = useState<RenderVideo | null>(null), renderVideo = _renderVideo[0], setRenderVideo = _renderVideo[1];
 
   var downloadAll = function() {
     var count = 0;
     // VO -- base64 data URL, direct download works
     if (assets.voiceover) { var a = document.createElement("a"); a.href = assets.voiceover; a.download = "voiceover.mp3"; document.body.appendChild(a); a.click(); document.body.removeChild(a); count++; }
     // Music -- base64 data URL
-    if (assets.music) { setTimeout(function() { var a = document.createElement("a"); a.href = assets.music; a.download = "music.mp3"; document.body.appendChild(a); a.click(); document.body.removeChild(a); }, 800); count++; }
+    if (assets.music) { setTimeout(function() { var a = document.createElement("a"); a.href = assets.music!; a.download = "music.mp3"; document.body.appendChild(a); a.click(); document.body.removeChild(a); }, 800); count++; }
     // Clips -- external URLs, open in new tabs for download
     (assets.clips || []).forEach(function(c, i) {
       if (c.videoUrl) {
@@ -1366,7 +1476,7 @@ function Step9({ data, onPremier, onDraft }) {
 }
 
 // ═══ PROJECT LIST ═══
-function ProjectList({ projects, onOpen, onNew }) {
+function ProjectList({ projects, onOpen, onNew }: { projects: Project[]; onOpen: (p: Project) => void; onNew: () => void }) {
   var drafts = projects.filter(function(p) { return p.status === "draft"; });
   var production = projects.filter(function(p) { return p.status === "production"; });
   var premiered = projects.filter(function(p) { return p.status === "premiered"; });
@@ -1383,7 +1493,7 @@ function ProjectList({ projects, onOpen, onNew }) {
       return <div key={sec.l} style={{ marginBottom: 28 }}>
         <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: sec.c, letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>{sec.l} ({sec.items.length})</div>
         {sec.items.map(function(p, i) {
-          return <div key={i} onClick={function() { onOpen(p); }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "18px 22px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, marginBottom: 10, cursor: "pointer", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = D.borderHover; e.currentTarget.style.background = D.elevated; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.background = D.surface; }}>
+          return <div key={i} onClick={function() { onOpen(p); }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "18px 22px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, marginBottom: 10, cursor: "pointer", transition: "all 0.2s" }} onMouseEnter={function(e: React.MouseEvent<HTMLDivElement>) { e.currentTarget.style.borderColor = D.borderHover; e.currentTarget.style.background = D.elevated; }} onMouseLeave={function(e: React.MouseEvent<HTMLDivElement>) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.background = D.surface; }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: D.tx }}>{p.title || "Untitled"}</div>
               <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 500, color: D.txl, marginTop: 2 }}>{new Date(p.ts).toLocaleDateString("en-US", { month: "short", day: "numeric" })} // Step {(p.step || 0) + 1} of 9</div>
@@ -1402,7 +1512,7 @@ function ProjectList({ projects, onOpen, onNew }) {
 }
 
 // ═══ SUPABASE SYNC ═══
-function p2pDbSync(projects) {
+function p2pDbSync(projects: Project[]) {
   fetch("/api/db", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1412,10 +1522,10 @@ function p2pDbSync(projects) {
 
 // ═══ MAIN ═══
 export default function PressToPremi() {
-  var _projects = useState([]), projects = _projects[0], setProjects = _projects[1];
-  var _active = useState(null), active = _active[0], setActive = _active[1];
+  var _projects = useState<Project[]>([]), projects = _projects[0], setProjects = _projects[1];
+  var _active = useState<string | null>(null), active = _active[0], setActive = _active[1];
   var _step = useState(0), step = _step[0], setStep = _step[1];
-  var _data = useState({}), data = _data[0], setData = _data[1];
+  var _data = useState<ProjectData>({}), data = _data[0], setData = _data[1];
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
   var _loaded = useState(false), loaded = _loaded[0], setLoaded = _loaded[1];
 
@@ -1430,7 +1540,7 @@ export default function PressToPremi() {
       setLoaded(true);
     }, 800);
 
-    fetch("/api/db?table=projects").then(function(r) { return r.json(); }).then(function(res) {
+    fetch("/api/db?table=projects").then(function(r) { return r.json(); }).then(function(res: { data?: Array<{ type: string; id: string; data?: { projects?: Project[] } }> }) {
       if (settled) return;
       clearTimeout(timer);
       settled = true;
@@ -1465,10 +1575,10 @@ export default function PressToPremi() {
 
   var stepNames = ["Input", "Options", "Script", "Review", "Format", "Produce", "Select", "Preview", "Premier"];
   var startNew = function() { setActive("new"); setStep(0); setData({ mode: "url" }); };
-  var openProject = function(p) { setActive(p.id); setStep(p.step || 0); setData(p.data || {}); };
-  var saveProject = function(status) {
+  var openProject = function(p: Project) { setActive(p.id); setStep(p.step || 0); setData(p.data || {}); };
+  var saveProject = function(status: string) {
     var title = data.options ? data.options.titles[data.selTitle || 0] : "Untitled";
-    var proj = { id: active === "new" ? "p" + Date.now() : active, title: title, status: status, step: step, data: data, ts: Date.now() };
+    var proj: Project = { id: active === "new" ? "p" + Date.now() : active || "unknown", title: title, status: status, step: step, data: data, ts: Date.now() };
     setProjects(function(p) { var f = p.filter(function(x) { return x.id !== proj.id; }); return [proj].concat(f).slice(0, 5); });
     if (status === "premiered" || status === "draft") { setActive(null); }
   };
@@ -1479,7 +1589,7 @@ export default function PressToPremi() {
     var title = data.options ? data.options.titles[data.selTitle || 0] : "Untitled";
     var id = active === "new" ? "p-auto-" + Date.now() : active;
     if (active === "new") setActive(id); // Give it a real ID on first auto-save
-    var proj = { id: id, title: title, status: "production", step: step, data: data, ts: Date.now() };
+    var proj: Project = { id: id, title: title, status: "production", step: step, data: data, ts: Date.now() };
     setProjects(function(p) { var f = p.filter(function(x) { return x.id !== proj.id; }); return [proj].concat(f).slice(0, 5); });
   }, [step, data.assets, data.options, data.scripts, data.selectedClips]);
 
@@ -1487,7 +1597,7 @@ export default function PressToPremi() {
     setLoading(true); setStep(1);
     try {
       var r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: "You are a video production strategist for SemiAnalysis. Never use em dashes. No emojis. RESPOND ONLY IN VALID JSON.", prompt: "Generate 3 title options, 3 hook options (under 12 words each), and 3 description options for a video about this article.\n\nArticle: " + (data.text || data.url || "") + "\n\nReturn JSON: {\"titles\":[\"t1\",\"t2\",\"t3\"],\"hooks\":[\"h1\",\"h2\",\"h3\"],\"descriptions\":[\"d1\",\"d2\",\"d3\"]}" }) });
-      var d = await r.json(); var txt = (d.content || []).map(function(c) { return c.text || ""; }).join("");
+      var d = await r.json() as { content?: Array<{ text?: string }> }; var txt = (d.content || []).map(function(c) { return c.text || ""; }).join("");
       var parsed = JSON.parse(txt.replace(/```json|```/g, "").trim());
       setData(function(p) { return Object.assign({}, p, { options: parsed }); });
     } catch (e) { toast("Failed: " + String(e).slice(0, 80), "error", 500); setStep(0); }
@@ -1496,11 +1606,11 @@ export default function PressToPremi() {
 
   var genScripts = async function() {
     setLoading(true); setStep(2);
-    var title = data.options.titles[data.selTitle || 0];
-    var hook = data.options.hooks[data.selHook || 0];
+    var title = data.options!.titles[data.selTitle || 0];
+    var hook = data.options!.hooks[data.selHook || 0];
     try {
       var r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: "You are a video scriptwriter for SemiAnalysis. Never use em dashes. No emojis. RESPOND ONLY IN VALID JSON.", prompt: "Write 3 script versions for a " + (data.duration || 60) + "-second video.\nTitle: " + title + "\nHook: " + hook + "\n\nEach version: different approach, different b-roll.\n\nIMPORTANT: The outro MUST be a complete, conclusive sentence that clearly ends the video. End with a definitive call to action like 'Read the full analysis at semianalysis.com' or 'Subscribe for more.' The script must feel finished, not cut off.\n\nReturn JSON: {\"scripts\":[{\"hook\":\"...\",\"intro\":\"first 8s\",\"body\":[\"p1\",\"p2\"],\"outro\":\"complete conclusive CTA sentence ending the video definitively\",\"broll\":[{\"shot\":1,\"timing\":\"0-5s\",\"description\":\"what we see\",\"prompt\":\"cinematic prompt 30-50 words\",\"camera\":\"movement\"}]}]}" }) });
-      var d = await r.json(); var txt = (d.content || []).map(function(c) { return c.text || ""; }).join("");
+      var d = await r.json() as { content?: Array<{ text?: string }> }; var txt = (d.content || []).map(function(c) { return c.text || ""; }).join("");
       var parsed = JSON.parse(txt.replace(/```json|```/g, "").trim());
       setData(function(p) { return Object.assign({}, p, { scripts: parsed.scripts || [] }); });
     } catch (e) { toast("Failed: " + String(e).slice(0, 80), "error", 500); setStep(1); }

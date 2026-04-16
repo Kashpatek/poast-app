@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { generateJSON, AnthropicError } from "@/lib/anthropic";
+import { checkRateLimit } from "@/lib/ratelimit";
+
+const FkSchema = z.object({
+  action: z.enum(["briefing", "prepkit", "process", "cold-email", "generate-bio"]),
+}).passthrough();
 
 const FK_SYS = `You are a podcast production assistant for Fabricated Knowledge, an audio interview podcast by Doug O'Laughlin at SemiAnalysis. You help with pre-interview research, briefing docs, and post-production content.
 
@@ -14,7 +20,23 @@ You MUST respond ONLY with valid JSON. No markdown fences. No preamble.`;
 
 export async function POST(req: NextRequest) {
   try {
+    const { allowed, remaining } = await checkRateLimit(req);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded" },
+        { status: 429, headers: { "X-RateLimit-Remaining": String(remaining ?? 0) } }
+      );
+    }
+
     const body = await req.json();
+    const parsed = FkSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid input", details: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+
     const { action } = body;
 
     if (action === "briefing") {

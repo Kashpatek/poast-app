@@ -1,6 +1,83 @@
-// @ts-nocheck
 "use client";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
+
+// ═══ TYPES ═══
+interface Idea {
+  id: string;
+  title: string;
+  content_type: string;
+  platforms?: string[];
+  description: string;
+  based_on?: string;
+}
+
+interface ContentType {
+  key: string;
+  label: string;
+  color: string;
+}
+
+interface TopicArea {
+  key: string;
+  label: string;
+}
+
+interface PlatformTag {
+  key: string;
+  label: string;
+  color: string;
+}
+
+interface TrendItem {
+  title?: string;
+  topic?: string;
+  name?: string;
+  [key: string]: unknown;
+}
+
+interface GenerateConfig {
+  types: string[];
+  topics: string[];
+  angle: string;
+}
+
+interface OrbConfig {
+  color: string;
+  size: number;
+  top?: string;
+  left?: string;
+  right?: string;
+  anim: string;
+  dur: string;
+}
+
+interface TypeConfigEntry {
+  section: string;
+  label: string;
+  icon: string;
+  color: string;
+}
+
+interface IdeaCardProps {
+  idea: Idea;
+  onSendSlopTop: (idea: Idea) => void;
+  onSendCapper: (idea: Idea) => void;
+  onExport: (idea: Idea) => void;
+  onDismiss: (idea: Idea) => void;
+  onSave: ((idea: Idea) => void) | null;
+  showToast: (msg: string) => void;
+}
+
+interface WizardOverlayProps {
+  open: boolean;
+  onClose: () => void;
+  onGenerate: (config: GenerateConfig) => void;
+  loading: boolean;
+}
+
+interface ProgressBarProps {
+  label?: string;
+}
 
 // ═══ DESIGN ═══
 var D = {
@@ -41,12 +118,12 @@ var PLATFORM_TAGS = [
   { key: "youtube", label: "YouTube", color: "#FF0000" },
 ];
 
-var TYPE_BADGE_COLORS = {
+var TYPE_BADGE_COLORS: Record<string, string> = {
   "Video": D.coral, "Short Video": D.coral, "Meme": D.violet, "Thread": D.blue,
   "Carousel": D.cyan, "Article": D.teal, "Podcast": D.amber,
 };
 
-var BORDER_GRADIENTS = {
+var BORDER_GRADIENTS: Record<string, string> = {
   "Video": "linear-gradient(180deg, " + D.coral + ", " + D.coral + "30)",
   "Short Video": "linear-gradient(180deg, " + D.coral + ", " + D.coral + "30)",
   "Meme": "linear-gradient(180deg, " + D.violet + ", " + D.violet + "30)",
@@ -73,11 +150,11 @@ var CSS_ANIMATIONS = [
 ].join("\n");
 
 // ═══ HELPERS ═══
-function copyText(str) {
+function copyText(str: string): boolean {
   try { var ta = document.createElement("textarea"); ta.value = str; ta.style.position = "fixed"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); return true; } catch (e) { try { navigator.clipboard.writeText(str); return true; } catch (e2) { return false; } }
 }
 
-async function askAPI(sys, prompt) {
+async function askAPI(sys: string, prompt: string): Promise<Record<string, unknown> | null> {
   try {
     var r = await fetch("/api/generate", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -86,14 +163,14 @@ async function askAPI(sys, prompt) {
     var d = await r.json();
     if (d.error) { console.error("API Error:", d.error); return null; }
     if (!d.content) { return null; }
-    var t = (d.content || []).map(function(c) { return c.text || ""; }).join("");
+    var t = (d.content || []).map(function(c: { text?: string }) { return c.text || ""; }).join("");
     try {
       return JSON.parse(t.replace(/```json|```/g, "").trim());
     } catch (pe) { console.error("Parse error:", t); return null; }
   } catch (e) { console.error("API:", e); return null; }
 }
 
-async function fetchTrends() {
+async function fetchTrends(): Promise<TrendItem[] | { trends?: TrendItem[] }> {
   try {
     var r = await fetch("/api/trends-feed?source=all");
     var d = await r.json();
@@ -102,7 +179,7 @@ async function fetchTrends() {
 }
 
 // ═══ DB SYNC ═══
-async function dbSyncIdeas(ideas, saved) {
+async function dbSyncIdeas(ideas: Idea[], saved: Idea[]): Promise<void> {
   fetch("/api/db", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -110,12 +187,12 @@ async function dbSyncIdeas(ideas, saved) {
   }).catch(function() {});
 }
 
-async function dbLoadIdeas() {
+async function dbLoadIdeas(): Promise<{ ideas?: Idea[]; saved?: Idea[] } | null> {
   try {
     var r = await fetch("/api/db?table=projects");
     var res = await r.json();
     if (res.data && res.data.length > 0) {
-      var row = res.data.find(function(r) { return r.type === "ideation" && r.id === "ideation-master"; });
+      var row = res.data.find(function(r: Record<string, unknown>) { return r.type === "ideation" && r.id === "ideation-master"; });
       if (row && row.data) return row.data;
     }
     return null;
@@ -156,8 +233,8 @@ function FloatingOrbs() {
     { color: D.cyan, size: 60, top: "60%", right: "20%", anim: "idFloat3", dur: "6s" },
     { color: D.amber, size: 50, top: "70%", left: "15%", anim: "idFloat2", dur: "8.5s" },
   ];
-  return <>{orbs.map(function(o, i) {
-    var pos = { position: "absolute", width: o.size, height: o.size, borderRadius: "50%", pointerEvents: "none", opacity: 0.12, filter: "blur(40px)", background: "radial-gradient(circle, " + o.color + ", transparent 70%)", animation: o.anim + " " + o.dur + " ease-in-out infinite" };
+  return <>{orbs.map(function(o: OrbConfig, i: number) {
+    var pos: React.CSSProperties = { position: "absolute", width: o.size, height: o.size, borderRadius: "50%", pointerEvents: "none", opacity: 0.12, filter: "blur(40px)", background: "radial-gradient(circle, " + o.color + ", transparent 70%)", animation: o.anim + " " + o.dur + " ease-in-out infinite" };
     if (o.top) pos.top = o.top;
     if (o.left) pos.left = o.left;
     if (o.right) pos.right = o.right;
@@ -166,7 +243,7 @@ function FloatingOrbs() {
 }
 
 // ═══ PROGRESS BAR ═══
-function ProgressBar({ label }) {
+function ProgressBar({ label }: ProgressBarProps) {
   return <div style={{ margin: "22px 0" }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
       <div style={{ fontFamily: mn, fontSize: 11, color: D.amber, letterSpacing: "2px", textTransform: "uppercase" }}>{label || "Generating..."}</div>
@@ -192,11 +269,11 @@ function ThinkingDots() {
 }
 
 // ═══ WIZARD OVERLAY ═══
-function WizardOverlay({ open, onClose, onGenerate, loading }) {
-  var _step = useState(1), step = _step[0], setStep = _step[1];
-  var _types = useState([]), types = _types[0], setTypes = _types[1];
-  var _topics = useState([]), topics = _topics[0], setTopics = _topics[1];
-  var _angle = useState(""), angle = _angle[0], setAngle = _angle[1];
+function WizardOverlay({ open, onClose, onGenerate, loading }: WizardOverlayProps) {
+  var _step = useState<number>(1), step = _step[0], setStep = _step[1];
+  var _types = useState<string[]>([]), types = _types[0], setTypes = _types[1];
+  var _topics = useState<string[]>([]), topics = _topics[0], setTopics = _topics[1];
+  var _angle = useState<string>(""), angle = _angle[0], setAngle = _angle[1];
 
   // Pick up routed context from News Flow
   useEffect(function() {
@@ -208,11 +285,11 @@ function WizardOverlay({ open, onClose, onGenerate, loading }) {
     }
   }, [open]);
 
-  var toggleType = function(key) {
-    setTypes(function(p) { return p.indexOf(key) > -1 ? p.filter(function(k) { return k !== key; }) : p.concat([key]); });
+  var toggleType = function(key: string) {
+    setTypes(function(p: string[]) { return p.indexOf(key) > -1 ? p.filter(function(k: string) { return k !== key; }) : p.concat([key]); });
   };
-  var toggleTopic = function(key) {
-    setTopics(function(p) { return p.indexOf(key) > -1 ? p.filter(function(k) { return k !== key; }) : p.concat([key]); });
+  var toggleTopic = function(key: string) {
+    setTopics(function(p: string[]) { return p.indexOf(key) > -1 ? p.filter(function(k: string) { return k !== key; }) : p.concat([key]); });
   };
 
   var handleGenerate = function() {
@@ -354,7 +431,7 @@ function WizardOverlay({ open, onClose, onGenerate, loading }) {
 }
 
 // ═══ TYPE CONFIG ═══
-var TYPE_CONFIG = {
+var TYPE_CONFIG: Record<string, TypeConfigEntry> = {
   "Video": { section: "p2p", label: "Send to Press to Premier", icon: "\uD83C\uDFA5", color: D.coral },
   "Short Video": { section: "p2p", label: "Send to Press to Premier", icon: "\uD83C\uDFA5", color: D.coral },
   "Meme": { section: "sloptop", label: "Send to Slop Top", icon: "\u2728", color: D.violet },
@@ -367,13 +444,13 @@ var TYPE_CONFIG = {
   "Podcast Topic": { section: "fabknowledge", label: "Send to Fab Knowledge", icon: "\uD83C\uDF99", color: D.amber },
 };
 
-function routeIdeaToTool(idea, showToast) {
+function routeIdeaToTool(idea: Idea, showToast: (msg: string) => void) {
   var cfg = TYPE_CONFIG[idea.content_type];
   if (!cfg) {
     showToast("Unknown content type: " + idea.content_type);
     return;
   }
-  var payload = { prompt: idea.title + ": " + idea.description };
+  var payload: Record<string, string> = { prompt: idea.title + ": " + idea.description };
   if (cfg.section === "export") {
     var content = idea.title + "\n\nType: " + idea.content_type + "\nPlatforms: " + (idea.platforms || []).join(", ") + "\n\n" + idea.description + "\n\nBased on: " + (idea.based_on || "N/A");
     var blob = new Blob([content], { type: "text/plain" });
@@ -404,9 +481,9 @@ function routeIdeaToTool(idea, showToast) {
 }
 
 // ═══ IDEA CARD ═══
-function IdeaCard({ idea, onSendSlopTop, onSendCapper, onExport, onDismiss, onSave, showToast }) {
-  var _hovered = useState(false), hovered = _hovered[0], setHovered = _hovered[1];
-  var _copied = useState(false), copied = _copied[0], setCopied = _copied[1];
+function IdeaCard({ idea, onSendSlopTop, onSendCapper, onExport, onDismiss, onSave, showToast }: IdeaCardProps) {
+  var _hovered = useState<boolean>(false), hovered = _hovered[0], setHovered = _hovered[1];
+  var _copied = useState<boolean>(false), copied = _copied[0], setCopied = _copied[1];
 
   var badgeColor = TYPE_BADGE_COLORS[idea.content_type] || D.amber;
   var borderGrad = BORDER_GRADIENTS[idea.content_type] || "linear-gradient(180deg, " + D.amber + ", " + D.amber + "30)";
@@ -446,8 +523,8 @@ function IdeaCard({ idea, onSendSlopTop, onSendCapper, onExport, onDismiss, onSa
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontFamily: ft, fontSize: 10, fontWeight: 800, color: badgeColor, background: badgeColor + "18", padding: "4px 12px", borderRadius: 8, letterSpacing: 0.5, border: "1px solid " + badgeColor + "25", display: "inline-flex", alignItems: "center", gap: 5 }}>{(TYPE_CONFIG[idea.content_type] || {}).icon || ""} {idea.content_type}</span>
-            {idea.platforms && idea.platforms.map(function(p) {
-              var pt = PLATFORM_TAGS.find(function(t) { return t.key === p || t.label.toLowerCase() === p.toLowerCase(); });
+            {idea.platforms && idea.platforms.map(function(p: string) {
+              var pt = PLATFORM_TAGS.find(function(t: PlatformTag) { return t.key === p || t.label.toLowerCase() === p.toLowerCase(); });
               var c = pt ? pt.color : D.txd;
               var label = pt ? pt.label : p;
               return <span key={p} style={{ fontFamily: mn, fontSize: 9, color: c, background: c + "12", padding: "3px 9px", borderRadius: 6, border: "1px solid " + c + "18" }}>{label}</span>;
@@ -487,14 +564,14 @@ function IdeaCard({ idea, onSendSlopTop, onSendCapper, onExport, onDismiss, onSa
 
 // ═══ MAIN COMPONENT ═══
 export default function IdeationNation() {
-  var _ideas = useState([]), ideas = _ideas[0], setIdeas = _ideas[1];
-  var _saved = useState([]), saved = _saved[0], setSaved = _saved[1];
-  var _view = useState("feed"), view = _view[0], setView = _view[1];
-  var _wizard = useState(false), wizardOpen = _wizard[0], setWizardOpen = _wizard[1];
-  var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
-  var _trends = useState([]), trends = _trends[0], setTrends = _trends[1];
-  var _toast = useState(null), toast = _toast[0], setToast = _toast[1];
-  var _loaded = useState(false), loaded = _loaded[0], setLoaded = _loaded[1];
+  var _ideas = useState<Idea[]>([]), ideas = _ideas[0], setIdeas = _ideas[1];
+  var _saved = useState<Idea[]>([]), saved = _saved[0], setSaved = _saved[1];
+  var _view = useState<string>("feed"), view = _view[0], setView = _view[1];
+  var _wizard = useState<boolean>(false), wizardOpen = _wizard[0], setWizardOpen = _wizard[1];
+  var _loading = useState<boolean>(false), loading = _loading[0], setLoading = _loading[1];
+  var _trends = useState<TrendItem[]>([]), trends = _trends[0], setTrends = _trends[1];
+  var _toast = useState<string | null>(null), toast = _toast[0], setToast = _toast[1];
+  var _loaded = useState<boolean>(false), loaded = _loaded[0], setLoaded = _loaded[1];
 
   // Load ideas from Supabase, fall back to localStorage
   useEffect(function() {
@@ -537,9 +614,9 @@ export default function IdeationNation() {
     });
 
     // Load trends
-    fetchTrends().then(function(data) {
+    fetchTrends().then(function(data: TrendItem[] | { trends?: TrendItem[] }) {
       if (data && Array.isArray(data)) setTrends(data);
-      else if (data && data.trends) setTrends(data.trends);
+      else if (data && 'trends' in data && data.trends) setTrends(data.trends);
     });
 
     return function() { clearTimeout(timer); };
@@ -569,29 +646,29 @@ export default function IdeationNation() {
     dbSyncIdeas(ideas, saved);
   }, [ideas, saved, loaded]);
 
-  var showToast = function(msg) {
+  var showToast = function(msg: string) {
     setToast(msg);
     setTimeout(function() { setToast(null); }, 3000);
   };
 
-  var handleGenerate = async function(config) {
+  var handleGenerate = async function(config: GenerateConfig) {
     setLoading(true);
 
     var trendsSummary = "";
     if (trends.length > 0) {
       var trendSlice = trends.slice(0, 20);
-      trendsSummary = "CURRENT TRENDING TOPICS:\n" + trendSlice.map(function(t, i) {
+      trendsSummary = "CURRENT TRENDING TOPICS:\n" + trendSlice.map(function(t: TrendItem, i: number) {
         return (i + 1) + ". " + (t.title || t.topic || t.name || JSON.stringify(t).slice(0, 120));
       }).join("\n");
     }
 
-    var typeLabels = config.types.map(function(k) {
-      var ct = CONTENT_TYPES.find(function(c) { return c.key === k; });
+    var typeLabels = config.types.map(function(k: string) {
+      var ct = CONTENT_TYPES.find(function(c: ContentType) { return c.key === k; });
       return ct ? ct.label : k;
     }).join(", ");
 
-    var topicLabels = config.topics.map(function(k) {
-      var ta = TOPIC_AREAS.find(function(a) { return a.key === k; });
+    var topicLabels = config.topics.map(function(k: string) {
+      var ta = TOPIC_AREAS.find(function(a: TopicArea) { return a.key === k; });
       return ta ? ta.label : k;
     }).join(", ");
 
@@ -617,10 +694,10 @@ export default function IdeationNation() {
     var result = await askAPI(SYS_IDEATION, prompt);
 
     if (result && result.ideas && Array.isArray(result.ideas)) {
-      var newIdeas = result.ideas.map(function(idea, i) {
+      var newIdeas = (result.ideas as Idea[]).map(function(idea: Idea, i: number) {
         return Object.assign({}, idea, { id: Date.now() + "_" + i });
       });
-      setIdeas(function(prev) { return newIdeas.concat(prev); });
+      setIdeas(function(prev: Idea[]) { return newIdeas.concat(prev); });
       showToast("Generated " + newIdeas.length + " new ideas");
     } else {
       showToast("Failed to generate ideas. Try again.");
@@ -630,15 +707,15 @@ export default function IdeationNation() {
     setWizardOpen(false);
   };
 
-  var handleSendSlopTop = function(idea) {
+  var handleSendSlopTop = function(idea: Idea) {
     showToast("Sent '" + idea.title + "' to Slop Top queue");
   };
 
-  var handleSendCapper = function(idea) {
+  var handleSendCapper = function(idea: Idea) {
     showToast("Sent '" + idea.title + "' to Capper");
   };
 
-  var handleExport = function(idea) {
+  var handleExport = function(idea: Idea) {
     var content = idea.title + "\n\nType: " + idea.content_type + "\nPlatforms: " + (idea.platforms || []).join(", ") + "\n\n" + idea.description + "\n\nBased on: " + (idea.based_on || "N/A");
     var blob = new Blob([content], { type: "text/plain" });
     var url = URL.createObjectURL(blob);
@@ -650,17 +727,17 @@ export default function IdeationNation() {
     showToast("Exported idea");
   };
 
-  var handleDismiss = function(idea) {
-    setIdeas(function(prev) { return prev.filter(function(i) { return i.id !== idea.id; }); });
+  var handleDismiss = function(idea: Idea) {
+    setIdeas(function(prev: Idea[]) { return prev.filter(function(i: Idea) { return i.id !== idea.id; }); });
   };
 
-  var handleSave = function(idea) {
-    setSaved(function(prev) { return [idea].concat(prev.filter(function(s) { return s.id !== idea.id; })); });
+  var handleSave = function(idea: Idea) {
+    setSaved(function(prev: Idea[]) { return [idea].concat(prev.filter(function(s: Idea) { return s.id !== idea.id; })); });
     showToast("Saved '" + idea.title + "'");
   };
 
-  var handleUnsave = function(idea) {
-    setSaved(function(prev) { return prev.filter(function(s) { return s.id !== idea.id; }); });
+  var handleUnsave = function(idea: Idea) {
+    setSaved(function(prev: Idea[]) { return prev.filter(function(s: Idea) { return s.id !== idea.id; }); });
   };
 
   var displayIdeas = view === "saved" ? saved : ideas;

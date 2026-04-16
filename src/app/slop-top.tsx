@@ -1,6 +1,51 @@
-// @ts-nocheck
 "use client";
 import { useState, useEffect } from "react";
+
+// ═══ TYPES ═══
+interface VisualStructureItem {
+  time: string;
+  shot: string;
+}
+
+interface OnScreenTextItem {
+  time: string;
+  text: string;
+}
+
+interface Brief {
+  hook?: string;
+  core_message?: string;
+  visual_structure?: VisualStructureItem[];
+  onscreen_text?: OnScreenTextItem[];
+  audio?: string;
+  captions?: Record<string, string>;
+  est_time?: string;
+}
+
+interface SlopResultsData {
+  meme_captions?: string[];
+  video_hooks?: string[];
+  thread_idea?: string | string[];
+  image_prompt?: string;
+}
+
+interface ArxivJob {
+  paperId: string;
+  status: string;
+  submittedAt: number;
+  title: string | null;
+}
+
+interface FactoryFormat {
+  id: string;
+  label: string;
+  emoji: string;
+  color: string;
+  cost: number;
+  placeholder: string;
+  imageSystem: string;
+  videoSystem: string;
+}
 
 // ═══ DESIGN ═══
 var D = {
@@ -59,12 +104,12 @@ var ITALIAN_BRAINROT_PRESETS = [
   { label: "👾 Glorbo", text: "glorbo, the legendary cursed creature, peak brainrot form" },
 ];
 
-var BRAINROT_LEVEL_LABELS = {
+var BRAINROT_LEVEL_LABELS: Record<number, string> = {
   1: "sane", 2: "quirky", 3: "weird", 4: "cursed", 5: "brainrot",
   6: "cooked", 7: "COOKED", 8: "brain damage", 9: "lobotomy", 10: "BOMBARDINO",
 };
 
-var BRAINROT_LEVEL_PROMPTS = {
+var BRAINROT_LEVEL_PROMPTS: Record<number, string> = {
   1: "slightly unhinged, a little weird",
   2: "slightly unhinged, a little weird",
   3: "slightly unhinged, a little weird",
@@ -137,7 +182,7 @@ function Spinner() {
 }
 
 // ═══ COPY HELPER ═══
-function copyBrief(brief, label, platform) {
+function copyBrief(brief: Brief, label: string, platform?: string) {
   var lines = [];
   lines.push("=== BRIEF " + label + " ===");
   lines.push("");
@@ -164,7 +209,7 @@ function copyBrief(brief, label, platform) {
   lines.push("CAPTION:");
   if (brief.captions) {
     Object.keys(brief.captions).forEach(function(k) {
-      lines.push("  " + k + ": " + brief.captions[k]);
+      lines.push("  " + k + ": " + brief.captions![k]);
     });
   }
   lines.push("");
@@ -173,7 +218,7 @@ function copyBrief(brief, label, platform) {
 }
 
 // ═══ BRIEF CARD ═══
-function BriefCard({ brief, label, selected, onSelect, assetSwapUrl }) {
+function BriefCard({ brief, label, selected, onSelect, assetSwapUrl }: { brief: Brief; label: string; selected: string | null; onSelect: (label: string) => void; assetSwapUrl?: string }) {
   var _h = useState(false), hov = _h[0], setHov = _h[1];
   var _copied = useState(false), copied = _copied[0], setCopied = _copied[1];
   var isOn = selected === label;
@@ -297,7 +342,7 @@ function BriefCard({ brief, label, selected, onSelect, assetSwapUrl }) {
             fontFamily: ft, fontSize: 12, color: D.tx, padding: "10px 14px",
             background: D.bg, borderRadius: 8, border: "1px solid " + D.border,
             lineHeight: 1.6, whiteSpace: "pre-wrap",
-          }}>{brief.captions[k]}</div>
+          }}>{brief.captions![k]}</div>
         </div>;
       })}
     </div>
@@ -324,12 +369,12 @@ function BriefCard({ brief, label, selected, onSelect, assetSwapUrl }) {
 }
 
 // ═══ COPY TEXT HELPER ═══
-function copyText(text) {
+function copyText(text: string) {
   navigator.clipboard.writeText(text);
 }
 
 // ═══ SLOP RESULT CARD ═══
-function SlopCard({ title, content, onCopy, copyLabel, extraButton }) {
+function SlopCard({ title, content, onCopy, copyLabel, extraButton }: { title?: string; content: string; onCopy?: () => void; copyLabel?: string; extraButton?: React.ReactNode }) {
   var _h = useState(false), hov = _h[0], setHov = _h[1];
   var _copied = useState(false), copied = _copied[0], setCopied = _copied[1];
 
@@ -384,8 +429,8 @@ export default function SlopTop() {
   // Link-to-slop state
   var _slopUrl = useState(""), slopUrl = _slopUrl[0], setSlopUrl = _slopUrl[1];
   var _slopLoading = useState(false), slopLoading = _slopLoading[0], setSlopLoading = _slopLoading[1];
-  var _slopError = useState(null), slopError = _slopError[0], setSlopError = _slopError[1];
-  var _slopResults = useState(null), slopResults = _slopResults[0], setSlopResults = _slopResults[1];
+  var _slopError = useState<string | null>(null), slopError = _slopError[0], setSlopError = _slopError[1];
+  var _slopResults = useState<SlopResultsData | null>(null), slopResults = _slopResults[0], setSlopResults = _slopResults[1];
 
   // Input state
   var _topic = useState(""), topic = _topic[0], setTopic = _topic[1];
@@ -396,16 +441,16 @@ export default function SlopTop() {
   var _assetSwapUrl = useState(""), assetSwapUrl = _assetSwapUrl[0], setAssetSwapUrl = _assetSwapUrl[1];
 
   // Output state
-  var _briefs = useState(null), briefs = _briefs[0], setBriefs = _briefs[1];
+  var _briefs = useState<Record<string, Brief> | null>(null), briefs = _briefs[0], setBriefs = _briefs[1];
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
-  var _error = useState(null), error = _error[0], setError = _error[1];
-  var _selected = useState(null), selected = _selected[0], setSelected = _selected[1];
+  var _error = useState<string | null>(null), error = _error[0], setError = _error[1];
+  var _selected = useState<string | null>(null), selected = _selected[0], setSelected = _selected[1];
 
   // Video generation state
   var _videoLoading = useState(false), videoLoading = _videoLoading[0], setVideoLoading = _videoLoading[1];
-  var _videoUrl = useState(null), videoUrl = _videoUrl[0], setVideoUrl = _videoUrl[1];
-  var _videoError = useState(null), videoError = _videoError[0], setVideoError = _videoError[1];
-  var _videoStatus = useState(null), videoStatus = _videoStatus[0], setVideoStatus = _videoStatus[1];
+  var _videoUrl = useState<string | null>(null), videoUrl = _videoUrl[0], setVideoUrl = _videoUrl[1];
+  var _videoError = useState<string | null>(null), videoError = _videoError[0], setVideoError = _videoError[1];
+  var _videoStatus = useState<string | null>(null), videoStatus = _videoStatus[0], setVideoStatus = _videoStatus[1];
 
   // Random loading phrase
   var _loadingPhrase = useState(LOADING_PHRASES[0]), loadingPhrase = _loadingPhrase[0], setLoadingPhrase = _loadingPhrase[1];
@@ -424,10 +469,10 @@ export default function SlopTop() {
     fetch("/api/slob-top", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "link-to-slop", url: slopUrl.trim(), brainrotLevel: brainrotLevel, brainrotModifier: BRAINROT_LEVEL_PROMPTS[brainrotLevel] }),
+      body: JSON.stringify({ action: "link-to-slop", url: slopUrl.trim(), brainrotLevel: brainrotLevel, brainrotModifier: (BRAINROT_LEVEL_PROMPTS as Record<number, string>)[brainrotLevel] }),
     })
     .then(function(r) { return r.json(); })
-    .then(function(data) {
+    .then(function(data: { error?: string; raw?: string; results?: SlopResultsData }) {
       if (data.error) {
         setSlopError(data.error + (data.raw ? " // " + data.raw : ""));
       } else if (data.results) {
@@ -443,7 +488,7 @@ export default function SlopTop() {
     });
   }
 
-  function sendToImageCreator(prompt) {
+  function sendToImageCreator(prompt: string) {
     copyText(prompt);
   }
 
@@ -463,7 +508,7 @@ export default function SlopTop() {
       }),
     })
     .then(function(r) { return r.json(); })
-    .then(function(data) {
+    .then(function(data: { error?: string; raw?: string; briefs?: Record<string, Brief> }) {
       if (data.error) {
         setError(data.error + (data.raw ? " // " + data.raw : ""));
       } else if (data.briefs) {
@@ -473,7 +518,7 @@ export default function SlopTop() {
       }
       setLoading(false);
     })
-    .catch(function(err) {
+    .catch(function(err: unknown) {
       setError(String(err));
       setLoading(false);
     });
@@ -485,7 +530,7 @@ export default function SlopTop() {
   var _memeMode = useState("link"), memeMode = _memeMode[0], setMemeMode = _memeMode[1];
   var _memeIdea = useState(""), memeIdea = _memeIdea[0], setMemeIdea = _memeIdea[1];
   var _memeStyle = useState("meme"), memeStyle = _memeStyle[0], setMemeStyle = _memeStyle[1];
-  var _memeImg = useState(null), memeImg = _memeImg[0], setMemeImg = _memeImg[1];
+  var _memeImg = useState<string | null>(null), memeImg = _memeImg[0], setMemeImg = _memeImg[1];
   var _memeImgLoading = useState(false), memeImgLoading = _memeImgLoading[0], setMemeImgLoading = _memeImgLoading[1];
 
   var MEME_STYLES = [
@@ -515,12 +560,12 @@ export default function SlopTop() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ concept: fullPrompt, style: "cinematic" }),
-    }).then(function(r) { return r.json(); }).then(function(d) {
+    }).then(function(r) { return r.json(); }).then(function(d: { url?: string; images?: string[]; error?: string }) {
       var mUrl = d.url || (d.images && d.images[0]) || null;
       if (mUrl) setMemeImg(mUrl);
       else if (d.error) setSlopError(d.error);
       setMemeImgLoading(false);
-    }).catch(function(e) { setSlopError(String(e)); setMemeImgLoading(false); });
+    }).catch(function(e: unknown) { setSlopError(String(e)); setMemeImgLoading(false); });
   };
 
   var handleVideoGenerate = function() {
@@ -544,7 +589,7 @@ export default function SlopTop() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "generate", prompt: fullPrompt, engine: "grok" }),
-    }).then(function(r) { return r.json(); }).then(function(d) {
+    }).then(function(r) { return r.json(); }).then(function(d: { video?: { url: string }; task?: { task_id: string }; error?: string }) {
       if (d.video && d.video.url) {
         setVideoUrl(d.video.url);
         setVideoStatus(null);
@@ -557,7 +602,7 @@ export default function SlopTop() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "status", taskId: taskId, engine: "grok" }),
-          }).then(function(r2) { return r2.json(); }).then(function(d2) {
+          }).then(function(r2) { return r2.json(); }).then(function(d2: { video?: { url: string }; error?: string; status?: string; progress?: string }) {
             if (d2.video && d2.video.url) {
               setVideoUrl(d2.video.url);
               setVideoStatus(null);
@@ -570,7 +615,7 @@ export default function SlopTop() {
             } else {
               setVideoStatus("still cooking... " + (d2.status || d2.progress || ""));
             }
-          }).catch(function(e2) {
+          }).catch(function(e2: unknown) {
             setVideoError(String(e2));
             setVideoLoading(false);
             clearInterval(pollInterval);
@@ -583,13 +628,13 @@ export default function SlopTop() {
         setVideoError("Unexpected response format");
         setVideoLoading(false);
       }
-    }).catch(function(e) {
+    }).catch(function(e: unknown) {
       setVideoError(String(e));
       setVideoLoading(false);
     });
   };
 
-  var handlePresetClick = function(presetText) {
+  var handlePresetClick = function(presetText: string) {
     if (memeMode === "idea") {
       setMemeIdea(function(prev) { return prev ? prev + " " + presetText : presetText; });
     }
@@ -597,9 +642,9 @@ export default function SlopTop() {
 
   // Arxiv queue state
   var _arxivInput = useState(""), arxivInput = _arxivInput[0], setArxivInput = _arxivInput[1];
-  var _arxivQueue = useState([]), arxivQueue = _arxivQueue[0], setArxivQueue = _arxivQueue[1];
-  var _arxivMsg = useState(null), arxivMsg = _arxivMsg[0], setArxivMsg = _arxivMsg[1];
-  var _arxivToast = useState(null), arxivToast = _arxivToast[0], setArxivToast = _arxivToast[1];
+  var _arxivQueue = useState<ArxivJob[]>([]), arxivQueue = _arxivQueue[0], setArxivQueue = _arxivQueue[1];
+  var _arxivMsg = useState<string | null>(null), arxivMsg = _arxivMsg[0], setArxivMsg = _arxivMsg[1];
+  var _arxivToast = useState<string | null>(null), arxivToast = _arxivToast[0], setArxivToast = _arxivToast[1];
   var _arxivReadyCount = useState(0), arxivReadyCount = _arxivReadyCount[0], setArxivReadyCount = _arxivReadyCount[1];
 
   // Factory state
@@ -608,10 +653,10 @@ export default function SlopTop() {
   var _factoryInput = useState(""), factoryInput = _factoryInput[0], setFactoryInput = _factoryInput[1];
   var _factoryImagePrompt = useState(""), factoryImagePrompt = _factoryImagePrompt[0], setFactoryImagePrompt = _factoryImagePrompt[1];
   var _factoryVideoPrompt = useState(""), factoryVideoPrompt = _factoryVideoPrompt[0], setFactoryVideoPrompt = _factoryVideoPrompt[1];
-  var _factoryImageUrl = useState(null), factoryImageUrl = _factoryImageUrl[0], setFactoryImageUrl = _factoryImageUrl[1];
-  var _factoryVideoUrl = useState(null), factoryVideoUrl = _factoryVideoUrl[0], setFactoryVideoUrl = _factoryVideoUrl[1];
+  var _factoryImageUrl = useState<string | null>(null), factoryImageUrl = _factoryImageUrl[0], setFactoryImageUrl = _factoryImageUrl[1];
+  var _factoryVideoUrl = useState<string | null>(null), factoryVideoUrl = _factoryVideoUrl[0], setFactoryVideoUrl = _factoryVideoUrl[1];
   var _factoryCredits = useState(0), factoryCredits = _factoryCredits[0], setFactoryCredits = _factoryCredits[1];
-  var _factoryError = useState(null), factoryError = _factoryError[0], setFactoryError = _factoryError[1];
+  var _factoryError = useState<string | null>(null), factoryError = _factoryError[0], setFactoryError = _factoryError[1];
   var _factoryPromptEditing = useState(false), factoryPromptEditing = _factoryPromptEditing[0], setFactoryPromptEditing = _factoryPromptEditing[1];
   var _factoryVideoPromptEditing = useState(false), factoryVideoPromptEditing = _factoryVideoPromptEditing[0], setFactoryVideoPromptEditing = _factoryVideoPromptEditing[1];
   var _factoryProgress = useState(0), factoryProgress = _factoryProgress[0], setFactoryProgress = _factoryProgress[1];
@@ -651,16 +696,15 @@ export default function SlopTop() {
       videoSystem: "You are a creative prompt engineer for video generation. Write a video prompt for a breaking news broadcast: camera shake as if something big just happened, news ticker scrolling, BREAKING NEWS banner animating in, dramatic zoom on the anchor, graphics flying in from sides. Fast cuts between angles, live feed static glitches." },
   ];
 
-  var factoryAsk = function(systemPrompt, userPrompt) {
+  var factoryAsk = function(systemPrompt: string, userPrompt: string): Promise<string> {
     return fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ system: systemPrompt, prompt: userPrompt }),
-    }).then(function(r) { return r.json(); }).then(function(d) {
-      if (d.error) throw new Error(d.error.message || d.error || "API ERROR");
+    }).then(function(r) { return r.json(); }).then(function(d: { error?: { message?: string } | string; content?: Array<{ text?: string }>; text?: string }) {
+      if (d.error) throw new Error(typeof d.error === "object" ? d.error.message || "API ERROR" : String(d.error) || "API ERROR");
       var text = (d.content || []).map(function(c) { return c.text || ""; }).join("");
       if (!text && d.text) text = d.text;
-      if (!text && typeof d === "string") text = d;
       if (!text) throw new Error("THE MACHINE RETURNED NOTHING. TRY AGAIN.");
       return text;
     });
@@ -696,7 +740,7 @@ export default function SlopTop() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ concept: factoryImagePrompt, style: "cinematic" }),
-    }).then(function(r) { return r.json(); }).then(function(d) {
+    }).then(function(r) { return r.json(); }).then(function(d: { url?: string; images?: string[]; error?: string }) {
       clearInterval(progInterval);
       setFactoryProgress(100);
       var imgUrl = d.url || (d.images && d.images[0]) || null;
@@ -745,7 +789,7 @@ export default function SlopTop() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "generate", prompt: factoryVideoPrompt, engine: "grok" }),
-    }).then(function(r) { return r.json(); }).then(function(d) {
+    }).then(function(r) { return r.json(); }).then(function(d: { video?: { url: string }; task?: { task_id: string }; error?: string }) {
       if (d.video && d.video.url) {
         clearInterval(progInterval);
         setFactoryProgress(100);
@@ -759,7 +803,7 @@ export default function SlopTop() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "status", taskId: factoryTaskId, engine: "grok" }),
-          }).then(function(r2) { return r2.json(); }).then(function(d2) {
+          }).then(function(r2) { return r2.json(); }).then(function(d2: { video?: { url: string }; error?: string }) {
             if (d2.video && d2.video.url) {
               clearInterval(progInterval);
               clearInterval(pollInterval);
@@ -809,7 +853,7 @@ export default function SlopTop() {
     setFactoryProgress(0);
   };
 
-  var factoryProgressBar = function(pct) {
+  var factoryProgressBar = function(pct: number) {
     var filled = Math.floor(pct / 5);
     var empty = 20 - filled;
     var bar = "";
@@ -823,7 +867,7 @@ export default function SlopTop() {
     try {
       var stored = localStorage.getItem("sloptop-arxiv-queue");
       if (stored) {
-        var parsed = JSON.parse(stored);
+        var parsed = JSON.parse(stored) as ArxivJob[];
         setArxivQueue(parsed);
         var rc = parsed.filter(function(j) { return j.status === "ready"; }).length;
         setArxivReadyCount(rc);
@@ -851,7 +895,7 @@ export default function SlopTop() {
         processing.forEach(function(job) {
           fetch("/api/arxiv-check?paperId=" + encodeURIComponent(job.paperId))
             .then(function(r) { return r.json(); })
-            .then(function(data) {
+            .then(function(data: { ready?: boolean; title?: string }) {
               if (data.ready) {
                 setArxivQueue(function(curr) {
                   return curr.map(function(j) {
@@ -873,7 +917,7 @@ export default function SlopTop() {
     return function() { clearInterval(interval); };
   }, []);
 
-  function extractPaperId(input) {
+  function extractPaperId(input: string) {
     var trimmed = input.trim();
     // Strip common arxiv URL prefixes
     var prefixes = ["https://arxiv.org/abs/", "http://arxiv.org/abs/", "https://arxiv.org/pdf/", "http://arxiv.org/pdf/", "https://arxiv.lol/", "http://arxiv.lol/"];
@@ -897,7 +941,7 @@ export default function SlopTop() {
     window.open("https://arxiv.lol/" + paperId, "_blank");
 
     // Add to queue
-    var newJob = {
+    var newJob: ArxivJob = {
       paperId: paperId,
       status: "processing",
       submittedAt: Date.now(),
@@ -909,15 +953,15 @@ export default function SlopTop() {
     setTimeout(function() { setArxivMsg(null); }, 10000);
   }
 
-  function handleArxivRemove(paperId) {
+  function handleArxivRemove(paperId: string) {
     setArxivQueue(function(prev) { return prev.filter(function(j) { return j.paperId !== paperId; }); });
   }
 
-  function handleArxivCheckNow(paperId) {
+  function handleArxivCheckNow(paperId: string) {
     window.open("https://arxiv.lol/" + paperId, "_blank");
   }
 
-  function getTimeAgo(ts) {
+  function getTimeAgo(ts: number) {
     var diff = Date.now() - ts;
     var mins = Math.floor(diff / 60000);
     if (mins < 1) return "just now";
@@ -1224,7 +1268,7 @@ export default function SlopTop() {
             <input type="text" value={slopUrl} onChange={function(e) { setSlopUrl(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") handleSlopGenerate(); }} placeholder="Paste any link to get slop..." style={{
               flex: 1, padding: "14px 20px", borderRadius: 10, background: D.surface, border: "2px solid " + D.border,
               color: D.tx, fontFamily: ft, fontSize: 15, outline: "none", boxSizing: "border-box", transition: "border 0.2s",
-            }} onFocus={function(e) { e.target.style.borderColor = D.amber; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
+            }} onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = D.amber; }} onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = D.border; }} />
             <button onClick={handleSlopGenerate} disabled={slopLoading || !slopUrl.trim()} style={{
               padding: "14px 28px", borderRadius: 10, border: "none", cursor: slopLoading || !slopUrl.trim() ? "not-allowed" : "pointer",
               background: !slopUrl.trim() ? D.border : "linear-gradient(135deg, " + D.amber + ", #E09520)",
@@ -1287,7 +1331,7 @@ export default function SlopTop() {
         <textarea value={memeIdea} onChange={function(e) { setMemeIdea(e.target.value); }} placeholder="e.g. Jensen Huang holding a GPU like it's the holy grail, NVIDIA cathedral lighting... 🔥" rows={4} style={{
           width: "100%", padding: "14px 16px", borderRadius: 10, background: D.surface, border: "1px solid " + D.border,
           color: D.tx, fontFamily: ft, fontSize: 14, lineHeight: 1.6, resize: "vertical", outline: "none", boxSizing: "border-box",
-        }} onFocus={function(e) { e.target.style.borderColor = D.violet; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
+        }} onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = D.violet; }} onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = D.border; }} />
       </div>}
 
       {/* Vibe Check (Style selector) - both modes */}
@@ -1414,8 +1458,8 @@ export default function SlopTop() {
               resize: "vertical", outline: "none", boxSizing: "border-box",
               transition: "border 0.15s",
             }}
-            onFocus={function(e) { e.target.style.borderColor = D.amber + "60"; }}
-            onBlur={function(e) { e.target.style.borderColor = D.border; }}
+            onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = D.amber + "60"; }}
+            onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = D.border; }}
           />
         </div>
 
@@ -1487,8 +1531,8 @@ export default function SlopTop() {
               color: D.tx, fontFamily: ft, fontSize: 12,
               outline: "none", boxSizing: "border-box", transition: "border 0.15s",
             }}
-            onFocus={function(e) { e.target.style.borderColor = D.amber + "60"; }}
-            onBlur={function(e) { e.target.style.borderColor = D.border; }}
+            onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = D.amber + "60"; }}
+            onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = D.border; }}
           />
         </div>
 
@@ -1506,8 +1550,8 @@ export default function SlopTop() {
               color: D.tx, fontFamily: mn, fontSize: 11,
               outline: "none", boxSizing: "border-box", transition: "border 0.15s",
             }}
-            onFocus={function(e) { e.target.style.borderColor = D.amber + "60"; }}
-            onBlur={function(e) { e.target.style.borderColor = D.border; }}
+            onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = D.amber + "60"; }}
+            onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = D.border; }}
           />
         </div>
 
@@ -1595,7 +1639,7 @@ export default function SlopTop() {
 
           {/* Render each variation */}
           {LABELS.map(function(label) {
-            var brief = briefs[label];
+            var brief = briefs![label];
             if (!brief) return null;
             return <BriefCard
               key={label}
@@ -1665,8 +1709,8 @@ export default function SlopTop() {
               color: D.tx, fontFamily: mn, fontSize: 14, outline: "none", boxSizing: "border-box",
               transition: "border 0.2s",
             }}
-            onFocus={function(e) { e.target.style.borderColor = D.amber; }}
-            onBlur={function(e) { e.target.style.borderColor = D.border; }}
+            onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = D.amber; }}
+            onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = D.border; }}
           />
           <button
             onClick={handleArxivSubmit}
@@ -1905,8 +1949,8 @@ export default function SlopTop() {
             resize: "vertical", outline: "none", boxSizing: "border-box",
             transition: "border 0.2s",
           }}
-          onFocus={function(e) { e.target.style.borderColor = "rgba(0,255,65,0.5)"; }}
-          onBlur={function(e) { e.target.style.borderColor = "rgba(0,255,65,0.15)"; }}
+          onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = "rgba(0,255,65,0.5)"; }}
+          onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = "rgba(0,255,65,0.15)"; }}
         />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14 }}>
           <div style={{
@@ -1982,21 +2026,21 @@ export default function SlopTop() {
           <input type="text" id="factory-refine" placeholder="Add to prompt... (e.g. make it more dramatic, add fire)" style={{
             flex: 1, padding: "8px 12px", background: "rgba(0,255,65,0.05)", border: "1px solid rgba(0,255,65,0.2)",
             borderRadius: 6, color: "#00FF41", fontFamily: mn, fontSize: 11, outline: "none",
-          }} onKeyDown={function(e) {
-            if (e.key === "Enter" && e.target.value.trim()) {
-              var addition = e.target.value.trim();
-              e.target.value = "";
+          }} onKeyDown={function(e: React.KeyboardEvent<HTMLInputElement>) {
+            if (e.key === "Enter" && e.currentTarget.value.trim()) {
+              var addition = e.currentTarget.value.trim();
+              e.currentTarget.value = "";
               var fmt = FACTORY_FORMATS.find(function(f) { return f.id === factoryFormat; });
               if (!fmt) return;
               setFactoryPhase("crafting");
               factoryAsk(fmt.imageSystem, factoryInput.trim() + "\n\nAdditional instructions: " + addition + "\n\nPrevious prompt to refine: " + factoryImagePrompt).then(function(text) {
                 setFactoryImagePrompt(text);
                 setFactoryPhase("image_ready");
-              }).catch(function(e2) { setFactoryError(String(e2.message || e2)); setFactoryPhase("error"); });
+              }).catch(function(e2: unknown) { setFactoryError(String(e2 instanceof Error ? e2.message : e2)); setFactoryPhase("error"); });
             }
           }} />
           <button onClick={function() {
-            var el = document.getElementById("factory-refine");
+            var el = document.getElementById("factory-refine") as HTMLInputElement | null;
             if (!el || !el.value.trim()) return;
             var addition = el.value.trim();
             el.value = "";
@@ -2006,7 +2050,7 @@ export default function SlopTop() {
             factoryAsk(fmt.imageSystem, factoryInput.trim() + "\n\nAdditional instructions: " + addition + "\n\nPrevious prompt to refine: " + factoryImagePrompt).then(function(text) {
               setFactoryImagePrompt(text);
               setFactoryPhase("image_ready");
-            }).catch(function(e2) { setFactoryError(String(e2.message || e2)); setFactoryPhase("error"); });
+            }).catch(function(e2: unknown) { setFactoryError(String(e2 instanceof Error ? e2.message : e2)); setFactoryPhase("error"); });
           }} style={{
             padding: "8px 16px", borderRadius: 6, cursor: "pointer",
             background: "rgba(0,255,65,0.1)", border: "1px solid rgba(0,255,65,0.3)",
@@ -2079,17 +2123,17 @@ export default function SlopTop() {
           <input type="text" id="factory-refine-img" placeholder="Refine... (e.g. more dramatic, less busy, change angle)" style={{
             flex: 1, padding: "8px 12px", background: "rgba(0,255,65,0.05)", border: "1px solid rgba(0,255,65,0.2)",
             borderRadius: 6, color: "#00FF41", fontFamily: mn, fontSize: 11, outline: "none",
-          }} onKeyDown={function(e) {
-            if (e.key === "Enter" && e.target.value.trim()) {
-              var addition = e.target.value.trim();
-              e.target.value = "";
+          }} onKeyDown={function(e: React.KeyboardEvent<HTMLInputElement>) {
+            if (e.key === "Enter" && e.currentTarget.value.trim()) {
+              var addition = e.currentTarget.value.trim();
+              e.currentTarget.value = "";
               setFactoryImagePrompt(factoryImagePrompt + ". " + addition);
               setFactoryImageUrl(null);
               setTimeout(handleFactoryGenerateImage, 100);
             }
           }} />
           <button onClick={function() {
-            var el = document.getElementById("factory-refine-img");
+            var el = document.getElementById("factory-refine-img") as HTMLInputElement | null;
             if (!el || !el.value.trim()) return;
             setFactoryImagePrompt(factoryImagePrompt + ". " + el.value.trim());
             el.value = "";

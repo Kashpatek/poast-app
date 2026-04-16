@@ -1,7 +1,26 @@
-// @ts-nocheck
 "use client";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { TEAM } from "./shared-constants";
+
+interface Opportunity {
+  id: string;
+  showName: string;
+  hostName: string;
+  audience: string;
+  topicFocus: string;
+  tier: string;
+  contact: string;
+  notes: string;
+  assignedTo: string | null;
+  status: string;
+  lastAction: string;
+}
+
+interface Prospect {
+  name: string;
+  tier?: string;
+  [key: string]: unknown;
+}
 
 // ═══ DESIGN ═══
 var D = {
@@ -26,7 +45,7 @@ var PIPELINE_COLS = [
 
 var TIERS = ["S", "A", "B", "C"];
 
-function calcFit(memberExpertise, topicFocus) {
+function calcFit(memberExpertise: string[], topicFocus: string) {
   if (!topicFocus || !memberExpertise || memberExpertise.length === 0) return 0;
   var topics = topicFocus.toLowerCase();
   var hits = 0;
@@ -39,7 +58,7 @@ function calcFit(memberExpertise, topicFocus) {
   return Math.round((hits / memberExpertise.length) * 100);
 }
 
-function fitColor(score) {
+function fitColor(score: number) {
   if (score >= 65) return D.teal;
   if (score >= 35) return D.amber;
   return D.coral;
@@ -48,13 +67,13 @@ function fitColor(score) {
 function loadData() {
   try { var d = localStorage.getItem("outreach-data"); return d ? JSON.parse(d) : null; } catch (e) { return null; }
 }
-function saveData(data) {
+function saveData(data: { opps: Opportunity[] }) {
   try { localStorage.setItem("outreach-data", JSON.stringify(data)); } catch (e) {}
 }
 
 // ═══ SUPABASE HELPERS ═══
-function toDbRow(opp) {
-  var row = {
+function toDbRow(opp: Opportunity) {
+  var row: Record<string, unknown> = {
     show_name: opp.showName || "",
     host: opp.hostName || "",
     audience_size: opp.audience || "",
@@ -68,29 +87,29 @@ function toDbRow(opp) {
   if (opp.id) row.id = opp.id;
   return row;
 }
-function fromDbRow(row) {
+function fromDbRow(row: Record<string, unknown>): Opportunity {
   return {
-    id: row.id,
-    showName: row.show_name || "",
-    hostName: row.host || "",
-    audience: row.audience_size || "",
-    topicFocus: row.topic_focus || "",
-    tier: row.tier || "",
-    contact: row.contact || "",
-    notes: row.notes || "",
-    assignedTo: row.assigned_to || null,
-    status: row.status || "identified",
-    lastAction: row.created_at ? row.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
+    id: row.id as string,
+    showName: (row.show_name as string) || "",
+    hostName: (row.host as string) || "",
+    audience: (row.audience_size as string) || "",
+    topicFocus: (row.topic_focus as string) || "",
+    tier: (row.tier as string) || "",
+    contact: (row.contact as string) || "",
+    notes: (row.notes as string) || "",
+    assignedTo: (row.assigned_to as string) || null,
+    status: (row.status as string) || "identified",
+    lastAction: row.created_at ? (row.created_at as string).split("T")[0] : new Date().toISOString().split("T")[0],
   };
 }
-function apiPost(opp) {
+function apiPost(opp: Opportunity) {
   return fetch("/api/db", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ table: "outreach", data: toDbRow(opp) }),
   }).then(function(r) { return r.json(); });
 }
-function apiDelete(id) {
+function apiDelete(id: string) {
   return fetch("/api/db", {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
@@ -98,7 +117,7 @@ function apiDelete(id) {
   }).then(function(r) { return r.json(); });
 }
 
-function teamById(id) {
+function teamById(id: string | null) {
   for (var i = 0; i < TEAM.length; i++) { if (TEAM[i].id === id) return TEAM[i]; }
   return null;
 }
@@ -106,14 +125,14 @@ function teamById(id) {
 // ═══ COMPONENT ═══
 export default function Outreach() {
   var _tab = useState("matching"), tab = _tab[0], setTab = _tab[1];
-  var _opps = useState([]), opps = _opps[0], setOpps = _opps[1];
+  var _opps = useState<Opportunity[]>([]), opps = _opps[0], setOpps = _opps[1];
   var _showForm = useState(false), showForm = _showForm[0], setShowForm = _showForm[1];
-  var _selMember = useState(null), selMember = _selMember[0], setSelMember = _selMember[1];
+  var _selMember = useState<string | null>(null), selMember = _selMember[0], setSelMember = _selMember[1];
   var _filterMember = useState("all"), filterMember = _filterMember[0], setFilterMember = _filterMember[1];
   var _filterTopic = useState(""), filterTopic = _filterTopic[0], setFilterTopic = _filterTopic[1];
   var _filterStatus = useState("all"), filterStatus = _filterStatus[0], setFilterStatus = _filterStatus[1];
-  var _expandedNotes = useState({}), expandedNotes = _expandedNotes[0], setExpandedNotes = _expandedNotes[1];
-  var _fkProspects = useState([]), fkProspects = _fkProspects[0], setFkProspects = _fkProspects[1];
+  var _expandedNotes = useState<Record<string, boolean>>({}), expandedNotes = _expandedNotes[0], setExpandedNotes = _expandedNotes[1];
+  var _fkProspects = useState<Prospect[]>([]), fkProspects = _fkProspects[0], setFkProspects = _fkProspects[1];
 
   // Form state
   var _fShow = useState(""), fShow = _fShow[0], setFShow = _fShow[1];
@@ -152,7 +171,7 @@ export default function Outreach() {
     }).catch(function() {});
   }, []);
 
-  function findFKMatch(hostName) {
+  function findFKMatch(hostName: string) {
     return fkProspects.find(function(p) {
       return hostName && p.name && hostName.toLowerCase().indexOf(p.name.split(" ")[0].toLowerCase()) > -1;
     });
@@ -160,7 +179,8 @@ export default function Outreach() {
 
   function addOpp() {
     if (!fShow.trim()) return;
-    var opp = {
+    var opp: Opportunity = {
+      id: "",
       showName: fShow.trim(),
       hostName: fHost.trim(),
       audience: fAud.trim(),
@@ -190,7 +210,7 @@ export default function Outreach() {
     setShowForm(false);
   }
 
-  function assignMember(oppId, memberId) {
+  function assignMember(oppId: string, memberId: string | null) {
     setOpps(function(p) {
       var next = p.map(function(o) { return o.id === oppId ? Object.assign({}, o, { assignedTo: memberId, lastAction: new Date().toISOString().split("T")[0] }) : o; });
       saveData({ opps: next });
@@ -200,7 +220,7 @@ export default function Outreach() {
     });
   }
 
-  function moveStatus(oppId, newStatus) {
+  function moveStatus(oppId: string, newStatus: string) {
     setOpps(function(p) {
       var next = p.map(function(o) { return o.id === oppId ? Object.assign({}, o, { status: newStatus, lastAction: new Date().toISOString().split("T")[0] }) : o; });
       saveData({ opps: next });
@@ -210,12 +230,12 @@ export default function Outreach() {
     });
   }
 
-  function deleteOpp(oppId) {
+  function deleteOpp(oppId: string) {
     apiDelete(oppId).catch(function() {});
     setOpps(function(p) { var next = p.filter(function(o) { return o.id !== oppId; }); saveData({ opps: next }); return next; });
   }
 
-  function countAssigned(memberId) {
+  function countAssigned(memberId: string) {
     var c = 0;
     for (var i = 0; i < opps.length; i++) { if (opps[i].assignedTo === memberId) c++; }
     return c;
@@ -227,8 +247,9 @@ export default function Outreach() {
     if (selMember) {
       var member = teamById(selMember);
       if (member) {
+        var exp = member.expertise;
         list.sort(function(a, b) {
-          return calcFit(member.expertise, b.topicFocus) - calcFit(member.expertise, a.topicFocus);
+          return calcFit(exp, b.topicFocus) - calcFit(exp, a.topicFocus);
         });
       }
     }
@@ -245,15 +266,15 @@ export default function Outreach() {
     });
   }
 
-  function oppsByStatus(status) {
+  function oppsByStatus(status: string) {
     var filtered = getFilteredOpps();
     return filtered.filter(function(o) { return o.status === status; });
   }
 
-  var tierColors = { S: D.amber, A: D.blue, B: D.teal, C: D.txm };
+  var tierColors: Record<string, string> = { S: D.amber, A: D.blue, B: D.teal, C: D.txm };
 
   // ═══ INPUT STYLE ═══
-  var inputStyle = {
+  var inputStyle: React.CSSProperties = {
     width: "100%", padding: "10px 14px", background: D.surface, border: "1px solid " + D.border,
     borderRadius: 8, color: D.tx, fontFamily: ft, fontSize: 13, outline: "none", boxSizing: "border-box",
   };
@@ -392,7 +413,8 @@ export default function Outreach() {
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {getSortedOpps().map(function(opp) {
               var assigned = teamById(opp.assignedTo);
-              var fitScores = selMember ? [{ member: teamById(selMember), score: calcFit(teamById(selMember).expertise, opp.topicFocus) }] : TEAM.map(function(m) { return { member: m, score: calcFit(m.expertise, opp.topicFocus) }; });
+              var selTeam = selMember ? teamById(selMember) : null;
+              var fitScores = selTeam ? [{ member: selTeam, score: calcFit(selTeam.expertise, opp.topicFocus) }] : TEAM.map(function(m) { return { member: m, score: calcFit(m.expertise, opp.topicFocus) }; });
 
               return (
                 <div key={opp.id} style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: "18px 22px", transition: "all 0.15s" }}>
@@ -432,6 +454,7 @@ export default function Outreach() {
                   {/* Fit Scores */}
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     {fitScores.map(function(fs) {
+                      if (!fs.member) return null;
                       var c = fitColor(fs.score);
                       return (
                         <div key={fs.member.id} style={{ flex: 1, minWidth: 140 }}>

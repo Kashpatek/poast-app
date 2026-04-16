@@ -1,6 +1,25 @@
-// @ts-nocheck
 "use client";
 import { useState, useEffect, useRef } from "react";
+
+interface Asset {
+  id: string;
+  url: string;
+  filename: string;
+  type: string;
+  format: string;
+  size: number;
+  category: string;
+  source: string;
+  description: string;
+  uploadedAt: number;
+  thumbnail: string | null;
+}
+
+interface ToastItem {
+  id: number;
+  m: string;
+  t: string;
+}
 
 var D = {
   bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)",
@@ -14,11 +33,11 @@ var CATEGORIES = ["AI", "Semiconductors", "Data Centers", "Networking", "Memory"
 var TYPES = ["video", "image"];
 
 // ═══ TOAST ═══
-var _toast = { current: null };
-function toast(msg, type) { if (_toast.current) _toast.current(msg, type); }
+var _toast: { current: ((msg: string, type?: string) => void) | null } = { current: null };
+function toast(msg: string, type?: string) { if (_toast.current) _toast.current(msg, type); }
 function Toasts() {
-  var _l = useState([]), l = _l[0], sl = _l[1];
-  _toast.current = function(m, t) { var id = Date.now(); sl(function(p) { return [{ id: id, m: m, t: t || "success" }].concat(p).slice(0, 4); }); setTimeout(function() { sl(function(p) { return p.filter(function(x) { return x.id !== id; }); }); }, 3500); };
+  var _l = useState<ToastItem[]>([]), l = _l[0], sl = _l[1];
+  _toast.current = function(m: string, t?: string) { var id = Date.now(); sl(function(p) { return [{ id: id, m: m, t: t || "success" }].concat(p).slice(0, 4); }); setTimeout(function() { sl(function(p) { return p.filter(function(x) { return x.id !== id; }); }); }, 3500); };
   return <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 10000, display: "flex", flexDirection: "column", gap: 8 }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes brIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes brDr{from{width:100%}to{width:0}}" }} />
     {l.map(function(t) { var c = t.t === "error" ? D.coral : t.t === "info" ? D.amber : D.teal; return <div key={t.id} style={{ background: D.card, border: "1px solid " + D.border, borderLeft: "3px solid " + c, borderRadius: 10, padding: "12px 16px", minWidth: 280, boxShadow: "0 4px 24px rgba(0,0,0,0.5)", animation: "brIn 0.25s ease" }}>
@@ -29,11 +48,11 @@ function Toasts() {
 }
 
 // ═══ HELPERS ═══
-function uid() { return "br-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8); }
-function fmtSize(bytes) { if (bytes < 1024) return bytes + " B"; if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB"; return (bytes / 1048576).toFixed(1) + " MB"; }
-function fmtDate(ts) { return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
+function uid(): string { return "br-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8); }
+function fmtSize(bytes: number): string { if (bytes < 1024) return bytes + " B"; if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB"; return (bytes / 1048576).toFixed(1) + " MB"; }
+function fmtDate(ts: number): string { return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
 
-function dbSyncAssets(assets) {
+function dbSyncAssets(assets: Asset[]) {
   fetch("/api/db", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -42,11 +61,12 @@ function dbSyncAssets(assets) {
 }
 
 // ═══ UPLOAD ZONE ═══
-function UploadZone({ onUpload, uploading }) {
+function UploadZone({ onUpload, uploading }: { onUpload: (file: File) => void; uploading: boolean }) {
   var _drag = useState(false), drag = _drag[0], setDrag = _drag[1];
-  var fileRef = useRef(null);
+  var fileRef = useRef<HTMLInputElement>(null);
 
-  function handleFiles(files) {
+  function handleFiles(files: FileList | null) {
+    if (!files) return;
     var arr = Array.from(files);
     arr.forEach(function(f) { onUpload(f); });
   }
@@ -66,7 +86,7 @@ function UploadZone({ onUpload, uploading }) {
 }
 
 // ═══ TAG EDITOR ═══
-function TagEditor({ asset, onUpdate }) {
+function TagEditor({ asset, onUpdate }: { asset: Asset; onUpdate: (asset: Asset) => void }) {
   var _cat = useState(asset.category || "Other"), cat = _cat[0], setCat = _cat[1];
   var _src = useState(asset.source || ""), src = _src[0], setSrc = _src[1];
   var _desc = useState(asset.description || ""), desc = _desc[0], setDesc = _desc[1];
@@ -88,7 +108,7 @@ function TagEditor({ asset, onUpdate }) {
 }
 
 // ═══ ASSET CARD ═══
-function AssetCard({ asset, onUpdate, onDelete }) {
+function AssetCard({ asset, onUpdate, onDelete }: { asset: Asset; onUpdate: (asset: Asset) => void; onDelete: (id: string) => void }) {
   var _edit = useState(false), edit = _edit[0], setEdit = _edit[1];
   var _hover = useState(false), hover = _hover[0], setHover = _hover[1];
   var isVideo = asset.type === "video";
@@ -139,7 +159,7 @@ function AssetCard({ asset, onUpdate, onDelete }) {
 
 // ═══ MAIN ═══
 export default function BRollLibrary() {
-  var _assets = useState([]), assets = _assets[0], setAssets = _assets[1];
+  var _assets = useState<Asset[]>([]), assets = _assets[0], setAssets = _assets[1];
   var _search = useState(""), search = _search[0], setSearch = _search[1];
   var _filterCat = useState("All"), filterCat = _filterCat[0], setFilterCat = _filterCat[1];
   var _filterType = useState("All"), filterType = _filterType[0], setFilterType = _filterType[1];
@@ -161,7 +181,7 @@ export default function BRollLibrary() {
       clearTimeout(timer);
       settled = true;
       if (res.data && res.data.length > 0) {
-        var row = res.data.find(function(r) { return r.type === "broll-asset" && r.id === "broll-master"; });
+        var row = res.data.find(function(r: Record<string, unknown>) { return r.type === "broll-asset" && r.id === "broll-master"; });
         if (row && row.data && row.data.assets && row.data.assets.length > 0) {
           setAssets(row.data.assets);
           setLoaded(true);
@@ -189,7 +209,7 @@ export default function BRollLibrary() {
   }, [assets, loaded]);
 
   // Upload handler
-  function handleUpload(file) {
+  function handleUpload(file: File) {
     setUploading(true);
     var reader = new FileReader();
     reader.onload = function() {
@@ -202,7 +222,7 @@ export default function BRollLibrary() {
         body: JSON.stringify({ data: base64, filename: "broll/" + uid() + "." + ext, contentType: file.type }),
       }).then(function(r) { return r.json(); }).then(function(res) {
         if (res.url) {
-          var asset = {
+          var asset: Asset = {
             id: uid(), url: res.url, filename: file.name, type: isVideo ? "video" : "image",
             format: ext.toUpperCase(), size: file.size, category: "Other", source: "", description: "",
             uploadedAt: Date.now(), thumbnail: null,
@@ -216,11 +236,11 @@ export default function BRollLibrary() {
     reader.readAsDataURL(file);
   }
 
-  function updateAsset(updated) {
+  function updateAsset(updated: Asset) {
     setAssets(function(p) { return p.map(function(a) { return a.id === updated.id ? updated : a; }); });
   }
 
-  function deleteAsset(id) {
+  function deleteAsset(id: string) {
     setAssets(function(p) { return p.filter(function(a) { return a.id !== id; }); });
     toast("Asset removed", "info");
   }

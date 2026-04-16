@@ -1,9 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { callClaudeRaw, AnthropicError } from "@/lib/anthropic";
+import { checkRateLimit } from "@/lib/ratelimit";
+
+const GenerateSchema = z.object({
+  system: z.string(),
+  prompt: z.string(),
+}).passthrough();
 
 export async function POST(req: NextRequest) {
   try {
-    const { system, prompt } = await req.json();
+    const { allowed, remaining } = await checkRateLimit(req);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded" },
+        { status: 429, headers: { "X-RateLimit-Remaining": String(remaining ?? 0) } }
+      );
+    }
+
+    const body = await req.json();
+    const parsed = GenerateSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid input", details: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+
+    const { system, prompt } = parsed.data;
 
     const data = await callClaudeRaw({ system, prompt, maxTokens: 4000 });
     return NextResponse.json(data);

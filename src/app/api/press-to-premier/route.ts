@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { generateJSON, AnthropicError } from "@/lib/anthropic";
 import { stripHTML } from "@/lib/html";
+import { checkRateLimit } from "@/lib/ratelimit";
+
+const PressToPermierSchema = z.object({
+  mode: z.enum(["url", "text"]).optional(),
+  url: z.string().optional(),
+  text: z.string().optional(),
+  format: z.string().optional(),
+  duration: z.union([z.string(), z.number()]).optional(),
+  tone: z.string().optional(),
+}).passthrough();
 
 const CLAUDE_SYS = `You are a video production strategist for SemiAnalysis, a semiconductor and AI infrastructure research firm. You convert research articles into structured video production briefs.
 
@@ -18,7 +29,23 @@ You must respond ONLY with valid JSON. No markdown fences. No preamble. No expla
 
 export async function POST(req: NextRequest) {
   try {
+    const { allowed, remaining } = await checkRateLimit(req);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded" },
+        { status: 429, headers: { "X-RateLimit-Remaining": String(remaining ?? 0) } }
+      );
+    }
+
     const body = await req.json();
+    const parsed = PressToPermierSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid input", details: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+
     const { mode, url, text, format, duration, tone } = body;
 
     let articleText = text || "";

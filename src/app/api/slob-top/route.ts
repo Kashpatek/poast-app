@@ -1,10 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { generateJSON, AnthropicError } from "@/lib/anthropic";
 import { stripHTML } from "@/lib/html";
+import { checkRateLimit } from "@/lib/ratelimit";
+
+const SlobTopSchema = z.object({
+  action: z.string().optional(),
+  url: z.string().optional(),
+  topic: z.string().optional(),
+  platform: z.string().optional(),
+  vibe: z.string().optional(),
+  trendRef: z.string().optional(),
+  host: z.string().optional(),
+}).passthrough();
 
 export async function POST(req: NextRequest) {
   try {
+    const { allowed, remaining } = await checkRateLimit(req);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded" },
+        { status: 429, headers: { "X-RateLimit-Remaining": String(remaining ?? 0) } }
+      );
+    }
+
     const body = await req.json();
+    const parsed = SlobTopSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid input", details: parsed.error.issues },
+        { status: 400 }
+      );
+    }
 
     // ═══ LINK-TO-SLOP ACTION ═══
     if (body.action === "link-to-slop") {

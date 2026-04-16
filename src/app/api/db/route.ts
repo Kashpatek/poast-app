@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,17 @@ function getSupabase() {
   return _supabase;
 }
 
-const VALID_TABLES = ["prospects", "episodes", "archive", "trends", "outreach", "projects", "weekly"];
+const VALID_TABLES = ["prospects", "episodes", "archive", "trends", "outreach", "projects", "weekly"] as const;
+
+const DbPostSchema = z.object({
+  table: z.enum(VALID_TABLES),
+  data: z.record(z.string(), z.unknown()),
+});
+
+const DbDeleteSchema = z.object({
+  table: z.enum(VALID_TABLES),
+  id: z.string(),
+});
 
 export async function GET(req: NextRequest) {
   const supabase = getSupabase();
@@ -24,8 +35,9 @@ export async function GET(req: NextRequest) {
 
   const table = req.nextUrl.searchParams.get("table");
   const id = req.nextUrl.searchParams.get("id");
+  const type = req.nextUrl.searchParams.get("type");
 
-  if (!table || !VALID_TABLES.includes(table)) {
+  if (!table || !(VALID_TABLES as readonly string[]).includes(table)) {
     return NextResponse.json({ error: "Invalid or missing table param", valid: VALID_TABLES }, { status: 400 });
   }
 
@@ -37,6 +49,7 @@ export async function GET(req: NextRequest) {
     }
 
     let query = supabase.from(table).select("*");
+    if (type) query = query.eq("type", type);
     // Only order by created_at if the table has it
     const noCreatedAt = ["archive"];
     if (!noCreatedAt.includes(table)) query = query.order("created_at", { ascending: false });
@@ -54,14 +67,18 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { table, data } = body;
-
-    if (!table || !VALID_TABLES.includes(table)) {
-      return NextResponse.json({ error: "Invalid or missing table" }, { status: 400 });
+    const parsed = DbPostSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid input", details: parsed.error.issues },
+        { status: 400 }
+      );
     }
-    if (!data) return NextResponse.json({ error: "Missing data" }, { status: 400 });
 
-    const { data: result, error } = await supabase.from(table).upsert(data, { onConflict: "id" }).select();
+    const { table, data } = parsed.data;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: result, error } = await supabase.from(table).upsert(data as any, { onConflict: "id" }).select();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ data: result });
   } catch (err) {
@@ -75,12 +92,15 @@ export async function DELETE(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { table, id } = body;
-
-    if (!table || !VALID_TABLES.includes(table)) {
-      return NextResponse.json({ error: "Invalid or missing table" }, { status: 400 });
+    const parsed = DbDeleteSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid input", details: parsed.error.issues },
+        { status: 400 }
+      );
     }
-    if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+
+    const { table, id } = parsed.data;
 
     const { error } = await supabase.from(table).delete().eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
