@@ -389,7 +389,7 @@ function AddEpisodeModal(p: { onAdd: (ep: Episode) => void; onClose: () => void;
 
 function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep: Episode) => void }){var ep=p.ep,cad=p.cad,onBack=p.onBack,onUpdate=p.onUpdate;
   var [tab,setTab]=useState("kit");var [genK,setGenK]=useState(false);var [kitOut,setKitOut]=useState("");var [c1,setC1]=useState("");var [c2,setC2]=useState("");var [clipOut,setClipOut]=useState("");var [genC,setGenC]=useState(false);var [cp,setCp]=useState("");
-  var [ytTranscript,setYtTranscript]=useState("");var [ytDuration,setYtDuration]=useState("");var [ytOut,setYtOut]=useState("");var [genYt,setGenYt]=useState(false);
+  var [ytTranscript,setYtTranscript]=useState("");var [ytOut,setYtOut]=useState("");var [genYt,setGenYt]=useState(false);
   var [editing,setEditing]=useState(false);
   var [eBio,setEBio]=useState(ep.bio||"");
   var [eTitle,setETitle]=useState(ep.title||"");
@@ -400,9 +400,9 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
   function cancelEdit(){setEBio(ep.bio||"");setETitle(ep.title||"");setEHost(ep.host||"");setECompanyDesc(ep.companyDesc||"");setETopics(ep.topics||"");setEditing(false);}
   var d=ep.slot>=0?slotDate(ep.slot,cad.days):new Date(2026,3,2);var tc=TC[ep.tag]||"#6b7280";var thu=new Date(d.getTime()+864e5);var tue=new Date(d.getTime()+6*864e5);
   var seriesPara=ep.virtual
-    ?"Researcher Conversations is a live interview series recorded virtually via Riverside, produced by SAIL in partnership with \u200B@SemiAnalysis\u200B and \u200B@makora-ai\u200B. Check out more technical deep-dives with the researchers, founders, and engineers building the future of AI compute on our YT channel!"
-    :"Researcher Conversations is a live interview series recorded on-site at NVIDIA GTC 2026 in San Jose, produced by SAIL in partnership with \u200B@SemiAnalysis\u200B and \u200B@makora-ai\u200B. Check out more technical deep-dives with the researchers, founders, and engineers building the future of AI compute on our YT channel!";
-  var ytD=ep.host+" sits down with "+ep.guest+", "+ep.title+" at "+ep.company+", to discuss "+(ep.topics||"[TOPICS]")+". "+(ep.guest.split(" ")[0])+" dives into [2-3 specific technical details from the conversation — what they built, specific numbers, concrete wins].\n\n"+(ep.bio||"[GUEST BIO WITH SPECIFIC ACCOMPLISHMENTS AND METRICS]")+"\n\n"+seriesPara+"\n\nKey Highlights:\n[Use Generate with transcript for timestamped chapters]";
+    ?"Researcher Conversations is a live interview series recorded virtually via Riverside, produced by SemiAnalysis in partnership with SAIL and Makora. Technical deep-dives with the researchers, founders, and engineers building the future of AI compute."
+    :"Researcher Conversations is a live interview series recorded on-site at NVIDIA GTC 2026 in San Jose, produced by SemiAnalysis in partnership with SAIL and Makora. Technical deep-dives with the researchers, founders, and engineers building the future of AI compute.";
+  var ytD=ep.host+" sits down with "+ep.guest+", "+ep.title+" at "+ep.company+", to discuss "+(ep.topics||"[TOPICS]")+". "+(ep.guest.split(" ")[0])+" dives into [2-3 specific technical details from the conversation — what they built, specific numbers, concrete wins].\n\n"+(ep.bio||"[GUEST BIO WITH SPECIFIC ACCOMPLISHMENTS AND METRICS]")+"\n\n"+seriesPara;
   var bio2=ep.bio?ep.bio.split(".").slice(0,2).join(".")+".":"";
   var kit="GTC INTERVIEW LAUNCH KIT\n==============================\n"+ep.guest+" ("+ep.company+")\nHost: "+ep.host+" // "+fm(d)+" 8:00 AM PST"+(ep.virtual?" // Virtual":"")+"\nLink: [INSERT YOUTUBE LINK]\nThumbnail: [ATTACH]\n\n--- YOUTUBE DESCRIPTION ---\n"+ytD+"\n\n--- X (HOOK) ---\n"+(ep.topics?ep.topics.split(",")[0].trim():"[TOPIC]")+" with "+ep.guest+" from "+ep.company+".\n\n--- X (REPLY) ---\n[INSERT YOUTUBE LINK]\n\n--- LINKEDIN ---\n"+ep.guest+", "+ep.title+" at "+ep.company+", on "+(ep.topics||"[topics]")+". "+bio2+" New episode of Researcher Conversations"+(ep.virtual?", recorded via Riverside":"")+". Worth the listen if you care about "+(ep.tag||"this space")+".\n\n[INSERT YOUTUBE LINK]\n\n--- FACEBOOK ---\n"+ep.guest+" from "+ep.company+" on "+(ep.topics||"[topics]")+". "+bio2+" Full Researcher Conversations episode"+(ep.virtual?" recorded virtually":"")+". Good one.\n\n[INSERT YOUTUBE LINK]\n\n--- STORY ---\nNew ep: "+ep.guest+" // "+ep.company+"\n\n--- REGIMENT ---\n"+fm(d)+" 8:00 AM PST    YouTube + X + LinkedIn + Facebook + Story\nThu "+fs(thu)+" 10:00 AM PST    Clip #1 (Shorts + Reels + X + TikTok + Story)\nTue "+fs(tue)+" 10:00 AM PST    Clip #2 (Shorts + Reels + X + TikTok + Story)";
 
@@ -469,9 +469,6 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
       "",
       seriesPara,
       "",
-      "Key Highlights:",
-      "[Generate timestamped chapters via YT Description tab with transcript]",
-      "",
       "--- X (HOOK) ---",
       "[1 sentence, specific claim, no link, no hashtags]",
       "",
@@ -497,11 +494,8 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
   async function gYtDesc(){
     setGenYt(true);
     var hasTx = ytTranscript.trim().length > 200;
-    var chapterPrompt = hasTx
-      ? "Then generate 8-12 timestamped chapter markers based on the transcript. Format: MM:SS - Concise descriptive title. First chapter is always \"00:00 - Introduction: " + ep.host + " (SAIL) & " + ep.guest + " (" + ep.company + ")\". Timestamps must reflect actual topic transitions in the transcript. Titles must be specific and technical (e.g. \"The Positron Thesis: Reducing token costs while maintaining speed\", not \"They talk about their thesis\")."
-      : "Then generate 6-8 timestamped chapter markers. Format: MM:SS - Concise descriptive title. First chapter is always \"00:00 - Introduction: " + ep.host + " (SAIL) & " + ep.guest + " (" + ep.company + ")\". No transcript provided, so use reasonable time estimates spaced across a " + (ytDuration || "10-15 min") + " video. Titles must be specific and technical based on topics (" + (ep.topics || "general") + "), NOT generic.";
     var prompt = [
-      "Generate a full YouTube description for this episode.",
+      "Generate a full YouTube description for this episode. Exactly 3 paragraphs. NO chapter markers or timestamps (user adds those themselves).",
       "",
       "Guest: " + ep.guest + ", " + ep.title + " at " + ep.company,
       "Host: " + ep.host,
@@ -510,17 +504,14 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
       "Company: " + (ep.companyDesc || ""),
       "Format: " + (ep.virtual ? "virtual via Riverside" : "on-site at NVIDIA GTC 2026 in San Jose"),
       "",
-      hasTx ? "TRANSCRIPT:\n" + ytTranscript.slice(0, 8000) + "\n" : "",
-      "Output in this exact structure:",
+      hasTx ? "TRANSCRIPT (use for pulling specific technical details, numbers, and quotes):\n" + ytTranscript.slice(0, 8000) + "\n" : "",
+      "Output exactly 3 paragraphs, separated by blank lines:",
       "",
       "[Paragraph 1: " + ep.host + " sits down with " + ep.guest + ", " + ep.title + " at " + ep.company + ", to discuss [topics]. " + firstName + " dives into [3 specific technical details with numbers from bio/topics/transcript].]",
       "",
       "[Paragraph 2: positioning line + specific metric/approach + outcome. Match the Positron reference style.]",
       "",
-      seriesPara,
-      "",
-      "Key Highlights:",
-      chapterPrompt
+      seriesPara
     ].join("\n");
     var r = await callAPI(KIT_SYS, prompt);
     setYtOut(r);
@@ -596,7 +587,7 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
       <Btn on={tab==="yt"} onClick={function(){setTab("yt")}}>YT Description</Btn>
       <Btn on={tab==="clips"} onClick={function(){setTab("clips")}}>Clips Kit</Btn>
     </div>
-    <div style={{fontSize:9,color:"#4b5563",marginBottom:14}}>{tab==="kit"?"Title + thumbnail headline + YT desc + X, LinkedIn, Facebook, Story — all attention-grabbing":tab==="yt"?"Full YouTube description with timestamped chapters (paste transcript for accurate timestamps)":"Paste 2 clip transcripts. Generates X, Shorts, Reels, TikTok, Story"}</div>
+    <div style={{fontSize:9,color:"#4b5563",marginBottom:14}}>{tab==="kit"?"Title + thumbnail headline + YT desc + X, LinkedIn, Facebook, Story — all attention-grabbing":tab==="yt"?"3-paragraph YouTube description. Paste transcript for sharper specifics. Timestamps added manually on YouTube.":"Paste 2 clip transcripts. Generates X, Shorts, Reels, TikTok, Story"}</div>
 
     {tab==="kit"&&(function(){
       var sections = kitOut ? splitKitSections(kitOut) : {};
@@ -639,12 +630,9 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
 
     {tab==="yt"&&<div>
       <div style={{marginBottom:12,padding:14,background:BG1,border:"1px solid "+BDR,borderRadius:8}}>
-        <div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,fontFamily:MONO,marginBottom:8}}>Transcript (optional, for accurate chapters)</div>
-        <textarea value={ytTranscript} onChange={function(e){setYtTranscript(e.target.value)}} placeholder="Paste full interview transcript here. AI will generate 8-12 timestamped chapters from actual topic transitions..." style={{width:"100%",minHeight:140,padding:10,background:BG0,border:"1px solid "+BDR,borderRadius:6,color:"#d1d5db",fontFamily:FONT,fontSize:11,resize:"vertical",outline:"none",boxSizing:"border-box"}}/>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginTop:8}}>
-          <span style={{fontSize:10,color:"#6b7280",fontFamily:MONO}}>No transcript? Duration estimate:</span>
-          <input value={ytDuration} onChange={function(e){setYtDuration(e.target.value)}} placeholder="e.g. 12 min" style={{padding:"4px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:5,color:"#d1d5db",fontFamily:MONO,fontSize:11,width:100,outline:"none"}}/>
-        </div>
+        <div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,fontFamily:MONO,marginBottom:8}}>Transcript (optional)</div>
+        <textarea value={ytTranscript} onChange={function(e){setYtTranscript(e.target.value)}} placeholder="Paste full interview transcript. AI will pull specific technical details, numbers, and claims from it to make the description richer..." style={{width:"100%",minHeight:140,padding:10,background:BG0,border:"1px solid "+BDR,borderRadius:6,color:"#d1d5db",fontFamily:FONT,fontSize:11,resize:"vertical",outline:"none",boxSizing:"border-box"}}/>
+        <div style={{fontSize:10,color:"#6b7280",fontFamily:MONO,marginTop:6}}>Transcript makes para 1 sharper — real quotes, real numbers, real claims. Timestamped chapters are added manually on YouTube.</div>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
         <Btn on={true} onClick={gYtDesc} sx={{opacity:genYt?.5:1}}>{genYt?"Generating...":ytOut?"Regenerate":"Generate YT Description"}</Btn>
@@ -652,7 +640,7 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
         {ytOut&&<Btn on={false} onClick={function(){downloadDocx("YouTube Description - "+ep.guest,ytOut,"YTDescription_"+ep.guest.replace(/[^a-zA-Z0-9]/g,"_"))}} sx={{borderColor:GRN+"60",color:GRN}}>Download .docx</Btn>}
       </div>
       {ytOut&&<pre style={{fontSize:12,color:"#d1d5db",lineHeight:1.7,padding:16,background:BG1,borderRadius:8,border:"1px solid "+BDR,whiteSpace:"pre-wrap",fontFamily:FONT,maxHeight:560,overflow:"auto"}}>{ytOut}</pre>}
-      {!ytOut&&<div style={{padding:40,background:BG1,borderRadius:8,border:"1px solid "+BDR,color:"#4b5563",fontSize:12,textAlign:"center"}}>Generate the full YT description. Paste transcript above for accurate timestamped chapters.</div>}
+      {!ytOut&&<div style={{padding:40,background:BG1,borderRadius:8,border:"1px solid "+BDR,color:"#4b5563",fontSize:12,textAlign:"center"}}>Generate the 3-paragraph YT description. Paste transcript above for richer, more specific writing.</div>}
     </div>}
 
     {tab==="clips"&&<div>
