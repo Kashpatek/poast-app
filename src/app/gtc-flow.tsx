@@ -86,7 +86,7 @@ var TC: Record<string, string> = {"Cloud/Infra":"#3b82f6","AI/ML":"#8b5cf6","Har
 var TL: Record<number, string> = {1:"Flagship",2:"Strong",3:"Standard"};
 var DYLAN_SYS = "You write social captions for SemiAnalysis. Match this voice exactly.\n\nRULES:\n- Lead with a number or specific claim. A fact, not a vibe.\n- Casual, informed. Short sentences.\n- NEVER hashtags on X.\n- No marketing language. No breaks down or deep-dive or explores.\n- No em dashes. No emojis.\n- X hook: 1 sentence, no link, no hashtags.\n- X reply: just the link.\n- LinkedIn: 3-5 sentences with guest context.\n- Facebook: 3-5 sentences, conversational.\n- Story: one short line.";
 var CADENCES = [{label:"Weekly",days:7},{label:"Bi-Weekly",days:14},{label:"Every 3 Weeks",days:21}];
-var BASE_DATE = new Date(2026, 3, 9);
+var BASE_DATE = new Date(2026, 3, 21);
 function slotDate(s: number, cd: number){var d=new Date(BASE_DATE);d.setDate(d.getDate()+s*cd);return d;}
 function fm(d: Date){return d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});}
 function fs(d: Date){return d.toLocaleDateString("en-US",{month:"short",day:"numeric"});}
