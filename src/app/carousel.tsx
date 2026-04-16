@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 import { D as C, ft, mn, gf } from "./shared-constants";
+import { useUser } from "./user-context";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    SA CAROUSEL v3.1 -- Visual Slide Editor with Real Branded Backgrounds
@@ -1528,6 +1529,7 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
   var _platTab = useState("instagram"), platTab = _platTab[0], setPlatTab = _platTab[1];
   var _archiveSaving = useState(false), archiveSaving = _archiveSaving[0], setArchiveSaving = _archiveSaving[1];
   var _archiveSaved = useState(false), archiveSaved = _archiveSaved[0], setArchiveSaved = _archiveSaved[1];
+  var userCtx = useUser();
 
   var PLATFORMS = [
     { key: "instagram", label: "Instagram", color: "#E4405F" },
@@ -1692,6 +1694,8 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
 
   function handleSaveArchive() {
     setArchiveSaving(true);
+    var authorName = userCtx.user ? userCtx.user.name : "Unknown";
+    var authorRole = userCtx.user ? userCtx.user.role : "";
     var archiveName = dateStamp + " - " + coverTitle;
     if (sourceUrl) {
       try { var hostname = new URL(sourceUrl).hostname.replace("www.", ""); archiveName += " (" + hostname + ")"; } catch(e) {}
@@ -1706,6 +1710,8 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
       articleTitle: articleTitle || coverTitle,
       timestamp: new Date().toISOString(),
       slideCount: slides.length,
+      createdBy: authorName,
+      createdByRole: authorRole,
     };
     fetch("/api/db", {
       method: "POST",
@@ -2008,11 +2014,17 @@ export default function Carousel() {
           var d = item.data || {} as Record<string, unknown>;
           var dateStr = d.timestamp ? new Date(d.timestamp as string).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Unknown date";
           var timeStr = d.timestamp ? new Date(d.timestamp as string).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "";
+          var author = d.createdBy ? String(d.createdBy) : "Unknown";
+          var isAnalystSave = d.createdByRole === "Analyst";
+          var authorColor = isAnalystSave ? C.violet : C.amber;
           return <div key={item.id} onClick={function() { loadFromArchive(item); }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 16px", background: C.surface, border: "1px solid " + C.border, borderRadius: 8, cursor: "pointer", transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.violet + "50"; e.currentTarget.style.background = C.violet + "06"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.surface; }}>
             <div style={{ width: 36, height: 36, borderRadius: 8, background: C.violet + "12", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 14, fontWeight: 700, color: C.violet, flexShrink: 0 }}>{String(d.slideCount || "?")}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name || "Untitled"}</div>
-              <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 2 }}>{dateStr} {timeStr} // {String(d.theme || "general")} // {String(d.slideCount || 0)} slides</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name || "Untitled"}</div>
+                <div style={{ fontFamily: mn, fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: authorColor + "15", color: authorColor, border: "1px solid " + authorColor + "30", flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>{author}{isAnalystSave ? " · ANALYST" : ""}</div>
+              </div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>{dateStr} {timeStr} // {String(d.theme || "general")} // {String(d.slideCount || 0)} slides</div>
             </div>
             {!!d.sourceUrl && <div style={{ fontFamily: mn, fontSize: 8, color: C.txd, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 0 }}>{String(d.sourceUrl)}</div>}
           </div>;

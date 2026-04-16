@@ -14,6 +14,7 @@ import SAWeekly from "./sa-weekly";
 import BRollLibrary from "./broll-library";
 
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
+import { useUser, isAnalyst } from "./user-context";
 import { showToast } from "./toast-context";
 
 // ═══ INTERFACES ═══
@@ -437,9 +438,13 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
 };
 
 function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: string) => void; onAskPoast: () => void }) {
+  var userCtx = useUser();
+  var analyst = isAnalyst(userCtx.user);
+  // Analysts only see PRODUCE
+  var visibleCats = analyst ? ["produce"] : Object.keys(SIDEBAR_CATS);
   // Determine active category
   var activeCat: string | null = null;
-  Object.keys(SIDEBAR_CATS).forEach(function(k) { SIDEBAR_CATS[k].items.forEach(function(it: SidebarCatItem) { if (it.id === active) activeCat = k; }); });
+  visibleCats.forEach(function(k) { SIDEBAR_CATS[k].items.forEach(function(it: SidebarCatItem) { if (it.id === active) activeCat = k; }); });
 
   return (<div style={{ width: 240, minHeight: "100vh", background: "linear-gradient(180deg, #08080F 0%, #0A0A14 100%)", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
     {/* Logo */}
@@ -456,7 +461,7 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
 
     {/* Categories */}
     <div style={{ padding: "8px 10px", flex: 1, overflow: "auto" }}>
-      {Object.keys(SIDEBAR_CATS).map(function(catKey) {
+      {visibleCats.map(function(catKey) {
         var cat = SIDEBAR_CATS[catKey];
         var isCatActive = activeCat === catKey;
         return <div key={catKey} style={{ marginBottom: 2 }}>
@@ -482,7 +487,14 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
 
     {/* Footer */}
     <div style={{ padding: "14px 18px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-      <div style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v2.8 // SEMIANALYSIS</div>
+      {userCtx.user && <div onClick={function() { if (confirm("Switch user? Page will reload.")) { userCtx.setUser(null); window.location.reload(); } }} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "6px 8px", borderRadius: 6, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}>
+        <div style={{ width: 22, height: 22, borderRadius: 6, background: analyst ? "#905CCB20" : C.amber + "20", border: "1px solid " + (analyst ? "#905CCB40" : C.amber + "40"), display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 10, fontWeight: 800, color: analyst ? "#905CCB" : C.amber }}>{userCtx.user.name[0]}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 700, color: "#E8E4DD", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userCtx.user.name}</div>
+          <div style={{ fontFamily: ft, fontSize: 8, fontWeight: 600, color: "rgba(255,255,255,0.35)", letterSpacing: 1 }}>{userCtx.user.role}</div>
+        </div>
+      </div>}
+      <div style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v3.2 // SEMIANALYSIS</div>
     </div>
   </div>);
 }
@@ -868,6 +880,7 @@ function UserSelect({ onSelect }: { onSelect: (name: string) => void }) {
   var users: UserInfo[] = [
     { name: "Akash", role: "Director", color: "#0B86D1", glow: "rgba(11,134,209," },
     { name: "Vansh", role: "Social Media Manager", color: "#2EAD8E", glow: "rgba(46,173,142," },
+    { name: "Analyst", role: "Analyst", color: "#905CCB", glow: "rgba(144,92,203," },
   ];
   return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, overflow: "hidden" }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes ufi{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}@keyframes orbPulse{0%,100%{transform:scale(1);opacity:0.5}50%{transform:scale(1.1);opacity:0.8}}" }} />
@@ -1002,8 +1015,14 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
   var _phase = useState<string>("select"), phase = _phase[0], setPhase = _phase[1];
   var _user = useState<string | null>(null), user = _user[0], setUser = _user[1];
   var _glitch = useState(false), glitch = _glitch[0], setGlitch = _glitch[1];
+  var userCtx = useUser();
 
-  var handleUserSelect = function(name: string) { setUser(name); setPhase("boot"); try { var audio = new Audio("/splash-sound.mp3"); audio.volume = 0.7; audio.play().catch(function() {}); } catch (e) {} };
+  var handleUserSelect = function(name: string) {
+    setUser(name);
+    userCtx.setUser(name);
+    setPhase("boot");
+    try { var audio = new Audio("/splash-sound.mp3"); audio.volume = 0.7; audio.play().catch(function() {}); } catch (e) {}
+  };
   var handleBootDone = function() { setGlitch(true); setTimeout(function() { setGlitch(false); setPhase("splash"); }, 350); };
   var handleNavigate = function(id: string) { onDone(id); };
 
@@ -1016,16 +1035,29 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
 }
 
 // ═══ APP ═══
+var ANALYST_ALLOWED = ["sloptop", "carousel", "captions", "p2p", "broll"];
+
 export default function App() {
   var _sp = useState(true), showIntro = _sp[0], setShowIntro = _sp[1];
   var _askPoast = useState(false), askPoastOpen = _askPoast[0], setAskPoastOpen = _askPoast[1];
   var _s = useState("weekly"), sec = _s[0], setSec = _s[1];
+  var userCtx = useUser();
+  var analyst = isAnalyst(userCtx.user);
+  // Analysts: gate navigation to allowed sections only, default to carousel
+  useEffect(function() {
+    if (analyst && !ANALYST_ALLOWED.includes(sec)) setSec("carousel");
+  }, [analyst, sec]);
   // Listen for nav events from other components (e.g. News Flow Draft -> P2P)
   useEffect(function() {
-    var handler = function(e: Event) { if ((e as CustomEvent).detail) setSec((e as CustomEvent).detail); };
+    var handler = function(e: Event) {
+      var detail = (e as CustomEvent).detail;
+      if (!detail) return;
+      if (analyst && !ANALYST_ALLOWED.includes(detail)) return;
+      setSec(detail);
+    };
     window.addEventListener("poast-nav", handler);
     return function() { window.removeEventListener("poast-nav", handler); };
-  }, []);
+  }, [analyst]);
   if (showIntro) return <><Intro onDone={function(id) { if (id) setSec(id); setShowIntro(false); }} /></>;
 
   return (<div style={{ background: C.bg, minHeight: "100vh", position: "relative" }}>
