@@ -87,11 +87,11 @@ var TC: Record<string, string> = {"Cloud/Infra":"#3b82f6","AI/ML":"#8b5cf6","Har
 var TL: Record<number, string> = {1:"Flagship",2:"Strong",3:"Standard"};
 var DYLAN_SYS = "You write social captions for SemiAnalysis. Match this voice exactly.\n\nRULES:\n- Lead with a number or specific claim. A fact, not a vibe.\n- Casual, informed. Short sentences.\n- NEVER hashtags on X.\n- No marketing language. No breaks down or deep-dive or explores.\n- No em dashes. No emojis.\n- X hook: 1 sentence, no link, no hashtags.\n- X reply: just the link.\n- LinkedIn: 3-5 sentences with guest context.\n- Facebook: 3-5 sentences, conversational.\n- Story: one short line.";
 var CADENCES = [{label:"Weekly",days:7},{label:"Bi-Weekly",days:14},{label:"Every 3 Weeks",days:21}];
-var BASE_DATE = new Date(2026, 3, 21);
+var BASE_DATE = new Date(2026, 3, 22);
 function slotDate(s: number, cd: number){var d=new Date(BASE_DATE);d.setDate(d.getDate()+s*cd);return d;}
 function fm(d: Date){return d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});}
 function fs(d: Date){return d.toLocaleDateString("en-US",{month:"short",day:"numeric"});}
-var HOSTS=["All","Dylan Patel","Kimbo Chen","Wega Chu","Cameron Quilici","Jordan Nanos","Gerald Wong (Howie)"];
+var HOSTS=["All","Dylan Patel","Kimbo Chen","Wega Chu","Cameron Quilici","Jordan Nanos","Gerald Wong (Howie)","Rachel Zheng","Wega Chu / Rachel Zheng"];
 
 var INIT: Episode[]=[
 {id:"sa-0",guest:"Waleed Atallah",company:"Makora",title:"Co-Founder & CEO",host:"Dylan Patel",tier:1,tag:"GPU Optimization",slot:-1,status:"published",virtual:false,received:true,scheduled:true,bio:"Waleed Atallah is the co-founder and CEO of Makora, building AI agents that write and optimize GPU kernels. $8.5M seed led by M13, backed by Jeff Dean.",companyDesc:"Makora writes, optimizes, and deploys GPU code. MakoraGenerate writes kernels, MakoraOptimize tunes vLLM/SGLang.",logo:"https://logo.clearbit.com/makora.com",topics:"GPU kernel optimization, AI-native compilers"},
@@ -108,6 +108,7 @@ var INIT: Episode[]=[
 {id:"sa-11",guest:"Kimbo Chen",company:"SemiAnalysis",title:"Analyst",host:"Cameron Quilici",tier:3,tag:"Internal",slot:9,status:"scheduled",virtual:false,received:false,scheduled:false,bio:"Kimbo Chen, analyst at SemiAnalysis. AI systems architecture and interconnects.",companyDesc:"SemiAnalysis.",logo:"https://logo.clearbit.com/semianalysis.com",topics:""},
 {id:"sa-12",guest:"Mishek Musa",company:"Analog",title:"Mechatronics Engineer",host:"Jordan Nanos",tier:3,tag:"Hardware",slot:10,status:"pending",virtual:false,received:false,scheduled:false,notes:"Needs approval",bio:"Mishek Musa, Mechatronics Engineer at Analog.",companyDesc:"Analog. Hardware and sensors.",logo:"",topics:""},
 {id:"sa-prabha-aws",guest:"Prabha Ganapathy",company:"Amazon AWS",title:"Global Head, GenAI Strategic Initiatives",host:"Gerald Wong (Howie)",tier:2,tag:"Cloud/Infra",slot:1,status:"scheduled",virtual:false,received:true,scheduled:false,notes:"Recorded at GTC 2026. Based in Santa Clara County, CA. AWS since Sep 2023. TODO(akash): add bio and topics.",bio:"Prabha Ganapathy is Global Head of GenAI Strategic Initiatives at AWS, leading enterprise AI strategy and customer adoption across AWS's GenAI portfolio.",companyDesc:"AWS. Trainium, Inferentia, largest cloud platform.",logo:"https://logo.clearbit.com/aws.amazon.com",topics:""},
+{id:"sa-karthik-aws",guest:"Karthik Venna",company:"Amazon AWS",title:"",host:"Wega Chu / Rachel Zheng",tier:2,tag:"Cloud/Infra",slot:11,status:"scheduled",virtual:false,received:true,scheduled:false,notes:"Recorded at GTC 2026. Co-hosted by Wega Chu and Rachel Zheng. TODO(akash): add title, bio, topics.",bio:"",companyDesc:"AWS. Trainium, Inferentia, largest cloud platform.",logo:"https://logo.clearbit.com/aws.amazon.com",topics:""},
 ];
 
 var SAIL_EPS: SailEp[]=[
