@@ -263,19 +263,23 @@ Return a JSON array of 3 options. Each option has captions for Instagram, TikTok
   {
     "label": "Hook-driven",
     "instagram": { "caption": "full caption with Save CTA + 5-8 hashtags + Location: San Francisco, CA. Under 2200 chars.", "hashtags": ["tag1", "tag2"] },
-    "tiktok": { "caption": "all lowercase, casual, 4-6 hashtags, hook first line" },
+    "tiktok": { "caption": "all lowercase, casual, hook first line. NO hashtags. NO overlay text." },
     "shorts": { "title": "under 40 chars" }
   },
   { "label": "Data-forward", ... },
   { "label": "Narrative", ... }
 ]
 
-Rules:
+HARD RULES (absolute):
+- X/Twitter (if requested anywhere): NEVER hashtags
+- TikTok: NEVER overlay text / on-screen text. NEVER hashtags. Caption only.
+
+Style rules:
 - No em dashes, no emojis
 - Confident, technical, institutional tone
 - Each option should feel genuinely different, not just rewording
 - IG: save CTA, hashtags at end, San Francisco CA location
-- TikTok: all lowercase, casual, 4-6 hashtags
+- TikTok: all lowercase, casual, NO hashtags, NO overlay text
 - YT Shorts: title only, under 40 chars`,
         });
         return NextResponse.json({ captionOptions: parsed, ts: Date.now() });

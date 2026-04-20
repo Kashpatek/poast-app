@@ -180,7 +180,7 @@ function DraftCard({ post, channels, onDelete, onRefresh, selected, onToggleSele
   var doRewrite = async function() {
     setRwLoading(true);
     try {
-      var r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: "You are editing a social media post for SemiAnalysis. Follow SA brand rules: no em dashes, no emojis, no hashtags on Twitter. Return only the rewritten post text, nothing else.", prompt: "Original post:\n" + text + "\n\nInstruction: " + rwInput }) });
+      var r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: "You are editing a social media post for SemiAnalysis. Follow SA brand rules: no em dashes, no emojis. HARD RULES: X/Twitter NEVER gets hashtags. TikTok NEVER gets overlay text or on-screen text. Return only the rewritten post text, nothing else.", prompt: "Original post:\n" + text + "\n\nInstruction: " + rwInput }) });
       var d = await r.json(); var t = ((d.content || []) as APIContentBlock[]).map(function(c: APIContentBlock) { return c.text || ""; }).join("");
       setRwResult(t); setRewriting(false); setEditing(true);
     } catch (e) { addToast("Rewrite failed", "error"); }

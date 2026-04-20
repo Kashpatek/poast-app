@@ -85,7 +85,7 @@ var FONT = "'Outfit',sans-serif";
 var MONO = "'JetBrains Mono',monospace";
 var TC: Record<string, string> = {"Cloud/Infra":"#3b82f6","AI/ML":"#8b5cf6","Hardware":"#ef4444","GPU Optimization":"#f97316","Internal":"#6b7280","AI Safety":"#f59e0b","Neocloud":"#0ea5e9","AMD Ecosystem":"#dc2626","Energy/Infra":"#22c55e"};
 var TL: Record<number, string> = {1:"Flagship",2:"Strong",3:"Standard"};
-var DYLAN_SYS = "You write social captions for SemiAnalysis. Match this voice exactly.\n\nRULES:\n- Lead with a number or specific claim. A fact, not a vibe.\n- Casual, informed. Short sentences.\n- NEVER hashtags on X.\n- No marketing language. No breaks down or deep-dive or explores.\n- No em dashes. No emojis.\n- X hook: 1 sentence, no link, no hashtags.\n- X reply: just the link.\n- LinkedIn: 3-5 sentences with guest context.\n- Facebook: 3-5 sentences, conversational.\n- Story: one short line.";
+var DYLAN_SYS = "You write social captions for SemiAnalysis. Match this voice exactly.\n\nHARD RULES (these are absolute, never break them):\n- X/Twitter: NEVER hashtags. Not one. Ever.\n- TikTok: NEVER overlay text / on-screen text. Caption only.\n\nVOICE RULES:\n- Lead with a number or specific claim. A fact, not a vibe.\n- Casual, informed. Short sentences.\n- No marketing language. No breaks down or deep-dive or explores.\n- No em dashes. No emojis.\n- X hook: 1 sentence, no link, no hashtags.\n- X reply: just the link.\n- LinkedIn: 3-5 sentences with guest context.\n- Facebook: 3-5 sentences, conversational.\n- TikTok: lowercase caption only, no overlay text, no on-screen text instructions.\n- Story: one short line.";
 var CADENCES = [{label:"Weekly",days:7},{label:"Bi-Weekly",days:14},{label:"Every 3 Weeks",days:21}];
 var BASE_DATE = new Date(2026, 3, 22);
 function slotDate(s: number, cd: number){var d=new Date(BASE_DATE);d.setDate(d.getDate()+s*cd);return d;}
@@ -545,7 +545,7 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
     setYtOut(r);
     setGenYt(false);
   }
-  async function gClip(){setGenC(true);var r=await callAPI(DYLAN_SYS,"2 clips. All casual.\nGuest: "+ep.guest+" ("+ep.company+")\n\nCLIP 1:\n"+(c1||"[no transcript]")+"\n\nCLIP 2:\n"+(c2||"[no transcript]")+"\n\nEach clip: X (no hashtags), YT Shorts (title<40 + #shorts), IG Reels (save CTA + 5-8 hashtags + San Jose), TikTok (lowercase + 4-6 hashtags + on-screen 0s/3s/6s), Story (1 line).\nClip1 Thu 10AM, Clip2 Tue 10AM. TikTok stagger 4-6hr.");setClipOut(r);setGenC(false)}
+  async function gClip(){setGenC(true);var r=await callAPI(DYLAN_SYS,"2 clips. All casual.\nGuest: "+ep.guest+" ("+ep.company+")\n\nCLIP 1:\n"+(c1||"[no transcript]")+"\n\nCLIP 2:\n"+(c2||"[no transcript]")+"\n\nEach clip: X (NEVER hashtags), YT Shorts (title<40 + #shorts), IG Reels (save CTA + 5-8 hashtags + San Jose), TikTok (lowercase caption only, NEVER overlay/on-screen text, NEVER hashtags), Story (1 line).\nClip1 Thu 10AM, Clip2 Tue 10AM. TikTok stagger 4-6hr.");setClipOut(r);setGenC(false)}
 
   return <div style={{fontFamily:FONT,color:"#E8E4DD"}}><div style={{maxWidth:960,margin:"0 auto",padding:"28px 32px 60px"}}>
     <div style={{display:"flex",gap:8,marginBottom:24}}>

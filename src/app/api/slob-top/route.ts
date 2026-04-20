@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
       // 3. Send to Claude with slop generation prompt
       try {
         const results = await generateJSON({
-          system: "You are a viral content creator for SemiAnalysis. Given this article/page content, generate slop content ideas. Be funny, punchy, technically accurate but accessible. Think TikTok/Twitter energy. Never use em dashes. RESPOND ONLY IN VALID JSON. No markdown fences.",
+          system: "You are a viral content creator for SemiAnalysis. Given this article/page content, generate slop content ideas. Be funny, punchy, technically accurate but accessible. Think TikTok/Twitter energy. HARD RULES: X/Twitter NEVER gets hashtags. TikTok NEVER gets overlay text or on-screen text. Never use em dashes. RESPOND ONLY IN VALID JSON. No markdown fences.",
           maxTokens: 4000,
           prompt: `Here is the content from a URL the user pasted:
 
@@ -110,11 +110,11 @@ Generate viral slop content ideas based on this. Return JSON in this exact forma
     const { topic, platform, vibe, trendRef, host } = body;
 
     const platformRules: Record<string, string> = {
-      tiktok: "TikTok: all lowercase, 4-6 hashtags, on-screen text at 0s/3s/6s",
+      tiktok: "TikTok: all lowercase caption only. NEVER hashtags. NEVER overlay text / on-screen text. Just the caption.",
       igreels: "IG Reels: Save this for later CTA, 5-8 hashtags, location San Francisco CA",
       ytshorts: "YT Shorts: title under 40 characters",
-      x: "X: hook tweet with no link, reply-to-self with link, NO hashtags ever",
-      multi: "Multi-platform: generate captions for all platforms following each platform's rules",
+      x: "X: hook tweet with no link, reply-to-self with link. NEVER hashtags. Ever.",
+      multi: "Multi-platform: generate captions for all platforms following each platform's rules. Remember: X never gets hashtags, TikTok never gets overlay text.",
     };
 
     try {
