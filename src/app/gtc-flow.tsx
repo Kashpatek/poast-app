@@ -107,7 +107,7 @@ var INIT: Episode[]=[
 {id:"sa-10",guest:"Keval Shah",company:"Pebble",title:"AI Research Lead",host:"Jordan Nanos",tier:3,tag:"AI/ML",slot:8,status:"scheduled",virtual:false,received:false,scheduled:false,bio:"Keval Shah, AI Research Lead at Pebble.",companyDesc:"Pebble. AI-native tools.",logo:"",topics:""},
 {id:"sa-11",guest:"Kimbo Chen",company:"SemiAnalysis",title:"Analyst",host:"Cameron Quilici",tier:3,tag:"Internal",slot:9,status:"scheduled",virtual:false,received:false,scheduled:false,bio:"Kimbo Chen, analyst at SemiAnalysis. AI systems architecture and interconnects.",companyDesc:"SemiAnalysis.",logo:"https://logo.clearbit.com/semianalysis.com",topics:""},
 {id:"sa-12",guest:"Mishek Musa",company:"Analog",title:"Mechatronics Engineer",host:"Jordan Nanos",tier:3,tag:"Hardware",slot:10,status:"pending",virtual:false,received:false,scheduled:false,notes:"Needs approval",bio:"Mishek Musa, Mechatronics Engineer at Analog.",companyDesc:"Analog. Hardware and sensors.",logo:"",topics:""},
-{id:"sa-13",guest:"Prabha Ganapathy",company:"Amazon AWS",title:"Global Head, GenAI Strategic Initiatives",host:"Gerald Wong (Howie)",tier:2,tag:"Cloud/Infra",slot:1,status:"scheduled",virtual:false,received:true,scheduled:false,notes:"Recorded at GTC 2026. Based in Santa Clara County, CA. AWS since Sep 2023. TODO(akash): add bio and topics.",bio:"Prabha Ganapathy is Global Head of GenAI Strategic Initiatives at AWS, leading enterprise AI strategy and customer adoption across AWS's GenAI portfolio.",companyDesc:"AWS. Trainium, Inferentia, largest cloud platform.",logo:"https://logo.clearbit.com/aws.amazon.com",topics:""},
+{id:"sa-prabha-aws",guest:"Prabha Ganapathy",company:"Amazon AWS",title:"Global Head, GenAI Strategic Initiatives",host:"Gerald Wong (Howie)",tier:2,tag:"Cloud/Infra",slot:1,status:"scheduled",virtual:false,received:true,scheduled:false,notes:"Recorded at GTC 2026. Based in Santa Clara County, CA. AWS since Sep 2023. TODO(akash): add bio and topics.",bio:"Prabha Ganapathy is Global Head of GenAI Strategic Initiatives at AWS, leading enterprise AI strategy and customer adoption across AWS's GenAI portfolio.",companyDesc:"AWS. Trainium, Inferentia, largest cloud platform.",logo:"https://logo.clearbit.com/aws.amazon.com",topics:""},
 ];
 
 var SAIL_EPS: SailEp[]=[
@@ -152,11 +152,26 @@ export default function GTCFlow(){
 
   // Merge any code-defined INIT episodes that aren't already in the stored list.
   // Preserves user edits to existing ids; backfills new ones we add in code.
+  // Also strips legacy stale ids (like "sa-13" orphaned from renamed entries)
+  // and dedupes by guest name.
   function mergeWithInit(stored: Episode[]): Episode[] {
+    var STALE_IDS: Record<string, boolean> = { "sa-13": true };
+    var initGuests: Record<string, boolean> = {};
+    INIT.forEach(function(e){ initGuests[e.guest]=true; });
+    // Drop stale ids + any stored entry whose guest is an INIT guest but id differs
+    // (this would mean a rename/re-id happened in code and stored still has the old stub)
+    var cleaned = stored.filter(function(e){
+      if (STALE_IDS[e.id]) return false;
+      if (initGuests[e.guest]) {
+        var initMatch = INIT.find(function(i){return i.guest===e.guest});
+        if (initMatch && initMatch.id !== e.id) return false; // drop stale dup
+      }
+      return true;
+    });
     var have: Record<string, boolean> = {};
-    stored.forEach(function(e){have[e.id]=true});
+    cleaned.forEach(function(e){have[e.id]=true});
     var missing=INIT.filter(function(e){return !have[e.id]});
-    return stored.concat(missing);
+    return cleaned.concat(missing);
   }
 
   // Load from localStorage helper
