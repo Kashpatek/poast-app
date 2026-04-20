@@ -1285,6 +1285,23 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
 
 
 // ═══ CANVAS RENDERER (for export) ═══
+// Ensure Grift (all weights used) is loaded before drawing to canvas.
+// Without this, canvas can fall back to Outfit/sans-serif on first export.
+async function ensureFontsReady(): Promise<void> {
+  if (typeof document === "undefined" || !document.fonts) return;
+  try {
+    // Pre-request each weight the canvas actually uses.
+    await Promise.all([
+      document.fonts.load("400 16px Grift"),
+      document.fonts.load("700 16px Grift"),
+      document.fonts.load("800 16px Grift"),
+    ]);
+    await document.fonts.ready;
+  } catch {
+    // Font API failed — fall through; canvas will use fallback.
+  }
+}
+
 function renderSlideToCanvas(slide: Slide, bgUrl: string): Promise<Blob> {
   return new Promise<Blob>(function(resolve, reject) {
     var canvas = document.createElement("canvas");
@@ -1292,10 +1309,13 @@ function renderSlideToCanvas(slide: Slide, bgUrl: string): Promise<Blob> {
     canvas.height = FULL_H;
     var ctx = canvas.getContext("2d")!;
 
-    // Load background image
+    // Load background image + ensure fonts loaded in parallel
     var bgImg = new Image();
     bgImg.crossOrigin = "anonymous";
+    var fontsReadyPromise = ensureFontsReady();
     bgImg.onload = function() {
+      // Wait for fonts before any drawText runs
+      fontsReadyPromise.then(function() {
       // Draw background scaled to fill
       var bgAspect = bgImg.width / bgImg.height;
       var canvasAspect = FULL_W / FULL_H;
@@ -1514,6 +1534,7 @@ function renderSlideToCanvas(slide: Slide, bgUrl: string): Promise<Blob> {
       }
 
       drawContent().catch(reject);
+      });
     };
     bgImg.onerror = function() { reject(new Error("Failed to load background: " + bgUrl)); };
     bgImg.src = bgUrl;
