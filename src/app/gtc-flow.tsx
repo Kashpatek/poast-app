@@ -150,9 +150,18 @@ export default function GTCFlow(){
   var [loaded,setLoaded]=useState(false);
   var [showAdd,setShowAdd]=useState(false);
 
+  // Merge any code-defined INIT episodes that aren't already in the stored list.
+  // Preserves user edits to existing ids; backfills new ones we add in code.
+  function mergeWithInit(stored: Episode[]): Episode[] {
+    var have: Record<string, boolean> = {};
+    stored.forEach(function(e){have[e.id]=true});
+    var missing=INIT.filter(function(e){return !have[e.id]});
+    return stored.concat(missing);
+  }
+
   // Load from localStorage helper
   function loadFromLS(){
-    try{var s=localStorage.getItem("pv4");if(s)setEps(JSON.parse(s));}catch(e){}
+    try{var s=localStorage.getItem("pv4");if(s){var parsed:Episode[]=JSON.parse(s);setEps(mergeWithInit(parsed))}}catch(e){}
     try{var c=localStorage.getItem("pv4c");if(c)setCadIdx(JSON.parse(c));}catch(e){}
   }
 
@@ -174,7 +183,7 @@ export default function GTCFlow(){
         var row=res.data.find(function(r: Record<string, unknown>){return r.type==="gtc"&&r.id==="gtc-master"});
         if(row&&row.data){
           var cfg=row.data;
-          if(cfg.eps&&cfg.eps.length>0)setEps(cfg.eps);
+          if(cfg.eps&&cfg.eps.length>0)setEps(mergeWithInit(cfg.eps));
           if(cfg.cadIdx!==undefined)setCadIdx(cfg.cadIdx);
           setLoaded(true);
           return;
