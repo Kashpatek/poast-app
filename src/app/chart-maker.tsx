@@ -220,8 +220,9 @@ function paintBackdrop(ctx: CanvasRenderingContext2D, w: number, h: number, styl
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
   });
+  const S = h / PREVIEW_H;
   ctx.fillStyle = spec.accent;
-  ctx.fillRect(80, 80, 60, 4);
+  ctx.fillRect(Math.round(80 * S), Math.round(80 * S), Math.round(60 * S), Math.round(4 * S));
 }
 
 // Measure text
@@ -257,6 +258,9 @@ function niceStep(range: number, targetSteps = 5): number {
 }
 
 // ═══ CHART DRAWING ═══
+// Reference preview plot height (Recharts ResponsiveContainer height=520)
+const PREVIEW_H = 520;
+
 function drawChart(ctx: CanvasRenderingContext2D, opts: ExportOpts) {
   const { kind, rows, labelKey, seriesKeys, colors, style, title, source, axisMode, xAxisLabel, yAxisLabel, width, height, backdrop } = opts;
 
@@ -266,59 +270,61 @@ function drawChart(ctx: CanvasRenderingContext2D, opts: ExportOpts) {
   const axisColor = isBranded ? "rgba(255,255,255,0.55)" : "#888888";
   const gridColor = isBranded ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)";
 
-  // Layout regions
-  const padLeft = isBranded ? 80 : 60;
-  const padRight = isBranded ? 80 : 60;
-  const padTop = isBranded ? (title ? 180 : 80) : 60;
-  const padBottom = isBranded ? 90 : 70;
+  // Scale factor: export height / preview height. Drives all font + stroke sizes so export matches preview visual weight.
+  const scale = height / PREVIEW_H;
+  const S = (n: number) => Math.round(n * scale);
+
+  // Layout regions (scaled)
+  const padLeft = S(isBranded ? 80 : 60);
+  const padRight = S(isBranded ? 80 : 60);
+  const padTop = S(isBranded ? (title ? 180 : 80) : 60);
+  const padBottom = S(isBranded ? 90 : 70);
 
   // Title + accent (branded only)
-  if (isBranded) {
-    if (title) {
-      ctx.font = "800 44px 'Outfit', Arial, sans-serif";
-      ctx.fillStyle = "#E8E4DD";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-      ctx.fillText(title, 80, 115);
-    }
+  if (isBranded && title) {
+    ctx.font = `800 ${S(44)}px 'Outfit', Arial, sans-serif`;
+    ctx.fillStyle = "#E8E4DD";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(title, S(80), S(115));
   }
 
   if (kind === "pie") {
-    drawPie(ctx, rows, labelKey, seriesKeys, colors, { padLeft, padRight, padTop, padBottom, width, height, textColor });
+    drawPie(ctx, rows, labelKey, seriesKeys, colors, { padLeft, padRight, padTop, padBottom, width, height, textColor, scale });
   } else {
-    drawCartesian(ctx, opts, { padLeft, padRight, padTop, padBottom, axisColor, gridColor, textColor });
+    drawCartesian(ctx, opts, { padLeft, padRight, padTop, padBottom, axisColor, gridColor, textColor, scale });
   }
 
   // Source line + wordmark (branded only)
   if (isBranded) {
     if (source) {
-      ctx.font = "500 18px 'JetBrains Mono', monospace";
+      ctx.font = `500 ${S(18)}px 'JetBrains Mono', monospace`;
       ctx.fillStyle = "rgba(255,255,255,0.55)";
       ctx.textAlign = "left";
       ctx.textBaseline = "bottom";
-      ctx.fillText(source, 80, height - 40);
+      ctx.fillText(source, S(80), height - S(40));
     }
-    ctx.font = "700 16px 'Outfit', Arial, sans-serif";
+    ctx.font = `700 ${S(16)}px 'Outfit', Arial, sans-serif`;
     ctx.fillStyle = bdSpec.accent;
     ctx.textAlign = "right";
     ctx.textBaseline = "bottom";
-    ctx.fillText("SEMIANALYSIS", width - 80, height - 40);
+    ctx.fillText("SEMIANALYSIS", width - S(80), height - S(40));
   }
 
-  // Axis labels (manual mode)
+  // Manual axis labels
   if (axisMode === "manual" && kind !== "pie") {
     if (xAxisLabel) {
-      ctx.font = "700 18px 'Outfit', Arial, sans-serif";
+      ctx.font = `700 ${S(18)}px 'Outfit', Arial, sans-serif`;
       ctx.fillStyle = textColor;
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
-      ctx.fillText(xAxisLabel, (padLeft + (width - padRight)) / 2, height - padBottom + 60);
+      ctx.fillText(xAxisLabel, (padLeft + (width - padRight)) / 2, height - padBottom + S(60));
     }
     if (yAxisLabel) {
       ctx.save();
-      ctx.translate(padLeft - 55, (padTop + (height - padBottom)) / 2);
+      ctx.translate(padLeft - S(55), (padTop + (height - padBottom)) / 2);
       ctx.rotate(-Math.PI / 2);
-      ctx.font = "700 18px 'Outfit', Arial, sans-serif";
+      ctx.font = `700 ${S(18)}px 'Outfit', Arial, sans-serif`;
       ctx.fillStyle = textColor;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -331,13 +337,14 @@ function drawChart(ctx: CanvasRenderingContext2D, opts: ExportOpts) {
 function drawCartesian(
   ctx: CanvasRenderingContext2D,
   opts: ExportOpts,
-  layout: { padLeft: number; padRight: number; padTop: number; padBottom: number; axisColor: string; gridColor: string; textColor: string }
+  layout: { padLeft: number; padRight: number; padTop: number; padBottom: number; axisColor: string; gridColor: string; textColor: string; scale: number }
 ) {
   const { kind, rows, labelKey, seriesKeys, colors, width, height } = opts;
-  const { padLeft, padRight, padTop, padBottom, axisColor, gridColor, textColor } = layout;
+  const { padLeft, padRight, padTop, padBottom, axisColor, gridColor, textColor, scale } = layout;
+  const S = (n: number) => Math.round(n * scale);
 
-  // Reserve space for legend at bottom
-  const legendH = 42;
+  // Reserve space for legend at bottom (scaled)
+  const legendH = S(42);
   const plotLeft = padLeft;
   const plotRight = width - padRight;
   const plotTop = padTop;
@@ -370,21 +377,24 @@ function drawCartesian(
   const xToPx = (i: number, total: number) => plotLeft + (plotW / total) * (i + 0.5);
   const yToPx = (v: number) => plotBottom - ((v - yMin) / (yMax - yMin)) * plotH;
 
+  // Font + stroke sizes scaled from preview (PREVIEW_H) proportions
+  const tickFont = `600 ${S(14)}px 'Outfit', Arial, sans-serif`;
+
   // Gridlines + y-axis labels
-  ctx.font = "600 13px 'Outfit', Arial, sans-serif";
+  ctx.font = tickFont;
   ctx.fillStyle = axisColor;
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
   for (let v = yMin; v <= yMax + 0.0001; v += step) {
     const y = yToPx(v);
     ctx.strokeStyle = gridColor;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = Math.max(1, S(1));
     ctx.beginPath();
     ctx.moveTo(plotLeft, y);
     ctx.lineTo(plotRight, y);
     ctx.stroke();
     const label = Number.isInteger(step) ? String(v) : v.toFixed(1);
-    ctx.fillText(label, plotLeft - 10, y);
+    ctx.fillText(label, plotLeft - S(10), y);
   }
 
   // X-axis labels
@@ -392,14 +402,14 @@ function drawCartesian(
   ctx.textBaseline = "top";
   ctx.fillStyle = axisColor;
   const xLabels = rows.map((r) => String(r[labelKey] ?? ""));
-  const maxLabelW = Math.max(...xLabels.map((l) => measureText(ctx, l, "600 13px 'Outfit', Arial, sans-serif")));
-  const rotate = maxLabelW > plotW / rows.length - 10;
+  const maxLabelW = Math.max(...xLabels.map((l) => measureText(ctx, l, tickFont)));
+  const rotate = maxLabelW > plotW / rows.length - S(10);
   xLabels.forEach((l, i) => {
     const x = xToPx(i, rows.length);
     if (rotate) {
-      drawLabelRotated(ctx, l, x, plotBottom + 10, -Math.PI / 6, "600 13px 'Outfit', Arial, sans-serif", axisColor);
+      drawLabelRotated(ctx, l, x, plotBottom + S(10), -Math.PI / 6, tickFont, axisColor);
     } else {
-      ctx.fillText(l, x, plotBottom + 10);
+      ctx.fillText(l, x, plotBottom + S(10));
     }
   });
 
@@ -409,6 +419,7 @@ function drawCartesian(
     if (kind === "bar") {
       const barCount = seriesKeys.length;
       const barWidth = (groupWidth * 0.72) / barCount;
+      const gap = S(2);
       rows.forEach((row, i) => {
         seriesKeys.forEach((key, s) => {
           const v = Number(row[key]) || 0;
@@ -416,7 +427,7 @@ function drawCartesian(
           const x = centerX - (barCount * barWidth) / 2 + s * barWidth;
           const y = yToPx(v);
           ctx.fillStyle = colors[s % colors.length];
-          ctx.fillRect(x, y, barWidth - 2, plotBottom - y);
+          ctx.fillRect(x, y, barWidth - gap, plotBottom - y);
         });
       });
     } else {
@@ -437,9 +448,11 @@ function drawCartesian(
       });
     }
   } else if (kind === "line") {
+    const lineW = S(3);
+    const dotR = S(4);
     seriesKeys.forEach((key, s) => {
       ctx.strokeStyle = colors[s % colors.length];
-      ctx.lineWidth = 3;
+      ctx.lineWidth = lineW;
       ctx.lineJoin = "round";
       ctx.beginPath();
       rows.forEach((row, i) => {
@@ -449,14 +462,13 @@ function drawCartesian(
         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       });
       ctx.stroke();
-      // Dots
       rows.forEach((row, i) => {
         const v = Number(row[key]) || 0;
         const x = xToPx(i, rows.length);
         const y = yToPx(v);
         ctx.fillStyle = colors[s % colors.length];
         ctx.beginPath();
-        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.arc(x, y, dotR, 0, Math.PI * 2);
         ctx.fill();
       });
     });
@@ -476,7 +488,7 @@ function drawCartesian(
         const color = colors[s % colors.length];
         ctx.fillStyle = color + "D0"; // 82% alpha
         ctx.strokeStyle = color;
-        ctx.lineWidth = 2.2;
+        ctx.lineWidth = S(2.2);
         ctx.beginPath();
         rows.forEach((_row, i) => {
           const x = xToPx(i, rows.length);
@@ -497,7 +509,7 @@ function drawCartesian(
         const color = colors[s % colors.length];
         ctx.fillStyle = color + "A0"; // transparent-ish
         ctx.strokeStyle = color;
-        ctx.lineWidth = 2.2;
+        ctx.lineWidth = S(2.2);
         ctx.beginPath();
         rows.forEach((row, i) => {
           const v = Number(row[key]) || 0;
@@ -522,14 +534,15 @@ function drawCartesian(
   }
 
   // Legend — centered under the plot area
-  ctx.font = "600 14px 'Outfit', Arial, sans-serif";
-  const swatch = 14;
-  const itemGap = 24;
-  const padBetweenSwatchAndText = 8;
-  const items = seriesKeys.map((k) => ({ text: k, w: measureText(ctx, k, "600 14px 'Outfit', Arial, sans-serif") + swatch + padBetweenSwatchAndText }));
+  const legendFont = `600 ${S(14)}px 'Outfit', Arial, sans-serif`;
+  ctx.font = legendFont;
+  const swatch = S(14);
+  const itemGap = S(24);
+  const padBetweenSwatchAndText = S(8);
+  const items = seriesKeys.map((k) => ({ text: k, w: measureText(ctx, k, legendFont) + swatch + padBetweenSwatchAndText }));
   const totalW = items.reduce((a, b) => a + b.w, 0) + itemGap * (items.length - 1);
   let cursor = (plotLeft + plotRight) / 2 - totalW / 2;
-  const legendY = plotBottom + (opts.axisMode === "manual" && opts.xAxisLabel ? 60 : 34);
+  const legendY = plotBottom + (opts.axisMode === "manual" && opts.xAxisLabel ? S(60) : S(34));
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   items.forEach((it, i) => {
@@ -547,14 +560,16 @@ function drawPie(
   labelKey: string,
   seriesKeys: string[],
   colors: string[],
-  layout: { padLeft: number; padRight: number; padTop: number; padBottom: number; width: number; height: number; textColor: string }
+  layout: { padLeft: number; padRight: number; padTop: number; padBottom: number; width: number; height: number; textColor: string; scale: number }
 ) {
   const seriesKey = seriesKeys[0];
   if (!seriesKey) return;
-  const { padLeft, padRight, padTop, padBottom, width, height, textColor } = layout;
+  const { padLeft, padRight, padTop, padBottom, width, height, textColor, scale } = layout;
+  const S = (n: number) => Math.round(n * scale);
+  const legendReserve = S(42);
   const cx = (padLeft + (width - padRight)) / 2;
-  const cy = (padTop + (height - padBottom - 42)) / 2;
-  const r = Math.min((width - padLeft - padRight) / 2, (height - padTop - padBottom - 42) / 2) * 0.75;
+  const cy = (padTop + (height - padBottom - legendReserve)) / 2;
+  const r = Math.min((width - padLeft - padRight) / 2, (height - padTop - padBottom - legendReserve) / 2) * 0.75;
 
   const total = rows.reduce((s, row) => s + (Number(row[seriesKey]) || 0), 0) || 1;
   let start = -Math.PI / 2;
@@ -571,17 +586,18 @@ function drawPie(
   });
 
   // Legend
-  ctx.font = "600 14px 'Outfit', Arial, sans-serif";
-  const swatch = 14;
-  const itemGap = 24;
-  const padBetween = 8;
+  const legendFont = `600 ${S(14)}px 'Outfit', Arial, sans-serif`;
+  ctx.font = legendFont;
+  const swatch = S(14);
+  const itemGap = S(24);
+  const padBetween = S(8);
   const items = rows.map((row, i) => {
     const name = String(row[labelKey] ?? "");
-    return { text: name, w: measureText(ctx, name, "600 14px 'Outfit', Arial, sans-serif") + swatch + padBetween, color: colors[i % colors.length] };
+    return { text: name, w: measureText(ctx, name, legendFont) + swatch + padBetween, color: colors[i % colors.length] };
   });
   const totalW = items.reduce((a, b) => a + b.w, 0) + itemGap * (items.length - 1);
   let cursor = cx - totalW / 2;
-  const legendY = cy + r + 40;
+  const legendY = cy + r + S(40);
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   items.forEach((it) => {
