@@ -257,6 +257,9 @@ export default function ChartMaker() {
   const [palette, setPalette] = useState<PaletteKey>("saCore");
   const [style, setStyle] = useState<StyleMode>("branded");
   const [backdrop, setBackdrop] = useState<BackdropKey>("both");
+  const [axisMode, setAxisMode] = useState<"auto" | "manual">("auto");
+  const [xAxisLabel, setXAxisLabel] = useState("");
+  const [yAxisLabel, setYAxisLabel] = useState("");
   const [title, setTitle] = useState("Accelerator Market Share");
   const [source, setSource] = useState("Source: SemiAnalysis Accelerator Model");
   const [exporting, setExporting] = useState(false);
@@ -359,6 +362,7 @@ export default function ChartMaker() {
     const authorRole = userCtx.user ? userCtx.user.role : "";
     const data = {
       csv, orientation, kind, palette, style, backdrop, title, source,
+      axisMode, xAxisLabel, yAxisLabel,
       timestamp: new Date().toISOString(),
       createdBy: authorName,
       createdByRole: authorRole,
@@ -390,9 +394,23 @@ export default function ChartMaker() {
     const tooltipBg = style === "branded" ? "#0A0A14" : "#ffffff";
     const tooltipBorder = style === "branded" ? "rgba(255,255,255,0.1)" : "#E0E0E0";
 
-    const common = { data: parsed.rows, margin: { top: 20, right: 30, left: 10, bottom: 10 } };
+    // Add margin for axis labels when in manual mode
+    const showLabels = axisMode === "manual";
+    const showX = showLabels && !!xAxisLabel;
+    const showY = showLabels && !!yAxisLabel;
+    const common = {
+      data: parsed.rows,
+      margin: {
+        top: 20,
+        right: 30,
+        left: showY ? 30 : 10,
+        bottom: showX ? 30 : 10,
+      },
+    };
     const tickStyle = { fontSize: 14, fontFamily: "'Outfit', sans-serif", fontWeight: 600, fill: axisColor };
     const legendStyle = { color: textColor, fontFamily: "'Outfit', sans-serif", fontSize: 14, fontWeight: 600 };
+    const xLabel = showX ? { value: xAxisLabel, position: "insideBottom" as const, offset: -10, fill: textColor, fontSize: 14, fontFamily: "'Outfit', sans-serif", fontWeight: 700 } : undefined;
+    const yLabel = showY ? { value: yAxisLabel, angle: -90, position: "insideLeft" as const, fill: textColor, fontSize: 14, fontFamily: "'Outfit', sans-serif", fontWeight: 700, style: { textAnchor: "middle" as const } } : undefined;
 
     if (kind === "pie") {
       const pieData = parsed.rows.map((r) => ({ name: String(r[labelKey]), value: Number(r[seriesKeys[0]]) || 0 }));
@@ -414,8 +432,8 @@ export default function ChartMaker() {
         <ResponsiveContainer width="100%" height={520}>
           <LineChart {...common}>
             <CartesianGrid stroke={gridColor} vertical={false} />
-            <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
-            <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
+            <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={xLabel} />
+            <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={yLabel} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
             <Legend wrapperStyle={legendStyle} />
             {seriesKeys.map((k, i) => <Line key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} strokeWidth={3} dot={{ r: 4 }} />)}
@@ -429,8 +447,8 @@ export default function ChartMaker() {
         <ResponsiveContainer width="100%" height={520}>
           <AreaChart {...common}>
             <CartesianGrid stroke={gridColor} vertical={false} />
-            <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
-            <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
+            <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={xLabel} />
+            <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={yLabel} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
             <Legend wrapperStyle={legendStyle} />
             {seriesKeys.map((k, i) => (
@@ -445,8 +463,8 @@ export default function ChartMaker() {
       <ResponsiveContainer width="100%" height={520}>
         <BarChart {...common}>
           <CartesianGrid stroke={gridColor} vertical={false} />
-          <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
-          <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
+          <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={xLabel} />
+          <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={yLabel} />
           <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
           <Legend wrapperStyle={legendStyle} />
           {seriesKeys.map((k, i) => (
@@ -599,6 +617,43 @@ export default function ChartMaker() {
               ))}
             </div>
           </Section>
+
+          {/* Axes — only for non-pie */}
+          {kind !== "pie" && (
+            <Section label="Axis Labels">
+              <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                <Pill active={axisMode === "auto"} onClick={() => setAxisMode("auto")}>Auto</Pill>
+                <Pill active={axisMode === "manual"} onClick={() => setAxisMode("manual")}>Manual</Pill>
+              </div>
+              {axisMode === "auto" && (
+                <div style={{ fontSize: 10, color: C.txd, fontFamily: mn }}>
+                  No axis labels. Chart uses the CSV header as implicit categories.
+                </div>
+              )}
+              {axisMode === "manual" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div>
+                    <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginBottom: 3 }}>X AXIS</div>
+                    <input
+                      value={xAxisLabel}
+                      onChange={(e) => setXAxisLabel(e.target.value)}
+                      placeholder="e.g. Quarter"
+                      style={inputStyle(C)}
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginBottom: 3 }}>Y AXIS</div>
+                    <input
+                      value={yAxisLabel}
+                      onChange={(e) => setYAxisLabel(e.target.value)}
+                      placeholder="e.g. Market Share (%)"
+                      style={inputStyle(C)}
+                    />
+                  </div>
+                </div>
+              )}
+            </Section>
+          )}
 
           {/* Palette */}
           <Section label="Palette">
