@@ -12,6 +12,7 @@ import Outreach from "./outreach";
 import IdeationNation from "./ideation-nation";
 import SAWeekly from "./sa-weekly";
 import BRollLibrary from "./broll-library";
+import ChartMaker from "./chart-maker";
 
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
 import { useUser, isAnalyst } from "./user-context";
@@ -423,6 +424,7 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "captions", l: "Capper", ic: "\uD83C\uDFAC" },
     { id: "p2p", l: "Press to Premier", ic: "\uD83C\uDFAC" },
     { id: "broll", l: "B-Roll Library", ic: "\uD83C\uDFA5" },
+    { id: "chart", l: "Chart Maker", ic: "\uD83D\uDCCA" },
   ]},
   podcast: { label: "PODCAST", color: C.coral, glow: "rgba(224,99,71,", items: [
     { id: "fk", l: "Fab Knowledge", ic: "\uD83C\uDFA7" },
@@ -979,7 +981,7 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
   var userCtx = useUser();
   var analyst = isAnalyst(userCtx.user);
   var sections: Record<string, SplashItem[]> = {
-    PRODUCE: [{ l: "Slop Top", ic: "\uD83D\uDCA5", id: "sloptop" }, { l: "Carousel", ic: "\uD83D\uDCD0", id: "carousel" }, { l: "Capper", ic: "\uD83C\uDFAC", id: "captions" }, { l: "P2P", ic: "\uD83C\uDFAC", id: "p2p" }, { l: "B-Roll", ic: "\uD83C\uDFA5", id: "broll" }],
+    PRODUCE: [{ l: "Slop Top", ic: "\uD83D\uDCA5", id: "sloptop" }, { l: "Carousel", ic: "\uD83D\uDCD0", id: "carousel" }, { l: "Capper", ic: "\uD83C\uDFAC", id: "captions" }, { l: "P2P", ic: "\uD83C\uDFAC", id: "p2p" }, { l: "B-Roll", ic: "\uD83C\uDFA5", id: "broll" }, { l: "Chart Maker", ic: "\uD83D\uDCCA", id: "chart" }],
     PODCAST: [{ l: "Fab Knowledge", ic: "\uD83C\uDFA7", id: "fk" }, { l: "SA Weekly", ic: "\uD83C\uDF99", id: "weekly" }, { l: "Outreach", ic: "\uD83D\uDCE4", id: "outreach" }],
     PREPARE: [{ l: "Trends", ic: "\uD83D\uDD25", id: "trends" }, { l: "IdeationNation", ic: "\uD83D\uDCA1", id: "ideation" }, { l: "News Flow", ic: "\uD83D\uDCE1", id: "news" }, { l: "GTC Flow", ic: "\uD83D\uDCCA", id: "gtc" }],
     PREMIER: [{ l: "Schedule", ic: "\uD83D\uDCC6", id: "schedule" }],
@@ -988,7 +990,7 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
   var allColors = [C.amber, C.coral, C.blue, C.teal];
   var words = analyst ? ["PRODUCE"] : allWords;
   var colors = analyst ? [C.amber] : allColors;
-  var appNames: Record<string, string> = { PRODUCE: "Slop Top, Carousel, Capper, P2P, B-Roll", PODCAST: "Fab Knowledge, SA Weekly, Outreach", PREPARE: "Trends, IdeationNation, News Flow, GTC Flow", PREMIER: "Schedule" };
+  var appNames: Record<string, string> = { PRODUCE: "Slop Top, Carousel, Capper, P2P, B-Roll, Chart Maker", PODCAST: "Fab Knowledge, SA Weekly, Outreach", PREPARE: "Trends, IdeationNation, News Flow, GTC Flow", PREMIER: "Schedule" };
 
   return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "0 8vw" }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes bIn{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}@keyframes bLine{0%{transform:scaleX(0)}100%{transform:scaleX(1)}}@keyframes itemReveal{0%{opacity:0;transform:translateY(-8px) scale(0.95)}100%{opacity:1;transform:translateY(0) scale(1)}}" }} />
@@ -1048,7 +1050,7 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
 }
 
 // ═══ APP ═══
-var ANALYST_ALLOWED = ["sloptop", "carousel", "captions", "p2p", "broll"];
+var ANALYST_ALLOWED = ["sloptop", "carousel", "captions", "p2p", "broll", "chart"];
 
 export default function App() {
   var _sp = useState(true), showIntro = _sp[0], setShowIntro = _sp[1];
@@ -1180,6 +1182,7 @@ export default function App() {
         {sec === "carousel" && <Carousel />}
         {sec === "sloptop" && <SlopTop />}
         {sec === "broll" && <BRollLibrary />}
+        {sec === "chart" && <ChartMaker />}
         {sec === "fk" && <FabricatedKnowledge />}
         {sec === "outreach" && <Outreach />}
         {sec === "trends" && <Trends />}
