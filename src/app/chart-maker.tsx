@@ -222,7 +222,7 @@ function paintBackdrop(ctx: CanvasRenderingContext2D, w: number, h: number, styl
   });
   const S = h / PREVIEW_H;
   ctx.fillStyle = spec.accent;
-  ctx.fillRect(Math.round(80 * S), Math.round(80 * S), Math.round(60 * S), Math.round(4 * S));
+  ctx.fillRect(Math.round(40 * S), Math.round(40 * S), Math.round(50 * S), Math.round(3 * S));
 }
 
 // Measure text
@@ -274,19 +274,19 @@ function drawChart(ctx: CanvasRenderingContext2D, opts: ExportOpts) {
   const scale = height / PREVIEW_H;
   const S = (n: number) => Math.round(n * scale);
 
-  // Layout regions (scaled)
-  const padLeft = S(isBranded ? 80 : 60);
-  const padRight = S(isBranded ? 80 : 60);
-  const padTop = S(isBranded ? (title ? 180 : 80) : 60);
-  const padBottom = S(isBranded ? 90 : 70);
+  // Layout regions (scaled) — matches preview paddings (40) with room for title + source chrome
+  const padLeft = S(isBranded ? 70 : 50);
+  const padRight = S(isBranded ? 70 : 50);
+  const padTop = S(isBranded ? (title ? 110 : 60) : 50);
+  const padBottom = S(isBranded ? 75 : 60);
 
-  // Title + accent (branded only)
+  // Title + accent (branded only) — reference sizes match the preview exactly
   if (isBranded && title) {
-    ctx.font = `800 ${S(44)}px 'Outfit', Arial, sans-serif`;
+    ctx.font = `800 ${S(26)}px 'Outfit', Arial, sans-serif`;
     ctx.fillStyle = "#E8E4DD";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
-    ctx.fillText(title, S(80), S(115));
+    ctx.fillText(title, S(40), S(57));
   }
 
   if (kind === "pie") {
@@ -295,20 +295,20 @@ function drawChart(ctx: CanvasRenderingContext2D, opts: ExportOpts) {
     drawCartesian(ctx, opts, { padLeft, padRight, padTop, padBottom, axisColor, gridColor, textColor, scale });
   }
 
-  // Source line + wordmark (branded only)
+  // Source line + wordmark (branded only) — reference sizes match preview
   if (isBranded) {
     if (source) {
-      ctx.font = `500 ${S(18)}px 'JetBrains Mono', monospace`;
+      ctx.font = `500 ${S(10)}px 'JetBrains Mono', monospace`;
       ctx.fillStyle = "rgba(255,255,255,0.55)";
       ctx.textAlign = "left";
       ctx.textBaseline = "bottom";
-      ctx.fillText(source, S(80), height - S(40));
+      ctx.fillText(source, S(40), height - S(18));
     }
-    ctx.font = `700 ${S(16)}px 'Outfit', Arial, sans-serif`;
+    ctx.font = `700 ${S(10)}px 'JetBrains Mono', monospace`;
     ctx.fillStyle = bdSpec.accent;
     ctx.textAlign = "right";
     ctx.textBaseline = "bottom";
-    ctx.fillText("SEMIANALYSIS", width - S(80), height - S(40));
+    ctx.fillText("SEMIANALYSIS", width - S(40), height - S(18));
   }
 
   // Manual axis labels
@@ -343,8 +343,8 @@ function drawCartesian(
   const { padLeft, padRight, padTop, padBottom, axisColor, gridColor, textColor, scale } = layout;
   const S = (n: number) => Math.round(n * scale);
 
-  // Reserve space for legend at bottom (scaled)
-  const legendH = S(42);
+  // Reserve space for legend at bottom + breathing room above it (scaled)
+  const legendH = S(64);
   const plotLeft = padLeft;
   const plotRight = width - padRight;
   const plotTop = padTop;
@@ -542,7 +542,7 @@ function drawCartesian(
   const items = seriesKeys.map((k) => ({ text: k, w: measureText(ctx, k, legendFont) + swatch + padBetweenSwatchAndText }));
   const totalW = items.reduce((a, b) => a + b.w, 0) + itemGap * (items.length - 1);
   let cursor = (plotLeft + plotRight) / 2 - totalW / 2;
-  const legendY = plotBottom + (opts.axisMode === "manual" && opts.xAxisLabel ? S(60) : S(34));
+  const legendY = plotBottom + (opts.axisMode === "manual" && opts.xAxisLabel ? S(80) : S(56));
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   items.forEach((it, i) => {
@@ -566,7 +566,7 @@ function drawPie(
   if (!seriesKey) return;
   const { padLeft, padRight, padTop, padBottom, width, height, textColor, scale } = layout;
   const S = (n: number) => Math.round(n * scale);
-  const legendReserve = S(42);
+  const legendReserve = S(64);
   const cx = (padLeft + (width - padRight)) / 2;
   const cy = (padTop + (height - padBottom - legendReserve)) / 2;
   const r = Math.min((width - padLeft - padRight) / 2, (height - padTop - padBottom - legendReserve) / 2) * 0.75;
