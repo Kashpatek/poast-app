@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useRef } from "react";
 import * as XLSX from "xlsx";
-import { toPng } from "html-to-image";
+import html2canvas from "html2canvas";
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -177,7 +177,6 @@ AMD,18,19,20,22
 Intel,14,12,10,9`;
 
 // ═══ EXPORT: SVG → PNG ═══
-// Wait for fonts + one paint frame so html-to-image captures fully-rendered DOM
 async function waitForRenderReady() {
   if (typeof document !== "undefined" && document.fonts) {
     try { await document.fonts.ready; } catch { /* noop */ }
@@ -188,22 +187,21 @@ async function waitForRenderReady() {
 async function exportNodePNG(
   node: HTMLElement,
   targetW: number,
-  targetH: number,
+  _targetH: number,
   transparent: boolean
 ): Promise<Blob> {
   await waitForRenderReady();
   const rect = node.getBoundingClientRect();
-  // Compute pixelRatio so output ends up ≈ targetW × targetH
-  const pixelRatio = Math.max(2, targetW / rect.width);
-  const dataUrl = await toPng(node, {
-    pixelRatio,
-    backgroundColor: transparent ? undefined : "#ffffff",
-    cacheBust: true,
-    skipFonts: false,
+  const scale = Math.max(2, targetW / rect.width);
+  const canvas = await html2canvas(node, {
+    scale,
+    backgroundColor: transparent ? null : "#ffffff",
+    useCORS: true,
+    logging: false,
   });
-  // Convert dataUrl to blob
-  const res = await fetch(dataUrl);
-  return await res.blob();
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/png");
+  });
 }
 
 // ═══ MAIN ═══
