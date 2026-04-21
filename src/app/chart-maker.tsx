@@ -343,8 +343,8 @@ function drawCartesian(
   const { padLeft, padRight, padTop, padBottom, axisColor, gridColor, textColor, scale } = layout;
   const S = (n: number) => Math.round(n * scale);
 
-  // Reserve space for legend at bottom (scaled, matches preview tight spacing)
-  const legendH = S(40);
+  // Reserve space for legend at bottom (scaled)
+  const legendH = S(54);
   const plotLeft = padLeft;
   const plotRight = width - padRight;
   const plotTop = padTop;
@@ -542,7 +542,7 @@ function drawCartesian(
   const items = seriesKeys.map((k) => ({ text: k, w: measureText(ctx, k, legendFont) + swatch + padBetweenSwatchAndText }));
   const totalW = items.reduce((a, b) => a + b.w, 0) + itemGap * (items.length - 1);
   let cursor = (plotLeft + plotRight) / 2 - totalW / 2;
-  const legendY = plotBottom + (opts.axisMode === "manual" && opts.xAxisLabel ? S(55) : S(34));
+  const legendY = plotBottom + (opts.axisMode === "manual" && opts.xAxisLabel ? S(65) : S(48));
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   items.forEach((it, i) => {
