@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useRef } from "react";
 import * as XLSX from "xlsx";
-import html2canvas from "html2canvas";
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -177,28 +176,431 @@ AMD,18,19,20,22
 Intel,14,12,10,9`;
 
 // ═══ EXPORT: SVG → PNG ═══
-async function waitForRenderReady() {
+async function waitForFonts() {
   if (typeof document !== "undefined" && document.fonts) {
-    try { await document.fonts.ready; } catch { /* noop */ }
+    try {
+      await Promise.all([
+        document.fonts.load("600 16px Outfit"),
+        document.fonts.load("700 16px Outfit"),
+        document.fonts.load("800 16px Outfit"),
+        document.fonts.load("500 16px JetBrains Mono"),
+      ]);
+      await document.fonts.ready;
+    } catch { /* noop */ }
   }
-  await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
 }
 
-async function exportNodePNG(
-  node: HTMLElement,
-  targetW: number,
-  _targetH: number,
-  transparent: boolean
-): Promise<Blob> {
-  await waitForRenderReady();
-  const rect = node.getBoundingClientRect();
-  const scale = Math.max(2, targetW / rect.width);
-  const canvas = await html2canvas(node, {
-    scale,
-    backgroundColor: transparent ? null : "#ffffff",
-    useCORS: true,
-    logging: false,
+interface ExportOpts {
+  kind: ChartKind;
+  rows: ChartRow[];
+  labelKey: string;
+  seriesKeys: string[];
+  colors: string[];
+  style: StyleMode;
+  backdrop: BackdropKey;
+  title: string;
+  source: string;
+  axisMode: "auto" | "manual";
+  xAxisLabel: string;
+  yAxisLabel: string;
+  width: number;
+  height: number;
+}
+
+// Paint the backdrop (branded mode) or leave transparent (clean)
+function paintBackdrop(ctx: CanvasRenderingContext2D, w: number, h: number, style: StyleMode, backdrop: BackdropKey) {
+  if (style !== "branded") return;
+  const spec = BACKDROPS[backdrop];
+  ctx.fillStyle = spec.base;
+  ctx.fillRect(0, 0, w, h);
+  spec.glows.forEach((g) => {
+    const grad = ctx.createRadialGradient(w * g.x, h * g.y, 0, w * g.x, h * g.y, w * g.r);
+    grad.addColorStop(0, g.color);
+    grad.addColorStop(1, g.color.replace(/,\s*[\d.]+\)/, ",0)"));
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
   });
+  ctx.fillStyle = spec.accent;
+  ctx.fillRect(80, 80, 60, 4);
+}
+
+// Measure text
+function measureText(ctx: CanvasRenderingContext2D, text: string, font: string) {
+  ctx.font = font;
+  return ctx.measureText(text).width;
+}
+
+// Wrap a label (x-axis categorical) if too long
+function drawLabelRotated(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, angle: number, font: string, color: string) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.font = font;
+  ctx.fillStyle = color;
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+
+// Nice round number for tick spacing
+function niceStep(range: number, targetSteps = 5): number {
+  const rough = range / targetSteps;
+  const pow = Math.pow(10, Math.floor(Math.log10(rough)));
+  const n = rough / pow;
+  let step: number;
+  if (n < 1.5) step = 1;
+  else if (n < 3) step = 2;
+  else if (n < 7) step = 5;
+  else step = 10;
+  return step * pow;
+}
+
+// ═══ CHART DRAWING ═══
+function drawChart(ctx: CanvasRenderingContext2D, opts: ExportOpts) {
+  const { kind, rows, labelKey, seriesKeys, colors, style, title, source, axisMode, xAxisLabel, yAxisLabel, width, height, backdrop } = opts;
+
+  const bdSpec = BACKDROPS[backdrop];
+  const isBranded = style === "branded";
+  const textColor = isBranded ? "#E8E4DD" : "#1A1A1A";
+  const axisColor = isBranded ? "rgba(255,255,255,0.55)" : "#888888";
+  const gridColor = isBranded ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)";
+
+  // Layout regions
+  const padLeft = isBranded ? 80 : 60;
+  const padRight = isBranded ? 80 : 60;
+  const padTop = isBranded ? (title ? 180 : 80) : 60;
+  const padBottom = isBranded ? 90 : 70;
+
+  // Title + accent (branded only)
+  if (isBranded) {
+    if (title) {
+      ctx.font = "800 44px 'Outfit', Arial, sans-serif";
+      ctx.fillStyle = "#E8E4DD";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText(title, 80, 115);
+    }
+  }
+
+  if (kind === "pie") {
+    drawPie(ctx, rows, labelKey, seriesKeys, colors, { padLeft, padRight, padTop, padBottom, width, height, textColor });
+  } else {
+    drawCartesian(ctx, opts, { padLeft, padRight, padTop, padBottom, axisColor, gridColor, textColor });
+  }
+
+  // Source line + wordmark (branded only)
+  if (isBranded) {
+    if (source) {
+      ctx.font = "500 18px 'JetBrains Mono', monospace";
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(source, 80, height - 40);
+    }
+    ctx.font = "700 16px 'Outfit', Arial, sans-serif";
+    ctx.fillStyle = bdSpec.accent;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("SEMIANALYSIS", width - 80, height - 40);
+  }
+
+  // Axis labels (manual mode)
+  if (axisMode === "manual" && kind !== "pie") {
+    if (xAxisLabel) {
+      ctx.font = "700 18px 'Outfit', Arial, sans-serif";
+      ctx.fillStyle = textColor;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(xAxisLabel, (padLeft + (width - padRight)) / 2, height - padBottom + 60);
+    }
+    if (yAxisLabel) {
+      ctx.save();
+      ctx.translate(padLeft - 55, (padTop + (height - padBottom)) / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.font = "700 18px 'Outfit', Arial, sans-serif";
+      ctx.fillStyle = textColor;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(yAxisLabel, 0, 0);
+      ctx.restore();
+    }
+  }
+}
+
+function drawCartesian(
+  ctx: CanvasRenderingContext2D,
+  opts: ExportOpts,
+  layout: { padLeft: number; padRight: number; padTop: number; padBottom: number; axisColor: string; gridColor: string; textColor: string }
+) {
+  const { kind, rows, labelKey, seriesKeys, colors, width, height } = opts;
+  const { padLeft, padRight, padTop, padBottom, axisColor, gridColor, textColor } = layout;
+
+  // Reserve space for legend at bottom
+  const legendH = 42;
+  const plotLeft = padLeft;
+  const plotRight = width - padRight;
+  const plotTop = padTop;
+  const plotBottom = height - padBottom - legendH;
+  const plotW = plotRight - plotLeft;
+  const plotH = plotBottom - plotTop;
+
+  // Compute data extent
+  const stacked = kind === "stacked" || kind === "areaStacked";
+  let maxV = 0, minV = 0;
+  rows.forEach((r) => {
+    if (stacked) {
+      let sum = 0;
+      seriesKeys.forEach((k) => { sum += Number(r[k]) || 0; });
+      if (sum > maxV) maxV = sum;
+    } else {
+      seriesKeys.forEach((k) => {
+        const v = Number(r[k]) || 0;
+        if (v > maxV) maxV = v;
+        if (v < minV) minV = v;
+      });
+    }
+  });
+  if (maxV === minV) maxV = minV + 1;
+  // Round up maxV to nice step
+  const step = niceStep(maxV - minV, 5);
+  const yMax = Math.ceil(maxV / step) * step;
+  const yMin = minV < 0 ? Math.floor(minV / step) * step : 0;
+
+  const xToPx = (i: number, total: number) => plotLeft + (plotW / total) * (i + 0.5);
+  const yToPx = (v: number) => plotBottom - ((v - yMin) / (yMax - yMin)) * plotH;
+
+  // Gridlines + y-axis labels
+  ctx.font = "600 13px 'Outfit', Arial, sans-serif";
+  ctx.fillStyle = axisColor;
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for (let v = yMin; v <= yMax + 0.0001; v += step) {
+    const y = yToPx(v);
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(plotLeft, y);
+    ctx.lineTo(plotRight, y);
+    ctx.stroke();
+    const label = Number.isInteger(step) ? String(v) : v.toFixed(1);
+    ctx.fillText(label, plotLeft - 10, y);
+  }
+
+  // X-axis labels
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillStyle = axisColor;
+  const xLabels = rows.map((r) => String(r[labelKey] ?? ""));
+  const maxLabelW = Math.max(...xLabels.map((l) => measureText(ctx, l, "600 13px 'Outfit', Arial, sans-serif")));
+  const rotate = maxLabelW > plotW / rows.length - 10;
+  xLabels.forEach((l, i) => {
+    const x = xToPx(i, rows.length);
+    if (rotate) {
+      drawLabelRotated(ctx, l, x, plotBottom + 10, -Math.PI / 6, "600 13px 'Outfit', Arial, sans-serif", axisColor);
+    } else {
+      ctx.fillText(l, x, plotBottom + 10);
+    }
+  });
+
+  // Data series
+  if (kind === "bar" || kind === "stacked") {
+    const groupWidth = plotW / rows.length;
+    if (kind === "bar") {
+      const barCount = seriesKeys.length;
+      const barWidth = (groupWidth * 0.72) / barCount;
+      rows.forEach((row, i) => {
+        seriesKeys.forEach((key, s) => {
+          const v = Number(row[key]) || 0;
+          const centerX = xToPx(i, rows.length);
+          const x = centerX - (barCount * barWidth) / 2 + s * barWidth;
+          const y = yToPx(v);
+          ctx.fillStyle = colors[s % colors.length];
+          ctx.fillRect(x, y, barWidth - 2, plotBottom - y);
+        });
+      });
+    } else {
+      // stacked
+      const barWidth = groupWidth * 0.72;
+      rows.forEach((row, i) => {
+        let cumulative = 0;
+        const centerX = xToPx(i, rows.length);
+        const x = centerX - barWidth / 2;
+        seriesKeys.forEach((key, s) => {
+          const v = Number(row[key]) || 0;
+          const y = yToPx(cumulative + v);
+          const h = yToPx(cumulative) - y;
+          ctx.fillStyle = colors[s % colors.length];
+          ctx.fillRect(x, y, barWidth, h);
+          cumulative += v;
+        });
+      });
+    }
+  } else if (kind === "line") {
+    seriesKeys.forEach((key, s) => {
+      ctx.strokeStyle = colors[s % colors.length];
+      ctx.lineWidth = 3;
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      rows.forEach((row, i) => {
+        const v = Number(row[key]) || 0;
+        const x = xToPx(i, rows.length);
+        const y = yToPx(v);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      // Dots
+      rows.forEach((row, i) => {
+        const v = Number(row[key]) || 0;
+        const x = xToPx(i, rows.length);
+        const y = yToPx(v);
+        ctx.fillStyle = colors[s % colors.length];
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    });
+  } else if (kind === "area" || kind === "areaStacked") {
+    if (kind === "areaStacked") {
+      // Compute stacked values per row
+      const stack: number[][] = rows.map(() => []);
+      rows.forEach((row, i) => {
+        let cum = 0;
+        seriesKeys.forEach((key) => {
+          cum += Number(row[key]) || 0;
+          stack[i].push(cum);
+        });
+      });
+      // Draw from bottom to top
+      seriesKeys.forEach((_key, s) => {
+        const color = colors[s % colors.length];
+        ctx.fillStyle = color + "D0"; // 82% alpha
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        rows.forEach((_row, i) => {
+          const x = xToPx(i, rows.length);
+          const yTop = yToPx(stack[i][s]);
+          if (i === 0) ctx.moveTo(x, yTop); else ctx.lineTo(x, yTop);
+        });
+        for (let i = rows.length - 1; i >= 0; i--) {
+          const x = xToPx(i, rows.length);
+          const yBot = s === 0 ? yToPx(0) : yToPx(stack[i][s - 1]);
+          ctx.lineTo(x, yBot);
+        }
+        ctx.closePath();
+        ctx.fill();
+      });
+    } else {
+      // overlaid areas
+      seriesKeys.forEach((key, s) => {
+        const color = colors[s % colors.length];
+        ctx.fillStyle = color + "A0"; // transparent-ish
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        rows.forEach((row, i) => {
+          const v = Number(row[key]) || 0;
+          const x = xToPx(i, rows.length);
+          const y = yToPx(v);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.lineTo(xToPx(rows.length - 1, rows.length), yToPx(0));
+        ctx.lineTo(xToPx(0, rows.length), yToPx(0));
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        rows.forEach((row, i) => {
+          const v = Number(row[key]) || 0;
+          const x = xToPx(i, rows.length);
+          const y = yToPx(v);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      });
+    }
+  }
+
+  // Legend — centered under the plot area
+  ctx.font = "600 14px 'Outfit', Arial, sans-serif";
+  const swatch = 14;
+  const itemGap = 24;
+  const padBetweenSwatchAndText = 8;
+  const items = seriesKeys.map((k) => ({ text: k, w: measureText(ctx, k, "600 14px 'Outfit', Arial, sans-serif") + swatch + padBetweenSwatchAndText }));
+  const totalW = items.reduce((a, b) => a + b.w, 0) + itemGap * (items.length - 1);
+  let cursor = (plotLeft + plotRight) / 2 - totalW / 2;
+  const legendY = plotBottom + (opts.axisMode === "manual" && opts.xAxisLabel ? 60 : 34);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  items.forEach((it, i) => {
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.fillRect(cursor, legendY - swatch / 2, swatch, swatch);
+    ctx.fillStyle = textColor;
+    ctx.fillText(it.text, cursor + swatch + padBetweenSwatchAndText, legendY);
+    cursor += it.w + itemGap;
+  });
+}
+
+function drawPie(
+  ctx: CanvasRenderingContext2D,
+  rows: ChartRow[],
+  labelKey: string,
+  seriesKeys: string[],
+  colors: string[],
+  layout: { padLeft: number; padRight: number; padTop: number; padBottom: number; width: number; height: number; textColor: string }
+) {
+  const seriesKey = seriesKeys[0];
+  if (!seriesKey) return;
+  const { padLeft, padRight, padTop, padBottom, width, height, textColor } = layout;
+  const cx = (padLeft + (width - padRight)) / 2;
+  const cy = (padTop + (height - padBottom - 42)) / 2;
+  const r = Math.min((width - padLeft - padRight) / 2, (height - padTop - padBottom - 42) / 2) * 0.75;
+
+  const total = rows.reduce((s, row) => s + (Number(row[seriesKey]) || 0), 0) || 1;
+  let start = -Math.PI / 2;
+  rows.forEach((row, i) => {
+    const v = (Number(row[seriesKey]) || 0) / total;
+    const end = start + v * Math.PI * 2;
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, start, end);
+    ctx.closePath();
+    ctx.fill();
+    start = end;
+  });
+
+  // Legend
+  ctx.font = "600 14px 'Outfit', Arial, sans-serif";
+  const swatch = 14;
+  const itemGap = 24;
+  const padBetween = 8;
+  const items = rows.map((row, i) => {
+    const name = String(row[labelKey] ?? "");
+    return { text: name, w: measureText(ctx, name, "600 14px 'Outfit', Arial, sans-serif") + swatch + padBetween, color: colors[i % colors.length] };
+  });
+  const totalW = items.reduce((a, b) => a + b.w, 0) + itemGap * (items.length - 1);
+  let cursor = cx - totalW / 2;
+  const legendY = cy + r + 40;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  items.forEach((it) => {
+    ctx.fillStyle = it.color;
+    ctx.fillRect(cursor, legendY - swatch / 2, swatch, swatch);
+    ctx.fillStyle = textColor;
+    ctx.fillText(it.text, cursor + swatch + padBetween, legendY);
+    cursor += it.w + itemGap;
+  });
+}
+
+async function exportChartPNG(opts: ExportOpts): Promise<Blob> {
+  await waitForFonts();
+  const canvas = document.createElement("canvas");
+  canvas.width = opts.width;
+  canvas.height = opts.height;
+  const ctx = canvas.getContext("2d")!;
+  paintBackdrop(ctx, opts.width, opts.height, opts.style, opts.backdrop);
+  drawChart(ctx, opts);
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/png");
   });
@@ -294,11 +696,25 @@ export default function ChartMaker() {
   }
 
   function handleExport() {
-    if (!chartRef.current) return;
     setExporting(true);
     const W = style === "branded" ? 1920 : 1600;
     const H = style === "branded" ? 1080 : 900;
-    exportNodePNG(chartRef.current, W, H, style === "clean")
+    exportChartPNG({
+      kind,
+      rows: parsed.rows,
+      labelKey,
+      seriesKeys,
+      colors,
+      style,
+      backdrop,
+      title: style === "branded" ? title : "",
+      source: style === "branded" ? source : "",
+      axisMode,
+      xAxisLabel,
+      yAxisLabel,
+      width: W,
+      height: H,
+    })
       .then((blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
