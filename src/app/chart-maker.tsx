@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useRef } from "react";
+import * as XLSX from "xlsx";
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -13,6 +14,16 @@ type StyleMode = "clean" | "branded";
 type PaletteKey = "saCore" | "saSpectrum" | "saCapital";
 type Orientation = "cols" | "rows";
 type BackdropKey = "amber" | "cobalt" | "both" | "capital";
+type InputMode = "paste" | "manual" | "excel";
+
+// ═══ GRID ⇄ CSV ═══
+function csvToGrid(csv: string): string[][] {
+  const lines = csv.trim().split(/\r?\n/);
+  return lines.map((l) => l.split(",").map((c) => c.trim()));
+}
+function gridToCsv(grid: string[][]): string {
+  return grid.map((row) => row.map((c) => String(c ?? "")).join(",")).join("\n");
+}
 
 interface BackdropSpec { name: string; base: string; glows: { x: number; y: number; r: number; color: string }[]; accent: string; }
 const BACKDROPS: Record<BackdropKey, BackdropSpec> = {
@@ -236,6 +247,11 @@ async function exportChartPNG(
 // ═══ MAIN ═══
 export default function ChartMaker() {
   const [csv, setCsv] = useState(SAMPLE_COLS);
+  const [inputMode, setInputMode] = useState<InputMode>("paste");
+  const [xlsxWorkbook, setXlsxWorkbook] = useState<XLSX.WorkBook | null>(null);
+  const [xlsxSheet, setXlsxSheet] = useState<string>("");
+  const [xlsxRange, setXlsxRange] = useState<string>("");
+  const [xlsxError, setXlsxError] = useState<string>("");
   const [orientation, setOrientation] = useState<Orientation>("cols");
   const [kind, setKind] = useState<ChartKind>("bar");
   const [palette, setPalette] = useState<PaletteKey>("saCore");
@@ -252,6 +268,60 @@ export default function ChartMaker() {
   const labelKey = parsed.columns[0] || "";
   const seriesKeys = parsed.columns.slice(1);
   const colors = PALETTES[palette].colors;
+
+  // ═══ MANUAL GRID HANDLERS ═══
+  const grid = csvToGrid(csv);
+  const ensureGrid = (g: string[][]) => (g.length === 0 ? [[""]] : g);
+  function setCell(r: number, c: number, v: string) {
+    const next = grid.map((row) => [...row]);
+    next[r][c] = v;
+    setCsv(gridToCsv(next));
+  }
+  function addRow() { setCsv(gridToCsv([...grid, Array(grid[0]?.length || 1).fill("")])); }
+  function removeRow(i: number) {
+    if (grid.length <= 2) return; // keep header + 1
+    setCsv(gridToCsv(grid.filter((_, idx) => idx !== i)));
+  }
+  function addCol() { setCsv(gridToCsv(grid.map((r) => [...r, ""]))); }
+  function removeCol(i: number) {
+    if ((grid[0]?.length || 0) <= 2) return; // keep label + 1 series
+    setCsv(gridToCsv(grid.map((r) => r.filter((_, idx) => idx !== i))));
+  }
+
+  // ═══ EXCEL HANDLERS ═══
+  function handleExcelFile(file: File) {
+    setXlsxError("");
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = new Uint8Array(ev.target!.result as ArrayBuffer);
+        const wb = XLSX.read(data, { type: "array" });
+        setXlsxWorkbook(wb);
+        setXlsxSheet(wb.SheetNames[0] || "");
+        setXlsxRange("");
+      } catch (e) {
+        setXlsxError("Failed to parse file: " + (e as Error).message);
+      }
+    };
+    reader.onerror = () => setXlsxError("File read failed");
+    reader.readAsArrayBuffer(file);
+  }
+  function importExcel() {
+    if (!xlsxWorkbook || !xlsxSheet) return;
+    try {
+      const ws = xlsxWorkbook.Sheets[xlsxSheet];
+      if (!ws) { setXlsxError("Sheet not found"); return; }
+      const opts: XLSX.Sheet2CSVOpts & { range?: string } = { FS: ",", blankrows: false };
+      if (xlsxRange.trim()) opts.range = xlsxRange.trim().toUpperCase();
+      const csvOut = XLSX.utils.sheet_to_csv(ws, opts);
+      if (!csvOut.trim()) { setXlsxError("Empty range — check the range or sheet"); return; }
+      setCsv(csvOut.trim());
+      setXlsxError("");
+      setInputMode("manual"); // flip to manual so they can see the result
+    } catch (e) {
+      setXlsxError("Import failed: " + (e as Error).message);
+    }
+  }
 
   function swapOrientation(next: Orientation) {
     setOrientation(next);
@@ -413,14 +483,112 @@ export default function ChartMaker() {
             </div>
           </Section>
 
-          {/* CSV */}
-          <Section label="Data (CSV)">
-            <textarea
-              value={csv}
-              onChange={(e) => setCsv(e.target.value)}
-              rows={8}
-              style={{ width: "100%", padding: 12, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, color: C.tx, fontFamily: mn, fontSize: 11, lineHeight: 1.6, resize: "vertical", outline: "none", boxSizing: "border-box" }}
-            />
+          {/* Data Input */}
+          <Section label="Data">
+            <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+              <Pill active={inputMode === "paste"} onClick={() => setInputMode("paste")}>Paste CSV</Pill>
+              <Pill active={inputMode === "manual"} onClick={() => setInputMode("manual")}>Manual</Pill>
+              <Pill active={inputMode === "excel"} onClick={() => setInputMode("excel")}>Excel</Pill>
+            </div>
+
+            {inputMode === "paste" && (
+              <textarea
+                value={csv}
+                onChange={(e) => setCsv(e.target.value)}
+                rows={8}
+                placeholder="Paste CSV data..."
+                style={{ width: "100%", padding: 12, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, color: C.tx, fontFamily: mn, fontSize: 11, lineHeight: 1.6, resize: "vertical", outline: "none", boxSizing: "border-box" }}
+              />
+            )}
+
+            {inputMode === "manual" && (
+              <div>
+                <div style={{ maxHeight: 260, overflow: "auto", border: `1px solid ${C.border}`, borderRadius: 8, background: C.card }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: mn, fontSize: 10 }}>
+                    <tbody>
+                      {ensureGrid(grid).map((row, ri) => (
+                        <tr key={ri}>
+                          {row.map((cell, ci) => (
+                            <td key={ci} style={{ borderRight: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, padding: 0, minWidth: 80 }}>
+                              <input
+                                value={cell}
+                                onChange={(e) => setCell(ri, ci, e.target.value)}
+                                style={{ width: "100%", padding: "5px 8px", background: ri === 0 || ci === 0 ? C.surface : "transparent", border: "none", color: ri === 0 || ci === 0 ? C.amber : C.tx, fontFamily: mn, fontSize: 11, fontWeight: ri === 0 || ci === 0 ? 700 : 400, outline: "none", boxSizing: "border-box" }}
+                              />
+                            </td>
+                          ))}
+                          <td style={{ padding: 2, background: C.card }}>
+                            {grid.length > 2 && (
+                              <button onClick={() => removeRow(ri)} title="Delete row" style={miniBtn(C.coral)}>−</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr>
+                        {grid[0]?.map((_, ci) => (
+                          <td key={ci} style={{ padding: 2, background: C.card, borderRight: `1px solid ${C.border}` }}>
+                            {(grid[0]?.length || 0) > 2 && (
+                              <button onClick={() => removeCol(ci)} title="Delete column" style={miniBtn(C.coral)}>−</button>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                  <button onClick={addRow} style={miniBtnText(C.teal)}>+ Row</button>
+                  <button onClick={addCol} style={miniBtnText(C.blue)}>+ Column</button>
+                </div>
+                <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginTop: 6 }}>
+                  First row + first column are highlighted as headers. All inputs sync to CSV automatically.
+                </div>
+              </div>
+            )}
+
+            {inputMode === "excel" && (
+              <div>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleExcelFile(f);
+                  }}
+                  style={{ fontFamily: ft, fontSize: 11, color: C.txm, width: "100%", padding: "10px 0" }}
+                />
+                {xlsxWorkbook && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+                    <div>
+                      <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginBottom: 4 }}>SHEET</div>
+                      <select
+                        value={xlsxSheet}
+                        onChange={(e) => setXlsxSheet(e.target.value)}
+                        style={{ width: "100%", padding: "6px 10px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, color: C.tx, fontFamily: ft, fontSize: 12, outline: "none" }}
+                      >
+                        {xlsxWorkbook.SheetNames.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginBottom: 4 }}>RANGE (optional, e.g. A1:D20)</div>
+                      <input
+                        value={xlsxRange}
+                        onChange={(e) => setXlsxRange(e.target.value)}
+                        placeholder="Leave blank for whole sheet"
+                        style={inputStyle(C)}
+                      />
+                    </div>
+                    <button onClick={importExcel} style={{ padding: "10px 14px", background: C.amber + "15", border: `1px solid ${C.amber}60`, borderRadius: 6, color: C.amber, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                      Import to Grid
+                    </button>
+                  </div>
+                )}
+                {xlsxError && <div style={{ fontSize: 11, color: C.coral, fontFamily: mn, marginTop: 6 }}>{xlsxError}</div>}
+                <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginTop: 8 }}>
+                  .xlsx, .xls, or .csv. Pick the sheet and optional range. Imports into the Manual grid where you can edit before charting.
+                </div>
+              </div>
+            )}
           </Section>
 
           {/* Chart Type */}
@@ -486,10 +654,28 @@ export default function ChartMaker() {
                 </div>
               </Section>
 
-              <Section label="Slide Text (branded mode)">
-                <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Chart title" style={inputStyle(C)} />
-                <div style={{ height: 6 }} />
-                <input value={source} onChange={(e) => setSource(e.target.value)} placeholder="Source line (e.g. Source: SemiAnalysis)" style={inputStyle(C)} />
+              <Section label="Chart Title">
+                <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginBottom: 4 }}>
+                  Large headline shown above the chart in branded mode
+                </div>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g. Accelerator Market Share"
+                  style={{ ...inputStyle(C), fontSize: 14, fontWeight: 700, padding: "10px 12px" }}
+                />
+              </Section>
+
+              <Section label="Source Text">
+                <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginBottom: 4 }}>
+                  Citation/attribution shown at the bottom-left of the exported chart
+                </div>
+                <input
+                  value={source}
+                  onChange={(e) => setSource(e.target.value)}
+                  placeholder="e.g. Source: SemiAnalysis Accelerator Model"
+                  style={{ ...inputStyle(C), fontFamily: mn, fontSize: 11 }}
+                />
               </Section>
             </>
           )}
@@ -574,4 +760,11 @@ function primaryBtn(C: { amber: string; bg: string }, disabled: boolean): React.
 function secondaryBtn(C: { violet: string; teal: string; surface: string; border: string }, state: string): React.CSSProperties {
   const isSaved = state === "saved";
   return { padding: "10px 16px", background: isSaved ? C.teal + "15" : C.surface, border: `1px solid ${isSaved ? C.teal + "40" : C.border}`, borderRadius: 8, color: isSaved ? C.teal : C.violet, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: state === "saving" ? "wait" : "pointer", transition: "all 0.15s" };
+}
+
+function miniBtn(color: string): React.CSSProperties {
+  return { width: 20, height: 20, borderRadius: 4, background: "transparent", border: `1px solid ${color}40`, color, fontFamily: mn, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 };
+}
+function miniBtnText(color: string): React.CSSProperties {
+  return { padding: "5px 10px", background: "transparent", border: `1px solid ${color}40`, borderRadius: 5, color, fontFamily: mn, fontSize: 10, fontWeight: 700, cursor: "pointer" };
 }
