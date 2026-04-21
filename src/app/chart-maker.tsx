@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -10,17 +10,101 @@ import { useUser } from "./user-context";
 // ═══ TYPES ═══
 type ChartKind = "bar" | "stacked" | "line" | "area" | "areaStacked" | "pie";
 type StyleMode = "clean" | "branded";
-type PaletteKey = "sa" | "amber" | "blue" | "mono";
+type PaletteKey = "saCore" | "saSpectrum" | "saCapital";
+type Orientation = "cols" | "rows";
+type BackdropKey = "amber" | "cobalt" | "both" | "capital";
+
+interface BackdropSpec { name: string; base: string; glows: { x: number; y: number; r: number; color: string }[]; accent: string; }
+const BACKDROPS: Record<BackdropKey, BackdropSpec> = {
+  amber: {
+    name: "Amber",
+    base: "#06060C",
+    accent: "#F7B041",
+    glows: [
+      { x: 0.85, y: 0.15, r: 0.7,  color: "rgba(247,176,65,0.22)" },
+      { x: 0.15, y: 0.85, r: 0.55, color: "rgba(247,176,65,0.10)" },
+    ],
+  },
+  cobalt: {
+    name: "Cobalt",
+    base: "#06060C",
+    accent: "#0B86D1",
+    glows: [
+      { x: 0.85, y: 0.15, r: 0.7,  color: "rgba(11,134,209,0.22)" },
+      { x: 0.15, y: 0.85, r: 0.55, color: "rgba(11,134,209,0.10)" },
+    ],
+  },
+  both: {
+    name: "Amber + Cobalt",
+    base: "#06060C",
+    accent: "#F7B041",
+    glows: [
+      { x: 0.85, y: 0.15, r: 0.7,  color: "rgba(247,176,65,0.18)" },
+      { x: 0.10, y: 0.90, r: 0.60, color: "rgba(11,134,209,0.14)" },
+    ],
+  },
+  capital: {
+    name: "Capital (Teal)",
+    base: "#06120F",
+    accent: "#2EAD8E",
+    glows: [
+      { x: 0.85, y: 0.15, r: 0.7,  color: "rgba(46,173,142,0.22)" },
+      { x: 0.15, y: 0.90, r: 0.55, color: "rgba(122,207,186,0.12)" },
+    ],
+  },
+};
 
 interface ChartRow { [key: string]: string | number; }
 
-// ═══ PALETTES ═══
-const PALETTES: Record<PaletteKey, { name: string; colors: string[] }> = {
-  sa:    { name: "SA Multi",     colors: ["#F7B041", "#0B86D1", "#2EAD8E", "#905CCB", "#E06347", "#26C9D8"] },
-  amber: { name: "Amber Gradient", colors: ["#F7B041", "#DC9A3A", "#B07A2B", "#7A551E", "#4A3414"] },
-  blue:  { name: "Blue Gradient",  colors: ["#0B86D1", "#3FA1DE", "#7AC2E8", "#A8D8F0", "#D3EAF7"] },
-  mono:  { name: "Mono Violet",    colors: ["#905CCB", "#A678D6", "#BE96E1", "#D4B5ED", "#EAD5F7"] },
+// ═══ SA PALETTES (from brand cheatsheet + skill files) ═══
+// SA Spectrum — 12 unique hues (skill: sa-core-charts)
+const SA_SPECTRUM = [
+  "#F7B041", // S1 Amber
+  "#0B86D1", // S2 Blue
+  "#2EAD8E", // S3 Teal
+  "#E06347", // S4 Coral
+  "#905CCB", // S5 Violet
+  "#26C9D8", // S6 Cyan
+  "#D1334A", // S7 Crimson
+  "#56BC42", // S8 Sage
+  "#D34574", // S9 Rose
+  "#E8C83A", // S10 Sunflower
+  "#495BCE", // S11 Indigo
+  "#BF49B5", // S12 Magenta
+];
+
+// SA Core — 4 brand + warm/cool tints (brand cheatsheet)
+const SA_CORE = [
+  "#F7B041", // S1 Amber
+  "#0B86D1", // S2 Blue
+  "#2EAD8E", // S3 Teal
+  "#E06347", // S4 Coral
+  "#C58B25", // S5 A600 (darker amber)
+  "#086AA6", // S6 B600 (darker blue)
+  "#F9C877", // S7 A300 (lighter amber)
+  "#5DA9DE", // S8 B300 (lighter blue)
+  "#9B6E1E", // S9 A700
+  "#064D7A", // S10 B700
+  "#FAD79A", // S11 A200
+  "#97CBEC", // S12 B200
+];
+
+// SA Capital — teal-centric (skill: sa-capital-charts)
+const SA_CAPITAL = [
+  "#2EAD8E", // S1 Teal base
+  "#7ACFBA", // S2 Teal light (Mint)
+  "#F7B041", // S3 Amber accent
+  "#0B86D1", // S4 Blue accent
+  "#E06347", // S5+ Coral — alert/loss ONLY
+];
+
+const PALETTES: Record<PaletteKey, { name: string; blurb: string; colors: string[] }> = {
+  saCore:     { name: "SA Core",     blurb: "4 brand + tints. Use S1–S4 first.", colors: SA_CORE },
+  saSpectrum: { name: "SA Spectrum", blurb: "12 unique hues. Never skip ahead.", colors: SA_SPECTRUM },
+  saCapital:  { name: "SA Capital",  blurb: "Teal-centric. Coral = alert only.", colors: SA_CAPITAL },
 };
+
+const GREY = "#3D3D3D"; // SA Metal — gridlines + "Other" pie slices ONLY, never as data
 
 const CHART_KINDS: { key: ChartKind; label: string }[] = [
   { key: "bar",         label: "Bar (grouped)" },
@@ -31,30 +115,54 @@ const CHART_KINDS: { key: ChartKind; label: string }[] = [
   { key: "pie",         label: "Pie" },
 ];
 
-// ═══ CSV PARSER ═══
-function parseCSV(raw: string): { columns: string[]; rows: ChartRow[] } {
+// ═══ CSV PARSER + ORIENTATION ═══
+function parseCSV(raw: string, orientation: Orientation): { columns: string[]; rows: ChartRow[] } {
   const lines = raw.trim().split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return { columns: [], rows: [] };
-  const columns = lines[0].split(",").map((c) => c.trim());
-  const rows: ChartRow[] = lines.slice(1).map((line) => {
-    const cells = line.split(",").map((c) => c.trim());
-    const row: ChartRow = {};
-    columns.forEach((col, i) => {
-      const v = cells[i];
-      const n = Number(v);
-      row[col] = v !== undefined && !isNaN(n) && v !== "" ? n : (v || "");
+  const table = lines.map((line) => line.split(",").map((c) => c.trim()));
+
+  if (orientation === "cols") {
+    // First row = headers (label col + series names as columns). First col = X labels.
+    const columns = table[0];
+    const rows: ChartRow[] = table.slice(1).map((cells) => {
+      const row: ChartRow = {};
+      columns.forEach((col, i) => {
+        const v = cells[i];
+        const n = Number(v);
+        row[col] = v !== undefined && !isNaN(n) && v !== "" ? n : (v || "");
+      });
+      return row;
     });
-    return row;
-  });
-  return { columns, rows };
+    return { columns, rows };
+  } else {
+    // Rows as series: first col = series name, remaining cols = values per x-point.
+    // First row's remaining cells = x labels. Transpose mentally into wide rows.
+    const xLabels = table[0].slice(1);
+    const seriesNames = table.slice(1).map((r) => r[0]);
+    const columns = [table[0][0] || "X", ...seriesNames];
+    const rows: ChartRow[] = xLabels.map((x, xi) => {
+      const row: ChartRow = { [columns[0]]: x };
+      seriesNames.forEach((name, si) => {
+        const v = table[si + 1][xi + 1];
+        const n = Number(v);
+        row[name] = v !== undefined && !isNaN(n) && v !== "" ? n : 0;
+      });
+      return row;
+    });
+    return { columns, rows };
+  }
 }
 
-// Sample data user sees on open
-const SAMPLE_CSV = `Quarter,Nvidia,AMD,Intel
+const SAMPLE_COLS = `Quarter,Nvidia,AMD,Intel
 Q1 2025,68,18,14
 Q2 2025,72,19,12
 Q3 2025,74,20,10
 Q4 2025,78,22,9`;
+
+const SAMPLE_ROWS = `Company,Q1 2025,Q2 2025,Q3 2025,Q4 2025
+Nvidia,68,72,74,78
+AMD,18,19,20,22
+Intel,14,12,10,9`;
 
 // ═══ EXPORT: SVG → PNG ═══
 async function exportChartPNG(
@@ -62,6 +170,7 @@ async function exportChartPNG(
   width: number,
   height: number,
   style: StyleMode,
+  backdrop: BackdropKey,
   title: string,
   source: string
 ): Promise<Blob> {
@@ -71,31 +180,19 @@ async function exportChartPNG(
   const ctx = canvas.getContext("2d")!;
 
   if (style === "branded") {
-    // SA dark gradient backdrop
-    ctx.fillStyle = "#06060C";
+    const spec = BACKDROPS[backdrop];
+    ctx.fillStyle = spec.base;
     ctx.fillRect(0, 0, width, height);
-    // Radial amber glow top-right
-    const g1 = ctx.createRadialGradient(width * 0.85, height * 0.15, 0, width * 0.85, height * 0.15, width * 0.7);
-    g1.addColorStop(0, "rgba(247,176,65,0.18)");
-    g1.addColorStop(1, "rgba(247,176,65,0)");
-    ctx.fillStyle = g1;
-    ctx.fillRect(0, 0, width, height);
-    // Radial blue glow bottom-left
-    const g2 = ctx.createRadialGradient(width * 0.1, height * 0.9, 0, width * 0.1, height * 0.9, width * 0.6);
-    g2.addColorStop(0, "rgba(11,134,209,0.12)");
-    g2.addColorStop(1, "rgba(11,134,209,0)");
-    ctx.fillStyle = g2;
-    ctx.fillRect(0, 0, width, height);
-    // Amber top accent line
-    ctx.fillStyle = "#F7B041";
+    spec.glows.forEach((g) => {
+      const grad = ctx.createRadialGradient(width * g.x, height * g.y, 0, width * g.x, height * g.y, width * g.r);
+      grad.addColorStop(0, g.color);
+      grad.addColorStop(1, g.color.replace(/,\s*[\d.]+\)/, ",0)"));
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+    });
+    ctx.fillStyle = spec.accent;
     ctx.fillRect(80, 80, 60, 4);
-  } else {
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, width, height);
-  }
 
-  // Title + source text for branded mode
-  if (style === "branded") {
     if (title) {
       ctx.font = "800 44px 'Outfit', sans-serif";
       ctx.fillStyle = "#E8E4DD";
@@ -103,17 +200,17 @@ async function exportChartPNG(
     }
     if (source) {
       ctx.font = "500 18px 'JetBrains Mono', monospace";
-      ctx.fillStyle = "rgba(255,255,255,0.45)";
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
       ctx.fillText(source, 80, height - 40);
     }
     ctx.font = "700 16px 'Outfit', sans-serif";
-    ctx.fillStyle = "#F7B041";
+    ctx.fillStyle = spec.accent;
     ctx.textAlign = "right";
     ctx.fillText("SEMIANALYSIS", width - 80, height - 40);
     ctx.textAlign = "left";
   }
+  // Clean mode: transparent canvas — leave it empty
 
-  // Render the SVG into the canvas
   const svgData = new XMLSerializer().serializeToString(svgEl);
   const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
   const url = URL.createObjectURL(svgBlob);
@@ -124,11 +221,11 @@ async function exportChartPNG(
     img.src = url;
   });
 
-  const chartInsetX = style === "branded" ? 80 : 40;
-  const chartInsetY = style === "branded" ? 180 : 40;
-  const chartW = width - chartInsetX * 2;
-  const chartH = height - chartInsetY - (style === "branded" ? 80 : 40);
-  ctx.drawImage(img, chartInsetX, chartInsetY, chartW, chartH);
+  const insetX = style === "branded" ? 80 : 40;
+  const insetY = style === "branded" ? 180 : 40;
+  const chartW = width - insetX * 2;
+  const chartH = height - insetY - (style === "branded" ? 80 : 40);
+  ctx.drawImage(img, insetX, insetY, chartW, chartH);
   URL.revokeObjectURL(url);
 
   return new Promise<Blob>((resolve, reject) => {
@@ -136,12 +233,14 @@ async function exportChartPNG(
   });
 }
 
-// ═══ MAIN COMPONENT ═══
+// ═══ MAIN ═══
 export default function ChartMaker() {
-  const [csv, setCsv] = useState(SAMPLE_CSV);
+  const [csv, setCsv] = useState(SAMPLE_COLS);
+  const [orientation, setOrientation] = useState<Orientation>("cols");
   const [kind, setKind] = useState<ChartKind>("bar");
-  const [palette, setPalette] = useState<PaletteKey>("sa");
+  const [palette, setPalette] = useState<PaletteKey>("saCore");
   const [style, setStyle] = useState<StyleMode>("branded");
+  const [backdrop, setBackdrop] = useState<BackdropKey>("both");
   const [title, setTitle] = useState("Accelerator Market Share");
   const [source, setSource] = useState("Source: SemiAnalysis Accelerator Model");
   const [exporting, setExporting] = useState(false);
@@ -149,10 +248,17 @@ export default function ChartMaker() {
   const chartRef = useRef<HTMLDivElement>(null);
   const userCtx = useUser();
 
-  const parsed = parseCSV(csv);
+  const parsed = parseCSV(csv, orientation);
   const labelKey = parsed.columns[0] || "";
   const seriesKeys = parsed.columns.slice(1);
   const colors = PALETTES[palette].colors;
+
+  function swapOrientation(next: Orientation) {
+    setOrientation(next);
+    // Offer to swap sample data as a convenience
+    if (csv === SAMPLE_COLS && next === "rows") setCsv(SAMPLE_ROWS);
+    else if (csv === SAMPLE_ROWS && next === "cols") setCsv(SAMPLE_COLS);
+  }
 
   function handleExport() {
     if (!chartRef.current) return;
@@ -161,12 +267,12 @@ export default function ChartMaker() {
     setExporting(true);
     const W = style === "branded" ? 1920 : 1600;
     const H = style === "branded" ? 1080 : 900;
-    exportChartPNG(svg, W, H, style, style === "branded" ? title : "", style === "branded" ? source : "")
+    exportChartPNG(svg, W, H, style, backdrop, style === "branded" ? title : "", style === "branded" ? source : "")
       .then((blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        const safe = title.replace(/[^a-zA-Z0-9]+/g, "_").slice(0, 40);
+        const safe = (title || "chart").replace(/[^a-zA-Z0-9]+/g, "_").slice(0, 40);
         a.download = `${safe}_${style}_${kind}.png`;
         document.body.appendChild(a);
         a.click();
@@ -182,7 +288,7 @@ export default function ChartMaker() {
     const authorName = userCtx.user ? userCtx.user.name : "Unknown";
     const authorRole = userCtx.user ? userCtx.user.role : "";
     const data = {
-      csv, kind, palette, style, title, source,
+      csv, orientation, kind, palette, style, backdrop, title, source,
       timestamp: new Date().toISOString(),
       createdBy: authorName,
       createdByRole: authorRole,
@@ -208,22 +314,22 @@ export default function ChartMaker() {
   // ═══ CHART RENDERER ═══
   function renderChart() {
     if (parsed.rows.length === 0) return <Empty />;
-    const axisColor = style === "branded" ? "rgba(255,255,255,0.5)" : "#4A4858";
-    const gridColor = style === "branded" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+    const axisColor = style === "branded" ? "rgba(255,255,255,0.55)" : "#888888";
+    const gridColor = style === "branded" ? "rgba(255,255,255,0.10)" : GREY + "35";
     const textColor = style === "branded" ? "#E8E4DD" : "#1A1A1A";
     const tooltipBg = style === "branded" ? "#0A0A14" : "#ffffff";
     const tooltipBorder = style === "branded" ? "rgba(255,255,255,0.1)" : "#E0E0E0";
 
     const common = { data: parsed.rows, margin: { top: 20, right: 30, left: 10, bottom: 10 } };
-    const tickStyle = { fontSize: 14, fontFamily: "Outfit, sans-serif", fill: axisColor };
-    const legendStyle = { color: textColor, fontFamily: "Outfit, sans-serif", fontSize: 14 };
+    const tickStyle = { fontSize: 14, fontFamily: "'Outfit', sans-serif", fontWeight: 600, fill: axisColor };
+    const legendStyle = { color: textColor, fontFamily: "'Outfit', sans-serif", fontSize: 14, fontWeight: 600 };
 
     if (kind === "pie") {
       const pieData = parsed.rows.map((r) => ({ name: String(r[labelKey]), value: Number(r[seriesKeys[0]]) || 0 }));
       return (
         <ResponsiveContainer width="100%" height={520}>
           <PieChart>
-            <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={180} label={{ fill: textColor, fontSize: 13, fontFamily: "Outfit, sans-serif" }}>
+            <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={180} label={{ fill: textColor, fontSize: 13, fontFamily: "'Outfit', sans-serif", fontWeight: 600 }}>
               {pieData.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
             </Pie>
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
@@ -237,9 +343,9 @@ export default function ChartMaker() {
       return (
         <ResponsiveContainer width="100%" height={520}>
           <LineChart {...common}>
-            <CartesianGrid stroke={gridColor} />
-            <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} />
-            <YAxis tick={tickStyle} stroke={axisColor} />
+            <CartesianGrid stroke={gridColor} vertical={false} />
+            <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
+            <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
             <Legend wrapperStyle={legendStyle} />
             {seriesKeys.map((k, i) => <Line key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} strokeWidth={3} dot={{ r: 4 }} />)}
@@ -252,26 +358,25 @@ export default function ChartMaker() {
       return (
         <ResponsiveContainer width="100%" height={520}>
           <AreaChart {...common}>
-            <CartesianGrid stroke={gridColor} />
-            <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} />
-            <YAxis tick={tickStyle} stroke={axisColor} />
+            <CartesianGrid stroke={gridColor} vertical={false} />
+            <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
+            <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
             <Legend wrapperStyle={legendStyle} />
             {seriesKeys.map((k, i) => (
-              <Area key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} fill={colors[i % colors.length]} fillOpacity={0.35} strokeWidth={2} stackId={kind === "areaStacked" ? "a" : undefined} />
+              <Area key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} fill={colors[i % colors.length]} fillOpacity={0.82} strokeWidth={2.2} stackId={kind === "areaStacked" ? "a" : undefined} />
             ))}
           </AreaChart>
         </ResponsiveContainer>
       );
     }
 
-    // bar or stacked
     return (
       <ResponsiveContainer width="100%" height={520}>
         <BarChart {...common}>
           <CartesianGrid stroke={gridColor} vertical={false} />
-          <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} />
-          <YAxis tick={tickStyle} stroke={axisColor} />
+          <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
+          <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
           <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
           <Legend wrapperStyle={legendStyle} />
           {seriesKeys.map((k, i) => (
@@ -282,21 +387,32 @@ export default function ChartMaker() {
     );
   }
 
-  // ═══ UI ═══
-  const previewBg = style === "branded"
-    ? "linear-gradient(135deg, #06060C 0%, #0A0A14 100%)"
-    : "#ffffff";
+  const bdSpec = BACKDROPS[backdrop];
+  const previewBg = style === "branded" ? bdSpec.base : "#ffffff";
 
   return (
     <div style={{ padding: "28px 32px 60px", maxWidth: 1400, margin: "0 auto", color: C.tx, fontFamily: ft }}>
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontFamily: ft, fontSize: 24, fontWeight: 900, color: C.tx, letterSpacing: -0.5 }}>Chart Maker</div>
-        <div style={{ fontFamily: mn, fontSize: 11, color: C.txm, marginTop: 4, letterSpacing: 1 }}>PASTE CSV → PREVIEW → EXPORT PNG</div>
+        <div style={{ fontFamily: mn, fontSize: 11, color: C.txm, marginTop: 4, letterSpacing: 1 }}>SA BRAND PALETTES · CSV OR TRANSPOSED · CLEAN OR BRANDED PNG</div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 20 }}>
-        {/* ═══ CONTROLS PANEL ═══ */}
+      <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 20 }}>
+        {/* ═══ CONTROLS ═══ */}
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          {/* Orientation */}
+          <Section label="Data Orientation">
+            <div style={{ display: "flex", gap: 6 }}>
+              <Pill active={orientation === "cols"} onClick={() => swapOrientation("cols")}>Columns = Series</Pill>
+              <Pill active={orientation === "rows"} onClick={() => swapOrientation("rows")}>Rows = Series</Pill>
+            </div>
+            <div style={{ fontSize: 10, color: C.txd, fontFamily: mn, marginTop: 6 }}>
+              {orientation === "cols"
+                ? "First row = headers. First col = X labels. Each other column is a series."
+                : "First row = X labels (skip first cell). First col = series names. Each row is a series."}
+            </div>
+          </Section>
+
           {/* CSV */}
           <Section label="Data (CSV)">
             <textarea
@@ -305,9 +421,6 @@ export default function ChartMaker() {
               rows={8}
               style={{ width: "100%", padding: 12, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, color: C.tx, fontFamily: mn, fontSize: 11, lineHeight: 1.6, resize: "vertical", outline: "none", boxSizing: "border-box" }}
             />
-            <div style={{ fontSize: 10, color: C.txd, fontFamily: mn, marginTop: 4 }}>
-              First row = headers. First column = labels. Other columns = numeric series.
-            </div>
           </Section>
 
           {/* Chart Type */}
@@ -321,35 +434,64 @@ export default function ChartMaker() {
 
           {/* Palette */}
           <Section label="Palette">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-              {(Object.keys(PALETTES) as PaletteKey[]).map((k) => (
-                <button key={k} onClick={() => setPalette(k)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, background: palette === k ? C.amber + "15" : C.surface, border: `1px solid ${palette === k ? C.amber + "40" : C.border}`, color: palette === k ? C.amber : C.txm, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
-                  <div style={{ display: "flex", gap: 2 }}>
-                    {PALETTES[k].colors.slice(0, 4).map((c, i) => (
-                      <div key={i} style={{ width: 10, height: 10, borderRadius: 2, background: c }} />
-                    ))}
-                  </div>
-                  {PALETTES[k].name}
-                </button>
-              ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {(Object.keys(PALETTES) as PaletteKey[]).map((k) => {
+                const p = PALETTES[k];
+                const active = palette === k;
+                return (
+                  <button key={k} onClick={() => setPalette(k)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, background: active ? C.amber + "15" : C.surface, border: `1px solid ${active ? C.amber + "40" : C.border}`, color: active ? C.amber : C.txm, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+                    <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                      {p.colors.slice(0, 6).map((c, i) => (
+                        <div key={i} style={{ width: 10, height: 18, borderRadius: 1, background: c }} />
+                      ))}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 12, color: active ? C.amber : C.tx }}>{p.name}</div>
+                      <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginTop: 2 }}>{p.blurb}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginTop: 6 }}>
+              Using S1–S{Math.min(seriesKeys.length, colors.length)} · Grey #3D3D3D reserved for gridlines only
             </div>
           </Section>
 
           {/* Style */}
           <Section label="Export Style">
             <div style={{ display: "flex", gap: 6 }}>
-              <Pill active={style === "clean"} onClick={() => setStyle("clean")}>Clean (no backdrop)</Pill>
+              <Pill active={style === "clean"} onClick={() => setStyle("clean")}>Clean (transparent)</Pill>
               <Pill active={style === "branded"} onClick={() => setStyle("branded")}>SA Branded</Pill>
             </div>
           </Section>
 
-          {/* Title + source */}
           {style === "branded" && (
-            <Section label="Slide Text (branded mode only)">
-              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Chart title" style={inputStyle(C)} />
-              <div style={{ height: 6 }} />
-              <input value={source} onChange={(e) => setSource(e.target.value)} placeholder="Source line" style={inputStyle(C)} />
-            </Section>
+            <>
+              <Section label="Backdrop Gradient">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  {(Object.keys(BACKDROPS) as BackdropKey[]).map((k) => {
+                    const spec = BACKDROPS[k];
+                    const active = backdrop === k;
+                    const swatch = `linear-gradient(135deg, ${spec.base} 0%, ${spec.glows[0].color.replace(/[\d.]+\)/, "0.8)")} 120%)`;
+                    return (
+                      <button key={k} onClick={() => setBackdrop(k)} style={{ padding: 0, borderRadius: 8, border: `1px solid ${active ? spec.accent + "80" : C.border}`, background: "transparent", cursor: "pointer", overflow: "hidden", boxShadow: active ? `0 0 0 2px ${spec.accent}25` : "none", transition: "all 0.15s" }}>
+                        <div style={{ height: 44, background: swatch, position: "relative" }}>
+                          <div style={{ position: "absolute", top: 6, left: 8, width: 16, height: 2, background: spec.accent }} />
+                        </div>
+                        <div style={{ padding: "6px 10px", fontFamily: ft, fontSize: 10, fontWeight: 700, color: active ? spec.accent : C.txm, textAlign: "left" }}>{spec.name}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Section>
+
+              <Section label="Slide Text (branded mode)">
+                <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Chart title" style={inputStyle(C)} />
+                <div style={{ height: 6 }} />
+                <input value={source} onChange={(e) => setSource(e.target.value)} placeholder="Source line (e.g. Source: SemiAnalysis)" style={inputStyle(C)} />
+              </Section>
+            </>
           )}
 
           {/* Actions */}
@@ -367,13 +509,13 @@ export default function ChartMaker() {
         <div>
           <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 10 }}>Preview</div>
           <div ref={chartRef} style={{ width: "100%", minHeight: 600, borderRadius: 14, padding: 40, background: previewBg, border: `1px solid ${style === "branded" ? "rgba(255,255,255,0.08)" : C.border}`, boxShadow: "0 8px 40px rgba(0,0,0,0.25)", position: "relative", overflow: "hidden" }}>
-            {/* Branded mode chrome inside preview */}
             {style === "branded" && (
               <>
-                <div style={{ position: "absolute", top: 0, right: 0, width: "55%", height: "55%", background: "radial-gradient(circle at 80% 15%, rgba(247,176,65,0.12), transparent 65%)", pointerEvents: "none" }} />
-                <div style={{ position: "absolute", bottom: 0, left: 0, width: "50%", height: "50%", background: "radial-gradient(circle at 10% 90%, rgba(11,134,209,0.08), transparent 65%)", pointerEvents: "none" }} />
+                {bdSpec.glows.map((g, i) => (
+                  <div key={i} style={{ position: "absolute", inset: 0, background: `radial-gradient(circle at ${g.x * 100}% ${g.y * 100}%, ${g.color}, transparent 65%)`, pointerEvents: "none" }} />
+                ))}
                 <div style={{ position: "relative", marginBottom: 16 }}>
-                  <div style={{ width: 50, height: 3, background: C.amber, marginBottom: 14 }} />
+                  <div style={{ width: 50, height: 3, background: bdSpec.accent, marginBottom: 14 }} />
                   <div style={{ fontFamily: ft, fontSize: 26, fontWeight: 900, color: "#E8E4DD", letterSpacing: -0.5 }}>{title || "Chart Title"}</div>
                 </div>
               </>
@@ -381,13 +523,13 @@ export default function ChartMaker() {
             <div style={{ position: "relative" }}>{renderChart()}</div>
             {style === "branded" && (
               <div style={{ position: "absolute", bottom: 18, left: 40, right: 40, display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: mn, fontSize: 10 }}>
-                <span style={{ color: "rgba(255,255,255,0.45)" }}>{source}</span>
-                <span style={{ color: C.amber, fontWeight: 700, letterSpacing: 1.5 }}>SEMIANALYSIS</span>
+                <span style={{ color: "rgba(255,255,255,0.55)" }}>{source}</span>
+                <span style={{ color: bdSpec.accent, fontWeight: 700, letterSpacing: 1.5 }}>SEMIANALYSIS</span>
               </div>
             )}
           </div>
           <div style={{ fontFamily: mn, fontSize: 10, color: C.txd, marginTop: 8 }}>
-            {parsed.rows.length} rows · {seriesKeys.length} series · export: {style === "branded" ? "1920×1080 with SA backdrop" : "1600×900 clean on white"}
+            {parsed.rows.length} rows · {seriesKeys.length} series · {PALETTES[palette].name} · {style === "branded" ? `1920×1080 ${bdSpec.name} backdrop` : "1600×900 transparent"}
           </div>
         </div>
       </div>
@@ -395,7 +537,7 @@ export default function ChartMaker() {
   );
 }
 
-// ═══ SMALL HELPERS ═══
+// ═══ HELPERS ═══
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
