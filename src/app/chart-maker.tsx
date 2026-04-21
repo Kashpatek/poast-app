@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useRef } from "react";
 import * as XLSX from "xlsx";
+import { toPng } from "html-to-image";
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -176,72 +177,33 @@ AMD,18,19,20,22
 Intel,14,12,10,9`;
 
 // ═══ EXPORT: SVG → PNG ═══
-async function exportChartPNG(
-  svgEl: SVGElement,
-  width: number,
-  height: number,
-  style: StyleMode,
-  backdrop: BackdropKey,
-  title: string,
-  source: string
-): Promise<Blob> {
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d")!;
-
-  if (style === "branded") {
-    const spec = BACKDROPS[backdrop];
-    ctx.fillStyle = spec.base;
-    ctx.fillRect(0, 0, width, height);
-    spec.glows.forEach((g) => {
-      const grad = ctx.createRadialGradient(width * g.x, height * g.y, 0, width * g.x, height * g.y, width * g.r);
-      grad.addColorStop(0, g.color);
-      grad.addColorStop(1, g.color.replace(/,\s*[\d.]+\)/, ",0)"));
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, width, height);
-    });
-    ctx.fillStyle = spec.accent;
-    ctx.fillRect(80, 80, 60, 4);
-
-    if (title) {
-      ctx.font = "800 44px 'Outfit', sans-serif";
-      ctx.fillStyle = "#E8E4DD";
-      ctx.fillText(title, 80, 140);
-    }
-    if (source) {
-      ctx.font = "500 18px 'JetBrains Mono', monospace";
-      ctx.fillStyle = "rgba(255,255,255,0.55)";
-      ctx.fillText(source, 80, height - 40);
-    }
-    ctx.font = "700 16px 'Outfit', sans-serif";
-    ctx.fillStyle = spec.accent;
-    ctx.textAlign = "right";
-    ctx.fillText("SEMIANALYSIS", width - 80, height - 40);
-    ctx.textAlign = "left";
+// Wait for fonts + one paint frame so html-to-image captures fully-rendered DOM
+async function waitForRenderReady() {
+  if (typeof document !== "undefined" && document.fonts) {
+    try { await document.fonts.ready; } catch { /* noop */ }
   }
-  // Clean mode: transparent canvas — leave it empty
+  await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+}
 
-  const svgData = new XMLSerializer().serializeToString(svgEl);
-  const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
-  const url = URL.createObjectURL(svgBlob);
-  const img = new Image();
-  await new Promise<void>((resolve, reject) => {
-    img.onload = () => resolve();
-    img.onerror = () => reject(new Error("SVG render failed"));
-    img.src = url;
+async function exportNodePNG(
+  node: HTMLElement,
+  targetW: number,
+  targetH: number,
+  transparent: boolean
+): Promise<Blob> {
+  await waitForRenderReady();
+  const rect = node.getBoundingClientRect();
+  // Compute pixelRatio so output ends up ≈ targetW × targetH
+  const pixelRatio = Math.max(2, targetW / rect.width);
+  const dataUrl = await toPng(node, {
+    pixelRatio,
+    backgroundColor: transparent ? undefined : "#ffffff",
+    cacheBust: true,
+    skipFonts: false,
   });
-
-  const insetX = style === "branded" ? 80 : 40;
-  const insetY = style === "branded" ? 180 : 40;
-  const chartW = width - insetX * 2;
-  const chartH = height - insetY - (style === "branded" ? 80 : 40);
-  ctx.drawImage(img, insetX, insetY, chartW, chartH);
-  URL.revokeObjectURL(url);
-
-  return new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/png");
-  });
+  // Convert dataUrl to blob
+  const res = await fetch(dataUrl);
+  return await res.blob();
 }
 
 // ═══ MAIN ═══
@@ -335,12 +297,10 @@ export default function ChartMaker() {
 
   function handleExport() {
     if (!chartRef.current) return;
-    const svg = chartRef.current.querySelector("svg");
-    if (!svg) { alert("Chart not ready"); return; }
     setExporting(true);
     const W = style === "branded" ? 1920 : 1600;
     const H = style === "branded" ? 1080 : 900;
-    exportChartPNG(svg, W, H, style, backdrop, style === "branded" ? title : "", style === "branded" ? source : "")
+    exportNodePNG(chartRef.current, W, H, style === "clean")
       .then((blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
