@@ -274,11 +274,11 @@ function drawChart(ctx: CanvasRenderingContext2D, opts: ExportOpts) {
   const scale = height / PREVIEW_H;
   const S = (n: number) => Math.round(n * scale);
 
-  // Layout regions (scaled) — matches preview paddings (40) with room for title + source chrome
-  const padLeft = S(isBranded ? 70 : 50);
-  const padRight = S(isBranded ? 70 : 50);
-  const padTop = S(isBranded ? (title ? 110 : 60) : 50);
-  const padBottom = S(isBranded ? 75 : 60);
+  // Layout regions (scaled) — tight, matches preview
+  const padLeft = S(isBranded ? 60 : 50);
+  const padRight = S(isBranded ? 60 : 50);
+  const padTop = S(isBranded ? (title ? 95 : 55) : 45);
+  const padBottom = S(isBranded ? 50 : 40);
 
   // Title + accent (branded only) — reference sizes match the preview exactly
   if (isBranded && title) {
@@ -343,8 +343,8 @@ function drawCartesian(
   const { padLeft, padRight, padTop, padBottom, axisColor, gridColor, textColor, scale } = layout;
   const S = (n: number) => Math.round(n * scale);
 
-  // Reserve space for legend at bottom + breathing room above it (scaled)
-  const legendH = S(64);
+  // Reserve space for legend at bottom (scaled, matches preview tight spacing)
+  const legendH = S(40);
   const plotLeft = padLeft;
   const plotRight = width - padRight;
   const plotTop = padTop;
@@ -542,7 +542,7 @@ function drawCartesian(
   const items = seriesKeys.map((k) => ({ text: k, w: measureText(ctx, k, legendFont) + swatch + padBetweenSwatchAndText }));
   const totalW = items.reduce((a, b) => a + b.w, 0) + itemGap * (items.length - 1);
   let cursor = (plotLeft + plotRight) / 2 - totalW / 2;
-  const legendY = plotBottom + (opts.axisMode === "manual" && opts.xAxisLabel ? S(80) : S(56));
+  const legendY = plotBottom + (opts.axisMode === "manual" && opts.xAxisLabel ? S(55) : S(34));
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   items.forEach((it, i) => {
@@ -566,7 +566,7 @@ function drawPie(
   if (!seriesKey) return;
   const { padLeft, padRight, padTop, padBottom, width, height, textColor, scale } = layout;
   const S = (n: number) => Math.round(n * scale);
-  const legendReserve = S(64);
+  const legendReserve = S(40);
   const cx = (padLeft + (width - padRight)) / 2;
   const cy = (padTop + (height - padBottom - legendReserve)) / 2;
   const r = Math.min((width - padLeft - padRight) / 2, (height - padTop - padBottom - legendReserve) / 2) * 0.75;

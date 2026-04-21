@@ -1026,6 +1026,82 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
   </div>;
 }
 
+// ═══ ANALYST SPLASH — iPhone-home-screen-style tile grid ═══
+function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
+  var VIOLET = "#905CCB";
+  var tools = [
+    { id: "sloptop",  label: "Slop Top",      sub: "Viral content gen",     ic: "\uD83D\uDCA5", color: C.amber },
+    { id: "carousel", label: "Carousel",      sub: "Instagram carousels",   ic: "\uD83D\uDCD0", color: C.blue },
+    { id: "captions", label: "Capper",        sub: "Captions per platform", ic: "\uD83C\uDFAC", color: C.teal },
+    { id: "p2p",      label: "Press to Premier", sub: "Video briefs",       ic: "\uD83C\uDFA5", color: VIOLET },
+    { id: "broll",    label: "B-Roll Library",sub: "Shared asset library",  ic: "\uD83D\uDCFD",  color: C.cyan },
+    { id: "chart",    label: "Chart Maker",   sub: "Data viz, SA branded",  ic: "\uD83D\uDCCA", color: C.coral },
+  ];
+  return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, overflow: "hidden" }}>
+    <style dangerouslySetInnerHTML={{ __html: `
+      @keyframes asFade{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}
+      @keyframes asTile{0%{opacity:0;transform:translateY(20px) scale(0.94)}100%{opacity:1;transform:translateY(0) scale(1)}}
+      @keyframes asPulse{0%,100%{opacity:0.5}50%{opacity:0.85}}
+    ` }} />
+
+    {/* Ambient violet orbs */}
+    <div style={{ position: "absolute", top: "-20%", right: "-10%", width: "55vw", height: "55vw", borderRadius: "50%", background: `radial-gradient(circle, ${VIOLET}18, transparent 60%)`, pointerEvents: "none", animation: "asPulse 8s ease-in-out infinite" }} />
+    <div style={{ position: "absolute", bottom: "-15%", left: "-10%", width: "50vw", height: "50vw", borderRadius: "50%", background: `radial-gradient(circle, ${C.amber}10, transparent 60%)`, pointerEvents: "none", animation: "asPulse 10s ease-in-out infinite reverse" }} />
+
+    {/* Header */}
+    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, animation: "asFade 0.45s ease forwards", opacity: 0 }}>
+      <img src="/poast-logo.png" style={{ width: 40, height: 40, borderRadius: 10 }} />
+      <span style={{ fontFamily: gf, fontSize: 20, fontWeight: 900, color: C.amber, letterSpacing: 5 }}>POAST</span>
+    </div>
+    <div style={{ fontFamily: ft, fontSize: 28, fontWeight: 900, color: "#E8E4DD", letterSpacing: -0.5, marginBottom: 4, animation: "asFade 0.5s ease 0.05s forwards", opacity: 0 }}>Analyst Studio</div>
+    <div style={{ fontFamily: mn, fontSize: 11, color: VIOLET, letterSpacing: 2, marginBottom: 48, animation: "asFade 0.5s ease 0.1s forwards", opacity: 0 }}>PICK A TOOL TO CREATE</div>
+
+    {/* 3×2 tile grid */}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 220px)", gridAutoRows: "220px", gap: 22, maxWidth: "min(90vw, 760px)" }}>
+      {tools.map(function(t, i) {
+        return <button key={t.id} onClick={function() { onNavigate(t.id); }}
+          style={{
+            background: `linear-gradient(135deg, ${t.color}14 0%, ${t.color}06 100%)`,
+            border: `1px solid ${t.color}28`,
+            borderRadius: 28,
+            padding: "26px 22px",
+            cursor: "pointer",
+            display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between",
+            position: "relative", overflow: "hidden",
+            transition: "all 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
+            animation: `asTile 0.55s cubic-bezier(0.16, 1, 0.3, 1) ${0.15 + i * 0.06}s forwards`,
+            opacity: 0,
+          }}
+          onMouseEnter={function(e: React.MouseEvent<HTMLElement>) {
+            e.currentTarget.style.transform = "translateY(-6px) scale(1.02)";
+            e.currentTarget.style.borderColor = t.color + "70";
+            e.currentTarget.style.boxShadow = `0 20px 50px -10px ${t.color}35, 0 0 0 1px ${t.color}30`;
+            e.currentTarget.style.background = `linear-gradient(135deg, ${t.color}22 0%, ${t.color}0A 100%)`;
+          }}
+          onMouseLeave={function(e: React.MouseEvent<HTMLElement>) {
+            e.currentTarget.style.transform = "translateY(0) scale(1)";
+            e.currentTarget.style.borderColor = t.color + "28";
+            e.currentTarget.style.boxShadow = "none";
+            e.currentTarget.style.background = `linear-gradient(135deg, ${t.color}14 0%, ${t.color}06 100%)`;
+          }}
+        >
+          {/* Top-right glow accent */}
+          <div style={{ position: "absolute", top: -40, right: -40, width: 120, height: 120, borderRadius: "50%", background: `radial-gradient(circle, ${t.color}30, transparent 70%)`, pointerEvents: "none" }} />
+          {/* Icon */}
+          <div style={{ fontSize: 54, lineHeight: 1, filter: `drop-shadow(0 4px 10px ${t.color}55)`, position: "relative" }}>{t.ic}</div>
+          {/* Label */}
+          <div style={{ position: "relative" }}>
+            <div style={{ fontFamily: ft, fontSize: 19, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.3, marginBottom: 4 }}>{t.label}</div>
+            <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 500, color: t.color + "CC", letterSpacing: 0.2 }}>{t.sub}</div>
+          </div>
+        </button>;
+      })}
+    </div>
+
+    <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.18)", letterSpacing: 3, marginTop: 48, animation: "asFade 0.5s ease 0.7s forwards", opacity: 0 }}>SEMIANALYSIS // ANALYST STUDIO</div>
+  </div>;
+}
+
 function Intro({ onDone }: { onDone: (id?: string) => void }) {
   var _phase = useState<string>("select"), phase = _phase[0], setPhase = _phase[1];
   var _user = useState<string | null>(null), user = _user[0], setUser = _user[1];
@@ -1035,6 +1111,8 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
   var handleUserSelect = function(name: string) {
     setUser(name);
     userCtx.setUser(name);
+    // Analysts skip boot/glitch entirely — straight to their tile grid
+    if (name === "Analyst") { setPhase("splash"); return; }
     setPhase("boot");
     try { var audio = new Audio("/splash-sound.mp3"); audio.volume = 0.7; audio.play().catch(function() {}); } catch (e) {}
   };
@@ -1045,7 +1123,9 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
     {phase === "select" && <UserSelect onSelect={handleUserSelect} />}
     {phase === "boot" && <TerminalBoot user={user} onDone={handleBootDone} />}
     {glitch && <GlitchTransition onDone={function() {}} />}
-    {phase === "splash" && <SplashScreen onNavigate={handleNavigate} />}
+    {phase === "splash" && (user === "Analyst"
+      ? <AnalystSplash onNavigate={handleNavigate} />
+      : <SplashScreen onNavigate={handleNavigate} />)}
   </div>;
 }
 
