@@ -1064,7 +1064,6 @@ export default function ChartMaker() {
               {pieData.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
             </Pie>
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
-            <Legend wrapperStyle={legendStyle} />
           </PieChart>
         </ResponsiveContainer>
       );
@@ -1080,7 +1079,6 @@ export default function ChartMaker() {
             <XAxis type="number" dataKey="x" tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} domain={[-0.5, parsed.rows.length - 0.5]} tickFormatter={(v: number) => parsed.rows[v]?.[labelKey] !== undefined ? String(parsed.rows[v][labelKey]) : ""} ticks={parsed.rows.map((_, i) => i)} />
             <YAxis type="number" tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} domain={yDomain} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
-            <Legend wrapperStyle={legendStyle} />
             {seriesKeys.map((k, i) => (
               <Scatter key={k} name={k} data={scatterData[i]} fill={colors[i % colors.length]}>
                 {showValues && <LabelList dataKey="y" position="top" formatter={fmtVal as never} style={valueLabelStyle as never} />}
@@ -1099,7 +1097,6 @@ export default function ChartMaker() {
             <XAxis type="number" tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} domain={yDomain} />
             <YAxis type="category" dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} width={100} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
-            <Legend wrapperStyle={legendStyle} />
             {seriesKeys.map((k, i) => (
               <Bar key={k} dataKey={k} fill={colors[i % colors.length]} radius={[0, 6, 6, 0]}>
                 {showValues && <LabelList dataKey={k} position="right" formatter={fmtVal as never} style={valueLabelStyle as never} />}
@@ -1118,7 +1115,6 @@ export default function ChartMaker() {
             <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
             <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} domain={yDomain} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
-            <Legend wrapperStyle={legendStyle} />
             {seriesKeys.map((k, i) => (
               <Line key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} strokeWidth={lineW} dot={{ r: dotR }}>
                 {showValues && <LabelList dataKey={k} position="top" formatter={fmtVal as never} style={valueLabelStyle as never} />}
@@ -1137,7 +1133,6 @@ export default function ChartMaker() {
             <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
             <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} domain={yDomain} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
-            <Legend wrapperStyle={legendStyle} />
             {seriesKeys.map((k, i) => (
               <Area key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} fill={colors[i % colors.length]} fillOpacity={0.82} strokeWidth={Math.max(1.5, 2.2 * userScale)} stackId={kind === "areaStacked" ? "a" : undefined}>
                 {showValues && <LabelList dataKey={k} position="top" formatter={fmtVal as never} style={valueLabelStyle as never} />}
@@ -1155,7 +1150,6 @@ export default function ChartMaker() {
           <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
           <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} domain={yDomain} />
           <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
-          <Legend wrapperStyle={legendStyle} />
           {seriesKeys.map((k, i) => (
             <Bar key={k} dataKey={k} fill={colors[i % colors.length]} stackId={kind === "stacked" ? "a" : undefined} radius={kind === "stacked" ? [0, 0, 0, 0] : [6, 6, 0, 0]}>
               {showValues && <LabelList dataKey={k} position={kind === "stacked" ? "center" : "top"} formatter={fmtVal as never} style={{ ...valueLabelStyle, fill: kind === "stacked" ? "#ffffff" : textColor } as never} />}
@@ -1459,17 +1453,28 @@ export default function ChartMaker() {
               </>
             )}
             <div style={{ position: "relative" }}>
-              {/* Rotated Y axis label on the left (manual only) */}
+              {/* Rotated Y axis label — tight against the Y-axis ticks */}
               {axisMode === "manual" && !!yAxisLabel && kind !== "pie" && kind !== "hbar" && (
-                <div style={{ position: "absolute", left: -8, top: "50%", transform: "translate(-50%, -50%) rotate(-90deg)", fontFamily: ft, fontSize: 14, fontWeight: 700, color: theme === "light" ? "#1A1A1A" : "#E8E4DD", whiteSpace: "nowrap", pointerEvents: "none" }}>
+                <div style={{ position: "absolute", left: 12, top: "50%", transform: "translate(-50%, -50%) rotate(-90deg)", fontFamily: ft, fontSize: 13, fontWeight: 700, color: theme === "light" ? "#1A1A1A" : "#E8E4DD", whiteSpace: "nowrap", pointerEvents: "none" }}>
                   {yAxisLabel}
                 </div>
               )}
               {renderChart()}
-              {/* X axis label below the Recharts chart — guaranteed below the legend */}
+              {/* X axis name ABOVE the legend (matches export layout) */}
               {axisMode === "manual" && !!xAxisLabel && kind !== "pie" && (
-                <div style={{ textAlign: "center", marginTop: 6, fontFamily: ft, fontSize: 14, fontWeight: 700, color: theme === "light" ? "#1A1A1A" : "#E8E4DD" }}>
+                <div style={{ textAlign: "center", marginTop: 2, fontFamily: ft, fontSize: 13, fontWeight: 700, color: theme === "light" ? "#1A1A1A" : "#E8E4DD" }}>
                   {xAxisLabel}
+                </div>
+              )}
+              {/* HTML legend below the X-axis name */}
+              {kind !== "pie" && seriesKeys.length > 0 && (
+                <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 20, marginTop: 10, fontFamily: ft, fontSize: 13, fontWeight: 600, color: theme === "light" ? "#1A1A1A" : "#E8E4DD" }}>
+                  {seriesKeys.map((k, i) => (
+                    <div key={k} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ width: 12, height: 12, borderRadius: 2, background: colors[i % colors.length] }} />
+                      <span>{k}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
