@@ -1032,9 +1032,8 @@ export default function ChartMaker() {
       margin: {
         top: 20,
         right: 30,
-        left: showY ? 40 : 10,
-        // Reserve room for both the X axis label AND the legend
-        bottom: showX ? 50 : 10,
+        left: showY ? 30 : 10,
+        bottom: 10,
       },
     };
     // Apply userScale to preview so slider changes are visible live
@@ -1078,8 +1077,8 @@ export default function ChartMaker() {
         <ResponsiveContainer width="100%" height={520}>
           <ScatterChart {...common}>
             <CartesianGrid stroke={gridColor} vertical={false} />
-            <XAxis type="number" dataKey="x" tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={xLabel} domain={[-0.5, parsed.rows.length - 0.5]} tickFormatter={(v: number) => parsed.rows[v]?.[labelKey] !== undefined ? String(parsed.rows[v][labelKey]) : ""} ticks={parsed.rows.map((_, i) => i)} />
-            <YAxis type="number" tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={yLabel} domain={yDomain} />
+            <XAxis type="number" dataKey="x" tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} domain={[-0.5, parsed.rows.length - 0.5]} tickFormatter={(v: number) => parsed.rows[v]?.[labelKey] !== undefined ? String(parsed.rows[v][labelKey]) : ""} ticks={parsed.rows.map((_, i) => i)} />
+            <YAxis type="number" tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} domain={yDomain} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
             <Legend wrapperStyle={legendStyle} />
             {seriesKeys.map((k, i) => (
@@ -1097,8 +1096,8 @@ export default function ChartMaker() {
         <ResponsiveContainer width="100%" height={520}>
           <BarChart {...common} layout="vertical" margin={{ top: 20, right: 50, left: 60, bottom: 10 }}>
             <CartesianGrid stroke={gridColor} horizontal={false} />
-            <XAxis type="number" tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={xLabel} domain={yDomain} />
-            <YAxis type="category" dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={yLabel} width={100} />
+            <XAxis type="number" tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} domain={yDomain} />
+            <YAxis type="category" dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} width={100} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
             <Legend wrapperStyle={legendStyle} />
             {seriesKeys.map((k, i) => (
@@ -1116,8 +1115,8 @@ export default function ChartMaker() {
         <ResponsiveContainer width="100%" height={520}>
           <LineChart {...common}>
             <CartesianGrid stroke={gridColor} vertical={false} />
-            <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={xLabel} />
-            <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={yLabel} domain={yDomain} />
+            <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
+            <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} domain={yDomain} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
             <Legend wrapperStyle={legendStyle} />
             {seriesKeys.map((k, i) => (
@@ -1135,8 +1134,8 @@ export default function ChartMaker() {
         <ResponsiveContainer width="100%" height={520}>
           <AreaChart {...common}>
             <CartesianGrid stroke={gridColor} vertical={false} />
-            <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={xLabel} />
-            <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={yLabel} domain={yDomain} />
+            <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
+            <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} domain={yDomain} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
             <Legend wrapperStyle={legendStyle} />
             {seriesKeys.map((k, i) => (
@@ -1153,8 +1152,8 @@ export default function ChartMaker() {
       <ResponsiveContainer width="100%" height={520}>
         <BarChart {...common}>
           <CartesianGrid stroke={gridColor} vertical={false} />
-          <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={xLabel} />
-          <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={yLabel} domain={yDomain} />
+          <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
+          <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} domain={yDomain} />
           <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
           <Legend wrapperStyle={legendStyle} />
           {seriesKeys.map((k, i) => (
@@ -1183,7 +1182,7 @@ export default function ChartMaker() {
         {/* ═══ CONTROLS ═══ */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {/* Orientation */}
-          <Section label="Data Orientation">
+          <Section label="Data Orientation" defaultOpen={false}>
             <div style={{ display: "flex", gap: 6 }}>
               <Pill active={orientation === "cols"} onClick={() => swapOrientation("cols")}>Columns = Series</Pill>
               <Pill active={orientation === "rows"} onClick={() => swapOrientation("rows")}>Rows = Series</Pill>
@@ -1314,7 +1313,7 @@ export default function ChartMaker() {
 
           {/* Axes — only for non-pie */}
           {kind !== "pie" && (
-            <Section label="Axis Labels">
+            <Section label="Axis Labels" defaultOpen={false}>
               <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
                 <Pill active={axisMode === "auto"} onClick={() => setAxisMode("auto")}>Auto</Pill>
                 <Pill active={axisMode === "manual"} onClick={() => setAxisMode("manual")}>Manual</Pill>
@@ -1350,7 +1349,7 @@ export default function ChartMaker() {
           )}
 
           {/* Palette — compact row */}
-          <Section label="Palette">
+          <Section label="Palette" defaultOpen={false}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4 }}>
               {(Object.keys(PALETTES) as PaletteKey[]).map((k) => {
                 const p = PALETTES[k];
@@ -1373,7 +1372,7 @@ export default function ChartMaker() {
           </Section>
 
           {/* Style */}
-          <Section label="Export Style">
+          <Section label="Export Style" defaultOpen={false}>
             <div style={{ display: "flex", gap: 6 }}>
               <Pill active={style === "clean"} onClick={() => setStyle("clean")}>Clean (transparent)</Pill>
               <Pill active={style === "branded"} onClick={() => setStyle("branded")}>SA Branded</Pill>
@@ -1382,14 +1381,14 @@ export default function ChartMaker() {
 
           {style === "branded" && (
             <>
-              <Section label="Theme">
+              <Section label="Theme" defaultOpen={false}>
                 <div style={{ display: "flex", gap: 6 }}>
                   <Pill active={theme === "dark"} onClick={() => setTheme("dark")}>Dark</Pill>
                   <Pill active={theme === "light"} onClick={() => setTheme("light")}>Light</Pill>
                 </div>
               </Section>
 
-              <Section label="Backdrop Gradient">
+              <Section label="Backdrop Gradient" defaultOpen={false}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                   {(Object.keys(BACKDROPS) as BackdropKey[]).map((k) => {
                     const spec = (theme === "light" ? LIGHT_BACKDROPS : BACKDROPS)[k];
@@ -1407,7 +1406,7 @@ export default function ChartMaker() {
                 </div>
               </Section>
 
-              <Section label="Chart Title">
+              <Section label="Chart Title" defaultOpen={false}>
                 <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginBottom: 4 }}>
                   Large headline shown above the chart in branded mode
                 </div>
@@ -1419,7 +1418,7 @@ export default function ChartMaker() {
                 />
               </Section>
 
-              <Section label="Source Text">
+              <Section label="Source Text" defaultOpen={false}>
                 <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginBottom: 4 }}>
                   Citation/attribution shown at the bottom-left of the exported chart
                 </div>
@@ -1459,7 +1458,21 @@ export default function ChartMaker() {
                 </div>
               </>
             )}
-            <div style={{ position: "relative" }}>{renderChart()}</div>
+            <div style={{ position: "relative" }}>
+              {/* Rotated Y axis label on the left (manual only) */}
+              {axisMode === "manual" && !!yAxisLabel && kind !== "pie" && kind !== "hbar" && (
+                <div style={{ position: "absolute", left: -8, top: "50%", transform: "translate(-50%, -50%) rotate(-90deg)", fontFamily: ft, fontSize: 14, fontWeight: 700, color: theme === "light" ? "#1A1A1A" : "#E8E4DD", whiteSpace: "nowrap", pointerEvents: "none" }}>
+                  {yAxisLabel}
+                </div>
+              )}
+              {renderChart()}
+              {/* X axis label below the Recharts chart — guaranteed below the legend */}
+              {axisMode === "manual" && !!xAxisLabel && kind !== "pie" && (
+                <div style={{ textAlign: "center", marginTop: 6, fontFamily: ft, fontSize: 14, fontWeight: 700, color: theme === "light" ? "#1A1A1A" : "#E8E4DD" }}>
+                  {xAxisLabel}
+                </div>
+              )}
+            </div>
             {style === "branded" && (
               <div style={{ position: "absolute", bottom: 18, left: 40, right: 40, display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: mn, fontSize: 10 }}>
                 <span style={{ color: previewSourceColor }}>{source}</span>
@@ -1467,34 +1480,15 @@ export default function ChartMaker() {
               </div>
             )}
           </div>
-          {/* Toolbar: scale slider + show-values toggle + meta */}
-          <div style={{ marginTop: 10, padding: "10px 12px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "1 1 300px" }}>
-              <span style={{ fontFamily: mn, fontSize: 13, color: C.amber }}>⚖</span>
-              <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 1.5, textTransform: "uppercase" }}>Scale</span>
-              <input
-                type="range" min={0.7} max={1.5} step={0.05}
-                value={userScale}
-                onChange={(e) => setUserScale(Number(e.target.value))}
-                style={{ flex: 1, accentColor: C.amber }}
-              />
-              <span style={{ fontFamily: mn, fontSize: 11, color: C.amber, minWidth: 42, textAlign: "right" }}>{userScale.toFixed(2)}×</span>
-              <button onClick={() => setUserScale(1.0)} title="Reset to 1.0" style={{ padding: "3px 8px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 4, color: C.txm, fontFamily: mn, fontSize: 9, cursor: "pointer" }}>Reset</button>
-            </div>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontFamily: mn, fontSize: 10, color: showValues ? C.teal : C.txm }}>
-              <input type="checkbox" checked={showValues} onChange={(e) => setShowValues(e.target.checked)} style={{ accentColor: C.teal }} />
-              Show values
-            </label>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 1.2, textTransform: "uppercase" }}>Y-max</span>
-              <input
-                value={yMaxInput}
-                onChange={(e) => setYMaxInput(e.target.value.replace(/[^\d.]/g, ""))}
-                placeholder="auto"
-                style={{ width: 70, padding: "4px 8px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none" }}
-              />
-            </div>
-          </div>
+          {/* Toolbar: compact — scale hides behind button, show-values + y-max always visible */}
+          <ChartToolbar
+            userScale={userScale}
+            setUserScale={setUserScale}
+            showValues={showValues}
+            setShowValues={setShowValues}
+            yMaxInput={yMaxInput}
+            setYMaxInput={setYMaxInput}
+          />
           <div style={{ fontFamily: mn, fontSize: 10, color: C.txd, marginTop: 8 }}>
             {parsed.rows.length} rows · {seriesKeys.length} series · {PALETTES[palette].name} · {style === "branded" ? `1920×1080 ${bdSpec.name} backdrop` : "1600×900 transparent"} · Scale {userScale.toFixed(2)}×{showValues ? " · values on" : ""}
           </div>
@@ -1505,11 +1499,19 @@ export default function ChartMaker() {
 }
 
 // ═══ HELPERS ═══
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+function Section({ label, children, defaultOpen = true, collapsible = true }: { label: string; children: React.ReactNode; defaultOpen?: boolean; collapsible?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const isOpen = collapsible ? open : true;
   return (
-    <div>
-      <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>{label}</div>
-      {children}
+    <div style={{ borderBottom: `1px solid ${C.border}`, paddingBottom: isOpen ? 10 : 0, marginBottom: 2 }}>
+      <button
+        onClick={() => collapsible && setOpen(!open)}
+        style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", background: "transparent", border: "none", cursor: collapsible ? "pointer" : "default", textAlign: "left" }}
+      >
+        <span style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: 1.5 }}>{label}</span>
+        {collapsible && <span style={{ fontFamily: mn, fontSize: 10, color: C.txd, transition: "transform 0.2s", transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}>▸</span>}
+      </button>
+      {isOpen && <div>{children}</div>}
     </div>
   );
 }
@@ -1526,6 +1528,42 @@ function Empty() {
   return (
     <div style={{ height: 520, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 13, color: C.txd }}>
       Paste CSV data to see the chart
+    </div>
+  );
+}
+
+function ChartToolbar({
+  userScale, setUserScale, showValues, setShowValues, yMaxInput, setYMaxInput,
+}: {
+  userScale: number; setUserScale: (n: number) => void;
+  showValues: boolean; setShowValues: (b: boolean) => void;
+  yMaxInput: string; setYMaxInput: (s: string) => void;
+}) {
+  const [scaleOpen, setScaleOpen] = useState(false);
+  return (
+    <div style={{ marginTop: 10, padding: "8px 12px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+      {/* Scale — collapsed icon button, expands into slider */}
+      {!scaleOpen ? (
+        <button onClick={() => setScaleOpen(true)} title="Adjust chart scale" style={{ padding: "4px 10px", background: userScale !== 1 ? C.amber + "15" : "transparent", border: `1px solid ${userScale !== 1 ? C.amber + "40" : C.border}`, borderRadius: 6, color: userScale !== 1 ? C.amber : C.txm, fontFamily: mn, fontSize: 10, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+          ⚖ Scale {userScale !== 1 ? `${userScale.toFixed(2)}×` : ""}
+        </button>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "1 1 280px" }}>
+          <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 1.5, textTransform: "uppercase" }}>Scale</span>
+          <input type="range" min={0.7} max={1.5} step={0.05} value={userScale} onChange={(e) => setUserScale(Number(e.target.value))} style={{ flex: 1, accentColor: C.amber }} />
+          <span style={{ fontFamily: mn, fontSize: 11, color: C.amber, minWidth: 42, textAlign: "right" }}>{userScale.toFixed(2)}×</span>
+          <button onClick={() => setUserScale(1.0)} title="Reset" style={{ padding: "2px 6px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 4, color: C.txm, fontFamily: mn, fontSize: 9, cursor: "pointer" }}>1×</button>
+          <button onClick={() => setScaleOpen(false)} title="Collapse" style={{ padding: "2px 6px", background: "transparent", border: "none", color: C.txd, fontFamily: mn, fontSize: 14, cursor: "pointer", lineHeight: 1 }}>×</button>
+        </div>
+      )}
+      <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontFamily: mn, fontSize: 10, color: showValues ? C.teal : C.txm }}>
+        <input type="checkbox" checked={showValues} onChange={(e) => setShowValues(e.target.checked)} style={{ accentColor: C.teal }} />
+        Values
+      </label>
+      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+        <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 1.2, textTransform: "uppercase" }}>Y-max</span>
+        <input value={yMaxInput} onChange={(e) => setYMaxInput(e.target.value.replace(/[^\d.]/g, ""))} placeholder="auto" style={{ width: 60, padding: "3px 8px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none" }} />
+      </div>
     </div>
   );
 }
