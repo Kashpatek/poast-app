@@ -944,6 +944,24 @@ export default function ChartMaker() {
     else if (csv === SAMPLE_ROWS && next === "cols") setCsv(SAMPLE_COLS);
   }
 
+  // FLIP: transpose the underlying CSV so rows and columns swap.
+  // Previously-X-labels become series names and vice versa. Handy for
+  // pivoting without retyping data.
+  function flipData() {
+    const g = csvToGrid(csv);
+    if (g.length === 0 || g[0].length === 0) return;
+    const cols = g[0].length;
+    const transposed: string[][] = [];
+    for (let c = 0; c < cols; c++) {
+      const newRow: string[] = [];
+      for (let r = 0; r < g.length; r++) {
+        newRow.push(g[r][c] ?? "");
+      }
+      transposed.push(newRow);
+    }
+    setCsv(gridToCsv(transposed));
+  }
+
   function handleExport() {
     setExporting(true);
     const W = style === "branded" ? 1920 : 1600;
@@ -1308,9 +1326,16 @@ export default function ChartMaker() {
           {/* Axes — only for non-pie */}
           {kind !== "pie" && (
             <Section label="Axis Labels" defaultOpen={false}>
-              <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+              <div style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center" }}>
                 <Pill active={axisMode === "auto"} onClick={() => setAxisMode("auto")}>Auto</Pill>
                 <Pill active={axisMode === "manual"} onClick={() => setAxisMode("manual")}>Manual</Pill>
+                <button
+                  onClick={flipData}
+                  title="Transpose rows and columns (swap series with X labels)"
+                  style={{ marginLeft: "auto", padding: "8px 12px", background: C.violet + "15", border: `1px solid ${C.violet}40`, borderRadius: 6, color: C.violet, fontFamily: ft, fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
+                >
+                  ⇅ FLIP
+                </button>
               </div>
               {axisMode === "auto" && (
                 <div style={{ fontSize: 10, color: C.txd, fontFamily: mn }}>
