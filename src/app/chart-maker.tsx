@@ -3,7 +3,7 @@ import React, { useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList,
 } from "recharts";
 import { D as C, ft, mn } from "./shared-constants";
 import { useUser } from "./user-context";
@@ -864,17 +864,29 @@ export default function ChartMaker() {
         bottom: showX ? 30 : 10,
       },
     };
-    const tickStyle = { fontSize: 14, fontFamily: "'Outfit', sans-serif", fontWeight: 600, fill: axisColor };
-    const legendStyle = { color: textColor, fontFamily: "'Outfit', sans-serif", fontSize: 14, fontWeight: 600 };
-    const xLabel = showX ? { value: xAxisLabel, position: "insideBottom" as const, offset: -10, fill: textColor, fontSize: 14, fontFamily: "'Outfit', sans-serif", fontWeight: 700 } : undefined;
-    const yLabel = showY ? { value: yAxisLabel, angle: -90, position: "insideLeft" as const, fill: textColor, fontSize: 14, fontFamily: "'Outfit', sans-serif", fontWeight: 700, style: { textAnchor: "middle" as const } } : undefined;
+    // Apply userScale to preview so slider changes are visible live
+    const tickFS = Math.round(14 * userScale);
+    const legendFS = Math.round(14 * userScale);
+    const lineW = Math.max(2, 3 * userScale);
+    const dotR = Math.max(3, 4 * userScale);
+    const tickStyle = { fontSize: tickFS, fontFamily: "'Outfit', sans-serif", fontWeight: 600, fill: axisColor };
+    const legendStyle = { color: textColor, fontFamily: "'Outfit', sans-serif", fontSize: legendFS, fontWeight: 600 };
+    const xLabel = showX ? { value: xAxisLabel, position: "insideBottom" as const, offset: -10, fill: textColor, fontSize: Math.round(14 * userScale), fontFamily: "'Outfit', sans-serif", fontWeight: 700 } : undefined;
+    const yLabel = showY ? { value: yAxisLabel, angle: -90, position: "insideLeft" as const, fill: textColor, fontSize: Math.round(14 * userScale), fontFamily: "'Outfit', sans-serif", fontWeight: 700, style: { textAnchor: "middle" as const } } : undefined;
+    const valueLabelStyle = { fill: textColor, fontSize: Math.round(12 * userScale), fontFamily: "'Outfit', sans-serif", fontWeight: 700 };
+    const fmtVal = (v: number) => {
+      if (typeof v !== "number") return "";
+      if (Math.abs(v) >= 1000) return v.toLocaleString();
+      if (Number.isInteger(v)) return String(v);
+      return v.toFixed(1);
+    };
 
     if (kind === "pie") {
       const pieData = parsed.rows.map((r) => ({ name: String(r[labelKey]), value: Number(r[seriesKeys[0]]) || 0 }));
       return (
         <ResponsiveContainer width="100%" height={520}>
           <PieChart>
-            <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={180} label={{ fill: textColor, fontSize: 13, fontFamily: "'Outfit', sans-serif", fontWeight: 600 }}>
+            <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={Math.round(180 * Math.min(1.2, userScale))} label={showValues ? (e: { name?: string; value?: number }) => `${e.name}: ${fmtVal(e.value || 0)}` : { fill: textColor, fontSize: Math.round(13 * userScale), fontFamily: "'Outfit', sans-serif", fontWeight: 600 }}>
               {pieData.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
             </Pie>
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
@@ -893,7 +905,11 @@ export default function ChartMaker() {
             <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={yLabel} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
             <Legend wrapperStyle={legendStyle} />
-            {seriesKeys.map((k, i) => <Line key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} strokeWidth={3} dot={{ r: 4 }} />)}
+            {seriesKeys.map((k, i) => (
+              <Line key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} strokeWidth={lineW} dot={{ r: dotR }}>
+                {showValues && <LabelList dataKey={k} position="top" formatter={fmtVal as never} style={valueLabelStyle as never} />}
+              </Line>
+            ))}
           </LineChart>
         </ResponsiveContainer>
       );
@@ -909,7 +925,9 @@ export default function ChartMaker() {
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
             <Legend wrapperStyle={legendStyle} />
             {seriesKeys.map((k, i) => (
-              <Area key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} fill={colors[i % colors.length]} fillOpacity={0.82} strokeWidth={2.2} stackId={kind === "areaStacked" ? "a" : undefined} />
+              <Area key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} fill={colors[i % colors.length]} fillOpacity={0.82} strokeWidth={Math.max(1.5, 2.2 * userScale)} stackId={kind === "areaStacked" ? "a" : undefined}>
+                {showValues && <LabelList dataKey={k} position="top" formatter={fmtVal as never} style={valueLabelStyle as never} />}
+              </Area>
             ))}
           </AreaChart>
         </ResponsiveContainer>
@@ -925,7 +943,9 @@ export default function ChartMaker() {
           <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
           <Legend wrapperStyle={legendStyle} />
           {seriesKeys.map((k, i) => (
-            <Bar key={k} dataKey={k} fill={colors[i % colors.length]} stackId={kind === "stacked" ? "a" : undefined} radius={kind === "stacked" ? [0, 0, 0, 0] : [6, 6, 0, 0]} />
+            <Bar key={k} dataKey={k} fill={colors[i % colors.length]} stackId={kind === "stacked" ? "a" : undefined} radius={kind === "stacked" ? [0, 0, 0, 0] : [6, 6, 0, 0]}>
+              {showValues && <LabelList dataKey={k} position={kind === "stacked" ? "center" : "top"} formatter={fmtVal as never} style={{ ...valueLabelStyle, fill: kind === "stacked" ? "#ffffff" : textColor } as never} />}
+            </Bar>
           ))}
         </BarChart>
       </ResponsiveContainer>
