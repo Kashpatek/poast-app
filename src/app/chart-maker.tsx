@@ -3,17 +3,19 @@ import React, { useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell,
+  ScatterChart, Scatter,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList,
 } from "recharts";
 import { D as C, ft, mn } from "./shared-constants";
 import { useUser } from "./user-context";
 
 // ═══ TYPES ═══
-type ChartKind = "bar" | "stacked" | "line" | "area" | "areaStacked" | "pie";
+type ChartKind = "bar" | "stacked" | "hbar" | "line" | "area" | "areaStacked" | "scatter" | "pie";
 type StyleMode = "clean" | "branded";
 type PaletteKey = "saCore" | "saSpectrum" | "saCapital";
 type Orientation = "cols" | "rows";
 type BackdropKey = "amber" | "cobalt" | "both" | "capital";
+type ThemeMode = "dark" | "light";
 type InputMode = "paste" | "manual" | "excel";
 
 // ═══ GRID ⇄ CSV ═══
@@ -26,6 +28,44 @@ function gridToCsv(grid: string[][]): string {
 }
 
 interface BackdropSpec { name: string; base: string; glows: { x: number; y: number; r: number; color: string }[]; accent: string; }
+const LIGHT_BACKDROPS: Record<BackdropKey, BackdropSpec> = {
+  amber: {
+    name: "Amber",
+    base: "#FAFAF7",
+    accent: "#F7B041",
+    glows: [
+      { x: 0.90, y: 0.10, r: 0.6, color: "rgba(247,176,65,0.18)" },
+      { x: 0.10, y: 0.90, r: 0.5, color: "rgba(247,176,65,0.08)" },
+    ],
+  },
+  cobalt: {
+    name: "Cobalt",
+    base: "#F7FAFC",
+    accent: "#0B86D1",
+    glows: [
+      { x: 0.90, y: 0.10, r: 0.6, color: "rgba(11,134,209,0.16)" },
+      { x: 0.10, y: 0.90, r: 0.5, color: "rgba(11,134,209,0.08)" },
+    ],
+  },
+  both: {
+    name: "Amber + Cobalt",
+    base: "#FAFAF7",
+    accent: "#F7B041",
+    glows: [
+      { x: 0.90, y: 0.10, r: 0.6, color: "rgba(247,176,65,0.16)" },
+      { x: 0.10, y: 0.90, r: 0.5, color: "rgba(11,134,209,0.10)" },
+    ],
+  },
+  capital: {
+    name: "Capital (Teal)",
+    base: "#F5FAF8",
+    accent: "#2EAD8E",
+    glows: [
+      { x: 0.90, y: 0.10, r: 0.6, color: "rgba(46,173,142,0.18)" },
+      { x: 0.10, y: 0.90, r: 0.5, color: "rgba(122,207,186,0.08)" },
+    ],
+  },
+};
 const BACKDROPS: Record<BackdropKey, BackdropSpec> = {
   amber: {
     name: "Amber",
@@ -120,9 +160,11 @@ const GREY = "#3D3D3D"; // SA Metal — gridlines + "Other" pie slices ONLY, nev
 const CHART_KINDS: { key: ChartKind; label: string }[] = [
   { key: "bar",         label: "Bar (grouped)" },
   { key: "stacked",     label: "Bar (stacked)" },
+  { key: "hbar",        label: "Bar (horizontal)" },
   { key: "line",        label: "Line" },
   { key: "area",        label: "Area" },
   { key: "areaStacked", label: "Area (stacked)" },
+  { key: "scatter",     label: "Scatter" },
   { key: "pie",         label: "Pie" },
 ];
 
@@ -239,12 +281,14 @@ interface ExportOpts {
   height: number;
   userScale: number;
   showValues: boolean;
+  theme: ThemeMode;
+  yMaxOverride?: number;
 }
 
 // Paint the backdrop (branded mode) or leave transparent (clean)
-function paintBackdrop(ctx: CanvasRenderingContext2D, w: number, h: number, style: StyleMode, backdrop: BackdropKey) {
+function paintBackdrop(ctx: CanvasRenderingContext2D, w: number, h: number, style: StyleMode, backdrop: BackdropKey, theme: ThemeMode) {
   if (style !== "branded") return;
-  const spec = BACKDROPS[backdrop];
+  const spec = (theme === "light" ? LIGHT_BACKDROPS : BACKDROPS)[backdrop];
   ctx.fillStyle = spec.base;
   ctx.fillRect(0, 0, w, h);
   spec.glows.forEach((g) => {
@@ -298,11 +342,13 @@ const PREVIEW_H = 520;
 function drawChart(ctx: CanvasRenderingContext2D, opts: ExportOpts) {
   const { kind, rows, labelKey, seriesKeys, colors, style, title, source, axisMode, xAxisLabel, yAxisLabel, width, height, backdrop } = opts;
 
-  const bdSpec = BACKDROPS[backdrop];
+  const { theme } = opts;
+  const isLight = theme === "light";
+  const bdSpec = (isLight ? LIGHT_BACKDROPS : BACKDROPS)[backdrop];
   const isBranded = style === "branded";
-  const textColor = isBranded ? "#E8E4DD" : "#1A1A1A";
-  const axisColor = isBranded ? "rgba(255,255,255,0.55)" : "#888888";
-  const gridColor = isBranded ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)";
+  const textColor = isBranded ? (isLight ? "#1A1A1A" : "#E8E4DD") : "#1A1A1A";
+  const axisColor = isBranded ? (isLight ? "#666666" : "rgba(255,255,255,0.55)") : "#888888";
+  const gridColor = isBranded ? (isLight ? "rgba(0,0,0,0.10)" : "rgba(255,255,255,0.10)") : "rgba(0,0,0,0.10)";
 
   // Scale factor: export height / preview height, times user-tunable multiplier.
   const scale = (height / PREVIEW_H) * (opts.userScale || 1);
@@ -317,7 +363,7 @@ function drawChart(ctx: CanvasRenderingContext2D, opts: ExportOpts) {
   // Title + accent (branded only) — reference sizes match the preview exactly
   if (isBranded && title) {
     ctx.font = `800 ${S(26)}px 'Outfit', Arial, sans-serif`;
-    ctx.fillStyle = "#E8E4DD";
+    ctx.fillStyle = isLight ? "#1A1A1A" : "#E8E4DD";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     ctx.fillText(title, S(40), S(57));
@@ -333,7 +379,7 @@ function drawChart(ctx: CanvasRenderingContext2D, opts: ExportOpts) {
   if (isBranded) {
     if (source) {
       ctx.font = `500 ${S(10)}px 'JetBrains Mono', monospace`;
-      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.fillStyle = isLight ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.55)";
       ctx.textAlign = "left";
       ctx.textBaseline = "bottom";
       ctx.fillText(source, S(40), height - S(18));
@@ -405,7 +451,7 @@ function drawCartesian(
   if (maxV === minV) maxV = minV + 1;
   // Round up maxV to nice step
   const step = niceStep(maxV - minV, 5);
-  const yMax = Math.ceil(maxV / step) * step;
+  const yMax = opts.yMaxOverride && opts.yMaxOverride > 0 ? opts.yMaxOverride : Math.ceil(maxV / step) * step;
   const yMin = minV < 0 ? Math.floor(minV / step) * step : 0;
 
   const xToPx = (i: number, total: number) => plotLeft + (plotW / total) * (i + 0.5);
@@ -456,6 +502,13 @@ function drawCartesian(
     return v.toFixed(1);
   };
 
+  // ═══ HORIZONTAL BAR ═══
+  if (kind === "hbar") {
+    drawHorizontalBar(ctx, opts, { plotLeft, plotRight, plotTop, plotBottom, plotW, plotH, axisColor, gridColor, textColor, scale });
+    drawLegend(ctx, seriesKeys, colors, { plotLeft, plotRight, plotBottom, textColor, scale, extraGap: opts.axisMode === "manual" && opts.xAxisLabel ? 65 : 48 });
+    return;
+  }
+
   if (kind === "bar" || kind === "stacked") {
     const groupWidth = plotW / rows.length;
     if (kind === "bar") {
@@ -503,21 +556,24 @@ function drawCartesian(
         });
       });
     }
-  } else if (kind === "line") {
+  } else if (kind === "line" || kind === "scatter") {
+    const isScatter = kind === "scatter";
     const lineW = S(3);
-    const dotR = S(4);
+    const dotR = isScatter ? S(7) : S(4);
     seriesKeys.forEach((key, s) => {
-      ctx.strokeStyle = colors[s % colors.length];
-      ctx.lineWidth = lineW;
-      ctx.lineJoin = "round";
-      ctx.beginPath();
-      rows.forEach((row, i) => {
-        const v = Number(row[key]) || 0;
-        const x = xToPx(i, rows.length);
-        const y = yToPx(v);
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      });
-      ctx.stroke();
+      if (!isScatter) {
+        ctx.strokeStyle = colors[s % colors.length];
+        ctx.lineWidth = lineW;
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        rows.forEach((row, i) => {
+          const v = Number(row[key]) || 0;
+          const x = xToPx(i, rows.length);
+          const y = yToPx(v);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      }
       rows.forEach((row, i) => {
         const v = Number(row[key]) || 0;
         const x = xToPx(i, rows.length);
@@ -617,6 +673,110 @@ function drawCartesian(
   });
 }
 
+// Reusable legend drawer (used by hbar)
+function drawLegend(
+  ctx: CanvasRenderingContext2D,
+  seriesKeys: string[],
+  colors: string[],
+  layout: { plotLeft: number; plotRight: number; plotBottom: number; textColor: string; scale: number; extraGap: number }
+) {
+  const { plotLeft, plotRight, plotBottom, textColor, scale } = layout;
+  const S = (n: number) => Math.round(n * scale);
+  const legendFont = `600 ${S(14)}px 'Outfit', Arial, sans-serif`;
+  ctx.font = legendFont;
+  const swatch = S(14);
+  const itemGap = S(24);
+  const padBetween = S(8);
+  const items = seriesKeys.map((k) => ({ text: k, w: ctx.measureText(k).width + swatch + padBetween }));
+  const totalW = items.reduce((a, b) => a + b.w, 0) + itemGap * (items.length - 1);
+  let cursor = (plotLeft + plotRight) / 2 - totalW / 2;
+  const legendY = plotBottom + S(layout.extraGap);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  items.forEach((it, i) => {
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.fillRect(cursor, legendY - swatch / 2, swatch, swatch);
+    ctx.fillStyle = textColor;
+    ctx.fillText(it.text, cursor + swatch + padBetween, legendY);
+    cursor += it.w + itemGap;
+  });
+}
+
+// Horizontal bar chart — rows are Y categories, first series column drives bar length
+function drawHorizontalBar(
+  ctx: CanvasRenderingContext2D,
+  opts: ExportOpts,
+  layout: { plotLeft: number; plotRight: number; plotTop: number; plotBottom: number; plotW: number; plotH: number; axisColor: string; gridColor: string; textColor: string; scale: number }
+) {
+  const { rows, labelKey, seriesKeys, colors } = opts;
+  const { plotLeft, plotRight, plotTop, plotBottom, plotW, plotH, axisColor, gridColor, textColor, scale } = layout;
+  const S = (n: number) => Math.round(n * scale);
+
+  const showVals = opts.showValues;
+  const valueFont = `700 ${S(12)}px 'Outfit', Arial, sans-serif`;
+  const fmt = (v: number) => Math.abs(v) >= 1000 ? v.toLocaleString() : Number.isInteger(v) ? String(v) : v.toFixed(1);
+
+  // Data extent (X axis is now numeric, Y is categorical)
+  let maxV = 0;
+  rows.forEach((r) => seriesKeys.forEach((k) => { const v = Number(r[k]) || 0; if (v > maxV) maxV = v; }));
+  if (maxV === 0) maxV = 1;
+  const step = niceStep(maxV, 5);
+  const xMax = opts.yMaxOverride && opts.yMaxOverride > 0 ? opts.yMaxOverride : Math.ceil(maxV / step) * step;
+
+  const xToPx = (v: number) => plotLeft + (v / xMax) * plotW;
+  const yToPx = (i: number, total: number) => plotTop + (plotH / total) * (i + 0.5);
+
+  const tickFont = `600 ${S(14)}px 'Outfit', Arial, sans-serif`;
+  ctx.font = tickFont;
+
+  // Vertical gridlines + numeric x-axis labels at bottom
+  ctx.fillStyle = axisColor;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  for (let v = 0; v <= xMax + 0.0001; v += step) {
+    const x = xToPx(v);
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth = Math.max(1, S(1));
+    ctx.beginPath();
+    ctx.moveTo(x, plotTop);
+    ctx.lineTo(x, plotBottom);
+    ctx.stroke();
+    ctx.fillText(Number.isInteger(step) ? String(v) : v.toFixed(1), x, plotBottom + S(10));
+  }
+
+  // Y-axis categorical labels
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = axisColor;
+  rows.forEach((r, i) => {
+    ctx.fillText(String(r[labelKey] ?? ""), plotLeft - S(10), yToPx(i, rows.length));
+  });
+
+  // Bars (one group per row, one bar per series)
+  const rowHeight = plotH / rows.length;
+  const seriesCount = seriesKeys.length;
+  const barTotalH = rowHeight * 0.72;
+  const barH = barTotalH / seriesCount;
+  const gap = S(1);
+  rows.forEach((row, i) => {
+    const centerY = yToPx(i, rows.length);
+    seriesKeys.forEach((key, s) => {
+      const v = Number(row[key]) || 0;
+      const y = centerY - barTotalH / 2 + s * barH;
+      const w = (v / xMax) * plotW;
+      ctx.fillStyle = colors[s % colors.length];
+      ctx.fillRect(plotLeft, y, w, barH - gap);
+      if (showVals) {
+        ctx.font = valueFont;
+        ctx.fillStyle = textColor;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(fmt(v), plotLeft + w + S(6), y + (barH - gap) / 2);
+      }
+    });
+  });
+}
+
 function drawPie(
   ctx: CanvasRenderingContext2D,
   rows: ChartRow[],
@@ -678,7 +838,7 @@ async function exportChartPNG(opts: ExportOpts): Promise<Blob> {
   canvas.width = opts.width;
   canvas.height = opts.height;
   const ctx = canvas.getContext("2d")!;
-  paintBackdrop(ctx, opts.width, opts.height, opts.style, opts.backdrop);
+  paintBackdrop(ctx, opts.width, opts.height, opts.style, opts.backdrop, opts.theme);
   drawChart(ctx, opts);
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/png");
@@ -697,10 +857,12 @@ export default function ChartMaker() {
   const [kind, setKind] = useState<ChartKind>("bar");
   const [palette, setPalette] = useState<PaletteKey>("saCore");
   const [style, setStyle] = useState<StyleMode>("branded");
+  const [theme, setTheme] = useState<ThemeMode>("dark");
   const [backdrop, setBackdrop] = useState<BackdropKey>("both");
   const [axisMode, setAxisMode] = useState<"auto" | "manual">("auto");
   const [userScale, setUserScale] = useState<number>(1.0); // 0.7–1.5 multiplier
   const [showValues, setShowValues] = useState<boolean>(false);
+  const [yMaxInput, setYMaxInput] = useState<string>(""); // empty = auto
   const [xAxisLabel, setXAxisLabel] = useState("");
   const [yAxisLabel, setYAxisLabel] = useState("");
   const [title, setTitle] = useState("Accelerator Market Share");
@@ -797,6 +959,8 @@ export default function ChartMaker() {
       height: H,
       userScale,
       showValues,
+      theme,
+      yMaxOverride: yMaxInput.trim() ? Number(yMaxInput) : undefined,
     })
       .then((blob) => {
         const url = URL.createObjectURL(blob);
@@ -819,7 +983,7 @@ export default function ChartMaker() {
     const authorRole = userCtx.user ? userCtx.user.role : "";
     const data = {
       csv, orientation, kind, palette, style, backdrop, title, source,
-      axisMode, xAxisLabel, yAxisLabel, userScale, showValues,
+      axisMode, xAxisLabel, yAxisLabel, userScale, showValues, theme, yMaxInput,
       timestamp: new Date().toISOString(),
       createdBy: authorName,
       createdByRole: authorRole,
@@ -845,11 +1009,13 @@ export default function ChartMaker() {
   // ═══ CHART RENDERER ═══
   function renderChart() {
     if (parsed.rows.length === 0) return <Empty />;
-    const axisColor = style === "branded" ? "rgba(255,255,255,0.55)" : "#888888";
-    const gridColor = style === "branded" ? "rgba(255,255,255,0.10)" : GREY + "35";
-    const textColor = style === "branded" ? "#E8E4DD" : "#1A1A1A";
-    const tooltipBg = style === "branded" ? "#0A0A14" : "#ffffff";
-    const tooltipBorder = style === "branded" ? "rgba(255,255,255,0.1)" : "#E0E0E0";
+    const isLight = theme === "light";
+    const isBrandedDark = style === "branded" && !isLight;
+    const axisColor = isBrandedDark ? "rgba(255,255,255,0.55)" : "#666666";
+    const gridColor = isBrandedDark ? "rgba(255,255,255,0.10)" : GREY + "35";
+    const textColor = isBrandedDark ? "#E8E4DD" : "#1A1A1A";
+    const tooltipBg = isBrandedDark ? "#0A0A14" : "#ffffff";
+    const tooltipBorder = isBrandedDark ? "rgba(255,255,255,0.1)" : "#E0E0E0";
 
     // Add margin for axis labels when in manual mode
     const showLabels = axisMode === "manual";
@@ -874,6 +1040,8 @@ export default function ChartMaker() {
     const xLabel = showX ? { value: xAxisLabel, position: "insideBottom" as const, offset: -10, fill: textColor, fontSize: Math.round(14 * userScale), fontFamily: "'Outfit', sans-serif", fontWeight: 700 } : undefined;
     const yLabel = showY ? { value: yAxisLabel, angle: -90, position: "insideLeft" as const, fill: textColor, fontSize: Math.round(14 * userScale), fontFamily: "'Outfit', sans-serif", fontWeight: 700, style: { textAnchor: "middle" as const } } : undefined;
     const valueLabelStyle = { fill: textColor, fontSize: Math.round(12 * userScale), fontFamily: "'Outfit', sans-serif", fontWeight: 700 };
+    const yDomain: [number | "auto", number | "auto"] = yMaxInput.trim() && !isNaN(Number(yMaxInput))
+      ? [0, Number(yMaxInput)] : ["auto", "auto"];
     const fmtVal = (v: number) => {
       if (typeof v !== "number") return "";
       if (Math.abs(v) >= 1000) return v.toLocaleString();
@@ -896,13 +1064,53 @@ export default function ChartMaker() {
       );
     }
 
+    if (kind === "scatter") {
+      // Plot each series as points at (categorical index, y-value)
+      const scatterData = seriesKeys.map((k) => parsed.rows.map((r, i) => ({ x: i, y: Number(r[k]) || 0, label: String(r[labelKey] ?? "") })));
+      return (
+        <ResponsiveContainer width="100%" height={520}>
+          <ScatterChart {...common}>
+            <CartesianGrid stroke={gridColor} vertical={false} />
+            <XAxis type="number" dataKey="x" tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={xLabel} domain={[-0.5, parsed.rows.length - 0.5]} tickFormatter={(v: number) => parsed.rows[v]?.[labelKey] !== undefined ? String(parsed.rows[v][labelKey]) : ""} ticks={parsed.rows.map((_, i) => i)} />
+            <YAxis type="number" tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={yLabel} domain={yDomain} />
+            <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
+            <Legend wrapperStyle={legendStyle} />
+            {seriesKeys.map((k, i) => (
+              <Scatter key={k} name={k} data={scatterData[i]} fill={colors[i % colors.length]}>
+                {showValues && <LabelList dataKey="y" position="top" formatter={fmtVal as never} style={valueLabelStyle as never} />}
+              </Scatter>
+            ))}
+          </ScatterChart>
+        </ResponsiveContainer>
+      );
+    }
+
+    if (kind === "hbar") {
+      return (
+        <ResponsiveContainer width="100%" height={520}>
+          <BarChart {...common} layout="vertical" margin={{ top: 20, right: 50, left: 60, bottom: 10 }}>
+            <CartesianGrid stroke={gridColor} horizontal={false} />
+            <XAxis type="number" tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={xLabel} domain={yDomain} />
+            <YAxis type="category" dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={yLabel} width={100} />
+            <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
+            <Legend wrapperStyle={legendStyle} />
+            {seriesKeys.map((k, i) => (
+              <Bar key={k} dataKey={k} fill={colors[i % colors.length]} radius={[0, 6, 6, 0]}>
+                {showValues && <LabelList dataKey={k} position="right" formatter={fmtVal as never} style={valueLabelStyle as never} />}
+              </Bar>
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      );
+    }
+
     if (kind === "line") {
       return (
         <ResponsiveContainer width="100%" height={520}>
           <LineChart {...common}>
             <CartesianGrid stroke={gridColor} vertical={false} />
             <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={xLabel} />
-            <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={yLabel} />
+            <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={yLabel} domain={yDomain} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
             <Legend wrapperStyle={legendStyle} />
             {seriesKeys.map((k, i) => (
@@ -921,7 +1129,7 @@ export default function ChartMaker() {
           <AreaChart {...common}>
             <CartesianGrid stroke={gridColor} vertical={false} />
             <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={xLabel} />
-            <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={yLabel} />
+            <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={yLabel} domain={yDomain} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
             <Legend wrapperStyle={legendStyle} />
             {seriesKeys.map((k, i) => (
@@ -939,7 +1147,7 @@ export default function ChartMaker() {
         <BarChart {...common}>
           <CartesianGrid stroke={gridColor} vertical={false} />
           <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={xLabel} />
-          <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={yLabel} />
+          <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} label={yLabel} domain={yDomain} />
           <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
           <Legend wrapperStyle={legendStyle} />
           {seriesKeys.map((k, i) => (
@@ -952,8 +1160,10 @@ export default function ChartMaker() {
     );
   }
 
-  const bdSpec = BACKDROPS[backdrop];
+  const bdSpec = (theme === "light" ? LIGHT_BACKDROPS : BACKDROPS)[backdrop];
   const previewBg = style === "branded" ? bdSpec.base : "#ffffff";
+  const previewTitleColor = theme === "light" ? "#1A1A1A" : "#E8E4DD";
+  const previewSourceColor = theme === "light" ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.55)";
 
   return (
     <div style={{ padding: "28px 32px 60px", maxWidth: 1400, margin: "0 auto", color: C.tx, fontFamily: ft }}>
@@ -1165,10 +1375,17 @@ export default function ChartMaker() {
 
           {style === "branded" && (
             <>
+              <Section label="Theme">
+                <div style={{ display: "flex", gap: 6 }}>
+                  <Pill active={theme === "dark"} onClick={() => setTheme("dark")}>Dark</Pill>
+                  <Pill active={theme === "light"} onClick={() => setTheme("light")}>Light</Pill>
+                </div>
+              </Section>
+
               <Section label="Backdrop Gradient">
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                   {(Object.keys(BACKDROPS) as BackdropKey[]).map((k) => {
-                    const spec = BACKDROPS[k];
+                    const spec = (theme === "light" ? LIGHT_BACKDROPS : BACKDROPS)[k];
                     const active = backdrop === k;
                     const swatch = `linear-gradient(135deg, ${spec.base} 0%, ${spec.glows[0].color.replace(/[\d.]+\)/, "0.8)")} 120%)`;
                     return (
@@ -1231,14 +1448,14 @@ export default function ChartMaker() {
                 ))}
                 <div style={{ position: "relative", marginBottom: 16 }}>
                   <div style={{ width: 50, height: 3, background: bdSpec.accent, marginBottom: 14 }} />
-                  <div style={{ fontFamily: ft, fontSize: 26, fontWeight: 900, color: "#E8E4DD", letterSpacing: -0.5 }}>{title || "Chart Title"}</div>
+                  <div style={{ fontFamily: ft, fontSize: 26, fontWeight: 900, color: previewTitleColor, letterSpacing: -0.5 }}>{title || "Chart Title"}</div>
                 </div>
               </>
             )}
             <div style={{ position: "relative" }}>{renderChart()}</div>
             {style === "branded" && (
               <div style={{ position: "absolute", bottom: 18, left: 40, right: 40, display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: mn, fontSize: 10 }}>
-                <span style={{ color: "rgba(255,255,255,0.55)" }}>{source}</span>
+                <span style={{ color: previewSourceColor }}>{source}</span>
                 <span style={{ color: bdSpec.accent, fontWeight: 700, letterSpacing: 1.5 }}>SEMIANALYSIS</span>
               </div>
             )}
@@ -1259,8 +1476,17 @@ export default function ChartMaker() {
             </div>
             <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontFamily: mn, fontSize: 10, color: showValues ? C.teal : C.txm }}>
               <input type="checkbox" checked={showValues} onChange={(e) => setShowValues(e.target.checked)} style={{ accentColor: C.teal }} />
-              Show values on data points
+              Show values
             </label>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 1.2, textTransform: "uppercase" }}>Y-max</span>
+              <input
+                value={yMaxInput}
+                onChange={(e) => setYMaxInput(e.target.value.replace(/[^\d.]/g, ""))}
+                placeholder="auto"
+                style={{ width: 70, padding: "4px 8px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none" }}
+              />
+            </div>
           </div>
           <div style={{ fontFamily: mn, fontSize: 10, color: C.txd, marginTop: 8 }}>
             {parsed.rows.length} rows · {seriesKeys.length} series · {PALETTES[palette].name} · {style === "branded" ? `1920×1080 ${bdSpec.name} backdrop` : "1600×900 transparent"} · Scale {userScale.toFixed(2)}×{showValues ? " · values on" : ""}
