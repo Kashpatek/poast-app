@@ -391,20 +391,26 @@ function drawChart(ctx: CanvasRenderingContext2D, opts: ExportOpts) {
     ctx.fillText("SEMIANALYSIS", width - S(40), height - S(18));
   }
 
-  // Manual axis labels
+  // Manual axis labels — positioned relative to the actual plot area.
+  // Vertical charts: X label below ticks (and above legend), Y label rotated on left.
+  // Horizontal bar: X label is the numeric axis; Y label is categories axis.
   if (axisMode === "manual" && kind !== "pie") {
+    const legendH = S(54);
+    const plotBottom = height - padBottom - legendH;
+    const plotHCenter = (padTop + plotBottom) / 2;
     if (xAxisLabel) {
-      ctx.font = `700 ${S(18)}px 'Outfit', Arial, sans-serif`;
+      ctx.font = `700 ${S(14)}px 'Outfit', Arial, sans-serif`;
       ctx.fillStyle = textColor;
       ctx.textAlign = "center";
-      ctx.textBaseline = "bottom";
-      ctx.fillText(xAxisLabel, (padLeft + (width - padRight)) / 2, height - padBottom + S(60));
+      ctx.textBaseline = "middle";
+      // Between x-ticks and legend (ticks at plotBottom+S(30), legend at plotBottom+S(65))
+      ctx.fillText(xAxisLabel, (padLeft + (width - padRight)) / 2, plotBottom + S(48));
     }
     if (yAxisLabel) {
       ctx.save();
-      ctx.translate(padLeft - S(55), (padTop + (height - padBottom)) / 2);
+      ctx.translate(padLeft - S(48), plotHCenter);
       ctx.rotate(-Math.PI / 2);
-      ctx.font = `700 ${S(18)}px 'Outfit', Arial, sans-serif`;
+      ctx.font = `700 ${S(14)}px 'Outfit', Arial, sans-serif`;
       ctx.fillStyle = textColor;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -1026,8 +1032,9 @@ export default function ChartMaker() {
       margin: {
         top: 20,
         right: 30,
-        left: showY ? 30 : 10,
-        bottom: showX ? 30 : 10,
+        left: showY ? 40 : 10,
+        // Reserve room for both the X axis label AND the legend
+        bottom: showX ? 50 : 10,
       },
     };
     // Apply userScale to preview so slider changes are visible live
@@ -1037,7 +1044,7 @@ export default function ChartMaker() {
     const dotR = Math.max(3, 4 * userScale);
     const tickStyle = { fontSize: tickFS, fontFamily: "'Outfit', sans-serif", fontWeight: 600, fill: axisColor };
     const legendStyle = { color: textColor, fontFamily: "'Outfit', sans-serif", fontSize: legendFS, fontWeight: 600 };
-    const xLabel = showX ? { value: xAxisLabel, position: "insideBottom" as const, offset: -10, fill: textColor, fontSize: Math.round(14 * userScale), fontFamily: "'Outfit', sans-serif", fontWeight: 700 } : undefined;
+    const xLabel = showX ? { value: xAxisLabel, position: "insideBottom" as const, offset: -28, fill: textColor, fontSize: Math.round(14 * userScale), fontFamily: "'Outfit', sans-serif", fontWeight: 700 } : undefined;
     const yLabel = showY ? { value: yAxisLabel, angle: -90, position: "insideLeft" as const, fill: textColor, fontSize: Math.round(14 * userScale), fontFamily: "'Outfit', sans-serif", fontWeight: 700, style: { textAnchor: "middle" as const } } : undefined;
     const valueLabelStyle = { fill: textColor, fontSize: Math.round(12 * userScale), fontFamily: "'Outfit', sans-serif", fontWeight: 700 };
     const yDomain: [number | "auto", number | "auto"] = yMaxInput.trim() && !isNaN(Number(yMaxInput))
