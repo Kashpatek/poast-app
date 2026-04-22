@@ -1462,8 +1462,8 @@ export default function ChartMaker() {
           </div>
         </div>
 
-        {/* ═══ PREVIEW ═══ */}
-        <div>
+        {/* ═══ PREVIEW — sticky so it stays visible while the left panel scrolls ═══ */}
+        <div style={{ position: "sticky", top: 20, alignSelf: "start", maxHeight: "calc(100vh - 40px)", overflow: "auto" }}>
           <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 10 }}>Preview</div>
           <div ref={chartRef} style={{ width: "100%", minHeight: 600, borderRadius: 14, padding: 40, background: previewBg, border: `1px solid ${style === "branded" ? "rgba(255,255,255,0.08)" : C.border}`, boxShadow: "0 8px 40px rgba(0,0,0,0.25)", position: "relative", overflow: "hidden" }}>
             {style === "branded" && (
