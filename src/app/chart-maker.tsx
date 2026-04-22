@@ -20,8 +20,14 @@ type InputMode = "paste" | "manual" | "excel";
 
 // ═══ GRID ⇄ CSV ═══
 function csvToGrid(csv: string): string[][] {
-  const lines = csv.replace(/\r/g, "").split(/\n/).filter((l) => l !== "" || true);
-  return lines.map((l) => l.includes("\t") ? l.split("\t").map((c) => c.trim()) : l.split(",").map((c) => c.trim()));
+  const lines = csv.replace(/\r/g, "").split(/\n/).filter((l) => l.trim() !== "");
+  const rows = lines.map((l) => {
+    const parts = l.includes("\t") ? l.split("\t").map((c) => c.trim()) : l.split(",").map((c) => c.trim());
+    // Strip trailing empty cells (common when pasting from Excel — each line ends with \t)
+    while (parts.length > 0 && parts[parts.length - 1] === "") parts.pop();
+    return parts;
+  });
+  return rows.filter((r) => r.some((c) => c !== ""));
 }
 function gridToCsv(grid: string[][]): string {
   return grid.map((row) => row.map((c) => String(c ?? "")).join(",")).join("\n");
@@ -197,8 +203,12 @@ function coerceNumber(v: string | undefined): number {
 
 // Split a line on tabs OR commas, whichever is present (tabs win if both)
 function splitRow(line: string): string[] {
-  if (line.includes("\t")) return line.split("\t").map((c) => c.trim());
-  return line.split(",").map((c) => c.trim());
+  const parts = line.includes("\t")
+    ? line.split("\t").map((c) => c.trim())
+    : line.split(",").map((c) => c.trim());
+  // Strip trailing empty cells (common with Excel paste — trailing tabs per row)
+  while (parts.length > 0 && parts[parts.length - 1] === "") parts.pop();
+  return parts;
 }
 
 function parseCSV(raw: string, orientation: Orientation): { columns: string[]; rows: ChartRow[] } {
@@ -248,6 +258,135 @@ const SAMPLE_ROWS = `Company,Q1 2025,Q2 2025,Q3 2025,Q4 2025
 Nvidia,68,72,74,78
 AMD,18,19,20,22
 Intel,14,12,10,9`;
+
+// ═══ TEMPLATES — preset datasets from SA deck charts ═══
+interface Template {
+  id: string;
+  label: string;
+  emoji: string;
+  csv: string;
+  kind: ChartKind;
+  palette: PaletteKey;
+  title: string;
+  source: string;
+  orientation?: Orientation;
+}
+
+const TEMPLATES: Template[] = [
+  {
+    id: "market-share",
+    label: "Market Share",
+    emoji: "📊",
+    csv: SAMPLE_COLS,
+    kind: "bar",
+    palette: "saCore",
+    title: "Accelerator Market Share",
+    source: "Source: SemiAnalysis Accelerator Model",
+  },
+  {
+    id: "flops-comparison",
+    label: "FLOPs Comparison",
+    emoji: "⚡",
+    csv: `Metric,TPU v6 (Trillium),H100 (SXM),H200 (SXM)
+FP8 TFLOPs,1,2.2,2.2
+INT8 TFLOPs,1,1.1,1.1
+BF16 TFLOPs,1,1.1,1.1
+HBM Capacity,1,2.5,4.4
+HBM Bandwidth,1,2,2.9`,
+    kind: "bar",
+    palette: "saCore",
+    title: "TPU v6 vs H100 vs H200",
+    source: "Source: SemiAnalysis",
+  },
+  {
+    id: "shipments-stack",
+    label: "Shipments Stack",
+    emoji: "📦",
+    csv: `Shipments,2023,2024,2025,2026,2027
+Nvidia,2750,8440,24419,73201,131012
+TPU,674,2564,5876,18653,35991
+AMD,87,780,1307,6153,13700`,
+    kind: "areaStacked",
+    palette: "saSpectrum",
+    title: "AI Compute Shipments by Type",
+    source: "Source: SemiAnalysis AI Compute Model",
+    orientation: "rows",
+  },
+  {
+    id: "revenue-forecast",
+    label: "Revenue Forecast",
+    emoji: "📈",
+    csv: `Year,Revenue,Cost,Profit
+2023,100,70,30
+2024,150,95,55
+2025,220,135,85
+2026,310,175,135
+2027,430,230,200`,
+    kind: "line",
+    palette: "saCore",
+    title: "Revenue, Cost, Profit & Forecast",
+    source: "Source: SemiAnalysis",
+  },
+  {
+    id: "market-share-pie",
+    label: "Segment Share",
+    emoji: "🥧",
+    csv: `Segment,Share
+Training,45
+Inference,30
+Edge,15
+Other,10`,
+    kind: "pie",
+    palette: "saSpectrum",
+    title: "Market Share by Segment",
+    source: "Source: SemiAnalysis",
+  },
+  {
+    id: "flops-vs-power",
+    label: "FLOPs vs Power",
+    emoji: "🔋",
+    csv: `Chip,BF16 TFLOPs,Power (W)
+H100,989,700
+H200,989,700
+B200,2250,1200
+MI300X,1300,750
+TPU v5p,459,450
+TPU v6,918,475`,
+    kind: "scatter",
+    palette: "saCapital",
+    title: "FLOPs vs Power Consumption",
+    source: "Source: SemiAnalysis Accelerator Model",
+  },
+  {
+    id: "revenue-region",
+    label: "Revenue by Region",
+    emoji: "🌎",
+    csv: `Region,Training,Inference,Edge
+North America,45,30,10
+Europe,20,15,5
+China,25,18,7
+Japan,8,6,3
+Rest of World,10,8,4`,
+    kind: "hbar",
+    palette: "saCore",
+    title: "Revenue by Region & Segment",
+    source: "Source: SemiAnalysis",
+  },
+  {
+    id: "wafer-demand",
+    label: "Wafer Demand",
+    emoji: "🏭",
+    csv: `Node,Nvidia,Google TPU,Amazon Trainium,Broadcom,AMD
+4NP,180,0,0,0,40
+N3,220,95,60,110,50
+N3P,340,75,85,65,70
+N2,0,40,30,20,30`,
+    kind: "stacked",
+    palette: "saSpectrum",
+    title: "TSMC Wafer Demand by Customer",
+    source: "Source: SemiAnalysis Accelerator Model",
+  },
+];
 
 // ═══ EXPORT: SVG → PNG ═══
 async function waitForFonts() {
@@ -944,6 +1083,17 @@ export default function ChartMaker() {
     else if (csv === SAMPLE_ROWS && next === "cols") setCsv(SAMPLE_COLS);
   }
 
+  // Load a preset template from the SA chart library
+  function loadTemplate(t: Template) {
+    setCsv(t.csv);
+    setKind(t.kind);
+    setPalette(t.palette);
+    setTitle(t.title);
+    setSource(t.source);
+    if (t.orientation) setOrientation(t.orientation);
+    setInputMode("paste"); // make sure they can see what loaded
+  }
+
   // FLIP: transpose the underlying CSV so rows and columns swap.
   // Previously-X-labels become series names and vice versa. Handy for
   // pivoting without retyping data.
@@ -1188,6 +1338,41 @@ export default function ChartMaker() {
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontFamily: ft, fontSize: 24, fontWeight: 900, color: C.tx, letterSpacing: -0.5 }}>Chart Maker</div>
         <div style={{ fontFamily: mn, fontSize: 11, color: C.txm, marginTop: 4, letterSpacing: 1 }}>SA BRAND PALETTES · CSV OR TRANSPOSED · CLEAN OR BRANDED PNG</div>
+      </div>
+
+      {/* ═══ TEMPLATE TABS — preset datasets, horizontal scrolling strip ═══ */}
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 10, marginBottom: 16, borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: 1.5, alignSelf: "center", padding: "0 10px 0 0", flexShrink: 0 }}>Templates</div>
+        {TEMPLATES.map((t) => {
+          const active = csv === t.csv && kind === t.kind && title === t.title;
+          return (
+            <button
+              key={t.id}
+              onClick={() => loadTemplate(t)}
+              style={{
+                flexShrink: 0,
+                padding: "8px 14px",
+                background: active ? C.amber + "18" : C.surface,
+                border: `1px solid ${active ? C.amber + "60" : C.border}`,
+                borderRadius: 8,
+                color: active ? C.amber : C.txm,
+                fontFamily: ft,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = C.card; e.currentTarget.style.borderColor = C.amber + "30"; } }}
+              onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = C.surface; e.currentTarget.style.borderColor = C.border; } }}
+            >
+              <span style={{ fontSize: 14 }}>{t.emoji}</span>
+              <span>{t.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 18 }}>
