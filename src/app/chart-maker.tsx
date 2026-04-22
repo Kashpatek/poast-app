@@ -237,6 +237,8 @@ interface ExportOpts {
   yAxisLabel: string;
   width: number;
   height: number;
+  userScale: number;
+  showValues: boolean;
 }
 
 // Paint the backdrop (branded mode) or leave transparent (clean)
@@ -302,8 +304,8 @@ function drawChart(ctx: CanvasRenderingContext2D, opts: ExportOpts) {
   const axisColor = isBranded ? "rgba(255,255,255,0.55)" : "#888888";
   const gridColor = isBranded ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)";
 
-  // Scale factor: export height / preview height. Drives all font + stroke sizes so export matches preview visual weight.
-  const scale = height / PREVIEW_H;
+  // Scale factor: export height / preview height, times user-tunable multiplier.
+  const scale = (height / PREVIEW_H) * (opts.userScale || 1);
   const S = (n: number) => Math.round(n * scale);
 
   // Layout regions (scaled) — tight, matches preview
@@ -446,6 +448,14 @@ function drawCartesian(
   });
 
   // Data series
+  const showVals = opts.showValues;
+  const valueFont = `700 ${S(12)}px 'Outfit', Arial, sans-serif`;
+  const fmt = (v: number) => {
+    if (Math.abs(v) >= 1000) return v.toLocaleString();
+    if (Number.isInteger(v)) return String(v);
+    return v.toFixed(1);
+  };
+
   if (kind === "bar" || kind === "stacked") {
     const groupWidth = plotW / rows.length;
     if (kind === "bar") {
@@ -460,6 +470,13 @@ function drawCartesian(
           const y = yToPx(v);
           ctx.fillStyle = colors[s % colors.length];
           ctx.fillRect(x, y, barWidth - gap, plotBottom - y);
+          if (showVals) {
+            ctx.font = valueFont;
+            ctx.fillStyle = textColor;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "bottom";
+            ctx.fillText(fmt(v), x + (barWidth - gap) / 2, y - S(4));
+          }
         });
       });
     } else {
@@ -475,6 +492,13 @@ function drawCartesian(
           const h = yToPx(cumulative) - y;
           ctx.fillStyle = colors[s % colors.length];
           ctx.fillRect(x, y, barWidth, h);
+          if (showVals && h > S(20)) {
+            ctx.font = valueFont;
+            ctx.fillStyle = "#ffffff";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(fmt(v), x + barWidth / 2, y + h / 2);
+          }
           cumulative += v;
         });
       });
@@ -502,6 +526,13 @@ function drawCartesian(
         ctx.beginPath();
         ctx.arc(x, y, dotR, 0, Math.PI * 2);
         ctx.fill();
+        if (showVals) {
+          ctx.font = valueFont;
+          ctx.fillStyle = textColor;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          ctx.fillText(fmt(v), x, y - dotR - S(4));
+        }
       });
     });
   } else if (kind === "area" || kind === "areaStacked") {
@@ -668,6 +699,8 @@ export default function ChartMaker() {
   const [style, setStyle] = useState<StyleMode>("branded");
   const [backdrop, setBackdrop] = useState<BackdropKey>("both");
   const [axisMode, setAxisMode] = useState<"auto" | "manual">("auto");
+  const [userScale, setUserScale] = useState<number>(1.0); // 0.7–1.5 multiplier
+  const [showValues, setShowValues] = useState<boolean>(false);
   const [xAxisLabel, setXAxisLabel] = useState("");
   const [yAxisLabel, setYAxisLabel] = useState("");
   const [title, setTitle] = useState("Accelerator Market Share");
@@ -762,6 +795,8 @@ export default function ChartMaker() {
       yAxisLabel,
       width: W,
       height: H,
+      userScale,
+      showValues,
     })
       .then((blob) => {
         const url = URL.createObjectURL(blob);
@@ -784,7 +819,7 @@ export default function ChartMaker() {
     const authorRole = userCtx.user ? userCtx.user.role : "";
     const data = {
       csv, orientation, kind, palette, style, backdrop, title, source,
-      axisMode, xAxisLabel, yAxisLabel,
+      axisMode, xAxisLabel, yAxisLabel, userScale, showValues,
       timestamp: new Date().toISOString(),
       createdBy: authorName,
       createdByRole: authorRole,
@@ -907,9 +942,9 @@ export default function ChartMaker() {
         <div style={{ fontFamily: mn, fontSize: 11, color: C.txm, marginTop: 4, letterSpacing: 1 }}>SA BRAND PALETTES · CSV OR TRANSPOSED · CLEAN OR BRANDED PNG</div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 18 }}>
         {/* ═══ CONTROLS ═══ */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {/* Orientation */}
           <Section label="Data Orientation">
             <div style={{ display: "flex", gap: 6 }}>
@@ -1077,29 +1112,26 @@ export default function ChartMaker() {
             </Section>
           )}
 
-          {/* Palette */}
+          {/* Palette — compact row */}
           <Section label="Palette">
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4 }}>
               {(Object.keys(PALETTES) as PaletteKey[]).map((k) => {
                 const p = PALETTES[k];
                 const active = palette === k;
                 return (
-                  <button key={k} onClick={() => setPalette(k)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, background: active ? C.amber + "15" : C.surface, border: `1px solid ${active ? C.amber + "40" : C.border}`, color: active ? C.amber : C.txm, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
-                    <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                  <button key={k} onClick={() => setPalette(k)} title={p.blurb} style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 4, padding: "6px 6px", borderRadius: 6, background: active ? C.amber + "15" : C.surface, border: `1px solid ${active ? C.amber + "40" : C.border}`, color: active ? C.amber : C.txm, fontFamily: ft, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                    <div style={{ display: "flex", gap: 1.5, width: "100%" }}>
                       {p.colors.slice(0, 6).map((c, i) => (
-                        <div key={i} style={{ width: 10, height: 18, borderRadius: 1, background: c }} />
+                        <div key={i} style={{ flex: 1, height: 10, borderRadius: 1, background: c }} />
                       ))}
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 12, color: active ? C.amber : C.tx }}>{p.name}</div>
-                      <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginTop: 2 }}>{p.blurb}</div>
-                    </div>
+                    <div style={{ fontSize: 10, color: active ? C.amber : C.tx, textAlign: "center" }}>{p.name}</div>
                   </button>
                 );
               })}
             </div>
-            <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginTop: 6 }}>
-              Using S1–S{Math.min(seriesKeys.length, colors.length)} · Grey #3D3D3D reserved for gridlines only
+            <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginTop: 4 }}>
+              Using S1–S{Math.min(seriesKeys.length, colors.length)} · Grey reserved for gridlines
             </div>
           </Section>
 
@@ -1191,8 +1223,27 @@ export default function ChartMaker() {
               </div>
             )}
           </div>
+          {/* Toolbar: scale slider + show-values toggle + meta */}
+          <div style={{ marginTop: 10, padding: "10px 12px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "1 1 300px" }}>
+              <span style={{ fontFamily: mn, fontSize: 13, color: C.amber }}>⚖</span>
+              <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 1.5, textTransform: "uppercase" }}>Scale</span>
+              <input
+                type="range" min={0.7} max={1.5} step={0.05}
+                value={userScale}
+                onChange={(e) => setUserScale(Number(e.target.value))}
+                style={{ flex: 1, accentColor: C.amber }}
+              />
+              <span style={{ fontFamily: mn, fontSize: 11, color: C.amber, minWidth: 42, textAlign: "right" }}>{userScale.toFixed(2)}×</span>
+              <button onClick={() => setUserScale(1.0)} title="Reset to 1.0" style={{ padding: "3px 8px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 4, color: C.txm, fontFamily: mn, fontSize: 9, cursor: "pointer" }}>Reset</button>
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontFamily: mn, fontSize: 10, color: showValues ? C.teal : C.txm }}>
+              <input type="checkbox" checked={showValues} onChange={(e) => setShowValues(e.target.checked)} style={{ accentColor: C.teal }} />
+              Show values on data points
+            </label>
+          </div>
           <div style={{ fontFamily: mn, fontSize: 10, color: C.txd, marginTop: 8 }}>
-            {parsed.rows.length} rows · {seriesKeys.length} series · {PALETTES[palette].name} · {style === "branded" ? `1920×1080 ${bdSpec.name} backdrop` : "1600×900 transparent"}
+            {parsed.rows.length} rows · {seriesKeys.length} series · {PALETTES[palette].name} · {style === "branded" ? `1920×1080 ${bdSpec.name} backdrop` : "1600×900 transparent"} · Scale {userScale.toFixed(2)}×{showValues ? " · values on" : ""}
           </div>
         </div>
       </div>
