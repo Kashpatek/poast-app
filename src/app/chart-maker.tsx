@@ -18,8 +18,8 @@ type InputMode = "paste" | "manual" | "excel";
 
 // ═══ GRID ⇄ CSV ═══
 function csvToGrid(csv: string): string[][] {
-  const lines = csv.trim().split(/\r?\n/);
-  return lines.map((l) => l.split(",").map((c) => c.trim()));
+  const lines = csv.replace(/\r/g, "").split(/\n/).filter((l) => l !== "" || true);
+  return lines.map((l) => l.includes("\t") ? l.split("\t").map((c) => c.trim()) : l.split(",").map((c) => c.trim()));
 }
 function gridToCsv(grid: string[][]): string {
   return grid.map((row) => row.map((c) => String(c ?? "")).join(",")).join("\n");
@@ -127,20 +127,52 @@ const CHART_KINDS: { key: ChartKind; label: string }[] = [
 ];
 
 // ═══ CSV PARSER + ORIENTATION ═══
+
+// Coerce a cell string to a number when possible, handling common suffixes
+// like "1.0x", "50%", "$1,200", "2.5M", "3k". Returns NaN if not numeric.
+function coerceNumber(v: string | undefined): number {
+  if (v === undefined || v === null) return NaN;
+  const raw = String(v).trim();
+  if (raw === "") return NaN;
+  // Strip common non-numeric prefixes/suffixes
+  // $1,234 → 1234   50% → 50   1.0x → 1.0   2.5M → 2.5   3k → 3
+  const cleaned = raw
+    .replace(/[$£€¥]/g, "")
+    .replace(/,/g, "")
+    .replace(/[%x×]$/i, "")
+    .trim();
+  // Magnitude suffixes: k, m, b, t (case-insensitive)
+  const magMatch = cleaned.match(/^(-?[\d.]+)\s*([kmbt])$/i);
+  if (magMatch) {
+    const base = Number(magMatch[1]);
+    const mul = { k: 1e3, m: 1e6, b: 1e9, t: 1e12 } as Record<string, number>;
+    const n = base * (mul[magMatch[2].toLowerCase()] || 1);
+    return isNaN(n) ? NaN : n;
+  }
+  const n = Number(cleaned);
+  return isNaN(n) ? NaN : n;
+}
+
+// Split a line on tabs OR commas, whichever is present (tabs win if both)
+function splitRow(line: string): string[] {
+  if (line.includes("\t")) return line.split("\t").map((c) => c.trim());
+  return line.split(",").map((c) => c.trim());
+}
+
 function parseCSV(raw: string, orientation: Orientation): { columns: string[]; rows: ChartRow[] } {
-  const lines = raw.trim().split(/\r?\n/).filter((l) => l.trim());
+  const lines = raw.replace(/\r/g, "").split(/\n/).filter((l) => l.trim() !== "");
   if (lines.length < 2) return { columns: [], rows: [] };
-  const table = lines.map((line) => line.split(",").map((c) => c.trim()));
+  const table = lines.map(splitRow);
 
   if (orientation === "cols") {
     // First row = headers (label col + series names as columns). First col = X labels.
-    const columns = table[0];
+    const columns = table[0].map((c, i) => c || (i === 0 ? "Metric" : `Series ${i}`));
     const rows: ChartRow[] = table.slice(1).map((cells) => {
       const row: ChartRow = {};
       columns.forEach((col, i) => {
         const v = cells[i];
-        const n = Number(v);
-        row[col] = v !== undefined && !isNaN(n) && v !== "" ? n : (v || "");
+        const n = coerceNumber(v);
+        row[col] = !isNaN(n) ? n : (v || "");
       });
       return row;
     });
@@ -149,14 +181,14 @@ function parseCSV(raw: string, orientation: Orientation): { columns: string[]; r
     // Rows as series: first col = series name, remaining cols = values per x-point.
     // First row's remaining cells = x labels. Transpose mentally into wide rows.
     const xLabels = table[0].slice(1);
-    const seriesNames = table.slice(1).map((r) => r[0]);
-    const columns = [table[0][0] || "X", ...seriesNames];
+    const seriesNames = table.slice(1).map((r) => r[0] || "Series");
+    const columns = [table[0][0] || "Metric", ...seriesNames];
     const rows: ChartRow[] = xLabels.map((x, xi) => {
       const row: ChartRow = { [columns[0]]: x };
       seriesNames.forEach((name, si) => {
         const v = table[si + 1][xi + 1];
-        const n = Number(v);
-        row[name] = v !== undefined && !isNaN(n) && v !== "" ? n : 0;
+        const n = coerceNumber(v);
+        row[name] = !isNaN(n) ? n : 0;
       });
       return row;
     });
