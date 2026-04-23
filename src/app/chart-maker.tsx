@@ -1041,6 +1041,59 @@ export default function ChartMaker() {
     setCsv(gridToCsv(grid.map((r) => r.filter((_, idx) => idx !== i))));
   }
 
+  // Paste tabular data (TSV/CSV) starting at a given cell. Expands grid as needed
+  // so users can paste a block from Excel/Sheets directly into the Manual editor.
+  function pasteIntoCell(r: number, c: number, text: string) {
+    const pasted = csvToGrid(text);
+    if (pasted.length === 0) return;
+    const pasteW = Math.max(...pasted.map((row) => row.length));
+    const needRows = r + pasted.length;
+    const needCols = c + pasteW;
+    const next = grid.map((row) => [...row]);
+    const currentCols = next[0]?.length || 0;
+    while (next.length < needRows) next.push(Array(Math.max(currentCols, needCols)).fill(""));
+    if (needCols > currentCols) {
+      next.forEach((row) => { while (row.length < needCols) row.push(""); });
+    }
+    pasted.forEach((pRow, pri) => {
+      pRow.forEach((cell, pci) => { next[r + pri][c + pci] = cell; });
+    });
+    setCsv(gridToCsv(next));
+  }
+
+  // Keyboard nav within the Manual grid. Tab/Shift-Tab move horizontally,
+  // Enter/ArrowDown/ArrowUp move vertically. Auto-adds a row when tabbing
+  // off the last cell so users never hit a dead end.
+  function handleCellKeyDown(r: number, c: number, e: React.KeyboardEvent<HTMLInputElement>) {
+    const cols = grid[0]?.length || 1;
+    const rows = grid.length;
+    let nr = r, nc = c, handled = false;
+    if (e.key === "Tab") {
+      handled = true;
+      nc = c + (e.shiftKey ? -1 : 1);
+      if (nc >= cols) { nc = 0; nr = r + 1; }
+      else if (nc < 0) { nc = cols - 1; nr = r - 1; }
+    } else if (e.key === "Enter" || e.key === "ArrowDown") {
+      handled = true;
+      nr = r + 1;
+    } else if (e.key === "ArrowUp") {
+      handled = true;
+      nr = r - 1;
+    }
+    if (!handled) return;
+    e.preventDefault();
+    if (nr < 0) nr = 0;
+    if (nc < 0) nc = 0;
+    if (nr >= rows) { addRow(); nr = rows; } // index of new last row after add
+    if (nc >= cols) nc = cols - 1;
+    // Defer focus until after state update → DOM is rerendered
+    requestAnimationFrame(() => {
+      const target = document.querySelector<HTMLInputElement>(`[data-cell="${nr}-${nc}"]`);
+      target?.focus();
+      target?.select();
+    });
+  }
+
   // ═══ EXCEL HANDLERS ═══
   function handleExcelFile(file: File) {
     setXlsxError("");
@@ -1090,7 +1143,7 @@ export default function ChartMaker() {
     setPalette(t.palette);
     setTitle(t.title);
     setSource(t.source);
-    if (t.orientation) setOrientation(t.orientation);
+    setOrientation(t.orientation || "cols");
     setInputMode("paste"); // make sure they can see what loaded
   }
 
@@ -1411,7 +1464,7 @@ export default function ChartMaker() {
 
             {inputMode === "manual" && (
               <div>
-                <div style={{ maxHeight: 260, overflow: "auto", border: `1px solid ${C.border}`, borderRadius: 8, background: C.card }}>
+                <div style={{ maxHeight: 420, overflow: "auto", border: `1px solid ${C.border}`, borderRadius: 8, background: C.card }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: mn, fontSize: 10 }}>
                     <tbody>
                       {ensureGrid(grid).map((row, ri) => (
@@ -1419,8 +1472,16 @@ export default function ChartMaker() {
                           {row.map((cell, ci) => (
                             <td key={ci} style={{ borderRight: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, padding: 0, minWidth: 80 }}>
                               <input
+                                data-cell={`${ri}-${ci}`}
                                 value={cell}
                                 onChange={(e) => setCell(ri, ci, e.target.value)}
+                                onKeyDown={(e) => handleCellKeyDown(ri, ci, e)}
+                                onPaste={(e) => {
+                                  const text = e.clipboardData.getData("text");
+                                  if (!text.includes("\t") && !text.includes("\n")) return; // single cell — native paste
+                                  e.preventDefault();
+                                  pasteIntoCell(ri, ci, text);
+                                }}
                                 style={{ width: "100%", padding: "5px 8px", background: ri === 0 || ci === 0 ? C.surface : "transparent", border: "none", color: ri === 0 || ci === 0 ? C.amber : C.tx, fontFamily: mn, fontSize: 11, fontWeight: ri === 0 || ci === 0 ? 700 : 400, outline: "none", boxSizing: "border-box" }}
                               />
                             </td>
@@ -1448,8 +1509,8 @@ export default function ChartMaker() {
                   <button onClick={addRow} style={miniBtnText(C.teal)}>+ Row</button>
                   <button onClick={addCol} style={miniBtnText(C.blue)}>+ Column</button>
                 </div>
-                <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginTop: 6 }}>
-                  First row + first column are highlighted as headers. All inputs sync to CSV automatically.
+                <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginTop: 6, lineHeight: 1.5 }}>
+                  First row + first column are highlighted as headers. Tab / Enter / arrows to navigate. Paste a block from Excel into any cell to fill the grid.
                 </div>
               </div>
             )}
