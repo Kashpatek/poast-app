@@ -1059,6 +1059,68 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
 }
 
 // ═══ ANALYST SPLASH — iPhone-home-screen-style tile grid ═══
+// 3D mouse-tilt tile for the Analyst splash. Tracks cursor position inside the
+// tile, applies perspective rotation + a moving specular highlight, resets on
+// leave. Entrance animation via asTile keyframes (defined on parent).
+interface TiltToolSpec { id: string; label: string; sub: string; ic: string; color: string }
+function TiltTile({ tool, index, onNavigate }: { tool: TiltToolSpec; index: number; onNavigate: (id: string) => void }) {
+  var _hov = useState(false), hov = _hov[0], setHov = _hov[1];
+  var _coords = useState<{ x: number; y: number } | null>(null), coords = _coords[0], setCoords = _coords[1];
+  var t = tool;
+  var baseBg = "linear-gradient(135deg, " + t.color + "14 0%, " + t.color + "06 100%)";
+  var hoverBg = "linear-gradient(135deg, " + t.color + "22 0%, " + t.color + "0A 100%)";
+
+  var rotX = 0, rotY = 0;
+  if (coords) {
+    rotY = (coords.x - 0.5) * 14;   // max ~7° left/right
+    rotX = (0.5 - coords.y) * 12;   // max ~6° up/down
+  }
+  var tileTransform = hov
+    ? "rotateX(" + rotX.toFixed(2) + "deg) rotateY(" + rotY.toFixed(2) + "deg) translateY(-6px) scale(1.02)"
+    : "rotateX(0) rotateY(0) translateY(0) scale(1)";
+
+  return <button
+    onClick={function() { onNavigate(t.id); }}
+    onMouseEnter={function() { setHov(true); }}
+    onMouseMove={function(e: React.MouseEvent<HTMLButtonElement>) {
+      var rect = e.currentTarget.getBoundingClientRect();
+      setCoords({ x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height });
+    }}
+    onMouseLeave={function() { setHov(false); setCoords(null); }}
+    style={{
+      background: hov ? hoverBg : baseBg,
+      border: "1px solid " + (hov ? t.color + "70" : t.color + "28"),
+      borderRadius: 28,
+      padding: "26px 22px",
+      cursor: "pointer",
+      display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between",
+      position: "relative", overflow: "hidden",
+      transition: "transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), background 0.22s, border-color 0.22s, box-shadow 0.22s",
+      animation: "asTile 0.55s cubic-bezier(0.16, 1, 0.3, 1) " + (0.15 + index * 0.06) + "s forwards",
+      opacity: 0,
+      transform: tileTransform,
+      transformStyle: "preserve-3d",
+      boxShadow: hov ? "0 28px 60px -12px " + t.color + "45, 0 0 0 1px " + t.color + "30" : "none",
+    }}
+  >
+    {/* Ambient corner glow */}
+    <div style={{ position: "absolute", top: -40, right: -40, width: 120, height: 120, borderRadius: "50%", background: "radial-gradient(circle, " + t.color + "30, transparent 70%)", pointerEvents: "none" }} />
+    {/* Specular highlight — moves with the cursor, like a card catching light */}
+    {hov && coords && <div style={{
+      position: "absolute", inset: 0, borderRadius: 28, pointerEvents: "none",
+      background: "radial-gradient(circle at " + (coords.x * 100).toFixed(0) + "% " + (coords.y * 100).toFixed(0) + "%, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.03) 30%, transparent 60%)",
+      transition: "background 0.08s linear",
+    }} />}
+    {/* Icon — lifts farther "out" of the card on tilt */}
+    <div style={{ fontSize: 54, lineHeight: 1, filter: "drop-shadow(0 4px 10px " + t.color + "55)", position: "relative", transform: hov ? "translateZ(24px)" : "translateZ(0)", transition: "transform 0.22s" }}>{t.ic}</div>
+    {/* Label */}
+    <div style={{ position: "relative", transform: hov ? "translateZ(14px)" : "translateZ(0)", transition: "transform 0.22s" }}>
+      <div style={{ fontFamily: ft, fontSize: 19, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.3, marginBottom: 4 }}>{t.label}</div>
+      <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 500, color: t.color + "CC", letterSpacing: 0.2 }}>{t.sub}</div>
+    </div>
+  </button>;
+}
+
 function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
   var VIOLET = "#905CCB";
   var tools = [
@@ -1088,45 +1150,10 @@ function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
     <div style={{ fontFamily: ft, fontSize: 28, fontWeight: 900, color: "#E8E4DD", letterSpacing: -0.5, marginBottom: 4, animation: "asFade 0.5s ease 0.05s forwards", opacity: 0 }}>Analyst Studio</div>
     <div style={{ fontFamily: mn, fontSize: 11, color: VIOLET, letterSpacing: 2, marginBottom: 48, animation: "asFade 0.5s ease 0.1s forwards", opacity: 0 }}>PICK A TOOL TO CREATE</div>
 
-    {/* 3×2 tile grid */}
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 220px)", gridAutoRows: "220px", gap: 22, maxWidth: "min(90vw, 760px)" }}>
+    {/* 3×2 tile grid — cards tilt in 3D toward the cursor */}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 220px)", gridAutoRows: "220px", gap: 22, maxWidth: "min(90vw, 760px)", perspective: "1100px" }}>
       {tools.map(function(t, i) {
-        return <button key={t.id} onClick={function() { onNavigate(t.id); }}
-          style={{
-            background: `linear-gradient(135deg, ${t.color}14 0%, ${t.color}06 100%)`,
-            border: `1px solid ${t.color}28`,
-            borderRadius: 28,
-            padding: "26px 22px",
-            cursor: "pointer",
-            display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between",
-            position: "relative", overflow: "hidden",
-            transition: "all 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
-            animation: `asTile 0.55s cubic-bezier(0.16, 1, 0.3, 1) ${0.15 + i * 0.06}s forwards`,
-            opacity: 0,
-          }}
-          onMouseEnter={function(e: React.MouseEvent<HTMLElement>) {
-            e.currentTarget.style.transform = "translateY(-6px) scale(1.02)";
-            e.currentTarget.style.borderColor = t.color + "70";
-            e.currentTarget.style.boxShadow = `0 20px 50px -10px ${t.color}35, 0 0 0 1px ${t.color}30`;
-            e.currentTarget.style.background = `linear-gradient(135deg, ${t.color}22 0%, ${t.color}0A 100%)`;
-          }}
-          onMouseLeave={function(e: React.MouseEvent<HTMLElement>) {
-            e.currentTarget.style.transform = "translateY(0) scale(1)";
-            e.currentTarget.style.borderColor = t.color + "28";
-            e.currentTarget.style.boxShadow = "none";
-            e.currentTarget.style.background = `linear-gradient(135deg, ${t.color}14 0%, ${t.color}06 100%)`;
-          }}
-        >
-          {/* Top-right glow accent */}
-          <div style={{ position: "absolute", top: -40, right: -40, width: 120, height: 120, borderRadius: "50%", background: `radial-gradient(circle, ${t.color}30, transparent 70%)`, pointerEvents: "none" }} />
-          {/* Icon */}
-          <div style={{ fontSize: 54, lineHeight: 1, filter: `drop-shadow(0 4px 10px ${t.color}55)`, position: "relative" }}>{t.ic}</div>
-          {/* Label */}
-          <div style={{ position: "relative" }}>
-            <div style={{ fontFamily: ft, fontSize: 19, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.3, marginBottom: 4 }}>{t.label}</div>
-            <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 500, color: t.color + "CC", letterSpacing: 0.2 }}>{t.sub}</div>
-          </div>
-        </button>;
+        return <TiltTile key={t.id} tool={t} index={i} onNavigate={onNavigate} />;
       })}
     </div>
 
