@@ -1137,46 +1137,56 @@ function TiltTile({ tool, index, onNavigate }: { tool: TiltToolSpec; index: numb
     ? "rotateX(" + rotX.toFixed(2) + "deg) rotateY(" + rotY.toFixed(2) + "deg) translateY(-6px) scale(1.02)"
     : "rotateX(0) rotateY(0) translateY(0) scale(1)";
 
-  return <button
-    onClick={function() { onNavigate(t.id); }}
-    onMouseEnter={function() { setHov(true); }}
-    onMouseMove={function(e: React.MouseEvent<HTMLButtonElement>) {
-      var rect = e.currentTarget.getBoundingClientRect();
-      setCoords({ x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height });
-    }}
-    onMouseLeave={function() { setHov(false); setCoords(null); }}
-    style={{
-      background: hov ? hoverBg : baseBg,
-      border: "1px solid " + (hov ? t.color + "70" : t.color + "28"),
-      borderRadius: 28,
-      padding: "26px 22px",
-      cursor: "pointer",
-      display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between",
-      position: "relative", overflow: "hidden",
-      transition: "transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), background 0.22s, border-color 0.22s, box-shadow 0.22s",
-      animation: "asTile 0.55s cubic-bezier(0.16, 1, 0.3, 1) " + (0.15 + index * 0.06) + "s forwards",
-      opacity: 0,
-      transform: tileTransform,
-      transformStyle: "preserve-3d",
-      boxShadow: hov ? "0 28px 60px -12px " + t.color + "45, 0 0 0 1px " + t.color + "30" : "none",
-    }}
-  >
-    {/* Ambient corner glow */}
-    <div style={{ position: "absolute", top: -40, right: -40, width: 120, height: 120, borderRadius: "50%", background: "radial-gradient(circle, " + t.color + "30, transparent 70%)", pointerEvents: "none" }} />
-    {/* Specular highlight — moves with the cursor, like a card catching light */}
-    {hov && coords && <div style={{
-      position: "absolute", inset: 0, borderRadius: 28, pointerEvents: "none",
-      background: "radial-gradient(circle at " + (coords.x * 100).toFixed(0) + "% " + (coords.y * 100).toFixed(0) + "%, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.03) 30%, transparent 60%)",
-      transition: "background 0.08s linear",
-    }} />}
-    {/* Icon — lifts farther "out" of the card on tilt */}
-    <div style={{ fontSize: 54, lineHeight: 1, filter: "drop-shadow(0 4px 10px " + t.color + "55)", position: "relative", transform: hov ? "translateZ(24px)" : "translateZ(0)", transition: "transform 0.22s" }}>{t.ic}</div>
-    {/* Label */}
-    <div style={{ position: "relative", transform: hov ? "translateZ(14px)" : "translateZ(0)", transition: "transform 0.22s" }}>
-      <div style={{ fontFamily: ft, fontSize: 19, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.3, marginBottom: 4 }}>{t.label}</div>
-      <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 500, color: t.color + "CC", letterSpacing: 0.2 }}>{t.sub}</div>
-    </div>
-  </button>;
+  // Outer wrapper owns the entrance animation (asTile keyframes). Inner button
+  // owns the tilt transform. This prevents the entrance's final `forwards`
+  // keyframe from overriding the tilt transform once the animation ends —
+  // otherwise the 3D shift silently does nothing.
+  return <div style={{
+    animation: "asTile 0.55s cubic-bezier(0.16, 1, 0.3, 1) " + (0.15 + index * 0.06) + "s forwards",
+    opacity: 0,
+    transformStyle: "preserve-3d",
+  }}>
+    <button
+      onClick={function() { onNavigate(t.id); }}
+      onMouseEnter={function() { setHov(true); }}
+      onMouseMove={function(e: React.MouseEvent<HTMLButtonElement>) {
+        var rect = e.currentTarget.getBoundingClientRect();
+        setCoords({ x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height });
+      }}
+      onMouseLeave={function() { setHov(false); setCoords(null); }}
+      style={{
+        width: "100%",
+        height: "100%",
+        background: hov ? hoverBg : baseBg,
+        border: "1px solid " + (hov ? t.color + "70" : t.color + "28"),
+        borderRadius: 28,
+        padding: "26px 22px",
+        cursor: "pointer",
+        display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between",
+        position: "relative", overflow: "hidden",
+        transition: "transform 0.12s cubic-bezier(0.16, 1, 0.3, 1), background 0.22s, border-color 0.22s, box-shadow 0.22s",
+        transform: tileTransform,
+        transformStyle: "preserve-3d",
+        willChange: "transform",
+        boxShadow: hov ? "0 28px 60px -12px " + t.color + "45, 0 0 0 1px " + t.color + "30" : "none",
+      }}
+    >
+      {/* Ambient corner glow */}
+      <div style={{ position: "absolute", top: -40, right: -40, width: 120, height: 120, borderRadius: "50%", background: "radial-gradient(circle, " + t.color + "30, transparent 70%)", pointerEvents: "none" }} />
+      {/* Specular highlight — moves with the cursor, like a card catching light */}
+      {hov && coords && <div style={{
+        position: "absolute", inset: 0, borderRadius: 28, pointerEvents: "none",
+        background: "radial-gradient(circle at " + (coords.x * 100).toFixed(0) + "% " + (coords.y * 100).toFixed(0) + "%, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.04) 30%, transparent 60%)",
+      }} />}
+      {/* Icon — lifts farther "out" of the card on tilt */}
+      <div style={{ fontSize: 54, lineHeight: 1, filter: "drop-shadow(0 4px 10px " + t.color + "55)", position: "relative", transform: hov ? "translateZ(24px)" : "translateZ(0)", transition: "transform 0.22s" }}>{t.ic}</div>
+      {/* Label */}
+      <div style={{ position: "relative", transform: hov ? "translateZ(14px)" : "translateZ(0)", transition: "transform 0.22s" }}>
+        <div style={{ fontFamily: ft, fontSize: 19, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.3, marginBottom: 4 }}>{t.label}</div>
+        <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 500, color: t.color + "CC", letterSpacing: 0.2 }}>{t.sub}</div>
+      </div>
+    </button>
+  </div>;
 }
 
 function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
