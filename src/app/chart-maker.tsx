@@ -220,7 +220,7 @@ function splitRow(line: string): string[] {
 const SERIES_LABEL_PATTERNS = /^(launch\s*time|tflops|date|metric|measure|quarter|period|year|name|series|value)\b/i;
 function detectHorizontalLayout(
   table: string[][],
-): { xValues: string[]; yValues: number[]; seriesName: string } | null {
+): { xValues: string[]; yValues: number[]; seriesName: string; labels: string[] | null } | null {
   if (table.length < 2) return null;
   const maxW = Math.max(...table.map((r) => r.length));
   if (maxW < 3) return null; // need at least 2 data columns
@@ -248,6 +248,7 @@ function detectHorizontalLayout(
   // "TFLOPS (BF16)" that sit in col 0 or col 1).
   const xValues: string[] = [];
   const yValues: number[] = [];
+  const usedCols: number[] = [];
   for (let c = 1; c < maxW; c++) {
     const dCell = (table[dateRow][c] || "").trim();
     const nCell = (table[numRow][c] || "").trim();
@@ -255,6 +256,7 @@ function detectHorizontalLayout(
     if (dCell && !isNaN(Date.parse(dCell)) && !isNaN(n)) {
       xValues.push(dCell);
       yValues.push(n);
+      usedCols.push(c);
     }
   }
   if (xValues.length < 2) return null;
@@ -267,7 +269,21 @@ function detectHorizontalLayout(
     break;
   }
   if (!seriesName) seriesName = (table[numRow][0] || "").trim() || "Series";
-  return { xValues, yValues, seriesName };
+  // Point labels: find another row (not dateRow, not numRow) where the same
+  // column indices have non-empty, non-date, non-numeric strings. These are
+  // per-point markers like "A100", "H100", "GB200" on launch-timeline charts.
+  let labels: string[] | null = null;
+  for (let i = 0; i < table.length; i++) {
+    if (i === dateRow || i === numRow) continue;
+    const row = table[i];
+    const candidates = usedCols.map((c) => (row[c] || "").trim());
+    const allValid = candidates.every((v) => v && isNaN(coerceNumber(v)) && isNaN(Date.parse(v)));
+    if (allValid) {
+      labels = candidates;
+      break;
+    }
+  }
+  return { xValues, yValues, seriesName, labels };
 }
 
 function parseCSV(raw: string, orientation: Orientation): { columns: string[]; rows: ChartRow[] } {
@@ -280,10 +296,16 @@ function parseCSV(raw: string, orientation: Orientation): { columns: string[]; r
   const horiz = detectHorizontalLayout(table);
   if (horiz) {
     const columns = ["Date", horiz.seriesName];
-    const rows: ChartRow[] = horiz.xValues.map((x, i) => ({
-      Date: x,
-      [horiz.seriesName]: horiz.yValues[i],
-    }));
+    const labelKey = `_label_${horiz.seriesName}`;
+    const rows: ChartRow[] = horiz.xValues.map((x, i) => {
+      const r: ChartRow = { Date: x, [horiz.seriesName]: horiz.yValues[i] };
+      if (horiz.labels) r[labelKey] = horiz.labels[i];
+      return r;
+    });
+    // Sort chronologically when all x-values are date-parseable
+    if (rows.every((r) => !isNaN(Date.parse(String(r.Date))))) {
+      rows.sort((a, b) => Date.parse(String(a.Date)) - Date.parse(String(b.Date)));
+    }
     return { columns, rows };
   }
 
@@ -341,15 +363,22 @@ function mergeParsed(
     const key = keyOf(row, a.columns[0]);
     if (!merged.has(key)) { merged.set(key, { [labelKey]: key }); order.push(key); }
     const m = merged.get(key)!;
-    aSeries.forEach((s) => { m[s] = row[s]; });
+    // Copy ALL extra keys (including hidden _label_* per-point markers) from a
+    Object.keys(row).forEach((k) => { if (k !== a.columns[0]) m[k] = row[k]; });
   });
   b.rows.forEach((row) => {
     const key = keyOf(row, b.columns[0]);
     if (!merged.has(key)) { merged.set(key, { [labelKey]: key }); order.push(key); }
     const m = merged.get(key)!;
-    bSeriesRaw.forEach((s, i) => { m[bSeries[i]] = row[s]; });
+    // Rename b's series columns to the de-collided name, keep other keys as-is
+    Object.keys(row).forEach((k) => {
+      if (k === b.columns[0]) return;
+      const idx = bSeriesRaw.indexOf(k);
+      const target = idx >= 0 ? bSeries[idx] : k;
+      m[target] = row[k];
+    });
   });
-  // Fill missing cells with null (for gaps / connectNulls handling)
+  // Fill missing series cells with null (for gaps / connectNulls handling)
   const rows = order.map((k) => {
     const r = merged.get(k)!;
     [...aSeries, ...bSeries].forEach((s) => {
@@ -357,6 +386,11 @@ function mergeParsed(
     });
     return r;
   });
+  // Sort chronologically when all x-values are date-parseable. This is the
+  // fix for the NV-dates-first-then-TPU-dates ordering bug.
+  if (rows.every((r) => !isNaN(Date.parse(String(r[labelKey]))))) {
+    rows.sort((x, y) => Date.parse(String(x[labelKey])) - Date.parse(String(y[labelKey])));
+  }
   return { columns: allCols, rows };
 }
 
@@ -377,6 +411,9 @@ interface Template {
   label: string;
   emoji: string;
   csv: string;
+  // Optional second paste block — loads into the two-tables UI so merged
+  // charts (e.g. NV-vs-TPU on shared date axis) come pre-populated.
+  csv2?: string;
   kind: ChartKind;
   palette: PaletteKey;
   title: string;
@@ -409,6 +446,25 @@ HBM Bandwidth,1,2,2.9`,
     palette: "saCore",
     title: "TPU v6 vs H100 vs H200",
     source: "Source: SemiAnalysis",
+  },
+  {
+    id: "flops-over-time",
+    label: "FLOPs Over Time",
+    emoji: "📅",
+    // Paste in SA-Excel horizontal layout — parser auto-pivots, two-tables
+    // UI merges on date, and chip names below each row become point labels.
+    csv: `\t2Q20\t4Q22\t2Q25
+NV\tLaunch time\tMay 2020\tDec 2022\tJun 2025
+\tTFLOPS (BF16)\t312\t990\t2500
+\tA100\tH100\tGB200`,
+    csv2: `\t2Q22\t4Q23\t1Q24\t4Q24\t4Q25
+\tLaunch time\tJun 2022\tDec 2023\tMar 2024\tDec 2024\tDec 2025
+TPU\tTFLOPS (BF16)\t275\t197\t459\t918\t2307
+\tTPU v4\tTPU v5e\tTPU v5p\tTPU v6\tTPU v7`,
+    kind: "line",
+    palette: "saCore",
+    title: "TFLOPs and System Availability of TPU vs Nvidia (BF16 Dense)",
+    source: "Source: SemiAnalysis Accelerator Model",
   },
   {
     id: "shipments-stack",
@@ -534,6 +590,16 @@ interface ExportOpts {
   showValues: boolean;
   theme: ThemeMode;
   yMaxOverride?: number;
+  // Time-axis mode: when set, x-axis plots as a continuous time scale
+  // (proportional date spacing) instead of categorical. `xTimestamps[i]`
+  // is the timestamp for rows[i]. xMin/xMax define the axis domain.
+  useTimeAxis?: boolean;
+  xTimestamps?: number[];
+  xMin?: number;
+  xMax?: number;
+  // Per-point labels (chip names, etc.) — keyed by series name.
+  // pointLabels[seriesKey][i] = label for rows[i] on that series, or "" if none.
+  pointLabels?: Record<string, string[]>;
 }
 
 // Paint the backdrop (branded mode) or leave transparent (clean)
@@ -584,6 +650,40 @@ function niceStep(range: number, targetSteps = 5): number {
   else if (n < 7) step = 5;
   else step = 10;
   return step * pow;
+}
+
+// ═══ TIME AXIS HELPERS ═══
+const YEAR_MS = 365.25 * 24 * 3600 * 1000;
+function formatDateShort(ts: number): string {
+  const d = new Date(ts);
+  const m = d.toLocaleString("en", { month: "short" });
+  const y = String(d.getUTCFullYear()).slice(2);
+  return `${m} '${y}`;
+}
+// Generate chronological tick marks at nice year/quarter intervals
+function computeTimeTicks(minTs: number, maxTs: number): number[] {
+  if (!isFinite(minTs) || !isFinite(maxTs) || maxTs <= minTs) return [];
+  const span = maxTs - minTs;
+  let stepMs: number;
+  if (span < 1.5 * YEAR_MS) stepMs = YEAR_MS / 4;       // every 3 months
+  else if (span < 4 * YEAR_MS) stepMs = YEAR_MS / 2;    // every 6 months
+  else if (span < 10 * YEAR_MS) stepMs = YEAR_MS;       // yearly
+  else stepMs = 2 * YEAR_MS;                             // biennially
+  const startYear = new Date(minTs).getUTCFullYear();
+  const ticks: number[] = [];
+  for (let t = Date.UTC(startYear, 0, 1); t <= maxTs + stepMs * 0.5; t += stepMs) {
+    if (t >= minTs - stepMs * 0.5) ticks.push(t);
+  }
+  return ticks;
+}
+// Parse either a date string or raw number to ms-timestamp. NaN if neither.
+function parseDateOrNum(s: string): number {
+  const t = (s || "").trim();
+  if (!t) return NaN;
+  const d = Date.parse(t);
+  if (!isNaN(d)) return d;
+  const n = Number(t);
+  return isNaN(n) ? NaN : n;
 }
 
 // ═══ CHART DRAWING ═══
@@ -711,7 +811,17 @@ function drawCartesian(
   const yMax = opts.yMaxOverride && opts.yMaxOverride > 0 ? opts.yMaxOverride : Math.ceil(maxV / step) * step;
   const yMin = minV < 0 ? Math.floor(minV / step) * step : 0;
 
-  const xToPx = (i: number, total: number) => plotLeft + (plotW / total) * (i + 0.5);
+  // Time-axis mode: x plots proportionally to timestamps instead of slot index
+  const useTime = !!opts.useTimeAxis && !!opts.xTimestamps && opts.xTimestamps.length === rows.length && opts.xMin !== undefined && opts.xMax !== undefined;
+  const tXMin = opts.xMin ?? 0;
+  const tXMax = opts.xMax ?? 1;
+  const xToPx = (i: number, total: number) => {
+    if (useTime) {
+      const ts = opts.xTimestamps![i];
+      return plotLeft + ((ts - tXMin) / (tXMax - tXMin)) * plotW;
+    }
+    return plotLeft + (plotW / total) * (i + 0.5);
+  };
   const yToPx = (v: number) => plotBottom - ((v - yMin) / (yMax - yMin)) * plotH;
 
   // Font + stroke sizes scaled from preview (PREVIEW_H) proportions
@@ -734,21 +844,31 @@ function drawCartesian(
     ctx.fillText(label, plotLeft - S(10), y);
   }
 
-  // X-axis labels
+  // X-axis labels — time axis emits regular-interval date ticks; categorical
+  // axis falls back to one label per data row.
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   ctx.fillStyle = axisColor;
-  const xLabels = rows.map((r) => String(r[labelKey] ?? ""));
-  const maxLabelW = Math.max(...xLabels.map((l) => measureText(ctx, l, tickFont)));
-  const rotate = maxLabelW > plotW / rows.length - S(10);
-  xLabels.forEach((l, i) => {
-    const x = xToPx(i, rows.length);
-    if (rotate) {
-      drawLabelRotated(ctx, l, x, plotBottom + S(10), -Math.PI / 6, tickFont, axisColor);
-    } else {
-      ctx.fillText(l, x, plotBottom + S(10));
-    }
-  });
+  if (useTime) {
+    const ticks = computeTimeTicks(tXMin, tXMax);
+    ticks.forEach((ts) => {
+      const x = plotLeft + ((ts - tXMin) / (tXMax - tXMin)) * plotW;
+      if (x < plotLeft - 1 || x > plotRight + 1) return;
+      ctx.fillText(formatDateShort(ts), x, plotBottom + S(10));
+    });
+  } else {
+    const xLabels = rows.map((r) => String(r[labelKey] ?? ""));
+    const maxLabelW = Math.max(...xLabels.map((l) => measureText(ctx, l, tickFont)));
+    const rotate = maxLabelW > plotW / rows.length - S(10);
+    xLabels.forEach((l, i) => {
+      const x = xToPx(i, rows.length);
+      if (rotate) {
+        drawLabelRotated(ctx, l, x, plotBottom + S(10), -Math.PI / 6, tickFont, axisColor);
+      } else {
+        ctx.fillText(l, x, plotBottom + S(10));
+      }
+    });
+  }
 
   // Data series
   const showVals = opts.showValues;
@@ -817,22 +937,34 @@ function drawCartesian(
     const isScatter = kind === "scatter";
     const lineW = S(3);
     const dotR = isScatter ? S(7) : S(4);
+    // Helper — returns a finite number, or NaN when the cell is missing/null/
+    // non-numeric. Used to skip gaps so lines don't snap down to zero for
+    // cells that simply don't exist for that series (merged tables).
+    const num = (v: unknown): number => {
+      if (v === null || v === undefined || v === "") return NaN;
+      const n = Number(v);
+      return isNaN(n) ? NaN : n;
+    };
     seriesKeys.forEach((key, s) => {
       if (!isScatter) {
         ctx.strokeStyle = colors[s % colors.length];
         ctx.lineWidth = lineW;
         ctx.lineJoin = "round";
         ctx.beginPath();
+        let started = false;
         rows.forEach((row, i) => {
-          const v = Number(row[key]) || 0;
+          const v = num(row[key]);
+          if (isNaN(v)) return; // connectNulls: skip missing cells entirely
           const x = xToPx(i, rows.length);
           const y = yToPx(v);
-          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          if (!started) { ctx.moveTo(x, y); started = true; }
+          else ctx.lineTo(x, y);
         });
         ctx.stroke();
       }
       rows.forEach((row, i) => {
-        const v = Number(row[key]) || 0;
+        const v = num(row[key]);
+        if (isNaN(v)) return;
         const x = xToPx(i, rows.length);
         const y = yToPx(v);
         ctx.fillStyle = colors[s % colors.length];
@@ -845,6 +977,17 @@ function drawCartesian(
           ctx.textAlign = "center";
           ctx.textBaseline = "bottom";
           ctx.fillText(fmt(v), x, y - dotR - S(4));
+        }
+        // Per-point labels (e.g. "A100", "H100", "GB200" on launch-timeline
+        // Line charts). Rendered above the dot, same color as the series.
+        const label = opts.pointLabels?.[key]?.[i];
+        if (label) {
+          ctx.font = `700 ${S(12)}px 'Outfit', Arial, sans-serif`;
+          ctx.fillStyle = colors[s % colors.length];
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          const offsetY = showVals ? dotR + S(22) : dotR + S(6);
+          ctx.fillText(label, x, y - offsetY);
         }
       });
     });
@@ -1123,6 +1266,8 @@ export default function ChartMaker() {
   const [userScale, setUserScale] = useState<number>(1.0); // 0.7–1.5 multiplier
   const [showValues, setShowValues] = useState<boolean>(false);
   const [yMaxInput, setYMaxInput] = useState<string>(""); // empty = auto
+  const [xMinInput, setXMinInput] = useState<string>(""); // empty = auto — for time axis
+  const [xMaxInput, setXMaxInput] = useState<string>(""); // empty = auto — for time axis
   const [xAxisLabel, setXAxisLabel] = useState("");
   const [yAxisLabel, setYAxisLabel] = useState("");
   const [title, setTitle] = useState("Accelerator Market Share");
@@ -1263,8 +1408,13 @@ export default function ChartMaker() {
     setOrientation(t.orientation || "cols");
     setInputMode("paste"); // make sure they can see what loaded
     setLastTemplateId(t.id);
-    setCsv2("");
-    setCsv2Enabled(false);
+    if (t.csv2) {
+      setCsv2(t.csv2);
+      setCsv2Enabled(true);
+    } else {
+      setCsv2("");
+      setCsv2Enabled(false);
+    }
   }
   function resetToLastTemplate() {
     const t = TEMPLATES.find((x) => x.id === lastTemplateId);
@@ -1298,6 +1448,27 @@ export default function ChartMaker() {
     setExporting(true);
     const W = style === "branded" ? 1920 : 1600;
     const H = style === "branded" ? 1080 : 900;
+    // Time axis detection + per-point label extraction for the export canvas,
+    // so the PNG matches the preview (which already uses these).
+    const xAllDatesExp = parsed.rows.length > 0 && parsed.rows.every((r) => !isNaN(Date.parse(String(r[labelKey] ?? ""))));
+    const exportUseTimeAxis = xAllDatesExp && (kind === "line" || kind === "area");
+    const expTs = exportUseTimeAxis ? parsed.rows.map((r) => Date.parse(String(r[labelKey] ?? ""))) : [];
+    const expAutoMin = exportUseTimeAxis ? Math.min(...expTs) : 0;
+    const expAutoMax = exportUseTimeAxis ? Math.max(...expTs) : 0;
+    const expMinOver = parseDateOrNum(xMinInput);
+    const expMaxOver = parseDateOrNum(xMaxInput);
+    const exportXMin = exportUseTimeAxis && !isNaN(expMinOver) ? expMinOver : expAutoMin;
+    const exportXMax = exportUseTimeAxis && !isNaN(expMaxOver) ? expMaxOver : expAutoMax;
+    // Build pointLabels: for each series, extract the `_label_<series>` field
+    // off each row. Empty string when no label. Undefined when no series has any.
+    const exportPointLabels: Record<string, string[]> = {};
+    let anyLabels = false;
+    seriesKeys.forEach((s) => {
+      const labelField = `_label_${s}`;
+      const arr = parsed.rows.map((r) => String(r[labelField] ?? ""));
+      if (arr.some((v) => v)) anyLabels = true;
+      exportPointLabels[s] = arr;
+    });
     exportChartPNG({
       kind,
       rows: parsed.rows,
@@ -1317,6 +1488,11 @@ export default function ChartMaker() {
       showValues,
       theme,
       yMaxOverride: yMaxInput.trim() ? Number(yMaxInput) : undefined,
+      useTimeAxis: exportUseTimeAxis,
+      xTimestamps: exportUseTimeAxis ? parsed.rows.map((r) => Date.parse(String(r[labelKey] ?? ""))) : undefined,
+      xMin: exportUseTimeAxis ? exportXMin : undefined,
+      xMax: exportUseTimeAxis ? exportXMax : undefined,
+      pointLabels: anyLabels ? exportPointLabels : undefined,
     })
       .then((blob) => {
         const url = URL.createObjectURL(blob);
@@ -1377,8 +1553,22 @@ export default function ChartMaker() {
     const showLabels = axisMode === "manual";
     const showX = showLabels && !!xAxisLabel;
     const showY = showLabels && !!yAxisLabel;
+    // Time axis: detect when all x-values parse as dates AND chart is time-appropriate
+    const xAllDates = parsed.rows.length > 0 && parsed.rows.every((r) => !isNaN(Date.parse(String(r[labelKey] ?? ""))));
+    const useTimeAxis = xAllDates && (kind === "line" || kind === "area");
+    const tsOf = (r: ChartRow) => Date.parse(String(r[labelKey] ?? ""));
+    const rechartsRows = useTimeAxis
+      ? parsed.rows.map((r) => ({ ...r, _xTs: tsOf(r) }))
+      : parsed.rows;
+    const xAutoMin = useTimeAxis ? Math.min(...parsed.rows.map(tsOf)) : 0;
+    const xAutoMax = useTimeAxis ? Math.max(...parsed.rows.map(tsOf)) : 0;
+    const xMinOverride = parseDateOrNum(xMinInput);
+    const xMaxOverride = parseDateOrNum(xMaxInput);
+    const xMin = useTimeAxis && !isNaN(xMinOverride) ? xMinOverride : xAutoMin;
+    const xMax = useTimeAxis && !isNaN(xMaxOverride) ? xMaxOverride : xAutoMax;
+    const timeTicks = useTimeAxis ? computeTimeTicks(xMin, xMax) : undefined;
     const common = {
-      data: parsed.rows,
+      data: rechartsRows,
       margin: {
         top: 20,
         right: 30,
@@ -1462,12 +1652,17 @@ export default function ChartMaker() {
         <ResponsiveContainer width="100%" height={520}>
           <LineChart {...common}>
             <CartesianGrid stroke={gridColor} vertical={false} />
-            <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
+            {useTimeAxis ? (
+              <XAxis dataKey="_xTs" type="number" scale="time" domain={[xMin, xMax]} ticks={timeTicks} tickFormatter={(ts: number) => formatDateShort(ts)} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
+            ) : (
+              <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
+            )}
             <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} domain={yDomain} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
             {seriesKeys.map((k, i) => (
               <Line key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} strokeWidth={lineW} dot={{ r: dotR }} connectNulls>
                 {showValues && <LabelList dataKey={k} position="top" formatter={fmtVal as never} style={valueLabelStyle as never} />}
+                <LabelList dataKey={`_label_${k}`} position="top" offset={showValues ? 22 : 10} style={{ fill: colors[i % colors.length], fontSize: 11 * userScale, fontWeight: 700, fontFamily: ft }} />
               </Line>
             ))}
           </LineChart>
@@ -1480,11 +1675,16 @@ export default function ChartMaker() {
         <ResponsiveContainer width="100%" height={520}>
           <AreaChart {...common}>
             <CartesianGrid stroke={gridColor} vertical={false} />
-            <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
+            {useTimeAxis && kind === "area" ? (
+              <XAxis dataKey="_xTs" type="number" scale="time" domain={[xMin, xMax]} ticks={timeTicks} tickFormatter={(ts: number) => formatDateShort(ts)} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
+            ) : (
+              <XAxis dataKey={labelKey} tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} />
+            )}
             <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} domain={yDomain} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
             {seriesKeys.map((k, i) => (
-              <Area key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} fill={colors[i % colors.length]} fillOpacity={0.82} strokeWidth={Math.max(1.5, 2.2 * userScale)} stackId={kind === "areaStacked" ? "a" : undefined} connectNulls>
+              <Area key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} fill={colors[i % colors.length]} fillOpacity={0.82} strokeWidth={Math.max(1.5, 2.2 * userScale)} stackId={kind === "areaStacked" ? "a" : undefined} connectNulls >
+                <LabelList dataKey={`_label_${k}`} position="top" offset={10} style={{ fill: colors[i % colors.length], fontSize: 11 * userScale, fontWeight: 700, fontFamily: ft }} />
                 {showValues && <LabelList dataKey={k} position="top" formatter={fmtVal as never} style={valueLabelStyle as never} />}
               </Area>
             ))}
@@ -1932,6 +2132,10 @@ export default function ChartMaker() {
             setShowValues={setShowValues}
             yMaxInput={yMaxInput}
             setYMaxInput={setYMaxInput}
+            xMinInput={xMinInput}
+            setXMinInput={setXMinInput}
+            xMaxInput={xMaxInput}
+            setXMaxInput={setXMaxInput}
           />
           <div style={{ fontFamily: mn, fontSize: 10, color: C.txd, marginTop: 8 }}>
             {parsed.rows.length} rows · {seriesKeys.length} series · {PALETTES[palette].name} · {style === "branded" ? `1920×1080 ${bdSpec.name} backdrop` : "1600×900 transparent"} · Scale {userScale.toFixed(2)}×{showValues ? " · values on" : ""}
@@ -1978,10 +2182,13 @@ function Empty() {
 
 function ChartToolbar({
   userScale, setUserScale, showValues, setShowValues, yMaxInput, setYMaxInput,
+  xMinInput, setXMinInput, xMaxInput, setXMaxInput,
 }: {
   userScale: number; setUserScale: (n: number) => void;
   showValues: boolean; setShowValues: (b: boolean) => void;
   yMaxInput: string; setYMaxInput: (s: string) => void;
+  xMinInput: string; setXMinInput: (s: string) => void;
+  xMaxInput: string; setXMaxInput: (s: string) => void;
 }) {
   const [scaleOpen, setScaleOpen] = useState(false);
   return (
@@ -2007,6 +2214,14 @@ function ChartToolbar({
       <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
         <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 1.2, textTransform: "uppercase" }}>Y-max</span>
         <input value={yMaxInput} onChange={(e) => setYMaxInput(e.target.value.replace(/[^\d.]/g, ""))} placeholder="auto" style={{ width: 60, padding: "3px 8px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none" }} />
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+        <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 1.2, textTransform: "uppercase" }}>X-min</span>
+        <input value={xMinInput} onChange={(e) => setXMinInput(e.target.value)} placeholder="auto" title="Date (e.g. Jan 2020) or number — only affects time-axis charts (Line/Area with date x-values)" style={{ width: 86, padding: "3px 8px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none" }} />
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+        <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 1.2, textTransform: "uppercase" }}>X-max</span>
+        <input value={xMaxInput} onChange={(e) => setXMaxInput(e.target.value)} placeholder="auto" title="Date (e.g. Jun 2026) or number — only affects time-axis charts" style={{ width: 86, padding: "3px 8px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 5, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none" }} />
       </div>
     </div>
   );
