@@ -14,7 +14,8 @@ import SAWeekly from "./sa-weekly";
 import BRollLibrary from "./broll-library";
 import ChartMaker from "./chart-maker";
 
-import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3 } from "lucide-react";
+import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar } from "lucide-react";
+type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>;
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
 import { useUser, isAnalyst } from "./user-context";
 import { showToast } from "./toast-context";
@@ -75,7 +76,7 @@ interface CapperResult {
 interface SidebarCatItem {
   id: string;
   l: string;
-  ic: string;
+  Icon: LucideIcon;
 }
 
 interface SidebarCat {
@@ -122,7 +123,7 @@ interface UserInfo {
 
 interface SplashItem {
   l: string;
-  ic: string;
+  Icon: LucideIcon;
   id: string;
 }
 
@@ -420,26 +421,26 @@ function ChippySidebar({ onAsk }: { onAsk: () => void }) {
 // ═══ SIDEBAR ═══
 var SIDEBAR_CATS: Record<string, SidebarCat> = {
   produce: { label: "PRODUCE", color: C.amber, glow: "rgba(247,176,65,", items: [
-    { id: "sloptop", l: "Slop Top", ic: "\uD83D\uDCA5" },
-    { id: "carousel", l: "Carousel", ic: "\uD83D\uDCD0" },
-    { id: "captions", l: "Capper", ic: "\uD83C\uDFAC" },
-    { id: "p2p", l: "Press to Premier", ic: "\uD83C\uDFAC" },
-    { id: "broll", l: "B-Roll Library", ic: "\uD83C\uDFA5" },
-    { id: "chart", l: "Chart Maker", ic: "\uD83D\uDCCA" },
+    { id: "sloptop",  l: "Slop Top",         Icon: Zap },
+    { id: "carousel", l: "Carousel",         Icon: LayoutGrid },
+    { id: "captions", l: "Capper",           Icon: Captions },
+    { id: "p2p",      l: "Press to Premier", Icon: Clapperboard },
+    { id: "broll",    l: "B-Roll Library",   Icon: Film },
+    { id: "chart",    l: "Chart Maker",      Icon: BarChart3 },
   ]},
   podcast: { label: "PODCAST", color: C.coral, glow: "rgba(224,99,71,", items: [
-    { id: "fk", l: "Fab Knowledge", ic: "\uD83C\uDFA7" },
-    { id: "weekly", l: "SA Weekly", ic: "\uD83C\uDF99" },
-    { id: "outreach", l: "Outreach", ic: "\uD83D\uDCE4" },
+    { id: "fk",       l: "Fab Knowledge",    Icon: Headphones },
+    { id: "weekly",   l: "SA Weekly",        Icon: Radio },
+    { id: "outreach", l: "Outreach",         Icon: Send },
   ]},
   prepare: { label: "PREPARE", color: C.blue, glow: "rgba(11,134,209,", items: [
-    { id: "trends", l: "Trends", ic: "\uD83D\uDD25" },
-    { id: "ideation", l: "IdeationNation", ic: "\uD83D\uDCA1" },
-    { id: "news", l: "News Flow", ic: "\uD83D\uDCE1" },
-    { id: "gtc", l: "GTC Flow", ic: "\uD83D\uDCCA" },
+    { id: "trends",   l: "Trends",           Icon: Flame },
+    { id: "ideation", l: "IdeationNation",   Icon: Lightbulb },
+    { id: "news",     l: "News Flow",        Icon: Newspaper },
+    { id: "gtc",      l: "GTC Flow",         Icon: Activity },
   ]},
   premier: { label: "PREMIER", color: C.teal, glow: "rgba(46,173,142,", items: [
-    { id: "schedule", l: "Schedule", ic: "\uD83D\uDCC6" },
+    { id: "schedule", l: "Schedule",         Icon: Calendar },
   ]},
 };
 
@@ -482,7 +483,9 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
             return <div key={item.id} onClick={function() { onNav(item.id); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 12px 7px 28px", borderRadius: 6, marginBottom: 1, cursor: "pointer", background: isActive ? cat.color + "0C" : "transparent", borderLeft: isActive ? "3px solid " + cat.color : "3px solid transparent", transition: "all 0.2s", position: "relative" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
               {isActive && <div style={{ position: "absolute", left: 0, top: "10%", width: 3, height: "80%", background: cat.color, borderRadius: 2, boxShadow: "0 0 12px " + cat.color + "70, 0 0 24px " + cat.color + "25" }} />}
               {isActive && <div style={{ position: "absolute", left: 0, top: 0, width: "50%", height: "100%", background: "radial-gradient(ellipse at left center, " + cat.color + "08, transparent 70%)", pointerEvents: "none" }} />}
-              <span style={{ fontSize: 14, filter: isActive ? "brightness(1.3) saturate(1.2)" : "brightness(0.6) saturate(0.6)", transition: "filter 0.2s" }}>{item.ic}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, transition: "opacity 0.2s", opacity: isActive ? 1 : 0.55 }}>
+                <item.Icon size={15} strokeWidth={isActive ? 2.2 : 1.8} color={isActive ? cat.color : "rgba(255,255,255,0.65)"} />
+              </span>
               <span style={{ fontFamily: ft, fontSize: 13, fontWeight: isActive ? 800 : 500, color: isActive ? cat.color : "rgba(255,255,255,0.5)", transition: "all 0.2s", textShadow: isActive ? "0 0 20px " + cat.glow + "0.5), 0 0 40px " + cat.glow + "0.12)" : "none" }}>{item.l}</span>
               {isActive && <div style={{ width: 5, height: 5, borderRadius: "50%", background: cat.color, marginLeft: "auto", boxShadow: "0 0 8px " + cat.color + "70, 0 0 16px " + cat.color + "30" }} />}
             </div>;
@@ -1072,10 +1075,28 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
   var userCtx = useUser();
   var analyst = isAnalyst(userCtx.user);
   var sections: Record<string, SplashItem[]> = {
-    PRODUCE: [{ l: "Slop Top", ic: "\uD83D\uDCA5", id: "sloptop" }, { l: "Carousel", ic: "\uD83D\uDCD0", id: "carousel" }, { l: "Capper", ic: "\uD83C\uDFAC", id: "captions" }, { l: "P2P", ic: "\uD83C\uDFAC", id: "p2p" }, { l: "B-Roll", ic: "\uD83C\uDFA5", id: "broll" }, { l: "Chart Maker", ic: "\uD83D\uDCCA", id: "chart" }],
-    PODCAST: [{ l: "Fab Knowledge", ic: "\uD83C\uDFA7", id: "fk" }, { l: "SA Weekly", ic: "\uD83C\uDF99", id: "weekly" }, { l: "Outreach", ic: "\uD83D\uDCE4", id: "outreach" }],
-    PREPARE: [{ l: "Trends", ic: "\uD83D\uDD25", id: "trends" }, { l: "IdeationNation", ic: "\uD83D\uDCA1", id: "ideation" }, { l: "News Flow", ic: "\uD83D\uDCE1", id: "news" }, { l: "GTC Flow", ic: "\uD83D\uDCCA", id: "gtc" }],
-    PREMIER: [{ l: "Schedule", ic: "\uD83D\uDCC6", id: "schedule" }],
+    PRODUCE: [
+      { l: "Slop Top",          Icon: Zap,          id: "sloptop" },
+      { l: "Carousel",          Icon: LayoutGrid,   id: "carousel" },
+      { l: "Capper",            Icon: Captions,     id: "captions" },
+      { l: "P2P",               Icon: Clapperboard, id: "p2p" },
+      { l: "B-Roll",            Icon: Film,         id: "broll" },
+      { l: "Chart Maker",       Icon: BarChart3,    id: "chart" },
+    ],
+    PODCAST: [
+      { l: "Fab Knowledge",     Icon: Headphones,   id: "fk" },
+      { l: "SA Weekly",         Icon: Radio,        id: "weekly" },
+      { l: "Outreach",          Icon: Send,         id: "outreach" },
+    ],
+    PREPARE: [
+      { l: "Trends",            Icon: Flame,        id: "trends" },
+      { l: "IdeationNation",    Icon: Lightbulb,    id: "ideation" },
+      { l: "News Flow",         Icon: Newspaper,    id: "news" },
+      { l: "GTC Flow",          Icon: Activity,     id: "gtc" },
+    ],
+    PREMIER: [
+      { l: "Schedule",          Icon: Calendar,     id: "schedule" },
+    ],
   };
   var allWords = ["PRODUCE", "PODCAST", "PREPARE", "PREMIER"];
   var allColors = [C.amber, C.coral, C.blue, C.teal];
@@ -1102,7 +1123,9 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
             <div style={{ display: "flex", gap: 8, justifyContent: "center", padding: "4px 0" }}>
               {items.map(function(item, ii) {
                 return <div key={ii} onClick={function() { onNavigate(item.id); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 6, background: "#0A0A14", border: "1px solid " + colors[i] + "25", cursor: "pointer", transition: "all 0.15s", animation: "itemReveal 0.25s ease " + (ii * 0.06) + "s forwards", opacity: 0 }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "#111120"; e.currentTarget.style.borderColor = colors[i] + "50"; e.currentTarget.style.boxShadow = "0 0 12px " + colors[i] + "15"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "#0A0A14"; e.currentTarget.style.borderColor = colors[i] + "25"; e.currentTarget.style.boxShadow = "none"; }}>
-                  <span style={{ fontSize: 13 }}>{item.ic}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center" }}>
+                    <item.Icon size={13} strokeWidth={2} color={colors[i]} />
+                  </span>
                   <span style={{ fontFamily: ft, fontSize: 12, color: "#E8E4DD", fontWeight: 500 }}>{item.l}</span>
                   <span style={{ fontFamily: ft, fontSize: 8, color: colors[i], marginLeft: 2 }}>&rarr;</span>
                 </div>;
@@ -1123,7 +1146,7 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
 // leave. Entrance animation via asTile keyframes (defined on parent).
 // onHoverColor lifts the active color to the parent splash so the whole screen
 // can glow in that hue while a tile is being interacted with.
-interface TiltToolSpec { id: string; label: string; sub: string; Icon: React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>; color: string }
+interface TiltToolSpec { id: string; label: string; sub: string; Icon: LucideIcon; color: string }
 function TiltTile({ tool, index, onNavigate, onHoverColor }: { tool: TiltToolSpec; index: number; onNavigate: (id: string) => void; onHoverColor: (c: string | null) => void }) {
   var _hov = useState(false), hov = _hov[0], setHov = _hov[1];
   var _coords = useState<{ x: number; y: number } | null>(null), coords = _coords[0], setCoords = _coords[1];
