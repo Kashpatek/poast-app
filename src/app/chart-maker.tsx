@@ -211,10 +211,81 @@ function splitRow(line: string): string[] {
   return parts;
 }
 
+// Detect SA-Excel-template-style horizontal layouts: a 3-4 row block where
+// one row has dates running across and another row has numbers running across.
+// If found, pivot it into canonical single-series form so the existing parser
+// can draw it as a normal time-series. Returns null if the paste doesn't match
+// (normal CSV shape, wrong-shape paste, or multi-series horizontal — user
+// handles the latter via the "rows" orientation toggle).
+const SERIES_LABEL_PATTERNS = /^(launch\s*time|tflops|date|metric|measure|quarter|period|year|name|series|value)\b/i;
+function detectHorizontalLayout(
+  table: string[][],
+): { xValues: string[]; yValues: number[]; seriesName: string } | null {
+  if (table.length < 2) return null;
+  const maxW = Math.max(...table.map((r) => r.length));
+  if (maxW < 3) return null; // need at least 2 data columns
+  const dateRows: number[] = [];
+  const numRows: number[] = [];
+  for (let i = 0; i < table.length; i++) {
+    const cells = table[i].slice(1).map((c) => (c || "").trim());
+    const nonEmpty = cells.filter((c) => c !== "").length;
+    if (nonEmpty < 2) continue;
+    let dateCount = 0;
+    let numCount = 0;
+    cells.forEach((c) => {
+      if (!c) return;
+      if (!isNaN(coerceNumber(c))) numCount++;
+      else if (!isNaN(Date.parse(c))) dateCount++;
+    });
+    if (dateCount / nonEmpty >= 0.7) dateRows.push(i);
+    else if (numCount / nonEmpty >= 0.7) numRows.push(i);
+  }
+  if (dateRows.length !== 1 || numRows.length !== 1) return null;
+  const dateRow = dateRows[0];
+  const numRow = numRows[0];
+  // Pair date+number cells column-by-column, starting at the first column
+  // where both rows have valid data (skips row labels like "Launch time" /
+  // "TFLOPS (BF16)" that sit in col 0 or col 1).
+  const xValues: string[] = [];
+  const yValues: number[] = [];
+  for (let c = 1; c < maxW; c++) {
+    const dCell = (table[dateRow][c] || "").trim();
+    const nCell = (table[numRow][c] || "").trim();
+    const n = coerceNumber(nCell);
+    if (dCell && !isNaN(Date.parse(dCell)) && !isNaN(n)) {
+      xValues.push(dCell);
+      yValues.push(n);
+    }
+  }
+  if (xValues.length < 2) return null;
+  // Series name: first non-empty col-0 that isn't a common row-label word
+  let seriesName = "";
+  for (let i = 0; i < table.length; i++) {
+    const first = (table[i][0] || "").trim();
+    if (!first || SERIES_LABEL_PATTERNS.test(first)) continue;
+    seriesName = first;
+    break;
+  }
+  if (!seriesName) seriesName = (table[numRow][0] || "").trim() || "Series";
+  return { xValues, yValues, seriesName };
+}
+
 function parseCSV(raw: string, orientation: Orientation): { columns: string[]; rows: ChartRow[] } {
   const lines = raw.replace(/\r/g, "").split(/\n/).filter((l) => l.trim() !== "");
   if (lines.length < 2) return { columns: [], rows: [] };
   const table = lines.map(splitRow);
+
+  // Smart path: SA-Excel horizontal layout → pivot to canonical Date,Value.
+  // Only triggers when clearly applicable (exactly one date row + one num row).
+  const horiz = detectHorizontalLayout(table);
+  if (horiz) {
+    const columns = ["Date", horiz.seriesName];
+    const rows: ChartRow[] = horiz.xValues.map((x, i) => ({
+      Date: x,
+      [horiz.seriesName]: horiz.yValues[i],
+    }));
+    return { columns, rows };
+  }
 
   if (orientation === "cols") {
     // First row = headers (label col + series names as columns). First col = X labels.
