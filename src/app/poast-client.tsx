@@ -882,32 +882,64 @@ function ClipCaptions() {
 }
 
 // ═══ INTRO: USER SELECT → BOOT → GLITCH → SPLASH ═══
+// Launch mode: Analyst is the only entry point. Locked behind a password
+// ("marketing") so Akash, Vansh, Michelle can get in. Everything else is
+// gated out for the external-facing analyst launch.
+var GATE_PASSWORD = "marketing";
 function UserSelect({ onSelect }: { onSelect: (name: string) => void }) {
-  var _h = useState<number | null>(null), h = _h[0], sh = _h[1];
-  var users: UserInfo[] = [
-    { name: "Akash", role: "Director", color: "#0B86D1", glow: "rgba(11,134,209," },
-    { name: "Vansh", role: "Social Media Manager", color: "#2EAD8E", glow: "rgba(46,173,142," },
-    { name: "Analyst", role: "Analyst", color: "#905CCB", glow: "rgba(144,92,203," },
-  ];
+  var _stage = useState<"tile" | "locked">("tile"), stage = _stage[0], setStage = _stage[1];
+  var _pw = useState(""), pw = _pw[0], setPw = _pw[1];
+  var _err = useState(false), err = _err[0], setErr = _err[1];
+  var _hover = useState(false), hover = _hover[0], setHover = _hover[1];
+  var VIOLET = "#905CCB";
+  var GLOW = "rgba(144,92,203,";
+
+  var submit = function() {
+    if (pw.trim().toLowerCase() === GATE_PASSWORD) {
+      onSelect("Analyst");
+    } else {
+      setErr(true);
+      setPw("");
+      setTimeout(function() { setErr(false); }, 600);
+    }
+  };
+
   return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, overflow: "hidden" }}>
-    <style dangerouslySetInnerHTML={{ __html: "@keyframes ufi{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}@keyframes orbPulse{0%,100%{transform:scale(1);opacity:0.5}50%{transform:scale(1.1);opacity:0.8}}" }} />
-    {/* Ambient orb that follows hover */}
-    {h !== null && <div style={{ position: "absolute", width: "60vw", height: "60vw", borderRadius: "50%", background: "radial-gradient(circle, " + users[h].glow + "0.08), transparent 50%)", transition: "background 0.5s ease", animation: "orbPulse 3s ease-in-out infinite", pointerEvents: "none" }} />}
-    {h === null && <div style={{ position: "absolute", width: "50vw", height: "50vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(247,176,65,0.03), transparent 60%)" }} />}
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes ufi{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}@keyframes orbPulse{0%,100%{transform:scale(1);opacity:0.5}50%{transform:scale(1.1);opacity:0.8}}@keyframes pwShake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}" }} />
+    <div style={{ position: "absolute", width: "60vw", height: "60vw", borderRadius: "50%", background: "radial-gradient(circle, " + GLOW + (hover || stage === "locked" ? "0.10" : "0.05") + "), transparent 55%)", transition: "background 0.5s ease", animation: "orbPulse 3s ease-in-out infinite", pointerEvents: "none" }} />
+
     <img src="/poast-logo.png" style={{ width: 48, height: 48, borderRadius: 12, marginBottom: 8, animation: "ufi 0.4s ease forwards", opacity: 0 }} />
     <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 900, color: C.amber, letterSpacing: 4, marginBottom: 6, animation: "ufi 0.4s ease 0.05s forwards", opacity: 0 }}>POAST</div>
-    <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.2)", letterSpacing: 2, marginBottom: 40, animation: "ufi 0.4s ease 0.1s forwards", opacity: 0 }}>SELECT USER</div>
-    <div style={{ display: "flex", gap: 20 }}>
-      {users.map(function(user, i) {
-        var on = h === i;
-        var uc = user.color;
-        return <div key={user.name} onClick={function() { onSelect(user.name); }} onMouseEnter={function() { sh(i); }} onMouseLeave={function() { sh(null); }} style={{ width: 160, padding: "28px 20px", borderRadius: 12, cursor: "pointer", background: on ? uc + "08" : "#0A0A14", border: on ? "1px solid " + uc + "50" : "1px solid rgba(255,255,255,0.06)", textAlign: "center", transition: "all 0.2s", boxShadow: on ? "0 0 30px " + uc + "18, 0 0 60px " + uc + "06" : "none", animation: "ufi 0.4s ease " + (0.2 + i * 0.1) + "s forwards", opacity: 0 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 12, background: on ? uc + "20" : "#111118", border: "1px solid " + (on ? uc + "40" : "rgba(255,255,255,0.06)"), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontFamily: ft, fontSize: 20, fontWeight: 900, color: on ? uc : "rgba(255,255,255,0.4)", transition: "all 0.2s", boxShadow: on ? "0 0 16px " + uc + "25" : "none" }}>{user.name[0]}</div>
-          <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: on ? uc : "#E8E4DD", transition: "color 0.2s", textShadow: on ? "0 0 20px " + user.glow + "0.4)" : "none" }}>{user.name}</div>
-          <div style={{ fontFamily: ft, fontSize: 9, color: on ? uc + "80" : "rgba(255,255,255,0.2)", marginTop: 4, transition: "color 0.2s" }}>{user.role}</div>
-        </div>;
-      })}
-    </div>
+    <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.25)", letterSpacing: 2, marginBottom: 40, animation: "ufi 0.4s ease 0.1s forwards", opacity: 0 }}>ANALYST STUDIO</div>
+
+    {stage === "tile" ? (
+      <div onClick={function() { setStage("locked"); setTimeout(function() { var el = document.getElementById("gate-pw"); el && el.focus(); }, 30); }} onMouseEnter={function() { setHover(true); }} onMouseLeave={function() { setHover(false); }} style={{ width: 220, padding: "34px 24px", borderRadius: 16, cursor: "pointer", background: hover ? VIOLET + "12" : "#0A0A14", border: "1px solid " + (hover ? VIOLET + "60" : "rgba(255,255,255,0.08)"), textAlign: "center", transition: "all 0.22s cubic-bezier(0.16, 1, 0.3, 1)", boxShadow: hover ? "0 0 40px " + VIOLET + "25, 0 20px 50px -10px " + VIOLET + "30" : "none", animation: "ufi 0.45s ease 0.2s forwards", opacity: 0, transform: hover ? "translateY(-4px)" : "translateY(0)" }}>
+        {/* Lock icon */}
+        <div style={{ width: 64, height: 64, borderRadius: 16, background: hover ? VIOLET + "22" : "#111118", border: "1px solid " + (hover ? VIOLET + "50" : "rgba(255,255,255,0.08)"), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", transition: "all 0.22s", boxShadow: hover ? "0 0 24px " + VIOLET + "35" : "none" }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={hover ? VIOLET : "rgba(255,255,255,0.55)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: "stroke 0.2s" }}>
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11 V7 a5 5 0 0 1 10 0 v4" />
+          </svg>
+        </div>
+        <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: hover ? VIOLET : "#E8E4DD", letterSpacing: -0.2, marginBottom: 4, transition: "color 0.2s" }}>Analyst</div>
+        <div style={{ fontFamily: mn, fontSize: 10, color: hover ? VIOLET + "AA" : "rgba(255,255,255,0.35)", letterSpacing: 1.5, textTransform: "uppercase", transition: "color 0.2s" }}>Click to unlock</div>
+      </div>
+    ) : (
+      <div style={{ width: 320, animation: "ufi 0.35s ease forwards", opacity: 0 }}>
+        <div style={{ width: 64, height: 64, borderRadius: 16, background: err ? "rgba(224,99,71,0.20)" : VIOLET + "22", border: "1px solid " + (err ? "rgba(224,99,71,0.5)" : VIOLET + "50"), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", transition: "all 0.22s", boxShadow: "0 0 24px " + (err ? "rgba(224,99,71,0.3)" : VIOLET + "35"), animation: err ? "pwShake 0.45s" : undefined }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={err ? "#E06347" : VIOLET} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11 V7 a5 5 0 0 1 10 0 v4" />
+          </svg>
+        </div>
+        <input id="gate-pw" type="password" value={pw} onChange={function(e) { setPw(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") submit(); if (e.key === "Escape") { setStage("tile"); setPw(""); setErr(false); } }} placeholder="Password" autoFocus style={{ width: "100%", padding: "14px 16px", background: "#0A0A14", border: "1px solid " + (err ? "rgba(224,99,71,0.6)" : "rgba(255,255,255,0.1)"), borderRadius: 10, color: "#E8E4DD", fontFamily: mn, fontSize: 14, letterSpacing: 3, textAlign: "center", outline: "none", boxSizing: "border-box", transition: "border-color 0.2s" }} />
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <button onClick={function() { setStage("tile"); setPw(""); setErr(false); }} style={{ flex: 1, padding: "10px 12px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.5)", fontFamily: mn, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", fontWeight: 700 }}>Back</button>
+          <button onClick={submit} style={{ flex: 2, padding: "10px 12px", background: VIOLET, border: "none", borderRadius: 8, color: "#fff", fontFamily: mn, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", fontWeight: 800 }}>Unlock →</button>
+        </div>
+        {err && <div style={{ fontFamily: mn, fontSize: 10, color: "#E06347", marginTop: 12, textAlign: "center", letterSpacing: 1 }}>Incorrect password</div>}
+      </div>
+    )}
   </div>;
 }
 
