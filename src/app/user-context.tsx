@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 
-export type UserRole = "Director" | "Social Media Manager" | "Analyst";
+export type UserRole = "Director" | "Social Media Manager" | "Marketing" | "Analyst";
 
 export interface User {
   name: string;
@@ -11,6 +11,7 @@ export interface User {
 const USERS: Record<string, User> = {
   Akash: { name: "Akash", role: "Director" },
   Vansh: { name: "Vansh", role: "Social Media Manager" },
+  Michelle: { name: "Michelle", role: "Marketing" },
   Analyst: { name: "Analyst", role: "Analyst" },
 };
 
