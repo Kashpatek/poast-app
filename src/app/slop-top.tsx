@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useUser, isAnalyst } from "./user-context";
 
 // ═══ TYPES ═══
 interface VisualStructureItem {
@@ -524,8 +525,14 @@ export default function SlopTop() {
     });
   }
 
-  // Tab state
-  var _tab = useState("meme"), tab = _tab[0], setTab = _tab[1];
+  // Tab state — analysts default into Brief Generator (they don't get Meme
+  // Maker or FACTORY in the rail, per launch scope).
+  var userCtx = useUser();
+  var analyst = isAnalyst(userCtx.user);
+  var _tab = useState(analyst ? "brief" : "meme"), tab = _tab[0], setTab = _tab[1];
+  useEffect(function() {
+    if (analyst && (tab === "meme" || tab === "factory")) setTab("brief");
+  }, [analyst, tab]);
   // Meme maker state
   var _memeMode = useState("link"), memeMode = _memeMode[0], setMemeMode = _memeMode[1];
   var _memeIdea = useState(""), memeIdea = _memeIdea[0], setMemeIdea = _memeIdea[1];
@@ -972,12 +979,13 @@ export default function SlopTop() {
     return hrs + " hrs ago";
   }
 
-  var TABS = [
-    { id: "meme", l: "Meme Maker 💀" },
-    { id: "brief", l: "Brief Generator 📋" },
-    { id: "arxiv", l: "arxiv.lol 📄", ic: "" },
+  var TABS = ([
+    { id: "meme",    l: "Meme Maker 💀" },
+    { id: "brief",   l: "Brief Generator 📋" },
+    { id: "arxiv",   l: "arxiv.lol 📄", ic: "" },
     { id: "factory", l: "FACTORY ⚙", ic: "" },
-  ];
+  ] as { id: string; l: string; ic?: string }[])
+    .filter(function(tb) { return !analyst || (tb.id !== "meme" && tb.id !== "factory"); });
 
   // ═══ GLOBAL ANIMATIONS ═══
   var globalStyles = [

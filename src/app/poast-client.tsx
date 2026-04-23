@@ -478,7 +478,7 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
             <span style={{ fontFamily: ft, fontSize: 10, fontWeight: 800, color: isCatActive ? cat.color : "rgba(255,255,255,0.3)", letterSpacing: 2, textTransform: "uppercase", transition: "all 0.25s", textShadow: isCatActive ? "0 0 16px " + cat.glow + "0.4), 0 0 30px " + cat.glow + "0.12)" : "none" }}>{cat.label}</span>
           </div>
           {/* Items */}
-          {cat.items.map(function(item) {
+          {cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).map(function(item) {
             var isActive = active === item.id;
             return <div key={item.id} onClick={function() { onNav(item.id); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 12px 7px 28px", borderRadius: 6, marginBottom: 1, cursor: "pointer", background: isActive ? cat.color + "0C" : "transparent", borderLeft: isActive ? "3px solid " + cat.color : "3px solid transparent", transition: "all 0.2s", position: "relative" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
               {isActive && <div style={{ position: "absolute", left: 0, top: "10%", width: 3, height: "80%", background: cat.color, borderRadius: 2, boxShadow: "0 0 12px " + cat.color + "70, 0 0 24px " + cat.color + "25" }} />}
@@ -1221,13 +1221,13 @@ function TiltTile({ tool, index, onNavigate, onHoverColor }: { tool: TiltToolSpe
 
 function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
   var VIOLET = "#905CCB";
+  // Launch-scope analyst rail: 4 tools only. Slop Top opens on Brief
+  // Generator (Meme Maker + FACTORY are hidden for analyst inside Slop Top).
   var tools: TiltToolSpec[] = [
-    { id: "sloptop",  label: "Slop Top",         sub: "Viral content gen",     Icon: Zap,          color: C.amber },
-    { id: "carousel", label: "Carousel",         sub: "Instagram carousels",   Icon: LayoutGrid,   color: C.blue },
-    { id: "captions", label: "Capper",           sub: "Captions per platform", Icon: Captions,     color: C.teal },
-    { id: "p2p",      label: "Press to Premier", sub: "Video briefs",          Icon: Clapperboard, color: VIOLET },
-    { id: "broll",    label: "B-Roll Library",   sub: "Shared asset library",  Icon: Film,         color: C.cyan },
-    { id: "chart",    label: "Chart Maker",      sub: "Data viz, SA branded",  Icon: BarChart3,    color: C.coral },
+    { id: "sloptop",  label: "Slop Top",    sub: "Brief Gen + arxiv.lol",  Icon: Zap,        color: C.amber },
+    { id: "carousel", label: "Carousel",    sub: "Instagram carousels",    Icon: LayoutGrid, color: C.blue },
+    { id: "captions", label: "Capper",      sub: "Captions per platform",  Icon: Captions,   color: C.teal },
+    { id: "chart",    label: "Chart Maker", sub: "Data viz, SA branded",   Icon: BarChart3,  color: C.coral },
   ];
   // Lifted from whichever tile is currently being hovered. Null when no tile
   // is active → the screen falls back to the resting violet ambient.
@@ -1279,7 +1279,7 @@ function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
     <div style={{ fontFamily: mn, fontSize: 11, color: VIOLET, letterSpacing: 2, marginBottom: 48, animation: "asFade 0.5s ease 0.1s forwards", opacity: 0 }}>PICK A TOOL TO CREATE</div>
 
     {/* 3×2 tile grid — cards tilt in 3D toward the cursor */}
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 220px)", gridAutoRows: "220px", gap: 22, maxWidth: "min(90vw, 760px)", perspective: "1100px" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 240px)", gridAutoRows: "240px", gap: 22, maxWidth: "min(90vw, 520px)", perspective: "1100px" }}>
       {tools.map(function(t, i) {
         return <TiltTile key={t.id} tool={t} index={i} onNavigate={onNavigate} onHoverColor={setHovC} />;
       })}
@@ -1317,7 +1317,7 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
 }
 
 // ═══ APP ═══
-var ANALYST_ALLOWED = ["sloptop", "carousel", "captions", "p2p", "broll", "chart"];
+var ANALYST_ALLOWED = ["sloptop", "carousel", "captions", "chart"];
 
 export default function App() {
   var _sp = useState(true), showIntro = _sp[0], setShowIntro = _sp[1];
