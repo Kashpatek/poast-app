@@ -14,6 +14,7 @@ import SAWeekly from "./sa-weekly";
 import BRollLibrary from "./broll-library";
 import ChartMaker from "./chart-maker";
 
+import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3 } from "lucide-react";
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
 import { useUser, isAnalyst } from "./user-context";
 import { showToast } from "./toast-context";
@@ -1122,7 +1123,7 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
 // leave. Entrance animation via asTile keyframes (defined on parent).
 // onHoverColor lifts the active color to the parent splash so the whole screen
 // can glow in that hue while a tile is being interacted with.
-interface TiltToolSpec { id: string; label: string; sub: string; ic: string; color: string }
+interface TiltToolSpec { id: string; label: string; sub: string; Icon: React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>; color: string }
 function TiltTile({ tool, index, onNavigate, onHoverColor }: { tool: TiltToolSpec; index: number; onNavigate: (id: string) => void; onHoverColor: (c: string | null) => void }) {
   var _hov = useState(false), hov = _hov[0], setHov = _hov[1];
   var _coords = useState<{ x: number; y: number } | null>(null), coords = _coords[0], setCoords = _coords[1];
@@ -1180,8 +1181,12 @@ function TiltTile({ tool, index, onNavigate, onHoverColor }: { tool: TiltToolSpe
         position: "absolute", inset: 0, borderRadius: 28, pointerEvents: "none",
         background: "radial-gradient(circle at " + (coords.x * 100).toFixed(0) + "% " + (coords.y * 100).toFixed(0) + "%, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.04) 30%, transparent 60%)",
       }} />}
-      {/* Icon — lifts farther "out" of the card AND slides up on hover */}
-      <div style={{ fontSize: 54, lineHeight: 1, filter: "drop-shadow(0 8px 16px " + t.color + "66)", position: "relative", transform: hov ? "translate3d(0, -8px, 36px)" : "translate3d(0, 0, 0)", transition: "transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)" }}>{t.ic}</div>
+      {/* Icon — lifts farther "out" of the card AND slides up on hover.
+          Renders a Lucide SVG icon tinted the tile's color so it reads as
+          an on-brand mark rather than a generic glyph. */}
+      <div style={{ lineHeight: 0, position: "relative", transform: hov ? "translate3d(0, -8px, 36px)" : "translate3d(0, 0, 0)", transition: "transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)", filter: "drop-shadow(0 8px 16px " + t.color + "66)" }}>
+        <t.Icon size={56} strokeWidth={1.7} color={t.color} />
+      </div>
       {/* Label */}
       <div style={{ position: "relative", transform: hov ? "translate3d(0, -2px, 18px)" : "translate3d(0, 0, 0)", transition: "transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)" }}>
         <div style={{ fontFamily: ft, fontSize: 19, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.3, marginBottom: 4 }}>{t.label}</div>
@@ -1193,13 +1198,13 @@ function TiltTile({ tool, index, onNavigate, onHoverColor }: { tool: TiltToolSpe
 
 function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
   var VIOLET = "#905CCB";
-  var tools = [
-    { id: "sloptop",  label: "Slop Top",      sub: "Viral content gen",     ic: "\uD83D\uDCA5", color: C.amber },
-    { id: "carousel", label: "Carousel",      sub: "Instagram carousels",   ic: "\uD83D\uDCD0", color: C.blue },
-    { id: "captions", label: "Capper",        sub: "Captions per platform", ic: "\uD83C\uDFAC", color: C.teal },
-    { id: "p2p",      label: "Press to Premier", sub: "Video briefs",       ic: "\uD83C\uDFA5", color: VIOLET },
-    { id: "broll",    label: "B-Roll Library",sub: "Shared asset library",  ic: "\uD83D\uDCFD",  color: C.cyan },
-    { id: "chart",    label: "Chart Maker",   sub: "Data viz, SA branded",  ic: "\uD83D\uDCCA", color: C.coral },
+  var tools: TiltToolSpec[] = [
+    { id: "sloptop",  label: "Slop Top",         sub: "Viral content gen",     Icon: Zap,          color: C.amber },
+    { id: "carousel", label: "Carousel",         sub: "Instagram carousels",   Icon: LayoutGrid,   color: C.blue },
+    { id: "captions", label: "Capper",           sub: "Captions per platform", Icon: Captions,     color: C.teal },
+    { id: "p2p",      label: "Press to Premier", sub: "Video briefs",          Icon: Clapperboard, color: VIOLET },
+    { id: "broll",    label: "B-Roll Library",   sub: "Shared asset library",  Icon: Film,         color: C.cyan },
+    { id: "chart",    label: "Chart Maker",      sub: "Data viz, SA branded",  Icon: BarChart3,    color: C.coral },
   ];
   // Lifted from whichever tile is currently being hovered. Null when no tile
   // is active → the screen falls back to the resting violet ambient.
