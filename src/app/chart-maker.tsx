@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import { D as C, ft, mn } from "./shared-constants";
 import { useUser } from "./user-context";
+import { showToast } from "./toast-context";
 
 // ═══ TYPES ═══
 type ChartKind = "bar" | "stacked" | "hbar" | "line" | "area" | "areaStacked" | "scatter" | "pie";
@@ -1506,7 +1507,7 @@ export default function ChartMaker() {
         URL.revokeObjectURL(url);
         setExporting(false);
       })
-      .catch((e) => { alert("Export failed: " + e.message); setExporting(false); });
+      .catch((e) => { showToast("Export failed: " + e.message); setExporting(false); });
   }
 
   function handleSaveArchive() {
@@ -1535,7 +1536,7 @@ export default function ChartMaker() {
     })
       .then((r) => r.json())
       .then(() => { setSaveStatus("saved"); setTimeout(() => setSaveStatus("idle"), 3000); })
-      .catch(() => { setSaveStatus("idle"); alert("Save failed"); });
+      .catch(() => { setSaveStatus("idle"); showToast("Save failed"); });
   }
 
   // ═══ CHART RENDERER ═══
@@ -2043,12 +2044,23 @@ export default function ChartMaker() {
                 <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginBottom: 4 }}>
                   Large headline shown above the chart in branded mode
                 </div>
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Accelerator Market Share"
-                  style={{ ...inputStyle(C), fontSize: 14, fontWeight: 700, padding: "10px 12px" }}
-                />
+                <div style={{ position: "relative" }}>
+                  <input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="e.g. Accelerator Market Share"
+                    style={{ ...inputStyle(C), fontSize: 14, fontWeight: 700, padding: "10px 36px 10px 12px" }}
+                  />
+                  {title && (
+                    <button
+                      onClick={() => setTitle("")}
+                      title="Clear title"
+                      style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", padding: "4px 8px", background: "transparent", border: "none", color: C.txd, fontFamily: mn, fontSize: 16, lineHeight: 1, cursor: "pointer", borderRadius: 4 }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
               </Section>
 
               <Section label="Source Text" defaultOpen={false}>

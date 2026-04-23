@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from "react";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 import { D as C, ft, mn, gf } from "./shared-constants";
 import { useUser } from "./user-context";
+import { showToast } from "./toast-context";
+import { confirmDialog, promptDialog } from "./dialog-context";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    SA CAROUSEL v3.1 -- Visual Slide Editor with Real Branded Backgrounds
@@ -1579,7 +1581,7 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
       URL.revokeObjectURL(url);
       setDownloading(null);
     }).catch(function(err) {
-      alert("Export failed: " + err.message);
+      showToast("Export failed: " + err.message);
       setDownloading(null);
     });
   }
@@ -1752,7 +1754,7 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
       setTimeout(function() { setArchiveSaved(false); }, 3000);
     }).catch(function() {
       setArchiveSaving(false);
-      alert("Failed to save archive.");
+      showToast("Failed to save archive.");
     });
   }
 
@@ -1939,37 +1941,39 @@ export default function Carousel() {
 
   function deleteArchive(item: { id: string }, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm("Delete this archived carousel?")) return;
-    fetch("/api/db", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ table: "projects", id: item.id }),
-    }).then(function(r) { return r.json(); }).then(function() {
-      loadArchive();
-    }).catch(function() { alert("Failed to delete."); });
+    confirmDialog({ title: "Delete carousel?", body: "This removes the archived carousel permanently.", cta: "Delete", variant: "danger" }).then(function(ok) {
+      if (!ok) return;
+      fetch("/api/db", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ table: "projects", id: item.id }),
+      }).then(function(r) { return r.json(); }).then(function() {
+        loadArchive();
+      }).catch(function() { showToast("Failed to delete."); });
+    });
   }
 
-  // TODO(akash): replace prompt() with proper modal
   function renameArchive(item: { id: string; name?: string; data?: Record<string, unknown> }, e: React.MouseEvent) {
     e.stopPropagation();
     var current = item.name || "";
-    var next = prompt("Rename carousel:", current);
-    if (next === null) return;
-    var trimmed = next.trim();
-    if (!trimmed || trimmed === current) return;
-    fetch("/api/db", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        table: "projects",
-        id: item.id,
-        type: "carousel-archive",
-        name: trimmed,
-        data: item.data || {},
-      }),
-    }).then(function(r) { return r.json(); }).then(function() {
-      loadArchive();
-    }).catch(function() { alert("Failed to rename."); });
+    promptDialog({ title: "Rename carousel", placeholder: "New name", initial: current, cta: "Rename" }).then(function(next) {
+      if (next === null) return;
+      var trimmed = next.trim();
+      if (!trimmed || trimmed === current) return;
+      fetch("/api/db", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          table: "projects",
+          id: item.id,
+          type: "carousel-archive",
+          name: trimmed,
+          data: item.data || {},
+        }),
+      }).then(function(r) { return r.json(); }).then(function() {
+        loadArchive();
+      }).catch(function() { showToast("Failed to rename."); });
+    });
   }
 
   function loadArchive() {
@@ -2016,7 +2020,7 @@ export default function Carousel() {
       });
       var d = await r.json();
       if (d.error) {
-        alert("Generation failed: " + d.error);
+        showToast("Generation failed: " + d.error);
         goStep(0);
       } else if (d.variants) {
         setVariants(d.variants);
@@ -2024,12 +2028,12 @@ export default function Carousel() {
         if (keys.length > 0) {
           goStep(2);
         } else {
-          alert("No valid variants returned.");
+          showToast("No valid variants returned.");
           goStep(0);
         }
       }
     } catch (e) {
-      alert("Network error: " + (e instanceof Error ? e.message : String(e)));
+      showToast("Network error: " + (e instanceof Error ? e.message : String(e)));
       goStep(0);
     }
     setLoading(false);

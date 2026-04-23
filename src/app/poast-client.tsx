@@ -492,14 +492,16 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
 
     {/* Footer */}
     <div style={{ padding: "14px 18px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-      {/* Switch User badge — always visible when a user is signed in. */}
-      {userCtx.user && <div onClick={function() { if (confirm("Switch user? Page will reload.")) { userCtx.setUser(null); window.location.reload(); } }} title="Click to switch user" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "6px 8px", borderRadius: 6, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}>
+      {/* User badge — click to sign out + return to the entry screen. No native
+          confirm (it looked unbranded). For Analyst the label reads "Lock"; for
+          admins it reads "Switch". A misclick is cheap to recover from. */}
+      {userCtx.user && <div onClick={function() { userCtx.setUser(null); window.location.reload(); }} title={analyst ? "Lock studio" : "Switch user"} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "6px 8px", borderRadius: 6, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}>
         <div style={{ width: 22, height: 22, borderRadius: 6, background: analyst ? "#905CCB20" : C.amber + "20", border: "1px solid " + (analyst ? "#905CCB40" : C.amber + "40"), display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 10, fontWeight: 800, color: analyst ? "#905CCB" : C.amber }}>{userCtx.user.name[0]}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 700, color: "#E8E4DD", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userCtx.user.name}</div>
           <div style={{ fontFamily: ft, fontSize: 8, fontWeight: 600, color: "rgba(255,255,255,0.35)", letterSpacing: 1 }}>{userCtx.user.role}</div>
         </div>
-        <span style={{ fontFamily: mn, fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.35)", letterSpacing: 1, padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.08)" }}>SWITCH</span>
+        <span style={{ fontFamily: mn, fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.35)", letterSpacing: 1, padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.08)" }}>{analyst ? "LOCK" : "SWITCH"}</span>
       </div>}
       <div style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v3.2 // SEMIANALYSIS</div>
     </div>

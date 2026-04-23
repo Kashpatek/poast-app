@@ -4,6 +4,7 @@ import "./globals.css";
 import ErrorBoundary from "./error-boundary";
 import { ToastProvider } from "./toast-context";
 import { UserProvider } from "./user-context";
+import { DialogProvider } from "./dialog-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,7 +35,9 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ErrorBoundary>
           <UserProvider>
-            <ToastProvider>{children}</ToastProvider>
+            <ToastProvider>
+              <DialogProvider>{children}</DialogProvider>
+            </ToastProvider>
           </UserProvider>
         </ErrorBoundary>
       </body>
