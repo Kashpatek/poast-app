@@ -248,6 +248,47 @@ function parseCSV(raw: string, orientation: Orientation): { columns: string[]; r
   }
 }
 
+// Merge two independently-parsed tables into one, keyed on the first column
+// (the x-axis label). Series from both tables concatenate; colliding series
+// names get a " (2)" suffix. Missing cells are `null` so Recharts creates gaps
+// (or connects across them when `connectNulls` is set on the Line).
+function mergeParsed(
+  a: { columns: string[]; rows: ChartRow[] },
+  b: { columns: string[]; rows: ChartRow[] },
+): { columns: string[]; rows: ChartRow[] } {
+  if (b.columns.length === 0) return a;
+  if (a.columns.length === 0) return b;
+  const labelKey = a.columns[0];
+  const aSeries = a.columns.slice(1);
+  const bSeriesRaw = b.columns.slice(1);
+  const bSeries = bSeriesRaw.map((s) => (aSeries.includes(s) ? `${s} (2)` : s));
+  const allCols = [labelKey, ...aSeries, ...bSeries];
+  const merged = new Map<string, ChartRow>();
+  const order: string[] = [];
+  const keyOf = (r: ChartRow, col: string) => String(r[col] ?? "");
+  a.rows.forEach((row) => {
+    const key = keyOf(row, a.columns[0]);
+    if (!merged.has(key)) { merged.set(key, { [labelKey]: key }); order.push(key); }
+    const m = merged.get(key)!;
+    aSeries.forEach((s) => { m[s] = row[s]; });
+  });
+  b.rows.forEach((row) => {
+    const key = keyOf(row, b.columns[0]);
+    if (!merged.has(key)) { merged.set(key, { [labelKey]: key }); order.push(key); }
+    const m = merged.get(key)!;
+    bSeriesRaw.forEach((s, i) => { m[bSeries[i]] = row[s]; });
+  });
+  // Fill missing cells with null (for gaps / connectNulls handling)
+  const rows = order.map((k) => {
+    const r = merged.get(k)!;
+    [...aSeries, ...bSeries].forEach((s) => {
+      if (!(s in r) || r[s] === "" || r[s] === undefined) r[s] = null as unknown as number;
+    });
+    return r;
+  });
+  return { columns: allCols, rows };
+}
+
 const SAMPLE_COLS = `Quarter,Nvidia,AMD,Intel
 Q1 2025,68,18,14
 Q2 2025,72,19,12
@@ -993,6 +1034,9 @@ async function exportChartPNG(opts: ExportOpts): Promise<Blob> {
 // ═══ MAIN ═══
 export default function ChartMaker() {
   const [csv, setCsv] = useState(SAMPLE_COLS);
+  const [csv2, setCsv2] = useState<string>(""); // optional second paste table — merged on x-axis
+  const [csv2Enabled, setCsv2Enabled] = useState(false);
+  const [lastTemplateId, setLastTemplateId] = useState<string>("");
   const [inputMode, setInputMode] = useState<InputMode>("paste");
   const [xlsxWorkbook, setXlsxWorkbook] = useState<XLSX.WorkBook | null>(null);
   const [xlsxSheet, setXlsxSheet] = useState<string>("");
@@ -1017,7 +1061,9 @@ export default function ChartMaker() {
   const chartRef = useRef<HTMLDivElement>(null);
   const userCtx = useUser();
 
-  const parsed = parseCSV(csv, orientation);
+  const parsedPrimary = parseCSV(csv, orientation);
+  const parsedSecondary = csv2Enabled && csv2.trim() ? parseCSV(csv2, orientation) : null;
+  const parsed = parsedSecondary ? mergeParsed(parsedPrimary, parsedSecondary) : parsedPrimary;
   const labelKey = parsed.columns[0] || "";
   const seriesKeys = parsed.columns.slice(1);
   const colors = PALETTES[palette].colors;
@@ -1145,6 +1191,18 @@ export default function ChartMaker() {
     setSource(t.source);
     setOrientation(t.orientation || "cols");
     setInputMode("paste"); // make sure they can see what loaded
+    setLastTemplateId(t.id);
+    setCsv2("");
+    setCsv2Enabled(false);
+  }
+  function resetToLastTemplate() {
+    const t = TEMPLATES.find((x) => x.id === lastTemplateId);
+    if (t) loadTemplate(t);
+  }
+  function clearGrid() {
+    setCsv("Metric,Series 1\n,");
+    setCsv2("");
+    setCsv2Enabled(false);
   }
 
   // FLIP: transpose the underlying CSV so rows and columns swap.
@@ -1337,7 +1395,7 @@ export default function ChartMaker() {
             <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} domain={yDomain} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
             {seriesKeys.map((k, i) => (
-              <Line key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} strokeWidth={lineW} dot={{ r: dotR }}>
+              <Line key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} strokeWidth={lineW} dot={{ r: dotR }} connectNulls>
                 {showValues && <LabelList dataKey={k} position="top" formatter={fmtVal as never} style={valueLabelStyle as never} />}
               </Line>
             ))}
@@ -1355,7 +1413,7 @@ export default function ChartMaker() {
             <YAxis tick={tickStyle} stroke={axisColor} tickLine={false} axisLine={false} domain={yDomain} />
             <Tooltip contentStyle={{ background: tooltipBg, border: `1px solid ${tooltipBorder}`, borderRadius: 8, color: textColor }} />
             {seriesKeys.map((k, i) => (
-              <Area key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} fill={colors[i % colors.length]} fillOpacity={0.82} strokeWidth={Math.max(1.5, 2.2 * userScale)} stackId={kind === "areaStacked" ? "a" : undefined}>
+              <Area key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} fill={colors[i % colors.length]} fillOpacity={0.82} strokeWidth={Math.max(1.5, 2.2 * userScale)} stackId={kind === "areaStacked" ? "a" : undefined} connectNulls>
                 {showValues && <LabelList dataKey={k} position="top" formatter={fmtVal as never} style={valueLabelStyle as never} />}
               </Area>
             ))}
@@ -1453,17 +1511,52 @@ export default function ChartMaker() {
             </div>
 
             {inputMode === "paste" && (
-              <textarea
-                value={csv}
-                onChange={(e) => setCsv(e.target.value)}
-                rows={8}
-                placeholder="Paste CSV data..."
-                style={{ width: "100%", padding: 12, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, color: C.tx, fontFamily: mn, fontSize: 11, lineHeight: 1.6, resize: "vertical", outline: "none", boxSizing: "border-box" }}
-              />
+              <div>
+                <textarea
+                  value={csv}
+                  onChange={(e) => setCsv(e.target.value)}
+                  rows={8}
+                  placeholder="Paste CSV / tab-separated data..."
+                  style={{ width: "100%", padding: 12, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, color: C.tx, fontFamily: mn, fontSize: 11, lineHeight: 1.6, resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                />
+                {csv2Enabled ? (
+                  <div style={{ marginTop: 8, padding: 8, border: `1px dashed ${C.amber}40`, borderRadius: 8, background: C.amber + "08" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: 1 }}>Second table (merge on first column)</div>
+                      <button onClick={() => { setCsv2(""); setCsv2Enabled(false); }} style={{ padding: "2px 8px", background: "transparent", border: `1px solid ${C.coral}60`, borderRadius: 4, color: C.coral, fontFamily: mn, fontSize: 9, cursor: "pointer" }}>− Remove</button>
+                    </div>
+                    <textarea
+                      value={csv2}
+                      onChange={(e) => setCsv2(e.target.value)}
+                      rows={6}
+                      placeholder="Second series table — same first column as above (e.g. dates) — gets merged into one chart."
+                      style={{ width: "100%", padding: 10, background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, color: C.tx, fontFamily: mn, fontSize: 11, lineHeight: 1.6, resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                    />
+                    <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginTop: 4, lineHeight: 1.5 }}>
+                      Tables merge by matching values in the first column. Missing cells become gaps. Use same x-axis labels (e.g. same date format).
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setCsv2Enabled(true)}
+                    style={{ marginTop: 8, padding: "6px 12px", background: "transparent", border: `1px dashed ${C.blue}60`, borderRadius: 6, color: C.blue, fontFamily: mn, fontSize: 10, cursor: "pointer", width: "100%" }}
+                  >
+                    + Add another series table (merge on x-axis)
+                  </button>
+                )}
+              </div>
             )}
 
             {inputMode === "manual" && (
               <div>
+                <div style={{ display: "flex", gap: 8, fontFamily: mn, fontSize: 9, color: C.txm, marginBottom: 6, alignItems: "center", letterSpacing: 0.5 }}>
+                  <span style={{ color: C.amber }}>■</span>
+                  {orientation === "cols" ? (
+                    <span>First row = <b style={{ color: C.amber }}>series names</b> · first column = <b style={{ color: C.amber }}>x-axis labels</b></span>
+                  ) : (
+                    <span>First row = <b style={{ color: C.amber }}>x-axis labels</b> · first column = <b style={{ color: C.amber }}>series names</b></span>
+                  )}
+                </div>
                 <div style={{ maxHeight: 420, overflow: "auto", border: `1px solid ${C.border}`, borderRadius: 8, background: C.card }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: mn, fontSize: 10 }}>
                     <tbody>
@@ -1505,12 +1598,16 @@ export default function ChartMaker() {
                     </tbody>
                   </table>
                 </div>
-                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                   <button onClick={addRow} style={miniBtnText(C.teal)}>+ Row</button>
                   <button onClick={addCol} style={miniBtnText(C.blue)}>+ Column</button>
+                  <button onClick={clearGrid} style={miniBtnText(C.coral)}>Clear all</button>
+                  {lastTemplateId && (
+                    <button onClick={resetToLastTemplate} style={miniBtnText(C.amber)}>Reset to template</button>
+                  )}
                 </div>
                 <div style={{ fontSize: 9, color: C.txd, fontFamily: mn, marginTop: 6, lineHeight: 1.5 }}>
-                  First row + first column are highlighted as headers. Tab / Enter / arrows to navigate. Paste a block from Excel into any cell to fill the grid.
+                  Tab / Enter / arrows to navigate. Paste a block from Excel into any cell to fill the grid.
                 </div>
               </div>
             )}
