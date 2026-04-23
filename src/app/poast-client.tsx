@@ -1120,21 +1120,23 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
 // 3D mouse-tilt tile for the Analyst splash. Tracks cursor position inside the
 // tile, applies perspective rotation + a moving specular highlight, resets on
 // leave. Entrance animation via asTile keyframes (defined on parent).
+// onHoverColor lifts the active color to the parent splash so the whole screen
+// can glow in that hue while a tile is being interacted with.
 interface TiltToolSpec { id: string; label: string; sub: string; ic: string; color: string }
-function TiltTile({ tool, index, onNavigate }: { tool: TiltToolSpec; index: number; onNavigate: (id: string) => void }) {
+function TiltTile({ tool, index, onNavigate, onHoverColor }: { tool: TiltToolSpec; index: number; onNavigate: (id: string) => void; onHoverColor: (c: string | null) => void }) {
   var _hov = useState(false), hov = _hov[0], setHov = _hov[1];
   var _coords = useState<{ x: number; y: number } | null>(null), coords = _coords[0], setCoords = _coords[1];
   var t = tool;
   var baseBg = "linear-gradient(135deg, " + t.color + "14 0%, " + t.color + "06 100%)";
-  var hoverBg = "linear-gradient(135deg, " + t.color + "22 0%, " + t.color + "0A 100%)";
+  var hoverBg = "linear-gradient(135deg, " + t.color + "26 0%, " + t.color + "0C 100%)";
 
   var rotX = 0, rotY = 0;
   if (coords) {
-    rotY = (coords.x - 0.5) * 14;   // max ~7° left/right
-    rotX = (0.5 - coords.y) * 12;   // max ~6° up/down
+    rotY = (coords.x - 0.5) * 28;   // doubled — max ~14° left/right
+    rotX = (0.5 - coords.y) * 24;   // doubled — max ~12° up/down
   }
   var tileTransform = hov
-    ? "rotateX(" + rotX.toFixed(2) + "deg) rotateY(" + rotY.toFixed(2) + "deg) translateY(-6px) scale(1.02)"
+    ? "rotateX(" + rotX.toFixed(2) + "deg) rotateY(" + rotY.toFixed(2) + "deg) translateY(-10px) scale(1.03)"
     : "rotateX(0) rotateY(0) translateY(0) scale(1)";
 
   // Outer wrapper owns the entrance animation (asTile keyframes). Inner button
@@ -1148,12 +1150,12 @@ function TiltTile({ tool, index, onNavigate }: { tool: TiltToolSpec; index: numb
   }}>
     <button
       onClick={function() { onNavigate(t.id); }}
-      onMouseEnter={function() { setHov(true); }}
+      onMouseEnter={function() { setHov(true); onHoverColor(t.color); }}
       onMouseMove={function(e: React.MouseEvent<HTMLButtonElement>) {
         var rect = e.currentTarget.getBoundingClientRect();
         setCoords({ x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height });
       }}
-      onMouseLeave={function() { setHov(false); setCoords(null); }}
+      onMouseLeave={function() { setHov(false); setCoords(null); onHoverColor(null); }}
       style={{
         width: "100%",
         height: "100%",
@@ -1178,10 +1180,10 @@ function TiltTile({ tool, index, onNavigate }: { tool: TiltToolSpec; index: numb
         position: "absolute", inset: 0, borderRadius: 28, pointerEvents: "none",
         background: "radial-gradient(circle at " + (coords.x * 100).toFixed(0) + "% " + (coords.y * 100).toFixed(0) + "%, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.04) 30%, transparent 60%)",
       }} />}
-      {/* Icon — lifts farther "out" of the card on tilt */}
-      <div style={{ fontSize: 54, lineHeight: 1, filter: "drop-shadow(0 4px 10px " + t.color + "55)", position: "relative", transform: hov ? "translateZ(24px)" : "translateZ(0)", transition: "transform 0.22s" }}>{t.ic}</div>
+      {/* Icon — lifts farther "out" of the card AND slides up on hover */}
+      <div style={{ fontSize: 54, lineHeight: 1, filter: "drop-shadow(0 8px 16px " + t.color + "66)", position: "relative", transform: hov ? "translate3d(0, -8px, 36px)" : "translate3d(0, 0, 0)", transition: "transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)" }}>{t.ic}</div>
       {/* Label */}
-      <div style={{ position: "relative", transform: hov ? "translateZ(14px)" : "translateZ(0)", transition: "transform 0.22s" }}>
+      <div style={{ position: "relative", transform: hov ? "translate3d(0, -2px, 18px)" : "translate3d(0, 0, 0)", transition: "transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)" }}>
         <div style={{ fontFamily: ft, fontSize: 19, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.3, marginBottom: 4 }}>{t.label}</div>
         <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 500, color: t.color + "CC", letterSpacing: 0.2 }}>{t.sub}</div>
       </div>
@@ -1199,16 +1201,46 @@ function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
     { id: "broll",    label: "B-Roll Library",sub: "Shared asset library",  ic: "\uD83D\uDCFD",  color: C.cyan },
     { id: "chart",    label: "Chart Maker",   sub: "Data viz, SA branded",  ic: "\uD83D\uDCCA", color: C.coral },
   ];
+  // Lifted from whichever tile is currently being hovered. Null when no tile
+  // is active → the screen falls back to the resting violet ambient.
+  var _hovC = useState<string | null>(null), hovC = _hovC[0], setHovC = _hovC[1];
+  var activeColor = hovC || VIOLET;
+
   return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, overflow: "hidden" }}>
     <style dangerouslySetInnerHTML={{ __html: `
       @keyframes asFade{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}
       @keyframes asTile{0%{opacity:0;transform:translateY(20px) scale(0.94)}100%{opacity:1;transform:translateY(0) scale(1)}}
       @keyframes asPulse{0%,100%{opacity:0.5}50%{opacity:0.85}}
+      @keyframes asGlowDrift{0%,100%{transform:scale(1) translate(0,0)}50%{transform:scale(1.06) translate(-1.5%,1%)}}
     ` }} />
 
-    {/* Ambient violet orbs */}
-    <div style={{ position: "absolute", top: "-20%", right: "-10%", width: "55vw", height: "55vw", borderRadius: "50%", background: `radial-gradient(circle, ${VIOLET}18, transparent 60%)`, pointerEvents: "none", animation: "asPulse 8s ease-in-out infinite" }} />
-    <div style={{ position: "absolute", bottom: "-15%", left: "-10%", width: "50vw", height: "50vw", borderRadius: "50%", background: `radial-gradient(circle, ${C.amber}10, transparent 60%)`, pointerEvents: "none", animation: "asPulse 10s ease-in-out infinite reverse" }} />
+    {/* Base ambient orbs — always present, quiet when no tile active */}
+    <div style={{ position: "absolute", top: "-20%", right: "-10%", width: "55vw", height: "55vw", borderRadius: "50%", background: `radial-gradient(circle, ${VIOLET}14, transparent 60%)`, pointerEvents: "none", animation: "asPulse 8s ease-in-out infinite" }} />
+    <div style={{ position: "absolute", bottom: "-15%", left: "-10%", width: "50vw", height: "50vw", borderRadius: "50%", background: `radial-gradient(circle, ${C.amber}0C, transparent 60%)`, pointerEvents: "none", animation: "asPulse 10s ease-in-out infinite reverse" }} />
+
+    {/* Reactive tint — stylistic multi-stop gradient in the active tile's
+        color. Three radial stops at offset positions plus a diagonal wash
+        so the screen absorbs the hue asymmetrically. Fades in/out with
+        hover; softly drifts while active. */}
+    <div style={{
+      position: "absolute", inset: 0, pointerEvents: "none",
+      backgroundImage: [
+        `radial-gradient(ellipse 95% 60% at 85% 8%, ${activeColor}3C 0%, ${activeColor}14 22%, transparent 55%)`,
+        `radial-gradient(ellipse 85% 70% at 12% 92%, ${activeColor}26 0%, ${activeColor}0A 30%, transparent 60%)`,
+        `radial-gradient(ellipse 60% 50% at 50% 50%, ${activeColor}14 0%, transparent 60%)`,
+        `linear-gradient(135deg, ${activeColor}12 0%, transparent 38%, transparent 62%, ${activeColor}0E 100%)`,
+      ].join(", "),
+      opacity: hovC ? 1 : 0,
+      transition: "opacity 0.42s cubic-bezier(0.16, 1, 0.3, 1)",
+      animation: hovC ? "asGlowDrift 12s ease-in-out infinite" : undefined,
+    }} />
+    {/* Top/bottom edge haze — subtle framing tint in the active color */}
+    <div style={{
+      position: "absolute", inset: 0, pointerEvents: "none",
+      backgroundImage: `linear-gradient(180deg, ${activeColor}14 0%, transparent 18%, transparent 82%, ${activeColor}10 100%)`,
+      opacity: hovC ? 0.9 : 0,
+      transition: "opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1)",
+    }} />
 
     {/* Header */}
     <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, animation: "asFade 0.45s ease forwards", opacity: 0 }}>
@@ -1221,7 +1253,7 @@ function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
     {/* 3×2 tile grid — cards tilt in 3D toward the cursor */}
     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 220px)", gridAutoRows: "220px", gap: 22, maxWidth: "min(90vw, 760px)", perspective: "1100px" }}>
       {tools.map(function(t, i) {
-        return <TiltTile key={t.id} tool={t} index={i} onNavigate={onNavigate} />;
+        return <TiltTile key={t.id} tool={t} index={i} onNavigate={onNavigate} onHoverColor={setHovC} />;
       })}
     </div>
 
