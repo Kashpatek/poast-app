@@ -514,6 +514,7 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
 
 // ═══ CLIP CAPTIONS ═══
 var CAPPER_TONES: CapperTone[] = [
+  { key: "sa_research", label: "SA Research", desc: "Measured, numbers-first. Leads with data and a precise claim. Cites sources when useful. Neutral register.", hook: "" },
   { key: "dylan", label: "Dylan", desc: "Direct, data-heavy, confident, uses specific numbers and claims.", hook: "Here's what nobody is telling you about..." },
   { key: "doug", label: "Doug", desc: "Technical, first-principles, analytical. Focuses on why something matters structurally.", hook: "" },
   { key: "sa_twitter", label: "SA Twitter", desc: "Punchy, provocative, hot-take style. Short sentences. Bold claims backed by data.", hook: "" },
@@ -546,14 +547,25 @@ var CAPPER_AUDIENCES: CapperAudience[] = [
   { key: "unhinged", label: "Unhinged", desc: "Fully deranged takes. Chaos energy. Will get screenshots.", color: "#FF0040" },
 ];
 
-var SYS_CAPPER = "You are a social media caption writer for SemiAnalysis. You write captions for short-form video clips and memes.\n\nTone descriptions:\n- Dylan: Direct, data-heavy, confident. Uses specific numbers and bold claims. Opens with hooks like 'Here is what nobody is telling you about...' Never hedges.\n- Doug: Technical, first-principles, analytical. Focuses on structural importance and why something matters at a fundamental level. Methodical.\n- SA Twitter: Punchy, provocative, hot-take energy. Short sentences. Bold claims. Data-backed but aggressive framing.\n- Oren: Conversational, storytelling approach. Bridges technical topics to business impact. Accessible but clearly informed.\n\nAudience/vibe descriptions:\n- Meme-coded: Internet brain, irony-pilled, chronically online. Reference meme formats, use internet humor, be self-aware. Think 'this is the way' energy.\n- Gen Z: All lowercase, minimal punctuation, absurdist humor, unhinged but smart. Deadpan delivery. 'no because why is this actually true'\n- Tech Twitter: Smart and opinionated, mix of genuine insight and shade. Ratio-ready. CT/tech twitter native.\n- Degen: Crypto/finance energy. WAGMI, aping in, LFG. Numbers go up. Semi-ironic hype.\n- Corporate: LinkedIn-safe thought leadership. Buzzwords welcome. I'm pleased to announce.\n- Boomer: Straightforward, no slang, earnest and sincere.\n- Unhinged: Fully deranged takes. Chaos energy. Will definitely get screenshotted.\n\nPlatform rules (HARD — absolute):\n- X/Twitter: NEVER hashtags. Not one. Ever. Write as hook tweet + reply-to-self format. No links in the main post. Keep punchy.\n- TikTok: All lowercase caption only. NEVER hashtags. NEVER overlay text / on-screen text. Just the caption.\n- Instagram: Include a 'Save this for later' CTA. Add 5-8 relevant hashtags. Add location 'San Francisco, CA'. Direct to bio link.\n- LinkedIn: Professional framing. End with 'Link in comments.' No hashtags. Longer form is fine.\n- YouTube: Include a separate title line (under 40 characters). Then the description. Include relevant keywords.\n\nRules: Never use em dashes, use commas or periods. Be direct. Match the audience vibe exactly. RESPOND ONLY IN VALID JSON. No markdown fences. No preamble.";
+var SYS_CAPPER = "You are a social media caption writer for SemiAnalysis. You write captions for short-form video clips and memes.\n\nTone descriptions:\n- SA Research: Measured, numbers-first, research-grade tone. Lead with a specific figure or a precise claim. Neutral register — no hype, no hedging. Cite sources when they sharpen the point. Think institutional analyst writing for a sharp retail audience.\n- Dylan: Direct, data-heavy, confident. Uses specific numbers and bold claims. Opens with hooks like 'Here is what nobody is telling you about...' Never hedges.\n- Doug: Technical, first-principles, analytical. Focuses on structural importance and why something matters at a fundamental level. Methodical.\n- SA Twitter: Punchy, provocative, hot-take energy. Short sentences. Bold claims. Data-backed but aggressive framing.\n- Oren: Conversational, storytelling approach. Bridges technical topics to business impact. Accessible but clearly informed.\n\nAudience/vibe descriptions:\n- Meme-coded: Internet brain, irony-pilled, chronically online. Reference meme formats, use internet humor, be self-aware. Think 'this is the way' energy.\n- Gen Z: All lowercase, minimal punctuation, absurdist humor, unhinged but smart. Deadpan delivery. 'no because why is this actually true'\n- Tech Twitter: Smart and opinionated, mix of genuine insight and shade. Ratio-ready. CT/tech twitter native.\n- Degen: Crypto/finance energy. WAGMI, aping in, LFG. Numbers go up. Semi-ironic hype.\n- Corporate: LinkedIn-safe thought leadership. Buzzwords welcome. I'm pleased to announce.\n- Boomer: Straightforward, no slang, earnest and sincere.\n- Unhinged: Fully deranged takes. Chaos energy. Will definitely get screenshotted.\n\nPlatform rules (HARD — absolute):\n- X/Twitter: NEVER hashtags. Not one. Ever. Write as hook tweet + reply-to-self format. No links in the main post. Keep punchy.\n- TikTok: All lowercase caption only. NEVER hashtags. NEVER overlay text / on-screen text. Just the caption.\n- Instagram: Include a 'Save this for later' CTA. Add 5-8 relevant hashtags. Add location 'San Francisco, CA'. Direct to bio link.\n- LinkedIn: Professional framing. End with 'Link in comments.' No hashtags. Longer form is fine.\n- YouTube: Include a separate title line (under 40 characters). Then the description. Include relevant keywords.\n\nRules: Never use em dashes, use commas or periods. Be direct. Match the audience vibe exactly. RESPOND ONLY IN VALID JSON. No markdown fences. No preamble.";
 
 function ClipCaptions() {
+  var userCtx = useUser();
+  var analyst = isAnalyst(userCtx.user);
+  // Analysts get a tighter vibe set — no Degen, no Unhinged (per launch scope).
+  var VISIBLE_AUDIENCES = analyst
+    ? CAPPER_AUDIENCES.filter(function(a) { return a.key !== "degen" && a.key !== "unhinged"; })
+    : CAPPER_AUDIENCES;
   var _content = useState(""), content = _content[0], setContent = _content[1];
   var _platforms = useState(["x"]), platforms = _platforms[0], setPlatforms = _platforms[1];
   var _length = useState("medium"), length = _length[0], setLength = _length[1];
-  var _tone = useState("dylan"), tone = _tone[0], setTone = _tone[1];
-  var _audience = useState("meme"), audience = _audience[0], setAudience = _audience[1];
+  var _tone = useState("sa_research"), tone = _tone[0], setTone = _tone[1];
+  var _audience = useState("techtwitter"), audience = _audience[0], setAudience = _audience[1];
+  // If an analyst somehow has a restricted audience selected (e.g. from a
+  // stale state), snap it back to the default.
+  useEffect(function() {
+    if (analyst && (audience === "degen" || audience === "unhinged")) setAudience("techtwitter");
+  }, [analyst, audience]);
   var _customPrompt = useState(""), customPrompt = _customPrompt[0], setCustomPrompt = _customPrompt[1];
   var _link = useState(false), showLink = _link[0], setShowLink = _link[1];
   var _url = useState(""), url = _url[0], setUrl = _url[1];
@@ -763,7 +775,7 @@ function ClipCaptions() {
     <div style={{ marginBottom: 20 }}>
       <Label>Audience / Vibe</Label>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {CAPPER_AUDIENCES.map(function(a) {
+        {VISIBLE_AUDIENCES.map(function(a) {
           var on = audience === a.key;
           return <div key={a.key} onClick={function() { setAudience(a.key); }} style={{ padding: "8px 14px", borderRadius: 20, cursor: "pointer", background: on ? a.color + "18" : cardBg, border: "1px solid " + (on ? a.color + "60" : borderC), fontFamily: ft, fontSize: 11, fontWeight: on ? 700 : 500, color: on ? a.color : C.txm, transition: "all 0.15s" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!on) e.currentTarget.style.borderColor = a.color + "30"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!on) e.currentTarget.style.borderColor = borderC; }}>
             {a.label}
