@@ -15,7 +15,7 @@ import BRollLibrary from "./broll-library";
 import ChartMaker from "./chart-maker";
 import BrandLaunchTile from "./brand-launch-tile";
 
-import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar } from "lucide-react";
+import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation } from "lucide-react";
 type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>;
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
 import { useUser, isAnalyst } from "./user-context";
@@ -428,6 +428,7 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "p2p",      l: "Press to Premier", Icon: Clapperboard },
     { id: "broll",    l: "B-Roll Library",   Icon: Film },
     { id: "chart",    l: "Chart Maker",      Icon: BarChart3 },
+    { id: "assets",   l: "Asset Library",    Icon: Library },
   ]},
   podcast: { label: "PODCAST", color: C.coral, glow: "rgba(224,99,71,", items: [
     { id: "fk",       l: "Fab Knowledge",    Icon: Headphones },
@@ -1312,24 +1313,27 @@ function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
       })}
     </div>
 
-    {/* CTAs · Asset Library opens embedded inside POAST; the Brand Launch
-        Presentation opens /brand-launch in a new tab (full-screen viewer). */}
-    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 28, width: "min(90vw, 520px)", animation: "asFade 0.5s ease 0.55s forwards", opacity: 0 }}>
+    {/* CTAs · same TiltTile interaction language (3D cursor tilt, color
+        glow, specular highlight). Asset Library opens embedded inside
+        POAST; Brand Launch Presentation opens /brand-launch in a new tab. */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 28, width: "min(90vw, 520px)", perspective: "1100px" }}>
       <SplashCTA
+        Icon={Library}
         label="Asset Library"
         sub="Style guide · logos · fonts · OneDrive links"
-        gradient={"linear-gradient(135deg, " + C.blue + ", #1F65D9)"}
-        glow={C.blue}
-        textColor="#fff"
+        color={C.blue}
+        onHoverColor={setHovC}
         onClick={function() { onNavigate("assets"); }}
+        delay={0.55}
       />
       <SplashCTA
+        Icon={Presentation}
         label="Brand Launch Presentation"
         sub="Opens the live deck in a new tab"
-        gradient={"linear-gradient(135deg, " + C.amber + ", " + C.coral + ")"}
-        glow={C.amber}
-        textColor="#0A0A14"
+        color={C.amber}
+        onHoverColor={setHovC}
         onClick={function() { window.open("/brand-launch", "_blank"); }}
+        delay={0.62}
       />
     </div>
 
@@ -1337,37 +1341,74 @@ function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
   </div>;
 }
 
-// Big rounded CTA used under the analyst tile grid. Lifts on hover with a
-// soft glow in the brand color so it reads as primary action.
-function SplashCTA({ label, sub, gradient, glow, textColor, onClick }: { label: string; sub: string; gradient: string; glow: string; textColor: string; onClick: () => void }) {
-  var _h = useState(false), h = _h[0], setH = _h[1];
+// Wide CTA shaped to match the TiltTile interaction (mouse-tracked 3D
+// rotation, hover lift, color glow, specular highlight). Slightly more
+// prominent than a tile because it's a primary action below the grid.
+function SplashCTA({ Icon, label, sub, color, onHoverColor, onClick, delay }: { Icon: LucideIcon; label: string; sub: string; color: string; onHoverColor: (c: string | null) => void; onClick: () => void; delay: number }) {
+  var _hov = useState(false), hov = _hov[0], setHov = _hov[1];
+  var _coords = useState<{ x: number; y: number } | null>(null), coords = _coords[0], setCoords = _coords[1];
+
+  // Wider tile → smaller Y rotation (avoid corners flying), keep X tilt
+  var rotX = 0, rotY = 0;
+  if (coords) {
+    rotY = (coords.x - 0.5) * 14;   // -7° to +7° on the wide axis
+    rotX = (0.5 - coords.y) * 22;   // -11° to +11° vertically
+  }
+  var transform = hov
+    ? "rotateX(" + rotX.toFixed(2) + "deg) rotateY(" + rotY.toFixed(2) + "deg) translateY(-6px) scale(1.02)"
+    : "rotateX(0) rotateY(0) translateY(0) scale(1)";
+
+  var baseBg = "linear-gradient(135deg, " + color + "1A 0%, " + color + "0A 100%)";
+  var hoverBg = "linear-gradient(135deg, " + color + "30 0%, " + color + "12 100%)";
+
   return (
-    <button
-      onClick={onClick}
-      onMouseEnter={function() { setH(true); }}
-      onMouseLeave={function() { setH(false); }}
-      style={{
-        width: "100%", padding: "16px 22px",
-        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
-        background: gradient,
-        border: "1px solid " + glow + "55",
-        borderRadius: 14,
-        color: textColor,
-        fontFamily: gf,
-        cursor: "pointer",
-        textAlign: "left",
-        transform: h ? "translateY(-1px)" : "translateY(0)",
-        boxShadow: h ? "0 12px 28px " + glow + "55, 0 0 0 1px " + glow + "60" : "0 4px 14px " + glow + "30",
-        filter: h ? "brightness(1.06)" : "brightness(1)",
-        transition: "transform 0.2s cubic-bezier(.2,.7,.2,1), box-shadow 0.25s, filter 0.2s",
-      }}
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: 0.2 }}>{label}</span>
-        <span style={{ fontFamily: mn, fontSize: 10, fontWeight: 600, opacity: 0.78, letterSpacing: 0.5 }}>{sub}</span>
-      </div>
-      <span style={{ fontFamily: gf, fontSize: 22, fontWeight: 900, opacity: h ? 1 : 0.7, transform: h ? "translateX(2px)" : "translateX(0)", transition: "all 0.2s" }}>→</span>
-    </button>
+    <div style={{ animation: "asTile 0.55s cubic-bezier(0.16, 1, 0.3, 1) " + delay + "s forwards", opacity: 0, transformStyle: "preserve-3d" }}>
+      <button
+        onClick={onClick}
+        onMouseEnter={function() { setHov(true); onHoverColor(color); }}
+        onMouseMove={function(e: React.MouseEvent<HTMLButtonElement>) {
+          var rect = e.currentTarget.getBoundingClientRect();
+          setCoords({ x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height });
+        }}
+        onMouseLeave={function() { setHov(false); setCoords(null); onHoverColor(null); }}
+        style={{
+          width: "100%",
+          padding: "18px 24px",
+          display: "flex", alignItems: "center", gap: 18,
+          background: hov ? hoverBg : baseBg,
+          border: "1px solid " + (hov ? color + "75" : color + "30"),
+          borderRadius: 20,
+          color: "#E8E4DD",
+          cursor: "pointer",
+          textAlign: "left",
+          position: "relative", overflow: "hidden",
+          transform: transform,
+          transformStyle: "preserve-3d",
+          willChange: "transform",
+          transition: "transform 0.12s cubic-bezier(0.16, 1, 0.3, 1), background 0.22s, border-color 0.22s, box-shadow 0.22s",
+          boxShadow: hov ? "0 22px 48px -12px " + color + "55, 0 0 0 1px " + color + "30" : "none",
+        }}
+      >
+        {/* Corner glow — same idiom as TiltTile */}
+        <div style={{ position: "absolute", top: -40, right: -40, width: 120, height: 120, borderRadius: "50%", background: "radial-gradient(circle, " + color + "30, transparent 70%)", pointerEvents: "none" }} />
+        {/* Specular highlight tracking the cursor */}
+        {hov && coords && <div style={{
+          position: "absolute", inset: 0, borderRadius: 20, pointerEvents: "none",
+          background: "radial-gradient(circle at " + (coords.x * 100).toFixed(0) + "% " + (coords.y * 100).toFixed(0) + "%, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.03) 30%, transparent 60%)",
+        }} />}
+        {/* Icon — lifts on hover, drop-shadowed in the brand color */}
+        <div style={{ lineHeight: 0, position: "relative", transform: hov ? "translate3d(0, -2px, 30px)" : "translate3d(0, 0, 0)", transition: "transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)", filter: "drop-shadow(0 6px 14px " + color + "66)" }}>
+          <Icon size={32} strokeWidth={1.8} color={color} />
+        </div>
+        {/* Label block lifts a touch out of the surface like TiltTile */}
+        <div style={{ flex: 1, position: "relative", transform: hov ? "translate3d(0, 0, 14px)" : "translate3d(0, 0, 0)", transition: "transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)" }}>
+          <div style={{ fontFamily: ft, fontSize: 17, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.2, marginBottom: 3 }}>{label}</div>
+          <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 500, color: color + "CC", letterSpacing: 0.2 }}>{sub}</div>
+        </div>
+        {/* Arrow lifts and nudges, matching the TiltTile "translate Z out" feel */}
+        <span style={{ fontFamily: gf, fontSize: 26, fontWeight: 900, color: color, opacity: hov ? 1 : 0.55, transform: hov ? "translate3d(4px, 0, 26px)" : "translate3d(0, 0, 0)", transition: "transform 0.24s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s", filter: "drop-shadow(0 6px 12px " + color + "66)", lineHeight: 1 }}>→</span>
+      </button>
+    </div>
   );
 }
 
@@ -1401,18 +1442,27 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
 // ═══ APP ═══
 var ANALYST_ALLOWED = ["home", "sloptop", "carousel", "captions", "chart", "assets"];
 
-// Asset Library embedded inside POAST. Sidebar (fixed, zIndex 100) stays
-// visible at left; iframe fills the rest. Source is the public
-// BroadcastBuilder asset-library shell — same single source of truth
-// as /asset-library, just rendered inside the app instead of a new tab.
+// Asset Library embedded inside POAST. Rendered as a sibling of the
+// .poast-fadein wrapper because that wrapper has a `transform`-based
+// fadeInUp animation, and per CSS spec a transformed ancestor creates a
+// new containing block for fixed-position descendants — which was
+// shrinking the iframe to the wrapper's content height (the "loading at
+// the top" bug). Position fixed here resolves to the viewport.
 function AssetLibraryEmbed() {
   return (
-    <div style={{ position: "fixed", top: 0, left: 240, right: 0, bottom: 0, background: "#06060A", zIndex: 1 }}>
+    <div style={{ position: "fixed", top: 0, left: 240, right: 0, bottom: 0, background: "#06060A", zIndex: 50, display: "flex", flexDirection: "column" }}>
+      {/* Header bar — same Library icon as the sidebar entry so the user
+          can tell at a glance which destination they're in. */}
+      <div style={{ padding: "12px 22px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10, background: "#0A0A14", flexShrink: 0 }}>
+        <Library size={18} strokeWidth={1.8} color={C.blue} />
+        <span style={{ fontFamily: gf, fontSize: 14, fontWeight: 800, color: "#E8E4DD", letterSpacing: 0.3 }}>Asset Library</span>
+        <span style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.35)", letterSpacing: 1.5, marginLeft: 6 }}>// SEMIANALYSIS BRAND</span>
+      </div>
       <iframe
         src="https://broadcast-builder.vercel.app/asset-library"
         title="SemiAnalysis Asset Library"
         allow="autoplay; fullscreen; clipboard-read; clipboard-write"
-        style={{ width: "100%", height: "100%", border: "none", display: "block" }}
+        style={{ flex: 1, width: "100%", border: "none", display: "block" }}
       />
     </div>
   );
@@ -1540,11 +1590,14 @@ export default function App() {
     <Sidebar active={sec} onNav={setSec} onAskPoast={function() { if (analyst) return; setAskPoastOpen(!askPoastOpen); }} />
     {/* Ask POAST panel — never open for Analysts (data access gate). */}
     <AskPoast open={askPoastOpen && !analyst} onToggle={function() { setAskPoastOpen(false); }} />
-    <div style={{ marginLeft: 240, position: "relative", zIndex: 1 }} className="poast-fadein">
+    {/* Asset Library renders as a sibling of the wrapped tree so its
+        position:fixed resolves to the viewport, not the .poast-fadein
+        transform's containing block. */}
+    {sec === "assets" && <AssetLibraryEmbed />}
+    <div style={{ marginLeft: 240, position: "relative", zIndex: 1, display: sec === "assets" ? "none" : "block" }} className="poast-fadein">
       <div style={{ margin: "0 auto", padding: "0 32px" }}>
         <div key={sec} className="poast-section" style={{ paddingBottom: 60 }}>
         {sec === "home" && (analyst ? <AnalystSplash onNavigate={setSec} /> : <SplashScreen onNavigate={setSec} />)}
-        {sec === "assets" && <AssetLibraryEmbed />}
         {sec === "weekly" && <SAWeekly />}
         {sec === "captions" && <ClipCaptions />}
         {sec === "carousel" && <Carousel />}
