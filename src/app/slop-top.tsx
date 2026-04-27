@@ -57,6 +57,7 @@ var D = {
 };
 var ft = "'Outfit',sans-serif";
 var mn = "'JetBrains Mono',monospace";
+var gf = "'Grift','Outfit',sans-serif";
 
 // ═══ BRAINROT DATA ═══
 var ROTATING_PHRASES = [
@@ -1021,58 +1022,31 @@ export default function SlopTop() {
   ].join("\n");
 
   return <div style={{
-    minHeight: "100vh", background: D.bg, padding: "32px 40px",
+    padding: "32px 0 0", maxWidth: 1200, margin: "0 auto",
     fontFamily: ft, color: D.tx,
   }}>
     <style dangerouslySetInnerHTML={{ __html: globalStyles }} />
 
-    {/* ═══ HEADER ═══ */}
-    <div style={{
-      marginBottom: 24, padding: "24px 28px", borderRadius: 16,
-      background: "linear-gradient(135deg, rgba(247,176,65,0.08), rgba(144,92,203,0.06), rgba(38,201,216,0.04), rgba(247,176,65,0.08))",
-      backgroundSize: "300% 300%",
-      animation: "rainbowShimmer 8s ease infinite",
-      border: "1px solid rgba(247,176,65,0.15)",
-      position: "relative", overflow: "hidden",
-    }}>
-      {/* Shimmer overlay */}
-      <div style={{
-        position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-        background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.02), transparent)",
-        backgroundSize: "200% 100%",
-        animation: "rainbowShimmer 4s linear infinite",
-        pointerEvents: "none",
-      }} />
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", position: "relative" }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{
-              fontFamily: ft, fontSize: 32, fontWeight: 900, letterSpacing: -1,
-              background: "linear-gradient(135deg, " + D.amber + ", " + D.violet + ", " + D.cyan + ", " + D.amber + ")",
-              backgroundSize: "300% 300%",
-              animation: "gradientText 4s ease infinite",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}>SLOP TOP</div>
-            <span style={{
-              fontSize: 28,
-              animation: "floatEmoji 2s ease-in-out infinite",
-              display: "inline-block",
-            }}>{ROTATING_EMOJIS[emojiIdx]}</span>
-          </div>
-          <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginTop: 4, letterSpacing: 1 }}>
-            certified brainrot factory // making slop since birth
-          </div>
-          <div style={{
-            fontFamily: ft, fontSize: 12, fontWeight: 600, marginTop: 8,
-            color: D.violet, letterSpacing: 0.5,
-            animation: "phraseSlide 3s ease-in-out infinite",
-            minHeight: 18,
-          }}>
-            {ROTATING_PHRASES[phraseIdx]}
-          </div>
-        </div>
+    {/* Standardized header — matches Carousel + Capper */}
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{
+          fontFamily: gf, fontSize: 28, fontWeight: 900, letterSpacing: -0.5,
+          background: "linear-gradient(135deg, " + D.amber + ", " + D.violet + ", " + D.cyan + ", " + D.amber + ")",
+          backgroundSize: "300% 300%",
+          animation: "gradientText 4s ease infinite",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+          backgroundClip: "text",
+        }}>Slop Top</div>
+        <span style={{
+          fontSize: 22,
+          animation: "floatEmoji 2s ease-in-out infinite",
+          display: "inline-block",
+        }}>{ROTATING_EMOJIS[emojiIdx]}</span>
+      </div>
+      <div style={{ fontFamily: mn, fontSize: 10, color: D.txm, marginTop: 4, letterSpacing: 1 }}>
+        CERTIFIED BRAINROT FACTORY // {ROTATING_PHRASES[phraseIdx]}
       </div>
     </div>
 

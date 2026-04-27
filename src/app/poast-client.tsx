@@ -455,8 +455,14 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
   visibleCats.forEach(function(k) { SIDEBAR_CATS[k].items.forEach(function(it: SidebarCatItem) { if (it.id === active) activeCat = k; }); });
 
   return (<div style={{ width: 240, minHeight: "100vh", background: "linear-gradient(180deg, #08080F 0%, #0A0A14 100%)", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
-    {/* Logo */}
-    <div style={{ padding: "18px 18px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10 }}>
+    {/* Logo — click to go home (splash) without re-auth */}
+    <div
+      onClick={function() { onNav("home"); }}
+      title="Home"
+      style={{ padding: "18px 18px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", transition: "background 0.15s" }}
+      onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(247,176,65,0.04)"; }}
+      onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "transparent"; }}
+    >
       <img src="/poast-logo.png" style={{ width: 32, height: 32, borderRadius: 7 }} />
       <div>
         <div style={{ fontFamily: gf, fontSize: 18, fontWeight: 900, color: C.amber, letterSpacing: 2 }}>POAST</div>
@@ -720,9 +726,12 @@ function ClipCaptions() {
     return p ? p.label : k;
   }).join(", ");
 
-  return (<div>
-    <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 800, color: C.tx, marginBottom: 4 }}>Capper</div>
-    <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginBottom: 24 }}>Clip caption maker. Paste transcript, pick platforms and tone, get 3 variations per platform.</div>
+  return (<div style={{ padding: "32px 0 0", maxWidth: 1100, margin: "0 auto" }}>
+    {/* Standardized header — matches Carousel + SlopTop */}
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.5 }}>Capper</div>
+      <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 4, letterSpacing: 1 }}>CLIP CAPTION MAKER // 3 VARIATIONS PER PLATFORM</div>
+    </div>
 
     {/* Clip Content */}
     <div style={{ marginBottom: 20 }}>
@@ -1335,7 +1344,7 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
 }
 
 // ═══ APP ═══
-var ANALYST_ALLOWED = ["sloptop", "carousel", "captions", "chart"];
+var ANALYST_ALLOWED = ["home", "sloptop", "carousel", "captions", "chart"];
 
 export default function App() {
   var _sp = useState(true), showIntro = _sp[0], setShowIntro = _sp[1];
@@ -1462,6 +1471,7 @@ export default function App() {
     <div style={{ marginLeft: 240, position: "relative", zIndex: 1 }} className="poast-fadein">
       <div style={{ margin: "0 auto", padding: "0 32px" }}>
         <div key={sec} className="poast-section" style={{ paddingBottom: 60 }}>
+        {sec === "home" && (analyst ? <AnalystSplash onNavigate={setSec} /> : <SplashScreen onNavigate={setSec} />)}
         {sec === "weekly" && <SAWeekly />}
         {sec === "captions" && <ClipCaptions />}
         {sec === "carousel" && <Carousel />}
