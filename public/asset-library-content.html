@@ -805,6 +805,23 @@
         </div>
       </details>
 
+      <details data-folder="skills-themes">
+        <summary>
+          <span class="al-folder">▣</span>
+          <span class="al-name">Skills &amp; Themes</span>
+          <span class="al-count">7 files</span>
+        </summary>
+        <div class="al-children">
+          <div class="al-leaf" data-asset="skill-brand-system">sa-brand-system.skill <span class="al-pill live">Live</span></div>
+          <div class="al-leaf" data-asset="skill-charts">sa-core-charts.skill <span class="al-pill live">Live</span></div>
+          <div class="al-leaf" data-asset="skill-dark-convert">sa-dark-outfit-convert.skill <span class="al-pill live">Live</span></div>
+          <div class="al-leaf" data-asset="skill-letterhead">sa-letterhead-system.skill <span class="al-pill live">Live</span></div>
+          <div class="al-leaf" data-asset="skill-style">sa-style-template.skill <span class="al-pill live">Live</span></div>
+          <div class="al-leaf" data-asset="theme-spectrum">SA Spectrum theme · .thmx <span class="al-pill new">New</span></div>
+          <div class="al-leaf" data-asset="theme-core">SA Core theme · .thmx <span class="al-pill new">New</span></div>
+        </div>
+      </details>
+
     </div>
 
     <div class="al-dir">
@@ -907,6 +924,15 @@
       'cheat-light': { name:'Brand Cheat Sheet · Light', exts:['PNG'], size:'428 KB', updated:'this week', kind:'cheat', subkind:'light', desc:'Light counterpart of the cheat sheet for printing on white or sharing in Slack.', thumb:'/brand/guidelines/cheatsheet-light.png' },
       'brand-guide': { name:'SemiAnalysis Brand Guide',  exts:['PDF'], size:'852 KB', updated:'this week', kind:'doc',                    desc:'The full brand guide PDF — logo usage, color spec, typography, voice, and approval workflow.', thumb:null },
 
+      // Skills & Themes · 5 Claude skills + 2 Office (Windows) themes
+      'skill-brand-system': { name:'sa-brand-system',          exts:['SKILL'], size:'live', updated:'always check', kind:'skill', desc:'Master skill that loads the SA brand voice + visual system into Claude. Start here for any new project.', thumb:null },
+      'skill-charts':       { name:'sa-core-charts',           exts:['SKILL'], size:'live', updated:'always check', kind:'skill', desc:'Drafts on-brand charts using the Spectrum palette and SA chart conventions.', thumb:null },
+      'skill-dark-convert': { name:'sa-dark-outfit-convert',   exts:['SKILL'], size:'live', updated:'always check', kind:'skill', desc:'Converts existing decks to the dark Outfit master.', thumb:null },
+      'skill-letterhead':   { name:'sa-letterhead-system',     exts:['SKILL'], size:'live', updated:'always check', kind:'skill', desc:'Authors letterhead documents with the right header, footer, and View → Switch Modes wiring.', thumb:null },
+      'skill-style':        { name:'sa-style-template',        exts:['SKILL'], size:'live', updated:'always check', kind:'skill', desc:'Ensures any new visual template (slide, doc, post) snaps to the brand spec.', thumb:null },
+      'theme-spectrum':     { name:'SA Spectrum · Office theme', exts:['THMX'], size:'~120 KB', updated:'new', kind:'doc', desc:'Windows / Microsoft Office theme using the SA Spectrum palette. Apply via Page Layout → Themes in Word, Excel, or PowerPoint.', thumb:null },
+      'theme-core':         { name:'SA Core · Office theme',     exts:['THMX'], size:'~120 KB', updated:'new', kind:'doc', desc:'Windows / Microsoft Office theme using SA core colors (amber + cobalt). Quickest way to brand a one-off Office doc.', thumb:null }
+
     };
 
     const ROOT_URL = 'https://semianalysis.sharepoint.com/:f:/s/SemiAnalysisTeam/IgBz5Mg50M1NQ5us3Yytzu_3AT8_OrWtFfSKeBfsZbdEaec?e=QKwikD';
@@ -918,7 +944,8 @@
       'excel':       { name:'Excel Templates',      count:'2 files', url:'https://semianalysis.sharepoint.com/:f:/s/SemiAnalysisTeam/IgBQBBjl3KcESYk-X8zMTGetAeB4USCXK31p0sA3gtUpnB8?e=VLA94W', items:['xls-outfit','xls-aptos'] },
       'letterheads': { name:'Letterheads',          count:'9 files', url:'https://semianalysis.sharepoint.com/:f:/s/SemiAnalysisTeam/IgAk8uid3xruSZiUdDRRlrQfAZprhN4siIPYesNGJrx4gK0?e=ZZeSVg', items:['lh-a-dark-outfit','lh-a-light-outfit','lh-a-dark-aptos','lh-a-light-aptos','lh-b-dark-outfit','lh-b-light-outfit','lh-b-dark-aptos','lh-b-light-aptos','lh-pdf'] },
       'social-bg':   { name:'Social Backdrops',     count:'4 sets',  url:'https://semianalysis.sharepoint.com/:f:/s/SemiAnalysisTeam/IgDoO1Bu3kDgQ5ABEcCeoGaUAaQ9xM474fGa0cw5MqUkbvU?e=GZE1Tg', items:['bg-internal','bg-external','bg-general','bg-capital'] },
-      'guidelines':  { name:'Brand & Guidelines',   count:'3 files', url:'https://semianalysis.sharepoint.com/:f:/r/sites/SemiAnalysisTeam/Shared%20Documents/Logos%20and%20Art/2026%20Brand%20Launch/Brand%20and%20Guidelines?csf=1&web=1&e=tPOCRN', items:['cheat-dark','cheat-light','brand-guide'] }
+      'guidelines':    { name:'Brand & Guidelines', count:'3 files', url:'https://semianalysis.sharepoint.com/:f:/r/sites/SemiAnalysisTeam/Shared%20Documents/Logos%20and%20Art/2026%20Brand%20Launch/Brand%20and%20Guidelines?csf=1&web=1&e=tPOCRN', items:['cheat-dark','cheat-light','brand-guide'] },
+      'skills-themes': { name:'Skills & Themes',    count:'7 files', url:'https://semianalysis.sharepoint.com/:f:/s/SemiAnalysisTeam/IgCumajjw3LcQYumgjLATGt8AckED4LOzcgLuZczSt2qsO8?e=nCq9Ji', items:['skill-brand-system','skill-charts','skill-dark-convert','skill-letterhead','skill-style','theme-spectrum','theme-core'] }
     };
 
     // Build a key→folder lookup so file footers can link to their parent folder
