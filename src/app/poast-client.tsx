@@ -461,7 +461,7 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
   var activeCat: string | null = null;
   visibleCats.forEach(function(k) { SIDEBAR_CATS[k].items.forEach(function(it: SidebarCatItem) { if (it.id === active) activeCat = k; }); });
 
-  return (<div style={{ width: 240, minHeight: "100vh", background: "linear-gradient(180deg, #08080F 0%, #0A0A14 100%)", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
+  return (<div style={{ width: 240, height: "100vh", background: "linear-gradient(180deg, #08080F 0%, #0A0A14 100%)", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
     {/* Logo — click to go home (splash) without re-auth */}
     <div
       onClick={function() { onNav("home"); }}
