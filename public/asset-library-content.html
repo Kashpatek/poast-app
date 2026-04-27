@@ -11,6 +11,10 @@
   :root {
     --amber: #F7B041;
     --amber-dim: rgba(247,176,65,0.15);
+    --blue: #0B86D1;
+    --teal: #2EAD8E;
+    --coral: #E06347;
+    --border: rgba(255,255,255,0.06);
     --border2: rgba(255,255,255,0.12);
     --text: #F2F2F2;
     --muted: rgba(242,242,242,0.45);
@@ -26,7 +30,7 @@
     font-family: var(--font);
     -webkit-font-smoothing: antialiased;
   }
-  /* Render the slide as a static page block, not a positioned slide */
+  /* Render the slide as a static page (not a positioned, hidden slide) */
   .slide {
     position: static !important;
     inset: auto !important;
@@ -42,15 +46,23 @@
     box-sizing: border-box;
     background: var(--black);
   }
-  /* Drop the presentation-only ambient elements */
+  /* Strip the deck's ambient decoration */
   .sa-stars, .sa-orb, .sa-flare { display: none !important; }
-  /* Tone the slide title down for embedded use */
-  .slide-title { font-size: 48px; font-weight: 800; letter-spacing: -.025em; color: #fff; line-height: 1.05; margin-top: 0; margin-bottom: 8px; }
-  .slide-sub  { font-size: 16px; color: var(--muted); font-weight: 400; max-width: 880px; line-height: 1.55; margin-bottom: 18px; }
+  /* Baseline styles for elements that deck.html provides globally
+     but don't exist standalone. Without these, things render but
+     are mis-styled. */
+  .eyebrow { font-size: 14px; letter-spacing: 0.2em; font-weight: 700; color: var(--amber); text-transform: uppercase; margin-bottom: 12px; display: block; }
+  .slide-title { font-size: 48px; font-weight: 800; letter-spacing: -0.025em; color: #fff; line-height: 1.05; margin: 0 0 8px; display: block; }
+  .slide-sub  { font-size: 16px; color: var(--muted); font-weight: 400; max-width: 880px; line-height: 1.55; margin-bottom: 18px; display: block; }
+  .hl { color: var(--amber); }
+  .hl-b { color: var(--blue); }
+  .hl-t { color: var(--teal); }
+  /* Default link color — pages outside the deck don't get its base reset */
+  a { color: inherit; }
 </style>
 </head>
 <body>
-<div class="slide amb-amber" data-sec="Style Guide" data-sa-scope="sa-al0aldn"><div class="sa-stars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="sa-orb o1"></div><div class="sa-orb o2"></div><div class="sa-orb o3"></div><div class="sa-flare"></div>
+<div class="slide amb-amber on" data-sec="Style Guide" data-sa-scope="sa-al0aldn"><div class="sa-stars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="sa-orb o1"></div><div class="sa-orb o2"></div><div class="sa-orb o3"></div><div class="sa-flare"></div>
   <style>
     [data-sa-scope="sa-al0aldn"] { justify-content:flex-start !important; padding:42px 56px 32px !important }
     [data-sa-scope="sa-al0aldn"] .slide-title { font-size:64px; margin-bottom:8px; line-height:1.02 }
