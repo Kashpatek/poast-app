@@ -1451,28 +1451,72 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
 // ═══ APP ═══
 var ANALYST_ALLOWED = ["home", "sloptop", "carousel", "captions", "chart", "assets"];
 
-// Asset Library embedded inside POAST. Rendered as a sibling of the
-// .poast-fadein wrapper because that wrapper has a `transform`-based
-// fadeInUp animation, and per CSS spec a transformed ancestor creates a
-// new containing block for fixed-position descendants — which was
-// shrinking the iframe to the wrapper's content height (the "loading at
-// the top" bug). Position fixed here resolves to the viewport.
+// Asset Library embedded inside POAST. Fetches the standalone HTML
+// from /public, drops it inline into POAST's DOM via dangerouslySetInnerHTML,
+// then re-creates the inline <script> nodes so the slide's IIFE wires up
+// the tree-click → preview swap behavior. (React doesn't execute scripts
+// inserted via dangerouslySetInnerHTML — we have to re-attach them.)
+// CSS variables the slide depends on are declared on the wrapper so the
+// scoped rules resolve to the right brand colors.
 function AssetLibraryEmbed() {
+  var _h = useState<string>(""), html = _h[0], setHtml = _h[1];
+  var hostRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(function() {
+    fetch("/asset-library-content.html")
+      .then(function(r) { return r.text(); })
+      .then(function(text) {
+        // Pull just the body content (drops the <html>/<head>/<body>
+        // wrappers and the html/body reset CSS that would conflict with
+        // POAST's layout).
+        var m = text.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+        setHtml(m ? m[1] : text);
+      })
+      .catch(function() { setHtml(""); });
+  }, []);
+
+  useEffect(function() {
+    var host = hostRef.current;
+    if (!host || !html) return;
+    // Re-execute any <script> tags inside the injected HTML.
+    var scripts = host.querySelectorAll("script");
+    scripts.forEach(function(oldScript) {
+      var newScript = document.createElement("script");
+      if (oldScript.src) newScript.src = oldScript.src;
+      if (oldScript.textContent) newScript.textContent = oldScript.textContent;
+      oldScript.parentNode && oldScript.parentNode.replaceChild(newScript, oldScript);
+    });
+  }, [html]);
+
   return (
-    <div style={{ position: "fixed", top: 0, left: 240, right: 0, bottom: 0, background: "#06060A", zIndex: 50, display: "flex", flexDirection: "column" }}>
-      {/* Header bar — same Library icon as the sidebar entry so the user
-          can tell at a glance which destination they're in. */}
+    <div style={Object.assign({
+      position: "fixed", top: 0, left: 240, right: 0, bottom: 0,
+      background: "#06060A", zIndex: 50,
+      display: "flex", flexDirection: "column",
+      overflow: "hidden",
+    }, {
+      // Brand CSS variables · the slide's scoped styles reference these.
+      ["--amber" as string]: "#F7B041",
+      ["--amber-dim" as string]: "rgba(247,176,65,0.15)",
+      ["--border2" as string]: "rgba(255,255,255,0.12)",
+      ["--text" as string]: "#F2F2F2",
+      ["--muted" as string]: "rgba(242,242,242,0.45)",
+      ["--muted2" as string]: "rgba(242,242,242,0.22)",
+      ["--black" as string]: "#06060A",
+      ["--font" as string]: "'Outfit', sans-serif",
+    }) as React.CSSProperties}>
       <div style={{ padding: "12px 22px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10, background: "#0A0A14", flexShrink: 0 }}>
         <Library size={18} strokeWidth={1.8} color={C.blue} />
         <span style={{ fontFamily: gf, fontSize: 14, fontWeight: 800, color: "#E8E4DD", letterSpacing: 0.3 }}>Asset Library</span>
         <span style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.35)", letterSpacing: 1.5, marginLeft: 6 }}>// SEMIANALYSIS BRAND</span>
+        <a href="/asset-library-content.html" target="_blank" rel="noopener" style={{ marginLeft: "auto", fontFamily: mn, fontSize: 10, color: C.blue, textDecoration: "none", padding: "4px 10px", border: "1px solid " + C.blue + "55", borderRadius: 6, fontWeight: 700, letterSpacing: 0.5 }}>Open ↗</a>
       </div>
-      <iframe
-        src="/asset-library-content.html"
-        title="SemiAnalysis Asset Library"
-        allow="clipboard-read; clipboard-write"
-        style={{ flex: 1, width: "100%", border: "none", display: "block" }}
+      <div
+        ref={hostRef}
+        dangerouslySetInnerHTML={{ __html: html }}
+        style={{ flex: 1, overflow: "auto", color: "#F2F2F2", fontFamily: "'Outfit', sans-serif", minHeight: 0 }}
       />
+      {!html && <div style={{ padding: 40, textAlign: "center", fontFamily: mn, fontSize: 11, color: "rgba(255,255,255,0.4)" }}>Loading asset library...</div>}
     </div>
   );
 }
