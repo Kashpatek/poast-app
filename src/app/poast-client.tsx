@@ -1312,8 +1312,63 @@ function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
       })}
     </div>
 
-    <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.18)", letterSpacing: 3, marginTop: 48, animation: "asFade 0.5s ease 0.7s forwards", opacity: 0 }}>SEMIANALYSIS // ANALYST STUDIO</div>
+    {/* CTAs · Asset Library opens embedded inside POAST; the Brand Launch
+        Presentation opens /brand-launch in a new tab (full-screen viewer). */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 28, width: "min(90vw, 520px)", animation: "asFade 0.5s ease 0.55s forwards", opacity: 0 }}>
+      <SplashCTA
+        label="Asset Library"
+        sub="Style guide · logos · fonts · OneDrive links"
+        gradient={"linear-gradient(135deg, " + C.blue + ", #1F65D9)"}
+        glow={C.blue}
+        textColor="#fff"
+        onClick={function() { onNavigate("assets"); }}
+      />
+      <SplashCTA
+        label="Brand Launch Presentation"
+        sub="Opens the live deck in a new tab"
+        gradient={"linear-gradient(135deg, " + C.amber + ", " + C.coral + ")"}
+        glow={C.amber}
+        textColor="#0A0A14"
+        onClick={function() { window.open("/brand-launch", "_blank"); }}
+      />
+    </div>
+
+    <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.18)", letterSpacing: 3, marginTop: 36, animation: "asFade 0.5s ease 0.7s forwards", opacity: 0 }}>SEMIANALYSIS // ANALYST STUDIO</div>
   </div>;
+}
+
+// Big rounded CTA used under the analyst tile grid. Lifts on hover with a
+// soft glow in the brand color so it reads as primary action.
+function SplashCTA({ label, sub, gradient, glow, textColor, onClick }: { label: string; sub: string; gradient: string; glow: string; textColor: string; onClick: () => void }) {
+  var _h = useState(false), h = _h[0], setH = _h[1];
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={function() { setH(true); }}
+      onMouseLeave={function() { setH(false); }}
+      style={{
+        width: "100%", padding: "16px 22px",
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+        background: gradient,
+        border: "1px solid " + glow + "55",
+        borderRadius: 14,
+        color: textColor,
+        fontFamily: gf,
+        cursor: "pointer",
+        textAlign: "left",
+        transform: h ? "translateY(-1px)" : "translateY(0)",
+        boxShadow: h ? "0 12px 28px " + glow + "55, 0 0 0 1px " + glow + "60" : "0 4px 14px " + glow + "30",
+        filter: h ? "brightness(1.06)" : "brightness(1)",
+        transition: "transform 0.2s cubic-bezier(.2,.7,.2,1), box-shadow 0.25s, filter 0.2s",
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: 0.2 }}>{label}</span>
+        <span style={{ fontFamily: mn, fontSize: 10, fontWeight: 600, opacity: 0.78, letterSpacing: 0.5 }}>{sub}</span>
+      </div>
+      <span style={{ fontFamily: gf, fontSize: 22, fontWeight: 900, opacity: h ? 1 : 0.7, transform: h ? "translateX(2px)" : "translateX(0)", transition: "all 0.2s" }}>→</span>
+    </button>
+  );
 }
 
 function Intro({ onDone }: { onDone: (id?: string) => void }) {
@@ -1344,7 +1399,24 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
 }
 
 // ═══ APP ═══
-var ANALYST_ALLOWED = ["home", "sloptop", "carousel", "captions", "chart"];
+var ANALYST_ALLOWED = ["home", "sloptop", "carousel", "captions", "chart", "assets"];
+
+// Asset Library embedded inside POAST. Sidebar (fixed, zIndex 100) stays
+// visible at left; iframe fills the rest. Source is the public
+// BroadcastBuilder asset-library shell — same single source of truth
+// as /asset-library, just rendered inside the app instead of a new tab.
+function AssetLibraryEmbed() {
+  return (
+    <div style={{ position: "fixed", top: 0, left: 240, right: 0, bottom: 0, background: "#06060A", zIndex: 1 }}>
+      <iframe
+        src="https://broadcast-builder.vercel.app/asset-library"
+        title="SemiAnalysis Asset Library"
+        allow="autoplay; fullscreen; clipboard-read; clipboard-write"
+        style={{ width: "100%", height: "100%", border: "none", display: "block" }}
+      />
+    </div>
+  );
+}
 
 export default function App() {
   var _sp = useState(true), showIntro = _sp[0], setShowIntro = _sp[1];
@@ -1472,6 +1544,7 @@ export default function App() {
       <div style={{ margin: "0 auto", padding: "0 32px" }}>
         <div key={sec} className="poast-section" style={{ paddingBottom: 60 }}>
         {sec === "home" && (analyst ? <AnalystSplash onNavigate={setSec} /> : <SplashScreen onNavigate={setSec} />)}
+        {sec === "assets" && <AssetLibraryEmbed />}
         {sec === "weekly" && <SAWeekly />}
         {sec === "captions" && <ClipCaptions />}
         {sec === "carousel" && <Carousel />}
