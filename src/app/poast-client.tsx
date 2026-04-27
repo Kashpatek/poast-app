@@ -1511,8 +1511,22 @@ function AssetLibraryEmbed() {
         <span style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.35)", letterSpacing: 1.5, marginLeft: 6 }}>// SEMIANALYSIS BRAND</span>
         <a href="/asset-library-content.html" target="_blank" rel="noopener" style={{ marginLeft: "auto", fontFamily: mn, fontSize: 10, color: C.blue, textDecoration: "none", padding: "4px 10px", border: "1px solid " + C.blue + "55", borderRadius: 6, fontWeight: 700, letterSpacing: 0.5 }}>Open ↗</a>
       </div>
+      {/* Baseline styles for elements deck.html provides globally
+          (.eyebrow, .slide-title, .slide-sub, .hl) — needed because
+          we strip the standalone HTML's <head> when injecting just
+          its body content. Without these the title block is invisible. */}
+      <style>{`
+        .al-host .slide { display: flex; flex-direction: column; padding: 28px 36px 36px; min-height: 100%; box-sizing: border-box; opacity: 1 !important; pointer-events: auto !important; transform: none !important; position: static !important; inset: auto !important; overflow: visible !important; }
+        .al-host .sa-stars, .al-host .sa-orb, .al-host .sa-flare { display: none !important; }
+        .al-host .eyebrow { font-size: 13px; letter-spacing: 0.2em; font-weight: 700; color: var(--amber); text-transform: uppercase; margin-bottom: 12px; display: block; }
+        .al-host .slide-title { font-size: 42px; font-weight: 800; letter-spacing: -0.025em; color: #fff; line-height: 1.05; margin: 0 0 8px; display: block; }
+        .al-host .slide-sub { font-size: 15px; color: var(--muted); font-weight: 400; max-width: 880px; line-height: 1.55; margin-bottom: 16px; display: block; }
+        .al-host .hl { color: var(--amber); }
+        .al-host a { color: inherit; }
+      `}</style>
       <div
         ref={hostRef}
+        className="al-host"
         dangerouslySetInnerHTML={{ __html: html }}
         style={{ flex: 1, overflow: "auto", color: "#F2F2F2", fontFamily: "'Outfit', sans-serif", minHeight: 0 }}
       />
