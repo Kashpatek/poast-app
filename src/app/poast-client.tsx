@@ -13,6 +13,7 @@ import IdeationNation from "./ideation-nation";
 import SAWeekly from "./sa-weekly";
 import BRollLibrary from "./broll-library";
 import ChartMaker from "./chart-maker";
+import BrandLaunchTile from "./brand-launch-tile";
 
 import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar } from "lucide-react";
 type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>;
@@ -492,6 +493,11 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
           })}
         </div>;
       })}
+    </div>
+
+    {/* Brand Launch tile — miniature of the cover slide, opens /brand-launch */}
+    <div style={{ padding: "0 10px 4px" }}>
+      <BrandLaunchTile />
     </div>
 
     {/* Footer */}
