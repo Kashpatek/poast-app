@@ -17,6 +17,22 @@ export default function BrandLaunchPage() {
     window.location.href = "/";
   }, []);
 
+  // Listen for in-iframe nav requests from BroadcastBuilder. The viewer's
+  // Asset Library footer link postMessages here when iframed instead of
+  // navigating its own iframe to /asset-library.html. We bounce the user
+  // to POAST's local /asset-library route so the experience stays inside
+  // POAST chrome.
+  useEffect(function() {
+    var handler = function(e: MessageEvent) {
+      var data = e.data as { type?: string; to?: string } | null;
+      if (data && data.type === "sa:nav" && data.to === "asset-library") {
+        window.location.href = "/asset-library";
+      }
+    };
+    window.addEventListener("message", handler);
+    return function() { window.removeEventListener("message", handler); };
+  }, []);
+
   if (!ok) return null;
 
   return (

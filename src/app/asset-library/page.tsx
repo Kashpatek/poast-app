@@ -21,9 +21,9 @@ export default function AssetLibraryPage() {
   return (
     <div style={{ position: "fixed", inset: 0, background: "#06060A" }}>
       <iframe
-        src="https://broadcast-builder.vercel.app/asset-library"
+        src="/asset-library-content.html"
         title="SemiAnalysis Asset Library"
-        allow="autoplay; fullscreen; clipboard-read; clipboard-write"
+        allow="clipboard-read; clipboard-write"
         style={{ width: "100%", height: "100%", border: "none", display: "block" }}
       />
     </div>

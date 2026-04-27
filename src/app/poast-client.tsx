@@ -14,8 +14,11 @@ import SAWeekly from "./sa-weekly";
 import BRollLibrary from "./broll-library";
 import ChartMaker from "./chart-maker";
 import BrandLaunchTile from "./brand-launch-tile";
+import PoastSettings from "./poast-settings";
+import { BugButton } from "./bug-report";
+import { trackEvent } from "../lib/poast-track";
 
-import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation } from "lucide-react";
+import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings } from "lucide-react";
 type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>;
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
 import { useUser, isAnalyst } from "./user-context";
@@ -444,6 +447,9 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
   premier: { label: "PREMIER", color: C.teal, glow: "rgba(46,173,142,", items: [
     { id: "schedule", l: "Schedule",         Icon: Calendar },
   ]},
+  admin:   { label: "ADMIN",   color: C.violet, glow: "rgba(144,92,203,", items: [
+    { id: "settings", l: "POAST Settings",   Icon: Settings },
+  ]},
 };
 
 function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: string) => void; onAskPoast: () => void }) {
@@ -509,6 +515,9 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
 
     {/* Footer */}
     <div style={{ padding: "14px 18px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      {/* Bug report — captures the current sec automatically and lands in
+          POAST Settings · Bugs. Analysts use it most; visible for everyone. */}
+      <BugButton sec={active} />
       {/* User badge — click to sign out + return to the entry screen. No native
           confirm (it looked unbranded). For Analyst the label reads "Lock"; for
           admins it reads "Switch". A misclick is cheap to recover from. */}
@@ -1459,9 +1468,9 @@ function AssetLibraryEmbed() {
         <span style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.35)", letterSpacing: 1.5, marginLeft: 6 }}>// SEMIANALYSIS BRAND</span>
       </div>
       <iframe
-        src="https://broadcast-builder.vercel.app/asset-library"
+        src="/asset-library-content.html"
         title="SemiAnalysis Asset Library"
-        allow="autoplay; fullscreen; clipboard-read; clipboard-write"
+        allow="clipboard-read; clipboard-write"
         style={{ flex: 1, width: "100%", border: "none", display: "block" }}
       />
     </div>
@@ -1489,6 +1498,19 @@ export default function App() {
     window.addEventListener("poast-nav", handler);
     return function() { window.removeEventListener("poast-nav", handler); };
   }, [analyst]);
+
+  // Analytics · session start fires once per app mount; view fires on every
+  // sec change. Wired here so every tool gets tracked without per-tool edits.
+  useEffect(function() {
+    if (!userCtx.user) return;
+    trackEvent("session", { intro: showIntro }, sec);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userCtx.user]);
+  useEffect(function() {
+    if (!userCtx.user) return;
+    trackEvent("view", {}, sec);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sec, userCtx.user]);
   if (showIntro) return <><Intro onDone={function(id) { if (id) setSec(id); setShowIntro(false); }} /></>;
 
   return (<div style={{ background: C.bg, minHeight: "100vh", position: "relative" }}>
@@ -1598,6 +1620,7 @@ export default function App() {
       <div style={{ margin: "0 auto", padding: "0 32px" }}>
         <div key={sec} className="poast-section" style={{ paddingBottom: 60 }}>
         {sec === "home" && (analyst ? <AnalystSplash onNavigate={setSec} /> : <SplashScreen onNavigate={setSec} />)}
+        {sec === "settings" && !analyst && <PoastSettings />}
         {sec === "weekly" && <SAWeekly />}
         {sec === "captions" && <ClipCaptions />}
         {sec === "carousel" && <Carousel />}
