@@ -1,18 +1,23 @@
 "use client";
-import { useEffect } from "react";
-import { useUser } from "../user-context";
+import { useEffect, useState } from "react";
 
 // SemiAnalysis Brand Launch · analyst-review viewer.
-// Iframes the BroadcastBuilder viewer (public origin) and enforces POAST's
-// auth gate on this side: if no user is set we redirect to the landing
-// page which forces the lock-screen flow.
+// Iframes the BroadcastBuilder viewer (public origin). Reads localStorage
+// directly rather than going through UserContext to avoid the child-effect-
+// fires-before-parent-effect race, which was redirecting authed users back
+// to / on a fresh tab.
 export default function BrandLaunchPage() {
-  var userCtx = useUser();
-  useEffect(function() {
-    if (!userCtx.user) window.location.href = "/";
-  }, [userCtx.user]);
+  var _ok = useState(false), ok = _ok[0], setOk = _ok[1];
 
-  if (!userCtx.user) return null;
+  useEffect(function() {
+    try {
+      var stored = localStorage.getItem("poast-current-user");
+      if (stored) { setOk(true); return; }
+    } catch (e) {}
+    window.location.href = "/";
+  }, []);
+
+  if (!ok) return null;
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "#06060A" }}>
