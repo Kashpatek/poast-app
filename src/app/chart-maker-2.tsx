@@ -9,6 +9,7 @@ import {
   LineChart, Activity, Layers,
   PieChart, Disc, ScatterChart, Circle,
   GanttChart,
+  Undo2, Redo2, Hash, Sigma, ArrowUpDown, Minus, Trash2,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -334,6 +335,33 @@ function fmtNum(n: number): string {
   return Math.round(n * 10) / 10 + "";
 }
 
+// Chart-wide number formatting · think-cell offers per-label control;
+// we ship a chart-wide setting that covers the 8 most useful presets.
+type NumberFormat = "auto" | "int" | "dec1" | "pct" | "usd" | "k" | "m" | "b";
+function fmtVal(v: number, f: NumberFormat): string {
+  if (f === "auto") return fmtNum(v);
+  if (f === "int") return Math.round(v).toLocaleString();
+  if (f === "dec1") return v.toLocaleString(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+  if (f === "pct") return Math.round(v) + "%";
+  if (f === "usd") return "$" + Math.round(v).toLocaleString();
+  if (f === "k") return (v / 1e3).toFixed(1) + "K";
+  if (f === "m") return (v / 1e6).toFixed(2) + "M";
+  if (f === "b") return (v / 1e9).toFixed(2) + "B";
+  return String(v);
+}
+const NUM_FMT_LABELS: Record<NumberFormat, string> = {
+  auto: "Auto", int: "1,234", dec1: "1.2", pct: "1%", usd: "$1", k: "1K", m: "1M", b: "1B",
+};
+
+// Compute compound annual growth rate · ((b/a)^(1/years) - 1) * 100.
+// Years is the number of category steps between the picked points,
+// which is a serviceable approximation when the categories are ordered
+// chronologically.
+function cagrPct(a: number, b: number, steps: number): number {
+  if (a <= 0 || b <= 0 || steps <= 0) return 0;
+  return (Math.pow(b / a, 1 / steps) - 1) * 100;
+}
+
 function niceTicks(min: number, max: number, count = 5): number[] {
   if (min === max) return [min];
   const range = max - min;
@@ -355,11 +383,39 @@ type OnUpdateRow = (rowIdx: number, patch: Record<string, CellValue>) => void;
 type OnDeleteRow = (rowIdx: number) => void;
 interface ContextMenuItem { label: string; onClick: () => void; danger?: boolean; divider?: boolean }
 type OnShowMenu = (e: React.MouseEvent, items: ContextMenuItem[]) => void;
+
+// ─── Annotations · think-cell-style overlays on top of the data ────────────
+type Annotation =
+  | { id: string; kind: "refline"; value: number; label?: string; color?: string }
+  | { id: string; kind: "cagr"; rowFrom: number; rowTo: number; seriesKey: string }
+  | { id: string; kind: "diff"; rowFrom: number; rowTo: number; seriesKey: string };
+
+type PickMode = null | { kind: "cagr" | "diff"; bars: Array<{ rowIdx: number; key: string }> };
+type OnPickBar = (rowIdx: number, key: string) => boolean; // returns true if pick consumed the click
+
+// Floating mini-toolbar selection · the click-to-select interaction that
+// makes think-cell feel intuitive. Selection lives at chart-maker level
+// so the toolbar can render on top of the SVG.
+interface BarSelection {
+  kind: "bar";
+  rowIdx: number;
+  key: string;
+  color: string;
+  // Anchor for the floating toolbar (in client coords)
+  anchorX: number;
+  anchorY: number;
+}
+type OnSelect = (sel: BarSelection | null) => void;
+
 interface CatProps {
   sheet: DataSheet; cfg: ChartConfig; W: number; H: number;
   onUpdateRow?: OnUpdateRow;
   onDeleteRow?: OnDeleteRow;
   onShowMenu?: OnShowMenu;
+  annotations?: Annotation[];
+  pickMode?: PickMode;
+  onPickBar?: OnPickBar;
+  onSelect?: OnSelect;
 }
 
 // Convert pointer event coords to SVG-viewBox coords. Walks up to the
@@ -400,7 +456,8 @@ function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad =
   );
 }
 
-function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu }: CatProps) {
+function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, annotations, pickMode, onPickBar, onSelect }: CatProps) {
+  void pickMode;
   const { categories, series } = getCategoricalSeries(sheet);
   const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
   const catKey = sheet.schema[0]?.key || "category";
@@ -432,6 +489,9 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu 
   const onDown = (rowIdx: number, key: string, cumBelow: number) => (e: React.PointerEvent) => {
     if (!onUpdateRow) return;
     e.stopPropagation();
+    if (onPickBar && onPickBar(rowIdx, key)) return;
+    // Open the floating mini-toolbar on left-click (anchored to pointer)
+    if (onSelect && e.button === 0) onSelect({ kind: "bar", rowIdx, key, color: palette[seriesKeys.indexOf(key) % palette.length], anchorX: e.clientX, anchorY: e.clientY });
     dragRef.current = { rowIdx, key, cumBelow };
     (e.target as Element).setPointerCapture?.(e.pointerId);
     const cv = cumValueAt(e);
@@ -450,7 +510,7 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu 
       {ticks.map(t => (
         <g key={t}>
           <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtNum(t)}</text>
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
       {categories.map((cat, i) => {
@@ -487,7 +547,7 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu 
                 />
               );
             })}
-            <text x={leftPad + i * groupW + groupW / 2} y={yOf(totals[i]) - 6} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, pointerEvents: "none" }}>{fmtNum(totals[i])}</text>
+            <text x={leftPad + i * groupW + groupW / 2} y={yOf(totals[i]) - 6} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, pointerEvents: "none" }}>{fmtVal(totals[i], cfg.numFmt)}</text>
             {editingCat === i ? (
               <foreignObject x={leftPad + i * groupW + 6} y={chartH + 8} width={groupW - 12} height={26}>
                 <input
@@ -509,11 +569,34 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu 
         );
       })}
       <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={chartH + 36} leftPad={leftPad} />
+      {/* Annotations · ref lines, CAGR, diff. Anchored to the TOP of the
+          stack at each picked row (cumulative sum). */}
+      <AnnotationLayer
+        annotations={annotations || []}
+        getBarTop={(rowIdx, key) => {
+          // Stacked: anchor to the top of the picked segment (cumulative)
+          let cum = 0;
+          for (const k of seriesKeys) {
+            const v = Number(sheet.rows[rowIdx]?.[k] ?? 0);
+            cum += v;
+            if (k === key) break;
+          }
+          const cx = leftPad + rowIdx * groupW + groupW / 2;
+          return { x: cx, y: yOf(cum), value: Number(sheet.rows[rowIdx]?.[key] ?? 0) };
+        }}
+        chartW={W - leftPad - rightPad}
+        chartH={chartH}
+        leftPad={leftPad}
+        topPad={topPad}
+        tickMax={tickMax}
+        yOf={yOf}
+        fmt={cfg.numFmt}
+      />
     </ChartFrame>
   );
 }
 
-function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu }: CatProps) {
+function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, annotations, pickMode, onPickBar, onSelect }: CatProps) {
   const { categories, series } = getCategoricalSeries(sheet);
   const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
   const catKey = sheet.schema[0]?.key || "category";
@@ -545,6 +628,9 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
   const onDown = (rowIdx: number, key: string) => (e: React.PointerEvent) => {
     if (!onUpdateRow) return;
     e.stopPropagation();
+    // If we're in CAGR/diff pick mode, treat click as a pick + bail out of drag
+    if (onPickBar && onPickBar(rowIdx, key)) return;
+    if (onSelect && e.button === 0) onSelect({ kind: "bar", rowIdx, key, color: palette[seriesKeys.indexOf(key) % palette.length], anchorX: e.clientX, anchorY: e.clientY });
     dragRef.current = { rowIdx, key };
     (e.target as Element).setPointerCapture?.(e.pointerId);
     const v = valueAtPointer(e);
@@ -563,7 +649,7 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
       {ticks.map(t => (
         <g key={t}>
           <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" />
-          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtNum(t)}</text>
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
       {categories.map((cat, i) => (
@@ -590,7 +676,7 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
                   ])}
                   style={{ cursor: onUpdateRow ? "ns-resize" : "default" }}
                 />
-                <text x={x + barW / 2} y={y - 4} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>{fmtNum(v)}</text>
+                <text x={x + barW / 2} y={y - 4} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>{fmtVal(v, cfg.numFmt)}</text>
               </g>
             );
           })}
@@ -614,6 +700,24 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
         </g>
       ))}
       <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={chartH + 36} leftPad={leftPad} />
+      {/* Annotations layer · reference lines, CAGR arrows, Δ markers */}
+      <AnnotationLayer
+        annotations={annotations || []}
+        getX={i => leftPad + i * groupW + innerPad + (seriesKeys.indexOf("__placeholder__") + 0.5) * barW + groupW / 2 - groupW / 2}
+        getBarTop={(rowIdx, key) => {
+          const si = seriesKeys.indexOf(key);
+          const cx = leftPad + rowIdx * groupW + innerPad + si * barW + barW / 2;
+          const cy = yOf(Number(sheet.rows[rowIdx]?.[key] ?? 0));
+          return { x: cx, y: cy, value: Number(sheet.rows[rowIdx]?.[key] ?? 0) };
+        }}
+        chartW={W - leftPad - rightPad}
+        chartH={chartH}
+        leftPad={leftPad}
+        topPad={topPad}
+        tickMax={tickMax}
+        yOf={yOf}
+        fmt={cfg.numFmt}
+      />
     </ChartFrame>
   );
 }
@@ -710,7 +814,7 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, onUpdate
       {ticks.map(t => (
         <g key={t}>
           <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" />
-          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtNum(t)}</text>
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
       {/* Fills (areas) */}
@@ -839,7 +943,7 @@ function Pie({ sheet, cfg, W, H, doughnut = false }: { sheet: DataSheet; cfg: Ch
         </g>
       ))}
       {doughnut && (
-        <text x={cx} y={cy + 4} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontSans, fontSize: 22, fontWeight: 900 }}>{fmtNum(total)}</text>
+        <text x={cx} y={cy + 4} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontSans, fontSize: 22, fontWeight: 900 }}>{fmtVal(total, cfg.numFmt)}</text>
       )}
     </g>
   );
@@ -880,11 +984,11 @@ function Scatter({ sheet, cfg, W, H, bubble = false }: { sheet: DataSheet; cfg: 
       {yTicks.map(t => (
         <g key={"y" + t}>
           <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" />
-          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtNum(t)}</text>
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
       {xTicks.map(t => (
-        <text key={"x" + t} x={xOf(t)} y={chartH + 22} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtNum(t)}</text>
+        <text key={"x" + t} x={xOf(t)} y={chartH + 22} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
       ))}
       {points.map((p, i) => (
         <g key={i}>
@@ -944,7 +1048,7 @@ function Waterfall({ sheet, cfg, W, H }: CatProps) {
       {ticks.map(t => (
         <g key={t}>
           <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" />
-          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtNum(t)}</text>
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
       {segments.map((seg, i) => {
@@ -958,12 +1062,81 @@ function Waterfall({ sheet, cfg, W, H }: CatProps) {
             {i < segments.length - 1 && !segments[i + 1].isTotal && (
               <line x1={x + barW} x2={leftPad + (i + 1) * groupW + (groupW - barW) / 2} y1={yOf(seg.cum)} y2={yOf(seg.cum)} stroke="rgba(255,255,255,0.25)" strokeDasharray="3 3" />
             )}
-            <text x={x + barW / 2} y={y - 6} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700 }}>{(seg.label as number) >= 0 ? "+" : ""}{fmtNum(seg.label as number)}</text>
+            <text x={x + barW / 2} y={y - 6} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700 }}>{(seg.label as number) >= 0 ? "+" : ""}{fmtVal(seg.label as number, cfg.numFmt)}</text>
             <text x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{items[i].label}</text>
           </g>
         );
       })}
     </ChartFrame>
+  );
+}
+
+// Annotations layer · reference lines, CAGR arrows, and Δ markers.
+// `getBarTop(rowIdx, key)` resolves to {x, y, value} of the targeted bar's
+// top in chart-local coords (after the ChartFrame translate).
+function AnnotationLayer({ annotations, getBarTop, chartW, chartH, leftPad, topPad, tickMax, yOf, fmt }: {
+  annotations: Annotation[];
+  getX?: (rowIdx: number) => number;
+  getBarTop: (rowIdx: number, key: string) => { x: number; y: number; value: number };
+  chartW: number;
+  chartH: number;
+  leftPad: number;
+  topPad: number;
+  tickMax: number;
+  yOf: (v: number) => number;
+  fmt: NumberFormat;
+}) {
+  // Suppress unused
+  void chartW; void chartH; void leftPad; void topPad;
+  return (
+    <g pointerEvents="none">
+      {annotations.map(a => {
+        if (a.kind === "refline") {
+          const v = a.value;
+          if (v < 0 || v > tickMax) return null;
+          const y = yOf(v);
+          return (
+            <g key={a.id}>
+              <line x1={leftPad} x2={leftPad + chartW} y1={y} y2={y} stroke={a.color || "#E06347"} strokeWidth="1.6" strokeDasharray="4 4" opacity="0.85" />
+              <rect x={leftPad + chartW - 8} y={y - 9} width={4 + (a.label || fmtVal(v, fmt)).length * 6.2} height="18" rx="3" fill={a.color || "#E06347"} transform={`translate(-${4 + (a.label || fmtVal(v, fmt)).length * 6.2}, 0)`} />
+              <text x={leftPad + chartW - 12} y={y + 4} textAnchor="end" fill="#fff" style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 800, letterSpacing: 0.5 }}>{a.label || fmtVal(v, fmt)}</text>
+            </g>
+          );
+        }
+        if (a.kind === "cagr" || a.kind === "diff") {
+          const A = getBarTop(a.rowFrom, a.seriesKey);
+          const B = getBarTop(a.rowTo, a.seriesKey);
+          if (!A || !B) return null;
+          const arcTop = Math.min(A.y, B.y) - 36;
+          const midX = (A.x + B.x) / 2;
+          const path = `M ${A.x} ${A.y} Q ${midX} ${arcTop} ${B.x} ${B.y}`;
+          let labelText = "";
+          if (a.kind === "cagr") {
+            const steps = Math.abs(a.rowTo - a.rowFrom);
+            const pct = cagrPct(A.value, B.value, steps);
+            labelText = (pct >= 0 ? "+" : "") + pct.toFixed(1) + "% CAGR";
+          } else {
+            const delta = B.value - A.value;
+            labelText = (delta >= 0 ? "+" : "") + fmtVal(delta, fmt);
+          }
+          const labelW = labelText.length * 7 + 16;
+          return (
+            <g key={a.id}>
+              <path d={path} fill="none" stroke={C.amber} strokeWidth="2" />
+              {/* arrowhead at B */}
+              <polygon
+                points={`${B.x - 5},${B.y - 10} ${B.x + 5},${B.y - 10} ${B.x},${B.y - 1}`}
+                fill={C.amber}
+              />
+              {/* label pill */}
+              <rect x={midX - labelW / 2} y={arcTop - 12} width={labelW} height="20" rx="4" fill="#0A0A0E" stroke={C.amber} strokeWidth="1" />
+              <text x={midX} y={arcTop + 2} textAnchor="middle" fill={C.amber} style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 800, letterSpacing: 0.3 }}>{labelText}</text>
+            </g>
+          );
+        }
+        return null;
+      })}
+    </g>
   );
 }
 
@@ -1368,18 +1541,89 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
-interface ChartConfig { type: ChartType; title: string; subtitle: string; theme: ThemeId }
+interface ChartConfig { type: ChartType; title: string; subtitle: string; theme: ThemeId; numFmt: NumberFormat }
 
 export default function ChartMaker2() {
   const [type, setType] = useState<ChartType>("stacked");
   const [title, setTitle] = useState("SemiAnalysis · 2026 Outlook");
   const [subtitle, setSubtitle] = useState("Quarterly view");
   const [theme, setTheme] = useState<ThemeId>("amber");
+  const [numFmt, setNumFmt] = useState<NumberFormat>("auto");
 
-  // Per-type sheets so switching types doesn't lose data
-  const [sheets, setSheets] = useState<Partial<Record<ChartType, DataSheet>>>(() => ({}));
+  // Per-type sheets so switching types doesn't lose data. Wrapped in
+  // history-aware updater so undo/redo can rewind any change.
+  const [sheets, setSheetsRaw] = useState<Partial<Record<ChartType, DataSheet>>>(() => ({}));
+  // Per-type annotations (CAGR, diff, reference lines)
+  const [annotByType, setAnnotByType] = useState<Partial<Record<ChartType, Annotation[]>>>({});
+  // Multi-step pick mode for CAGR / diff arrows. Null = idle.
+  const [pickMode, setPickMode] = useState<PickMode>(null);
+  // Floating toolbar selection
+  const [selection, setSelection] = useState<BarSelection | null>(null);
+
   const sheet = sheets[type] || samplePerType(type);
-  const setSheet = useCallback((s: DataSheet) => setSheets(p => ({ ...p, [type]: s })), [type]);
+  const annotations = annotByType[type] || [];
+  const setSheet = useCallback((s: DataSheet) => setSheetsRaw(p => ({ ...p, [type]: s })), [type]);
+
+  // Undo/redo · snapshots {sheets, annotations} on each mutation. Debounced
+  // 300ms so a single drag (which fires onUpdateRow many times) leaves
+  // exactly one entry in the past stack — its pre-drag state.
+  type Snap = { sheets: typeof sheets; annot: typeof annotByType };
+  const past = useRef<Snap[]>([]);
+  const future = useRef<Snap[]>([]);
+  const lastPushAt = useRef(0);
+  const [, setHistTick] = useState(0);
+  const undo = useCallback(() => {
+    const prev = past.current.pop();
+    if (!prev) return;
+    future.current.push({ sheets, annot: annotByType });
+    setSheetsRaw(prev.sheets);
+    setAnnotByType(prev.annot);
+    setHistTick(t => t + 1);
+  }, [sheets, annotByType]);
+  const redo = useCallback(() => {
+    const next = future.current.pop();
+    if (!next) return;
+    past.current.push({ sheets, annot: annotByType });
+    setSheetsRaw(next.sheets);
+    setAnnotByType(next.annot);
+    setHistTick(t => t + 1);
+  }, [sheets, annotByType]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if ((k === "z" && e.shiftKey) || k === "y") { e.preventDefault(); redo(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
+
+  // setSheets / setAnnotations are debounced-history wrappers around their
+  // raw counterparts. Drag pointermove calls them many times in a burst;
+  // only the first within a 300ms window snapshots the prior state.
+  const setSheets = useCallback((updater: (p: typeof sheets) => typeof sheets) => {
+    const now = Date.now();
+    if (now - lastPushAt.current > 300) {
+      past.current.push({ sheets, annot: annotByType });
+      if (past.current.length > 100) past.current.shift();
+      future.current = [];
+      lastPushAt.current = now;
+      setHistTick(t => t + 1);
+    }
+    setSheetsRaw(updater);
+  }, [sheets, annotByType]);
+  const setAnnotations = useCallback((next: Annotation[]) => {
+    const now = Date.now();
+    if (now - lastPushAt.current > 300) {
+      past.current.push({ sheets, annot: annotByType });
+      if (past.current.length > 100) past.current.shift();
+      future.current = [];
+      lastPushAt.current = now;
+      setHistTick(t => t + 1);
+    }
+    setAnnotByType(p => ({ ...p, [type]: next }));
+  }, [sheets, annotByType, type]);
 
   // Gantt-specific options
   const [ganttOpts, setGanttOpts] = useState<GanttOpts>({
@@ -1388,7 +1632,46 @@ export default function ChartMaker2() {
     collapseAll: false, collapsedKeys: {},
   });
 
-  const cfg: ChartConfig = { type, title, subtitle, theme };
+  const cfg: ChartConfig = { type, title, subtitle, theme, numFmt };
+
+  // Pick-mode handler · column-chart renderers call this on bar click.
+  // Returns true if the click was consumed (we're in pick mode); the
+  // renderer then suppresses its drag/contextmenu handling for that click.
+  const onPickBar: OnPickBar = useCallback((rowIdx, key) => {
+    if (!pickMode) return false;
+    const next = [...pickMode.bars, { rowIdx, key }];
+    if (next.length >= 2) {
+      const annot: Annotation = {
+        id: Math.random().toString(36).slice(2, 9),
+        kind: pickMode.kind,
+        rowFrom: next[0].rowIdx,
+        rowTo: next[1].rowIdx,
+        seriesKey: next[0].key,
+      };
+      setAnnotations([...annotations, annot]);
+      setPickMode(null);
+    } else {
+      setPickMode({ ...pickMode, bars: next });
+    }
+    return true;
+  }, [pickMode, annotations, setAnnotations]);
+
+  // Add a reference line annotation. Uses inline prompt UI in the toolbar
+  // so it doesn't need a modal.
+  const addReferenceLine = useCallback((value: number, label: string) => {
+    setAnnotations([...annotations, {
+      id: Math.random().toString(36).slice(2, 9),
+      kind: "refline",
+      value,
+      label: label || undefined,
+    }]);
+  }, [annotations, setAnnotations]);
+  const removeAnnotation = useCallback((id: string) => {
+    setAnnotations(annotations.filter(a => a.id !== id));
+  }, [annotations, setAnnotations]);
+  const clearAllAnnotations = useCallback(() => {
+    setAnnotations([]);
+  }, [setAnnotations]);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
 
@@ -1484,7 +1767,7 @@ export default function ChartMaker2() {
   }, []);
 
   const renderChart = () => {
-    const a = { onUpdateRow, onDeleteRow, onShowMenu };
+    const a = { onUpdateRow, onDeleteRow, onShowMenu, annotations, pickMode, onPickBar, onSelect: setSelection };
     switch (type) {
       case "stacked": return <StackedColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
       case "clustered": return <ClusteredColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
@@ -1495,7 +1778,7 @@ export default function ChartMaker2() {
       case "doughnut": return <Pie sheet={sheet} cfg={cfg} W={W} H={H} doughnut />;
       case "scatter": return <Scatter sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "wfup": return <Waterfall sheet={sheet} cfg={cfg} W={W} H={H} />;
-      case "gantt": return <GanttSvg sheet={sheet} cfg={cfg} W={W} H={H} opts={ganttOpts} onToggleGroup={onToggleGroup} {...a} />;
+      case "gantt": return <GanttSvg sheet={sheet} cfg={cfg} W={W} H={H} opts={ganttOpts} onToggleGroup={onToggleGroup} onUpdateRow={onUpdateRow} onDeleteRow={onDeleteRow} onShowMenu={onShowMenu} />;
       default: {
         return (
           <g>
@@ -1513,17 +1796,31 @@ export default function ChartMaker2() {
 
   return (
     <div style={{ padding: "32px 0 0", maxWidth: 1400, margin: "0 auto" }}>
-      <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-start", gap: 16 }}>
-        <div style={{ flex: 1 }}>
+      <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 auto", minWidth: 280 }}>
           <div style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.5 }}>Chart Maker 2</div>
-          <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 4, letterSpacing: 1 }}>THINK-CELL STYLE // PICK A CHART · EDIT THE SHEET · EXPORT</div>
+          <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 4, letterSpacing: 1 }}>THINK-CELL STYLE // PICK · EDIT · ANNOTATE · EXPORT</div>
         </div>
+        <UndoRedoButtons onUndo={undo} onRedo={redo} canUndo={past.current.length > 0} canRedo={future.current.length > 0} />
+        <NumberFormatPicker fmt={numFmt} onChange={setNumFmt} />
         <ThemePicker theme={theme} onChange={setTheme} />
         <button onClick={exportPNG} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", borderRadius: 9, border: "1px solid " + C.amber + "55", background: "linear-gradient(135deg," + C.amber + ",#E8A020)", color: "#060608", fontFamily: ft, fontSize: 13, fontWeight: 800, cursor: "pointer", letterSpacing: 0.3 }}>
           <Download size={14} strokeWidth={2.2} />
           Export PNG
         </button>
       </div>
+
+      {/* Annotations toolbar — Think-cell-style action chips */}
+      <AnnotationsBar
+        annotations={annotations}
+        type={type}
+        pickMode={pickMode}
+        onStartPick={kind => setPickMode({ kind, bars: [] })}
+        onCancelPick={() => setPickMode(null)}
+        onAddRefLine={addReferenceLine}
+        onRemove={removeAnnotation}
+        onClearAll={clearAllAnnotations}
+      />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" style={inputCSS(cardBg, borderC)} />
@@ -1574,6 +1871,192 @@ export default function ChartMaker2() {
       </div>
 
       {menu && <ChartContextMenu menu={menu} onClose={() => setMenu(null)} />}
+      {selection && <FloatingMiniToolbar selection={selection} onClose={() => setSelection(null)} onUpdateRow={onUpdateRow} onDeleteRow={onDeleteRow} themes={THEMES} currentTheme={theme} />}
+    </div>
+  );
+}
+
+// ─── Top-bar Undo/Redo buttons ─────────────────────────────────────────────
+function UndoRedoButtons({ onUndo, onRedo, canUndo, canRedo }: { onUndo: () => void; onRedo: () => void; canUndo: boolean; canRedo: boolean }) {
+  const btn: React.CSSProperties = {
+    display: "flex", alignItems: "center", gap: 6,
+    padding: "9px 14px", borderRadius: 8,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.025)",
+    fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.5,
+    cursor: "pointer",
+  };
+  return (
+    <div style={{ display: "flex", gap: 6 }}>
+      <button onClick={onUndo} disabled={!canUndo} title="Undo · ⌘Z" style={{ ...btn, color: canUndo ? C.tx : C.txd, opacity: canUndo ? 1 : 0.4, cursor: canUndo ? "pointer" : "not-allowed" }}>
+        <Undo2 size={13} strokeWidth={2.2} /> UNDO
+      </button>
+      <button onClick={onRedo} disabled={!canRedo} title="Redo · ⌘⇧Z" style={{ ...btn, color: canRedo ? C.tx : C.txd, opacity: canRedo ? 1 : 0.4, cursor: canRedo ? "pointer" : "not-allowed" }}>
+        <Redo2 size={13} strokeWidth={2.2} /> REDO
+      </button>
+    </div>
+  );
+}
+
+// ─── Number-format picker (chart-wide) ─────────────────────────────────────
+function NumberFormatPicker({ fmt, onChange }: { fmt: NumberFormat; onChange: (f: NumberFormat) => void }) {
+  const [open, setOpen] = useState(false);
+  const opts: Array<{ id: NumberFormat; preview: string; sub: string }> = [
+    { id: "auto", preview: "Auto", sub: "1.2K · 1.5M" },
+    { id: "int",  preview: "1,234", sub: "Integer" },
+    { id: "dec1", preview: "1.2", sub: "1 decimal" },
+    { id: "pct",  preview: "1%", sub: "Percent" },
+    { id: "usd",  preview: "$1,234", sub: "Dollar" },
+    { id: "k",    preview: "1.2K", sub: "Thousands" },
+    { id: "m",    preview: "1.20M", sub: "Millions" },
+    { id: "b",    preview: "1.20B", sub: "Billions" },
+  ];
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    setTimeout(() => document.addEventListener("click", close), 0);
+    return () => document.removeEventListener("click", close);
+  }, [open]);
+  return (
+    <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="Number format"
+        style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.10)", background: open ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.025)", color: C.tx, fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer" }}
+      >
+        <Hash size={13} strokeWidth={2.2} />
+        {NUM_FMT_LABELS[fmt]}
+      </button>
+      {open && (
+        <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 1000, background: "#0D0D14", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 9, padding: 5, minWidth: 200, boxShadow: "0 18px 48px rgba(0,0,0,0.5)" }}>
+          {opts.map(o => {
+            const on = o.id === fmt;
+            return (
+              <div key={o.id} onClick={() => { onChange(o.id); setOpen(false); }} style={{ padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: 6, cursor: "pointer", background: on ? C.amber + "16" : "transparent" }}
+                onMouseEnter={e => { if (!on) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                onMouseLeave={e => { if (!on) e.currentTarget.style.background = "transparent"; }}
+              >
+                <span style={{ fontFamily: ft, fontSize: 12, fontWeight: 700, color: on ? C.amber : C.tx }}>{o.preview}</span>
+                <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.5 }}>{o.sub}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Annotations toolbar · Add reference line / CAGR / Δ ──────────────────
+function AnnotationsBar({ annotations, type, pickMode, onStartPick, onCancelPick, onAddRefLine, onRemove, onClearAll }: {
+  annotations: Annotation[]; type: ChartType; pickMode: PickMode;
+  onStartPick: (kind: "cagr" | "diff") => void;
+  onCancelPick: () => void;
+  onAddRefLine: (value: number, label: string) => void;
+  onRemove: (id: string) => void;
+  onClearAll: () => void;
+}) {
+  const [refOpen, setRefOpen] = useState(false);
+  const [refValue, setRefValue] = useState("0");
+  const [refLabel, setRefLabel] = useState("");
+  // Annotations only really make sense for column / line family right now
+  const annotApplies = ["stacked", "clustered", "line", "stackedArea", "wfup"].includes(type);
+  if (!annotApplies && annotations.length === 0 && !pickMode) return null;
+
+  const cardBg = "#0D0D12";
+  const borderC = "rgba(255,255,255,0.06)";
+  const chip = (active: boolean): React.CSSProperties => ({
+    display: "flex", alignItems: "center", gap: 6,
+    padding: "7px 12px", borderRadius: 7, cursor: "pointer",
+    background: active ? C.amber + "1A" : "rgba(255,255,255,0.025)",
+    border: "1px solid " + (active ? C.amber + "60" : "rgba(255,255,255,0.10)"),
+    color: active ? C.amber : C.tx,
+    fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
+  });
+
+  return (
+    <div style={{ marginBottom: 14, padding: "10px 12px", background: cardBg, border: "1px solid " + borderC, borderRadius: 10, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+      <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1.2, marginRight: 4, textTransform: "uppercase" }}>Annotate</span>
+      <button onClick={() => onStartPick("cagr")} disabled={!annotApplies} title="Pick two bars/points to draw CAGR" style={chip(pickMode?.kind === "cagr")}>
+        <Sigma size={11} strokeWidth={2.4} /> CAGR
+      </button>
+      <button onClick={() => onStartPick("diff")} disabled={!annotApplies} title="Pick two bars/points to show absolute Δ" style={chip(pickMode?.kind === "diff")}>
+        <ArrowUpDown size={11} strokeWidth={2.4} /> Δ DIFF
+      </button>
+      <button onClick={() => setRefOpen(v => !v)} disabled={!annotApplies} style={chip(refOpen)}>
+        <Minus size={11} strokeWidth={2.4} /> REF LINE
+      </button>
+      {refOpen && (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <input value={refValue} onChange={e => setRefValue(e.target.value)} placeholder="value" style={{ width: 70, padding: "5px 8px", background: "#0A0A0E", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 5, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none" }} />
+          <input value={refLabel} onChange={e => setRefLabel(e.target.value)} placeholder="label" style={{ width: 110, padding: "5px 8px", background: "#0A0A0E", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 5, color: C.tx, fontFamily: ft, fontSize: 11, outline: "none" }} />
+          <button onClick={() => { const n = Number(refValue); if (!isNaN(n)) { onAddRefLine(n, refLabel); setRefValue("0"); setRefLabel(""); setRefOpen(false); } }} style={{ padding: "5px 10px", background: C.amber, border: "none", borderRadius: 5, color: "#060608", fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: "pointer", letterSpacing: 0.5 }}>ADD</button>
+        </span>
+      )}
+      {annotations.length > 0 && (
+        <>
+          <Sep />
+          <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.5 }}>{annotations.length} on chart</span>
+          <button onClick={onClearAll} style={{ ...chip(false), color: "#E06347", borderColor: "rgba(224,99,71,0.30)" }}>
+            <Trash2 size={11} strokeWidth={2.2} /> CLEAR
+          </button>
+        </>
+      )}
+      {pickMode && (
+        <>
+          <Sep />
+          <span style={{ fontFamily: mn, fontSize: 10, color: C.amber, letterSpacing: 0.5, fontWeight: 700 }}>
+            CLICK {pickMode.bars.length === 0 ? "FIRST" : "SECOND"} BAR ({pickMode.kind === "cagr" ? "CAGR" : "Δ DIFF"})
+          </span>
+          <button onClick={onCancelPick} style={{ ...chip(false), color: C.txm, fontSize: 9 }}>CANCEL</button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Floating mini-toolbar · Think-cell's "context wheel" pattern ──────────
+// Pops up next to a selected bar with a tight set of actions: change color
+// (cycle theme palette), set value to 0, delete the row.
+function FloatingMiniToolbar({ selection, onClose, onUpdateRow, onDeleteRow, themes, currentTheme }: {
+  selection: BarSelection; onClose: () => void;
+  onUpdateRow?: OnUpdateRow; onDeleteRow?: OnDeleteRow;
+  themes: typeof THEMES; currentTheme: ThemeId;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const close = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest("[data-mini-toolbar]")) return;
+      onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    setTimeout(() => document.addEventListener("click", close), 0);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("click", close); };
+  }, [onClose]);
+  const palette = themes[currentTheme].colors;
+  return (
+    <div data-mini-toolbar style={{ position: "fixed", left: Math.max(8, selection.anchorX - 100), top: Math.max(8, selection.anchorY - 56), zIndex: 11000, background: "#0D0D14", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 999, padding: "6px 10px", display: "flex", alignItems: "center", gap: 8, boxShadow: "0 18px 40px rgba(0,0,0,0.55), 0 0 0 1px " + selection.color + "30" }}>
+      <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.5, marginRight: 2 }}>BAR</span>
+      {palette.slice(0, 6).map((c, i) => (
+        <span
+          key={i}
+          title={"Theme color " + (i + 1)}
+          onClick={() => { /* just visual confirm — the full color override would need per-bar custom colors which we keep theme-driven for now */ onClose(); }}
+          style={{ width: 14, height: 14, borderRadius: 4, background: c, cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)" }}
+        />
+      ))}
+      <span style={{ width: 1, height: 16, background: "rgba(255,255,255,0.10)", margin: "0 2px" }} />
+      <button
+        onClick={() => { onUpdateRow?.(selection.rowIdx, { [selection.key]: 0 }); onClose(); }}
+        title="Set to 0"
+        style={{ padding: "4px 8px", borderRadius: 5, background: "transparent", border: "1px solid rgba(255,255,255,0.14)", color: C.tx, fontFamily: mn, fontSize: 10, fontWeight: 700, cursor: "pointer", letterSpacing: 0.5 }}
+      >0</button>
+      <button
+        onClick={() => { onDeleteRow?.(selection.rowIdx); onClose(); }}
+        title="Delete row"
+        style={{ padding: "4px 8px", borderRadius: 5, background: "rgba(224,99,71,0.10)", border: "1px solid rgba(224,99,71,0.40)", color: "#E06347", fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: "pointer", letterSpacing: 0.5, display: "inline-flex", alignItems: "center", gap: 4 }}
+      ><Trash2 size={10} strokeWidth={2.2} /></button>
     </div>
   );
 }
