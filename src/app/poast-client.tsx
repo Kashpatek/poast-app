@@ -1532,6 +1532,16 @@ function AssetLibraryEmbed() {
         /* Thumbnails grow with the preview pane width */
         .al-host [data-sa-scope="sa-al0aldn"] .al-pv-card { max-width: min(640px, 96%) !important; width: 100%; }
         .al-host [data-sa-scope="sa-al0aldn"] .al-pv-thumb:not(.mini) { height: clamp(140px, 24vh, 280px) !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-folder { max-width: min(820px, 96%) !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-thumb.mini { height: clamp(120px, 20vh, 200px) !important; }
+        /* Larger tree fonts */
+        .al-host [data-sa-scope="sa-al0aldn"] .al-tree-title { font-size: 12px !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] details > summary .al-name { font-size: 15px !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] details > summary .al-count { font-size: 11px !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-leaf { font-size: 13px !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-leaf .al-pill { font-size: 9.5px !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-mini-name { font-size: 13px !important; padding: 9px 11px !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-mini-ext { font-size: 9.5px !important; padding: 0 11px 10px !important; }
       `}</style>
       {/* The embedded host scrolls when content overflows; the slide
           inside it is locked to 100% height so child scroll containers

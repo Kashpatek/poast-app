@@ -62,7 +62,7 @@
     max-height: 100%;
     overflow: auto;
   }
-  /* Thumbnails scale with the right pane instead of being capped at 380px */
+  /* Thumbnails scale with the right pane instead of being capped */
   [data-sa-scope="sa-al0aldn"] .al-pv-card {
     max-width: min(640px, 96%) !important;
     width: 100%;
@@ -70,6 +70,21 @@
   [data-sa-scope="sa-al0aldn"] .al-pv-thumb:not(.mini) {
     height: clamp(160px, 26vh, 320px) !important;
   }
+  /* Folder grid (multiple minis) — widen so logos read at brand-sized */
+  [data-sa-scope="sa-al0aldn"] .al-pv-folder {
+    max-width: min(820px, 96%) !important;
+  }
+  [data-sa-scope="sa-al0aldn"] .al-pv-thumb.mini {
+    height: clamp(140px, 22vh, 220px) !important;
+  }
+  /* File browser tree — larger fonts for readability */
+  [data-sa-scope="sa-al0aldn"] .al-tree-title { font-size: 12px !important; }
+  [data-sa-scope="sa-al0aldn"] details > summary .al-name { font-size: 16px !important; }
+  [data-sa-scope="sa-al0aldn"] details > summary .al-count { font-size: 11px !important; }
+  [data-sa-scope="sa-al0aldn"] .al-leaf { font-size: 13.5px !important; }
+  [data-sa-scope="sa-al0aldn"] .al-leaf .al-pill { font-size: 9.5px !important; }
+  [data-sa-scope="sa-al0aldn"] .al-pv-mini-name { font-size: 13px !important; padding: 9px 11px !important; }
+  [data-sa-scope="sa-al0aldn"] .al-pv-mini-ext { font-size: 9.5px !important; padding: 0 11px 10px !important; }
   /* Strip the deck's ambient decoration */
   .sa-stars, .sa-orb, .sa-flare { display: none !important; }
   /* Baseline styles for elements that deck.html provides globally
