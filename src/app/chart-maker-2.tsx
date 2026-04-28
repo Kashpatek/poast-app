@@ -10,7 +10,7 @@ import {
   PieChart, Disc, ScatterChart, Circle,
   GanttChart,
   Undo2, Redo2, Hash, Sigma, ArrowUpDown, Minus, Trash2,
-  FileCode2, ArrowLeftRight,
+  FileCode2, ArrowLeftRight, Square, Diamond, MinusSquare,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -23,15 +23,38 @@ type ChartType =
   | "mekkoUnit" | "pie" | "doughnut" | "scatter" | "bubble"
   | "variance" | "gantt";
 
-type ThemeId = "amber" | "cool" | "warm" | "neutral";
+type ThemeId = "core" | "spectrum" | "brand";
 
-// Series colors per theme. The first color is the most prominent (used for
-// the dominant series, accents, totals).
-const THEMES: Record<ThemeId, { name: string; colors: string[] }> = {
-  amber:   { name: "Amber",  colors: [C.amber, "#E8A020", C.coral, "#905CCB", "#26C9D8", "#7BD893"] },
-  cool:    { name: "Cool",   colors: [C.blue, C.teal, "#26C9D8", "#5BAEE0", "#7BD893", "#905CCB"] },
-  warm:    { name: "Warm",   colors: [C.amber, C.coral, "#E8A020", "#FF8B5A", "#D88010", "#905CCB"] },
-  neutral: { name: "Mono",   colors: ["#E8E4DD", "#A8A4A0", "#7E7B78", "#5C5A57", "#3F3D3B", "#28272A"] },
+// Three palettes: Core (12 saturated, brand-friendly hues), Spectrum
+// (12 colors spanning the full hue circle), Brand (SA brand colors +
+// neutrals for slide work). Each renderer cycles palette[i % length]
+// so as long as series count <= 12, every series gets a unique color.
+const THEMES: Record<ThemeId, { name: string; sub: string; colors: string[] }> = {
+  core: {
+    name: "Core",
+    sub: "12 saturated brand-friendly hues",
+    colors: [
+      C.amber, C.blue, C.teal, C.coral, "#905CCB", "#26C9D8",
+      "#E8A020", "#0F5C8E", "#1D7762", "#C04830", "#6F40A8", "#1AA0AE",
+    ],
+  },
+  spectrum: {
+    name: "Spectrum",
+    sub: "12 colors across the hue wheel",
+    colors: [
+      "#E06347", "#F7913A", "#F7B041", "#F0DC4F",
+      "#B5DC4F", "#4FBF6B", "#2EAD8E", "#26C9D8",
+      "#0B86D1", "#6E5BD4", "#905CCB", "#C45CB5",
+    ],
+  },
+  brand: {
+    name: "Brand",
+    sub: "SA brand + neutrals",
+    colors: [
+      C.amber, C.blue, C.teal, C.coral, "#905CCB", "#26C9D8",
+      "#E8E4DD", "#A8A4A0", "#7E7B78", "#5C5A57", "#3F3D3B", "#28272A",
+    ],
+  },
 };
 
 // ─── Sample data per chart type ────────────────────────────────────────────
@@ -412,16 +435,27 @@ function niceTicks(min: number, max: number, count = 5): number[] {
 // ═══════════════════════════════════════════════════════════════════════════
 type OnUpdateRow = (rowIdx: number, patch: Record<string, CellValue>) => void;
 type OnDeleteRow = (rowIdx: number) => void;
-interface ContextMenuItem { label: string; onClick: () => void; danger?: boolean; divider?: boolean }
+type LucideIconCmp = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string }>;
+type ContextMenuItem =
+  | { label: string; onClick: () => void; danger?: boolean; divider?: boolean }
+  | { kind: "iconRow"; icons: Array<{ Icon: LucideIconCmp; title: string; active?: boolean; onClick: () => void }> }
+  | { kind: "swatchRow"; colors: string[]; onPick: (color: string | null) => void; current?: string };
 type OnShowMenu = (e: React.MouseEvent, items: ContextMenuItem[]) => void;
 
 // ─── Annotations · think-cell-style overlays on top of the data ────────────
 type Annotation =
   | { id: string; kind: "refline"; value: number; label?: string; color?: string }
   | { id: string; kind: "cagr"; rowFrom: number; rowTo: number; seriesKey: string }
-  | { id: string; kind: "diff"; rowFrom: number; rowTo: number; seriesKey: string };
+  | { id: string; kind: "diff"; rowFrom: number; rowTo: number; seriesKey: string }
+  // Free-form text callout placed via the ANNOTATE tool. x/y are in
+  // SVG viewBox coords so positions stay stable across re-renders.
+  | { id: string; kind: "callout"; x: number; y: number; text: string; color?: string };
 
 type PickMode = null | { kind: "cagr" | "diff"; bars: Array<{ rowIdx: number; key: string }> };
+// Single-click placement mode for the ANNOTATE TEXT tool — distinct
+// from pickMode (multi-step). Click anywhere on the chart background
+// to drop a callout.
+type PlaceMode = null | { kind: "callout" };
 type OnPickBar = (rowIdx: number, key: string) => boolean; // returns true if pick consumed the click
 
 // Floating mini-toolbar selection · the click-to-select interaction that
@@ -447,6 +481,8 @@ interface CatProps {
   pickMode?: PickMode;
   onPickBar?: OnPickBar;
   onSelect?: OnSelect;
+  // Per-series color override (changes apply to the whole series).
+  onSetSeriesColor?: (key: string, color: string | null) => void;
 }
 
 // Convert pointer event coords to SVG-viewBox coords. Walks up to the
@@ -487,12 +523,17 @@ function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad =
   );
 }
 
-function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, annotations, pickMode, onPickBar, onSelect }: CatProps) {
+function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, annotations, pickMode, onPickBar, onSelect, onSetSeriesColor }: CatProps) {
   void pickMode;
   const { categories, series } = getCategoricalSeries(sheet);
   const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
   const catKey = sheet.schema[0]?.key || "category";
   const palette = THEMES[cfg.theme].colors;
+  // Series color resolver — per-series override > theme palette[i]
+  const colorOf = (key: string, idx: number) => cfg.seriesColors?.[key] || palette[idx % palette.length];
+  const legendSwatchClick = onSetSeriesColor && onShowMenu ? (key: string, e: React.MouseEvent) => onShowMenu(e, [
+    { kind: "swatchRow", colors: palette, current: cfg.seriesColors?.[key], onPick: c => onSetSeriesColor(key, c) },
+  ]) : undefined;
   const [editingCat, setEditingCat] = useState<number | null>(null);
   const leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 48;
   const chartW = W - leftPad - rightPad;
@@ -562,7 +603,7 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
                   y={y1}
                   width={barW}
                   height={Math.max(0, y0 - y1)}
-                  fill={palette[si % palette.length]}
+                  fill={colorOf(seriesKeys[si], si)}
                   stroke="#0A0A0E"
                   strokeWidth="1"
                   onPointerDown={onDown(i, key, cumBelow)}
@@ -599,7 +640,7 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
           </g>
         );
       })}
-      <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={chartH + 36} leftPad={leftPad} />
+      <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} />
       {/* Annotations · ref lines, CAGR, diff. Anchored to the TOP of the
           stack at each picked row (cumulative sum). */}
       <AnnotationLayer
@@ -627,12 +668,16 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
   );
 }
 
-function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, annotations, pickMode, onPickBar, onSelect }: CatProps) {
+function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, annotations, pickMode, onPickBar, onSelect, onSetSeriesColor }: CatProps) {
   const { categories, series } = getCategoricalSeries(sheet);
   const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
   const catKey = sheet.schema[0]?.key || "category";
   const [editingCat, setEditingCat] = useState<number | null>(null);
   const palette = THEMES[cfg.theme].colors;
+  const colorOf = (key: string, idx: number) => cfg.seriesColors?.[key] || palette[idx % palette.length];
+  const legendSwatchClick = onSetSeriesColor && onShowMenu ? (key: string, e: React.MouseEvent) => onShowMenu(e, [
+    { kind: "swatchRow", colors: palette, current: cfg.seriesColors?.[key], onPick: c => onSetSeriesColor(key, c) },
+  ]) : undefined;
   const leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 48;
   const chartW = W - leftPad - rightPad;
   const chartH = H - topPad - bottomPad;
@@ -694,7 +739,7 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
               <g key={si}>
                 <rect
                   x={x + 1} y={y} width={barW - 2} height={chartH - y}
-                  fill={palette[si % palette.length]}
+                  fill={colorOf(seriesKeys[si], si)}
                   onPointerDown={onDown(i, key)}
                   onPointerMove={onMove}
                   onPointerUp={onUp}
@@ -730,7 +775,7 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
           )}
         </g>
       ))}
-      <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={chartH + 36} leftPad={leftPad} />
+      <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} />
       {/* Annotations layer · reference lines, CAGR arrows, Δ markers */}
       <AnnotationLayer
         annotations={annotations || []}
@@ -1000,12 +1045,22 @@ function Scatter({ sheet, cfg, W, H, bubble = false }: { sheet: DataSheet; cfg: 
   const chartH = H - topPad - bottomPad;
   const xs = points.map(p => p.x);
   const ys = points.map(p => p.y);
+  // Scale range = data min/max with 5% padding on each side. Ticks come
+  // from niceTicks but only inform labels; the range is what positions
+  // points. Previously the range used niceTicks[0]/[last] which could
+  // start ABOVE the actual min, pushing points off-canvas to the left.
   const xMin = Math.min(...xs), xMax = Math.max(...xs);
   const yMin = Math.min(...ys), yMax = Math.max(...ys);
-  const xTicks = niceTicks(xMin, xMax, 5);
-  const yTicks = niceTicks(yMin, yMax, 5);
-  const xOf = (v: number) => leftPad + ((v - xTicks[0]) / Math.max(0.0001, xTicks[xTicks.length - 1] - xTicks[0])) * chartW;
-  const yOf = (v: number) => chartH - ((v - yTicks[0]) / Math.max(0.0001, yTicks[yTicks.length - 1] - yTicks[0])) * chartH;
+  const xPad = (xMax - xMin || 1) * 0.06;
+  const yPad = (yMax - yMin || 1) * 0.08;
+  const xRangeMin = xMin - xPad;
+  const xRangeMax = xMax + xPad;
+  const yRangeMin = yMin - yPad;
+  const yRangeMax = yMax + yPad;
+  const xTicks = niceTicks(xRangeMin, xRangeMax, 5).filter(t => t >= xRangeMin && t <= xRangeMax);
+  const yTicks = niceTicks(yRangeMin, yRangeMax, 5).filter(t => t >= yRangeMin && t <= yRangeMax);
+  const xOf = (v: number) => leftPad + ((v - xRangeMin) / Math.max(0.0001, xRangeMax - xRangeMin)) * chartW;
+  const yOf = (v: number) => chartH - ((v - yRangeMin) / Math.max(0.0001, yRangeMax - yRangeMin)) * chartH;
   const sizes = points.map(p => p.size);
   const sMax = Math.max(1, ...sizes);
   const radius = (s: number) => bubble ? Math.max(4, Math.sqrt(s / sMax) * 28) : 6;
@@ -1293,13 +1348,21 @@ function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow }:
   );
 }
 
-function Legend({ series, W, y, leftPad }: { series: Array<{ label: string; color: string }>; W: number; y: number; leftPad: number }) {
+function Legend({ series, W, y, leftPad, onSwatchClick }: { series: Array<{ label: string; color: string; key?: string }>; W: number; y: number; leftPad: number; onSwatchClick?: (key: string, e: React.MouseEvent) => void }) {
+  void W;
   return (
     <g>
       {series.map((s, i) => (
         <g key={i} transform={`translate(${leftPad + i * 110}, ${y})`}>
-          <rect x="0" y="-8" width="10" height="10" rx="2" fill={s.color} />
-          <text x="16" y="1" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 0.5 }}>{s.label.toUpperCase()}</text>
+          <rect
+            x="0" y="-8" width="14" height="14" rx="3" fill={s.color}
+            stroke={onSwatchClick ? "rgba(255,255,255,0.20)" : "none"} strokeWidth={onSwatchClick ? 1 : 0}
+            onClick={onSwatchClick && s.key ? (e => onSwatchClick(s.key!, e)) : undefined}
+            style={{ cursor: onSwatchClick ? "pointer" : "default" }}
+          >
+            {onSwatchClick && <title>Click to recolor this series</title>}
+          </rect>
+          <text x="20" y="3" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 0.5 }}>{s.label.toUpperCase()}</text>
         </g>
       ))}
     </g>
@@ -1309,7 +1372,7 @@ function Legend({ series, W, y, leftPad }: { series: Array<{ label: string; colo
 // ═══════════════════════════════════════════════════════════════════════════
 // GANTT (preserved from v1, unified with picker)
 // ═══════════════════════════════════════════════════════════════════════════
-interface RawTask { task: string; start: number; end: number; group?: string; owner?: string; progress?: number; isMilestone?: boolean; sheetIdx: number }
+interface RawTask { task: string; start: number; end: number; group?: string; owner?: string; progress?: number; isMilestone?: boolean; shape?: "bar" | "milestone" | "dotted"; color?: string; sheetIdx: number }
 interface GroupBlock { key: string; label: string; color: string; start: number; end: number; tasks: RawTask[] }
 type TimeUnit = "week" | "month" | "quarter";
 
@@ -1335,6 +1398,11 @@ function ganttFromSheet(sheet: DataSheet): RawTask[] {
     const startMs = parseDateMs(r.start as string | number);
     const endMs = parseDateMs(r.end as string | number);
     if (!task || !startMs || !endMs) continue;
+    const explicitShape = (r.shape as string)?.toLowerCase();
+    const shape: RawTask["shape"] | undefined =
+      explicitShape === "bar" || explicitShape === "milestone" || explicitShape === "dotted"
+        ? (explicitShape as RawTask["shape"])
+        : undefined;
     out.push({
       task,
       start: startMs,
@@ -1342,7 +1410,9 @@ function ganttFromSheet(sheet: DataSheet): RawTask[] {
       group: (r.group as string) || undefined,
       owner: (r.owner as string) || undefined,
       progress: typeof r.progress === "number" ? r.progress : Number(r.progress) || undefined,
-      isMilestone: startMs === endMs,
+      isMilestone: startMs === endMs && shape !== "bar",
+      shape,
+      color: (r.color as string) || undefined,
       sheetIdx: i,
     });
   }
@@ -1409,6 +1479,28 @@ function formatTick(ms: number, unit: TimeUnit): string {
 
 function fmtDateShort(ms: number) { const d = new Date(ms); return ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getUTCMonth()] + " " + d.getUTCDate(); }
 function durationDays(a: number, b: number) { return Math.max(1, Math.round((b - a) / 86400000)); }
+
+// Right-click menu items for a Gantt task. Built as a helper so both
+// milestone and bar branches share the same recipe — shape icons, color
+// swatches, then text actions.
+function ganttContextMenuItems(t: RawTask, effShape: "bar" | "milestone" | "dotted", palette: string[], onUpdateRow?: OnUpdateRow, onDeleteRow?: OnDeleteRow): ContextMenuItem[] {
+  const span = Math.max(t.end - t.start, 7 * 86400000);
+  return [
+    { kind: "iconRow", icons: [
+      { Icon: Square,       title: "Bar",       active: effShape === "bar",       onClick: () => onUpdateRow?.(t.sheetIdx, { shape: "bar", end: msToISODate(t.start === t.end ? t.start + span : t.end) }) },
+      { Icon: Diamond,      title: "Milestone", active: effShape === "milestone", onClick: () => onUpdateRow?.(t.sheetIdx, { shape: "milestone", end: msToISODate(t.start) }) },
+      { Icon: MinusSquare,  title: "Dotted",    active: effShape === "dotted",    onClick: () => onUpdateRow?.(t.sheetIdx, { shape: "dotted", end: msToISODate(t.start === t.end ? t.start + span : t.end) }) },
+    ]},
+    { kind: "swatchRow", colors: palette, current: t.color, onPick: c => onUpdateRow?.(t.sheetIdx, { color: c || "" }) },
+    { label: "", divider: true, onClick: () => {} },
+    { label: "Shift +7 days", onClick: () => onUpdateRow?.(t.sheetIdx, { start: msToISODate(t.start + 7 * 86400000), end: msToISODate(t.end + 7 * 86400000) }) },
+    { label: "Shift −7 days", onClick: () => onUpdateRow?.(t.sheetIdx, { start: msToISODate(t.start - 7 * 86400000), end: msToISODate(t.end - 7 * 86400000) }) },
+    { label: "Set 100% complete", onClick: () => onUpdateRow?.(t.sheetIdx, { progress: 100 }) },
+    { label: "Reset progress",    onClick: () => onUpdateRow?.(t.sheetIdx, { progress: 0 }) },
+    { label: "", divider: true, onClick: () => {} },
+    { label: "Delete task", danger: true, onClick: () => onDeleteRow?.(t.sheetIdx) },
+  ];
+}
 
 interface GanttOpts {
   unit: TimeUnit;
@@ -1552,13 +1644,18 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
           );
         }
         const t = r.task!;
-        const color = r.group.color;
+        // Per-task color override falls back to group color
+        const color = t.color || r.group.color;
         const x1 = xOf(t.start);
         const x2 = xOf(t.end);
         const w = Math.max(2, x2 - x1);
         const barTop = top + 8;
         const barH = ROW_H - 16;
-        const isMs = !!t.isMilestone;
+        // Effective shape: explicit shape column, else infer from start==end
+        const effShape: "bar" | "milestone" | "dotted" =
+          t.shape || (t.start === t.end ? "milestone" : "bar");
+        const isMs = effShape === "milestone";
+        const isDotted = effShape === "dotted";
         return (
           <g key={"t-" + i}>
             {i % 2 === 0 && <rect x="0" y={top} width={totalW} height={ROW_H} fill="rgba(255,255,255,0.015)" />}
@@ -1603,13 +1700,7 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
                 onPointerDown={onBarDown(t, "move")}
                 onPointerMove={onBarMove}
                 onPointerUp={onBarUp}
-                onContextMenu={e => onShowMenu?.(e, [
-                  { label: "Convert to bar", onClick: () => onUpdateRow?.(t.sheetIdx, { end: msToISODate(t.start + 7 * DAY_MS) }) },
-                  { label: "Shift +7 days", onClick: () => onUpdateRow?.(t.sheetIdx, { start: msToISODate(t.start + 7 * DAY_MS), end: msToISODate(t.start + 7 * DAY_MS) }) },
-                  { label: "Shift −7 days", onClick: () => onUpdateRow?.(t.sheetIdx, { start: msToISODate(t.start - 7 * DAY_MS), end: msToISODate(t.start - 7 * DAY_MS) }) },
-                  { label: "", divider: true, onClick: () => {} },
-                  { label: "Delete task", danger: true, onClick: () => onDeleteRow?.(t.sheetIdx) },
-                ])}
+                onContextMenu={e => onShowMenu?.(e, ganttContextMenuItems(t, effShape, palette, onUpdateRow, onDeleteRow))}
                 style={{ cursor: onUpdateRow ? "grab" : "default" }}
               >
                 <polygon points={`${x1},${barTop} ${x1 + barH / 2},${barTop + barH / 2} ${x1},${barTop + barH} ${x1 - barH / 2},${barTop + barH / 2}`} fill={color} stroke="rgba(255,255,255,0.15)" />
@@ -1617,22 +1708,19 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
               </g>
             ) : (
               <g>
-                {/* Main bar — pointer captures on this rect */}
+                {/* Main bar — pointer captures on this rect. Dotted variant
+                    swaps to a dashed stroke + transparent fill. */}
                 <rect
                   x={x1} y={barTop} width={w} height={barH} rx="5" ry="5"
-                  fill={color} fillOpacity="0.35" stroke={color} strokeWidth="1"
+                  fill={isDotted ? "transparent" : color}
+                  fillOpacity={isDotted ? 0 : 0.35}
+                  stroke={color}
+                  strokeWidth={isDotted ? 1.6 : 1}
+                  strokeDasharray={isDotted ? "5 4" : undefined}
                   onPointerDown={onBarDown(t, "move")}
                   onPointerMove={onBarMove}
                   onPointerUp={onBarUp}
-                  onContextMenu={e => onShowMenu?.(e, [
-                    { label: "Convert to milestone", onClick: () => onUpdateRow?.(t.sheetIdx, { end: msToISODate(t.start) }) },
-                    { label: "Shift +7 days",  onClick: () => onUpdateRow?.(t.sheetIdx, { start: msToISODate(t.start + 7 * DAY_MS), end: msToISODate(t.end + 7 * DAY_MS) }) },
-                    { label: "Shift −7 days",  onClick: () => onUpdateRow?.(t.sheetIdx, { start: msToISODate(t.start - 7 * DAY_MS), end: msToISODate(t.end - 7 * DAY_MS) }) },
-                    { label: "Set 100% complete", onClick: () => onUpdateRow?.(t.sheetIdx, { progress: 100 }) },
-                    { label: "Reset progress", onClick: () => onUpdateRow?.(t.sheetIdx, { progress: 0 }) },
-                    { label: "", divider: true, onClick: () => {} },
-                    { label: "Delete task", danger: true, onClick: () => onDeleteRow?.(t.sheetIdx) },
-                  ])}
+                  onContextMenu={e => onShowMenu?.(e, ganttContextMenuItems(t, effShape, palette, onUpdateRow, onDeleteRow))}
                   style={{ cursor: onUpdateRow ? "grab" : "default" }}
                 />
                 {opts.showProgress && t.progress !== undefined && t.progress > 0 && (
@@ -1694,13 +1782,42 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
-interface ChartConfig { type: ChartType; title: string; subtitle: string; theme: ThemeId; numFmt: NumberFormat }
+interface ChartConfig {
+  type: ChartType; title: string; subtitle: string;
+  theme: ThemeId; numFmt: NumberFormat;
+  // Per-series color overrides (key → hex). Falls back to palette[i].
+  seriesColors?: Record<string, string>;
+  // Manual Y axis range. Undefined = auto-fit.
+  yMin?: number;
+  yMax?: number;
+}
 
 export default function ChartMaker2({ standalone = false }: { standalone?: boolean }) {
   const [type, setType] = useState<ChartType>("stacked");
   const [title, setTitle] = useState("SemiAnalysis · 2026 Outlook");
   const [subtitle, setSubtitle] = useState("Quarterly view");
-  const [theme, setTheme] = useState<ThemeId>("amber");
+  const [theme, setTheme] = useState<ThemeId>("core");
+  // Per-series color overrides — clicking a Legend swatch lets you
+  // recolor the entire series without changing the theme. Stored
+  // per-chart-type so different chart types can have different colors.
+  const [seriesColorsByType, setSeriesColorsByType] = useState<Partial<Record<ChartType, Record<string, string>>>>({});
+  const seriesColors = seriesColorsByType[type] || {};
+  const setSeriesColor = useCallback((key: string, color: string | null) => {
+    setSeriesColorsByType(p => {
+      const cur = { ...(p[type] || {}) };
+      if (color === null) delete cur[key];
+      else cur[key] = color;
+      return { ...p, [type]: cur };
+    });
+  }, [type]);
+
+  // Manual axis range overrides for charts that have a numeric Y axis.
+  // Empty string = auto. Stored per-chart-type.
+  const [axisByType, setAxisByType] = useState<Partial<Record<ChartType, { yMin?: number; yMax?: number }>>>({});
+  const axis = axisByType[type] || {};
+  const setAxis = useCallback((next: { yMin?: number; yMax?: number }) => {
+    setAxisByType(p => ({ ...p, [type]: next }));
+  }, [type]);
   const [numFmt, setNumFmt] = useState<NumberFormat>("auto");
 
   // Per-type sheets so switching types doesn't lose data. Wrapped in
@@ -1710,6 +1827,8 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const [annotByType, setAnnotByType] = useState<Partial<Record<ChartType, Annotation[]>>>({});
   // Multi-step pick mode for CAGR / diff arrows. Null = idle.
   const [pickMode, setPickMode] = useState<PickMode>(null);
+  // Single-click placement mode for the ANNOTATE TEXT tool.
+  const [placeMode, setPlaceMode] = useState<PlaceMode>(null);
   // Floating toolbar selection
   const [selection, setSelection] = useState<BarSelection | null>(null);
 
@@ -1785,7 +1904,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     collapseAll: false, collapsedKeys: {},
   });
 
-  const cfg: ChartConfig = { type, title, subtitle, theme, numFmt };
+  const cfg: ChartConfig = { type, title, subtitle, theme, numFmt, seriesColors, yMin: axis.yMin, yMax: axis.yMax };
 
   // Pick-mode handler · column-chart renderers call this on bar click.
   // Returns true if the click was consumed (we're in pick mode); the
@@ -1943,7 +2062,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   }, []);
 
   const renderChart = () => {
-    const a = { onUpdateRow, onDeleteRow, onShowMenu, annotations, pickMode, onPickBar, onSelect: setSelection };
+    const a = { onUpdateRow, onDeleteRow, onShowMenu, annotations, pickMode, onPickBar, onSelect: setSelection, onSetSeriesColor: setSeriesColor };
     switch (type) {
       case "stacked": return <StackedColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
       case "clustered": return <ClusteredColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
@@ -2303,9 +2422,9 @@ function ChartContextMenu({ menu, onClose }: { menu: { x: number; y: number; ite
     };
   }, [onClose]);
   // Clamp position so the menu doesn't hang off-screen
-  const W = 220;
+  const W = 240;
   const x = Math.min(menu.x, (typeof window !== "undefined" ? window.innerWidth : 1600) - W - 8);
-  const y = Math.min(menu.y, (typeof window !== "undefined" ? window.innerHeight : 900) - menu.items.length * 32 - 16);
+  const y = Math.min(menu.y, (typeof window !== "undefined" ? window.innerHeight : 900) - menu.items.length * 36 - 16);
   return (
     <div
       onClick={e => e.stopPropagation()}
@@ -2323,22 +2442,71 @@ function ChartContextMenu({ menu, onClose }: { menu: { x: number; y: number; ite
       }}
     >
       {menu.items.map((it, i) => {
-        if (it.divider) return <div key={i} style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 8px" }} />;
+        // Icon row · horizontally-laid-out shape choices
+        if ("kind" in it && it.kind === "iconRow") {
+          return (
+            <div key={i} style={{ display: "flex", gap: 4, padding: "6px 8px" }}>
+              {it.icons.map((ic, j) => (
+                <button
+                  key={j}
+                  onClick={() => { ic.onClick(); onClose(); }}
+                  title={ic.title}
+                  style={{
+                    flex: 1, padding: "10px 0", borderRadius: 6,
+                    background: ic.active ? C.amber + "20" : "rgba(255,255,255,0.03)",
+                    border: "1px solid " + (ic.active ? C.amber + "55" : "rgba(255,255,255,0.08)"),
+                    color: ic.active ? C.amber : C.tx,
+                    cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                    fontFamily: mn, fontSize: 8, fontWeight: 700, letterSpacing: 0.5,
+                  }}
+                >
+                  <ic.Icon size={16} strokeWidth={ic.active ? 2.4 : 2} />
+                  {ic.title.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          );
+        }
+        // Color swatch row · pick a color, including a "no override" reset
+        if ("kind" in it && it.kind === "swatchRow") {
+          return (
+            <div key={i} style={{ display: "flex", gap: 4, padding: "6px 10px", flexWrap: "wrap" }}>
+              <button
+                onClick={() => { it.onPick(null); onClose(); }}
+                title="Reset color"
+                style={{ width: 22, height: 22, borderRadius: 4, background: "transparent", border: "1px dashed rgba(255,255,255,0.30)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", color: C.txm }}
+              >
+                <X size={11} strokeWidth={2.4} />
+              </button>
+              {it.colors.map((c, j) => (
+                <button
+                  key={j}
+                  onClick={() => { it.onPick(c); onClose(); }}
+                  title={c}
+                  style={{ width: 22, height: 22, borderRadius: 4, background: c, border: "1px solid " + (it.current === c ? "#fff" : "rgba(0,0,0,0.4)"), cursor: "pointer", boxShadow: it.current === c ? "0 0 0 2px " + c + "60" : "none" }}
+                />
+              ))}
+            </div>
+          );
+        }
+        // Default item
+        const item = it as { label: string; onClick: () => void; danger?: boolean; divider?: boolean };
+        if (item.divider) return <div key={i} style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 8px" }} />;
         return (
           <div
             key={i}
-            onClick={() => { it.onClick(); onClose(); }}
+            onClick={() => { item.onClick(); onClose(); }}
             style={{
               padding: "9px 14px",
               fontFamily: ft, fontSize: 12, fontWeight: 600,
-              color: it.danger ? "#E06347" : "#E8E4DD",
+              color: item.danger ? "#E06347" : "#E8E4DD",
               cursor: "pointer", letterSpacing: 0.1,
               transition: "background 0.12s",
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = it.danger ? "rgba(224,99,71,0.12)" : "rgba(255,255,255,0.05)"; }}
+            onMouseEnter={e => { e.currentTarget.style.background = item.danger ? "rgba(224,99,71,0.12)" : "rgba(255,255,255,0.05)"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
           >
-            {it.label}
+            {item.label}
           </div>
         );
       })}
@@ -2400,16 +2568,49 @@ function ChartTypeSidebar({ active, onSelect }: { active: ChartType; onSelect: (
 }
 
 function ThemePicker({ theme, onChange }: { theme: ThemeId; onChange: (t: ThemeId) => void }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    setTimeout(() => document.addEventListener("click", close), 0);
+    return () => document.removeEventListener("click", close);
+  }, [open]);
+  const cur = THEMES[theme];
   return (
-    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-      {(Object.entries(THEMES) as [ThemeId, typeof THEMES[ThemeId]][]).map(([id, t]) => {
-        const on = theme === id;
-        return (
-          <span key={id} onClick={() => onChange(id)} title={t.name} style={{ cursor: "pointer", display: "inline-flex", padding: 4, borderRadius: 6, background: on ? "rgba(255,255,255,0.06)" : "transparent", border: "1px solid " + (on ? "rgba(255,255,255,0.18)" : "transparent"), gap: 2 }}>
-            {t.colors.slice(0, 4).map((c, i) => <span key={i} style={{ width: 10, height: 14, background: c, borderRadius: 2 }} />)}
-          </span>
-        );
-      })}
+    <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        title={cur.name + " · " + cur.sub}
+        style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.10)", background: open ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.025)", color: C.tx, fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer" }}
+      >
+        <span style={{ display: "inline-flex", gap: 2 }}>
+          {cur.colors.slice(0, 5).map((c, i) => <span key={i} style={{ width: 8, height: 12, background: c, borderRadius: 1.5 }} />)}
+        </span>
+        {cur.name.replace("SA ", "")}
+        <ChevronDown size={11} strokeWidth={2.4} />
+      </button>
+      {open && (
+        <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 1100, background: "#0D0D14", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 9, padding: 5, minWidth: 240, boxShadow: "0 18px 48px rgba(0,0,0,0.5)" }}>
+          {(Object.entries(THEMES) as [ThemeId, typeof THEMES[ThemeId]][]).map(([id, t]) => {
+            const on = theme === id;
+            return (
+              <div key={id} onClick={() => { onChange(id); setOpen(false); }}
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 11px", borderRadius: 6, cursor: "pointer", background: on ? C.amber + "16" : "transparent", border: "1px solid " + (on ? C.amber + "55" : "transparent"), marginBottom: 2 }}
+                onMouseEnter={e => { if (!on) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                onMouseLeave={e => { if (!on) e.currentTarget.style.background = "transparent"; }}
+              >
+                <span style={{ display: "inline-flex", gap: 2, flexShrink: 0 }}>
+                  {t.colors.slice(0, 6).map((c, i) => <span key={i} style={{ width: 12, height: 18, background: c, borderRadius: 2 }} />)}
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 800, color: on ? C.amber : "#E8E4DD" }}>{t.name}</div>
+                  <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.4 }}>{t.sub}</div>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -2427,11 +2628,30 @@ function UnitPicker({ unit, onChange }: { unit: TimeUnit; onChange: (u: TimeUnit
   );
 }
 
-function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
+// Toggle — proper button styling with hover state + tooltip
+function Toggle({ on, onChange, label, title }: { on: boolean; onChange: (v: boolean) => void; label: string; title?: string }) {
+  const [hov, setHov] = useState(false);
   return (
-    <span onClick={() => onChange(!on)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 6, cursor: "pointer", fontFamily: mn, fontSize: 10, fontWeight: 700, background: on ? C.amber + "18" : "transparent", color: on ? C.amber : C.txm, border: "1px solid " + (on ? C.amber + "45" : "rgba(255,255,255,0.08)"), letterSpacing: 0.5, transition: "all 0.15s" }}>
+    <button
+      onClick={() => onChange(!on)}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      title={title || (on ? "Hide " + label : "Show " + label)}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 6,
+        padding: "6px 11px", borderRadius: 6, cursor: "pointer",
+        fontFamily: mn, fontSize: 10, fontWeight: 700,
+        background: on
+          ? (hov ? C.amber + "26" : C.amber + "18")
+          : (hov ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.025)"),
+        color: on ? C.amber : (hov ? C.tx : C.txm),
+        border: "1px solid " + (on ? C.amber + "55" : (hov ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.10)")),
+        letterSpacing: 0.5, transition: "all 0.14s ease",
+        boxShadow: on && hov ? "0 0 0 1px " + C.amber + "30" : "none",
+      }}
+    >
       {on ? <Eye size={11} strokeWidth={2.2} /> : <EyeOff size={11} strokeWidth={2} />}
       {label}
-    </span>
+    </button>
   );
 }
