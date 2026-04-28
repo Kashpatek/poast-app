@@ -11,6 +11,7 @@ import {
   GanttChart,
   Undo2, Redo2, Hash, Sigma, ArrowUpDown, Minus, Trash2,
   FileCode2, ArrowLeftRight, Square, Diamond, MinusSquare,
+  ClipboardPaste, Sparkles,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -23,39 +24,54 @@ type ChartType =
   | "mekkoUnit" | "pie" | "doughnut" | "scatter" | "bubble"
   | "variance" | "gantt";
 
-type ThemeId = "core" | "spectrum" | "brand";
+type ThemeId = "saCore" | "saSpectrum";
 
-// Three palettes: Core (12 saturated, brand-friendly hues), Spectrum
-// (12 colors spanning the full hue circle), Brand (SA brand colors +
-// neutrals for slide work). Each renderer cycles palette[i % length]
-// so as long as series count <= 12, every series gets a unique color.
+// Official SemiAnalysis chart palettes — verbatim from the brand spec.
+// Use S1-S4 for ≤4 series, S5-S8 for 5-8, S9-S12 for 9+. Never skip
+// ahead, never mix Core and Spectrum in one chart.
 const THEMES: Record<ThemeId, { name: string; sub: string; colors: string[] }> = {
-  core: {
-    name: "Core",
-    sub: "12 saturated brand-friendly hues",
+  saCore: {
+    name: "SA Core",
+    sub: "Amber + Cobalt family · default",
     colors: [
-      C.amber, C.blue, C.teal, C.coral, "#905CCB", "#26C9D8",
-      "#E8A020", "#0F5C8E", "#1D7762", "#C04830", "#6F40A8", "#1AA0AE",
+      "#F7B041", // S1 Amber
+      "#0B86D1", // S2 Cobalt
+      "#2EAD8E", // S3 Mint
+      "#E06347", // S4 Coral
+      "#AC7B2D", // S5 Amber 600
+      "#075D92", // S6 Cobalt 600
+      "#F9C370", // S7 Amber 300
+      "#48A4DC", // S8 Cobalt 300
+      "#7B5820", // S9 Amber 700
+      "#054368", // S10 Cobalt 700
+      "#FAD396", // S11 Amber 200
+      "#78BCE5", // S12 Cobalt 200
     ],
   },
-  spectrum: {
-    name: "Spectrum",
-    sub: "12 colors across the hue wheel",
+  saSpectrum: {
+    name: "SA Spectrum",
+    sub: "Full hue wheel · for 5+ series with distinct hues",
     colors: [
-      "#E06347", "#F7913A", "#F7B041", "#F0DC4F",
-      "#B5DC4F", "#4FBF6B", "#2EAD8E", "#26C9D8",
-      "#0B86D1", "#6E5BD4", "#905CCB", "#C45CB5",
-    ],
-  },
-  brand: {
-    name: "Brand",
-    sub: "SA brand + neutrals",
-    colors: [
-      C.amber, C.blue, C.teal, C.coral, "#905CCB", "#26C9D8",
-      "#E8E4DD", "#A8A4A0", "#7E7B78", "#5C5A57", "#3F3D3B", "#28272A",
+      "#F7B041", // S1 Amber
+      "#0B86D1", // S2 Cobalt
+      "#2EAD8E", // S3 Mint
+      "#E06347", // S4 Coral
+      "#905CCB", // S5 Violet
+      "#26C9D8", // S6 Cyan
+      "#D1334A", // S7 Crimson
+      "#56BC42", // S8 Sage
+      "#D34574", // S9 Rose
+      "#E8C83A", // S10 Sunflower
+      "#495BCE", // S11 Indigo
+      "#BF49B5", // S12 Magenta
     ],
   },
 };
+
+// Neutral colors per the SA spec — for gridlines, axes, "Other" pie
+// slices, table headers. NEVER use as a data series color.
+const SA_SLATE = "#3D3D3D";
+const SA_METAL = "#969696";
 
 // ─── Sample data per chart type ────────────────────────────────────────────
 type CellValue = string | number;
@@ -414,6 +430,109 @@ const NUM_FMT_LABELS: Record<NumberFormat, string> = {
 function cagrPct(a: number, b: number, steps: number): number {
   if (a <= 0 || b <= 0 || steps <= 0) return 0;
   return (Math.pow(b / a, 1 / steps) - 1) * 100;
+}
+
+// ─── Excel paste detection · ported from ChartMaker 1 ─────────────────────
+// Recognizes the SA "horizontal" layout — one row of dates, one row of
+// numeric values, optional row of point labels (chip names) below.
+// Pivots into a canonical [{Date, Value, _label}, ...] shape so the
+// rest of the pipeline can ingest it.
+function coerceNumber(s: string): number {
+  const c = s.replace(/[\s,]/g, "");
+  if (c === "" || c === "-") return NaN;
+  return Number(c);
+}
+const SERIES_LABEL_PATTERNS_CM2 = /(launch\s*time|tflops|flops|gb\/s|bandwidth|capacity|tdp|watts?|chip)/i;
+
+function splitRow(line: string): string[] {
+  // Tab-first (Excel default), fall back to comma. Quoted commas not
+  // handled — analysts pasting from Excel always get TSV.
+  if (line.indexOf("\t") !== -1) return line.split("\t");
+  return line.split(",").map(s => s.trim());
+}
+
+function detectHorizontalLayout(table: string[][]): { xValues: string[]; yValues: number[]; seriesName: string; labels: string[] | null } | null {
+  if (table.length < 2) return null;
+  const maxW = Math.max(...table.map(r => r.length));
+  if (maxW < 3) return null;
+  const dateRows: number[] = [];
+  const numRows: number[] = [];
+  for (let i = 0; i < table.length; i++) {
+    const cells = table[i].slice(1).map(c => (c || "").trim());
+    const nonEmpty = cells.filter(c => c !== "").length;
+    if (nonEmpty < 2) continue;
+    let dateCount = 0, numCount = 0;
+    cells.forEach(c => {
+      if (!c) return;
+      if (!isNaN(coerceNumber(c))) numCount++;
+      else if (!isNaN(Date.parse(c))) dateCount++;
+    });
+    if (dateCount / nonEmpty >= 0.7) dateRows.push(i);
+    else if (numCount / nonEmpty >= 0.7) numRows.push(i);
+  }
+  if (dateRows.length !== 1 || numRows.length !== 1) return null;
+  const dr = dateRows[0], nr = numRows[0];
+  const xValues: string[] = [], yValues: number[] = [], usedCols: number[] = [];
+  for (let c = 1; c < maxW; c++) {
+    const dCell = (table[dr][c] || "").trim();
+    const nCell = (table[nr][c] || "").trim();
+    const n = coerceNumber(nCell);
+    if (dCell && !isNaN(Date.parse(dCell)) && !isNaN(n)) { xValues.push(dCell); yValues.push(n); usedCols.push(c); }
+  }
+  if (xValues.length < 2) return null;
+  let seriesName = "";
+  for (let i = 0; i < table.length; i++) {
+    const first = (table[i][0] || "").trim();
+    if (!first || SERIES_LABEL_PATTERNS_CM2.test(first)) continue;
+    seriesName = first; break;
+  }
+  if (!seriesName) seriesName = (table[nr][0] || "").trim() || "Series";
+  let labels: string[] | null = null;
+  for (let i = 0; i < table.length; i++) {
+    if (i === dr || i === nr) continue;
+    const candidates = usedCols.map(c => (table[i][c] || "").trim());
+    const allValid = candidates.every(v => v && isNaN(coerceNumber(v)) && isNaN(Date.parse(v)));
+    if (allValid) { labels = candidates; break; }
+  }
+  return { xValues, yValues, seriesName, labels };
+}
+
+// Parse a pasted block into a DataSheet for the categorical chart family
+// (Stacked / Clustered / Line / Area). Tries the SA horizontal layout
+// first; falls back to standard "Category | S1 | S2..." with header row.
+function parsePasteForCategorical(raw: string): DataSheet | null {
+  const lines = raw.replace(/\r/g, "").split("\n").filter(l => l.trim() !== "");
+  if (lines.length < 2) return null;
+  const table = lines.map(splitRow);
+  const horiz = detectHorizontalLayout(table);
+  if (horiz) {
+    return {
+      schema: [
+        { key: "category", label: "Date", type: "date" },
+        { key: "s1", label: horiz.seriesName, type: "number" },
+      ],
+      rows: horiz.xValues.map((x, i) => ({ category: x, s1: horiz.yValues[i] })),
+    };
+  }
+  // Standard CSV: first row is headers, first column = category, rest = numeric series
+  const header = table[0];
+  if (header.length < 2) return null;
+  const schema: ColumnSpec[] = [
+    { key: "category", label: header[0] || "Category", type: "text" },
+  ];
+  for (let i = 1; i < header.length; i++) {
+    schema.push({ key: "s" + i, label: header[i] || "Series " + i, type: "number" });
+  }
+  const rows: Array<Record<string, CellValue>> = [];
+  for (let r = 1; r < table.length; r++) {
+    const row: Record<string, CellValue> = { category: table[r][0] || "" };
+    for (let i = 1; i < header.length; i++) {
+      const v = coerceNumber((table[r][i] || "").trim());
+      row["s" + i] = isNaN(v) ? 0 : v;
+    }
+    rows.push(row);
+  }
+  return rows.length > 0 ? { schema, rows } : null;
 }
 
 function niceTicks(min: number, max: number, count = 5): number[] {
@@ -860,11 +979,27 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, onUpdate
   const { categories, series } = getCategoricalSeries(sheet);
   const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
   const palette = THEMES[cfg.theme].colors;
+  const colorOf = (key: string, idx: number) => cfg.seriesColors?.[key] || palette[idx % palette.length];
   const leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 48;
   const chartW = W - leftPad - rightPad;
   const chartH = H - topPad - bottomPad;
+  // Time-axis detection · port of ChartMaker 1's auto-time behavior. If
+  // every category parses as a date, position points by timestamp instead
+  // of even category spacing — so May 2020 → Dec 2022 lands further apart
+  // than Q1 → Q2.
+  const tsValues = categories.map(c => Date.parse(c));
+  const useTime = categories.length >= 2 && tsValues.every(t => !isNaN(t));
+  const tMin = useTime ? Math.min(...tsValues) : 0;
+  const tMax = useTime ? Math.max(...tsValues) : 1;
+  const tSpan = Math.max(1, tMax - tMin);
   const colW = chartW / Math.max(1, categories.length - 1);
-  const xOf = (i: number) => leftPad + i * colW;
+  const xOf = useTime
+    ? (i: number) => leftPad + ((tsValues[i] - tMin) / tSpan) * chartW
+    : (i: number) => leftPad + i * colW;
+  // Time-axis ticks: pick a unit that gives ~5 ticks across the span.
+  const tDays = tSpan / 86400000;
+  const timeUnit: TimeUnit = tDays > 365 * 1.5 ? "quarter" : (tDays > 90 ? "month" : "week");
+  const timeTicks = useTime ? buildTicks(tMin, tMax, timeUnit) : [];
 
   const lineDragRef = useRef<{ rowIdx: number; key: string } | null>(null);
 
@@ -957,11 +1092,31 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, onUpdate
           );
         });
       })()}
-      {/* Category labels */}
-      {categories.map((cat, i) => (
-        <text key={i} x={xOf(i)} y={chartH + 22} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{cat}</text>
-      ))}
-      <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={chartH + 36} leftPad={leftPad} />
+      {/* X-axis labels · time ticks when categories are dates, else category names */}
+      {useTime ? (
+        <>
+          {timeTicks.map((t, i) => {
+            const x = leftPad + ((t - tMin) / tSpan) * chartW;
+            if (x < leftPad - 4 || x > leftPad + chartW + 4) return null;
+            return <text key={"tt-" + i} x={x} y={chartH + 22} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, letterSpacing: 0.4 }}>{formatTick(t, timeUnit)}</text>;
+          })}
+          {/* Per-point chip labels above each point — ports the SA
+              "labels row beneath data" rendering from ChartMaker 1.
+              Only the first series gets labels; pulls from `_label_*`
+              columns if present. */}
+          {renderedSeries.length > 0 && categories.map((_, i) => {
+            const labelKey = "_label_" + seriesKeys[0];
+            const lbl = String(sheet.rows[i]?.[labelKey] ?? "");
+            if (!lbl) return null;
+            return <text key={"chip-" + i} x={xOf(i)} y={yOf(renderedSeries[0].cumValues[i]) - 14} textAnchor="middle" fill={colorOf(seriesKeys[0], 0)} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 800, letterSpacing: 0.5 }}>{lbl}</text>;
+          })}
+        </>
+      ) : (
+        categories.map((cat, i) => (
+          <text key={i} x={xOf(i)} y={chartH + 22} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{cat}</text>
+        ))
+      )}
+      <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={chartH + 36} leftPad={leftPad} />
     </ChartFrame>
   );
 }
@@ -1723,7 +1878,7 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
                   onContextMenu={e => onShowMenu?.(e, ganttContextMenuItems(t, effShape, palette, onUpdateRow, onDeleteRow))}
                   style={{ cursor: onUpdateRow ? "grab" : "default" }}
                 />
-                {opts.showProgress && t.progress !== undefined && t.progress > 0 && (
+                {opts.showProgress && t.progress !== undefined && t.progress > 0 && !isDotted && (
                   <rect
                     x={x1} y={barTop} width={w * (t.progress / 100)} height={barH} rx="5" ry="5"
                     fill={color} fillOpacity="0.85"
@@ -1731,6 +1886,16 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
                     onPointerMove={onBarMove}
                     onPointerUp={onBarUp}
                     style={{ cursor: onUpdateRow ? "grab" : "default", pointerEvents: "none" }}
+                  />
+                )}
+                {/* Dotted variant · render a thin progress strip along the
+                    bottom instead of a solid fill so the dashed border stays
+                    legible. */}
+                {opts.showProgress && t.progress !== undefined && t.progress > 0 && isDotted && (
+                  <rect
+                    x={x1 + 2} y={barTop + barH - 4} width={(w - 4) * (t.progress / 100)} height={3} rx="1.5"
+                    fill={color}
+                    style={{ pointerEvents: "none" }}
                   />
                 )}
                 {opts.showDates && w > 60 && (
@@ -1796,7 +1961,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const [type, setType] = useState<ChartType>("stacked");
   const [title, setTitle] = useState("SemiAnalysis · 2026 Outlook");
   const [subtitle, setSubtitle] = useState("Quarterly view");
-  const [theme, setTheme] = useState<ThemeId>("core");
+  const [theme, setTheme] = useState<ThemeId>("saCore");
   // Per-series color overrides — clicking a Legend swatch lets you
   // recolor the entire series without changing the theme. Stored
   // per-chart-type so different chart types can have different colors.
@@ -2102,6 +2267,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         )}
         {standalone && <div style={{ flex: "1 1 auto" }} />}
         <UndoRedoButtons onUndo={undo} onRedo={redo} canUndo={past.current.length > 0} canRedo={future.current.length > 0} />
+        <PasteDataButton onPaste={raw => { const ds = parsePasteForCategorical(raw); if (ds) setSheets(p => ({ ...p, [type]: ds })); else showToast("Couldn't parse the paste — expected TSV or CSV with headers"); }} />
         <NumberFormatPicker fmt={numFmt} onChange={setNumFmt} />
         <ThemePicker theme={theme} onChange={setTheme} />
         <ExportSplitButton onPNG={exportPNG} onSVG={exportSVG} />
@@ -2240,6 +2406,64 @@ function ExportSplitButton({ onPNG, onSVG }: { onPNG: () => void; onSVG: () => v
 }
 function dropItem(): React.CSSProperties {
   return { padding: "9px 12px", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, color: "#E8E4DD", fontFamily: ft, fontSize: 12, fontWeight: 600, transition: "background 0.12s" };
+}
+
+// ─── Paste data button + modal · ports SA Excel paste detection ──────────
+// Click → glass modal with a textarea. The parser auto-detects the SA
+// horizontal layout (Date row + Numeric row + optional chip-labels row)
+// and falls back to standard CSV with headers.
+function PasteDataButton({ onPaste }: { onPaste: (raw: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  return (
+    <>
+      <GlassButton onClick={() => { setText(""); setOpen(true); }} title="Paste data from Excel · auto-detects SA horizontal layout" Icon={ClipboardPaste}>
+        PASTE
+      </GlassButton>
+      {open && (
+        <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(6,6,12,0.74)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", zIndex: 12000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            width: "min(640px, 92vw)",
+            background: "#0D0D14",
+            border: "1px solid rgba(255,255,255,0.10)",
+            borderRadius: 14,
+            padding: "22px 24px 18px",
+            boxShadow: "0 32px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(247,176,65,0.05)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <ClipboardPaste size={16} strokeWidth={2.2} color={C.amber} />
+              <span style={{ fontFamily: gf, fontSize: 17, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.2 }}>Paste data</span>
+              <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1 }}>TSV · CSV · SA HORIZONTAL</span>
+            </div>
+            <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, lineHeight: 1.5, marginBottom: 12 }}>
+              Paste from Excel (tab-separated) or a CSV. We auto-detect the SA Excel layout (one date row + one numeric row + optional chip-labels row beneath) and pivot.
+            </div>
+            <textarea
+              autoFocus
+              value={text}
+              onChange={e => setText(e.target.value)}
+              placeholder={"Category\tQ1\tQ2\tQ3\nNV\t100\t150\t220\nAMD\t40\t60\t90"}
+              spellCheck={false}
+              style={{
+                width: "100%", minHeight: 200, padding: "12px 14px",
+                background: "#06060A",
+                border: "1px solid rgba(255,255,255,0.10)",
+                borderRadius: 8,
+                color: C.tx,
+                fontFamily: mn, fontSize: 12, lineHeight: 1.5,
+                outline: "none", resize: "vertical", boxSizing: "border-box",
+                marginBottom: 14,
+              }}
+            />
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <GlassButton onClick={() => setOpen(false)}>CANCEL</GlassButton>
+              <GlassButton onClick={() => { onPaste(text); setOpen(false); }} primary Icon={Sparkles}>IMPORT</GlassButton>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 // ─── Top-bar Undo/Redo buttons ─────────────────────────────────────────────
