@@ -246,9 +246,9 @@ function DataSheetGrid({ sheet, onChange }: { sheet: DataSheet; onChange: (s: Da
             <th style={{ width: 32, background: "#0A0A0E", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: 0 }} />
             {sheet.schema.map((col, i) => (
               <th key={col.key} style={{ background: "#0A0A0E", borderBottom: "1px solid rgba(255,255,255,0.08)", borderLeft: i === 0 ? "none" : "1px solid rgba(255,255,255,0.04)", padding: 0, position: "relative" }}>
-                <input
-                  defaultValue={col.label}
-                  onBlur={e => renameCol(col.key, e.target.value || col.label)}
+                <CellInput
+                  value={col.label}
+                  onCommit={v => renameCol(col.key, v || col.label)}
                   style={headerInput}
                 />
                 {sheet.schema.length > 2 && (
@@ -275,12 +275,9 @@ function DataSheetGrid({ sheet, onChange }: { sheet: DataSheet; onChange: (s: Da
               </td>
               {sheet.schema.map((col, ci) => (
                 <td key={col.key} style={{ borderTop: "1px solid rgba(255,255,255,0.04)", borderLeft: ci === 0 ? "none" : "1px solid rgba(255,255,255,0.03)", padding: 0 }}>
-                  <input
-                    defaultValue={String(row[col.key] ?? "")}
-                    onBlur={e => setCell(r, col.key, e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
-                    }}
+                  <CellInput
+                    value={String(row[col.key] ?? "")}
+                    onCommit={v => setCell(r, col.key, v)}
                     style={cellInput}
                   />
                 </td>
@@ -299,6 +296,27 @@ function DataSheetGrid({ sheet, onChange }: { sheet: DataSheet; onChange: (s: Da
         </button>
       </div>
     </div>
+  );
+}
+
+// Cell input that stays controlled while the user types but mirrors
+// upstream changes (e.g. a chart drag updating the same cell). Commits
+// to the parent on blur or Enter so we don't fire setState on every
+// keystroke through the whole sheet.
+function CellInput({ value, onCommit, style }: { value: string; onCommit: (v: string) => void; style: React.CSSProperties }) {
+  const [local, setLocal] = useState(value);
+  const focusedRef = useRef(false);
+  // Pull external updates (e.g. drag-set values) when not actively editing
+  useEffect(() => { if (!focusedRef.current) setLocal(value); }, [value]);
+  return (
+    <input
+      value={local}
+      onChange={e => setLocal(e.target.value)}
+      onFocus={e => { focusedRef.current = true; e.target.select(); }}
+      onBlur={() => { focusedRef.current = false; if (local !== value) onCommit(local); }}
+      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") { setLocal(value); (e.target as HTMLInputElement).blur(); } }}
+      style={style}
+    />
   );
 }
 
@@ -385,7 +403,9 @@ function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad =
 function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu }: CatProps) {
   const { categories, series } = getCategoricalSeries(sheet);
   const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
+  const catKey = sheet.schema[0]?.key || "category";
   const palette = THEMES[cfg.theme].colors;
+  const [editingCat, setEditingCat] = useState<number | null>(null);
   const leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 48;
   const chartW = W - leftPad - rightPad;
   const chartH = H - topPad - bottomPad;
@@ -468,7 +488,23 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu 
               );
             })}
             <text x={leftPad + i * groupW + groupW / 2} y={yOf(totals[i]) - 6} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, pointerEvents: "none" }}>{fmtNum(totals[i])}</text>
-            <text x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{cat}</text>
+            {editingCat === i ? (
+              <foreignObject x={leftPad + i * groupW + 6} y={chartH + 8} width={groupW - 12} height={26}>
+                <input
+                  autoFocus
+                  defaultValue={cat}
+                  onBlur={e => { onUpdateRow?.(i, { [catKey]: (e.target as HTMLInputElement).value }); setEditingCat(null); }}
+                  onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingCat(null); }}
+                  style={{ width: "100%", height: "100%", padding: "0 6px", background: "#0A0A0E", border: "1px solid " + C.amber + "80", borderRadius: 4, color: "#E8E4DD", fontFamily: fontSans, fontSize: 11, outline: "none", boxSizing: "border-box", textAlign: "center" }}
+                />
+              </foreignObject>
+            ) : (
+              <text
+                x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={C.txm}
+                onDoubleClick={() => onUpdateRow && setEditingCat(i)}
+                style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600, cursor: onUpdateRow ? "text" : "default" }}
+              >{cat}</text>
+            )}
           </g>
         );
       })}
@@ -480,6 +516,8 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu 
 function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu }: CatProps) {
   const { categories, series } = getCategoricalSeries(sheet);
   const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
+  const catKey = sheet.schema[0]?.key || "category";
+  const [editingCat, setEditingCat] = useState<number | null>(null);
   const palette = THEMES[cfg.theme].colors;
   const leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 48;
   const chartW = W - leftPad - rightPad;
@@ -556,7 +594,23 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
               </g>
             );
           })}
-          <text x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{cat}</text>
+          {editingCat === i ? (
+            <foreignObject x={leftPad + i * groupW + 6} y={chartH + 8} width={groupW - 12} height={26}>
+              <input
+                autoFocus
+                defaultValue={cat}
+                onBlur={e => { onUpdateRow?.(i, { [catKey]: (e.target as HTMLInputElement).value }); setEditingCat(null); }}
+                onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingCat(null); }}
+                style={{ width: "100%", height: "100%", padding: "0 6px", background: "#0A0A0E", border: "1px solid " + C.amber + "80", borderRadius: 4, color: "#E8E4DD", fontFamily: fontSans, fontSize: 11, outline: "none", boxSizing: "border-box", textAlign: "center" }}
+              />
+            </foreignObject>
+          ) : (
+            <text
+              x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={C.txm}
+              onDoubleClick={() => onUpdateRow && setEditingCat(i)}
+              style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600, cursor: onUpdateRow ? "text" : "default" }}
+            >{cat}</text>
+          )}
         </g>
       ))}
       <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={chartH + 36} leftPad={leftPad} />
@@ -1059,6 +1113,11 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
   // the move handler) don't recreate it.
   const dragRef = useRef<{ mode: "move" | "start" | "end"; sheetIdx: number; origStart: number; origEnd: number; cursorMs0: number } | null>(null);
 
+  // Inline-rename state · which cell of which sheet row is currently
+  // being edited (null = nothing). Keyed by sheet column key so we can
+  // edit task name, owner, group, or progress without separate refs.
+  const [editing, setEditing] = useState<{ rowIdx: number; key: string } | null>(null);
+
   if (tasks.length === 0) {
     return <g><rect x="0" y="0" width={W} height={200} fill="#0A0A0E" /><text x={W / 2} y="100" textAnchor="middle" fill={C.txd} style={{ fontFamily: fontSans, fontSize: 13 }}>Add Task / Start / End rows below.</text></g>;
   }
@@ -1177,8 +1236,42 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
         return (
           <g key={"t-" + i}>
             {i % 2 === 0 && <rect x="0" y={top} width={totalW} height={ROW_H} fill="rgba(255,255,255,0.015)" />}
-            <text x="32" y={top + ROW_H / 2 + 4} fill="#E8E4DD" style={{ fontFamily: fontSans, fontSize: 12, fontWeight: 500 }}>{t.task}</text>
-            {opts.showOwner && t.owner && <text x={LEFT_PANEL_W - 12} y={top + ROW_H / 2 + 4} textAnchor="end" fill={color} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700 }}>{t.owner}</text>}
+            {editing && editing.rowIdx === t.sheetIdx && editing.key === "task" ? (
+              <foreignObject x="28" y={top + 4} width={LEFT_PANEL_W - 56} height={ROW_H - 8}>
+                <input
+                  autoFocus
+                  defaultValue={t.task}
+                  onBlur={e => { const v = (e.target as HTMLInputElement).value; if (v && v !== t.task) onUpdateRow?.(t.sheetIdx, { task: v }); setEditing(null); }}
+                  onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditing(null); }}
+                  style={{ width: "100%", height: "100%", padding: "0 8px", background: "#0A0A0E", border: "1px solid " + C.amber + "80", borderRadius: 4, color: "#E8E4DD", fontFamily: fontSans, fontSize: 12, fontWeight: 600, outline: "none", boxSizing: "border-box" }}
+                />
+              </foreignObject>
+            ) : (
+              <text
+                x="32" y={top + ROW_H / 2 + 4} fill="#E8E4DD"
+                onDoubleClick={() => onUpdateRow && setEditing({ rowIdx: t.sheetIdx, key: "task" })}
+                style={{ fontFamily: fontSans, fontSize: 12, fontWeight: 500, cursor: onUpdateRow ? "text" : "default" }}
+              >{t.task}</text>
+            )}
+            {opts.showOwner && t.owner && (
+              editing && editing.rowIdx === t.sheetIdx && editing.key === "owner" ? (
+                <foreignObject x={LEFT_PANEL_W - 90} y={top + 4} width={80} height={ROW_H - 8}>
+                  <input
+                    autoFocus
+                    defaultValue={t.owner}
+                    onBlur={e => { onUpdateRow?.(t.sheetIdx, { owner: (e.target as HTMLInputElement).value }); setEditing(null); }}
+                    onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditing(null); }}
+                    style={{ width: "100%", height: "100%", padding: "0 6px", background: "#0A0A0E", border: "1px solid " + color + "80", borderRadius: 4, color: color, fontFamily: fontMono, fontSize: 10, fontWeight: 700, outline: "none", boxSizing: "border-box", textAlign: "right" }}
+                  />
+                </foreignObject>
+              ) : (
+                <text
+                  x={LEFT_PANEL_W - 12} y={top + ROW_H / 2 + 4} textAnchor="end" fill={color}
+                  onDoubleClick={() => onUpdateRow && setEditing({ rowIdx: t.sheetIdx, key: "owner" })}
+                  style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, cursor: onUpdateRow ? "text" : "default" }}
+                >{t.owner}</text>
+              )
+            )}
             {isMs ? (
               <g
                 onPointerDown={onBarDown(t, "move")}
@@ -1366,6 +1459,21 @@ export default function ChartMaker2() {
     });
   }, [type]);
 
+  // Append a new Gantt task with sensible defaults. Today→+7d, inherits
+  // group/owner from the last row so the new task lands inside the current
+  // workstream.
+  const appendGanttTask = useCallback(() => {
+    setSheets(p => {
+      const cur = p["gantt"] || samplePerType("gantt");
+      const last = cur.rows[cur.rows.length - 1] || {};
+      const today = Date.now();
+      const start = msToISODate(today);
+      const end = msToISODate(today + 7 * DAY_MS);
+      const next: Record<string, CellValue> = { task: "New task", start, end, group: String(last.group || "Tasks"), owner: String(last.owner || ""), progress: 0 };
+      return { ...p, gantt: { ...cur, rows: [...cur.rows, next] } };
+    });
+  }, []);
+
   // Right-click context menu state. The menu lives outside the SVG so
   // it can render on top with HTML styling.
   const [menu, setMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
@@ -1429,7 +1537,7 @@ export default function ChartMaker2() {
         <div style={{ minWidth: 0 }}>
           {/* Gantt toggles only show for gantt */}
           {type === "gantt" && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12, padding: "10px 12px", background: cardBg, border: "1px solid " + borderC, borderRadius: 10 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12, padding: "10px 12px", background: cardBg, border: "1px solid " + borderC, borderRadius: 10, alignItems: "center" }}>
               <UnitPicker unit={ganttOpts.unit} onChange={u => setGanttOpts(p => ({ ...p, unit: u }))} />
               <Sep />
               <Toggle on={ganttOpts.showDates} onChange={v => setGanttOpts(p => ({ ...p, showDates: v }))} label="Dates" />
@@ -1440,6 +1548,13 @@ export default function ChartMaker2() {
               <Sep />
               <Toggle on={ganttOpts.showGroups} onChange={v => setGanttOpts(p => ({ ...p, showGroups: v }))} label="Groups" />
               <Toggle on={ganttOpts.collapseAll} onChange={v => setGanttOpts(p => ({ ...p, collapseAll: v }))} label="Collapse all" />
+              {/* Quick-add a new task. Defaults: 7-day bar, today + 7d, in
+                  the last group used (or 'Tasks'). Editable from the chart
+                  immediately because all the cells are clickable. */}
+              <span style={{ flex: 1 }} />
+              <button onClick={appendGanttTask} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 6, border: "1px solid " + C.amber + "55", background: C.amber + "18", color: C.amber, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer" }}>
+                <Plus size={11} strokeWidth={2.4} /> ADD TASK
+              </button>
             </div>
           )}
 
