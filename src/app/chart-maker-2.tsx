@@ -11,7 +11,7 @@ import {
   GanttChart,
   Undo2, Redo2, Hash, Sigma, ArrowUpDown, Minus, Trash2,
   FileCode2, ArrowLeftRight, Square, Diamond, MinusSquare,
-  ClipboardPaste, Sparkles,
+  ClipboardPaste, Sparkles, Type,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -350,6 +350,8 @@ function DataSheetGrid({ sheet, onChange }: { sheet: DataSheet; onChange: (s: Da
                     value={String(row[col.key] ?? "")}
                     onCommit={v => setCell(r, col.key, v)}
                     style={cellInput}
+                    type={col.type}
+                    onScrub={col.type === "number" || col.type === "percent" ? () => {} : undefined}
                   />
                 </td>
               ))}
@@ -373,19 +375,50 @@ function DataSheetGrid({ sheet, onChange }: { sheet: DataSheet; onChange: (s: Da
 // Cell input that stays controlled while the user types but mirrors
 // upstream changes (e.g. a chart drag updating the same cell). Commits
 // to the parent on blur or Enter so we don't fire setState on every
-// keystroke through the whole sheet.
-function CellInput({ value, onCommit, style }: { value: string; onCommit: (v: string) => void; style: React.CSSProperties }) {
+// keystroke through the whole sheet. type="date" wires the native
+// browser calendar picker; type="number" supports drag-scrub.
+function CellInput({ value, onCommit, style, type, onScrub }: { value: string; onCommit: (v: string) => void; style: React.CSSProperties; type?: "text" | "number" | "date" | "percent"; onScrub?: (delta: number) => void }) {
   const [local, setLocal] = useState(value);
   const focusedRef = useRef(false);
-  // Pull external updates (e.g. drag-set values) when not actively editing
+  const scrubRef = useRef<{ x: number; v: number } | null>(null);
   useEffect(() => { if (!focusedRef.current) setLocal(value); }, [value]);
+  const inputType = type === "date" ? "date" : "text";
   return (
     <input
+      type={inputType}
       value={local}
       onChange={e => setLocal(e.target.value)}
-      onFocus={e => { focusedRef.current = true; e.target.select(); }}
+      onFocus={e => { focusedRef.current = true; if (inputType !== "date") e.target.select(); }}
       onBlur={() => { focusedRef.current = false; if (local !== value) onCommit(local); }}
       onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") { setLocal(value); (e.target as HTMLInputElement).blur(); } }}
+      onPointerDown={onScrub && (type === "number" || type === "percent") ? e => {
+        // Alt+drag enters scrub mode. We use Alt to preserve normal click
+        // behavior (focus + select) and get the modifier explicit.
+        if (!e.altKey) return;
+        e.preventDefault();
+        const numV = Number(local) || 0;
+        scrubRef.current = { x: e.clientX, v: numV };
+        (e.target as Element).setPointerCapture?.(e.pointerId);
+        const onMove = (ev: PointerEvent) => {
+          const ds = scrubRef.current;
+          if (!ds) return;
+          const dx = ev.clientX - ds.x;
+          // 1px = 1 unit when the value is small; scale by magnitude
+          const scale = Math.max(1, Math.abs(ds.v) / 100);
+          const next = ds.v + dx * scale;
+          const rounded = Math.round(next * 100) / 100;
+          setLocal(String(rounded));
+          onCommit(String(rounded));
+        };
+        const onUp = () => {
+          scrubRef.current = null;
+          window.removeEventListener("pointermove", onMove);
+          window.removeEventListener("pointerup", onUp);
+        };
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+      } : undefined}
+      title={onScrub && (type === "number" || type === "percent") ? "Alt-drag horizontally to scrub the value" : undefined}
       style={style}
     />
   );
@@ -661,7 +694,7 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
   const totals = categories.map((_, i) => series.reduce((a, s) => a + s.values[i], 0));
   const maxVal = Math.max(0, ...totals);
   const ticks = niceTicks(0, maxVal, 5);
-  const tickMax = ticks[ticks.length - 1];
+  const tickMax = cfg.yMax !== undefined ? cfg.yMax : ticks[ticks.length - 1];
   const yOf = (v: number) => chartH - (v / tickMax) * chartH;
 
   const groupW = chartW / categories.length;
@@ -803,7 +836,7 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
 
   const maxVal = Math.max(0, ...series.flatMap(s => s.values));
   const ticks = niceTicks(0, maxVal, 5);
-  const tickMax = ticks[ticks.length - 1];
+  const tickMax = cfg.yMax !== undefined ? cfg.yMax : ticks[ticks.length - 1];
   const yOf = (v: number) => chartH - (v / tickMax) * chartH;
 
   const groupW = chartW / categories.length;
@@ -1016,8 +1049,8 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, onUpdate
   const minV = Math.min(0, ...allY);
   const maxV = Math.max(0, ...allY);
   const ticks = niceTicks(minV, maxV, 5);
-  const tickMin = ticks[0];
-  const tickMax = ticks[ticks.length - 1];
+  const tickMin = cfg.yMin !== undefined ? cfg.yMin : ticks[0];
+  const tickMax = cfg.yMax !== undefined ? cfg.yMax : ticks[ticks.length - 1];
   const yOf = (v: number) => chartH - ((v - tickMin) / Math.max(0.0001, tickMax - tickMin)) * chartH;
 
   return (
@@ -1309,6 +1342,63 @@ function Waterfall({ sheet, cfg, W, H }: CatProps) {
         );
       })}
     </ChartFrame>
+  );
+}
+
+// Free-form text callout · drag to move, double-click to edit inline,
+// right-click to delete. Stored at SVG-viewBox coords so size scales
+// with the chart container.
+function CalloutNode({ annot, onMove, onEdit, onDelete }: {
+  annot: Extract<Annotation, { kind: "callout" }>;
+  onMove: (x: number, y: number) => void;
+  onEdit: (text: string) => void;
+  onDelete: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const dragRef = useRef<{ x0: number; y0: number; ax0: number; ay0: number } | null>(null);
+  const tw = Math.max(40, annot.text.length * 6.6 + 16);
+  const onDown = (e: React.PointerEvent) => {
+    if (editing) return;
+    e.stopPropagation();
+    const pt = pointerToSvg(e, e.currentTarget);
+    if (!pt) return;
+    dragRef.current = { x0: pt.x, y0: pt.y, ax0: annot.x, ay0: annot.y };
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onMv = (e: React.PointerEvent) => {
+    const ds = dragRef.current;
+    if (!ds) return;
+    const pt = pointerToSvg(e, e.currentTarget);
+    if (!pt) return;
+    onMove(Math.round(ds.ax0 + (pt.x - ds.x0)), Math.round(ds.ay0 + (pt.y - ds.y0)));
+  };
+  const onUp = () => { dragRef.current = null; };
+  const onContextMenu = (e: React.MouseEvent) => { e.preventDefault(); onDelete(); };
+  return (
+    <g
+      transform={`translate(${annot.x}, ${annot.y})`}
+      onPointerDown={onDown}
+      onPointerMove={onMv}
+      onPointerUp={onUp}
+      onDoubleClick={() => setEditing(true)}
+      onContextMenu={onContextMenu}
+      style={{ cursor: editing ? "text" : "grab" }}
+    >
+      <rect x="0" y="-14" width={tw} height="22" rx="4" fill="#0A0A0E" stroke={annot.color || C.amber} strokeWidth="1" opacity="0.95" />
+      {editing ? (
+        <foreignObject x="0" y="-14" width={Math.max(120, tw)} height="22">
+          <input
+            autoFocus
+            defaultValue={annot.text}
+            onBlur={e => { onEdit((e.target as HTMLInputElement).value); setEditing(false); }}
+            onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditing(false); }}
+            style={{ width: "100%", height: "100%", padding: "0 8px", background: "transparent", border: "none", color: "#E8E4DD", fontFamily: fontMono, fontSize: 11, fontWeight: 700, outline: "none", boxSizing: "border-box" }}
+          />
+        </foreignObject>
+      ) : (
+        <text x={tw / 2} y="2" textAnchor="middle" fill={annot.color || C.amber} style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 800, letterSpacing: 0.3, userSelect: "none" }}>{annot.text}</text>
+      )}
+    </g>
   );
 }
 
@@ -1678,8 +1768,15 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
   const GROUP_ROW_H = 30;
   const HEADER_H = 56;
   const TITLE_H = 56;
-  const LEFT_PANEL_W = 280;
   const PADDING = 16;
+  // Self-adjusting left panel · sized to fit longest task name + owner.
+  // SVG can't measure text without rendering, so we estimate from char
+  // count at our font sizes (12px task, 10px owner). Clamps 220-420px.
+  const longestTaskChars = Math.max(0, ...tasks.map(t => t.task.length));
+  const longestOwnerChars = Math.max(0, ...tasks.map(t => (t.owner || "").length));
+  const estTaskW = longestTaskChars * 7.2 + 32;
+  const estOwnerW = (opts.showOwner ? longestOwnerChars * 6.4 + 24 : 0);
+  const LEFT_PANEL_W = Math.max(220, Math.min(420, Math.round(estTaskW + estOwnerW + 32)));
 
   // Drag state · "move" shifts both start+end, "start"/"end" resize one edge.
   // Stored on a ref so React re-renders during the drag (driven by setState in
@@ -2269,6 +2366,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         <UndoRedoButtons onUndo={undo} onRedo={redo} canUndo={past.current.length > 0} canRedo={future.current.length > 0} />
         <PasteDataButton onPaste={raw => { const ds = parsePasteForCategorical(raw); if (ds) setSheets(p => ({ ...p, [type]: ds })); else showToast("Couldn't parse the paste — expected TSV or CSV with headers"); }} />
         <NumberFormatPicker fmt={numFmt} onChange={setNumFmt} />
+        <AxisRangePicker yMin={axis.yMin} yMax={axis.yMax} onChange={(yMin, yMax) => setAxis({ yMin, yMax })} />
         <ThemePicker theme={theme} onChange={setTheme} />
         <ExportSplitButton onPNG={exportPNG} onSVG={exportSVG} />
       </div>
@@ -2278,9 +2376,11 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         annotations={annotations}
         type={type}
         pickMode={pickMode}
-        onStartPick={kind => setPickMode({ kind, bars: [] })}
+        placeMode={placeMode}
+        onStartPick={kind => { setPlaceMode(null); setPickMode({ kind, bars: [] }); }}
         onCancelPick={() => setPickMode(null)}
         onAddRefLine={addReferenceLine}
+        onTogglePlaceText={() => { setPickMode(null); setPlaceMode(placeMode?.kind === "callout" ? null : { kind: "callout" }); }}
         onRemove={removeAnnotation}
         onClearAll={clearAllAnnotations}
       />
@@ -2335,8 +2435,38 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             overflow: "auto",
             boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 32px rgba(0,0,0,0.32)",
           }}>
-            <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", fontFamily: ft, touchAction: "none" }}>
+            <svg
+              ref={svgRef}
+              viewBox={`0 0 ${W} ${H}`}
+              style={{ width: "100%", height: "auto", display: "block", fontFamily: ft, touchAction: "none", cursor: placeMode?.kind === "callout" ? "crosshair" : "default" }}
+            >
               {renderChart()}
+              {/* Free-form text callouts (ANNOTATE TEXT) — rendered after
+                  the chart so they sit on top. */}
+              {annotations.filter(a => a.kind === "callout").map(a => (
+                <CalloutNode
+                  key={a.id}
+                  annot={a as Extract<Annotation, { kind: "callout" }>}
+                  onMove={(x, y) => setAnnotations(annotations.map(b => b.id === a.id ? { ...(b as Extract<Annotation, { kind: "callout" }>), x, y } : b))}
+                  onEdit={text => setAnnotations(annotations.map(b => b.id === a.id ? { ...(b as Extract<Annotation, { kind: "callout" }>), text } : b))}
+                  onDelete={() => removeAnnotation(a.id)}
+                />
+              ))}
+              {/* Placement overlay · catches the next click to drop a text */}
+              {placeMode?.kind === "callout" && (
+                <rect
+                  x="0" y="0" width={W} height={H}
+                  fill="transparent"
+                  onPointerDown={e => {
+                    const pt = pointerToSvg(e, e.currentTarget);
+                    if (!pt) return;
+                    const newAnnot: Annotation = { id: Math.random().toString(36).slice(2, 9), kind: "callout", x: Math.round(pt.x), y: Math.round(pt.y), text: "Note" };
+                    setAnnotations([...annotations, newAnnot]);
+                    setPlaceMode(null);
+                  }}
+                  style={{ cursor: "crosshair" }}
+                />
+              )}
             </svg>
           </div>
 
@@ -2406,6 +2536,65 @@ function ExportSplitButton({ onPNG, onSVG }: { onPNG: () => void; onSVG: () => v
 }
 function dropItem(): React.CSSProperties {
   return { padding: "9px 12px", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, color: "#E8E4DD", fontFamily: ft, fontSize: 12, fontWeight: 600, transition: "background 0.12s" };
+}
+
+// ─── Manual Y axis range picker ───────────────────────────────────────────
+function AxisRangePicker({ yMin, yMax, onChange }: { yMin?: number; yMax?: number; onChange: (yMin?: number, yMax?: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const [minStr, setMinStr] = useState(yMin !== undefined ? String(yMin) : "");
+  const [maxStr, setMaxStr] = useState(yMax !== undefined ? String(yMax) : "");
+  useEffect(() => { setMinStr(yMin !== undefined ? String(yMin) : ""); setMaxStr(yMax !== undefined ? String(yMax) : ""); }, [yMin, yMax]);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => { const t = e.target as HTMLElement; if (t.closest("[data-axis-range]")) return; setOpen(false); };
+    setTimeout(() => document.addEventListener("click", close), 0);
+    return () => document.removeEventListener("click", close);
+  }, [open]);
+  const apply = () => {
+    const a = minStr === "" ? undefined : Number(minStr);
+    const b = maxStr === "" ? undefined : Number(maxStr);
+    onChange(a !== undefined && !isNaN(a) ? a : undefined, b !== undefined && !isNaN(b) ? b : undefined);
+  };
+  const isAuto = yMin === undefined && yMax === undefined;
+  return (
+    <div data-axis-range style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="Manual Y axis range · empty fields = auto-fit"
+        style={{
+          display: "flex", alignItems: "center", gap: 7,
+          padding: "9px 14px", borderRadius: 9,
+          background: open ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.035)",
+          backdropFilter: "blur(10px) saturate(140%)",
+          WebkitBackdropFilter: "blur(10px) saturate(140%)",
+          border: "1px solid " + (open || !isAuto ? C.amber + "55" : "rgba(255,255,255,0.10)"),
+          color: !isAuto ? C.amber : (open ? C.tx : C.txm),
+          fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.5,
+          cursor: "pointer", transition: "all 0.18s",
+          boxShadow: open || !isAuto ? "0 6px 20px " + C.amber + "20, 0 1px 0 rgba(255,255,255,0.06) inset" : "0 1px 0 rgba(255,255,255,0.04) inset",
+        }}
+      >
+        <ArrowUpDown size={13} strokeWidth={2.2} />
+        Y AXIS{!isAuto ? " ·" : ""}{!isAuto && yMin !== undefined ? " " + yMin : ""}{!isAuto && yMin !== undefined && yMax !== undefined ? "→" : ""}{!isAuto && yMax !== undefined ? yMax : ""}
+        <ChevronDown size={11} strokeWidth={2.4} style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
+      </button>
+      {open && (
+        <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 1100, background: "#0D0D14", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 9, padding: 12, minWidth: 240, boxShadow: "0 18px 48px rgba(0,0,0,0.5)" }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8 }}>Y axis range</div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+            <input value={minStr} onChange={e => setMinStr(e.target.value)} placeholder="min" style={inputCSS("#06060A", "rgba(255,255,255,0.10)")} />
+            <input value={maxStr} onChange={e => setMaxStr(e.target.value)} placeholder="max" style={inputCSS("#06060A", "rgba(255,255,255,0.10)")} />
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <GlassButton onClick={() => { setMinStr(""); setMaxStr(""); onChange(undefined, undefined); }} title="Reset to auto-fit">AUTO</GlassButton>
+            <span style={{ flex: 1 }} />
+            <GlassButton onClick={apply} primary title="Apply range">APPLY</GlassButton>
+          </div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 10, letterSpacing: 0.5 }}>Empty field = auto on that side</div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Paste data button + modal · ports SA Excel paste detection ──────────
@@ -2584,11 +2773,12 @@ function NumberFormatPicker({ fmt, onChange }: { fmt: NumberFormat; onChange: (f
 }
 
 // ─── Annotations toolbar · Add reference line / CAGR / Δ ──────────────────
-function AnnotationsBar({ annotations, type, pickMode, onStartPick, onCancelPick, onAddRefLine, onRemove, onClearAll }: {
-  annotations: Annotation[]; type: ChartType; pickMode: PickMode;
+function AnnotationsBar({ annotations, type, pickMode, placeMode, onStartPick, onCancelPick, onAddRefLine, onTogglePlaceText, onRemove, onClearAll }: {
+  annotations: Annotation[]; type: ChartType; pickMode: PickMode; placeMode: PlaceMode;
   onStartPick: (kind: "cagr" | "diff") => void;
   onCancelPick: () => void;
   onAddRefLine: (value: number, label: string) => void;
+  onTogglePlaceText: () => void;
   onRemove: (id: string) => void;
   onClearAll: () => void;
 }) {
@@ -2614,6 +2804,7 @@ function AnnotationsBar({ annotations, type, pickMode, onStartPick, onCancelPick
       <AnnotChip active={pickMode?.kind === "cagr"} disabled={!annotApplies} title="Pick two bars/points to draw a CAGR arrow" Icon={Sigma} onClick={() => onStartPick("cagr")}>CAGR</AnnotChip>
       <AnnotChip active={pickMode?.kind === "diff"} disabled={!annotApplies} title="Pick two bars/points to show absolute Δ" Icon={ArrowUpDown} onClick={() => onStartPick("diff")}>Δ DIFF</AnnotChip>
       <AnnotChip active={refOpen} disabled={!annotApplies} title="Drop a horizontal reference line" Icon={Minus} onClick={() => setRefOpen(v => !v)}>REF LINE</AnnotChip>
+      <AnnotChip active={placeMode?.kind === "callout"} title="Click chart to drop a free-form text annotation" Icon={Type} onClick={onTogglePlaceText}>TEXT</AnnotChip>
       {refOpen && (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "0 4px" }}>
           <input value={refValue} onChange={e => setRefValue(e.target.value)} placeholder="value" style={{ width: 72, padding: "6px 9px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 6, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none" }} />
