@@ -939,7 +939,11 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
     { kind: "swatchRow", colors: palette, current: cfg.seriesColors?.[key], onPick: c => onSetSeriesColor(key, c) },
   ]) : undefined;
   const [editingCat, setEditingCat] = useState<number | null>(null);
-  const leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 48;
+  const cc = chartColors(cfg);
+  const SIDE_LEGEND_W = (cfg.legendPos === "left" || cfg.legendPos === "right") ? 100 : 0;
+  const leftPad = cfg.legendPos === "left" ? 56 + SIDE_LEGEND_W : 56;
+  const rightPad = cfg.legendPos === "right" ? 24 + SIDE_LEGEND_W : 24;
+  const topPad = 70, bottomPad = cfg.legendPos === "top" ? 60 : 48;
   const chartW = W - leftPad - rightPad;
   const chartH = H - topPad - bottomPad;
 
@@ -985,8 +989,8 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
       {ticks.map(t => (
         <g key={t}>
-          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" data-grid strokeWidth="1" />
-          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
+          {cfg.showGridlines !== false && <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke={cc.grid} strokeWidth="1" />}
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
       {categories.map((cat, i) => {
@@ -1008,8 +1012,8 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
                   width={barW}
                   height={Math.max(0, y0 - y1)}
                   fill={colorOf(seriesKeys[si], si)}
-                  stroke="#0A0A0E"
-                  strokeWidth="1"
+                  stroke={cfg.showBorders ? cc.barBorder : "none"}
+                  strokeWidth={cfg.showBorders ? 1 : 0}
                   onPointerDown={onDown(i, key, cumBelow)}
                   onPointerMove={onMove}
                   onPointerUp={onUp}
@@ -1023,7 +1027,7 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
                 />
               );
             })}
-            <text x={leftPad + i * groupW + groupW / 2} y={yOf(totals[i]) - 6} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, pointerEvents: "none" }}>{fmtVal(totals[i], cfg.numFmt)}</text>
+            <text x={leftPad + i * groupW + groupW / 2} y={yOf(totals[i]) - 6} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, pointerEvents: "none" }}>{fmtVal(totals[i], cfg.numFmt)}</text>
             {editingCat === i ? (
               <foreignObject x={leftPad + i * groupW + 6} y={chartH + 8} width={groupW - 12} height={26}>
                 <input
@@ -1036,7 +1040,7 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
               </foreignObject>
             ) : (
               <text
-                x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={C.txm}
+                x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={cc.muted}
                 onDoubleClick={() => onUpdateRow && setEditingCat(i)}
                 style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600, cursor: onUpdateRow ? "text" : "default" }}
               >{cat}</text>
@@ -1044,7 +1048,9 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
           </g>
         );
       })}
-      cfg.legendPos !== "hidden" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} />
+      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={2} />}
+      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W + 6} />}
+      {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} textColor={cc.muted} />}
       {/* Annotations · ref lines, CAGR, diff. Anchored to the TOP of the
           stack at each picked row (cumulative sum). */}
       <AnnotationLayer
@@ -1082,7 +1088,11 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
   const legendSwatchClick = onSetSeriesColor && onShowMenu ? (key: string, e: React.MouseEvent) => onShowMenu(e, [
     { kind: "swatchRow", colors: palette, current: cfg.seriesColors?.[key], onPick: c => onSetSeriesColor(key, c) },
   ]) : undefined;
-  const leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 48;
+  const cc = chartColors(cfg);
+  const SIDE_LEGEND_W = (cfg.legendPos === "left" || cfg.legendPos === "right") ? 100 : 0;
+  const leftPad = cfg.legendPos === "left" ? 56 + SIDE_LEGEND_W : 56;
+  const rightPad = cfg.legendPos === "right" ? 24 + SIDE_LEGEND_W : 24;
+  const topPad = 70, bottomPad = cfg.legendPos === "top" ? 60 : 48;
   const chartW = W - leftPad - rightPad;
   const chartH = H - topPad - bottomPad;
 
@@ -1128,8 +1138,8 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
       {ticks.map(t => (
         <g key={t}>
-          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" data-grid />
-          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
+          {cfg.showGridlines !== false && <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke={cc.grid} strokeWidth="1" />}
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
       {categories.map((cat, i) => (
@@ -1156,7 +1166,7 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
                   ])}
                   style={{ cursor: onUpdateRow ? "ns-resize" : "default" }}
                 />
-                <text x={x + barW / 2} y={y - 4} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>{fmtVal(v, cfg.numFmt)}</text>
+                <text x={x + barW / 2} y={y - 4} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>{fmtVal(v, cfg.numFmt)}</text>
               </g>
             );
           })}
@@ -1172,14 +1182,16 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
             </foreignObject>
           ) : (
             <text
-              x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={C.txm}
+              x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={cc.muted}
               onDoubleClick={() => onUpdateRow && setEditingCat(i)}
               style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600, cursor: onUpdateRow ? "text" : "default" }}
             >{cat}</text>
           )}
         </g>
       ))}
-      cfg.legendPos !== "hidden" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} />
+      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={2} />}
+      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W + 6} />}
+      {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} textColor={cc.muted} />}
       {/* Annotations layer · reference lines, CAGR arrows, Δ markers */}
       <AnnotationLayer
         annotations={annotations || []}
@@ -1216,7 +1228,11 @@ function niceRound(v: number): number {
 function PercentColumn({ sheet, cfg, W, H }: CatProps) {
   const { categories, series } = getCategoricalSeries(sheet);
   const palette = THEMES[cfg.theme].colors;
-  const leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 48;
+  const cc = chartColors(cfg);
+  const SIDE_LEGEND_W = (cfg.legendPos === "left" || cfg.legendPos === "right") ? 100 : 0;
+  const leftPad = cfg.legendPos === "left" ? 56 + SIDE_LEGEND_W : 56;
+  const rightPad = cfg.legendPos === "right" ? 24 + SIDE_LEGEND_W : 24;
+  const topPad = 70, bottomPad = cfg.legendPos === "top" ? 60 : 48;
   const chartW = W - leftPad - rightPad;
   const chartH = H - topPad - bottomPad;
   const groupW = chartW / categories.length;
@@ -1229,8 +1245,8 @@ function PercentColumn({ sheet, cfg, W, H }: CatProps) {
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
       {ticks.map(t => (
         <g key={t}>
-          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" data-grid />
-          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{t}%</text>
+          {cfg.showGridlines !== false && <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke={cc.grid} strokeWidth="1" />}
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10 }}>{t}%</text>
         </g>
       ))}
       {categories.map((cat, i) => {
@@ -1246,16 +1262,18 @@ function PercentColumn({ sheet, cfg, W, H }: CatProps) {
               const cx = leftPad + i * groupW + (groupW - barW) / 2;
               return (
                 <g key={si}>
-                  <rect x={cx} y={y1} width={barW} height={Math.max(0, y0 - y1)} fill={palette[si % palette.length]} stroke="#0A0A0E" strokeWidth="1" />
-                  {(y0 - y1) > 18 && <text x={cx + barW / 2} y={(y0 + y1) / 2 + 3} textAnchor="middle" fill="#0A0A0E" style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 800 }}>{Math.round(pct)}%</text>}
+                  <rect x={cx} y={y1} width={barW} height={Math.max(0, y0 - y1)} fill={palette[si % palette.length]} stroke={cfg.showBorders ? cc.barBorder : "none"} strokeWidth={cfg.showBorders ? 1 : 0} />
+                  {(y0 - y1) > 18 && <text x={cx + barW / 2} y={(y0 + y1) / 2 + 3} textAnchor="middle" fill={cc.onBar} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 800 }}>{Math.round(pct)}%</text>}
                 </g>
               );
             })}
-            <text x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{cat}</text>
+            <text x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{cat}</text>
           </g>
         );
       })}
-      cfg.legendPos !== "hidden" && <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} />
+      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={2} />}
+      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W + 6} />}
+      {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} textColor={cc.muted} />}
     </ChartFrame>
   );
 }
@@ -1265,7 +1283,11 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, onUpdate
   const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
   const palette = THEMES[cfg.theme].colors;
   const colorOf = (key: string, idx: number) => cfg.seriesColors?.[key] || palette[idx % palette.length];
-  const leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 48;
+  const cc = chartColors(cfg);
+  const SIDE_LEGEND_W = (cfg.legendPos === "left" || cfg.legendPos === "right") ? 100 : 0;
+  const leftPad = cfg.legendPos === "left" ? 56 + SIDE_LEGEND_W : 56;
+  const rightPad = cfg.legendPos === "right" ? 24 + SIDE_LEGEND_W : 24;
+  const topPad = 70, bottomPad = cfg.legendPos === "top" ? 60 : 48;
   const chartW = W - leftPad - rightPad;
   const chartH = H - topPad - bottomPad;
   // Time-axis detection · port of ChartMaker 1's auto-time behavior. If
@@ -1311,8 +1333,8 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, onUpdate
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
       {ticks.map(t => (
         <g key={t}>
-          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" data-grid />
-          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
+          {cfg.showGridlines !== false && <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke={cc.grid} strokeWidth="1" />}
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
       {/* Fills (areas) */}
@@ -1366,7 +1388,7 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, onUpdate
                 <circle
                   key={i}
                   cx={xOf(i)} cy={yOf(v)} r="6"
-                  fill="#0A0A0E"
+                  fill={cc.barBorder}
                   stroke={palette[si % palette.length]}
                   strokeWidth="2"
                   onPointerDown={onDown(i)}
@@ -1385,7 +1407,7 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, onUpdate
           {timeTicks.map((t, i) => {
             const x = leftPad + ((t - tMin) / tSpan) * chartW;
             if (x < leftPad - 4 || x > leftPad + chartW + 4) return null;
-            return <text key={"tt-" + i} x={x} y={chartH + 22} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, letterSpacing: 0.4 }}>{formatTick(t, timeUnit)}</text>;
+            return <text key={"tt-" + i} x={x} y={chartH + 22} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, letterSpacing: 0.4 }}>{formatTick(t, timeUnit)}</text>;
           })}
           {/* Per-point chip labels above each point — ports the SA
               "labels row beneath data" rendering from ChartMaker 1.
@@ -1400,16 +1422,19 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, onUpdate
         </>
       ) : (
         categories.map((cat, i) => (
-          <text key={i} x={xOf(i)} y={chartH + 22} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{cat}</text>
+          <text key={i} x={xOf(i)} y={chartH + 22} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{cat}</text>
         ))
       )}
-      cfg.legendPos !== "hidden" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} />
+      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={2} />}
+      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W + 6} />}
+      {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} textColor={cc.muted} />}
     </ChartFrame>
   );
 }
 
 function Pie({ sheet, cfg, W, H, doughnut = false }: { sheet: DataSheet; cfg: ChartConfig; W: number; H: number; doughnut?: boolean }) {
   const palette = THEMES[cfg.theme].colors;
+  const cc = chartColors(cfg);
   const labelCol = sheet.schema[0];
   const valueCol = sheet.schema.find(c => c.type === "number") || sheet.schema[1];
   const items = sheet.rows.map(r => ({ label: String(r[labelCol.key] ?? ""), value: Number(r[valueCol.key]) || 0 }))
@@ -1447,21 +1472,21 @@ function Pie({ sheet, cfg, W, H, doughnut = false }: { sheet: DataSheet; cfg: Ch
   return (
     <g>
       <rect x="0" y="0" width={W} height={H} fill="transparent" />
-      <text x="56" y="28" fill="#E8E4DD" style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 900 }}>{cfg.title}</text>
-      <text x="56" y="48" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 1 }}>{cfg.subtitle.toUpperCase()}</text>
+      <text x="56" y="28" fill={cc.text} style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 900 }}>{cfg.title}</text>
+      <text x="56" y="48" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 1 }}>{cfg.subtitle.toUpperCase()}</text>
       {arcs.map((a, i) => (
         <g key={i}>
-          <path d={a.path} fill={a.color} stroke="#0A0A0E" strokeWidth="2" />
+          <path d={a.path} fill={a.color} stroke={cc.barBorder} strokeWidth="1.5" />
           {a.portion > 0.04 && (
-            <text x={a.labelX} y={a.labelY} textAnchor={a.labelX < cx ? "end" : "start"} fill="#E8E4DD" style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 700 }}>
+            <text x={a.labelX} y={a.labelY} textAnchor={a.labelX < cx ? "end" : "start"} fill={cc.text} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 700 }}>
               <tspan>{a.label}</tspan>
-              <tspan x={a.labelX} dy="14" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 600 }}>{Math.round(a.portion * 100)}%</tspan>
+              <tspan x={a.labelX} dy="14" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 600 }}>{Math.round(a.portion * 100)}%</tspan>
             </text>
           )}
         </g>
       ))}
       {doughnut && (
-        <text x={cx} y={cy + 4} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontSans, fontSize: 22, fontWeight: 900 }}>{fmtVal(total, cfg.numFmt)}</text>
+        <text x={cx} y={cy + 4} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontSans, fontSize: 22, fontWeight: 900 }}>{fmtVal(total, cfg.numFmt)}</text>
       )}
     </g>
   );
@@ -1469,6 +1494,7 @@ function Pie({ sheet, cfg, W, H, doughnut = false }: { sheet: DataSheet; cfg: Ch
 
 function Scatter({ sheet, cfg, W, H, bubble = false }: { sheet: DataSheet; cfg: ChartConfig; W: number; H: number; bubble?: boolean }) {
   const palette = THEMES[cfg.theme].colors;
+  const cc = chartColors(cfg);
   const labelCol = sheet.schema.find(c => c.type === "text");
   const xCol = sheet.schema.find(c => c.key === "x" || (c.type === "number" && c.label.toLowerCase() === "x")) || sheet.schema.filter(c => c.type === "number")[0];
   const yCol = sheet.schema.find(c => c.key === "y" || (c.type === "number" && c.label.toLowerCase() === "y")) || sheet.schema.filter(c => c.type === "number")[1];
@@ -1512,17 +1538,17 @@ function Scatter({ sheet, cfg, W, H, bubble = false }: { sheet: DataSheet; cfg: 
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
       {yTicks.map(t => (
         <g key={"y" + t}>
-          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" data-grid />
-          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
+          {cfg.showGridlines !== false && <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke={cc.grid} strokeWidth="1" />}
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
       {xTicks.map(t => (
-        <text key={"x" + t} x={xOf(t)} y={chartH + 22} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
+        <text key={"x" + t} x={xOf(t)} y={chartH + 22} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
       ))}
       {points.map((p, i) => (
         <g key={i}>
           <circle cx={xOf(p.x)} cy={yOf(p.y)} r={radius(p.size)} fill={palette[i % palette.length]} fillOpacity="0.6" stroke={palette[i % palette.length]} strokeWidth="1.5" />
-          <text x={xOf(p.x)} y={yOf(p.y) - radius(p.size) - 6} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontSans, fontSize: 10, fontWeight: 700 }}>{p.label}</text>
+          <text x={xOf(p.x)} y={yOf(p.y) - radius(p.size) - 6} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontSans, fontSize: 10, fontWeight: 700 }}>{p.label}</text>
         </g>
       ))}
     </ChartFrame>
@@ -1531,6 +1557,7 @@ function Scatter({ sheet, cfg, W, H, bubble = false }: { sheet: DataSheet; cfg: 
 
 function Waterfall({ sheet, cfg, W, H }: CatProps) {
   const palette = THEMES[cfg.theme].colors;
+  const cc = chartColors(cfg);
   const posColor = palette[0];
   const negColor = C.coral;
   const totalColor = palette[1] || palette[0];
@@ -1576,8 +1603,8 @@ function Waterfall({ sheet, cfg, W, H }: CatProps) {
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
       {ticks.map(t => (
         <g key={t}>
-          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" data-grid />
-          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
+          {cfg.showGridlines !== false && <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke={cc.grid} strokeWidth="1" />}
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
       {segments.map((seg, i) => {
@@ -1586,13 +1613,13 @@ function Waterfall({ sheet, cfg, W, H }: CatProps) {
         const h = Math.max(0, yOf(seg.y0) - yOf(seg.y1));
         return (
           <g key={i}>
-            <rect x={x} y={y} width={barW} height={h} fill={seg.color} fillOpacity={seg.isTotal ? 0.85 : 0.7} stroke={seg.color} strokeWidth="1" />
+            <rect x={x} y={y} width={barW} height={h} fill={seg.color} fillOpacity={seg.isTotal ? 0.85 : 0.7} stroke={cfg.showBorders ? cc.barBorder : seg.color} strokeWidth="1" />
             {/* Connector line to next */}
             {i < segments.length - 1 && !segments[i + 1].isTotal && (
-              <line x1={x + barW} x2={leftPad + (i + 1) * groupW + (groupW - barW) / 2} y1={yOf(seg.cum)} y2={yOf(seg.cum)} stroke="rgba(255,255,255,0.25)" strokeDasharray="3 3" />
+              <line x1={x + barW} x2={leftPad + (i + 1) * groupW + (groupW - barW) / 2} y1={yOf(seg.cum)} y2={yOf(seg.cum)} stroke={cc.gridStrong} strokeDasharray="3 3" />
             )}
-            <text x={x + barW / 2} y={y - 6} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700 }}>{(seg.label as number) >= 0 ? "+" : ""}{fmtVal(seg.label as number, cfg.numFmt)}</text>
-            <text x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{items[i].label}</text>
+            <text x={x + barW / 2} y={y - 6} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700 }}>{(seg.label as number) >= 0 ? "+" : ""}{fmtVal(seg.label as number, cfg.numFmt)}</text>
+            <text x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{items[i].label}</text>
           </g>
         );
       })}
@@ -1732,6 +1759,7 @@ function AnnotationLayer({ annotations, getBarTop, chartW, chartH, leftPad, topP
 function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow }: CatProps) {
   void onShowMenu; void onDeleteRow;
   const palette = THEMES[cfg.theme].colors;
+  const cc = chartColors(cfg);
   const acColor = palette[0];
   const pyColor = "rgba(255,255,255,0.45)";
   const upColor = "#4FBF6B"; // IBCS green = good
@@ -1791,8 +1819,8 @@ function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow }:
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
       {ticks.map(t => (
         <g key={t}>
-          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" data-grid />
-          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
+          {cfg.showGridlines !== false && <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke={cc.grid} strokeWidth="1" />}
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
       {rows.map((r, i) => {
@@ -1818,7 +1846,7 @@ function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow }:
             <line x1={cx - 3} x2={cx + barW + 3} y1={yPy} y2={yPy} stroke={pyColor} strokeWidth="2" strokeDasharray="3 3" />
             <text x={cx + barW + 6} y={yPy + 3} fill={pyColor} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>PY {fmtVal(r.py, cfg.numFmt)}</text>
             {/* AC value label inside or above bar */}
-            <text x={cx + barW / 2} y={yAc - 6} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 800, pointerEvents: "none" }}>{fmtVal(r.ac, cfg.numFmt)}</text>
+            <text x={cx + barW / 2} y={yAc - 6} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 800, pointerEvents: "none" }}>{fmtVal(r.ac, cfg.numFmt)}</text>
             {/* Variance arrow + label · IBCS green = good, red = bad */}
             <g transform={`translate(${cx + barW / 2}, ${chartH + 16})`}>
               <polygon
@@ -1829,7 +1857,7 @@ function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow }:
               <text y={34} textAnchor="middle" fill={arrowColor} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, letterSpacing: 0.3, pointerEvents: "none", opacity: 0.85 }}>{(up ? "+" : "")}{Math.abs(pct) < 100 ? pct.toFixed(1) : pct.toFixed(0)}%</text>
             </g>
             {/* Category label (above the variance arrow) */}
-            <text x={cx + barW / 2} y={chartH + 4} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{r.cat}</text>
+            <text x={cx + barW / 2} y={chartH + 4} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{r.cat}</text>
           </g>
         );
       })}
@@ -1843,26 +1871,44 @@ function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow }:
         W={W}
         y={H - topPad - 4}
         leftPad={leftPad}
+        textColor={cc.muted}
       />
     </ChartFrame>
   );
 }
 
-function Legend({ series, W, y, leftPad, onSwatchClick }: { series: Array<{ label: string; color: string; key?: string }>; W: number; y: number; leftPad: number; onSwatchClick?: (key: string, e: React.MouseEvent) => void }) {
-  void W;
+function Legend({ series, W, y, leftPad, onSwatchClick, textColor, vertical, vertX }: { series: Array<{ label: string; color: string; key?: string }>; W: number; y: number; leftPad: number; onSwatchClick?: (key: string, e: React.MouseEvent) => void; textColor?: string; vertical?: boolean; vertX?: number }) {
+  const tc = textColor || C.txm;
+  const Swatch = ({ s }: { s: typeof series[number] }) => (
+    <rect
+      x="0" y="-8" width="14" height="14" rx="3" fill={s.color}
+      stroke={onSwatchClick ? "rgba(255,255,255,0.20)" : "none"} strokeWidth={onSwatchClick ? 1 : 0}
+      onClick={onSwatchClick && s.key ? (e => onSwatchClick(s.key!, e)) : undefined}
+      style={{ cursor: onSwatchClick ? "pointer" : "default" }}
+    >{onSwatchClick && <title>Click to recolor this series</title>}</rect>
+  );
+  if (vertical) {
+    return (
+      <g>
+        {series.map((s, i) => (
+          <g key={i} transform={`translate(${vertX ?? 2}, ${y + i * 22})`}>
+            <Swatch s={s} />
+            <text x="20" y="3" fill={tc} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 0.5 }}>{s.label.toUpperCase()}</text>
+          </g>
+        ))}
+      </g>
+    );
+  }
+  // horizontal — center within W, fall back to leftPad if items overflow
+  const itemW = 110;
+  const totalW = series.length * itemW;
+  const startX = Math.max(leftPad, (W - totalW) / 2);
   return (
     <g>
       {series.map((s, i) => (
-        <g key={i} transform={`translate(${leftPad + i * 110}, ${y})`}>
-          <rect
-            x="0" y="-8" width="14" height="14" rx="3" fill={s.color}
-            stroke={onSwatchClick ? "rgba(255,255,255,0.20)" : "none"} strokeWidth={onSwatchClick ? 1 : 0}
-            onClick={onSwatchClick && s.key ? (e => onSwatchClick(s.key!, e)) : undefined}
-            style={{ cursor: onSwatchClick ? "pointer" : "default" }}
-          >
-            {onSwatchClick && <title>Click to recolor this series</title>}
-          </rect>
-          <text x="20" y="3" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 0.5 }}>{s.label.toUpperCase()}</text>
+        <g key={i} transform={`translate(${startX + i * itemW}, ${y})`}>
+          <Swatch s={s} />
+          <text x="20" y="3" fill={tc} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 0.5 }}>{s.label.toUpperCase()}</text>
         </g>
       ))}
     </g>
@@ -2016,6 +2062,7 @@ interface GanttOpts {
 
 function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDeleteRow, onShowMenu }: { sheet: DataSheet; cfg: ChartConfig; W: number; H: number; opts: GanttOpts; onToggleGroup: (k: string) => void; onUpdateRow?: OnUpdateRow; onDeleteRow?: OnDeleteRow; onShowMenu?: OnShowMenu }) {
   const palette = THEMES[cfg.theme].colors;
+  const cc = chartColors(cfg);
   const tasks = ganttFromSheet(sheet);
   const groups = buildGroups(tasks, palette);
 
@@ -2121,8 +2168,8 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
   return (
     <g>
       <rect x="0" y="0" width={totalW} height={totalH} fill="transparent" />
-      <text x={LEFT_PANEL_W} y="26" fill="#E8E4DD" style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 900 }}>{cfg.title}</text>
-      <text x={LEFT_PANEL_W} y="46" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 1 }}>{cfg.subtitle.toUpperCase()}</text>
+      <text x={LEFT_PANEL_W} y="26" fill={cc.text} style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 900 }}>{cfg.title}</text>
+      <text x={LEFT_PANEL_W} y="46" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 1 }}>{cfg.subtitle.toUpperCase()}</text>
       {ticks.map((t, i) => {
         const x = xOf(t);
         const next = ticks[i + 1];
@@ -2130,7 +2177,7 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
         return (
           <g key={"tk-" + i}>
             <line x1={x} x2={x} y1={TITLE_H} y2={totalH - PADDING} stroke="rgba(255,255,255,0.04)" />
-            {next && <text x={labelX} y={TITLE_H + 24} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 700 }}>{formatTick(t, opts.unit)}</text>}
+            {next && <text x={labelX} y={TITLE_H + 24} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 700 }}>{formatTick(t, opts.unit)}</text>}
           </g>
         );
       })}
@@ -2143,7 +2190,7 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
             <g key={"g-" + r.group.key} onClick={() => onToggleGroup(r.group.key)} style={{ cursor: "pointer" }}>
               <rect x="0" y={top} width={totalW} height={GROUP_ROW_H} fill="rgba(255,255,255,0.015)" />
               <polygon points={collapsed ? `12,${top + GROUP_ROW_H / 2 - 5} 18,${top + GROUP_ROW_H / 2} 12,${top + GROUP_ROW_H / 2 + 5}` : `10,${top + GROUP_ROW_H / 2 - 4} 18,${top + GROUP_ROW_H / 2 - 4} 14,${top + GROUP_ROW_H / 2 + 4}`} fill={r.group.color} />
-              <text x="26" y={top + GROUP_ROW_H / 2 + 4} fill="#E8E4DD" style={{ fontFamily: fontSans, fontSize: 12, fontWeight: 800, letterSpacing: 0.3 }}>{r.group.label.toUpperCase()}</text>
+              <text x="26" y={top + GROUP_ROW_H / 2 + 4} fill={cc.text} style={{ fontFamily: fontSans, fontSize: 12, fontWeight: 800, letterSpacing: 0.3 }}>{r.group.label.toUpperCase()}</text>
               <line x1={xOf(r.group.start)} x2={xOf(r.group.end)} y1={top + GROUP_ROW_H / 2} y2={top + GROUP_ROW_H / 2} stroke={r.group.color} strokeWidth="2" opacity="0.6" />
               <circle cx={xOf(r.group.start)} cy={top + GROUP_ROW_H / 2} r="3" fill={r.group.color} />
               <circle cx={xOf(r.group.end)} cy={top + GROUP_ROW_H / 2} r="3" fill={r.group.color} />
@@ -2178,7 +2225,7 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
               </foreignObject>
             ) : (
               <text
-                x="32" y={top + ROW_H / 2 + 4} fill="#E8E4DD"
+                x="32" y={top + ROW_H / 2 + 4} fill={cc.text}
                 onDoubleClick={() => onUpdateRow && setEditing({ rowIdx: t.sheetIdx, key: "task" })}
                 style={{ fontFamily: fontSans, fontSize: 12, fontWeight: 500, cursor: onUpdateRow ? "text" : "default" }}
               >{t.task}</text>
