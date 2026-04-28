@@ -362,7 +362,44 @@ function evalFormula(expr: string, sheet: DataSheet, depth = 0): number | string
       .replace(/MAX\s*\(([^)]+)\)/gi, (_, body) => String(runFn(body, vs => vs.length ? Math.max(...vs) : 0)))
       .replace(/MIN\s*\(([^)]+)\)/gi, (_, body) => String(runFn(body, vs => vs.length ? Math.min(...vs) : 0)))
       .replace(/COUNT\s*\(([^)]+)\)/gi, (_, body) => { const args = body.split(",").filter((x: string) => x.trim() !== ""); return String(args.length); })
-      .replace(/PRODUCT\s*\(([^)]+)\)/gi, (_, body) => String(runFn(body, vs => vs.reduce((a, b) => a * b, 1))));
+      .replace(/PRODUCT\s*\(([^)]+)\)/gi, (_, body) => String(runFn(body, vs => vs.reduce((a, b) => a * b, 1))))
+      // Single-arg unary functions
+      .replace(/ABS\s*\(([^)]+)\)/gi, (_, body) => String(runFn(body, vs => Math.abs(vs[0] || 0))))
+      .replace(/ROUND\s*\(([^)]+)\)/gi, (_, body) => {
+        const args = body.split(",").map((t: string) => t.trim());
+        const v = args[0] ? (parseCellRef(args[0]) ? resolveCell(args[0], sheet, depth + 1) : Number(args[0]) || 0) : 0;
+        const places = args[1] ? Number(args[1]) || 0 : 0;
+        const m = Math.pow(10, places);
+        return String(Math.round(v * m) / m);
+      })
+      .replace(/SQRT\s*\(([^)]+)\)/gi, (_, body) => String(runFn(body, vs => Math.sqrt(Math.max(0, vs[0] || 0)))))
+      .replace(/POW\s*\(([^,]+),([^)]+)\)/gi, (_, a, b) => {
+        const va = parseCellRef(a.trim()) ? resolveCell(a.trim(), sheet, depth + 1) : Number(a) || 0;
+        const vb = parseCellRef(b.trim()) ? resolveCell(b.trim(), sheet, depth + 1) : Number(b) || 0;
+        return String(Math.pow(va, vb));
+      })
+      // IF(cond, then, else) — cond is any arithmetic expression evaluated for truthiness
+      .replace(/IF\s*\(([^,]+),([^,]+),([^)]+)\)/gi, (_, cond, t, f) => {
+        try {
+          const cs = cond.replace(/[A-Z]+\d+/g, (ref: string) => String(resolveCell(ref, sheet, depth + 1)));
+          if (!/^[\d\s.+\-*/(),<>=!&|]+$/.test(cs)) return f.trim();
+          const tFn = parseCellRef(t.trim()) ? resolveCell(t.trim(), sheet, depth + 1) : (Number(t) || t.trim());
+          const fFn = parseCellRef(f.trim()) ? resolveCell(f.trim(), sheet, depth + 1) : (Number(f) || f.trim());
+          // eslint-disable-next-line @typescript-eslint/no-implied-eval
+          const r = Function("\"use strict\"; return (" + cs + ");")();
+          return String(r ? tFn : fFn);
+        } catch { return "0"; }
+      })
+      // IFERROR(value, fallback) — try evaluating value, return fallback on error
+      .replace(/IFERROR\s*\(([^,]+),([^)]+)\)/gi, (_, v, fb) => {
+        try {
+          const vs = v.replace(/[A-Z]+\d+/g, (ref: string) => String(resolveCell(ref, sheet, depth + 1)));
+          if (!/^[\d\s.+\-*/(),]+$/.test(vs)) return fb.trim();
+          // eslint-disable-next-line @typescript-eslint/no-implied-eval
+          const r = Function("\"use strict\"; return (" + vs + ");")();
+          return typeof r === "number" && isFinite(r) ? String(r) : fb.trim();
+        } catch { return fb.trim(); }
+      });
     // 3) Resolve remaining single-cell refs
     s = s.replace(/[A-Z]+\d+/g, ref => String(resolveCell(ref, sheet, depth + 1)));
     // 4) Pure arithmetic — whitelist before eval
@@ -1233,8 +1270,10 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, onUpdate
   // than Q1 → Q2.
   const tsValues = categories.map(c => Date.parse(c));
   const useTime = categories.length >= 2 && tsValues.every(t => !isNaN(t));
-  const tMin = useTime ? Math.min(...tsValues) : 0;
-  const tMax = useTime ? Math.max(...tsValues) : 1;
+  // Manual X axis range overrides the auto fit (interpreted as unix-ms in
+  // time-axis mode).
+  const tMin = useTime ? (cfg.xMin !== undefined ? cfg.xMin : Math.min(...tsValues)) : 0;
+  const tMax = useTime ? (cfg.xMax !== undefined ? cfg.xMax : Math.max(...tsValues)) : 1;
   const tSpan = Math.max(1, tMax - tMin);
   const colW = chartW / Math.max(1, categories.length - 1);
   const xOf = useTime
@@ -1452,10 +1491,11 @@ function Scatter({ sheet, cfg, W, H, bubble = false }: { sheet: DataSheet; cfg: 
   const yMin = Math.min(...ys), yMax = Math.max(...ys);
   const xPad = (xMax - xMin || 1) * 0.06;
   const yPad = (yMax - yMin || 1) * 0.08;
-  const xRangeMin = xMin - xPad;
-  const xRangeMax = xMax + xPad;
-  const yRangeMin = yMin - yPad;
-  const yRangeMax = yMax + yPad;
+  // Allow manual override (cfg.xMin/xMax/yMin/yMax) to pin scatter axes.
+  const xRangeMin = cfg.xMin !== undefined ? cfg.xMin : xMin - xPad;
+  const xRangeMax = cfg.xMax !== undefined ? cfg.xMax : xMax + xPad;
+  const yRangeMin = cfg.yMin !== undefined ? cfg.yMin : yMin - yPad;
+  const yRangeMax = cfg.yMax !== undefined ? cfg.yMax : yMax + yPad;
   const xTicks = niceTicks(xRangeMin, xRangeMax, 5).filter(t => t >= xRangeMin && t <= xRangeMax);
   const yTicks = niceTicks(yRangeMin, yRangeMax, 5).filter(t => t >= yRangeMin && t <= yRangeMax);
   const xOf = (v: number) => leftPad + ((v - xRangeMin) / Math.max(0.0001, xRangeMax - xRangeMin)) * chartW;
@@ -2260,9 +2300,15 @@ interface ChartConfig {
   theme: ThemeId; numFmt: NumberFormat;
   // Per-series color overrides (key → hex). Falls back to palette[i].
   seriesColors?: Record<string, string>;
-  // Manual Y axis range. Undefined = auto-fit.
+  // Manual axis range. Undefined = auto-fit. xMin/xMax interpreted as
+  // unix-ms when the active chart uses a time axis (LineProfile detects
+  // this when every category parses as a date).
   yMin?: number;
   yMax?: number;
+  xMin?: number;
+  xMax?: number;
+  // Whether the rendered backdrop is light (forces dark text on chart).
+  lightBackdrop?: boolean;
 }
 
 export default function ChartMaker2({ standalone = false }: { standalone?: boolean }) {
@@ -2289,9 +2335,9 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
 
   // Manual axis range overrides for charts that have a numeric Y axis.
   // Empty string = auto. Stored per-chart-type.
-  const [axisByType, setAxisByType] = useState<Partial<Record<ChartType, { yMin?: number; yMax?: number }>>>({});
+  const [axisByType, setAxisByType] = useState<Partial<Record<ChartType, { yMin?: number; yMax?: number; xMin?: number; xMax?: number }>>>({});
   const axis = axisByType[type] || {};
-  const setAxis = useCallback((next: { yMin?: number; yMax?: number }) => {
+  const setAxis = useCallback((next: { yMin?: number; yMax?: number; xMin?: number; xMax?: number }) => {
     setAxisByType(p => ({ ...p, [type]: next }));
   }, [type]);
   const [numFmt, setNumFmt] = useState<NumberFormat>("auto");
@@ -2385,7 +2431,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     collapseAll: false, collapsedKeys: {},
   });
 
-  const cfg: ChartConfig = { type, title, subtitle, theme, numFmt, seriesColors, yMin: axis.yMin, yMax: axis.yMax };
+  const cfg: ChartConfig = { type, title, subtitle, theme, numFmt, seriesColors, yMin: axis.yMin, yMax: axis.yMax, xMin: axis.xMin, xMax: axis.xMax, lightBackdrop: backdropMode === "light" };
 
   // Pick-mode handler · column-chart renderers call this on bar click.
   // Returns true if the click was consumed (we're in pick mode); the
@@ -2609,9 +2655,16 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         )}
         {standalone && <div style={{ flex: "1 1 auto" }} />}
         <UndoRedoButtons onUndo={undo} onRedo={redo} canUndo={past.current.length > 0} canRedo={future.current.length > 0} />
+        <TemplatesButton onPick={tpl => {
+          setType(tpl.type);
+          setSheets(p => ({ ...p, [tpl.type]: tpl.build() }));
+          if (tpl.title) setTitle(tpl.title);
+          if (tpl.subtitle) setSubtitle(tpl.subtitle);
+          if (tpl.theme) setTheme(tpl.theme);
+        }} />
         <PasteDataButton onPaste={raw => { const ds = parsePasteForCategorical(raw); if (ds) setSheets(p => ({ ...p, [type]: ds })); else showToast("Couldn't parse the paste — expected TSV or CSV with headers"); }} />
         <NumberFormatPicker fmt={numFmt} onChange={setNumFmt} />
-        <AxisRangePicker yMin={axis.yMin} yMax={axis.yMax} onChange={(yMin, yMax) => setAxis({ yMin, yMax })} />
+        <AxisRangePicker axis={axis} onChange={setAxis} type={type} />
         <ThemePicker theme={theme} onChange={setTheme} />
         <BackdropPicker backdrop={backdrop} mode={backdropMode} onChangeBackdrop={setBackdrop} onChangeMode={setBackdropMode} />
         <ExportSplitButton onPNG={exportPNG} onSVG={exportSVG} />
@@ -2876,6 +2929,182 @@ function dropItem(): React.CSSProperties {
   return { padding: "9px 12px", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, color: "#E8E4DD", fontFamily: ft, fontSize: 12, fontWeight: 600, transition: "background 0.12s" };
 }
 
+// ─── Templates · port of ChartMaker 1's quick-start preset library ───────
+interface TemplateSpec {
+  id: string;
+  emoji: string;
+  label: string;
+  desc: string;
+  type: ChartType;
+  build: () => DataSheet;
+  title?: string;
+  subtitle?: string;
+  theme?: ThemeId;
+}
+const TEMPLATES: TemplateSpec[] = [
+  {
+    id: "flops-comparison",
+    emoji: "⚡",
+    label: "FLOPs Comparison",
+    desc: "TPU v6 vs H100 vs H200 across precisions",
+    type: "clustered",
+    title: "TPU v6 vs H100 vs H200",
+    subtitle: "Source: SemiAnalysis",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Metric", type: "text" },
+        { key: "s1", label: "TPU v6", type: "number" },
+        { key: "s2", label: "H100", type: "number" },
+        { key: "s3", label: "H200", type: "number" },
+      ],
+      rows: [
+        { category: "FP8 TFLOPs", s1: 1, s2: 2.2, s3: 2.2 },
+        { category: "INT8 TFLOPs", s1: 1, s2: 1.1, s3: 1.1 },
+        { category: "BF16 TFLOPs", s1: 1, s2: 1.1, s3: 1.1 },
+        { category: "HBM Capacity", s1: 1, s2: 2.5, s3: 4.4 },
+        { category: "HBM Bandwidth", s1: 1, s2: 2, s3: 2.9 },
+      ],
+    }),
+  },
+  {
+    id: "shipments-stack",
+    emoji: "📦",
+    label: "AI Shipments Stack",
+    desc: "Stacked area · 5y forecast",
+    type: "stackedArea",
+    title: "AI Compute Shipments by Type",
+    subtitle: "Source: SemiAnalysis AI Compute Model",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Year", type: "text" },
+        { key: "s1", label: "Nvidia", type: "number" },
+        { key: "s2", label: "TPU", type: "number" },
+        { key: "s3", label: "AMD", type: "number" },
+      ],
+      rows: [
+        { category: "2023", s1: 2750, s2: 674, s3: 87 },
+        { category: "2024", s1: 8440, s2: 2564, s3: 780 },
+        { category: "2025", s1: 24419, s2: 5876, s3: 1307 },
+        { category: "2026", s1: 73201, s2: 18653, s3: 6153 },
+        { category: "2027", s1: 131012, s2: 35991, s3: 13700 },
+      ],
+    }),
+  },
+  {
+    id: "revenue-forecast",
+    emoji: "📈",
+    label: "Revenue Forecast",
+    desc: "Revenue · cost · profit",
+    type: "line",
+    title: "Revenue, Cost, Profit",
+    subtitle: "Source: SemiAnalysis",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Year", type: "text" },
+        { key: "s1", label: "Revenue", type: "number" },
+        { key: "s2", label: "Cost", type: "number" },
+        { key: "s3", label: "Profit", type: "number" },
+      ],
+      rows: [
+        { category: "2023", s1: 100, s2: 70, s3: 30 },
+        { category: "2024", s1: 150, s2: 95, s3: 55 },
+        { category: "2025", s1: 220, s2: 135, s3: 85 },
+        { category: "2026", s1: 310, s2: 175, s3: 135 },
+        { category: "2027", s1: 430, s2: 230, s3: 200 },
+      ],
+    }),
+  },
+  {
+    id: "segment-share",
+    emoji: "🥧",
+    label: "Segment Share",
+    desc: "Pie · market by segment",
+    type: "pie",
+    title: "Market Share by Segment",
+    subtitle: "Source: SemiAnalysis",
+    build: () => ({
+      schema: [
+        { key: "label", label: "Segment", type: "text" },
+        { key: "value", label: "Share", type: "number" },
+      ],
+      rows: [
+        { label: "Training", value: 45 },
+        { label: "Inference", value: 30 },
+        { label: "Edge", value: 15 },
+        { label: "Other", value: 10 },
+      ],
+    }),
+  },
+  {
+    id: "flops-vs-power",
+    emoji: "🔋",
+    label: "FLOPs vs Power",
+    desc: "Scatter · efficiency frontier",
+    type: "scatter",
+    title: "FLOPs vs Power Consumption",
+    subtitle: "Source: SemiAnalysis Accelerator Model",
+    build: () => ({
+      schema: [
+        { key: "label", label: "Chip", type: "text" },
+        { key: "x", label: "BF16 TFLOPs", type: "number" },
+        { key: "y", label: "Power (W)", type: "number" },
+        { key: "size", label: "Size", type: "number" },
+      ],
+      rows: [
+        { label: "H100", x: 989, y: 700, size: 60 },
+        { label: "H200", x: 989, y: 700, size: 60 },
+        { label: "B200", x: 2250, y: 1200, size: 100 },
+        { label: "MI300X", x: 1300, y: 750, size: 50 },
+        { label: "TPU v5p", x: 459, y: 450, size: 35 },
+        { label: "TPU v6", x: 918, y: 475, size: 60 },
+      ],
+    }),
+  },
+  {
+    id: "price-bridge",
+    emoji: "💧",
+    label: "Price Waterfall",
+    desc: "Build-Down · revenue → net",
+    type: "wfdn",
+    title: "Revenue to Net Income",
+    subtitle: "Q4 2025 · USD millions",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Step", type: "text" },
+        { key: "value", label: "Δ", type: "number" },
+      ],
+      rows: [
+        { category: "Revenue", value: 220 },
+        { category: "COGS", value: -68 },
+        { category: "OpEx", value: -42 },
+        { category: "Tax", value: -25 },
+        { category: "One-offs", value: -8 },
+        { category: "Net", value: 77 },
+      ],
+    }),
+  },
+  {
+    id: "brand-launch-gantt",
+    emoji: "📅",
+    label: "Brand Launch Plan",
+    desc: "Gantt · 3-phase rollout",
+    type: "gantt",
+    title: "SemiAnalysis · 2026 Brand Launch",
+    subtitle: "Phased rollout with owner accountability",
+    build: () => samplePerType("gantt"),
+  },
+  {
+    id: "variance-yoy",
+    emoji: "Δ",
+    label: "AC vs PY Variance",
+    desc: "Zebra-BI bar · quarterly",
+    type: "variance",
+    title: "Quarterly AC vs PY",
+    subtitle: "USD millions",
+    build: () => samplePerType("variance"),
+  },
+];
+
 // ─── Backdrop picker · 4 spec backdrops × dark/light mode ─────────────────
 function BackdropPicker({ backdrop, mode, onChangeBackdrop, onChangeMode }: { backdrop: BackdropKey; mode: BackdropMode; onChangeBackdrop: (k: BackdropKey) => void; onChangeMode: (m: BackdropMode) => void }) {
   const [open, setOpen] = useState(false);
@@ -2942,29 +3171,41 @@ function BackdropPicker({ backdrop, mode, onChangeBackdrop, onChangeMode }: { ba
   );
 }
 
-// ─── Manual Y axis range picker ───────────────────────────────────────────
-function AxisRangePicker({ yMin, yMax, onChange }: { yMin?: number; yMax?: number; onChange: (yMin?: number, yMax?: number) => void }) {
+// ─── Manual axis range picker · Y always, X when chart supports it ────────
+function AxisRangePicker({ axis, onChange, type }: { axis: { yMin?: number; yMax?: number; xMin?: number; xMax?: number }; onChange: (next: { yMin?: number; yMax?: number; xMin?: number; xMax?: number }) => void; type: ChartType }) {
   const [open, setOpen] = useState(false);
-  const [minStr, setMinStr] = useState(yMin !== undefined ? String(yMin) : "");
-  const [maxStr, setMaxStr] = useState(yMax !== undefined ? String(yMax) : "");
-  useEffect(() => { setMinStr(yMin !== undefined ? String(yMin) : ""); setMaxStr(yMax !== undefined ? String(yMax) : ""); }, [yMin, yMax]);
+  const [yMinStr, setYMinStr] = useState(axis.yMin !== undefined ? String(axis.yMin) : "");
+  const [yMaxStr, setYMaxStr] = useState(axis.yMax !== undefined ? String(axis.yMax) : "");
+  const [xMinStr, setXMinStr] = useState(axis.xMin !== undefined ? String(axis.xMin) : "");
+  const [xMaxStr, setXMaxStr] = useState(axis.xMax !== undefined ? String(axis.xMax) : "");
+  useEffect(() => {
+    setYMinStr(axis.yMin !== undefined ? String(axis.yMin) : "");
+    setYMaxStr(axis.yMax !== undefined ? String(axis.yMax) : "");
+    setXMinStr(axis.xMin !== undefined ? String(axis.xMin) : "");
+    setXMaxStr(axis.xMax !== undefined ? String(axis.xMax) : "");
+  }, [axis.yMin, axis.yMax, axis.xMin, axis.xMax]);
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => { const t = e.target as HTMLElement; if (t.closest("[data-axis-range]")) return; setOpen(false); };
     setTimeout(() => document.addEventListener("click", close), 0);
     return () => document.removeEventListener("click", close);
   }, [open]);
+  // X range only meaningful for line + area (time axis) and scatter/bubble.
+  const xApplies = ["line", "stackedArea", "scatter", "bubble"].includes(type);
   const apply = () => {
-    const a = minStr === "" ? undefined : Number(minStr);
-    const b = maxStr === "" ? undefined : Number(maxStr);
-    onChange(a !== undefined && !isNaN(a) ? a : undefined, b !== undefined && !isNaN(b) ? b : undefined);
+    const num = (s: string) => s === "" ? undefined : (isNaN(Number(s)) ? undefined : Number(s));
+    onChange({
+      yMin: num(yMinStr), yMax: num(yMaxStr),
+      xMin: xApplies ? num(xMinStr) : undefined,
+      xMax: xApplies ? num(xMaxStr) : undefined,
+    });
   };
-  const isAuto = yMin === undefined && yMax === undefined;
+  const isAuto = !axis.yMin && !axis.yMax && !axis.xMin && !axis.xMax;
   return (
     <div data-axis-range style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
       <button
         onClick={() => setOpen(v => !v)}
-        title="Manual Y axis range · empty fields = auto-fit"
+        title="Manual axis ranges · empty fields = auto-fit"
         style={{
           display: "flex", alignItems: "center", gap: 7,
           padding: "9px 14px", borderRadius: 9,
@@ -2979,25 +3220,101 @@ function AxisRangePicker({ yMin, yMax, onChange }: { yMin?: number; yMax?: numbe
         }}
       >
         <ArrowUpDown size={13} strokeWidth={2.2} />
-        Y AXIS{!isAuto ? " ·" : ""}{!isAuto && yMin !== undefined ? " " + yMin : ""}{!isAuto && yMin !== undefined && yMax !== undefined ? "→" : ""}{!isAuto && yMax !== undefined ? yMax : ""}
+        AXES
         <ChevronDown size={11} strokeWidth={2.4} style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
       </button>
       {open && (
-        <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 1100, background: "#0D0D14", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 9, padding: 12, minWidth: 240, boxShadow: "0 18px 48px rgba(0,0,0,0.5)" }}>
+        <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 1100, background: "#0D0D14", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 9, padding: 12, minWidth: 280, boxShadow: "0 18px 48px rgba(0,0,0,0.5)" }}>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8 }}>Y axis range</div>
-          <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-            <input value={minStr} onChange={e => setMinStr(e.target.value)} placeholder="min" style={inputCSS("#06060A", "rgba(255,255,255,0.10)")} />
-            <input value={maxStr} onChange={e => setMaxStr(e.target.value)} placeholder="max" style={inputCSS("#06060A", "rgba(255,255,255,0.10)")} />
+          <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+            <input value={yMinStr} onChange={e => setYMinStr(e.target.value)} placeholder="y min" style={inputCSS("#06060A", "rgba(255,255,255,0.10)")} />
+            <input value={yMaxStr} onChange={e => setYMaxStr(e.target.value)} placeholder="y max" style={inputCSS("#06060A", "rgba(255,255,255,0.10)")} />
           </div>
+          {xApplies && (
+            <>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8 }}>X axis range {type === "line" || type === "stackedArea" ? "(unix ms)" : ""}</div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+                <input value={xMinStr} onChange={e => setXMinStr(e.target.value)} placeholder="x min" style={inputCSS("#06060A", "rgba(255,255,255,0.10)")} />
+                <input value={xMaxStr} onChange={e => setXMaxStr(e.target.value)} placeholder="x max" style={inputCSS("#06060A", "rgba(255,255,255,0.10)")} />
+              </div>
+            </>
+          )}
           <div style={{ display: "flex", gap: 6 }}>
-            <GlassButton onClick={() => { setMinStr(""); setMaxStr(""); onChange(undefined, undefined); }} title="Reset to auto-fit">AUTO</GlassButton>
+            <GlassButton onClick={() => { setYMinStr(""); setYMaxStr(""); setXMinStr(""); setXMaxStr(""); onChange({}); }} title="Reset to auto-fit">AUTO</GlassButton>
             <span style={{ flex: 1 }} />
-            <GlassButton onClick={apply} primary title="Apply range">APPLY</GlassButton>
+            <GlassButton onClick={apply} primary title="Apply ranges">APPLY</GlassButton>
           </div>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 10, letterSpacing: 0.5 }}>Empty field = auto on that side</div>
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Templates · quick-start preset gallery ──────────────────────────────
+function TemplatesButton({ onPick }: { onPick: (tpl: TemplateSpec) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <GlassButton onClick={() => setOpen(true)} title="Quick-start templates · 8 production charts" Icon={Sparkles}>TEMPLATES</GlassButton>
+      {open && (
+        <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(6,6,12,0.74)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", zIndex: 12000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            width: "min(880px, 96vw)",
+            maxHeight: "86vh", overflow: "auto",
+            background: "#0D0D14",
+            border: "1px solid rgba(255,255,255,0.10)",
+            borderRadius: 14,
+            padding: "22px 24px",
+            boxShadow: "0 32px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(247,176,65,0.05)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+              <Sparkles size={16} strokeWidth={2.2} color={C.amber} />
+              <span style={{ fontFamily: gf, fontSize: 18, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.2 }}>Quick start</span>
+              <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1 }}>{TEMPLATES.length} templates</span>
+            </div>
+            <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, lineHeight: 1.5, marginBottom: 18 }}>
+              Pick a starting point. Loads sample data + sets the chart type, title, and subtitle. Replaces the active chart's data sheet.
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+              {TEMPLATES.map(tpl => (
+                <TemplateCard key={tpl.id} tpl={tpl} onPick={() => { onPick(tpl); setOpen(false); }} />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+function TemplateCard({ tpl, onPick }: { tpl: TemplateSpec; onPick: () => void }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      onClick={onPick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8,
+        padding: "14px 16px",
+        background: hov ? C.amber + "12" : "rgba(255,255,255,0.025)",
+        border: "1px solid " + (hov ? C.amber + "55" : "rgba(255,255,255,0.08)"),
+        borderRadius: 10, cursor: "pointer",
+        transition: "all 0.18s cubic-bezier(.2,.7,.2,1)",
+        transform: hov ? "translateY(-2px)" : "translateY(0)",
+        boxShadow: hov ? "0 12px 28px " + C.amber + "20, 0 1px 0 rgba(255,255,255,0.06) inset" : "0 1px 0 rgba(255,255,255,0.04) inset",
+        textAlign: "left", color: "#E8E4DD",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 22, lineHeight: 1, filter: hov ? "drop-shadow(0 0 12px " + C.amber + "60)" : "none" }}>{tpl.emoji}</span>
+        <span style={{ fontFamily: gf, fontSize: 13, fontWeight: 800, color: hov ? C.amber : "#E8E4DD", letterSpacing: -0.1 }}>{tpl.label}</span>
+      </div>
+      <div style={{ fontFamily: ft, fontSize: 11, color: C.txm, lineHeight: 1.4 }}>{tpl.desc}</div>
+      <div style={{ marginTop: "auto", display: "flex", alignItems: "center", gap: 6, paddingTop: 4 }}>
+        <span style={{ fontFamily: mn, fontSize: 8, fontWeight: 700, color: C.txd, letterSpacing: 1, padding: "2px 6px", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 3, background: "rgba(255,255,255,0.025)", textTransform: "uppercase" }}>{TYPES.flat().find(t => t.id === tpl.type)?.label || tpl.type}</span>
+      </div>
+    </button>
   );
 }
 
