@@ -333,7 +333,32 @@ function niceTicks(min: number, max: number, count = 5): number[] {
 // CATEGORICAL CHARTS (column / bar / line / area)
 // Schema expected: first column text (category), rest number (series)
 // ═══════════════════════════════════════════════════════════════════════════
-interface CatProps { sheet: DataSheet; cfg: ChartConfig; W: number; H: number }
+type OnUpdateRow = (rowIdx: number, patch: Record<string, CellValue>) => void;
+type OnDeleteRow = (rowIdx: number) => void;
+interface ContextMenuItem { label: string; onClick: () => void; danger?: boolean; divider?: boolean }
+type OnShowMenu = (e: React.MouseEvent, items: ContextMenuItem[]) => void;
+interface CatProps {
+  sheet: DataSheet; cfg: ChartConfig; W: number; H: number;
+  onUpdateRow?: OnUpdateRow;
+  onDeleteRow?: OnDeleteRow;
+  onShowMenu?: OnShowMenu;
+}
+
+// Convert pointer event coords to SVG-viewBox coords. Walks up to the
+// owning <svg>, snapshots the screen CTM, applies its inverse to the
+// pointer location. This is what makes drag handlers work regardless of
+// CSS scaling, padding, or zoom.
+function pointerToSvg(e: React.PointerEvent | PointerEvent, target: Element): { x: number; y: number } | null {
+  const svg = target.closest("svg") as SVGSVGElement | null;
+  if (!svg) return null;
+  const pt = svg.createSVGPoint();
+  pt.x = e.clientX;
+  pt.y = e.clientY;
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return null;
+  const t = pt.matrixTransform(ctm.inverse());
+  return { x: t.x, y: t.y };
+}
 
 function getCategoricalSeries(sheet: DataSheet) {
   const catCol = sheet.schema[0];
@@ -357,14 +382,14 @@ function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad =
   );
 }
 
-function StackedColumn({ sheet, cfg, W, H }: CatProps) {
+function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu }: CatProps) {
   const { categories, series } = getCategoricalSeries(sheet);
+  const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
   const palette = THEMES[cfg.theme].colors;
   const leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 48;
   const chartW = W - leftPad - rightPad;
   const chartH = H - topPad - bottomPad;
 
-  // Compute per-category totals for axis
   const totals = categories.map((_, i) => series.reduce((a, s) => a + s.values[i], 0));
   const maxVal = Math.max(0, ...totals);
   const ticks = niceTicks(0, maxVal, 5);
@@ -374,42 +399,87 @@ function StackedColumn({ sheet, cfg, W, H }: CatProps) {
   const groupW = chartW / categories.length;
   const barW = Math.min(groupW * 0.65, 80);
 
+  // Drag the top edge of any segment to set its value. Pointer y maps to a
+  // cumulative value (counting from baseline up); subtract the segments
+  // below to get this segment's height.
+  const dragRef = useRef<{ rowIdx: number; key: string; cumBelow: number } | null>(null);
+  const cumValueAt = (e: React.PointerEvent): number | null => {
+    const pt = pointerToSvg(e, e.currentTarget);
+    if (!pt) return null;
+    const localY = pt.y - topPad;
+    return Math.max(0, tickMax * (1 - localY / chartH));
+  };
+  const onDown = (rowIdx: number, key: string, cumBelow: number) => (e: React.PointerEvent) => {
+    if (!onUpdateRow) return;
+    e.stopPropagation();
+    dragRef.current = { rowIdx, key, cumBelow };
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    const cv = cumValueAt(e);
+    if (cv != null) onUpdateRow(rowIdx, { [key]: niceRound(Math.max(0, cv - cumBelow)) });
+  };
+  const onMove = (e: React.PointerEvent) => {
+    const ds = dragRef.current;
+    if (!ds || !onUpdateRow) return;
+    const cv = cumValueAt(e);
+    if (cv != null) onUpdateRow(ds.rowIdx, { [ds.key]: niceRound(Math.max(0, cv - ds.cumBelow)) });
+  };
+  const onUp = () => { dragRef.current = null; };
+
   return (
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
-      {/* Y axis ticks + grid */}
       {ticks.map(t => (
         <g key={t}>
           <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
           <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtNum(t)}</text>
         </g>
       ))}
-      {/* Bars */}
       {categories.map((cat, i) => {
         let cum = 0;
         return (
           <g key={i}>
             {series.map((s, si) => {
               const v = s.values[i];
+              const cumBelow = cum;
               const y0 = yOf(cum);
               const y1 = yOf(cum + v);
               cum += v;
-              return <rect key={si} x={leftPad + i * groupW + (groupW - barW) / 2} y={y1} width={barW} height={Math.max(0, y0 - y1)} fill={palette[si % palette.length]} stroke="#0A0A0E" strokeWidth="1" />;
+              const key = seriesKeys[si];
+              return (
+                <rect
+                  key={si}
+                  x={leftPad + i * groupW + (groupW - barW) / 2}
+                  y={y1}
+                  width={barW}
+                  height={Math.max(0, y0 - y1)}
+                  fill={palette[si % palette.length]}
+                  stroke="#0A0A0E"
+                  strokeWidth="1"
+                  onPointerDown={onDown(i, key, cumBelow)}
+                  onPointerMove={onMove}
+                  onPointerUp={onUp}
+                  onContextMenu={e => onShowMenu?.(e, [
+                    { label: "Set segment to 0", onClick: () => onUpdateRow?.(i, { [key]: 0 }) },
+                    { label: "Round to nearest 10", onClick: () => onUpdateRow?.(i, { [key]: Math.round(v / 10) * 10 }) },
+                    { label: "", divider: true, onClick: () => {} },
+                    { label: "Delete row", danger: true, onClick: () => onDeleteRow?.(i) },
+                  ])}
+                  style={{ cursor: onUpdateRow ? "ns-resize" : "default" }}
+                />
+              );
             })}
-            {/* Total label */}
-            <text x={leftPad + i * groupW + groupW / 2} y={yOf(totals[i]) - 6} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700 }}>{fmtNum(totals[i])}</text>
-            {/* Category label */}
+            <text x={leftPad + i * groupW + groupW / 2} y={yOf(totals[i]) - 6} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, pointerEvents: "none" }}>{fmtNum(totals[i])}</text>
             <text x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{cat}</text>
           </g>
         );
       })}
-      {/* Legend */}
       <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={chartH + 36} leftPad={leftPad} />
     </ChartFrame>
   );
 }
 
-function ClusteredColumn({ sheet, cfg, W, H }: CatProps) {
+function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu }: CatProps) {
   const { categories, series } = getCategoricalSeries(sheet);
+  const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
   const palette = THEMES[cfg.theme].colors;
   const leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 48;
   const chartW = W - leftPad - rightPad;
@@ -425,6 +495,31 @@ function ClusteredColumn({ sheet, cfg, W, H }: CatProps) {
   const innerW = groupW - innerPad * 2;
   const barW = innerW / series.length;
 
+  // Pointer y (in SVG viewBox coords) → numeric value. Subtract topPad
+  // because the chart contents are inside a `<g translate(0, topPad)>`.
+  const valueAtPointer = (e: React.PointerEvent): number | null => {
+    const pt = pointerToSvg(e, e.currentTarget);
+    if (!pt) return null;
+    const localY = pt.y - topPad;
+    return Math.max(0, tickMax * (1 - localY / chartH));
+  };
+  const dragRef = useRef<{ rowIdx: number; key: string } | null>(null);
+  const onDown = (rowIdx: number, key: string) => (e: React.PointerEvent) => {
+    if (!onUpdateRow) return;
+    e.stopPropagation();
+    dragRef.current = { rowIdx, key };
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    const v = valueAtPointer(e);
+    if (v != null) onUpdateRow(rowIdx, { [key]: niceRound(v) });
+  };
+  const onMove = (e: React.PointerEvent) => {
+    const ds = dragRef.current;
+    if (!ds || !onUpdateRow) return;
+    const v = valueAtPointer(e);
+    if (v != null) onUpdateRow(ds.rowIdx, { [ds.key]: niceRound(v) });
+  };
+  const onUp = () => { dragRef.current = null; };
+
   return (
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
       {ticks.map(t => (
@@ -439,10 +534,25 @@ function ClusteredColumn({ sheet, cfg, W, H }: CatProps) {
             const v = s.values[i];
             const x = leftPad + i * groupW + innerPad + si * barW;
             const y = yOf(v);
+            const key = seriesKeys[si];
             return (
               <g key={si}>
-                <rect x={x + 1} y={y} width={barW - 2} height={chartH - y} fill={palette[si % palette.length]} />
-                <text x={x + barW / 2} y={y - 4} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700 }}>{fmtNum(v)}</text>
+                <rect
+                  x={x + 1} y={y} width={barW - 2} height={chartH - y}
+                  fill={palette[si % palette.length]}
+                  onPointerDown={onDown(i, key)}
+                  onPointerMove={onMove}
+                  onPointerUp={onUp}
+                  onContextMenu={e => onShowMenu?.(e, [
+                    { label: "Set to 0", onClick: () => onUpdateRow?.(i, { [key]: 0 }) },
+                    { label: "Set to max", onClick: () => onUpdateRow?.(i, { [key]: niceRound(tickMax) }) },
+                    { label: "Round to nearest 10", onClick: () => onUpdateRow?.(i, { [key]: Math.round(v / 10) * 10 }) },
+                    { label: "", divider: true, onClick: () => {} },
+                    { label: "Delete row", danger: true, onClick: () => onDeleteRow?.(i) },
+                  ])}
+                  style={{ cursor: onUpdateRow ? "ns-resize" : "default" }}
+                />
+                <text x={x + barW / 2} y={y - 4} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>{fmtNum(v)}</text>
               </g>
             );
           })}
@@ -452,6 +562,17 @@ function ClusteredColumn({ sheet, cfg, W, H }: CatProps) {
       <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={chartH + 36} leftPad={leftPad} />
     </ChartFrame>
   );
+}
+
+// Round a numeric value to a sensible step (1, 0.1, 10, etc) based on magnitude.
+// Keeps drag-set values from looking like 47.823892.
+function niceRound(v: number): number {
+  if (v === 0) return 0;
+  const abs = Math.abs(v);
+  if (abs >= 100) return Math.round(v);
+  if (abs >= 10) return Math.round(v * 10) / 10;
+  if (abs >= 1) return Math.round(v * 100) / 100;
+  return Math.round(v * 1000) / 1000;
 }
 
 function PercentColumn({ sheet, cfg, W, H }: CatProps) {
@@ -501,14 +622,17 @@ function PercentColumn({ sheet, cfg, W, H }: CatProps) {
   );
 }
 
-function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false }: CatProps & { fill?: boolean; stacked?: boolean }) {
+function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, onUpdateRow }: CatProps & { fill?: boolean; stacked?: boolean }) {
   const { categories, series } = getCategoricalSeries(sheet);
+  const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
   const palette = THEMES[cfg.theme].colors;
   const leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 48;
   const chartW = W - leftPad - rightPad;
   const chartH = H - topPad - bottomPad;
   const colW = chartW / Math.max(1, categories.length - 1);
   const xOf = (i: number) => leftPad + i * colW;
+
+  const lineDragRef = useRef<{ rowIdx: number; key: string } | null>(null);
 
   const renderedSeries = stacked
     ? series.map((s, si) => {
@@ -546,16 +670,59 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false }: CatPro
         const bottomRev = baseline.map((v, i) => xOf(categories.length - 1 - i) + "," + yOf(baseline[categories.length - 1 - i])).join(" ");
         return <polygon key={"f-" + si} points={top + " " + bottomRev} fill={palette[si % palette.length]} fillOpacity="0.5" />;
       })}
-      {/* Lines + dots */}
-      {renderedSeries.map((s, si) => {
-        const path = s.cumValues.map((v, i) => `${i === 0 ? "M" : "L"} ${xOf(i)} ${yOf(v)}`).join(" ");
-        return (
-          <g key={si}>
-            <path d={path} fill="none" stroke={palette[si % palette.length]} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
-            {s.cumValues.map((v, i) => <circle key={i} cx={xOf(i)} cy={yOf(v)} r="3.5" fill="#0A0A0E" stroke={palette[si % palette.length]} strokeWidth="2" />)}
-          </g>
-        );
-      })}
+      {/* Lines + dots · drag any dot to set its value */}
+      {(() => {
+        const dragRefHack = lineDragRef; // capture ref into IIFE so handlers see it
+        const valueAt = (e: React.PointerEvent): number | null => {
+          const pt = pointerToSvg(e, e.currentTarget);
+          if (!pt) return null;
+          const localY = pt.y - topPad;
+          return tickMin + (1 - localY / chartH) * (tickMax - tickMin);
+        };
+        return renderedSeries.map((s, si) => {
+          const path = s.cumValues.map((v, i) => `${i === 0 ? "M" : "L"} ${xOf(i)} ${yOf(v)}`).join(" ");
+          const key = seriesKeys[si];
+          const onDown = (rowIdx: number) => (e: React.PointerEvent) => {
+            if (!onUpdateRow) return;
+            e.stopPropagation();
+            dragRefHack.current = { rowIdx, key };
+            (e.target as Element).setPointerCapture?.(e.pointerId);
+          };
+          const onMove = (e: React.PointerEvent) => {
+            const ds = dragRefHack.current;
+            if (!ds || !onUpdateRow) return;
+            const cv = valueAt(e);
+            if (cv == null) return;
+            // For stacked, the displayed value is cumulative; we want the
+            // raw series value, so subtract the underlying baseline.
+            if (stacked && si > 0) {
+              const baseAt = renderedSeries[si - 1].cumValues[ds.rowIdx];
+              onUpdateRow(ds.rowIdx, { [ds.key]: niceRound(Math.max(0, cv - baseAt)) });
+            } else {
+              onUpdateRow(ds.rowIdx, { [ds.key]: niceRound(cv) });
+            }
+          };
+          const onUp = () => { dragRefHack.current = null; };
+          return (
+            <g key={si}>
+              <path d={path} fill="none" stroke={palette[si % palette.length]} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
+              {s.cumValues.map((v, i) => (
+                <circle
+                  key={i}
+                  cx={xOf(i)} cy={yOf(v)} r="6"
+                  fill="#0A0A0E"
+                  stroke={palette[si % palette.length]}
+                  strokeWidth="2"
+                  onPointerDown={onDown(i)}
+                  onPointerMove={onMove}
+                  onPointerUp={onUp}
+                  style={{ cursor: onUpdateRow ? "ns-resize" : "default" }}
+                />
+              ))}
+            </g>
+          );
+        });
+      })()}
       {/* Category labels */}
       {categories.map((cat, i) => (
         <text key={i} x={xOf(i)} y={chartH + 22} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{cat}</text>
@@ -762,7 +929,7 @@ function Legend({ series, W, y, leftPad }: { series: Array<{ label: string; colo
 // ═══════════════════════════════════════════════════════════════════════════
 // GANTT (preserved from v1, unified with picker)
 // ═══════════════════════════════════════════════════════════════════════════
-interface RawTask { task: string; start: number; end: number; group?: string; owner?: string; progress?: number; isMilestone?: boolean }
+interface RawTask { task: string; start: number; end: number; group?: string; owner?: string; progress?: number; isMilestone?: boolean; sheetIdx: number }
 interface GroupBlock { key: string; label: string; color: string; start: number; end: number; tasks: RawTask[] }
 type TimeUnit = "week" | "month" | "quarter";
 
@@ -782,7 +949,8 @@ function parseDateMs(s: string | number): number | null {
 
 function ganttFromSheet(sheet: DataSheet): RawTask[] {
   const out: RawTask[] = [];
-  for (const r of sheet.rows) {
+  for (let i = 0; i < sheet.rows.length; i++) {
+    const r = sheet.rows[i];
     const task = String(r.task ?? "");
     const startMs = parseDateMs(r.start as string | number);
     const endMs = parseDateMs(r.end as string | number);
@@ -795,10 +963,22 @@ function ganttFromSheet(sheet: DataSheet): RawTask[] {
       owner: (r.owner as string) || undefined,
       progress: typeof r.progress === "number" ? r.progress : Number(r.progress) || undefined,
       isMilestone: startMs === endMs,
+      sheetIdx: i,
     });
   }
   return out;
 }
+
+// ms → "YYYY-MM-DD" for writing back into the sheet
+function msToISODate(ms: number): string {
+  const d = new Date(ms);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return y + "-" + m + "-" + dd;
+}
+const DAY_MS = 86400000;
+const snapDay = (ms: number) => Math.round(ms / DAY_MS) * DAY_MS;
 
 function buildGroups(tasks: RawTask[], palette: string[]): GroupBlock[] {
   const map = new Map<string, GroupBlock>();
@@ -862,7 +1042,7 @@ interface GanttOpts {
   collapsedKeys: Record<string, boolean>;
 }
 
-function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup }: { sheet: DataSheet; cfg: ChartConfig; W: number; H: number; opts: GanttOpts; onToggleGroup: (k: string) => void }) {
+function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDeleteRow, onShowMenu }: { sheet: DataSheet; cfg: ChartConfig; W: number; H: number; opts: GanttOpts; onToggleGroup: (k: string) => void; onUpdateRow?: OnUpdateRow; onDeleteRow?: OnDeleteRow; onShowMenu?: OnShowMenu }) {
   const palette = THEMES[cfg.theme].colors;
   const tasks = ganttFromSheet(sheet);
   const groups = buildGroups(tasks, palette);
@@ -873,6 +1053,11 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup }: { sheet: DataSheet;
   const TITLE_H = 56;
   const LEFT_PANEL_W = 280;
   const PADDING = 16;
+
+  // Drag state · "move" shifts both start+end, "start"/"end" resize one edge.
+  // Stored on a ref so React re-renders during the drag (driven by setState in
+  // the move handler) don't recreate it.
+  const dragRef = useRef<{ mode: "move" | "start" | "end"; sheetIdx: number; origStart: number; origEnd: number; cursorMs0: number } | null>(null);
 
   if (tasks.length === 0) {
     return <g><rect x="0" y="0" width={W} height={200} fill="#0A0A0E" /><text x={W / 2} y="100" textAnchor="middle" fill={C.txd} style={{ fontFamily: fontSans, fontSize: 13 }}>Add Task / Start / End rows below.</text></g>;
@@ -902,6 +1087,41 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup }: { sheet: DataSheet;
     const t = (ms - bounds.min) / (bounds.max - bounds.min);
     return LEFT_PANEL_W + Math.max(0, Math.min(1, t)) * chartW;
   };
+
+  // Inverse of xOf: pointer event → ms in the chart's time axis.
+  const msAtPointer = (e: React.PointerEvent): number | null => {
+    const pt = pointerToSvg(e, e.currentTarget);
+    if (!pt) return null;
+    const t = (pt.x - LEFT_PANEL_W) / chartW;
+    return bounds.min + t * (bounds.max - bounds.min);
+  };
+
+  // Drag handler factory — bind a particular task + drag mode.
+  const onBarDown = (task: RawTask, mode: "move" | "start" | "end") => (e: React.PointerEvent) => {
+    if (!onUpdateRow) return;
+    e.stopPropagation();
+    const cursorMs = msAtPointer(e);
+    if (cursorMs == null) return;
+    dragRef.current = { mode, sheetIdx: task.sheetIdx, origStart: task.start, origEnd: task.end, cursorMs0: cursorMs };
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onBarMove = (e: React.PointerEvent) => {
+    const ds = dragRef.current;
+    if (!ds || !onUpdateRow) return;
+    const cursorMs = msAtPointer(e);
+    if (cursorMs == null) return;
+    const dms = snapDay(cursorMs - ds.cursorMs0);
+    if (ds.mode === "move") {
+      onUpdateRow(ds.sheetIdx, { start: msToISODate(ds.origStart + dms), end: msToISODate(ds.origEnd + dms) });
+    } else if (ds.mode === "start") {
+      const newStart = Math.min(ds.origStart + dms, ds.origEnd - DAY_MS);
+      onUpdateRow(ds.sheetIdx, { start: msToISODate(newStart) });
+    } else {
+      const newEnd = Math.max(ds.origEnd + dms, ds.origStart + DAY_MS);
+      onUpdateRow(ds.sheetIdx, { end: msToISODate(newEnd) });
+    }
+  };
+  const onBarUp = () => { dragRef.current = null; };
 
   const todayMs = Date.now();
   const todayX = xOf(todayMs);
@@ -960,22 +1180,81 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup }: { sheet: DataSheet;
             <text x="32" y={top + ROW_H / 2 + 4} fill="#E8E4DD" style={{ fontFamily: fontSans, fontSize: 12, fontWeight: 500 }}>{t.task}</text>
             {opts.showOwner && t.owner && <text x={LEFT_PANEL_W - 12} y={top + ROW_H / 2 + 4} textAnchor="end" fill={color} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700 }}>{t.owner}</text>}
             {isMs ? (
-              <g>
+              <g
+                onPointerDown={onBarDown(t, "move")}
+                onPointerMove={onBarMove}
+                onPointerUp={onBarUp}
+                onContextMenu={e => onShowMenu?.(e, [
+                  { label: "Convert to bar", onClick: () => onUpdateRow?.(t.sheetIdx, { end: msToISODate(t.start + 7 * DAY_MS) }) },
+                  { label: "Shift +7 days", onClick: () => onUpdateRow?.(t.sheetIdx, { start: msToISODate(t.start + 7 * DAY_MS), end: msToISODate(t.start + 7 * DAY_MS) }) },
+                  { label: "Shift −7 days", onClick: () => onUpdateRow?.(t.sheetIdx, { start: msToISODate(t.start - 7 * DAY_MS), end: msToISODate(t.start - 7 * DAY_MS) }) },
+                  { label: "", divider: true, onClick: () => {} },
+                  { label: "Delete task", danger: true, onClick: () => onDeleteRow?.(t.sheetIdx) },
+                ])}
+                style={{ cursor: onUpdateRow ? "grab" : "default" }}
+              >
                 <polygon points={`${x1},${barTop} ${x1 + barH / 2},${barTop + barH / 2} ${x1},${barTop + barH} ${x1 - barH / 2},${barTop + barH / 2}`} fill={color} stroke="rgba(255,255,255,0.15)" />
                 {opts.showDates && <text x={x1 + barH / 2 + 8} y={top + ROW_H / 2 + 4} fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtDateShort(t.start)}</text>}
               </g>
             ) : (
               <g>
-                <rect x={x1} y={barTop} width={w} height={barH} rx="5" ry="5" fill={color} fillOpacity="0.35" stroke={color} strokeWidth="1" />
-                {opts.showProgress && t.progress !== undefined && t.progress > 0 && <rect x={x1} y={barTop} width={w * (t.progress / 100)} height={barH} rx="5" ry="5" fill={color} fillOpacity="0.85" />}
+                {/* Main bar — pointer captures on this rect */}
+                <rect
+                  x={x1} y={barTop} width={w} height={barH} rx="5" ry="5"
+                  fill={color} fillOpacity="0.35" stroke={color} strokeWidth="1"
+                  onPointerDown={onBarDown(t, "move")}
+                  onPointerMove={onBarMove}
+                  onPointerUp={onBarUp}
+                  onContextMenu={e => onShowMenu?.(e, [
+                    { label: "Convert to milestone", onClick: () => onUpdateRow?.(t.sheetIdx, { end: msToISODate(t.start) }) },
+                    { label: "Shift +7 days",  onClick: () => onUpdateRow?.(t.sheetIdx, { start: msToISODate(t.start + 7 * DAY_MS), end: msToISODate(t.end + 7 * DAY_MS) }) },
+                    { label: "Shift −7 days",  onClick: () => onUpdateRow?.(t.sheetIdx, { start: msToISODate(t.start - 7 * DAY_MS), end: msToISODate(t.end - 7 * DAY_MS) }) },
+                    { label: "Set 100% complete", onClick: () => onUpdateRow?.(t.sheetIdx, { progress: 100 }) },
+                    { label: "Reset progress", onClick: () => onUpdateRow?.(t.sheetIdx, { progress: 0 }) },
+                    { label: "", divider: true, onClick: () => {} },
+                    { label: "Delete task", danger: true, onClick: () => onDeleteRow?.(t.sheetIdx) },
+                  ])}
+                  style={{ cursor: onUpdateRow ? "grab" : "default" }}
+                />
+                {opts.showProgress && t.progress !== undefined && t.progress > 0 && (
+                  <rect
+                    x={x1} y={barTop} width={w * (t.progress / 100)} height={barH} rx="5" ry="5"
+                    fill={color} fillOpacity="0.85"
+                    onPointerDown={onBarDown(t, "move")}
+                    onPointerMove={onBarMove}
+                    onPointerUp={onBarUp}
+                    style={{ cursor: onUpdateRow ? "grab" : "default", pointerEvents: "none" }}
+                  />
+                )}
                 {opts.showDates && w > 60 && (
                   <>
-                    <text x={x1 + 8} y={top + ROW_H / 2 + 4} fill="#0A0A0E" style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700 }}>{fmtDateShort(t.start)}</text>
-                    <text x={x2 - 8} y={top + ROW_H / 2 + 4} textAnchor="end" fill="#0A0A0E" style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700 }}>{fmtDateShort(t.end)}</text>
+                    <text x={x1 + 8} y={top + ROW_H / 2 + 4} fill="#0A0A0E" style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>{fmtDateShort(t.start)}</text>
+                    <text x={x2 - 8} y={top + ROW_H / 2 + 4} textAnchor="end" fill="#0A0A0E" style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>{fmtDateShort(t.end)}</text>
                   </>
                 )}
-                {opts.showDuration && w > 40 && <text x={x1 + w / 2} y={top + ROW_H / 2 + 4} textAnchor="middle" fill="#0A0A0E" style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 800 }}>{durationDays(t.start, t.end)}d</text>}
-                {opts.showProgress && t.progress !== undefined && <text x={x2 + 6} y={top + ROW_H / 2 + 4} fill={color} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700 }}>{t.progress}%</text>}
+                {opts.showDuration && w > 40 && <text x={x1 + w / 2} y={top + ROW_H / 2 + 4} textAnchor="middle" fill="#0A0A0E" style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 800, pointerEvents: "none" }}>{durationDays(t.start, t.end)}d</text>}
+                {opts.showProgress && t.progress !== undefined && <text x={x2 + 6} y={top + ROW_H / 2 + 4} fill={color} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>{t.progress}%</text>}
+                {/* Edge resize handles · invisible 8px-wide hit areas at each end */}
+                {onUpdateRow && (
+                  <>
+                    <rect
+                      x={x1 - 4} y={barTop - 2} width={8} height={barH + 4}
+                      fill="transparent"
+                      onPointerDown={onBarDown(t, "start")}
+                      onPointerMove={onBarMove}
+                      onPointerUp={onBarUp}
+                      style={{ cursor: "ew-resize" }}
+                    />
+                    <rect
+                      x={x2 - 4} y={barTop - 2} width={8} height={barH + 4}
+                      fill="transparent"
+                      onPointerDown={onBarDown(t, "end")}
+                      onPointerMove={onBarMove}
+                      onPointerUp={onBarUp}
+                      style={{ cursor: "ew-resize" }}
+                    />
+                  </>
+                )}
               </g>
             )}
           </g>
@@ -1066,18 +1345,49 @@ export default function ChartMaker2() {
     img.src = url;
   };
 
+  // Update a single sheet row directly (used by drag interactions).
+  // The renderer hands us back the row index plus a partial patch; we
+  // splice it into the active type's sheet.
+  const onUpdateRow = useCallback((rowIdx: number, patch: Record<string, CellValue>) => {
+    setSheets(p => {
+      const cur = p[type] || samplePerType(type);
+      const next = cur.rows.slice();
+      next[rowIdx] = { ...next[rowIdx], ...patch };
+      return { ...p, [type]: { ...cur, rows: next } };
+    });
+  }, [type]);
+
+  // Drop a row from the active sheet (used by right-click "delete").
+  const onDeleteRow = useCallback((rowIdx: number) => {
+    setSheets(p => {
+      const cur = p[type] || samplePerType(type);
+      if (cur.rows.length <= 1) return p;
+      return { ...p, [type]: { ...cur, rows: cur.rows.filter((_, i) => i !== rowIdx) } };
+    });
+  }, [type]);
+
+  // Right-click context menu state. The menu lives outside the SVG so
+  // it can render on top with HTML styling.
+  const [menu, setMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
+  const onShowMenu: OnShowMenu = useCallback((e, items) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenu({ x: e.clientX, y: e.clientY, items });
+  }, []);
+
   const renderChart = () => {
+    const a = { onUpdateRow, onDeleteRow, onShowMenu };
     switch (type) {
-      case "stacked": return <StackedColumn sheet={sheet} cfg={cfg} W={W} H={H} />;
-      case "clustered": return <ClusteredColumn sheet={sheet} cfg={cfg} W={W} H={H} />;
+      case "stacked": return <StackedColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
+      case "clustered": return <ClusteredColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
       case "pct": return <PercentColumn sheet={sheet} cfg={cfg} W={W} H={H} />;
-      case "line": return <LineProfile sheet={sheet} cfg={cfg} W={W} H={H} />;
-      case "stackedArea": return <LineProfile sheet={sheet} cfg={cfg} W={W} H={H} fill stacked />;
+      case "line": return <LineProfile sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
+      case "stackedArea": return <LineProfile sheet={sheet} cfg={cfg} W={W} H={H} fill stacked {...a} />;
       case "pie": return <Pie sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "doughnut": return <Pie sheet={sheet} cfg={cfg} W={W} H={H} doughnut />;
       case "scatter": return <Scatter sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "wfup": return <Waterfall sheet={sheet} cfg={cfg} W={W} H={H} />;
-      case "gantt": return <GanttSvg sheet={sheet} cfg={cfg} W={W} H={H} opts={ganttOpts} onToggleGroup={onToggleGroup} />;
+      case "gantt": return <GanttSvg sheet={sheet} cfg={cfg} W={W} H={H} opts={ganttOpts} onToggleGroup={onToggleGroup} {...a} />;
       default: {
         return (
           <g>
@@ -1112,37 +1422,106 @@ export default function ChartMaker2() {
         <input value={subtitle} onChange={e => setSubtitle(e.target.value)} placeholder="Subtitle" style={inputCSS(cardBg, borderC)} />
       </div>
 
-      {/* Chart type picker grid */}
-      <ChartTypePicker active={type} onSelect={setType} />
+      {/* Two-column layout: scrollable type sidebar + chart/sheet */}
+      <div style={{ display: "grid", gridTemplateColumns: "260px minmax(0, 1fr)", gap: 18, marginBottom: 28 }}>
+        <ChartTypeSidebar active={type} onSelect={setType} />
 
-      {/* Gantt toggles only show for gantt */}
-      {type === "gantt" && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12, padding: "10px 12px", background: cardBg, border: "1px solid " + borderC, borderRadius: 10 }}>
-          <UnitPicker unit={ganttOpts.unit} onChange={u => setGanttOpts(p => ({ ...p, unit: u }))} />
-          <Sep />
-          <Toggle on={ganttOpts.showDates} onChange={v => setGanttOpts(p => ({ ...p, showDates: v }))} label="Dates" />
-          <Toggle on={ganttOpts.showDuration} onChange={v => setGanttOpts(p => ({ ...p, showDuration: v }))} label="Duration" />
-          <Toggle on={ganttOpts.showOwner} onChange={v => setGanttOpts(p => ({ ...p, showOwner: v }))} label="Owner" />
-          <Toggle on={ganttOpts.showProgress} onChange={v => setGanttOpts(p => ({ ...p, showProgress: v }))} label="% Complete" />
-          <Toggle on={ganttOpts.showToday} onChange={v => setGanttOpts(p => ({ ...p, showToday: v }))} label="Today" />
-          <Sep />
-          <Toggle on={ganttOpts.showGroups} onChange={v => setGanttOpts(p => ({ ...p, showGroups: v }))} label="Groups" />
-          <Toggle on={ganttOpts.collapseAll} onChange={v => setGanttOpts(p => ({ ...p, collapseAll: v }))} label="Collapse all" />
+        <div style={{ minWidth: 0 }}>
+          {/* Gantt toggles only show for gantt */}
+          {type === "gantt" && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12, padding: "10px 12px", background: cardBg, border: "1px solid " + borderC, borderRadius: 10 }}>
+              <UnitPicker unit={ganttOpts.unit} onChange={u => setGanttOpts(p => ({ ...p, unit: u }))} />
+              <Sep />
+              <Toggle on={ganttOpts.showDates} onChange={v => setGanttOpts(p => ({ ...p, showDates: v }))} label="Dates" />
+              <Toggle on={ganttOpts.showDuration} onChange={v => setGanttOpts(p => ({ ...p, showDuration: v }))} label="Duration" />
+              <Toggle on={ganttOpts.showOwner} onChange={v => setGanttOpts(p => ({ ...p, showOwner: v }))} label="Owner" />
+              <Toggle on={ganttOpts.showProgress} onChange={v => setGanttOpts(p => ({ ...p, showProgress: v }))} label="% Complete" />
+              <Toggle on={ganttOpts.showToday} onChange={v => setGanttOpts(p => ({ ...p, showToday: v }))} label="Today" />
+              <Sep />
+              <Toggle on={ganttOpts.showGroups} onChange={v => setGanttOpts(p => ({ ...p, showGroups: v }))} label="Groups" />
+              <Toggle on={ganttOpts.collapseAll} onChange={v => setGanttOpts(p => ({ ...p, collapseAll: v }))} label="Collapse all" />
+            </div>
+          )}
+
+          {/* Chart preview · drag bars / points to edit values directly */}
+          <div style={{ background: "#0A0A0E", border: "1px solid " + borderC, borderRadius: 12, padding: "20px 24px", marginBottom: 14, overflow: "auto" }}>
+            <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", fontFamily: ft, touchAction: "none" }}>
+              {renderChart()}
+            </svg>
+          </div>
+
+          {/* Editable data sheet */}
+          <div>
+            <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, letterSpacing: 1.5, marginBottom: 8, textTransform: "uppercase" }}>Data sheet · convenience</div>
+            <DataSheetGrid sheet={sheet} onChange={setSheet} />
+          </div>
         </div>
-      )}
-
-      {/* Chart preview */}
-      <div style={{ background: "#0A0A0E", border: "1px solid " + borderC, borderRadius: 12, padding: "20px 24px", marginBottom: 14, overflow: "auto" }}>
-        <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", fontFamily: ft }}>
-          {renderChart()}
-        </svg>
       </div>
 
-      {/* Editable data sheet */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, letterSpacing: 1.5, marginBottom: 8, textTransform: "uppercase" }}>Data sheet</div>
-        <DataSheetGrid sheet={sheet} onChange={setSheet} />
-      </div>
+      {menu && <ChartContextMenu menu={menu} onClose={() => setMenu(null)} />}
+    </div>
+  );
+}
+
+// Right-click context menu rendered on top of everything in the chart maker.
+// Closes on outside click, Escape, or after invoking a menu item.
+function ChartContextMenu({ menu, onClose }: { menu: { x: number; y: number; items: ContextMenuItem[] }; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onAnyClick = () => onClose();
+    document.addEventListener("keydown", onKey);
+    // Wait a tick so the click that opened us doesn't immediately close it
+    const t = setTimeout(() => {
+      document.addEventListener("click", onAnyClick);
+      document.addEventListener("contextmenu", onAnyClick);
+    }, 0);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("click", onAnyClick);
+      document.removeEventListener("contextmenu", onAnyClick);
+    };
+  }, [onClose]);
+  // Clamp position so the menu doesn't hang off-screen
+  const W = 220;
+  const x = Math.min(menu.x, (typeof window !== "undefined" ? window.innerWidth : 1600) - W - 8);
+  const y = Math.min(menu.y, (typeof window !== "undefined" ? window.innerHeight : 900) - menu.items.length * 32 - 16);
+  return (
+    <div
+      onClick={e => e.stopPropagation()}
+      onContextMenu={e => e.preventDefault()}
+      style={{
+        position: "fixed", left: x, top: y, zIndex: 11500,
+        width: W,
+        background: "#0D0D14",
+        border: "1px solid rgba(255,255,255,0.10)",
+        borderRadius: 10,
+        padding: "5px 0",
+        boxShadow: "0 18px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(247,176,65,0.05)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+      }}
+    >
+      {menu.items.map((it, i) => {
+        if (it.divider) return <div key={i} style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 8px" }} />;
+        return (
+          <div
+            key={i}
+            onClick={() => { it.onClick(); onClose(); }}
+            style={{
+              padding: "9px 14px",
+              fontFamily: ft, fontSize: 12, fontWeight: 600,
+              color: it.danger ? "#E06347" : "#E8E4DD",
+              cursor: "pointer", letterSpacing: 0.1,
+              transition: "background 0.12s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = it.danger ? "rgba(224,99,71,0.12)" : "rgba(255,255,255,0.05)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+          >
+            {it.label}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1156,43 +1535,45 @@ function inputCSS(bg: string, border: string): React.CSSProperties {
 
 function Sep() { return <div style={{ width: 1, alignSelf: "stretch", background: "rgba(255,255,255,0.06)", margin: "2px 4px" }} />; }
 
-function ChartTypePicker({ active, onSelect }: { active: ChartType; onSelect: (t: ChartType) => void }) {
-  const cardBg = "#0D0D12";
+// Vertical scrollable sidebar of chart types — each row is icon + label.
+// Sticky-positioned so it stays visible while the right pane scrolls.
+function ChartTypeSidebar({ active, onSelect }: { active: ChartType; onSelect: (t: ChartType) => void }) {
   return (
-    <div style={{ background: cardBg, border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "12px 14px", marginBottom: 14 }}>
-      <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1.5, marginBottom: 10, textTransform: "uppercase" }}>Chart Type</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {TYPES.map((row, ri) => (
-          <div key={ri} style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {row.map(spec => {
-              const on = active === spec.id;
-              return (
-                <button
-                  key={spec.id}
-                  onClick={() => onSelect(spec.id)}
-                  title={spec.label + (spec.working ? "" : " · coming soon")}
-                  style={{
-                    flex: "1 1 110px", minWidth: 110, maxWidth: 160,
-                    display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-                    padding: "10px 6px",
-                    background: on ? C.amber + "15" : "rgba(255,255,255,0.02)",
-                    border: "1px solid " + (on ? C.amber + "60" : "rgba(255,255,255,0.06)"),
-                    borderRadius: 8,
-                    cursor: "pointer",
-                    opacity: spec.working ? 1 : 0.55,
-                    transition: "all 0.15s",
-                  }}
-                  onMouseEnter={e => { if (!on) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
-                  onMouseLeave={e => { if (!on) e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}
-                >
-                  <spec.Icon size={20} strokeWidth={on ? 2.4 : 1.8} color={on ? C.amber : (spec.working ? C.tx : C.txd)} />
-                  <span style={{ fontFamily: ft, fontSize: 10, fontWeight: on ? 800 : 600, color: on ? C.amber : (spec.working ? C.txm : C.txd), letterSpacing: 0.3, textAlign: "center", lineHeight: 1.3 }}>{spec.label}</span>
-                  {!spec.working && <span style={{ fontFamily: mn, fontSize: 7, color: C.txd, letterSpacing: 0.5 }}>SOON</span>}
-                </button>
-              );
-            })}
-          </div>
-        ))}
+    <div style={{ background: "#0D0D12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, position: "sticky", top: 12, alignSelf: "start", maxHeight: "calc(100vh - 48px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "16px 18px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
+        <div style={{ fontFamily: gf, fontSize: 13, fontWeight: 800, color: C.tx, letterSpacing: -0.1, marginBottom: 3 }}>Chart Types</div>
+        <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1.4, textTransform: "uppercase" }}>{TYPES.flat().filter(t => t.working).length} live · {TYPES.flat().filter(t => !t.working).length} soon</div>
+      </div>
+      <div style={{ overflowY: "auto", padding: "10px", display: "flex", flexDirection: "column", gap: 4 }}>
+        {TYPES.flat().map(spec => {
+          const on = active === spec.id;
+          return (
+            <button
+              key={spec.id}
+              onClick={() => onSelect(spec.id)}
+              title={spec.label + (spec.working ? "" : " · coming soon")}
+              style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "11px 12px",
+                background: on ? C.amber + "16" : "transparent",
+                border: "1px solid " + (on ? C.amber + "60" : "transparent"),
+                borderRadius: 9, cursor: "pointer",
+                opacity: spec.working ? 1 : 0.5,
+                transition: "all 0.14s",
+                textAlign: "left", width: "100%",
+                boxShadow: on ? "0 0 0 1px " + C.amber + "20" : "none",
+              }}
+              onMouseEnter={e => { if (!on) e.currentTarget.style.background = "rgba(255,255,255,0.045)"; }}
+              onMouseLeave={e => { if (!on) e.currentTarget.style.background = "transparent"; }}
+            >
+              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 6, background: on ? C.amber + "26" : "rgba(255,255,255,0.04)", flexShrink: 0 }}>
+                <spec.Icon size={16} strokeWidth={on ? 2.4 : 1.9} color={on ? C.amber : (spec.working ? C.tx : C.txd)} />
+              </span>
+              <span style={{ flex: 1, fontFamily: ft, fontSize: 13, fontWeight: on ? 800 : 600, color: on ? C.amber : (spec.working ? "#E8E4DD" : C.txd), letterSpacing: 0.1 }}>{spec.label}</span>
+              {!spec.working && <span style={{ fontFamily: mn, fontSize: 7.5, color: C.txd, letterSpacing: 0.6, padding: "2px 6px", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 3 }}>SOON</span>}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
