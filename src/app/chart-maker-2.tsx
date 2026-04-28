@@ -73,6 +73,35 @@ const THEMES: Record<ThemeId, { name: string; sub: string; colors: string[] }> =
 const SA_SLATE = "#3D3D3D";
 const SA_METAL = "#969696";
 
+// ─── Backdrops · ported from ChartMaker 1 ──────────────────────────────────
+// Each backdrop = base color + 1-2 radial glow stops. Two halves: dark (for
+// SA decks) and light (for client one-pagers). The chart preview card and
+// the PNG export pipeline both honor the same spec so the saved image
+// matches what the user sees.
+type BackdropKey = "amber" | "cobalt" | "both" | "capital";
+type BackdropMode = "dark" | "light";
+interface BackdropSpec { name: string; base: string; glows: Array<{ x: number; y: number; r: number; color: string }>; accent: string }
+
+const BACKDROPS_DARK: Record<BackdropKey, BackdropSpec> = {
+  amber:   { name: "Amber",         base: "#06060C", accent: "#F7B041", glows: [{ x: 0.85, y: 0.15, r: 0.70, color: "rgba(247,176,65,0.22)" }, { x: 0.15, y: 0.85, r: 0.55, color: "rgba(247,176,65,0.10)" }] },
+  cobalt:  { name: "Cobalt",        base: "#06060C", accent: "#0B86D1", glows: [{ x: 0.85, y: 0.15, r: 0.70, color: "rgba(11,134,209,0.22)" }, { x: 0.15, y: 0.85, r: 0.55, color: "rgba(11,134,209,0.10)" }] },
+  both:    { name: "Amber + Cobalt", base: "#06060C", accent: "#F7B041", glows: [{ x: 0.85, y: 0.15, r: 0.70, color: "rgba(247,176,65,0.18)" }, { x: 0.10, y: 0.90, r: 0.60, color: "rgba(11,134,209,0.14)" }] },
+  capital: { name: "Capital (Teal)", base: "#06120F", accent: "#2EAD8E", glows: [{ x: 0.85, y: 0.15, r: 0.70, color: "rgba(46,173,142,0.22)" }, { x: 0.15, y: 0.90, r: 0.55, color: "rgba(122,207,186,0.12)" }] },
+};
+const BACKDROPS_LIGHT: Record<BackdropKey, BackdropSpec> = {
+  amber:   { name: "Amber",         base: "#FAFAF7", accent: "#F7B041", glows: [{ x: 0.90, y: 0.10, r: 0.60, color: "rgba(247,176,65,0.18)" }, { x: 0.10, y: 0.90, r: 0.50, color: "rgba(247,176,65,0.08)" }] },
+  cobalt:  { name: "Cobalt",        base: "#F7FAFC", accent: "#0B86D1", glows: [{ x: 0.90, y: 0.10, r: 0.60, color: "rgba(11,134,209,0.16)" }, { x: 0.10, y: 0.90, r: 0.50, color: "rgba(11,134,209,0.08)" }] },
+  both:    { name: "Amber + Cobalt", base: "#FAFAF7", accent: "#F7B041", glows: [{ x: 0.90, y: 0.10, r: 0.60, color: "rgba(247,176,65,0.16)" }, { x: 0.10, y: 0.90, r: 0.50, color: "rgba(11,134,209,0.10)" }] },
+  capital: { name: "Capital (Teal)", base: "#F5FAF8", accent: "#2EAD8E", glows: [{ x: 0.90, y: 0.10, r: 0.60, color: "rgba(46,173,142,0.18)" }, { x: 0.10, y: 0.90, r: 0.50, color: "rgba(122,207,186,0.08)" }] },
+};
+
+// Build a CSS background for the given backdrop spec — base color +
+// stacked radial gradients at the configured glow stops.
+function backdropCss(spec: BackdropSpec, w = 100, h = 100): string {
+  const stops = spec.glows.map(g => `radial-gradient(circle at ${(g.x * w).toFixed(0)}% ${(g.y * h).toFixed(0)}%, ${g.color} 0%, transparent ${(g.r * 100).toFixed(0)}%)`);
+  return [...stops, spec.base].join(", ");
+}
+
 // ─── Sample data per chart type ────────────────────────────────────────────
 type CellValue = string | number;
 interface ColumnSpec { key: string; label: string; type: "text" | "number" | "date" | "percent" }
@@ -665,7 +694,7 @@ function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad =
   // Title block + chart area inside the SVG
   return (
     <g>
-      <rect x="0" y="0" width={W} height={H} fill="#0A0A0E" />
+      <rect x="0" y="0" width={W} height={H} fill="transparent" />
       <text x={leftPad} y="28" fill="#E8E4DD" style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 900 }}>{cfg.title}</text>
       <text x={leftPad} y="48" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 1 }}>{cfg.subtitle.toUpperCase()}</text>
       <g transform={`translate(0, ${topPad})`}>
@@ -1192,7 +1221,7 @@ function Pie({ sheet, cfg, W, H, doughnut = false }: { sheet: DataSheet; cfg: Ch
 
   return (
     <g>
-      <rect x="0" y="0" width={W} height={H} fill="#0A0A0E" />
+      <rect x="0" y="0" width={W} height={H} fill="transparent" />
       <text x="56" y="28" fill="#E8E4DD" style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 900 }}>{cfg.title}</text>
       <text x="56" y="48" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 1 }}>{cfg.subtitle.toUpperCase()}</text>
       {arcs.map((a, i) => (
@@ -1789,7 +1818,7 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
   const [editing, setEditing] = useState<{ rowIdx: number; key: string } | null>(null);
 
   if (tasks.length === 0) {
-    return <g><rect x="0" y="0" width={W} height={200} fill="#0A0A0E" /><text x={W / 2} y="100" textAnchor="middle" fill={C.txd} style={{ fontFamily: fontSans, fontSize: 13 }}>Add Task / Start / End rows below.</text></g>;
+    return <g><text x={W / 2} y="100" textAnchor="middle" fill={C.txd} style={{ fontFamily: fontSans, fontSize: 13 }}>Add Task / Start / End rows below.</text></g>;
   }
 
   if (!tasks.length) return null;
@@ -1865,7 +1894,7 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
 
   return (
     <g>
-      <rect x="0" y="0" width={totalW} height={totalH} fill="#0A0A0E" />
+      <rect x="0" y="0" width={totalW} height={totalH} fill="transparent" />
       <text x={LEFT_PANEL_W} y="26" fill="#E8E4DD" style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 900 }}>{cfg.title}</text>
       <text x={LEFT_PANEL_W} y="46" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 1 }}>{cfg.subtitle.toUpperCase()}</text>
       {ticks.map((t, i) => {
@@ -2059,6 +2088,9 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const [title, setTitle] = useState("SemiAnalysis · 2026 Outlook");
   const [subtitle, setSubtitle] = useState("Quarterly view");
   const [theme, setTheme] = useState<ThemeId>("saCore");
+  // Backdrop state · base color + glow stops for the chart canvas
+  const [backdrop, setBackdrop] = useState<BackdropKey>("both");
+  const [backdropMode, setBackdropMode] = useState<BackdropMode>("dark");
   // Per-series color overrides — clicking a Legend swatch lets you
   // recolor the entire series without changing the theme. Stored
   // per-chart-type so different chart types can have different colors.
@@ -2239,8 +2271,20 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       cv.width = w * 2; cv.height = h * 2;
       const ctx = cv.getContext("2d");
       if (!ctx) return;
-      ctx.fillStyle = "#0A0A0E";
+      // Paint the backdrop into the canvas so the saved PNG has the
+      // same base color + radial glows the user sees in the app.
+      const spec = backdropMode === "dark" ? BACKDROPS_DARK[backdrop] : BACKDROPS_LIGHT[backdrop];
+      ctx.fillStyle = spec.base;
       ctx.fillRect(0, 0, cv.width, cv.height);
+      for (const g of spec.glows) {
+        const cx = g.x * cv.width, cy = g.y * cv.height;
+        const radius = g.r * Math.max(cv.width, cv.height);
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+        grad.addColorStop(0, g.color);
+        grad.addColorStop(1, "transparent");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, cv.width, cv.height);
+      }
       ctx.scale(2, 2);
       ctx.drawImage(img, 0, 0, w, h);
       URL.revokeObjectURL(url);
@@ -2354,7 +2398,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       default: {
         return (
           <g>
-            <rect x="0" y="0" width={W} height={H} fill="#0A0A0E" />
+            <rect x="0" y="0" width={W} height={H} fill="transparent" />
             <text x={W / 2} y={H / 2 - 10} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 800 }}>Coming soon</text>
             <text x={W / 2} y={H / 2 + 14} textAnchor="middle" fill={C.txd} style={{ fontFamily: fontMono, fontSize: 11 }}>{TYPES.flat().find(t => t.id === type)?.label.toUpperCase()}</text>
           </g>
@@ -2382,6 +2426,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         <NumberFormatPicker fmt={numFmt} onChange={setNumFmt} />
         <AxisRangePicker yMin={axis.yMin} yMax={axis.yMax} onChange={(yMin, yMax) => setAxis({ yMin, yMax })} />
         <ThemePicker theme={theme} onChange={setTheme} />
+        <BackdropPicker backdrop={backdrop} mode={backdropMode} onChangeBackdrop={setBackdrop} onChangeMode={setBackdropMode} />
         <ExportSplitButton onPNG={exportPNG} onSVG={exportSVG} />
       </div>
 
@@ -2437,11 +2482,12 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             </div>
           )}
 
-          {/* Chart preview · drag bars / points to edit values directly */}
+          {/* Chart preview · drag bars / points to edit values directly.
+              Backdrop layer + chart sit inside a glass frame; the backdrop
+              becomes the SVG fill on export so the saved PNG matches. */}
           <div style={{
-            background: "linear-gradient(180deg, rgba(13,13,18,0.85), rgba(8,8,12,0.92))",
-            backdropFilter: "blur(14px) saturate(140%)",
-            WebkitBackdropFilter: "blur(14px) saturate(140%)",
+            position: "relative",
+            background: backdropCss(backdropMode === "dark" ? BACKDROPS_DARK[backdrop] : BACKDROPS_LIGHT[backdrop]),
             border: "1px solid rgba(255,255,255,0.07)",
             borderRadius: 14,
             padding: "20px 24px",
@@ -2641,6 +2687,72 @@ function ExportSplitButton({ onPNG, onSVG }: { onPNG: () => void; onSVG: () => v
 }
 function dropItem(): React.CSSProperties {
   return { padding: "9px 12px", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, color: "#E8E4DD", fontFamily: ft, fontSize: 12, fontWeight: 600, transition: "background 0.12s" };
+}
+
+// ─── Backdrop picker · 4 spec backdrops × dark/light mode ─────────────────
+function BackdropPicker({ backdrop, mode, onChangeBackdrop, onChangeMode }: { backdrop: BackdropKey; mode: BackdropMode; onChangeBackdrop: (k: BackdropKey) => void; onChangeMode: (m: BackdropMode) => void }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => { const t = e.target as HTMLElement; if (t.closest("[data-bd-picker]")) return; setOpen(false); };
+    setTimeout(() => document.addEventListener("click", close), 0);
+    return () => document.removeEventListener("click", close);
+  }, [open]);
+  const set = mode === "dark" ? BACKDROPS_DARK : BACKDROPS_LIGHT;
+  const cur = set[backdrop];
+  return (
+    <div data-bd-picker style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        title={cur.name + " · " + (mode === "dark" ? "Dark" : "Light")}
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "9px 14px", borderRadius: 9,
+          background: open ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.035)",
+          backdropFilter: "blur(10px) saturate(140%)",
+          WebkitBackdropFilter: "blur(10px) saturate(140%)",
+          border: "1px solid " + (open ? C.amber + "55" : "rgba(255,255,255,0.10)"),
+          color: open ? C.tx : C.txm,
+          fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.5,
+          cursor: "pointer", transition: "all 0.18s",
+          boxShadow: open ? "0 6px 20px " + C.amber + "20, 0 1px 0 rgba(255,255,255,0.06) inset" : "0 1px 0 rgba(255,255,255,0.04) inset",
+        }}
+      >
+        <span style={{ width: 18, height: 14, borderRadius: 3, background: backdropCss(cur, 100, 100), border: "1px solid rgba(255,255,255,0.18)" }} />
+        BACKDROP
+        <ChevronDown size={11} strokeWidth={2.4} style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
+      </button>
+      {open && (
+        <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 1100, background: "#0D0D14", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: 8, minWidth: 280, boxShadow: "0 18px 48px rgba(0,0,0,0.5)" }}>
+          {/* Mode toggle */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 8, padding: 3, background: "rgba(255,255,255,0.025)", borderRadius: 7 }}>
+            {(["dark", "light"] as BackdropMode[]).map(m => {
+              const on = mode === m;
+              return <button key={m} onClick={() => onChangeMode(m)} style={{ flex: 1, padding: "7px 10px", borderRadius: 5, background: on ? C.amber + "22" : "transparent", border: "none", color: on ? C.amber : C.txm, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer", textTransform: "uppercase" }}>{m}</button>;
+            })}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            {(Object.keys(set) as BackdropKey[]).map(k => {
+              const spec = set[k];
+              const on = backdrop === k;
+              return (
+                <button key={k} onClick={() => { onChangeBackdrop(k); }} style={{
+                  display: "flex", flexDirection: "column", alignItems: "stretch", gap: 4, padding: 6,
+                  background: on ? C.amber + "16" : "rgba(255,255,255,0.03)",
+                  border: "1px solid " + (on ? C.amber + "55" : "rgba(255,255,255,0.08)"),
+                  borderRadius: 7, cursor: "pointer",
+                  transition: "all 0.14s",
+                }}>
+                  <div style={{ height: 48, borderRadius: 4, background: backdropCss(spec, 100, 100), border: "1px solid rgba(255,255,255,0.12)" }} />
+                  <span style={{ fontFamily: mn, fontSize: 9, fontWeight: 700, color: on ? C.amber : C.tx, letterSpacing: 0.5, textAlign: "center" }}>{spec.name.toUpperCase()}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Manual Y axis range picker ───────────────────────────────────────────

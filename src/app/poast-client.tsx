@@ -437,8 +437,7 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "captions", l: "Capper",           Icon: Captions },
     { id: "p2p",      l: "Press to Premier", Icon: Clapperboard },
     { id: "broll",    l: "B-Roll Library",   Icon: Film },
-    { id: "chart",    l: "Chart Maker",      Icon: BarChart3 },
-    { id: "chart2",   l: "Chart Maker 2",     Icon: GanttChart, href: "/charts", badge: "BETA" },
+    { id: "chart",    l: "Chart Maker",      Icon: GanttChart, href: "/charts", badge: "NEW" },
     { id: "assets",   l: "Asset Library",    Icon: Library },
   ]},
   podcast: { label: "PODCAST", color: C.coral, glow: "rgba(224,99,71,", items: [
