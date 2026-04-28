@@ -1516,14 +1516,26 @@ function AssetLibraryEmbed() {
           we strip the standalone HTML's <head> when injecting just
           its body content. Without these the title block is invisible. */}
       <style>{`
-        .al-host .slide { display: flex; flex-direction: column; padding: 28px 36px 36px; min-height: 100%; box-sizing: border-box; opacity: 1 !important; pointer-events: auto !important; transform: none !important; position: static !important; inset: auto !important; overflow: visible !important; }
+        /* Slide fills the host exactly so folder expansion scrolls
+           internally instead of growing the whole pane. */
+        .al-host .slide { display: flex; flex-direction: column; padding: 24px 32px 28px; height: 100%; min-height: 0; max-height: 100%; box-sizing: border-box; opacity: 1 !important; pointer-events: auto !important; transform: none !important; position: static !important; inset: auto !important; overflow: hidden !important; }
         .al-host .sa-stars, .al-host .sa-orb, .al-host .sa-flare { display: none !important; }
-        .al-host .eyebrow { font-size: 13px; letter-spacing: 0.2em; font-weight: 700; color: var(--amber); text-transform: uppercase; margin-bottom: 12px; display: block; }
-        .al-host .slide-title { font-size: 42px; font-weight: 800; letter-spacing: -0.025em; color: #fff; line-height: 1.05; margin: 0 0 8px; display: block; }
-        .al-host .slide-sub { font-size: 15px; color: var(--muted); font-weight: 400; max-width: 880px; line-height: 1.55; margin-bottom: 16px; display: block; }
+        .al-host .eyebrow { font-size: 13px; letter-spacing: 0.2em; font-weight: 700; color: var(--amber); text-transform: uppercase; margin-bottom: 10px; display: block; }
+        .al-host .slide-title { font-size: 38px; font-weight: 800; letter-spacing: -0.025em; color: #fff; line-height: 1.05; margin: 0 0 6px; display: block; }
+        .al-host .slide-sub { font-size: 14px; color: var(--muted); font-weight: 400; max-width: 880px; line-height: 1.5; margin-bottom: 14px; display: block; }
         .al-host .hl { color: var(--amber); }
-        .al-host a { color: inherit; }
+        .al-host a { color: inherit; text-decoration: none; }
+        /* Tree / preview pane scroll inside the grid cells, don't push layout */
+        .al-host [data-sa-scope="sa-al0aldn"] .al-body { min-height: 0 !important; grid-template-rows: minmax(0, 1fr) !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-tree,
+        .al-host [data-sa-scope="sa-al0aldn"] .al-dir { min-height: 0; max-height: 100%; overflow: auto; }
+        /* Thumbnails grow with the preview pane width */
+        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-card { max-width: min(640px, 96%) !important; width: 100%; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-thumb:not(.mini) { height: clamp(140px, 24vh, 280px) !important; }
       `}</style>
+      {/* The embedded host scrolls when content overflows; the slide
+          inside it is locked to 100% height so child scroll containers
+          (al-tree, al-stage) actually receive scroll events. */}
       <div
         ref={hostRef}
         className="al-host"

@@ -30,9 +30,7 @@
     font-family: var(--font);
     -webkit-font-smoothing: antialiased;
   }
-  /* Render the slide as a static page (not a positioned, hidden slide).
-     Use a hard 100vh height so folder expansion scrolls inside the tree
-     pane instead of pushing the whole layout taller. */
+  /* Render the slide as a static page (not a positioned, hidden slide) */
   .slide {
     position: static !important;
     inset: auto !important;
@@ -42,33 +40,11 @@
     transition: none !important;
     display: flex !important;
     flex-direction: column;
-    padding: 32px 40px 32px !important;
-    overflow: hidden !important;
-    height: 100vh !important;
-    min-height: 0 !important;
-    max-height: 100vh !important;
+    padding: 32px 40px 40px !important;
+    overflow: visible;
+    min-height: 100vh;
     box-sizing: border-box;
     background: var(--black);
-  }
-  /* Constrain the grid + scroll containers so children fit and scroll
-     internally instead of growing with content */
-  [data-sa-scope="sa-al0aldn"] .al-body {
-    min-height: 0 !important;
-    grid-template-rows: minmax(0, 1fr) !important;
-  }
-  [data-sa-scope="sa-al0aldn"] .al-tree,
-  [data-sa-scope="sa-al0aldn"] .al-dir {
-    min-height: 0;
-    max-height: 100%;
-    overflow: auto;
-  }
-  /* Thumbnails scale with the right pane instead of being capped at 380px */
-  [data-sa-scope="sa-al0aldn"] .al-pv-card {
-    max-width: min(640px, 96%) !important;
-    width: 100%;
-  }
-  [data-sa-scope="sa-al0aldn"] .al-pv-thumb:not(.mini) {
-    height: clamp(160px, 26vh, 320px) !important;
   }
   /* Strip the deck's ambient decoration */
   .sa-stars, .sa-orb, .sa-flare { display: none !important; }
@@ -894,14 +870,14 @@
     </div>
   </div>
 
-  <a class="al-slack" href="https://semianalysis.enterprise.slack.com/docs/T07A2RRT50T/F0A85M6C4FM" target="_blank" rel="noopener" style="text-decoration:none">
+  <div class="al-slack">
     <div class="al-slack-ic">#</div>
     <div class="al-slack-text">
       <div class="al-slack-label">Where to find it on Slack</div>
       <div class="al-slack-chan"><b>#marketing</b> → pinned: <b>Brand Kit</b></div>
     </div>
     <div class="al-slack-arrow">→</div>
-  </a>
+  </div>
 
   <script>
   /* Asset Library preview · clicking tree items swaps the right pane */
@@ -917,10 +893,10 @@
     // Asset registry · `thumb` is the path to a screenshot; null falls back to a creative generated thumb
     const FILES = {
       // Logo Set · 4 files (mapped to actual SVGs in /brand/Logo Set/)
-      'logo-primary':  { name:'Box Logo + Text', exts:['SVG','PNG'], size:'4 KB', updated:'this week', kind:'logo', glyph:'SA', desc:'Full SemiAnalysis lockup. Use on light or dark surfaces; keep clear-space equal to the lettermark height.', thumb:'https://broadcast-builder.vercel.app/brand/Logo%20Set/SVG/Box%20Logo%20%2B%20Text.svg' },
-      'logo-letter':   { name:'Lettermark', exts:['SVG','PNG'], size:'1.2 KB', updated:'this week', kind:'logo', glyph:'SA', desc:'Compact "SA" mark. Used as the corner brand on every slide and the favicon.', thumb:'https://broadcast-builder.vercel.app/brand/Logo Set/SVG/Lettermark.svg' },
-      'logo-box':      { name:'Box Logo', exts:['SVG','PNG'], size:'2 KB', updated:'this week', kind:'logo', glyph:'sa', desc:'Stand-alone box monogram. Use for social avatars, tight square spots, or anywhere a single solid mark lands harder than the lockup.', thumb:'https://broadcast-builder.vercel.app/brand/Logo Set/SVG/Box Logo.svg' },
-      'logo-combined': { name:'Box Logo + Lettermark', exts:['SVG','PNG'], size:'3 KB', updated:'this week', kind:'logo', glyph:'⤳', desc:'Box logo paired with the lettermark for tight horizontal lockups — slide footers, signatures, narrow headers.', thumb:'https://broadcast-builder.vercel.app/brand/Logo%20Set/Full%20Size/Box%20Logo%20%2B%20Lettermark.png' },
+      'logo-primary':  { name:'Box Logo + Text', exts:['SVG','PNG'], size:'4 KB', updated:'this week', kind:'logo', glyph:'SA', desc:'Full SemiAnalysis lockup. Use on light or dark surfaces; keep clear-space equal to the lettermark height.', thumb:'/brand/Logo%20Set/SVG/Box%20Logo%20%2B%20Text.svg' },
+      'logo-letter':   { name:'Lettermark', exts:['SVG','PNG'], size:'1.2 KB', updated:'this week', kind:'logo', glyph:'SA', desc:'Compact "SA" mark. Used as the corner brand on every slide and the favicon.', thumb:'/brand/Logo Set/SVG/Lettermark.svg' },
+      'logo-box':      { name:'Box Logo', exts:['SVG','PNG'], size:'2 KB', updated:'this week', kind:'logo', glyph:'sa', desc:'Stand-alone box monogram. Use for social avatars, tight square spots, or anywhere a single solid mark lands harder than the lockup.', thumb:'/brand/Logo Set/SVG/Box Logo.svg' },
+      'logo-combined': { name:'Box Logo + Lettermark', exts:['SVG','PNG'], size:'3 KB', updated:'this week', kind:'logo', glyph:'⤳', desc:'Box logo paired with the lettermark for tight horizontal lockups — slide footers, signatures, narrow headers.', thumb:'/brand/Logo%20Set/Full%20Size/Box%20Logo%20%2B%20Lettermark.png' },
 
       // Fonts · 4 (master archive + 3 individual)
       'font-master': { name:'2026 BRANDFONTS.zip', exts:['ZIP'], size:'1.1 MB', updated:'last month', kind:'font', subkind:'master', desc:'Master archive with all three brand fonts — install once and you get Outfit, Aptos, and Grift.', thumb:null },
@@ -929,8 +905,8 @@
       'font-grift':  { name:'Grift',  exts:['ZIP','OTF'], size:'320 KB', updated:'last month', kind:'font', glyph:'Aa', subkind:'grift',  desc:'Editorial display serif for accent moments — feature headlines, pull quotes, awards. Graphics use only.', thumb:null },
 
       // PowerPoint · 4 (Outfit + Aptos × Dark/Light)
-      'ppt-outfit-dark':  { name:'Full Deck · Dark · Outfit',  exts:['PPTX'], size:'24 MB', updated:'this week', kind:'template', subkind:'dark',  desc:'Dark master deck in Outfit. Section dividers, content layouts, and brand chrome pre-wired.', thumb:'https://broadcast-builder.vercel.app/brand/SA DECK DARK OUTFIT FULL Dark.jpg' },
-      'ppt-outfit-light': { name:'Full Deck · Light · Outfit', exts:['PPTX'], size:'24 MB', updated:'this week', kind:'template', subkind:'light', desc:'Light counterpart of the Outfit deck for client-facing decks and projectors.', thumb:'https://broadcast-builder.vercel.app/brand/SA DECK DARK OUTFIT FULL Light.jpg' },
+      'ppt-outfit-dark':  { name:'Full Deck · Dark · Outfit',  exts:['PPTX'], size:'24 MB', updated:'this week', kind:'template', subkind:'dark',  desc:'Dark master deck in Outfit. Section dividers, content layouts, and brand chrome pre-wired.', thumb:'/brand/SA DECK DARK OUTFIT FULL Dark.jpg' },
+      'ppt-outfit-light': { name:'Full Deck · Light · Outfit', exts:['PPTX'], size:'24 MB', updated:'this week', kind:'template', subkind:'light', desc:'Light counterpart of the Outfit deck for client-facing decks and projectors.', thumb:'/brand/SA DECK DARK OUTFIT FULL Light.jpg' },
       'ppt-aptos-dark':   { name:'Full Deck · Dark · Aptos',   exts:['PPTX'], size:'26 MB', updated:'this week', kind:'template', subkind:'dark',  desc:'Aptos-set dark deck for office contexts and Microsoft-native audiences.', thumb:null },
       'ppt-aptos-light':  { name:'Full Deck · Light · Aptos',  exts:['PPTX'], size:'26 MB', updated:'this week', kind:'template', subkind:'light', desc:'Light Aptos deck. Office-friendly, projector-friendly, client-ready.', thumb:null },
 
@@ -939,25 +915,25 @@
       'xls-aptos':  { name:'Workbook · Aptos',  exts:['XLSX'], size:'1.8 MB', updated:'this week', kind:'sheet', desc:'Aptos counterpart of the master workbook. Same charts, font native to Excel — preview shows the dark face.', thumb:null },
 
       // Letterheads · 9 (Style A × 4 + Style B × 4 + Fillable PDF · backdrop PNGs as thumbs)
-      'lh-a-dark-outfit':  { name:'Letterhead A · Dark · Outfit',  exts:['DOCX'], size:'320 KB', updated:'new', kind:'doc', desc:'Style A header layout, dark mode, Outfit set. Use for external letters and partner correspondence.', thumb:'https://broadcast-builder.vercel.app/brand/letterhead-backdrops/A_dark_glow.png' },
-      'lh-a-light-outfit': { name:'Letterhead A · Light · Outfit', exts:['DOCX'], size:'320 KB', updated:'new', kind:'doc', desc:'Style A header layout, light mode, Outfit set.', thumb:'https://broadcast-builder.vercel.app/brand/letterhead-backdrops/A_light_glow.png' },
-      'lh-a-dark-aptos':   { name:'Letterhead A · Dark · Aptos',   exts:['DOCX'], size:'320 KB', updated:'new', kind:'doc', desc:'Style A header layout, dark mode, Aptos set for Office contexts.', thumb:'https://broadcast-builder.vercel.app/brand/letterhead-backdrops/A_dark_basic.png' },
-      'lh-a-light-aptos':  { name:'Letterhead A · Light · Aptos',  exts:['DOCX'], size:'320 KB', updated:'new', kind:'doc', desc:'Style A header layout, light mode, Aptos set for Office contexts.', thumb:'https://broadcast-builder.vercel.app/brand/letterhead-backdrops/A_light_basic.png' },
-      'lh-b-dark-outfit':  { name:'Letterhead B · Dark · Outfit',  exts:['DOCX'], size:'320 KB', updated:'new', kind:'doc', desc:'Style B header layout, dark mode, Outfit set. Tighter header than Style A — best for short-form letters.', thumb:'https://broadcast-builder.vercel.app/brand/letterhead-backdrops/B_dark_glow.png' },
-      'lh-b-light-outfit': { name:'Letterhead B · Light · Outfit', exts:['DOCX'], size:'320 KB', updated:'new', kind:'doc', desc:'Style B header layout, light mode, Outfit set.', thumb:'https://broadcast-builder.vercel.app/brand/letterhead-backdrops/B_light_glow.png' },
-      'lh-b-dark-aptos':   { name:'Letterhead B · Dark · Aptos',   exts:['DOCX'], size:'320 KB', updated:'new', kind:'doc', desc:'Style B header layout, dark mode, Aptos set.', thumb:'https://broadcast-builder.vercel.app/brand/letterhead-backdrops/B_dark_basic.png' },
-      'lh-b-light-aptos':  { name:'Letterhead B · Light · Aptos',  exts:['DOCX'], size:'320 KB', updated:'new', kind:'doc', desc:'Style B header layout, light mode, Aptos set.', thumb:'https://broadcast-builder.vercel.app/brand/letterhead-backdrops/B_light_basic.png' },
+      'lh-a-dark-outfit':  { name:'Letterhead A · Dark · Outfit',  exts:['DOCX'], size:'320 KB', updated:'new', kind:'doc', desc:'Style A header layout, dark mode, Outfit set. Use for external letters and partner correspondence.', thumb:'/brand/letterhead-backdrops/A_dark_glow.png' },
+      'lh-a-light-outfit': { name:'Letterhead A · Light · Outfit', exts:['DOCX'], size:'320 KB', updated:'new', kind:'doc', desc:'Style A header layout, light mode, Outfit set.', thumb:'/brand/letterhead-backdrops/A_light_glow.png' },
+      'lh-a-dark-aptos':   { name:'Letterhead A · Dark · Aptos',   exts:['DOCX'], size:'320 KB', updated:'new', kind:'doc', desc:'Style A header layout, dark mode, Aptos set for Office contexts.', thumb:'/brand/letterhead-backdrops/A_dark_basic.png' },
+      'lh-a-light-aptos':  { name:'Letterhead A · Light · Aptos',  exts:['DOCX'], size:'320 KB', updated:'new', kind:'doc', desc:'Style A header layout, light mode, Aptos set for Office contexts.', thumb:'/brand/letterhead-backdrops/A_light_basic.png' },
+      'lh-b-dark-outfit':  { name:'Letterhead B · Dark · Outfit',  exts:['DOCX'], size:'320 KB', updated:'new', kind:'doc', desc:'Style B header layout, dark mode, Outfit set. Tighter header than Style A — best for short-form letters.', thumb:'/brand/letterhead-backdrops/B_dark_glow.png' },
+      'lh-b-light-outfit': { name:'Letterhead B · Light · Outfit', exts:['DOCX'], size:'320 KB', updated:'new', kind:'doc', desc:'Style B header layout, light mode, Outfit set.', thumb:'/brand/letterhead-backdrops/B_light_glow.png' },
+      'lh-b-dark-aptos':   { name:'Letterhead B · Dark · Aptos',   exts:['DOCX'], size:'320 KB', updated:'new', kind:'doc', desc:'Style B header layout, dark mode, Aptos set.', thumb:'/brand/letterhead-backdrops/B_dark_basic.png' },
+      'lh-b-light-aptos':  { name:'Letterhead B · Light · Aptos',  exts:['DOCX'], size:'320 KB', updated:'new', kind:'doc', desc:'Style B header layout, light mode, Aptos set.', thumb:'/brand/letterhead-backdrops/B_light_basic.png' },
       'lh-pdf':            { name:'SA Letterhead Fillable',        exts:['PDF'],  size:'180 KB', updated:'this week', kind:'doc', desc:'Fillable PDF letterhead — signed forms, agreements, anywhere a non-Word recipient needs the brand.', thumb:null },
 
       // Social Backdrops · 4 sets (each leaf = a backdrop set; closer hero shown as preview)
-      'bg-internal':  { name:'Internal · Amber',         exts:['JPG'], size:'4 sizes', updated:'this week', kind:'image', subkind:'bg-internal', desc:'Warm amber backdrop set for internal-facing posts. 4 ratio variants per set.', thumb:'https://broadcast-builder.vercel.app/brand/social/internal-amber/Y4 - Close@3x-100.jpg' },
-      'bg-external':  { name:'External · Cobalt',        exts:['JPG'], size:'4 sizes', updated:'this week', kind:'image', subkind:'bg-external', desc:'Cool cobalt backdrop set for external press, partners, and media.', thumb:'https://broadcast-builder.vercel.app/brand/social/external-cobalt/B4 - Closer.jpg' },
-      'bg-general':   { name:'General · Cobalt + Amber', exts:['JPG'], size:'4 sizes', updated:'this week', kind:'image', subkind:'bg-general',  desc:'Brand split set — cobalt + amber together. Default backdrop for any general-purpose post.', thumb:'https://broadcast-builder.vercel.app/brand/social/general-cobalt-amber/YB4 - Closer@3x-100.jpg' },
-      'bg-capital':   { name:'Capital · Mint',           exts:['JPG'], size:'4 sizes', updated:'this week', kind:'image', subkind:'bg-capital',   desc:'Mint backdrop set for capital-related and finance-themed posts.', thumb:'https://broadcast-builder.vercel.app/brand/social/capital-mint/G4 - Closer@3x-100.jpg' },
+      'bg-internal':  { name:'Internal · Amber',         exts:['JPG'], size:'4 sizes', updated:'this week', kind:'image', subkind:'bg-internal', desc:'Warm amber backdrop set for internal-facing posts. 4 ratio variants per set.', thumb:'/brand/social/internal-amber/Y4 - Close@3x-100.jpg' },
+      'bg-external':  { name:'External · Cobalt',        exts:['JPG'], size:'4 sizes', updated:'this week', kind:'image', subkind:'bg-external', desc:'Cool cobalt backdrop set for external press, partners, and media.', thumb:'/brand/social/external-cobalt/B4 - Closer.jpg' },
+      'bg-general':   { name:'General · Cobalt + Amber', exts:['JPG'], size:'4 sizes', updated:'this week', kind:'image', subkind:'bg-general',  desc:'Brand split set — cobalt + amber together. Default backdrop for any general-purpose post.', thumb:'/brand/social/general-cobalt-amber/YB4 - Closer@3x-100.jpg' },
+      'bg-capital':   { name:'Capital · Mint',           exts:['JPG'], size:'4 sizes', updated:'this week', kind:'image', subkind:'bg-capital',   desc:'Mint backdrop set for capital-related and finance-themed posts.', thumb:'/brand/social/capital-mint/G4 - Closer@3x-100.jpg' },
 
       // Brand & Guidelines · 3
-      'cheat-dark':  { name:'Brand Cheat Sheet · Dark',  exts:['PNG'], size:'440 KB', updated:'this week', kind:'cheat', subkind:'dark',  desc:'One-page brand reference: logos, palette, type ramp, dos and donts. Dark variant.', thumb:'https://broadcast-builder.vercel.app/brand/guidelines/cheatsheet-dark.png' },
-      'cheat-light': { name:'Brand Cheat Sheet · Light', exts:['PNG'], size:'428 KB', updated:'this week', kind:'cheat', subkind:'light', desc:'Light counterpart of the cheat sheet for printing on white or sharing in Slack.', thumb:'https://broadcast-builder.vercel.app/brand/guidelines/cheatsheet-light.png' },
+      'cheat-dark':  { name:'Brand Cheat Sheet · Dark',  exts:['PNG'], size:'440 KB', updated:'this week', kind:'cheat', subkind:'dark',  desc:'One-page brand reference: logos, palette, type ramp, dos and donts. Dark variant.', thumb:'/brand/guidelines/cheatsheet-dark.png' },
+      'cheat-light': { name:'Brand Cheat Sheet · Light', exts:['PNG'], size:'428 KB', updated:'this week', kind:'cheat', subkind:'light', desc:'Light counterpart of the cheat sheet for printing on white or sharing in Slack.', thumb:'/brand/guidelines/cheatsheet-light.png' },
       'brand-guide': { name:'SemiAnalysis Brand Guide',  exts:['PDF'], size:'852 KB', updated:'this week', kind:'doc',                    desc:'The full brand guide PDF — logo usage, color spec, typography, voice, and approval workflow.', thumb:null },
 
       // Skills & Themes · 5 Claude skills + 2 Office (Windows) themes
