@@ -11,7 +11,7 @@ import {
   GanttChart,
   Undo2, Redo2, Hash, Sigma, ArrowUpDown, Minus, Trash2,
   FileCode2, ArrowLeftRight, Square, Diamond, MinusSquare,
-  ClipboardPaste, Sparkles, Type,
+  ClipboardPaste, Sparkles, Type, Keyboard, X as XIcon,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2317,6 +2317,19 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   // Right-click context menu state. The menu lives outside the SVG so
   // it can render on top with HTML styling.
   const [menu, setMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
+  // Keyboard shortcut overlay (? key)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      // Don't intercept inside inputs / textareas
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.key === "?" || (e.key === "/" && e.shiftKey)) { e.preventDefault(); setShortcutsOpen(v => !v); }
+      if (e.key === "Escape") setShortcutsOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const onShowMenu: OnShowMenu = useCallback((e, items) => {
     e.preventDefault();
     e.stopPropagation();
@@ -2355,6 +2368,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
 
   return (
     <div style={{ padding: "32px 0 0", maxWidth: 1400, margin: "0 auto" }}>
+      <style>{`@keyframes cm2ChartSwap { 0% { opacity: 0; transform: translateY(6px) } 100% { opacity: 1; transform: translateY(0) } }`}</style>
       <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap", paddingTop: standalone ? 16 : 0 }}>
         {!standalone && (
           <div style={{ flex: "1 1 auto", minWidth: 280 }}>
@@ -2436,9 +2450,10 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 32px rgba(0,0,0,0.32)",
           }}>
             <svg
+              key={type}
               ref={svgRef}
               viewBox={`0 0 ${W} ${H}`}
-              style={{ width: "100%", height: "auto", display: "block", fontFamily: ft, touchAction: "none", cursor: placeMode?.kind === "callout" ? "crosshair" : "default" }}
+              style={{ width: "100%", height: "auto", display: "block", fontFamily: ft, touchAction: "none", cursor: placeMode?.kind === "callout" ? "crosshair" : "default", animation: "cm2ChartSwap 0.32s cubic-bezier(.2,.7,.2,1) both" }}
             >
               {renderChart()}
               {/* Free-form text callouts (ANNOTATE TEXT) — rendered after
@@ -2483,6 +2498,96 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
 
       {menu && <ChartContextMenu menu={menu} onClose={() => setMenu(null)} />}
       {selection && <FloatingMiniToolbar selection={selection} onClose={() => setSelection(null)} onUpdateRow={onUpdateRow} onDeleteRow={onDeleteRow} themes={THEMES} currentTheme={theme} />}
+      {shortcutsOpen && <ShortcutsOverlay onClose={() => setShortcutsOpen(false)} />}
+      {/* Floating help button · always-on glass pill, opens shortcuts overlay */}
+      <button
+        onClick={() => setShortcutsOpen(true)}
+        title="Keyboard shortcuts · press ?"
+        style={{
+          position: "fixed", bottom: 24, right: 24, zIndex: 500,
+          width: 42, height: 42, borderRadius: "50%",
+          background: "rgba(13,13,18,0.85)",
+          backdropFilter: "blur(14px) saturate(140%)",
+          WebkitBackdropFilter: "blur(14px) saturate(140%)",
+          border: "1px solid rgba(247,176,65,0.40)",
+          color: C.amber,
+          fontFamily: gf, fontSize: 18, fontWeight: 900,
+          cursor: "pointer",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.40), 0 0 20px " + C.amber + "30, 0 1px 0 rgba(255,255,255,0.06) inset",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "transform 0.18s cubic-bezier(.2,.7,.2,1), box-shadow 0.18s",
+        }}
+        onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 12px 32px rgba(0,0,0,0.50), 0 0 32px " + C.amber + "55, 0 1px 0 rgba(255,255,255,0.10) inset"; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.40), 0 0 20px " + C.amber + "30, 0 1px 0 rgba(255,255,255,0.06) inset"; }}
+      >
+        ?
+      </button>
+    </div>
+  );
+}
+
+// ─── Keyboard shortcuts overlay · ? key ───────────────────────────────────
+function ShortcutsOverlay({ onClose }: { onClose: () => void }) {
+  const groups: Array<{ title: string; rows: Array<[string, string]> }> = [
+    {
+      title: "Editing",
+      rows: [
+        ["Drag a bar / point", "Set its value (column charts) · move task (Gantt)"],
+        ["Drag bar edge", "Resize start / end (Gantt only)"],
+        ["Double-click a label", "Edit task name / category / owner inline"],
+        ["Click cell in data sheet", "Edit · Enter to commit, Esc to cancel"],
+        ["Alt + drag number cell", "Scrub the value"],
+      ],
+    },
+    {
+      title: "Annotations",
+      rows: [
+        ["CAGR", "Click two bars/points to draw a CAGR arrow"],
+        ["Δ DIFF", "Click two bars/points to show absolute Δ"],
+        ["REF LINE", "Inline value + label form, drops a horizontal line"],
+        ["TEXT", "Then click chart to drop a draggable text callout"],
+        ["Right-click annotation", "Delete it"],
+      ],
+    },
+    {
+      title: "App",
+      rows: [
+        ["⌘Z / Ctrl+Z", "Undo"],
+        ["⌘⇧Z / Ctrl+Y", "Redo"],
+        ["?  /  Shift+/", "Open / close this overlay"],
+        ["Esc", "Cancel pick mode · close overlay · cancel inline edit"],
+        ["Right-click a bar", "Shape, color, shift, delete (Gantt also: ↔ resize)"],
+      ],
+    },
+  ];
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(6,6,12,0.74)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", zIndex: 12500, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "min(720px, 96vw)", maxHeight: "86vh", overflow: "auto", background: "#0D0D14", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 16, padding: "26px 28px", boxShadow: "0 32px 80px rgba(0,0,0,0.60), 0 0 0 1px rgba(247,176,65,0.06)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+          <Keyboard size={18} strokeWidth={2.2} color={C.amber} />
+          <span style={{ fontFamily: gf, fontSize: 20, fontWeight: 900, color: "#E8E4DD", letterSpacing: -0.3 }}>Keyboard & gestures</span>
+          <span style={{ marginLeft: "auto", cursor: "pointer", color: C.txm, padding: 4, display: "inline-flex" }} onClick={onClose}><XIcon size={18} /></span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18 }}>
+          {groups.map((g, i) => (
+            <div key={i}>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 10 }}>{g.title}</div>
+              {g.rows.map((r, j) => (
+                <div key={j} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "6px 0", borderBottom: j < g.rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
+                  <span style={{ fontFamily: mn, fontSize: 10, fontWeight: 800, color: "#E8E4DD", letterSpacing: 0.4, padding: "3px 7px", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 4, background: "rgba(255,255,255,0.03)", whiteSpace: "nowrap" }}>{r[0]}</span>
+                  <span style={{ fontFamily: ft, fontSize: 12, color: C.txm, lineHeight: 1.4, flex: 1 }}>{r[1]}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 22, padding: "14px 16px", background: "rgba(247,176,65,0.06)", border: "1px solid rgba(247,176,65,0.20)", borderRadius: 10 }}>
+          <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, letterSpacing: 1, marginBottom: 4, textTransform: "uppercase", fontWeight: 800 }}>Tip</div>
+          <div style={{ fontFamily: ft, fontSize: 13, color: "#E8E4DD", lineHeight: 1.5 }}>
+            The chart and the data sheet stay in sync. Drag a bar to set a value <em>or</em> type in the cell — both update both surfaces. Switching chart type doesn't lose your data; each type keeps its own sheet.
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

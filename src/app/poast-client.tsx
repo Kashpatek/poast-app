@@ -1192,7 +1192,7 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
 // leave. Entrance animation via asTile keyframes (defined on parent).
 // onHoverColor lifts the active color to the parent splash so the whole screen
 // can glow in that hue while a tile is being interacted with.
-interface TiltToolSpec { id: string; label: string; sub: string; Icon: LucideIcon; color: string }
+interface TiltToolSpec { id: string; label: string; sub: string; Icon: LucideIcon; color: string; href?: string }
 function TiltTile({ tool, index, onNavigate, onHoverColor }: { tool: TiltToolSpec; index: number; onNavigate: (id: string) => void; onHoverColor: (c: string | null) => void }) {
   var _hov = useState(false), hov = _hov[0], setHov = _hov[1];
   var _coords = useState<{ x: number; y: number } | null>(null), coords = _coords[0], setCoords = _coords[1];
@@ -1219,7 +1219,7 @@ function TiltTile({ tool, index, onNavigate, onHoverColor }: { tool: TiltToolSpe
     transformStyle: "preserve-3d",
   }}>
     <button
-      onClick={function() { onNavigate(t.id); }}
+      onClick={function() { if (t.href) { window.open(t.href, "_blank"); } else { onNavigate(t.id); } }}
       onMouseEnter={function() { setHov(true); onHoverColor(t.color); }}
       onMouseMove={function(e: React.MouseEvent<HTMLButtonElement>) {
         var rect = e.currentTarget.getBoundingClientRect();
@@ -1273,7 +1273,7 @@ function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
     { id: "sloptop",  label: "Slop Top",    sub: "Brief Gen + arxiv.lol",  Icon: Zap,        color: C.amber },
     { id: "carousel", label: "Carousel",    sub: "Instagram carousels",    Icon: LayoutGrid, color: C.blue },
     { id: "captions", label: "Capper",      sub: "Captions per platform",  Icon: Captions,   color: C.teal },
-    { id: "chart",    label: "Chart Maker", sub: "Data viz, SA branded",   Icon: BarChart3,  color: C.coral },
+    { id: "chart-cm2", label: "Chart Maker 2", sub: "Think-cell · drag · annotate", Icon: GanttChart, color: C.coral, href: "/charts" },
   ];
   // Lifted from whichever tile is currently being hovered. Null when no tile
   // is active → the screen falls back to the resting violet ambient.
