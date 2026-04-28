@@ -2131,29 +2131,44 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         <div style={{ minWidth: 0 }}>
           {/* Gantt toggles only show for gantt */}
           {type === "gantt" && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12, padding: "10px 12px", background: cardBg, border: "1px solid " + borderC, borderRadius: 10, alignItems: "center" }}>
+            <div style={{
+              display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14,
+              padding: "12px 14px",
+              background: "rgba(13,13,18,0.72)",
+              backdropFilter: "blur(14px) saturate(140%)",
+              WebkitBackdropFilter: "blur(14px) saturate(140%)",
+              border: "1px solid rgba(255,255,255,0.07)",
+              borderRadius: 12,
+              alignItems: "center",
+              boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 24px rgba(0,0,0,0.30)",
+            }}>
               <UnitPicker unit={ganttOpts.unit} onChange={u => setGanttOpts(p => ({ ...p, unit: u }))} />
               <Sep />
-              <Toggle on={ganttOpts.showDates} onChange={v => setGanttOpts(p => ({ ...p, showDates: v }))} label="Dates" />
-              <Toggle on={ganttOpts.showDuration} onChange={v => setGanttOpts(p => ({ ...p, showDuration: v }))} label="Duration" />
-              <Toggle on={ganttOpts.showOwner} onChange={v => setGanttOpts(p => ({ ...p, showOwner: v }))} label="Owner" />
-              <Toggle on={ganttOpts.showProgress} onChange={v => setGanttOpts(p => ({ ...p, showProgress: v }))} label="% Complete" />
-              <Toggle on={ganttOpts.showToday} onChange={v => setGanttOpts(p => ({ ...p, showToday: v }))} label="Today" />
+              <Toggle on={ganttOpts.showDates} onChange={v => setGanttOpts(p => ({ ...p, showDates: v }))} label="Dates" title="Show start / end dates inside each bar" />
+              <Toggle on={ganttOpts.showDuration} onChange={v => setGanttOpts(p => ({ ...p, showDuration: v }))} label="Duration" title="Show 'Nd' centered on each bar" />
+              <Toggle on={ganttOpts.showOwner} onChange={v => setGanttOpts(p => ({ ...p, showOwner: v }))} label="Owner" title="Show owner names on the left panel" />
+              <Toggle on={ganttOpts.showProgress} onChange={v => setGanttOpts(p => ({ ...p, showProgress: v }))} label="% Complete" title="Show progress fill + percent label" />
+              <Toggle on={ganttOpts.showToday} onChange={v => setGanttOpts(p => ({ ...p, showToday: v }))} label="Today" title="Coral dashed line at today's date" />
               <Sep />
-              <Toggle on={ganttOpts.showGroups} onChange={v => setGanttOpts(p => ({ ...p, showGroups: v }))} label="Groups" />
-              <Toggle on={ganttOpts.collapseAll} onChange={v => setGanttOpts(p => ({ ...p, collapseAll: v }))} label="Collapse all" />
-              {/* Quick-add a new task. Defaults: 7-day bar, today + 7d, in
-                  the last group used (or 'Tasks'). Editable from the chart
-                  immediately because all the cells are clickable. */}
+              <Toggle on={ganttOpts.showGroups} onChange={v => setGanttOpts(p => ({ ...p, showGroups: v }))} label="Groups" title="Show parent group rows" />
+              <Toggle on={ganttOpts.collapseAll} onChange={v => setGanttOpts(p => ({ ...p, collapseAll: v }))} label="Collapse all" title="Collapse every group" />
               <span style={{ flex: 1 }} />
-              <button onClick={appendGanttTask} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 6, border: "1px solid " + C.amber + "55", background: C.amber + "18", color: C.amber, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer" }}>
-                <Plus size={11} strokeWidth={2.4} /> ADD TASK
-              </button>
+              <GlassButton onClick={appendGanttTask} title="Append a new 7-day task using the last row's group + owner" Icon={Plus} primary>ADD TASK</GlassButton>
             </div>
           )}
 
           {/* Chart preview · drag bars / points to edit values directly */}
-          <div style={{ background: "#0A0A0E", border: "1px solid " + borderC, borderRadius: 12, padding: "20px 24px", marginBottom: 14, overflow: "auto" }}>
+          <div style={{
+            background: "linear-gradient(180deg, rgba(13,13,18,0.85), rgba(8,8,12,0.92))",
+            backdropFilter: "blur(14px) saturate(140%)",
+            WebkitBackdropFilter: "blur(14px) saturate(140%)",
+            border: "1px solid rgba(255,255,255,0.07)",
+            borderRadius: 14,
+            padding: "20px 24px",
+            marginBottom: 14,
+            overflow: "auto",
+            boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 32px rgba(0,0,0,0.32)",
+          }}>
             <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", fontFamily: ft, touchAction: "none" }}>
               {renderChart()}
             </svg>
@@ -2161,7 +2176,10 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
 
           {/* Editable data sheet */}
           <div>
-            <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, letterSpacing: 1.5, marginBottom: 8, textTransform: "uppercase" }}>Data sheet · convenience</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+              <span style={{ fontFamily: mn, fontSize: 10, color: C.amber, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 800 }}>Data sheet</span>
+              <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6 }}>· edits sync to the chart in real time</span>
+            </div>
             <DataSheetGrid sheet={sheet} onChange={setSheet} />
           </div>
         </div>
@@ -2182,21 +2200,28 @@ function ExportSplitButton({ onPNG, onSVG }: { onPNG: () => void; onSVG: () => v
     setTimeout(() => document.addEventListener("click", close), 0);
     return () => document.removeEventListener("click", close);
   }, [open]);
+  const [hov, setHov] = useState(false);
   return (
-    <div style={{ position: "relative", display: "inline-flex" }} onClick={e => e.stopPropagation()}>
+    <div
+      style={{ position: "relative", display: "inline-flex", borderRadius: 9, transform: hov ? "translateY(-1px)" : "translateY(0)", transition: "transform 0.18s cubic-bezier(.2,.7,.2,1)", boxShadow: hov ? "0 12px 28px " + C.amber + "55, 0 1px 0 rgba(255,255,255,0.20) inset" : "0 4px 14px " + C.amber + "30, 0 1px 0 rgba(255,255,255,0.18) inset" }}
+      onClick={e => e.stopPropagation()}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+    >
       <button
         onClick={onPNG}
-        style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: "9px 0 0 9px", border: "1px solid " + C.amber + "55", borderRight: "none", background: "linear-gradient(135deg," + C.amber + ",#E8A020)", color: "#060608", fontFamily: ft, fontSize: 13, fontWeight: 800, cursor: "pointer", letterSpacing: 0.3 }}
+        title="Export raster PNG · 2× retina"
+        style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", borderRadius: "9px 0 0 9px", border: "1px solid " + C.amber + "60", borderRight: "none", background: "linear-gradient(135deg," + C.amber + ",#E8A020)", color: "#060608", fontFamily: ft, fontSize: 13, fontWeight: 800, cursor: "pointer", letterSpacing: 0.3, filter: hov ? "brightness(1.06)" : "brightness(1)", transition: "filter 0.18s" }}
       >
         <Download size={14} strokeWidth={2.2} />
         Export PNG
       </button>
       <button
         onClick={() => setOpen(v => !v)}
-        title="More export options"
-        style={{ padding: "10px 10px", borderRadius: "0 9px 9px 0", border: "1px solid " + C.amber + "55", background: "linear-gradient(135deg," + C.amber + ",#E8A020)", color: "#060608", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+        title="More export options · SVG, etc."
+        style={{ padding: "10px 11px", borderRadius: "0 9px 9px 0", border: "1px solid " + C.amber + "60", borderLeft: "1px solid rgba(0,0,0,0.18)", background: "linear-gradient(135deg," + C.amber + ",#E8A020)", color: "#060608", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", filter: hov ? "brightness(1.06)" : "brightness(1)", transition: "filter 0.18s" }}
       >
-        <ChevronDown size={14} strokeWidth={2.4} />
+        <ChevronDown size={14} strokeWidth={2.4} style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
       </button>
       {open && (
         <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: "#0D0D14", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 9, padding: 4, minWidth: 200, zIndex: 1100, boxShadow: "0 18px 40px rgba(0,0,0,0.55)" }}>
@@ -2219,23 +2244,56 @@ function dropItem(): React.CSSProperties {
 
 // ─── Top-bar Undo/Redo buttons ─────────────────────────────────────────────
 function UndoRedoButtons({ onUndo, onRedo, canUndo, canRedo }: { onUndo: () => void; onRedo: () => void; canUndo: boolean; canRedo: boolean }) {
-  const btn: React.CSSProperties = {
-    display: "flex", alignItems: "center", gap: 6,
-    padding: "9px 14px", borderRadius: 8,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.025)",
-    fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.5,
-    cursor: "pointer",
-  };
   return (
     <div style={{ display: "flex", gap: 6 }}>
-      <button onClick={onUndo} disabled={!canUndo} title="Undo · ⌘Z" style={{ ...btn, color: canUndo ? C.tx : C.txd, opacity: canUndo ? 1 : 0.4, cursor: canUndo ? "pointer" : "not-allowed" }}>
-        <Undo2 size={13} strokeWidth={2.2} /> UNDO
-      </button>
-      <button onClick={onRedo} disabled={!canRedo} title="Redo · ⌘⇧Z" style={{ ...btn, color: canRedo ? C.tx : C.txd, opacity: canRedo ? 1 : 0.4, cursor: canRedo ? "pointer" : "not-allowed" }}>
-        <Redo2 size={13} strokeWidth={2.2} /> REDO
-      </button>
+      <GlassButton onClick={onUndo} disabled={!canUndo} title="Undo · ⌘Z" Icon={Undo2}>UNDO</GlassButton>
+      <GlassButton onClick={onRedo} disabled={!canRedo} title="Redo · ⌘⇧Z" Icon={Redo2}>REDO</GlassButton>
     </div>
+  );
+}
+
+// ─── Glass button system · POAST aesthetic ────────────────────────────────
+// Reusable button with backdrop blur, hover lift + amber glow, tooltip, and
+// optional Icon. Replaces the rough `<button style={{...}}>` ad hoc styles
+// scattered across the toolbar so everything moves in lockstep.
+function GlassButton({ onClick, disabled, title, Icon, children, primary, glow }: {
+  onClick?: () => void; disabled?: boolean; title?: string; Icon?: LucideIconCmp;
+  children?: React.ReactNode; primary?: boolean; glow?: string;
+}) {
+  const [hov, setHov] = useState(false);
+  const accent = glow || C.amber;
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 7,
+        padding: "9px 14px", borderRadius: 9,
+        background: primary
+          ? "linear-gradient(135deg, " + accent + ", " + (accent === C.amber ? "#E8A020" : accent) + ")"
+          : (hov ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.035)"),
+        backdropFilter: "blur(10px) saturate(140%)",
+        WebkitBackdropFilter: "blur(10px) saturate(140%)",
+        border: "1px solid " + (primary
+          ? accent + "60"
+          : (hov ? accent + "40" : "rgba(255,255,255,0.10)")),
+        color: primary ? "#060608" : (disabled ? C.txd : (hov ? C.tx : C.txm)),
+        fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.5,
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.4 : 1,
+        transition: "all 0.18s cubic-bezier(.2,.7,.2,1)",
+        transform: hov && !disabled ? "translateY(-1px)" : "translateY(0)",
+        boxShadow: primary
+          ? (hov ? "0 8px 24px " + accent + "55, 0 1px 0 rgba(255,255,255,0.20) inset" : "0 4px 14px " + accent + "30, 0 1px 0 rgba(255,255,255,0.18) inset")
+          : (hov ? "0 6px 20px " + accent + "20, 0 1px 0 rgba(255,255,255,0.06) inset" : "0 1px 0 rgba(255,255,255,0.04) inset"),
+      }}
+    >
+      {Icon && <Icon size={13} strokeWidth={2.2} />}
+      {children}
+    </button>
   );
 }
 
@@ -2262,11 +2320,24 @@ function NumberFormatPicker({ fmt, onChange }: { fmt: NumberFormat; onChange: (f
     <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
       <button
         onClick={() => setOpen(v => !v)}
-        title="Number format"
-        style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.10)", background: open ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.025)", color: C.tx, fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer" }}
+        title="Number format · how every value renders"
+        style={{
+          display: "flex", alignItems: "center", gap: 7,
+          padding: "9px 14px", borderRadius: 9,
+          background: open ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.035)",
+          backdropFilter: "blur(10px) saturate(140%)",
+          WebkitBackdropFilter: "blur(10px) saturate(140%)",
+          border: "1px solid " + (open ? C.amber + "55" : "rgba(255,255,255,0.10)"),
+          color: open ? C.tx : C.txm,
+          fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.5,
+          cursor: "pointer",
+          transition: "all 0.18s cubic-bezier(.2,.7,.2,1)",
+          boxShadow: open ? "0 6px 20px " + C.amber + "20, 0 1px 0 rgba(255,255,255,0.06) inset" : "0 1px 0 rgba(255,255,255,0.04) inset",
+        }}
       >
         <Hash size={13} strokeWidth={2.2} />
         {NUM_FMT_LABELS[fmt]}
+        <ChevronDown size={11} strokeWidth={2.4} style={{ marginLeft: 2, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
       </button>
       {open && (
         <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 1000, background: "#0D0D14", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 9, padding: 5, minWidth: 200, boxShadow: "0 18px 48px rgba(0,0,0,0.5)" }}>
@@ -2304,55 +2375,80 @@ function AnnotationsBar({ annotations, type, pickMode, onStartPick, onCancelPick
   const annotApplies = ["stacked", "clustered", "line", "stackedArea", "wfup"].includes(type);
   if (!annotApplies && annotations.length === 0 && !pickMode) return null;
 
-  const cardBg = "#0D0D12";
-  const borderC = "rgba(255,255,255,0.06)";
-  const chip = (active: boolean): React.CSSProperties => ({
-    display: "flex", alignItems: "center", gap: 6,
-    padding: "7px 12px", borderRadius: 7, cursor: "pointer",
-    background: active ? C.amber + "1A" : "rgba(255,255,255,0.025)",
-    border: "1px solid " + (active ? C.amber + "60" : "rgba(255,255,255,0.10)"),
-    color: active ? C.amber : C.tx,
-    fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
-  });
-
   return (
-    <div style={{ marginBottom: 14, padding: "10px 12px", background: cardBg, border: "1px solid " + borderC, borderRadius: 10, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-      <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1.2, marginRight: 4, textTransform: "uppercase" }}>Annotate</span>
-      <button onClick={() => onStartPick("cagr")} disabled={!annotApplies} title="Pick two bars/points to draw CAGR" style={chip(pickMode?.kind === "cagr")}>
-        <Sigma size={11} strokeWidth={2.4} /> CAGR
-      </button>
-      <button onClick={() => onStartPick("diff")} disabled={!annotApplies} title="Pick two bars/points to show absolute Δ" style={chip(pickMode?.kind === "diff")}>
-        <ArrowUpDown size={11} strokeWidth={2.4} /> Δ DIFF
-      </button>
-      <button onClick={() => setRefOpen(v => !v)} disabled={!annotApplies} style={chip(refOpen)}>
-        <Minus size={11} strokeWidth={2.4} /> REF LINE
-      </button>
+    <div style={{
+      marginBottom: 14, padding: "12px 14px",
+      background: "rgba(13,13,18,0.72)",
+      backdropFilter: "blur(14px) saturate(140%)",
+      WebkitBackdropFilter: "blur(14px) saturate(140%)",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 12,
+      display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center",
+      boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 24px rgba(0,0,0,0.30)",
+    }}>
+      <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1.4, marginRight: 6, textTransform: "uppercase", fontWeight: 800 }}>Annotate</span>
+      <AnnotChip active={pickMode?.kind === "cagr"} disabled={!annotApplies} title="Pick two bars/points to draw a CAGR arrow" Icon={Sigma} onClick={() => onStartPick("cagr")}>CAGR</AnnotChip>
+      <AnnotChip active={pickMode?.kind === "diff"} disabled={!annotApplies} title="Pick two bars/points to show absolute Δ" Icon={ArrowUpDown} onClick={() => onStartPick("diff")}>Δ DIFF</AnnotChip>
+      <AnnotChip active={refOpen} disabled={!annotApplies} title="Drop a horizontal reference line" Icon={Minus} onClick={() => setRefOpen(v => !v)}>REF LINE</AnnotChip>
       {refOpen && (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-          <input value={refValue} onChange={e => setRefValue(e.target.value)} placeholder="value" style={{ width: 70, padding: "5px 8px", background: "#0A0A0E", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 5, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none" }} />
-          <input value={refLabel} onChange={e => setRefLabel(e.target.value)} placeholder="label" style={{ width: 110, padding: "5px 8px", background: "#0A0A0E", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 5, color: C.tx, fontFamily: ft, fontSize: 11, outline: "none" }} />
-          <button onClick={() => { const n = Number(refValue); if (!isNaN(n)) { onAddRefLine(n, refLabel); setRefValue("0"); setRefLabel(""); setRefOpen(false); } }} style={{ padding: "5px 10px", background: C.amber, border: "none", borderRadius: 5, color: "#060608", fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: "pointer", letterSpacing: 0.5 }}>ADD</button>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "0 4px" }}>
+          <input value={refValue} onChange={e => setRefValue(e.target.value)} placeholder="value" style={{ width: 72, padding: "6px 9px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 6, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none" }} />
+          <input value={refLabel} onChange={e => setRefLabel(e.target.value)} placeholder="label" style={{ width: 110, padding: "6px 9px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 6, color: C.tx, fontFamily: ft, fontSize: 11, outline: "none" }} />
+          <GlassButton onClick={() => { const n = Number(refValue); if (!isNaN(n)) { onAddRefLine(n, refLabel); setRefValue("0"); setRefLabel(""); setRefOpen(false); } }} primary>ADD</GlassButton>
         </span>
       )}
       {annotations.length > 0 && (
         <>
           <Sep />
           <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.5 }}>{annotations.length} on chart</span>
-          <button onClick={onClearAll} style={{ ...chip(false), color: "#E06347", borderColor: "rgba(224,99,71,0.30)" }}>
-            <Trash2 size={11} strokeWidth={2.2} /> CLEAR
-          </button>
+          <AnnotChip danger title="Remove every annotation" Icon={Trash2} onClick={onClearAll}>CLEAR</AnnotChip>
         </>
       )}
       {pickMode && (
         <>
           <Sep />
-          <span style={{ fontFamily: mn, fontSize: 10, color: C.amber, letterSpacing: 0.5, fontWeight: 700 }}>
-            CLICK {pickMode.bars.length === 0 ? "FIRST" : "SECOND"} BAR ({pickMode.kind === "cagr" ? "CAGR" : "Δ DIFF"})
+          <span style={{ fontFamily: mn, fontSize: 10, color: C.amber, letterSpacing: 0.6, fontWeight: 800, padding: "5px 10px", background: C.amber + "12", border: "1px solid " + C.amber + "40", borderRadius: 6, animation: "cmPickPulse 1.4s ease-in-out infinite" }}>
+            CLICK {pickMode.bars.length === 0 ? "FIRST" : "SECOND"} BAR
           </span>
-          <button onClick={onCancelPick} style={{ ...chip(false), color: C.txm, fontSize: 9 }}>CANCEL</button>
+          <AnnotChip title="Cancel pick mode" onClick={onCancelPick}>CANCEL</AnnotChip>
+          <style>{`@keyframes cmPickPulse{0%,100%{box-shadow:0 0 0 ${C.amber}00}50%{box-shadow:0 0 12px ${C.amber}60}}`}</style>
         </>
       )}
     </div>
+  );
+}
+
+// Compact glass chip for the annotations bar — same hover lift as
+// GlassButton but quieter footprint so a row of them doesn't feel busy.
+function AnnotChip({ active, disabled, title, Icon, onClick, children, danger }: {
+  active?: boolean; disabled?: boolean; title?: string; Icon?: LucideIconCmp;
+  onClick: () => void; children: React.ReactNode; danger?: boolean;
+}) {
+  const [hov, setHov] = useState(false);
+  const accent = danger ? "#E06347" : C.amber;
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 6,
+        padding: "7px 12px", borderRadius: 7, cursor: disabled ? "not-allowed" : "pointer",
+        background: active ? accent + "20" : (hov ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.03)"),
+        border: "1px solid " + (active ? accent + "60" : (hov ? accent + "30" : "rgba(255,255,255,0.10)")),
+        color: active ? accent : (danger ? accent : (hov ? C.tx : C.txm)),
+        fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
+        transition: "all 0.16s cubic-bezier(.2,.7,.2,1)",
+        transform: hov && !disabled ? "translateY(-1px)" : "translateY(0)",
+        opacity: disabled ? 0.4 : 1,
+        boxShadow: active ? "0 0 12px " + accent + "30" : (hov ? "0 4px 12px " + accent + "18" : "none"),
+      }}
+    >
+      {Icon && <Icon size={11} strokeWidth={2.4} />}
+      {children}
+    </button>
   );
 }
 
@@ -2527,43 +2623,67 @@ function Sep() { return <div style={{ width: 1, alignSelf: "stretch", background
 // Sticky-positioned so it stays visible while the right pane scrolls.
 function ChartTypeSidebar({ active, onSelect }: { active: ChartType; onSelect: (t: ChartType) => void }) {
   return (
-    <div style={{ background: "#0D0D12", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, position: "sticky", top: 12, alignSelf: "start", maxHeight: "calc(100vh - 48px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-      <div style={{ padding: "16px 18px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
+    <div style={{
+      background: "rgba(13,13,18,0.72)",
+      backdropFilter: "blur(14px) saturate(140%)",
+      WebkitBackdropFilter: "blur(14px) saturate(140%)",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 14,
+      position: "sticky", top: 14, alignSelf: "start",
+      maxHeight: "calc(100vh - 56px)", overflow: "hidden",
+      display: "flex", flexDirection: "column",
+      boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 32px rgba(0,0,0,0.30)",
+    }}>
+      <div style={{ padding: "16px 18px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, background: "linear-gradient(180deg, rgba(255,255,255,0.02), transparent)" }}>
         <div style={{ fontFamily: gf, fontSize: 13, fontWeight: 800, color: C.tx, letterSpacing: -0.1, marginBottom: 3 }}>Chart Types</div>
         <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1.4, textTransform: "uppercase" }}>{TYPES.flat().filter(t => t.working).length} live · {TYPES.flat().filter(t => !t.working).length} soon</div>
       </div>
       <div style={{ overflowY: "auto", padding: "10px", display: "flex", flexDirection: "column", gap: 4 }}>
-        {TYPES.flat().map(spec => {
-          const on = active === spec.id;
-          return (
-            <button
-              key={spec.id}
-              onClick={() => onSelect(spec.id)}
-              title={spec.label + (spec.working ? "" : " · coming soon")}
-              style={{
-                display: "flex", alignItems: "center", gap: 12,
-                padding: "11px 12px",
-                background: on ? C.amber + "16" : "transparent",
-                border: "1px solid " + (on ? C.amber + "60" : "transparent"),
-                borderRadius: 9, cursor: "pointer",
-                opacity: spec.working ? 1 : 0.5,
-                transition: "all 0.14s",
-                textAlign: "left", width: "100%",
-                boxShadow: on ? "0 0 0 1px " + C.amber + "20" : "none",
-              }}
-              onMouseEnter={e => { if (!on) e.currentTarget.style.background = "rgba(255,255,255,0.045)"; }}
-              onMouseLeave={e => { if (!on) e.currentTarget.style.background = "transparent"; }}
-            >
-              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 6, background: on ? C.amber + "26" : "rgba(255,255,255,0.04)", flexShrink: 0 }}>
-                <spec.Icon size={16} strokeWidth={on ? 2.4 : 1.9} color={on ? C.amber : (spec.working ? C.tx : C.txd)} />
-              </span>
-              <span style={{ flex: 1, fontFamily: ft, fontSize: 13, fontWeight: on ? 800 : 600, color: on ? C.amber : (spec.working ? "#E8E4DD" : C.txd), letterSpacing: 0.1 }}>{spec.label}</span>
-              {!spec.working && <span style={{ fontFamily: mn, fontSize: 7.5, color: C.txd, letterSpacing: 0.6, padding: "2px 6px", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 3 }}>SOON</span>}
-            </button>
-          );
-        })}
+        {TYPES.flat().map(spec => <ChartTypeRow key={spec.id} spec={spec} active={active === spec.id} onClick={() => onSelect(spec.id)} />)}
       </div>
     </div>
+  );
+}
+
+// Individual sidebar row · pulled out so we can manage per-row hover state.
+function ChartTypeRow({ spec, active, onClick }: { spec: TypeSpec; active: boolean; onClick: () => void }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      title={spec.label + (spec.working ? "" : " · coming soon")}
+      style={{
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "11px 12px",
+        background: active ? C.amber + "1A" : (hov ? "rgba(255,255,255,0.06)" : "transparent"),
+        border: "1px solid " + (active ? C.amber + "60" : (hov ? "rgba(255,255,255,0.10)" : "transparent")),
+        borderRadius: 9,
+        cursor: spec.working ? "pointer" : "not-allowed",
+        opacity: spec.working ? 1 : 0.5,
+        transition: "all 0.16s cubic-bezier(.2,.7,.2,1)",
+        textAlign: "left", width: "100%",
+        transform: hov && spec.working && !active ? "translateX(2px)" : "translateX(0)",
+        boxShadow: active
+          ? "0 0 0 1px " + C.amber + "30, 0 0 24px " + C.amber + "20, inset 0 1px 0 rgba(255,255,255,0.06)"
+          : (hov ? "0 4px 16px rgba(0,0,0,0.20), inset 0 1px 0 rgba(255,255,255,0.04)" : "none"),
+      }}
+    >
+      <span style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 28, height: 28, borderRadius: 7,
+        background: active ? C.amber + "30" : (hov ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.03)"),
+        border: active ? "1px solid " + C.amber + "55" : "1px solid rgba(255,255,255,0.06)",
+        flexShrink: 0,
+        boxShadow: active ? "0 0 12px " + C.amber + "30 inset" : "none",
+        transition: "all 0.16s",
+      }}>
+        <spec.Icon size={16} strokeWidth={active ? 2.5 : 1.9} color={active ? C.amber : (spec.working ? C.tx : C.txd)} />
+      </span>
+      <span style={{ flex: 1, fontFamily: ft, fontSize: 13, fontWeight: active ? 800 : 600, color: active ? C.amber : (spec.working ? "#E8E4DD" : C.txd), letterSpacing: 0.1 }}>{spec.label}</span>
+      {!spec.working && <span style={{ fontFamily: mn, fontSize: 7.5, color: C.txd, letterSpacing: 0.6, padding: "2px 6px", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 3 }}>SOON</span>}
+    </button>
   );
 }
 
@@ -2581,13 +2701,25 @@ function ThemePicker({ theme, onChange }: { theme: ThemeId; onChange: (t: ThemeI
       <button
         onClick={() => setOpen(v => !v)}
         title={cur.name + " · " + cur.sub}
-        style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.10)", background: open ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.025)", color: C.tx, fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer" }}
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "9px 14px", borderRadius: 9,
+          background: open ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.035)",
+          backdropFilter: "blur(10px) saturate(140%)",
+          WebkitBackdropFilter: "blur(10px) saturate(140%)",
+          border: "1px solid " + (open ? C.amber + "55" : "rgba(255,255,255,0.10)"),
+          color: open ? C.tx : C.txm,
+          fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.5,
+          cursor: "pointer",
+          transition: "all 0.18s cubic-bezier(.2,.7,.2,1)",
+          boxShadow: open ? "0 6px 20px " + C.amber + "20, 0 1px 0 rgba(255,255,255,0.06) inset" : "0 1px 0 rgba(255,255,255,0.04) inset",
+        }}
       >
         <span style={{ display: "inline-flex", gap: 2 }}>
-          {cur.colors.slice(0, 5).map((c, i) => <span key={i} style={{ width: 8, height: 12, background: c, borderRadius: 1.5 }} />)}
+          {cur.colors.slice(0, 5).map((c, i) => <span key={i} style={{ width: 8, height: 13, background: c, borderRadius: 2 }} />)}
         </span>
-        {cur.name.replace("SA ", "")}
-        <ChevronDown size={11} strokeWidth={2.4} />
+        {cur.name}
+        <ChevronDown size={11} strokeWidth={2.4} style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
       </button>
       {open && (
         <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 1100, background: "#0D0D14", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 9, padding: 5, minWidth: 240, boxShadow: "0 18px 48px rgba(0,0,0,0.5)" }}>
