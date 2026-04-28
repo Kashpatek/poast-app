@@ -13,12 +13,13 @@ import IdeationNation from "./ideation-nation";
 import SAWeekly from "./sa-weekly";
 import BRollLibrary from "./broll-library";
 import ChartMaker from "./chart-maker";
+import ChartMaker2 from "./chart-maker-2";
 import BrandLaunchTile from "./brand-launch-tile";
 import PoastSettings from "./poast-settings";
 import { BugButton } from "./bug-report";
 import { trackEvent } from "../lib/poast-track";
 
-import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings } from "lucide-react";
+import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings } from "lucide-react";
 type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>;
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
 import { useUser, isAnalyst } from "./user-context";
@@ -431,6 +432,7 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "p2p",      l: "Press to Premier", Icon: Clapperboard },
     { id: "broll",    l: "B-Roll Library",   Icon: Film },
     { id: "chart",    l: "Chart Maker",      Icon: BarChart3 },
+    { id: "chart2",   l: "Chart Maker · Gantt", Icon: GanttChart },
     { id: "assets",   l: "Asset Library",    Icon: Library },
   ]},
   podcast: { label: "PODCAST", color: C.coral, glow: "rgba(224,99,71,", items: [
@@ -1449,7 +1451,7 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
 }
 
 // ═══ APP ═══
-var ANALYST_ALLOWED = ["home", "sloptop", "carousel", "captions", "chart", "assets"];
+var ANALYST_ALLOWED = ["home", "sloptop", "carousel", "captions", "chart", "chart2", "assets"];
 
 // Asset Library embedded inside POAST. Fetches the standalone HTML
 // from /public, drops it inline into POAST's DOM via dangerouslySetInnerHTML,
@@ -1707,6 +1709,7 @@ export default function App() {
         {sec === "sloptop" && <SlopTop />}
         {sec === "broll" && <BRollLibrary />}
         {sec === "chart" && <ChartMaker />}
+        {sec === "chart2" && <ChartMaker2 />}
         {sec === "fk" && <FabricatedKnowledge />}
         {sec === "outreach" && <Outreach />}
         {sec === "trends" && <Trends />}
