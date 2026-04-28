@@ -284,15 +284,126 @@ const TYPES: TypeSpec[][] = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
-// EDITABLE DATASHEET · Excel-style grid with cell-level editing, tab nav,
-// add/remove rows + columns
+// LIBREOFFICE-CALC-STYLE DATASHEET · column letters, row numbers, formula
+// bar, cell selection, basic formulas (=A1+B2 / =SUM(A1:A5) / =AVG / =MIN /
+// =MAX / =COUNT). Slider mode lets you control number cells with a slider
+// instead of typing.
 // ═══════════════════════════════════════════════════════════════════════════
-function DataSheetGrid({ sheet, onChange }: { sheet: DataSheet; onChange: (s: DataSheet) => void }) {
+
+// 0=A, 1=B, 25=Z, 26=AA, 27=AB...
+function colLetter(idx: number): string {
+  let s = ""; let n = idx;
+  while (true) { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; if (n < 0) break; }
+  return s;
+}
+// Parse a cell address like "A1" or "AB42" into {col, row}. Zero-indexed.
+function parseCellRef(ref: string): { col: number; row: number } | null {
+  const m = ref.match(/^([A-Z]+)(\d+)$/);
+  if (!m) return null;
+  let col = 0;
+  for (const ch of m[1]) col = col * 26 + (ch.charCodeAt(0) - 64);
+  return { col: col - 1, row: parseInt(m[2], 10) - 1 };
+}
+// Resolve a single cell ref against a sheet, returning its raw numeric
+// value (formulas are recursively evaluated, with a depth cap to break
+// reference cycles).
+function resolveCell(ref: string, sheet: DataSheet, depth = 0): number {
+  if (depth > 16) return 0;
+  const p = parseCellRef(ref);
+  if (!p) return 0;
+  const colKey = sheet.schema[p.col]?.key;
+  if (!colKey) return 0;
+  const v = sheet.rows[p.row]?.[colKey];
+  if (typeof v === "number") return v;
+  if (typeof v === "string" && v.startsWith("=")) {
+    const r = evalFormula(v, sheet, depth + 1);
+    return typeof r === "number" ? r : 0;
+  }
+  const n = Number(v);
+  return isNaN(n) ? 0 : n;
+}
+// Expand a range "A1:B5" into a flat array of resolved numeric values.
+function expandRange(start: string, end: string, sheet: DataSheet, depth: number): number[] {
+  const a = parseCellRef(start), b = parseCellRef(end);
+  if (!a || !b) return [];
+  const out: number[] = [];
+  for (let r = a.row; r <= b.row; r++) {
+    for (let c = a.col; c <= b.col; c++) {
+      const ref = colLetter(c) + (r + 1);
+      out.push(resolveCell(ref, sheet, depth + 1));
+    }
+  }
+  return out;
+}
+// Evaluate a formula string. Supports SUM / AVG / AVERAGE / MIN / MAX /
+// COUNT and basic arithmetic with cell references (A1 + B2 etc).
+function evalFormula(expr: string, sheet: DataSheet, depth = 0): number | string {
+  if (depth > 16) return "#CYC";
+  const e = (expr.startsWith("=") ? expr.slice(1) : expr).trim();
+  if (!e) return "";
+  try {
+    // 1) Resolve range refs (A1:A5) into comma-joined numbers
+    let s = e.replace(/([A-Z]+\d+):([A-Z]+\d+)/g, (_, a, b) => expandRange(a, b, sheet, depth).join(","));
+    // 2) Resolve named functions before single-cell substitution so SUM(A1) etc work
+    const runFn = (raw: string, body: (vs: number[]) => number) => {
+      // Parse body args: split by comma, each arg is either a number or a single cell ref
+      const args = raw.split(",").map(t => t.trim()).filter(t => t !== "");
+      const vs = args.map(a => {
+        const ref = parseCellRef(a);
+        if (ref) return resolveCell(a, sheet, depth + 1);
+        const n = Number(a);
+        return isNaN(n) ? 0 : n;
+      });
+      return body(vs);
+    };
+    s = s
+      .replace(/SUM\s*\(([^)]+)\)/gi, (_, body) => String(runFn(body, vs => vs.reduce((a, b) => a + b, 0))))
+      .replace(/(?:AVG|AVERAGE|MEAN)\s*\(([^)]+)\)/gi, (_, body) => String(runFn(body, vs => vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : 0)))
+      .replace(/MAX\s*\(([^)]+)\)/gi, (_, body) => String(runFn(body, vs => vs.length ? Math.max(...vs) : 0)))
+      .replace(/MIN\s*\(([^)]+)\)/gi, (_, body) => String(runFn(body, vs => vs.length ? Math.min(...vs) : 0)))
+      .replace(/COUNT\s*\(([^)]+)\)/gi, (_, body) => { const args = body.split(",").filter((x: string) => x.trim() !== ""); return String(args.length); })
+      .replace(/PRODUCT\s*\(([^)]+)\)/gi, (_, body) => String(runFn(body, vs => vs.reduce((a, b) => a * b, 1))));
+    // 3) Resolve remaining single-cell refs
+    s = s.replace(/[A-Z]+\d+/g, ref => String(resolveCell(ref, sheet, depth + 1)));
+    // 4) Pure arithmetic — whitelist before eval
+    if (!/^[\d\s.+\-*/(),]+$/.test(s)) return "#REF";
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval
+    const result = Function("\"use strict\"; return (" + s + ");")();
+    return typeof result === "number" && isFinite(result) ? result : "#ERR";
+  } catch (err) {
+    return "#ERR";
+  }
+}
+
+// Compute a derived sheet with all formulas evaluated. Renderers consume
+// this so charts always show numeric values; the table still owns the
+// raw `=…` strings so users can edit them.
+function computeSheet(sheet: DataSheet): DataSheet {
+  const rows = sheet.rows.map(row => {
+    const out: Record<string, CellValue> = {};
+    for (const [k, v] of Object.entries(row)) {
+      if (typeof v === "string" && v.startsWith("=")) {
+        const r = evalFormula(v, sheet);
+        out[k] = r;
+      } else {
+        out[k] = v;
+      }
+    }
+    return out;
+  });
+  return { schema: sheet.schema, rows };
+}
+
+function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode }: { sheet: DataSheet; onChange: (s: DataSheet) => void; sliderMode: boolean; onToggleSliderMode: () => void }) {
+  const [active, setActive] = useState<{ row: number; col: number } | null>(null);
   const setCell = (rowIdx: number, key: string, raw: string) => {
     const next = sheet.rows.slice();
     const col = sheet.schema.find(c => c.key === key);
     let v: CellValue = raw;
-    if (col && (col.type === "number" || col.type === "percent")) {
+    // Formulas keep the raw string; otherwise coerce numbers.
+    if (raw.startsWith("=")) {
+      v = raw;
+    } else if (col && (col.type === "number" || col.type === "percent")) {
       const num = Number(raw.replace("%", ""));
       v = isNaN(num) ? raw : num;
     }
@@ -307,95 +418,166 @@ function DataSheetGrid({ sheet, onChange }: { sheet: DataSheet; onChange: (s: Da
   const removeRow = (i: number) => {
     if (sheet.rows.length <= 1) return;
     onChange({ ...sheet, rows: sheet.rows.filter((_, j) => j !== i) });
+    if (active && active.row === i) setActive(null);
   };
-  const renameCol = (key: string, newLabel: string) => {
-    onChange({ ...sheet, schema: sheet.schema.map(c => c.key === key ? { ...c, label: newLabel } : c) });
-  };
+  const renameCol = (key: string, newLabel: string) => onChange({ ...sheet, schema: sheet.schema.map(c => c.key === key ? { ...c, label: newLabel } : c) });
   const addCol = () => {
     let n = 1;
     while (sheet.schema.some(c => c.key === "s" + n)) n++;
     const newCol: ColumnSpec = { key: "s" + n, label: "Series " + n, type: "number" };
-    const newRows = sheet.rows.map(r => ({ ...r, [newCol.key]: 0 }));
-    onChange({ schema: [...sheet.schema, newCol], rows: newRows });
+    onChange({ schema: [...sheet.schema, newCol], rows: sheet.rows.map(r => ({ ...r, [newCol.key]: 0 })) });
   };
   const removeCol = (key: string) => {
     if (sheet.schema.length <= 2) return;
-    const newRows = sheet.rows.map(r => {
-      const { [key]: _, ...rest } = r;
-      return rest;
-    });
-    onChange({ schema: sheet.schema.filter(c => c.key !== key), rows: newRows });
+    onChange({ schema: sheet.schema.filter(c => c.key !== key), rows: sheet.rows.map(r => { const { [key]: _, ...rest } = r; return rest; }) });
+  };
+  // Compute slider min/max per number column from current values
+  const sliderRange = (key: string): { min: number; max: number } => {
+    const vals = sheet.rows.map(r => Number(r[key]) || 0);
+    const lo = Math.min(0, ...vals);
+    const hi = Math.max(...vals, 1);
+    const span = hi - lo || 1;
+    return { min: Math.floor(lo - span * 0.2), max: Math.ceil(hi + span * 0.2) };
   };
 
-  const cellInput: React.CSSProperties = {
-    width: "100%", padding: "7px 9px", border: "1px solid transparent",
-    background: "transparent", color: C.tx, fontFamily: ft, fontSize: 12,
-    outline: "none", boxSizing: "border-box",
-  };
-  const headerInput: React.CSSProperties = {
-    ...cellInput,
-    fontFamily: mn, fontSize: 10, fontWeight: 700, color: C.amber,
-    letterSpacing: 0.6, textTransform: "uppercase",
+  const cellInput: React.CSSProperties = { width: "100%", padding: "7px 9px", border: "1px solid transparent", background: "transparent", color: C.tx, fontFamily: ft, fontSize: 12, outline: "none", boxSizing: "border-box" };
+  const headerInput: React.CSSProperties = { ...cellInput, fontFamily: mn, fontSize: 10, fontWeight: 700, color: C.amber, letterSpacing: 0.6, textTransform: "uppercase" };
+
+  // Active cell address + raw value (for the formula bar)
+  const activeAddr = active ? colLetter(active.col) + (active.row + 1) : "";
+  const activeKey = active ? sheet.schema[active.col]?.key : "";
+  const activeRaw = active && activeKey ? String(sheet.rows[active.row]?.[activeKey] ?? "") : "";
+  const setActiveValue = (v: string) => {
+    if (!active || !activeKey) return;
+    setCell(active.row, activeKey, v);
   };
 
   return (
-    <div style={{ background: "#0A0A0E", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, overflow: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
-        <thead>
-          <tr>
-            <th style={{ width: 32, background: "#0A0A0E", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: 0 }} />
-            {sheet.schema.map((col, i) => (
-              <th key={col.key} style={{ background: "#0A0A0E", borderBottom: "1px solid rgba(255,255,255,0.08)", borderLeft: i === 0 ? "none" : "1px solid rgba(255,255,255,0.04)", padding: 0, position: "relative" }}>
-                <CellInput
-                  value={col.label}
-                  onCommit={v => renameCol(col.key, v || col.label)}
-                  style={headerInput}
-                />
-                {sheet.schema.length > 2 && (
-                  <span onClick={() => removeCol(col.key)} title="Remove column" style={{ position: "absolute", top: 4, right: 4, cursor: "pointer", color: C.txd, padding: 2, lineHeight: 0 }}>
+    <div style={{ background: "rgba(13,13,18,0.72)", backdropFilter: "blur(14px) saturate(140%)", WebkitBackdropFilter: "blur(14px) saturate(140%)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 32px rgba(0,0,0,0.30)" }}>
+      {/* Formula bar · LibreOffice / Excel style */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 60, padding: "5px 10px", borderRadius: 5, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", fontFamily: mn, fontSize: 11, fontWeight: 800, color: active ? C.amber : C.txm, letterSpacing: 0.5 }}>{activeAddr || "—"}</span>
+        <span style={{ fontFamily: mn, fontSize: 11, color: C.txd, fontWeight: 700 }}>fx</span>
+        <input
+          value={activeRaw}
+          onChange={e => setActiveValue(e.target.value)}
+          placeholder={active ? "Type a value or =FORMULA" : "Click a cell to edit"}
+          disabled={!active}
+          style={{ flex: 1, padding: "6px 10px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 5, color: C.tx, fontFamily: mn, fontSize: 12, outline: "none" }}
+          onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        />
+        <Toggle on={sliderMode} onChange={onToggleSliderMode} label="Slider" title="Toggle slider mode for number cells" />
+      </div>
+
+      <div style={{ overflow: "auto", maxHeight: 480 }}>
+        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+          <colgroup>
+            <col style={{ width: 44 }} />
+            {sheet.schema.map(c => <col key={c.key} />)}
+            <col style={{ width: 36 }} />
+          </colgroup>
+          <thead>
+            {/* Column letters (A, B, C…) */}
+            <tr>
+              <th style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.10)", padding: "4px 0", fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 0.4 }} />
+              {sheet.schema.map((col, i) => (
+                <th key={col.key} style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.10)", borderLeft: "1px solid rgba(255,255,255,0.04)", padding: "4px 0", fontFamily: mn, fontSize: 9, fontWeight: 800, color: active && active.col === i ? C.amber : C.txm, letterSpacing: 0.6, textAlign: "center" }}>
+                  {colLetter(i)}
+                </th>
+              ))}
+              <th style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.10)", padding: 0 }} />
+            </tr>
+            {/* Editable column labels */}
+            <tr>
+              <th style={{ background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.10)", padding: 0 }} />
+              {sheet.schema.map((col, i) => (
+                <th key={col.key} style={{ background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.10)", borderLeft: "1px solid rgba(255,255,255,0.04)", padding: 0, position: "relative" }}>
+                  <CellInput value={col.label} onCommit={v => renameCol(col.key, v || col.label)} style={headerInput} />
+                  {sheet.schema.length > 2 && (
+                    <span onClick={() => removeCol(col.key)} title="Remove column" style={{ position: "absolute", top: 4, right: 4, cursor: "pointer", color: C.txd, padding: 2, lineHeight: 0 }}>
+                      <X size={10} />
+                    </span>
+                  )}
+                </th>
+              ))}
+              <th style={{ background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.10)", padding: 0 }}>
+                <span onClick={addCol} title="Add column" style={{ display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.txm, padding: "8px 0" }}>
+                  <Plus size={12} strokeWidth={2.2} />
+                </span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sheet.rows.map((row, r) => (
+              <tr key={r} style={{ background: r % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)" }}>
+                <td style={{ width: 44, textAlign: "center", borderTop: "1px solid rgba(255,255,255,0.04)", color: active && active.row === r ? C.amber : C.txd, fontFamily: mn, fontSize: 10, fontWeight: 700, position: "relative", background: "rgba(255,255,255,0.02)" }}>
+                  <span style={{ display: "inline-block", padding: "6px 4px" }}>{r + 1}</span>
+                  <span onClick={() => removeRow(r)} title="Remove row" style={{ position: "absolute", top: "50%", right: 4, transform: "translateY(-50%)", cursor: "pointer", padding: 2, color: C.txd, lineHeight: 0, display: "inline-flex", opacity: 0.5 }} onMouseEnter={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.color = "#E06347"; }} onMouseLeave={e => { e.currentTarget.style.opacity = "0.5"; e.currentTarget.style.color = C.txd; }}>
                     <X size={10} />
                   </span>
-                )}
-              </th>
-            ))}
-            <th style={{ width: 36, background: "#0A0A0E", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: 0 }}>
-              <span onClick={addCol} title="Add column" style={{ display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.txm, padding: "8px 0" }}>
-                <Plus size={12} strokeWidth={2.2} />
-              </span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {sheet.rows.map((row, r) => (
-            <tr key={r} style={{ background: r % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)" }}>
-              <td style={{ width: 32, textAlign: "center", borderTop: "1px solid rgba(255,255,255,0.04)", color: C.txd, fontFamily: mn, fontSize: 9 }}>
-                <span onClick={() => removeRow(r)} title="Remove row" style={{ cursor: "pointer", padding: 4, display: "inline-flex" }}>
-                  <X size={10} />
-                </span>
-              </td>
-              {sheet.schema.map((col, ci) => (
-                <td key={col.key} style={{ borderTop: "1px solid rgba(255,255,255,0.04)", borderLeft: ci === 0 ? "none" : "1px solid rgba(255,255,255,0.03)", padding: 0 }}>
-                  <CellInput
-                    value={String(row[col.key] ?? "")}
-                    onCommit={v => setCell(r, col.key, v)}
-                    style={cellInput}
-                    type={col.type}
-                    onScrub={col.type === "number" || col.type === "percent" ? () => {} : undefined}
-                  />
                 </td>
-              ))}
-              <td style={{ width: 36, borderTop: "1px solid rgba(255,255,255,0.04)" }} />
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div style={{ padding: "8px 12px", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", gap: 8 }}>
-        <button onClick={addRow} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.10)", background: "transparent", color: C.txm, fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.5, cursor: "pointer" }}>
+                {sheet.schema.map((col, ci) => {
+                  const isActive = active && active.row === r && active.col === ci;
+                  const raw = String(row[col.key] ?? "");
+                  const isFormula = raw.startsWith("=");
+                  // For display: if formula, show evaluated result; else raw
+                  const display = isFormula ? (() => { const v = evalFormula(raw, sheet); return typeof v === "number" ? niceRound(v) : v; })() : raw;
+                  return (
+                    <td
+                      key={col.key}
+                      onClick={() => setActive({ row: r, col: ci })}
+                      style={{
+                        borderTop: "1px solid rgba(255,255,255,0.04)",
+                        borderLeft: "1px solid rgba(255,255,255,0.03)",
+                        padding: 0,
+                        position: "relative",
+                        background: isActive ? C.amber + "12" : "transparent",
+                        boxShadow: isActive ? "inset 0 0 0 2px " + C.amber + "60" : "none",
+                      }}
+                    >
+                      {sliderMode && (col.type === "number" || col.type === "percent") && !isFormula ? (
+                        <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="range"
+                            min={sliderRange(col.key).min}
+                            max={sliderRange(col.key).max}
+                            value={Number(raw) || 0}
+                            onChange={e => setCell(r, col.key, e.target.value)}
+                            style={{ flex: 1, accentColor: C.amber, cursor: "ew-resize" }}
+                          />
+                          <span style={{ fontFamily: mn, fontSize: 11, fontWeight: 700, color: isActive ? C.amber : C.tx, minWidth: 44, textAlign: "right" }}>{niceRound(Number(raw) || 0)}</span>
+                        </div>
+                      ) : (
+                        <CellInput
+                          value={isFormula ? raw : (isFormula === false && typeof display === "string" ? display : String(display))}
+                          onCommit={v => setCell(r, col.key, v)}
+                          style={{ ...cellInput, color: isFormula ? C.amber : C.tx, fontFamily: isFormula ? mn : ft }}
+                          type={col.type === "date" ? "date" : col.type}
+                          onScrub={col.type === "number" || col.type === "percent" ? () => {} : undefined}
+                        />
+                      )}
+                      {isFormula && (
+                        <span title={"Formula: " + raw} style={{ position: "absolute", top: 2, right: 4, fontFamily: mn, fontSize: 8, fontWeight: 800, color: C.amber, opacity: 0.65, pointerEvents: "none", letterSpacing: 0.5 }}>fx</span>
+                      )}
+                    </td>
+                  );
+                })}
+                <td style={{ width: 36, borderTop: "1px solid rgba(255,255,255,0.04)" }} />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ padding: "8px 12px", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", gap: 8, alignItems: "center" }}>
+        <button onClick={addRow} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.025)", color: C.txm, fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.5, cursor: "pointer" }}>
           <Plus size={11} strokeWidth={2.2} /> ROW
         </button>
-        <button onClick={addCol} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.10)", background: "transparent", color: C.txm, fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.5, cursor: "pointer" }}>
+        <button onClick={addCol} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.025)", color: C.txm, fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.5, cursor: "pointer" }}>
           <Plus size={11} strokeWidth={2.2} /> COLUMN
         </button>
+        <span style={{ flex: 1 }} />
+        <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 0.5 }}>FORMULAS · =SUM(A1:A5) · =AVG · =MIN · =MAX · =A1+B1</span>
       </div>
     </div>
   );
@@ -2126,7 +2308,12 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   // Floating toolbar selection
   const [selection, setSelection] = useState<BarSelection | null>(null);
 
-  const sheet = sheets[type] || samplePerType(type);
+  const rawSheet = sheets[type] || samplePerType(type);
+  // Renderers read the computed sheet (formulas evaluated) so chart values
+  // reflect =SUM/=A1+B2 etc. The data sheet itself receives the raw sheet
+  // so users can keep editing the formulas.
+  const sheet = useMemo(() => computeSheet(rawSheet), [rawSheet]);
+  const [sliderMode, setSliderMode] = useState(false);
   const annotations = annotByType[type] || [];
   const setSheet = useCallback((s: DataSheet) => setSheetsRaw(p => ({ ...p, [type]: s })), [type]);
 
@@ -2537,7 +2724,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               <span style={{ fontFamily: mn, fontSize: 10, color: C.amber, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 800 }}>Data sheet</span>
               <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6 }}>· edits sync to the chart in real time</span>
             </div>
-            <DataSheetGrid sheet={sheet} onChange={setSheet} />
+            <DataSheetGrid sheet={rawSheet} onChange={setSheet} sliderMode={sliderMode} onToggleSliderMode={() => setSliderMode(v => !v)} />
           </div>
         </div>
       </div>
