@@ -12,6 +12,7 @@ import {
   Undo2, Redo2, Hash, Sigma, ArrowUpDown, Minus, Trash2,
   FileCode2, ArrowLeftRight, Square, Diamond, MinusSquare,
   ClipboardPaste, Sparkles, Type, Keyboard, X as XIcon,
+  Palette, Lock, Unlock,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -910,12 +911,15 @@ function getCategoricalSeries(sheet: DataSheet) {
 }
 
 function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 48 }: { cfg: ChartConfig; W: number; H: number; children: React.ReactNode; leftPad?: number; rightPad?: number; topPad?: number; bottomPad?: number }) {
-  // Title block + chart area inside the SVG
+  void rightPad; void bottomPad;
+  const cc = chartColors(cfg);
+  // Title block + chart area inside the SVG. Title + subtitle adapt to
+  // the active backdrop's brightness via chartColors().
   return (
     <g>
       <rect x="0" y="0" width={W} height={H} fill="transparent" />
-      <text x={leftPad} y="28" fill="#E8E4DD" style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 900 }}>{cfg.title}</text>
-      <text x={leftPad} y="48" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 1 }}>{cfg.subtitle.toUpperCase()}</text>
+      <text x={leftPad} y="28" fill={cc.text} style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 900 }}>{cfg.title}</text>
+      <text x={leftPad} y="48" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 1 }}>{cfg.subtitle.toUpperCase()}</text>
       <g transform={`translate(0, ${topPad})`}>
         {children}
       </g>
@@ -981,7 +985,7 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
       {ticks.map(t => (
         <g key={t}>
-          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" data-grid strokeWidth="1" />
           <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
@@ -1040,7 +1044,7 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
           </g>
         );
       })}
-      <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} />
+      cfg.legendPos !== "hidden" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} />
       {/* Annotations · ref lines, CAGR, diff. Anchored to the TOP of the
           stack at each picked row (cumulative sum). */}
       <AnnotationLayer
@@ -1124,7 +1128,7 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
       {ticks.map(t => (
         <g key={t}>
-          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" />
+          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" data-grid />
           <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
@@ -1175,7 +1179,7 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
           )}
         </g>
       ))}
-      <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} />
+      cfg.legendPos !== "hidden" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} />
       {/* Annotations layer · reference lines, CAGR arrows, Δ markers */}
       <AnnotationLayer
         annotations={annotations || []}
@@ -1225,7 +1229,7 @@ function PercentColumn({ sheet, cfg, W, H }: CatProps) {
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
       {ticks.map(t => (
         <g key={t}>
-          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" />
+          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" data-grid />
           <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{t}%</text>
         </g>
       ))}
@@ -1251,7 +1255,7 @@ function PercentColumn({ sheet, cfg, W, H }: CatProps) {
           </g>
         );
       })}
-      <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={chartH + 36} leftPad={leftPad} />
+      cfg.legendPos !== "hidden" && <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} />
     </ChartFrame>
   );
 }
@@ -1307,7 +1311,7 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, onUpdate
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
       {ticks.map(t => (
         <g key={t}>
-          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" />
+          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" data-grid />
           <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
@@ -1399,7 +1403,7 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, onUpdate
           <text key={i} x={xOf(i)} y={chartH + 22} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{cat}</text>
         ))
       )}
-      <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={chartH + 36} leftPad={leftPad} />
+      cfg.legendPos !== "hidden" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} />
     </ChartFrame>
   );
 }
@@ -1508,7 +1512,7 @@ function Scatter({ sheet, cfg, W, H, bubble = false }: { sheet: DataSheet; cfg: 
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
       {yTicks.map(t => (
         <g key={"y" + t}>
-          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" />
+          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" data-grid />
           <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
@@ -1572,7 +1576,7 @@ function Waterfall({ sheet, cfg, W, H }: CatProps) {
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
       {ticks.map(t => (
         <g key={t}>
-          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" />
+          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" data-grid />
           <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
@@ -1787,7 +1791,7 @@ function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow }:
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
       {ticks.map(t => (
         <g key={t}>
-          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" />
+          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" data-grid />
           <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
@@ -2309,6 +2313,41 @@ interface ChartConfig {
   xMax?: number;
   // Whether the rendered backdrop is light (forces dark text on chart).
   lightBackdrop?: boolean;
+  // Visual toggles · default off so charts read clean
+  showBorders?: boolean;       // stroke between stacked segments / bar edges
+  showGridlines?: boolean;     // horizontal Y axis gridlines (default true)
+  showLegend?: boolean;        // legend visibility (default true)
+  // Legend position relative to the chart canvas
+  legendPos?: "top" | "bottom" | "left" | "right" | "hidden";
+  // When true, all chart interactions (drag, dblclick edit, right-click,
+  // pointer capture) are no-ops. Lets the design pane be safe to touch.
+  locked?: boolean;
+}
+
+// Adaptive color set · text + grid pull from the backdrop mode so light
+// surfaces don't render white-on-white. Used by every renderer for
+// titles, axis ticks, category labels, value labels, gridlines.
+function chartColors(cfg: ChartConfig) {
+  if (cfg.lightBackdrop) {
+    return {
+      text:    "#0A0A0E",
+      muted:   "#5C5A57",
+      faint:   "#A8A4A0",
+      grid:    "rgba(0,0,0,0.06)",
+      gridStrong: "rgba(0,0,0,0.10)",
+      barBorder:  "#FAFAF7",
+      onBar:   "#0A0A0E",
+    };
+  }
+  return {
+    text:    "#E8E4DD",
+    muted:   C.txm,
+    faint:   C.txd,
+    grid:    "rgba(255,255,255,0.05)",
+    gridStrong: "rgba(255,255,255,0.10)",
+    barBorder:  "#0A0A0E",
+    onBar:   "#0A0A0E",
+  };
 }
 
 export default function ChartMaker2({ standalone = false }: { standalone?: boolean }) {
@@ -2319,6 +2358,12 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   // Backdrop state · base color + glow stops for the chart canvas
   const [backdrop, setBackdrop] = useState<BackdropKey>("both");
   const [backdropMode, setBackdropMode] = useState<BackdropMode>("dark");
+  // Design panel state — open/closed, plus visual flags
+  const [designOpen, setDesignOpen] = useState(false);
+  const [showBorders, setShowBorders] = useState(false);
+  const [showGridlines, setShowGridlines] = useState(true);
+  const [legendPos, setLegendPos] = useState<NonNullable<ChartConfig["legendPos"]>>("bottom");
+  const [locked, setLocked] = useState(false);
   // Per-series color overrides — clicking a Legend swatch lets you
   // recolor the entire series without changing the theme. Stored
   // per-chart-type so different chart types can have different colors.
@@ -2431,7 +2476,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     collapseAll: false, collapsedKeys: {},
   });
 
-  const cfg: ChartConfig = { type, title, subtitle, theme, numFmt, seriesColors, yMin: axis.yMin, yMax: axis.yMax, xMin: axis.xMin, xMax: axis.xMax, lightBackdrop: backdropMode === "light" };
+  const cfg: ChartConfig = { type, title, subtitle, theme, numFmt, seriesColors, yMin: axis.yMin, yMax: axis.yMax, xMin: axis.xMin, xMax: axis.xMax, lightBackdrop: backdropMode === "light", showBorders, showGridlines, legendPos, locked };
 
   // Pick-mode handler · column-chart renderers call this on bar click.
   // Returns true if the click was consumed (we're in pick mode); the
@@ -2664,9 +2709,8 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         }} />
         <PasteDataButton onPaste={raw => { const ds = parsePasteForCategorical(raw); if (ds) setSheets(p => ({ ...p, [type]: ds })); else showToast("Couldn't parse the paste — expected TSV or CSV with headers"); }} />
         <NumberFormatPicker fmt={numFmt} onChange={setNumFmt} />
-        <AxisRangePicker axis={axis} onChange={setAxis} type={type} />
-        <ThemePicker theme={theme} onChange={setTheme} />
-        <BackdropPicker backdrop={backdrop} mode={backdropMode} onChangeBackdrop={setBackdrop} onChangeMode={setBackdropMode} />
+        <GlassButton onClick={() => setDesignOpen(true)} title="Design panel · theme, backdrop, legend, borders, axes" Icon={Palette}>DESIGN</GlassButton>
+        <LockToggle locked={locked} onChange={setLocked} />
         <ExportSplitButton onPNG={exportPNG} onSVG={exportSVG} />
       </div>
 
@@ -2768,6 +2812,19 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
                   style={{ cursor: "crosshair" }}
                 />
               )}
+              {/* Edit-lock overlay · catches every pointer interaction so the
+                  user can't accidentally drag a bar while styling. */}
+              {locked && (
+                <rect
+                  x="0" y="0" width={W} height={H}
+                  fill="transparent"
+                  onPointerDown={e => { e.stopPropagation(); e.preventDefault(); }}
+                  onClick={e => { e.stopPropagation(); e.preventDefault(); }}
+                  onDoubleClick={e => { e.stopPropagation(); e.preventDefault(); }}
+                  onContextMenu={e => e.preventDefault()}
+                  style={{ cursor: "not-allowed" }}
+                />
+              )}
             </svg>
           </div>
 
@@ -2785,6 +2842,18 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       {menu && <ChartContextMenu menu={menu} onClose={() => setMenu(null)} />}
       {selection && <FloatingMiniToolbar selection={selection} onClose={() => setSelection(null)} onUpdateRow={onUpdateRow} onDeleteRow={onDeleteRow} themes={THEMES} currentTheme={theme} />}
       {shortcutsOpen && <ShortcutsOverlay onClose={() => setShortcutsOpen(false)} />}
+      {designOpen && (
+        <DesignDrawer
+          onClose={() => setDesignOpen(false)}
+          theme={theme} onChangeTheme={setTheme}
+          backdrop={backdrop} backdropMode={backdropMode}
+          onChangeBackdrop={setBackdrop} onChangeMode={setBackdropMode}
+          legendPos={legendPos} onChangeLegendPos={setLegendPos}
+          showBorders={showBorders} onToggleBorders={() => setShowBorders(v => !v)}
+          showGridlines={showGridlines} onToggleGridlines={() => setShowGridlines(v => !v)}
+          axis={axis} onChangeAxis={setAxis} chartType={type}
+        />
+      )}
       {/* Floating help button · always-on glass pill, opens shortcuts overlay */}
       <button
         onClick={() => setShortcutsOpen(true)}
@@ -3248,6 +3317,181 @@ function AxisRangePicker({ axis, onChange, type }: { axis: { yMin?: number; yMax
         </div>
       )}
     </div>
+  );
+}
+
+// ─── DESIGN drawer · slide-in pane consolidating styling controls ────────
+function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, onChangeBackdrop, onChangeMode, legendPos, onChangeLegendPos, showBorders, onToggleBorders, showGridlines, onToggleGridlines, axis, onChangeAxis, chartType }: {
+  onClose: () => void;
+  theme: ThemeId; onChangeTheme: (t: ThemeId) => void;
+  backdrop: BackdropKey; backdropMode: BackdropMode;
+  onChangeBackdrop: (k: BackdropKey) => void; onChangeMode: (m: BackdropMode) => void;
+  legendPos: NonNullable<ChartConfig["legendPos"]>; onChangeLegendPos: (p: NonNullable<ChartConfig["legendPos"]>) => void;
+  showBorders: boolean; onToggleBorders: () => void;
+  showGridlines: boolean; onToggleGridlines: () => void;
+  axis: { yMin?: number; yMax?: number; xMin?: number; xMax?: number };
+  onChangeAxis: (next: { yMin?: number; yMax?: number; xMin?: number; xMax?: number }) => void;
+  chartType: ChartType;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const xApplies = ["line", "stackedArea", "scatter", "bubble"].includes(chartType);
+  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+      <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.6, textTransform: "uppercase", marginBottom: 12, fontWeight: 800 }}>{title}</div>
+      {children}
+    </div>
+  );
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(6,6,12,0.4)", zIndex: 12200, animation: "cm2DrawerFade 0.18s ease forwards" }}>
+      <style>{`@keyframes cm2DrawerFade{from{opacity:0}to{opacity:1}}@keyframes cm2DrawerSlide{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
+      <div onClick={e => e.stopPropagation()} style={{
+        position: "absolute", right: 0, top: 0, bottom: 0,
+        width: "min(420px, 92vw)",
+        background: "rgba(10,10,16,0.96)",
+        backdropFilter: "blur(24px) saturate(140%)",
+        WebkitBackdropFilter: "blur(24px) saturate(140%)",
+        borderLeft: "1px solid rgba(255,255,255,0.10)",
+        boxShadow: "0 0 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(247,176,65,0.04)",
+        display: "flex", flexDirection: "column",
+        animation: "cm2DrawerSlide 0.24s cubic-bezier(.2,.7,.2,1) forwards",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", background: "linear-gradient(180deg, rgba(247,176,65,0.05), transparent)" }}>
+          <Palette size={16} strokeWidth={2.2} color={C.amber} />
+          <span style={{ fontFamily: gf, fontSize: 16, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.2 }}>Design</span>
+          <span style={{ marginLeft: "auto", cursor: "pointer", color: C.txm, padding: 6, display: "inline-flex", borderRadius: 6 }} onClick={onClose} onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }} title="Close · Esc"><XIcon size={16} /></span>
+        </div>
+        <div style={{ overflow: "auto", flex: 1 }}>
+          {/* PALETTE */}
+          <Section title="Color Palette">
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {(Object.entries(THEMES) as [ThemeId, typeof THEMES[ThemeId]][]).map(([id, t]) => {
+                const on = theme === id;
+                return (
+                  <button key={id} onClick={() => onChangeTheme(id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: on ? C.amber + "16" : "rgba(255,255,255,0.025)", border: "1px solid " + (on ? C.amber + "55" : "rgba(255,255,255,0.08)"), borderRadius: 8, cursor: "pointer", textAlign: "left", transition: "all 0.14s" }}>
+                    <span style={{ display: "inline-flex", gap: 2 }}>{t.colors.slice(0, 6).map((c, i) => <span key={i} style={{ width: 12, height: 18, background: c, borderRadius: 2 }} />)}</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 800, color: on ? C.amber : "#E8E4DD" }}>{t.name}</div>
+                      <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.4 }}>{t.sub}</div>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </Section>
+
+          {/* BACKDROP */}
+          <Section title="Backdrop">
+            <div style={{ display: "flex", gap: 4, marginBottom: 10, padding: 3, background: "rgba(255,255,255,0.025)", borderRadius: 7 }}>
+              {(["dark", "light"] as BackdropMode[]).map(m => {
+                const on = backdropMode === m;
+                return <button key={m} onClick={() => onChangeMode(m)} style={{ flex: 1, padding: "7px 10px", borderRadius: 5, background: on ? C.amber + "22" : "transparent", border: "none", color: on ? C.amber : C.txm, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer", textTransform: "uppercase" }}>{m}</button>;
+              })}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              {(Object.keys(backdropMode === "dark" ? BACKDROPS_DARK : BACKDROPS_LIGHT) as BackdropKey[]).map(k => {
+                const set = backdropMode === "dark" ? BACKDROPS_DARK : BACKDROPS_LIGHT;
+                const on = backdrop === k;
+                return (
+                  <button key={k} onClick={() => onChangeBackdrop(k)} style={{ display: "flex", flexDirection: "column", gap: 4, padding: 6, background: on ? C.amber + "16" : "rgba(255,255,255,0.025)", border: "1px solid " + (on ? C.amber + "55" : "rgba(255,255,255,0.08)"), borderRadius: 7, cursor: "pointer" }}>
+                    <div style={{ height: 52, borderRadius: 4, background: backdropCss(set[k], 100, 100), border: "1px solid rgba(255,255,255,0.10)" }} />
+                    <span style={{ fontFamily: mn, fontSize: 9, fontWeight: 800, color: on ? C.amber : C.tx, letterSpacing: 0.5, textAlign: "center" }}>{set[k].name.toUpperCase()}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </Section>
+
+          {/* LEGEND POSITION */}
+          <Section title="Legend Position">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4 }}>
+              {(["top", "bottom", "left", "right", "hidden"] as const).map(p => {
+                const on = legendPos === p;
+                return <button key={p} onClick={() => onChangeLegendPos(p)} style={{ padding: "10px 4px", borderRadius: 6, background: on ? C.amber + "20" : "rgba(255,255,255,0.025)", border: "1px solid " + (on ? C.amber + "55" : "rgba(255,255,255,0.08)"), color: on ? C.amber : C.tx, fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer", textTransform: "uppercase" }}>{p}</button>;
+              })}
+            </div>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 8, letterSpacing: 0.5 }}>The chart canvas re-flows around the legend.</div>
+          </Section>
+
+          {/* TOGGLES */}
+          <Section title="Display">
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <DesignToggle on={showBorders} label="Bar borders" sub="Outline between stacked segments" onChange={onToggleBorders} />
+              <DesignToggle on={showGridlines} label="Gridlines" sub="Horizontal Y axis guides" onChange={onToggleGridlines} />
+            </div>
+          </Section>
+
+          {/* AXES */}
+          <Section title="Axes">
+            <AxisRangeBlock axis={axis} onChange={onChangeAxis} xApplies={xApplies} chartType={chartType} />
+          </Section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DesignToggle({ on, label, sub, onChange }: { on: boolean; label: string; sub: string; onChange: () => void }) {
+  return (
+    <button onClick={onChange} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: on ? C.amber + "12" : "rgba(255,255,255,0.025)", border: "1px solid " + (on ? C.amber + "40" : "rgba(255,255,255,0.08)"), borderRadius: 7, cursor: "pointer", textAlign: "left", transition: "all 0.14s" }}>
+      <span style={{ width: 30, height: 18, borderRadius: 999, background: on ? C.amber : "rgba(255,255,255,0.10)", position: "relative", flexShrink: 0, transition: "background 0.18s" }}>
+        <span style={{ position: "absolute", top: 2, left: on ? 14 : 2, width: 14, height: 14, borderRadius: "50%", background: on ? "#0A0A0E" : "#E8E4DD", transition: "left 0.18s cubic-bezier(.2,.7,.2,1)", boxShadow: "0 1px 3px rgba(0,0,0,0.30)" }} />
+      </span>
+      <span style={{ flex: 1 }}>
+        <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 800, color: on ? C.amber : "#E8E4DD" }}>{label}</div>
+        <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.4 }}>{sub}</div>
+      </span>
+    </button>
+  );
+}
+
+function AxisRangeBlock({ axis, onChange, xApplies, chartType }: { axis: { yMin?: number; yMax?: number; xMin?: number; xMax?: number }; onChange: (n: { yMin?: number; yMax?: number; xMin?: number; xMax?: number }) => void; xApplies: boolean; chartType: ChartType }) {
+  void chartType;
+  const [yMinStr, setYMinStr] = useState(axis.yMin !== undefined ? String(axis.yMin) : "");
+  const [yMaxStr, setYMaxStr] = useState(axis.yMax !== undefined ? String(axis.yMax) : "");
+  const [xMinStr, setXMinStr] = useState(axis.xMin !== undefined ? String(axis.xMin) : "");
+  const [xMaxStr, setXMaxStr] = useState(axis.xMax !== undefined ? String(axis.xMax) : "");
+  const apply = () => {
+    const num = (s: string) => s === "" ? undefined : (isNaN(Number(s)) ? undefined : Number(s));
+    onChange({ yMin: num(yMinStr), yMax: num(yMaxStr), xMin: xApplies ? num(xMinStr) : undefined, xMax: xApplies ? num(xMaxStr) : undefined });
+  };
+  return (
+    <div>
+      <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1, marginBottom: 6 }}>Y AXIS</div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+        <input value={yMinStr} onChange={e => setYMinStr(e.target.value)} placeholder="min" style={inputCSS("rgba(255,255,255,0.025)", "rgba(255,255,255,0.10)")} />
+        <input value={yMaxStr} onChange={e => setYMaxStr(e.target.value)} placeholder="max" style={inputCSS("rgba(255,255,255,0.025)", "rgba(255,255,255,0.10)")} />
+      </div>
+      {xApplies && (<>
+        <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1, marginBottom: 6 }}>X AXIS</div>
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          <input value={xMinStr} onChange={e => setXMinStr(e.target.value)} placeholder="min" style={inputCSS("rgba(255,255,255,0.025)", "rgba(255,255,255,0.10)")} />
+          <input value={xMaxStr} onChange={e => setXMaxStr(e.target.value)} placeholder="max" style={inputCSS("rgba(255,255,255,0.025)", "rgba(255,255,255,0.10)")} />
+        </div>
+      </>)}
+      <div style={{ display: "flex", gap: 6 }}>
+        <GlassButton onClick={() => { setYMinStr(""); setYMaxStr(""); setXMinStr(""); setXMaxStr(""); onChange({}); }} title="Reset to auto-fit">AUTO</GlassButton>
+        <span style={{ flex: 1 }} />
+        <GlassButton onClick={apply} primary title="Apply ranges">APPLY</GlassButton>
+      </div>
+    </div>
+  );
+}
+
+// ─── Lock toggle · prevents accidental chart edits while in design mode ──
+function LockToggle({ locked, onChange }: { locked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <GlassButton
+      onClick={() => onChange(!locked)}
+      title={locked ? "Unlock · re-enable drag, double-click, right-click" : "Lock · prevent accidental edits while you style"}
+      Icon={locked ? Lock : Unlock}
+      glow={locked ? "#E06347" : C.amber}
+    >
+      {locked ? "LOCKED" : "EDIT"}
+    </GlassButton>
   );
 }
 
