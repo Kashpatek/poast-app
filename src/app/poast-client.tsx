@@ -82,6 +82,12 @@ interface SidebarCatItem {
   id: string;
   l: string;
   Icon: LucideIcon;
+  // When set, clicking the item opens this URL in a new tab instead of
+  // navigating to the in-app sec. Used for tools that have a standalone
+  // route (e.g., Chart Maker 2 lives at /charts as well).
+  href?: string;
+  // Optional badge label shown to the right (e.g., "BETA")
+  badge?: string;
 }
 
 interface SidebarCat {
@@ -432,7 +438,7 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "p2p",      l: "Press to Premier", Icon: Clapperboard },
     { id: "broll",    l: "B-Roll Library",   Icon: Film },
     { id: "chart",    l: "Chart Maker",      Icon: BarChart3 },
-    { id: "chart2",   l: "Chart Maker 2 · Beta", Icon: GanttChart },
+    { id: "chart2",   l: "Chart Maker 2",     Icon: GanttChart, href: "/charts", badge: "BETA" },
     { id: "assets",   l: "Asset Library",    Icon: Library },
   ]},
   podcast: { label: "PODCAST", color: C.coral, glow: "rgba(224,99,71,", items: [
@@ -496,14 +502,15 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
           {/* Items */}
           {cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).map(function(item) {
             var isActive = active === item.id;
-            return <div key={item.id} onClick={function() { onNav(item.id); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 12px 7px 28px", borderRadius: 6, marginBottom: 1, cursor: "pointer", background: isActive ? cat.color + "0C" : "transparent", borderLeft: isActive ? "3px solid " + cat.color : "3px solid transparent", transition: "all 0.2s", position: "relative" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
+            return <div key={item.id} onClick={function() { if (item.href) { window.open(item.href, "_blank"); } else { onNav(item.id); } }} title={item.href ? "Open " + item.l + " in a new tab" : undefined} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 12px 7px 28px", borderRadius: 6, marginBottom: 1, cursor: "pointer", background: isActive ? cat.color + "0C" : "transparent", borderLeft: isActive ? "3px solid " + cat.color : "3px solid transparent", transition: "all 0.2s", position: "relative" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
               {isActive && <div style={{ position: "absolute", left: 0, top: "10%", width: 3, height: "80%", background: cat.color, borderRadius: 2, boxShadow: "0 0 12px " + cat.color + "70, 0 0 24px " + cat.color + "25" }} />}
               {isActive && <div style={{ position: "absolute", left: 0, top: 0, width: "50%", height: "100%", background: "radial-gradient(ellipse at left center, " + cat.color + "08, transparent 70%)", pointerEvents: "none" }} />}
               <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, transition: "opacity 0.2s", opacity: isActive ? 1 : 0.55 }}>
                 <item.Icon size={15} strokeWidth={isActive ? 2.2 : 1.8} color={isActive ? cat.color : "rgba(255,255,255,0.65)"} />
               </span>
               <span style={{ fontFamily: ft, fontSize: 13, fontWeight: isActive ? 800 : 500, color: isActive ? cat.color : "rgba(255,255,255,0.5)", transition: "all 0.2s", textShadow: isActive ? "0 0 20px " + cat.glow + "0.5), 0 0 40px " + cat.glow + "0.12)" : "none" }}>{item.l}</span>
-              {isActive && <div style={{ width: 5, height: 5, borderRadius: "50%", background: cat.color, marginLeft: "auto", boxShadow: "0 0 8px " + cat.color + "70, 0 0 16px " + cat.color + "30" }} />}
+              {item.badge && <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 7, fontWeight: 800, color: cat.color, letterSpacing: 1, padding: "2px 5px", border: "1px solid " + cat.color + "55", borderRadius: 3, background: cat.color + "12" }}>{item.badge}</span>}
+              {!item.badge && isActive && <div style={{ width: 5, height: 5, borderRadius: "50%", background: cat.color, marginLeft: "auto", boxShadow: "0 0 8px " + cat.color + "70, 0 0 16px " + cat.color + "30" }} />}
             </div>;
           })}
         </div>;

@@ -10,6 +10,7 @@ import {
   PieChart, Disc, ScatterChart, Circle,
   GanttChart,
   Undo2, Redo2, Hash, Sigma, ArrowUpDown, Minus, Trash2,
+  FileCode2, ArrowLeftRight,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -20,7 +21,7 @@ type ChartType =
   | "stacked" | "pct" | "clustered" | "wfup" | "wfdn"
   | "mekkoPct" | "combo" | "line" | "stackedArea" | "pctArea"
   | "mekkoUnit" | "pie" | "doughnut" | "scatter" | "bubble"
-  | "gantt";
+  | "variance" | "gantt";
 
 type ThemeId = "amber" | "cool" | "warm" | "neutral";
 
@@ -63,7 +64,6 @@ function samplePerType(type: ChartType): DataSheet {
         ],
       };
     case "wfup":
-    case "wfdn":
       return {
         schema: [
           { key: "category", label: "Step", type: "text" },
@@ -76,6 +76,36 @@ function samplePerType(type: ChartType): DataSheet {
           { category: "Subtract C", value: -12 },
           { category: "Add D", value: 22 },
           { category: "End", value: 163 },
+        ],
+      };
+    case "wfdn":
+      return {
+        schema: [
+          { key: "category", label: "Step", type: "text" },
+          { key: "value", label: "Δ", type: "number" },
+        ],
+        rows: [
+          { category: "Revenue", value: 220 },
+          { category: "COGS", value: -68 },
+          { category: "OpEx", value: -42 },
+          { category: "Tax", value: -25 },
+          { category: "One-offs", value: -8 },
+          { category: "Net", value: 77 },
+        ],
+      };
+    case "variance":
+      return {
+        schema: [
+          { key: "category", label: "Period", type: "text" },
+          { key: "ac", label: "AC", type: "number" },
+          { key: "py", label: "PY", type: "number" },
+        ],
+        rows: [
+          { category: "Q1", ac: 145, py: 132 },
+          { category: "Q2", ac: 168, py: 150 },
+          { category: "Q3", ac: 184, py: 192 },
+          { category: "Q4", ac: 210, py: 188 },
+          { category: "FY", ac: 707, py: 662 },
         ],
       };
     case "mekkoPct":
@@ -163,7 +193,8 @@ const TYPES: TypeSpec[][] = [
     { id: "pct",         label: "100%",       Icon: AlignVerticalJustifyCenter,       working: true  },
     { id: "clustered",   label: "Clustered",  Icon: AlignVerticalDistributeCenter,    working: true  },
     { id: "wfup",        label: "Waterfall +", Icon: TrendingUp,                      working: true  },
-    { id: "wfdn",        label: "Waterfall −", Icon: TrendingDown,                    working: false },
+    { id: "wfdn",        label: "Waterfall −", Icon: TrendingDown,                    working: true  },
+    { id: "variance",    label: "Variance (AC vs PY)", Icon: ArrowLeftRight,          working: true  },
   ],
   [
     { id: "mekkoPct",    label: "Mekko %",    Icon: Grid3x3,                          working: false },
@@ -1140,6 +1171,128 @@ function AnnotationLayer({ annotations, getBarTop, chartW, chartH, leftPad, topP
   );
 }
 
+// Zebra BI-flavored variance chart · AC bars with PY reference markers and
+// auto green/red ΔV labels. Schema is (Category, AC, PY); falls back to
+// the first two number columns if those exact keys are missing.
+function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow }: CatProps) {
+  void onShowMenu; void onDeleteRow;
+  const palette = THEMES[cfg.theme].colors;
+  const acColor = palette[0];
+  const pyColor = "rgba(255,255,255,0.45)";
+  const upColor = "#4FBF6B"; // IBCS green = good
+  const dnColor = "#E06347"; // IBCS red = bad
+
+  const catCol = sheet.schema[0];
+  const numCols = sheet.schema.filter(c => c.type === "number" || c.type === "percent");
+  const acCol = numCols.find(c => c.key === "ac") || numCols[0];
+  const pyCol = numCols.find(c => c.key === "py") || numCols[1];
+  if (!acCol || !pyCol) {
+    return <text x={W / 2} y={H / 2} textAnchor="middle" fill={C.txd}>Need AC + PY columns</text>;
+  }
+
+  const rows = sheet.rows.map((r, i) => ({
+    rowIdx: i,
+    cat: String(r[catCol.key] ?? ""),
+    ac: Number(r[acCol.key]) || 0,
+    py: Number(r[pyCol.key]) || 0,
+  }));
+
+  const leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 60;
+  const chartW = W - leftPad - rightPad;
+  const chartH = H - topPad - bottomPad;
+  const maxV = Math.max(0, ...rows.map(r => Math.max(r.ac, r.py)));
+  const ticks = niceTicks(0, maxV, 5);
+  const tickMax = ticks[ticks.length - 1];
+  const yOf = (v: number) => chartH - (v / tickMax) * chartH;
+
+  const groupW = chartW / rows.length;
+  const barW = Math.min(groupW * 0.55, 70);
+
+  // Drag the AC bar top to set AC value
+  const dragRef = useRef<{ rowIdx: number } | null>(null);
+  const valueAt = (e: React.PointerEvent): number | null => {
+    const pt = pointerToSvg(e, e.currentTarget);
+    if (!pt) return null;
+    const localY = pt.y - topPad;
+    return Math.max(0, tickMax * (1 - localY / chartH));
+  };
+  const onDown = (rowIdx: number) => (e: React.PointerEvent) => {
+    if (!onUpdateRow) return;
+    e.stopPropagation();
+    dragRef.current = { rowIdx };
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    const v = valueAt(e);
+    if (v != null) onUpdateRow(rowIdx, { [acCol.key]: niceRound(v) });
+  };
+  const onMove = (e: React.PointerEvent) => {
+    const ds = dragRef.current;
+    if (!ds || !onUpdateRow) return;
+    const v = valueAt(e);
+    if (v != null) onUpdateRow(ds.rowIdx, { [acCol.key]: niceRound(v) });
+  };
+  const onUp = () => { dragRef.current = null; };
+
+  return (
+    <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
+      {ticks.map(t => (
+        <g key={t}>
+          <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke="rgba(255,255,255,0.05)" />
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
+        </g>
+      ))}
+      {rows.map((r, i) => {
+        const cx = leftPad + i * groupW + (groupW - barW) / 2;
+        const yAc = yOf(r.ac);
+        const yPy = yOf(r.py);
+        const delta = r.ac - r.py;
+        const pct = r.py !== 0 ? (delta / r.py) * 100 : 0;
+        const up = delta >= 0;
+        const arrowColor = up ? upColor : dnColor;
+        return (
+          <g key={i}>
+            {/* AC bar (filled) */}
+            <rect
+              x={cx} y={yAc} width={barW} height={chartH - yAc}
+              fill={acColor}
+              onPointerDown={onDown(i)}
+              onPointerMove={onMove}
+              onPointerUp={onUp}
+              style={{ cursor: onUpdateRow ? "ns-resize" : "default" }}
+            />
+            {/* PY reference bracket — small horizontal mark on top of where PY would land */}
+            <line x1={cx - 3} x2={cx + barW + 3} y1={yPy} y2={yPy} stroke={pyColor} strokeWidth="2" strokeDasharray="3 3" />
+            <text x={cx + barW + 6} y={yPy + 3} fill={pyColor} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>PY {fmtVal(r.py, cfg.numFmt)}</text>
+            {/* AC value label inside or above bar */}
+            <text x={cx + barW / 2} y={yAc - 6} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 800, pointerEvents: "none" }}>{fmtVal(r.ac, cfg.numFmt)}</text>
+            {/* Variance arrow + label · IBCS green = good, red = bad */}
+            <g transform={`translate(${cx + barW / 2}, ${chartH + 16})`}>
+              <polygon
+                points={up ? "-4,-4 4,-4 0,3" : "-4,4 4,4 0,-3"}
+                fill={arrowColor}
+              />
+              <text y={20} textAnchor="middle" fill={arrowColor} style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 800, letterSpacing: 0.3, pointerEvents: "none" }}>{(up ? "+" : "")}{fmtVal(delta, cfg.numFmt)}</text>
+              <text y={34} textAnchor="middle" fill={arrowColor} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, letterSpacing: 0.3, pointerEvents: "none", opacity: 0.85 }}>{(up ? "+" : "")}{Math.abs(pct) < 100 ? pct.toFixed(1) : pct.toFixed(0)}%</text>
+            </g>
+            {/* Category label (above the variance arrow) */}
+            <text x={cx + barW / 2} y={chartH + 4} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{r.cat}</text>
+          </g>
+        );
+      })}
+      <Legend
+        series={[
+          { label: "AC", color: acColor },
+          { label: "PY", color: "#A8A4A0" },
+          { label: "Δ ▲", color: upColor },
+          { label: "Δ ▼", color: dnColor },
+        ]}
+        W={W}
+        y={H - topPad - 4}
+        leftPad={leftPad}
+      />
+    </ChartFrame>
+  );
+}
+
 function Legend({ series, W, y, leftPad }: { series: Array<{ label: string; color: string }>; W: number; y: number; leftPad: number }) {
   return (
     <g>
@@ -1543,7 +1696,7 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
 // ═══════════════════════════════════════════════════════════════════════════
 interface ChartConfig { type: ChartType; title: string; subtitle: string; theme: ThemeId; numFmt: NumberFormat }
 
-export default function ChartMaker2() {
+export default function ChartMaker2({ standalone = false }: { standalone?: boolean }) {
   const [type, setType] = useState<ChartType>("stacked");
   const [title, setTitle] = useState("SemiAnalysis · 2026 Outlook");
   const [subtitle, setSubtitle] = useState("Quarterly view");
@@ -1688,6 +1841,9 @@ export default function ChartMaker2() {
   const W = 1280;
   const H = type === "gantt" ? 700 : 560;
 
+  // Slug for the downloaded file
+  const slug = () => (title || "chart").replace(/\s+/g, "-").toLowerCase();
+
   const exportPNG = () => {
     if (!svgRef.current) return;
     const svg = svgRef.current;
@@ -1712,13 +1868,33 @@ export default function ChartMaker2() {
         const dl = URL.createObjectURL(b);
         const a = document.createElement("a");
         a.href = dl;
-        a.download = (title || "chart").replace(/\s+/g, "-").toLowerCase() + ".png";
+        a.download = slug() + ".png";
         a.click();
         URL.revokeObjectURL(dl);
       }, "image/png");
     };
     img.onerror = () => { showToast("Couldn't render PNG"); URL.revokeObjectURL(url); };
     img.src = url;
+  };
+
+  // Vector SVG export · serializes the live SVG and downloads the file
+  // directly. Best for slides where you want infinite zoom and editable
+  // shapes downstream.
+  const exportSVG = () => {
+    if (!svgRef.current) return;
+    const svg = svgRef.current.cloneNode(true) as SVGSVGElement;
+    // Force a viewBox if missing so the file renders standalone
+    if (!svg.getAttribute("viewBox")) svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    svg.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+    const xml = new XMLSerializer().serializeToString(svg);
+    const blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n', xml], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = slug() + ".svg";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   // Update a single sheet row directly (used by drag interactions).
@@ -1778,6 +1954,8 @@ export default function ChartMaker2() {
       case "doughnut": return <Pie sheet={sheet} cfg={cfg} W={W} H={H} doughnut />;
       case "scatter": return <Scatter sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "wfup": return <Waterfall sheet={sheet} cfg={cfg} W={W} H={H} />;
+      case "wfdn": return <Waterfall sheet={sheet} cfg={cfg} W={W} H={H} />;
+      case "variance": return <VarianceBar sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
       case "gantt": return <GanttSvg sheet={sheet} cfg={cfg} W={W} H={H} opts={ganttOpts} onToggleGroup={onToggleGroup} onUpdateRow={onUpdateRow} onDeleteRow={onDeleteRow} onShowMenu={onShowMenu} />;
       default: {
         return (
@@ -1796,18 +1974,18 @@ export default function ChartMaker2() {
 
   return (
     <div style={{ padding: "32px 0 0", maxWidth: 1400, margin: "0 auto" }}>
-      <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-        <div style={{ flex: "1 1 auto", minWidth: 280 }}>
-          <div style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.5 }}>Chart Maker 2</div>
-          <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 4, letterSpacing: 1 }}>THINK-CELL STYLE // PICK · EDIT · ANNOTATE · EXPORT</div>
-        </div>
+      <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap", paddingTop: standalone ? 16 : 0 }}>
+        {!standalone && (
+          <div style={{ flex: "1 1 auto", minWidth: 280 }}>
+            <div style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.5 }}>Chart Maker 2</div>
+            <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 4, letterSpacing: 1 }}>THINK-CELL STYLE // PICK · EDIT · ANNOTATE · EXPORT</div>
+          </div>
+        )}
+        {standalone && <div style={{ flex: "1 1 auto" }} />}
         <UndoRedoButtons onUndo={undo} onRedo={redo} canUndo={past.current.length > 0} canRedo={future.current.length > 0} />
         <NumberFormatPicker fmt={numFmt} onChange={setNumFmt} />
         <ThemePicker theme={theme} onChange={setTheme} />
-        <button onClick={exportPNG} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", borderRadius: 9, border: "1px solid " + C.amber + "55", background: "linear-gradient(135deg," + C.amber + ",#E8A020)", color: "#060608", fontFamily: ft, fontSize: 13, fontWeight: 800, cursor: "pointer", letterSpacing: 0.3 }}>
-          <Download size={14} strokeWidth={2.2} />
-          Export PNG
-        </button>
+        <ExportSplitButton onPNG={exportPNG} onSVG={exportSVG} />
       </div>
 
       {/* Annotations toolbar — Think-cell-style action chips */}
@@ -1874,6 +2052,50 @@ export default function ChartMaker2() {
       {selection && <FloatingMiniToolbar selection={selection} onClose={() => setSelection(null)} onUpdateRow={onUpdateRow} onDeleteRow={onDeleteRow} themes={THEMES} currentTheme={theme} />}
     </div>
   );
+}
+
+// ─── Export split button · primary action = PNG, dropdown for SVG ─────────
+function ExportSplitButton({ onPNG, onSVG }: { onPNG: () => void; onSVG: () => void }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    setTimeout(() => document.addEventListener("click", close), 0);
+    return () => document.removeEventListener("click", close);
+  }, [open]);
+  return (
+    <div style={{ position: "relative", display: "inline-flex" }} onClick={e => e.stopPropagation()}>
+      <button
+        onClick={onPNG}
+        style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: "9px 0 0 9px", border: "1px solid " + C.amber + "55", borderRight: "none", background: "linear-gradient(135deg," + C.amber + ",#E8A020)", color: "#060608", fontFamily: ft, fontSize: 13, fontWeight: 800, cursor: "pointer", letterSpacing: 0.3 }}
+      >
+        <Download size={14} strokeWidth={2.2} />
+        Export PNG
+      </button>
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="More export options"
+        style={{ padding: "10px 10px", borderRadius: "0 9px 9px 0", border: "1px solid " + C.amber + "55", background: "linear-gradient(135deg," + C.amber + ",#E8A020)", color: "#060608", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+      >
+        <ChevronDown size={14} strokeWidth={2.4} />
+      </button>
+      {open && (
+        <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: "#0D0D14", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 9, padding: 4, minWidth: 200, zIndex: 1100, boxShadow: "0 18px 40px rgba(0,0,0,0.55)" }}>
+          <div onClick={() => { onPNG(); setOpen(false); }} style={dropItem()}>
+            <Download size={12} strokeWidth={2.2} />
+            <span>PNG · raster, 2× crisp</span>
+          </div>
+          <div onClick={() => { onSVG(); setOpen(false); }} style={dropItem()}>
+            <FileCode2 size={12} strokeWidth={2.2} />
+            <span>SVG · vector, infinite zoom</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+function dropItem(): React.CSSProperties {
+  return { padding: "9px 12px", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, color: "#E8E4DD", fontFamily: ft, fontSize: 12, fontWeight: 600, transition: "background 0.12s" };
 }
 
 // ─── Top-bar Undo/Redo buttons ─────────────────────────────────────────────
