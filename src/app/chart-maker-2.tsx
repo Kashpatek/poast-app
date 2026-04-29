@@ -7771,8 +7771,10 @@ function ChartPaneInner({
   const isLocked = chartAspect !== "fit";
   return (
     <div ref={containerRef} style={{
-      position: "relative",
-      width: "100%", height: "100%",
+      // Fill the containing block exactly (parent must be position:relative).
+      // Wave 16.1 · switched from width/height:100% (which doesn't propagate
+      // reliably through flex parents) to position:absolute inset:0.
+      position: "absolute", inset: 0,
       background: backdropCss(backdropMode === "dark" ? BACKDROPS_DARK[backdrop] : BACKDROPS_LIGHT[backdrop]),
       border: "1px solid rgba(255,255,255,0.08)",
       borderRadius: 16,
@@ -7780,6 +7782,7 @@ function ChartPaneInner({
       overflow: chartZoom === "fit" ? "hidden" : "auto",
       boxShadow: "0 1px 0 rgba(255,255,255,0.06) inset, 0 32px 64px rgba(0,0,0,0.45)",
       display: "flex", alignItems: "center", justifyContent: "center",
+      boxSizing: "border-box",
     }}>
       <div style={{
         width: isLocked ? W * scale : (chartZoom === "fit" ? "100%" : W * scale),
@@ -12068,8 +12071,8 @@ function ExpandedShell({
     }
     if (effectivePaneMode === "chart") {
       return (
-        <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: "20px 22px", display: "flex" }}>
-          <div style={{ flex: 1, minWidth: 0, alignSelf: "flex-start", width: "100%" }}>{chartCard}</div>
+        <div style={{ flex: 1, minHeight: 0, overflow: "hidden", padding: "20px 22px", display: "flex" }}>
+          <div style={{ flex: 1, minWidth: 0, minHeight: 0, alignSelf: "stretch", position: "relative" }}>{chartCard}</div>
         </div>
       );
     }
@@ -12093,10 +12096,13 @@ function ExpandedShell({
           flexBasis: `${splitterPos * 100}%`,
           flexShrink: 0,
           minWidth: 0, minHeight: 0,
-          overflow: "auto",
+          // overflow:hidden + a relative containing block so the chartCard
+          // (which now uses position:absolute inset:0) fills the pane exactly.
+          overflow: "hidden",
           padding: "20px 22px",
+          position: "relative",
         }}>
-          {chartCard}
+          <div style={{ position: "absolute", inset: "20px 22px" }}>{chartCard}</div>
         </div>
         {/* Splitter */}
         <div
