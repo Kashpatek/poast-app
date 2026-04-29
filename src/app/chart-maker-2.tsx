@@ -5941,7 +5941,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         ><HelpCircle size={18} strokeWidth={2.4} /></button>
       </Tooltip>
       {elementMenu && <ElementIconMenu state={elementMenu} onClose={() => setElementMenu(null)} palette={THEMES[theme].colors} />}
-      {selection && <FloatingMiniToolbar selection={selection} onClose={() => setSelection(null)} onUpdateRow={onUpdateRow} onDeleteRow={onDeleteRow} themes={THEMES} currentTheme={theme} />}
+      {/* Legacy FloatingMiniToolbar disabled — TopMiniToolbar covers it. */}
       {/* Wave 11 · Radial context wheel — primary right-click target. */}
       {wheelAnchor && wheelAnchor.selected && (() => {
         const sel = wheelAnchor.selected;
@@ -6173,27 +6173,8 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       {/* Wave 12 · Selection popup floats above the clicked element with
           inline color row, value input, and label toggles. Coexists with
           TopMiniToolbar (which sits at the top of the canvas card). */}
-      {popupOpen && selected && (selected.kind === "segment" || selected.kind === "point" || selected.kind === "mekkoColumn") && (
-        <SelectionPopup
-          selected={selected}
-          palette={THEMES[theme].colors}
-          currentSeriesColor={(selected.kind === "segment" || selected.kind === "point") ? seriesColors[selected.key] : undefined}
-          onSetSeriesColor={setSeriesColor}
-          onUpdateRow={onUpdateRow}
-          sheet={sheet}
-          showSegmentLabels={showSegmentLabels}
-          showTotalLabels={showTotalLabels}
-          onToggleSegmentLabels={() => setShowSegmentLabels(v => !v)}
-          onToggleTotalLabels={() => setShowTotalLabels(v => !v)}
-          onTogglePercent={() => {
-            // Toggle percent column for the percent-of-total chart family.
-            // For other types, swap the number format to/from pct as a
-            // useful shorthand.
-            setNumFmt(f => f === "pct" ? "auto" : "pct");
-          }}
-          onClose={() => { setPopupOpen(false); setSelected(null); }}
-        />
-      )}
+      {/* SelectionPopup removed in Wave 14.1 — TopMiniToolbar at the top of the
+          chart card now owns all selection-driven format controls. */}
 
       {/* Wave 12 · radial-wheel customizer modal */}
       {wheelSettingsOpen && (
