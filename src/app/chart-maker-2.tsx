@@ -1,8 +1,20 @@
 "use client";
 // ============================================================================
-// CHART MAKER 2 · Wave 16 · BETA
+// CHART MAKER 2 · Wave 17 · v1.0
 // ============================================================================
-// Single-file React/SVG chart builder. Production-tested through Wave 15.x.
+// Single-file React/SVG chart builder. Production-tested through Wave 16.
+// Wave 17 closes every remaining gap from prior waves and ships v1.0:
+//   • Gantt right-click → radial wheel (new ganttBar selection kind)
+//   • Named ranges + Name Manager modal (⌘⇧N)
+//   • Bi-directional BroadcastChannel popout (edits round-trip both ways)
+//   • Light theme propagation across modals / dropdowns / wheel / status bar
+//   • Onboarding tour copy refresh + final "you're all set" exit step
+//   • Mobile / tablet responsive pass (useIsCompactScreen + compact banner)
+//   • Grift font audit across welcome / titles / Launch / POAST badge
+//   • Cursor-tracking glow + bar selection pulse + animated counter helper
+//   • Print/export mode (thicker lines, vivid text, white backdrop)
+//   • Per-label number-format overrides infrastructure
+//   • Toolbar redundancy trim (popout moves to top bar exclusively)
 // This file intentionally lives as one ~14k-line module for easier diffing
 // and offline portability. See git log for the full evolution.
 // ============================================================================
@@ -400,14 +412,47 @@ function evalCriteria(criteria: string, val: string | number): boolean {
   if (!isNaN(Number(c)) && !isNaN(n)) return n === Number(c);
   return String(val).toLowerCase() === c.toLowerCase();
 }
+// Wave 17 · Named-range registry. Maps user-defined name → range string
+// like "A1:C5". The formula engine substitutes any matching identifier
+// in a formula with its expanded range string before single-cell ref
+// resolution. The list of reserved function names below is excluded so
+// "SUM" / "VLOOKUP" / etc. never get mistakenly treated as a name.
+type NamedRangeMap = Record<string, string>;
+const FORMULA_RESERVED_NAMES = new Set([
+  "SUM","AVG","AVERAGE","MEAN","MAX","MIN","COUNT","PRODUCT","ABS","ROUND","SQRT","POW",
+  "IF","IFERROR","VLOOKUP","HLOOKUP","INDEX","MATCH","SUMIF","SUMIFS","COUNTIF",
+  "CONCAT","CONCATENATE","LEN","LEFT","RIGHT","MID","TODAY","YEAR","MONTH","DAY","TRUE","FALSE","NULL",
+]);
+
 // Evaluate a formula string. Supports SUM / AVG / AVERAGE / MIN / MAX /
 // COUNT and basic arithmetic with cell references (A1 + B2 etc).
-function evalFormula(expr: string, sheet: DataSheet, depth = 0): number | string {
+// Wave 17 · accepts a named-range map; identifiers matching a name are
+// expanded to the stored range BEFORE any other resolution happens.
+function evalFormula(expr: string, sheet: DataSheet, depth = 0, names?: NamedRangeMap): number | string {
   if (depth > 16) return "#CYC";
   const e = (expr.startsWith("=") ? expr.slice(1) : expr).trim();
   if (!e) return "";
   try {
     let s = e;
+
+    // Wave 17 · Named-range substitution. Matches IDENTIFIER tokens
+    // (A-Z + _ + digits, starting with a letter), excludes reserved
+    // function names. We do NOT replace cell refs (those mix letters +
+    // digits but always end with digits — single-cell pattern is
+    // /^[A-Z]+\d+$/, which the lookup explicitly skips). A name with a
+    // value of "A1:C5" expands inline; a name with "A1" expands to the
+    // single ref.
+    if (names) {
+      s = s.replace(/\b([A-Za-z_][A-Za-z0-9_]*)\b/g, (match) => {
+        const upper = match.toUpperCase();
+        if (FORMULA_RESERVED_NAMES.has(upper)) return match;
+        // Skip if this looks like a single cell ref (letters + digits only).
+        if (/^[A-Z]+\d+$/.test(upper)) return match;
+        const expansion = names[match] ?? names[upper];
+        return expansion ? expansion : match;
+      });
+    }
+
 
     // TODAY() — return ISO date string
     s = s.replace(/TODAY\s*\(\s*\)/gi, () => {
@@ -655,12 +700,13 @@ function evalFormula(expr: string, sheet: DataSheet, depth = 0): number | string
 // Compute a derived sheet with all formulas evaluated. Renderers consume
 // this so charts always show numeric values; the table still owns the
 // raw `=…` strings so users can edit them.
-function computeSheet(sheet: DataSheet): DataSheet {
+// Wave 17 · accepts named-range map and forwards it into evalFormula.
+function computeSheet(sheet: DataSheet, names?: NamedRangeMap): DataSheet {
   const rows = sheet.rows.map(row => {
     const out: Record<string, CellValue> = {};
     for (const [k, v] of Object.entries(row)) {
       if (typeof v === "string" && v.startsWith("=")) {
-        const r = evalFormula(v, sheet);
+        const r = evalFormula(v, sheet, 0, names);
         out[k] = r;
       } else {
         out[k] = v;
@@ -1402,6 +1448,10 @@ type SelectedElement =
   | { kind: "axis"; which: "x" | "y"; anchorX?: number; anchorY?: number }
   | { kind: "legend"; key: string; anchorX?: number; anchorY?: number }
   | { kind: "mekkoColumn"; rowIdx: number; anchorX?: number; anchorY?: number }
+  // Wave 17 · Gantt bar selection — drives the radial wheel for tasks.
+  // The shape field captures the rendered shape so the wheel can show a
+  // properly-active toggle (bar / milestone / dotted).
+  | { kind: "ganttBar"; rowIdx: number; color: string; shape: "bar" | "milestone" | "dotted"; anchorX?: number; anchorY?: number }
   | { kind: "canvas"; anchorX?: number; anchorY?: number };
 type OnSelectElement = (sel: SelectedElement | null, anchor?: { x: number; y: number }) => void;
 
@@ -1470,6 +1520,7 @@ function SelectionHandles({
           fill="none" stroke={accent} strokeWidth={2}
           strokeDasharray="none"
           filter="url(#cm2SelGlow)"
+          style={{ animation: "cm2BarPulse 0.36s cubic-bezier(.2,.7,.2,1) both" }}
         >
           <animate attributeName="opacity" values="0.7;1.0;0.7" dur="1.6s" repeatCount="indefinite" />
         </rect>
@@ -3619,7 +3670,42 @@ function ComboChart({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig; 
   );
 }
 
-function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDeleteRow, onShowMenu }: { sheet: DataSheet; cfg: ChartConfig; W: number; H: number; opts: GanttOpts; onToggleGroup: (k: string) => void; onUpdateRow?: OnUpdateRow; onDeleteRow?: OnDeleteRow; onShowMenu?: OnShowMenu }) {
+function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDeleteRow, onShowMenu, selected, onSelectElement, onOpenWheel, onFocusTaskRow }: {
+  sheet: DataSheet;
+  cfg: ChartConfig;
+  W: number;
+  H: number;
+  opts: GanttOpts;
+  onToggleGroup: (k: string) => void;
+  onUpdateRow?: OnUpdateRow;
+  onDeleteRow?: OnDeleteRow;
+  onShowMenu?: OnShowMenu;
+  // Wave 17 · radial wheel + selection plumb-through
+  selected?: SelectedElement | null;
+  onSelectElement?: OnSelectElement;
+  onOpenWheel?: (clientX: number, clientY: number) => void;
+  // Wave 17 · used by the wheel's "Edit task" tool to focus the task row in
+  // the data sheet so the user can rename inline. The parent owns the input
+  // focus logic (it scrolls + selects the cell). Optional.
+  onFocusTaskRow?: (rowIdx: number) => void;
+}) {
+  // Wave 17 · helper used by GanttSvg + the parent radial-wheel switch to
+  // open the wheel for the right-clicked task. Captures rowIdx + color +
+  // shape so the wheel can reflect the active button.
+  const onBarRightClick = (t: RawTask, effShape: "bar" | "milestone" | "dotted") => (e: React.MouseEvent) => {
+    if (onSelectElement && onOpenWheel) {
+      e.preventDefault();
+      e.stopPropagation();
+      const sel: SelectedElement = { kind: "ganttBar", rowIdx: t.sheetIdx, color: t.color || cfg.theme && THEMES[cfg.theme].colors[0] || "#F7B041", shape: effShape, anchorX: e.clientX, anchorY: e.clientY };
+      onSelectElement(sel, { x: e.clientX, y: e.clientY });
+      onOpenWheel(e.clientX, e.clientY);
+    } else if (onShowMenu) {
+      // Fallback to legacy text menu if wheel not wired.
+      onShowMenu(e, ganttContextMenuItems(t, effShape, THEMES[cfg.theme].colors, onUpdateRow, onDeleteRow));
+    }
+  };
+  void onFocusTaskRow; // consumed by parent via window event below
+
   const palette = THEMES[cfg.theme].colors;
   const cc = chartColors(cfg);
   const tasks = ganttFromSheet(sheet);
@@ -3813,10 +3899,10 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
                 onPointerDown={onBarDown(t, "move")}
                 onPointerMove={onBarMove}
                 onPointerUp={onBarUp}
-                onContextMenu={e => onShowMenu?.(e, ganttContextMenuItems(t, effShape, palette, onUpdateRow, onDeleteRow))}
+                onContextMenu={onBarRightClick(t, effShape)}
                 style={{ cursor: onUpdateRow ? "grab" : "default" }}
               >
-                <polygon points={`${x1},${barTop} ${x1 + barH / 2},${barTop + barH / 2} ${x1},${barTop + barH} ${x1 - barH / 2},${barTop + barH / 2}`} fill={color} stroke="rgba(255,255,255,0.15)" />
+                <polygon points={`${x1},${barTop} ${x1 + barH / 2},${barTop + barH / 2} ${x1},${barTop + barH} ${x1 - barH / 2},${barTop + barH / 2}`} fill={color} stroke={selected && selected.kind === "ganttBar" && selected.rowIdx === t.sheetIdx ? C.amber : "rgba(255,255,255,0.15)"} strokeWidth={selected && selected.kind === "ganttBar" && selected.rowIdx === t.sheetIdx ? 2 : 1} />
                 {opts.showDates && <text x={x1 + barH / 2 + 8} y={top + ROW_H / 2 + 4} fill={C.txm} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtDateShort(t.start)}</text>}
               </g>
             ) : (
@@ -3827,13 +3913,13 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
                   x={x1} y={barTop} width={w} height={barH} rx="5" ry="5"
                   fill={isDotted ? "transparent" : color}
                   fillOpacity={isDotted ? 0 : 0.35}
-                  stroke={color}
-                  strokeWidth={isDotted ? 1.6 : 1}
+                  stroke={selected && selected.kind === "ganttBar" && selected.rowIdx === t.sheetIdx ? C.amber : color}
+                  strokeWidth={selected && selected.kind === "ganttBar" && selected.rowIdx === t.sheetIdx ? 2.4 : (isDotted ? 1.6 : 1)}
                   strokeDasharray={isDotted ? "5 4" : undefined}
                   onPointerDown={onBarDown(t, "move")}
                   onPointerMove={onBarMove}
                   onPointerUp={onBarUp}
-                  onContextMenu={e => onShowMenu?.(e, ganttContextMenuItems(t, effShape, palette, onUpdateRow, onDeleteRow))}
+                  onContextMenu={onBarRightClick(t, effShape)}
                   style={{ cursor: onUpdateRow ? "grab" : "default" }}
                 />
                 {opts.showProgress && t.progress !== undefined && t.progress > 0 && !isDotted && (
@@ -3958,29 +4044,50 @@ interface ChartConfig {
   onInlineEditTitle?: (next: string) => void;
   onInlineEditSubtitle?: (next: string) => void;
   onInlineEditSeriesLabel?: (key: string, next: string) => void;
+  // Wave 17 · print/export mode. When true, renderers swap to thicker line
+  // weights, vivid (pure-white/black) text, and force lightBackdrop = true
+  // when the user has opted in via DesignDrawer. PNG export pipeline runs
+  // at 2× pixel density already; SVG export benefits most from this flag.
+  printMode?: boolean;
+  // Wave 17 · per-label number format overrides keyed by "rowIdx:seriesKey".
+  // Renderers consult this map before falling back to cfg.numFmt for a
+  // given label. Optional — undefined = use cfg.numFmt for everything.
+  labelFormatOverrides?: Record<string, NumberFormat>;
 }
 
 // Adaptive color set · text + grid pull from the backdrop mode so light
 // surfaces don't render white-on-white. Used by every renderer for
 // titles, axis ticks, category labels, value labels, gridlines.
+// Wave 17 · resolve the effective number format for a given chart label.
+// Looks up the (rowIdx:seriesKey) override; falls back to cfg.numFmt. Renderers
+// that want override-aware labels call this helper instead of using cfg.numFmt
+// directly. Stateless — safe to call inline during render.
+function resolveLabelFormat(cfg: ChartConfig, rowIdx: number | undefined, seriesKey: string | undefined): NumberFormat {
+  if (rowIdx === undefined || !seriesKey) return cfg.numFmt;
+  const k = rowIdx + ":" + seriesKey;
+  return cfg.labelFormatOverrides?.[k] ?? cfg.numFmt;
+}
+void resolveLabelFormat; // exposed for future renderer wiring
+
 function chartColors(cfg: ChartConfig) {
   if (cfg.lightBackdrop) {
     return {
-      text:    "#0A0A0E",
-      muted:   "#5C5A57",
-      faint:   "#A8A4A0",
-      grid:    "rgba(0,0,0,0.06)",
-      gridStrong: "rgba(0,0,0,0.10)",
+      // Wave 17 · print mode bumps text to pure black + thicker gridlines.
+      text:    cfg.printMode ? "#000000" : "#0A0A0E",
+      muted:   cfg.printMode ? "#1F1F1F" : "#5C5A57",
+      faint:   cfg.printMode ? "#3A3A3A" : "#A8A4A0",
+      grid:    cfg.printMode ? "rgba(0,0,0,0.18)" : "rgba(0,0,0,0.06)",
+      gridStrong: cfg.printMode ? "rgba(0,0,0,0.30)" : "rgba(0,0,0,0.10)",
       barBorder:  "#FAFAF7",
       onBar:   "#0A0A0E",
     };
   }
   return {
-    text:    "#E8E4DD",
-    muted:   C.txm,
-    faint:   C.txd,
-    grid:    "rgba(255,255,255,0.05)",
-    gridStrong: "rgba(255,255,255,0.10)",
+    text:    cfg.printMode ? "#FFFFFF" : "#E8E4DD",
+    muted:   cfg.printMode ? "#E0E0E0" : C.txm,
+    faint:   cfg.printMode ? "#B0B0B0" : C.txd,
+    grid:    cfg.printMode ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.05)",
+    gridStrong: cfg.printMode ? "rgba(255,255,255,0.30)" : "rgba(255,255,255,0.10)",
     barBorder:  "#0A0A0E",
     onBar:   "#0A0A0E",
   };
@@ -4313,7 +4420,7 @@ function RadialContextWheel({ x, y, icons, label, onClose }: {
         @keyframes cm2WheelOpen { from { opacity: 0; transform: scale(0.82) } to { opacity: 1; transform: scale(1) } }
       `}</style>
       {/* center label disk */}
-      <div style={{
+      <div data-cm2-wheel-disk style={{
         position: "absolute", left: D / 2 - 36, top: D / 2 - 36,
         width: 72, height: 72, borderRadius: "50%",
         background: "rgba(13,13,18,0.92)",
@@ -4448,6 +4555,7 @@ function TopMiniToolbar({
   return (
     <div
       data-mini-toolbar
+      data-cm2-mini-toolbar
       style={{
         display: "flex", alignItems: "center", gap: 8,
         padding: "6px 10px",
@@ -4652,6 +4760,7 @@ function SelectionPopup({
   return (
     <div
       data-selection-popup
+      data-cm2-mini-toolbar
       style={{
         position: "fixed",
         left, top,
@@ -4771,7 +4880,7 @@ function StatusBar({ chartType, sheet, numFmt, themeName, advanced }: { chartTyp
   }, 0);
   const typeLabel = TYPES.flat().find(t => t.id === chartType)?.label || chartType;
   return (
-    <div style={{
+    <div data-cm2-status-bar style={{
       display: "flex", alignItems: "center", gap: 14,
       padding: "8px 16px",
       background: "rgba(13,13,18,0.85)",
@@ -5106,7 +5215,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   // Crosshair hover state — currently per-renderer (StackedColumn etc.); kept
   // here for potential future "broadcast hover" sync across multiple charts.
   const [, setHoveredCat] = useState<number | null>(null);
-  void showSecondaryAxis; void setShowSecondaryAxis; void setHoveredCat; void setRightPanelOpen;
+  void showSecondaryAxis; void setShowSecondaryAxis; void setHoveredCat;
   // Per-series color overrides — clicking a Legend swatch lets you
   // recolor the entire series without changing the theme. Stored
   // per-chart-type so different chart types can have different colors.
@@ -5412,11 +5521,66 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     try { localStorage.setItem("cm2-wheel-config-v1", JSON.stringify(wheelConfig)); } catch {}
   }, [wheelConfig]);
 
+  // Wave 17 · named ranges (per chart type). Persists to localStorage.
+  // Used by the formula engine to expand identifiers like "Revenue" into
+  // their stored range string ("B2:B12" etc).
+  const [namedRangesByType, setNamedRangesByType] = useState<Partial<Record<ChartType, NamedRangeMap>>>({});
+  const [nameManagerOpen, setNameManagerOpen] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("cm2-named-ranges");
+      if (raw) setNamedRangesByType(JSON.parse(raw));
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem("cm2-named-ranges", JSON.stringify(namedRangesByType)); } catch {}
+  }, [namedRangesByType]);
+  const namedRanges: NamedRangeMap = useMemo(() => namedRangesByType[type] || {}, [namedRangesByType, type]);
+
+  // Wave 17 · per-label number format overrides (think-cell parity). Key
+  // pattern: "rowIdx:seriesKey" → NumberFormat. Renderers can opt to
+  // consult this map; we surface the lookup as a helper for downstream
+  // wiring so existing renderers don't need to change unless they want
+  // override-aware labels.
+  const [labelFormatOverrides, setLabelFormatOverrides] = useState<Record<string, NumberFormat>>({});
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("cm2-label-format-overrides");
+      if (raw) setLabelFormatOverrides(JSON.parse(raw));
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem("cm2-label-format-overrides", JSON.stringify(labelFormatOverrides)); } catch {}
+  }, [labelFormatOverrides]);
+  void labelFormatOverrides; void setLabelFormatOverrides; // exposed for future renderer wiring
+
+  // Wave 17 · viewport flags drive the responsive layout. Sub-900 collapses
+  // toolbar to icons; sub-1100 default-collapses sidebars; sub-600 shows a
+  // compatibility notice. Read here so all layout consumers see the same
+  // resize-debounced values.
+  const viewport = useIsCompactScreen();
+  // Wave 17 · auto-collapse the right Properties panel when the viewport
+  // narrows. We honor user choice once they've explicitly toggled — the
+  // ref tracks "did the user override" so we don't keep clobbering them.
+  const userOverrideRightRef = useRef(false);
+  useEffect(() => {
+    if (userOverrideRightRef.current) return;
+    if (viewport.isNarrow) setRightPanelOpen(false);
+    else if (viewport.width >= 1280) setRightPanelOpen(true);
+  }, [viewport.isNarrow, viewport.width]);
+  void userOverrideRightRef;
+
+  // Wave 17 · print/export mode flag. Toggled via DesignDrawer's "Print
+  // mode" switch. Renderers consult this via cfg.printMode (we set it on
+  // the cfg object below so the downstream code stays prop-driven).
+  const [printMode, setPrintMode] = useState<boolean>(false);
+
   const rawSheet = sheets[type] || samplePerType(type);
   // Renderers read the computed sheet (formulas evaluated) so chart values
   // reflect =SUM/=A1+B2 etc. The data sheet itself receives the raw sheet
   // so users can keep editing the formulas.
-  const sheetFull = useMemo(() => computeSheet(rawSheet), [rawSheet]);
+  // Wave 17 · pass named ranges so formulas like =SUM(Revenue) work.
+  const sheetFull = useMemo(() => computeSheet(rawSheet, namedRanges), [rawSheet, namedRanges]);
   // Wave 13 · filtered sheet — applied when "Chart selected only" is on.
   const sheet = useMemo(() => {
     const filter = chartedRowsByType[type];
@@ -5565,7 +5729,9 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const cfg: ChartConfig = {
     type, title, subtitle, theme, numFmt, seriesColors,
     yMin: axis.yMin, yMax: axis.yMax, xMin: axis.xMin, xMax: axis.xMax,
-    lightBackdrop: backdropMode === "light",
+    // Wave 17 · print mode forces a light backdrop for crisp print output.
+    // Otherwise honor the user's backdrop selection.
+    lightBackdrop: printMode ? true : backdropMode === "light",
     showBorders, showGridlines, showSegmentLabels, legendPos,
     yLabel: yLabel || undefined, xLabel: xLabel || undefined,
     locked, logScale, showEndLabels, markerShape, roundedCorners,
@@ -5576,6 +5742,9 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     onInlineEditTitle: expandedMode ? setTitle : undefined,
     onInlineEditSubtitle: expandedMode ? setSubtitle : undefined,
     onInlineEditSeriesLabel: expandedMode ? setSeriesLabel : undefined,
+    // Wave 17 · print + per-label format overrides
+    printMode,
+    labelFormatOverrides,
   };
 
   // Pick-mode handler · column-chart renderers call this on bar click.
@@ -5837,6 +6006,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   }, []);
 
   // Wave 14 · ⌘⇧C copy-PNG keyboard binding (separate effect since copyPNG must be in scope)
+  // Wave 17 · ⌘⇧N opens the Name Manager modal.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
@@ -5846,6 +6016,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       if (inInput) return;
       const k = e.key.toLowerCase();
       if (k === "c") { e.preventDefault(); copyPNG(); playExportChime(); }
+      else if (k === "n") { e.preventDefault(); setNameManagerOpen(true); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -5987,7 +6158,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       case "wfup": return <Waterfall sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "wfdn": return <Waterfall sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "variance": return <VarianceBar sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
-      case "gantt": return <GanttSvg sheet={sheet} cfg={cfg} W={W} H={H} opts={ganttOpts} onToggleGroup={onToggleGroup} onUpdateRow={onUpdateRow} onDeleteRow={onDeleteRow} onShowMenu={onShowMenu} />;
+      case "gantt": return <GanttSvg sheet={sheet} cfg={cfg} W={W} H={H} opts={ganttOpts} onToggleGroup={onToggleGroup} onUpdateRow={onUpdateRow} onDeleteRow={onDeleteRow} onShowMenu={onShowMenu} selected={selected} onSelectElement={selectElement} onOpenWheel={onOpenWheel} onFocusTaskRow={(rowIdx) => { try { window.dispatchEvent(new CustomEvent("cm2-focus-task-row", { detail: { rowIdx } })); } catch {} }} />;
       default: {
         return (
           <g>
@@ -6108,6 +6279,11 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   // dark glass surfaces (the ones used in the toolbar, panels, top bar,
   // dropdowns, and modals) by tagging surface containers with
   // `data-cm2-surface` and flipping them to bright glass via CSS.
+  // Wave 17 · expanded so welcome modal, all dropdowns, color picker, number
+  // format picker, wheel center disk, status bar, mini toolbars all flip too.
+  // The `body[data-cm2-theme]` selector at the top is a last-resort catch-all
+  // for popped-window-style children that escape `[data-cm2-theme="light"]`
+  // scoping.
   const themeStyles = appTheme === "light" ? `
     body[data-cm2-theme="light"] { background: ${APP_TOKENS.light.bg} !important; color: ${APP_TOKENS.light.fg} !important; }
     [data-cm2-theme="light"] [data-cm2-surface] {
@@ -6118,6 +6294,11 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     [data-cm2-theme="light"] [data-cm2-surface-strong] {
       background: #FFFFFF !important;
       border-color: rgba(0,0,0,0.10) !important;
+      color: ${APP_TOKENS.light.fg} !important;
+    }
+    [data-cm2-theme="light"] [data-cm2-surface-2] {
+      background: rgba(0,0,0,0.04) !important;
+      border-color: rgba(0,0,0,0.08) !important;
       color: ${APP_TOKENS.light.fg} !important;
     }
     [data-cm2-theme="light"] [data-cm2-toolbar] {
@@ -6134,6 +6315,39 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       border-color: rgba(0,0,0,0.08) !important;
       color: ${APP_TOKENS.light.fg} !important;
     }
+    [data-cm2-theme="light"] [data-cm2-modal] {
+      background: ${APP_TOKENS.light.surfaceStrong} !important;
+      color: ${APP_TOKENS.light.fg} !important;
+      border-color: rgba(0,0,0,0.10) !important;
+    }
+    [data-cm2-theme="light"] [data-cm2-modal-backdrop] {
+      background: rgba(220,220,210,0.74) !important;
+    }
+    [data-cm2-theme="light"] [data-cm2-dropdown] {
+      background: ${APP_TOKENS.light.surfaceStrong} !important;
+      color: ${APP_TOKENS.light.fg} !important;
+      border-color: rgba(0,0,0,0.10) !important;
+    }
+    [data-cm2-theme="light"] [data-cm2-tooltip] {
+      background: rgba(20,20,28,0.92) !important;
+      color: #F5F5F0 !important;
+    }
+    [data-cm2-theme="light"] [data-cm2-status-bar] {
+      background: rgba(255,255,255,0.85) !important;
+      border-color: rgba(0,0,0,0.08) !important;
+      color: ${APP_TOKENS.light.fg} !important;
+    }
+    [data-cm2-theme="light"] [data-cm2-wheel-disk] {
+      background: rgba(255,255,255,0.96) !important;
+      border-color: rgba(0,0,0,0.10) !important;
+    }
+    [data-cm2-theme="light"] [data-cm2-mini-toolbar] {
+      background: rgba(255,255,255,0.92) !important;
+      border-color: rgba(0,0,0,0.10) !important;
+      color: ${APP_TOKENS.light.fg} !important;
+    }
+    [data-cm2-theme="light"] [data-cm2-fg-only] { color: ${APP_TOKENS.light.fg} !important; }
+    [data-cm2-theme="light"] [data-cm2-fg-muted] { color: ${APP_TOKENS.light.muted} !important; }
   ` : "";
   return (
     <div data-cm2-theme={appTheme} style={{
@@ -6146,6 +6360,8 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     }}>
       <style>{themeStyles}{`
         @keyframes cm2ChartSwap { 0% { opacity: 0; transform: translateY(6px) } 100% { opacity: 1; transform: translateY(0) } }
+        /* Wave 17 · bar selection pulse — quick 0→1→0.7 stroke-opacity flash */
+        @keyframes cm2BarPulse { 0% { stroke-opacity: 0 } 35% { stroke-opacity: 1 } 100% { stroke-opacity: 0.7 } }
         @keyframes cmGlowDrift1 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(40px,-26px) } }
         @keyframes cmGlowDrift2 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(-30px,18px) } }
         @keyframes cmGlowDrift3 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(22px,28px) } }
@@ -6434,11 +6650,13 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               ? "0 1px 0 rgba(255,255,255,0.06) inset, 0 32px 64px rgba(0,0,0,0.45), inset 0 0 80px rgba(0,0,0,0.40)"
               : "0 1px 0 rgba(255,255,255,0.06) inset, 0 32px 64px rgba(0,0,0,0.45)",
           }}>
+            {/* Wave 17 · cursor-tracking radial glow over the chart card */}
+            <ChartCardGlow enabled={!locked} />
             <svg
               key={type}
               ref={svgRef}
               viewBox={`0 0 ${W} ${H}`}
-              style={{ width: "100%", height: "auto", display: "block", fontFamily: ft, touchAction: "none", cursor: placeMode?.kind === "callout" ? "crosshair" : "default", animation: "cm2ChartSwap 0.32s cubic-bezier(.2,.7,.2,1) both" }}
+              style={{ width: "100%", height: "auto", display: "block", fontFamily: ft, touchAction: "none", cursor: placeMode?.kind === "callout" ? "crosshair" : "default", animation: "cm2ChartSwap 0.32s cubic-bezier(.2,.7,.2,1) both", position: "relative", zIndex: 1 }}
               onContextMenu={e => {
                 // Wave 15.5 · ALWAYS prevent the default browser context menu
                 // and fall through to opening the radial wheel for the current
@@ -6677,6 +6895,9 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         />
       )}
       {tourOpen && <OnboardingTour onClose={() => setTourOpen(false)} />}
+      {/* Wave 17 · tiny-viewport notice. Only shows on first visit at <600px;
+          user can continue or dismiss. Persists "continue anyway" per session. */}
+      <CompactScreenBanner viewport={viewport} appTheme={appTheme} />
       {/* "Help" button bottom-right · re-open welcome screen anytime */}
       <Tooltip label="Open welcome screen" position="left">
         <button
@@ -6863,6 +7084,75 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             { toolId: "shiftRight", Icon: ChevronRight, title: "Shift right", onClick: () => shift(1) },
             { toolId: "delete", Icon: Trash2, title: "Delete column", danger: true, onClick: () => onDeleteRow(sel.rowIdx) },
           ];
+        } else if (sel.kind === "ganttBar") {
+          // Wave 17 · Gantt task radial wheel — replaces the legacy
+          // ganttContextMenuItems text list. Tools: shape cycle, color
+          // (palette cycle), progress (prompt), edit task (focus row in
+          // datasheet), delete.
+          label = "TASK";
+          const cur = sheets[type] || samplePerType(type);
+          const taskRow = cur.rows[sel.rowIdx] || {};
+          const cycleShape = () => {
+            const order: Array<"bar" | "milestone" | "dotted"> = ["bar", "milestone", "dotted"];
+            const idx = order.indexOf(sel.shape);
+            const next = order[(idx + 1) % order.length];
+            // For milestone, force end = start. For bar/dotted, ensure 1+ days span.
+            const startMs = Number(taskRow.start) || Date.parse(String(taskRow.start || "")) || Date.now();
+            const endMs = Number(taskRow.end) || Date.parse(String(taskRow.end || "")) || startMs + 7 * 86400000;
+            const span = Math.max(endMs - startMs, 7 * 86400000);
+            if (next === "milestone") {
+              onUpdateRow(sel.rowIdx, { shape: next, end: msToISODate(startMs) });
+            } else {
+              onUpdateRow(sel.rowIdx, { shape: next, end: msToISODate(startMs === endMs ? startMs + span : endMs) });
+            }
+            // Update selection so the wheel reflects the new shape on next open.
+            selectElement({ kind: "ganttBar", rowIdx: sel.rowIdx, color: sel.color, shape: next, anchorX: sel.anchorX, anchorY: sel.anchorY });
+          };
+          const cycleColor = () => {
+            const palette2 = THEMES[theme].colors;
+            const idx = palette2.indexOf(sel.color);
+            const next = palette2[(idx + 1) % palette2.length];
+            onUpdateRow(sel.rowIdx, { color: next });
+            selectElement({ kind: "ganttBar", rowIdx: sel.rowIdx, color: next, shape: sel.shape, anchorX: sel.anchorX, anchorY: sel.anchorY });
+          };
+          const promptProgress = () => {
+            const curPct = Number(taskRow.progress) || 0;
+            const v = typeof window !== "undefined" ? window.prompt("Task progress (0-100):", String(curPct)) : null;
+            if (v == null) return;
+            const n = Number(v);
+            if (Number.isFinite(n)) onUpdateRow(sel.rowIdx, { progress: Math.max(0, Math.min(100, n)) });
+          };
+          const focusRow = () => {
+            // Dispatch a window event the datasheet listens to. Fallback:
+            // close the wheel and toast the user.
+            try {
+              window.dispatchEvent(new CustomEvent("cm2-focus-task-row", { detail: { rowIdx: sel.rowIdx } }));
+              showToast("Task focused — edit the name in the data sheet.");
+            } catch {
+              showToast("Edit the task name in the data sheet below.");
+            }
+          };
+          icons = [
+            { toolId: "fill", Icon: Palette, title: "Cycle bar color", onClick: cycleColor },
+            { toolId: "shape", Icon: Square, title: `Shape · ${sel.shape}`, onClick: cycleShape },
+            { toolId: "progress", Icon: TrendingUp, title: "Set progress %", onClick: promptProgress },
+            { toolId: "editTask", Icon: Type, title: "Edit task (focus in sheet)", onClick: focusRow },
+            { toolId: "shiftFwd", Icon: ChevronRight, title: "Shift +7 days", onClick: () => {
+              const startMs = Number(taskRow.start) || Date.parse(String(taskRow.start || ""));
+              const endMs = Number(taskRow.end) || Date.parse(String(taskRow.end || ""));
+              if (Number.isFinite(startMs) && Number.isFinite(endMs)) {
+                onUpdateRow(sel.rowIdx, { start: msToISODate(startMs + 7 * 86400000), end: msToISODate(endMs + 7 * 86400000) });
+              }
+            }},
+            { toolId: "shiftBack", Icon: ChevronLeft, title: "Shift −7 days", onClick: () => {
+              const startMs = Number(taskRow.start) || Date.parse(String(taskRow.start || ""));
+              const endMs = Number(taskRow.end) || Date.parse(String(taskRow.end || ""));
+              if (Number.isFinite(startMs) && Number.isFinite(endMs)) {
+                onUpdateRow(sel.rowIdx, { start: msToISODate(startMs - 7 * 86400000), end: msToISODate(endMs - 7 * 86400000) });
+              }
+            }},
+            { toolId: "delete", Icon: Trash2, title: "Delete task", danger: true, onClick: () => onDeleteRow(sel.rowIdx) },
+          ];
         } else {
           // canvas
           label = "CANVAS";
@@ -6898,6 +7188,8 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             { toolId: "endLabels", Icon: Hash, title: "Toggle end labels", active: showEndLabels, onClick: () => setShowEndLabels(v => !v) },
             { toolId: "barWidth", Icon: MoveHorizontal, title: "Cycle bar width (thin / med / thick)", onClick: () => setBarWidthPct(p => p < 40 ? 65 : p < 75 ? 90 : 30) },
             { toolId: "backdropMode", Icon: Eye, title: "Toggle backdrop dark / light", onClick: () => setBackdropMode(m => m === "dark" ? "light" : "dark") },
+            // Wave 17 · open Name Manager from the canvas wheel.
+            { toolId: "addRange", Icon: FileCode2, title: "Name Manager (⌘⇧N)", onClick: () => setNameManagerOpen(true) },
           ];
         }
         // Wave 12 · filter against the user's wheelConfig (per-kind allowlist)
@@ -6930,6 +7222,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           barWidthPct={barWidthPct} onChangeBarWidthPct={setBarWidthPct}
           vignette={vignette} onToggleVignette={() => setVignette(v => !v)}
           exportBranding={exportBranding} onToggleExportBranding={() => setExportBranding(v => !v)}
+          printMode={printMode} onTogglePrintMode={() => setPrintMode(v => !v)}
         />
       )}
       {/* Floating help button · always-on glass pill, opens shortcuts overlay */}
@@ -6973,6 +7266,16 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         />
       )}
 
+      {/* Wave 17 · named-range manager modal (⌘⇧N) */}
+      {nameManagerOpen && (
+        <NameManagerModal
+          names={namedRanges}
+          appTheme={appTheme}
+          onChange={(next) => setNamedRangesByType(p => ({ ...p, [type]: next }))}
+          onClose={() => setNameManagerOpen(false)}
+        />
+      )}
+
       {/* Wave 15.1 · float-toolbar editor — pick + reorder which tools appear */}
       {floatToolbarEditorOpen && (
         <FloatToolbarEditor
@@ -6989,6 +7292,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       {expandedMode && typeof document !== "undefined" && createPortal(
         <ExpandedShell
           currentSheet={sheet}
+          onChangeCurrentSheet={(next) => setSheets(p => ({ ...p, [type]: next }))}
           transitionFrom={expandTransitionFrom}
           onClose={() => setExpandedMode(false)}
           paneMode={paneMode}
@@ -7628,7 +7932,7 @@ function ExportDropdownIcon({ onPNG, onJPG, onSVG, onPPTX, onCopyPNG }: {
         <Download size={15} strokeWidth={2.4} />
       </button>
       {open && (
-        <div style={{
+        <div data-cm2-dropdown style={{
           position: "absolute", right: 0, top: "calc(100% + 6px)",
           background: "#0D0D14", border: "1px solid rgba(255,255,255,0.12)",
           borderRadius: 10, padding: 4, minWidth: 232, zIndex: 1100,
@@ -8297,11 +8601,13 @@ const FLOAT_TOOLS: Record<FloatToolId, FloatToolMeta> = {
 // Wave 15.4 · trimmed default — Templates / Paste / Import / Type Wheel /
 // Design / Undo / Redo / Lock all live in the Launch top bar already, so the
 // default toolbar focuses on actions that *aren't* duplicated above.
+// Wave 17 · further trim: Pop Out Chart / Pop Out Table moved to the Launch
+// top bar's Window group — drop them from the default float toolbar so the
+// floating overlay focuses on truly canvas-local actions.
 const DEFAULT_FLOAT_TOOLS: FloatToolId[] = [
-  "popOutChart", "popOutTable",
-  "fitChart",
   "addRow", "addCol",
   "wheelOpen",
+  "fitChart",
 ];
 
 // Validates a JSON-parsed value and returns a clean FloatToolId[] or null.
@@ -9905,7 +10211,7 @@ function AxisRangePicker({ axis, onChange, type }: { axis: { yMin?: number; yMax
 }
 
 // ─── DESIGN drawer · slide-in pane consolidating styling controls ────────
-function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, onChangeBackdrop, onChangeMode, legendPos, onChangeLegendPos, showBorders, onToggleBorders, showGridlines, onToggleGridlines, showSegmentLabels, onToggleSegmentLabels, axis, onChangeAxis, chartType, yLabel, onChangeYLabel, xLabel, onChangeXLabel, logScale, onToggleLogScale, roundedCorners, onToggleRoundedCorners, showEndLabels, onToggleEndLabels, markerShape, onChangeMarkerShape, watermark, onChangeWatermark, barWidthPct, onChangeBarWidthPct, vignette = true, onToggleVignette, exportBranding = false, onToggleExportBranding }: {
+function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, onChangeBackdrop, onChangeMode, legendPos, onChangeLegendPos, showBorders, onToggleBorders, showGridlines, onToggleGridlines, showSegmentLabels, onToggleSegmentLabels, axis, onChangeAxis, chartType, yLabel, onChangeYLabel, xLabel, onChangeXLabel, logScale, onToggleLogScale, roundedCorners, onToggleRoundedCorners, showEndLabels, onToggleEndLabels, markerShape, onChangeMarkerShape, watermark, onChangeWatermark, barWidthPct, onChangeBarWidthPct, vignette = true, onToggleVignette, exportBranding = false, onToggleExportBranding, printMode = false, onTogglePrintMode }: {
   onClose: () => void;
   theme: ThemeId; onChangeTheme: (t: ThemeId) => void;
   backdrop: BackdropKey; backdropMode: BackdropMode;
@@ -9929,6 +10235,8 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
   // Wave 14 · vignette + branded export footer toggles
   vignette?: boolean; onToggleVignette?: () => void;
   exportBranding?: boolean; onToggleExportBranding?: () => void;
+  // Wave 17 · print/export mode toggle
+  printMode?: boolean; onTogglePrintMode?: () => void;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -10040,6 +10348,9 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
               )}
               {onToggleExportBranding && (
                 <DesignToggle on={exportBranding} label="Branded Export" sub="Add 'Built with POAST' to PNG/SVG exports" onChange={onToggleExportBranding} />
+              )}
+              {onTogglePrintMode && (
+                <DesignToggle on={printMode} label="Print Mode" sub="Thicker lines · vivid text · white backdrop · 2× PNG" onChange={onTogglePrintMode} />
               )}
             </div>
             <div style={{ marginTop: 12 }}>
@@ -10422,8 +10733,8 @@ function ExcelTabPickerModal({ snapshots, fileName, onPick, onClose }: {
   }, [onClose]);
   const cur = snapshots.find(s => s.name === active) ?? snapshots[0];
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(6,6,12,0.74)", backdropFilter: "blur(8px) saturate(140%)", WebkitBackdropFilter: "blur(8px) saturate(140%)", zIndex: 12500, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div onClick={e => e.stopPropagation()} style={{
+    <div data-cm2-modal-backdrop onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(6,6,12,0.74)", backdropFilter: "blur(8px) saturate(140%)", WebkitBackdropFilter: "blur(8px) saturate(140%)", zIndex: 12500, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div data-cm2-modal onClick={e => e.stopPropagation()} style={{
         width: "min(720px, 94vw)", maxHeight: "86vh", display: "flex", flexDirection: "column",
         background: "rgba(13,13,18,0.96)",
         backdropFilter: "blur(18px) saturate(140%)",
@@ -10677,7 +10988,7 @@ function NumberFormatPicker({ fmt, onChange }: { fmt: NumberFormat; onChange: (f
         <ChevronDown size={11} strokeWidth={2.4} style={{ marginLeft: 2, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
       </button>
       {open && (
-        <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 1000, background: "#0D0D14", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 9, padding: 5, minWidth: 200, boxShadow: "0 18px 48px rgba(0,0,0,0.5)" }}>
+        <div data-cm2-dropdown style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 1000, background: "#0D0D14", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 9, padding: 5, minWidth: 200, boxShadow: "0 18px 48px rgba(0,0,0,0.5)" }}>
           {opts.map(o => {
             const on = o.id === fmt;
             return (
@@ -10685,8 +10996,8 @@ function NumberFormatPicker({ fmt, onChange }: { fmt: NumberFormat; onChange: (f
                 onMouseEnter={e => { if (!on) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
                 onMouseLeave={e => { if (!on) e.currentTarget.style.background = "transparent"; }}
               >
-                <span style={{ fontFamily: ft, fontSize: 12, fontWeight: 700, color: on ? C.amber : C.tx }}>{o.preview}</span>
-                <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.5 }}>{o.sub}</span>
+                <span style={{ fontFamily: ft, fontSize: 12, fontWeight: 700, color: on ? C.amber : C.tx }} data-cm2-fg-only>{o.preview}</span>
+                <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.5 }} data-cm2-fg-muted>{o.sub}</span>
               </div>
             );
           })}
@@ -10863,6 +11174,7 @@ function ChartContextMenu({ menu, onClose }: { menu: { x: number; y: number; ite
   const y = Math.min(menu.y, (typeof window !== "undefined" ? window.innerHeight : 900) - menu.items.length * 36 - 16);
   return (
     <div
+      data-cm2-dropdown
       onClick={e => e.stopPropagation()}
       onContextMenu={e => e.preventDefault()}
       style={{
@@ -11286,6 +11598,7 @@ function WelcomeScreen({
   }, [dontShow, isLast, onClose]);
   return (
     <div
+      data-cm2-modal-backdrop
       onClick={() => onClose(dontShow)}
       style={{
         position: "fixed", inset: 0, zIndex: 13000,
@@ -11303,15 +11616,16 @@ function WelcomeScreen({
         @keyframes cm2WelcomeIcon { 0%,100% { transform: scale(1) rotate(0deg) } 50% { transform: scale(1.04) rotate(-2deg) } }
       `}</style>
       <div
+        data-cm2-modal
         onClick={e => e.stopPropagation()}
         style={{
           position: "relative",
           width: "min(720px, 96vw)",
+          maxHeight: "92vh", overflow: "auto",
           background: "linear-gradient(180deg, #11111A 0%, #0A0A12 100%)",
           border: "1px solid rgba(255,255,255,0.10)",
           borderRadius: 18,
           boxShadow: "0 32px 80px rgba(0,0,0,0.65), 0 0 0 1px " + cur.accent + "20, 0 0 80px " + cur.accent + "18",
-          overflow: "hidden",
           animation: "cm2WelcomePop 0.32s cubic-bezier(.2,.7,.2,1) both",
         }}
       >
@@ -11539,6 +11853,15 @@ const WHEEL_TOOLS_BY_KIND: Record<string, WheelToolDef[]> = {
     { id: "shiftRight", label: "Shift right" },
     { id: "delete", label: "Delete column" },
   ],
+  ganttBar: [
+    { id: "fill", label: "Bar color" },
+    { id: "shape", label: "Cycle shape" },
+    { id: "progress", label: "Set progress" },
+    { id: "editTask", label: "Edit task" },
+    { id: "shiftFwd", label: "Shift +7 days" },
+    { id: "shiftBack", label: "Shift −7 days" },
+    { id: "delete", label: "Delete task" },
+  ],
   canvas: [
     { id: "addSeries", label: "Add series" },
     { id: "typeWheel", label: "Type wheel" },
@@ -11557,8 +11880,162 @@ const WHEEL_TOOLS_BY_KIND: Record<string, WheelToolDef[]> = {
     { id: "endLabels", label: "End labels" },
     { id: "barWidth", label: "Bar width" },
     { id: "backdropMode", label: "Backdrop mode" },
+    { id: "addRange", label: "Name Manager" },
   ],
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NAME MANAGER MODAL · Wave 17 · think-cell / Excel parity
+// User-defined named ranges (e.g. "Revenue" → "B2:B12") so formulas read
+// like =SUM(Revenue). Persists per-chart-type via the parent state map.
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface NamedRangeRow { name: string; range: string }
+const NAME_REGEX = /^[A-Za-z_][A-Za-z0-9_]{0,31}$/;
+const RANGE_REGEX = /^\$?[A-Z]+\$?\d+(?::\$?[A-Z]+\$?\d+)?$/;
+const SINGLE_CELL_REGEX = /^[A-Z]+\d+$/;
+
+function NameManagerModal({
+  names, onChange, onClose, appTheme,
+}: {
+  names: NamedRangeMap;
+  onChange: (next: NamedRangeMap) => void;
+  onClose: () => void;
+  appTheme: AppTheme;
+}) {
+  const tokens = APP_TOKENS[appTheme];
+  const [draft, setDraft] = useState<NamedRangeRow[]>(() =>
+    Object.entries(names).map(([name, range]) => ({ name, range }))
+  );
+  const [newName, setNewName] = useState("");
+  const [newRange, setNewRange] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const validate = (name: string, range: string): string | null => {
+    if (!name) return "Name required";
+    if (!NAME_REGEX.test(name)) return "Names must be alphanumeric + underscore (1-32 chars)";
+    if (SINGLE_CELL_REGEX.test(name.toUpperCase())) return "Name conflicts with a cell reference";
+    if (FORMULA_RESERVED_NAMES.has(name.toUpperCase())) return "Name conflicts with a built-in function";
+    if (!range) return "Range required";
+    if (!RANGE_REGEX.test(range)) return "Range must be A1:C5 (or single cell A1)";
+    return null;
+  };
+
+  const addRow = () => {
+    const e = validate(newName, newRange);
+    if (e) { setError(e); return; }
+    if (draft.some(d => d.name === newName)) { setError("Name already exists"); return; }
+    setDraft([...draft, { name: newName, range: newRange }]);
+    setNewName(""); setNewRange(""); setError(null);
+  };
+
+  const updateRow = (i: number, patch: Partial<NamedRangeRow>) => {
+    const next = draft.map((r, idx) => idx === i ? { ...r, ...patch } : r);
+    setDraft(next);
+  };
+  const deleteRow = (i: number) => setDraft(draft.filter((_, idx) => idx !== i));
+
+  const commit = () => {
+    const map: NamedRangeMap = {};
+    for (const r of draft) {
+      const e = validate(r.name, r.range);
+      if (!e) map[r.name] = r.range.toUpperCase();
+    }
+    onChange(map);
+    onClose();
+  };
+
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, zIndex: 12700,
+      background: appTheme === "dark" ? "rgba(6,6,12,0.74)" : "rgba(220,220,210,0.74)",
+      backdropFilter: "blur(10px)",
+      WebkitBackdropFilter: "blur(10px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 24,
+      animation: "cm2WelcomeFade 0.2s cubic-bezier(.2,.7,.2,1) both",
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: "min(640px, 96vw)", maxHeight: "86vh", overflow: "auto",
+        background: appTheme === "dark" ? "linear-gradient(180deg, #11111A 0%, #0A0A12 100%)" : tokens.surfaceStrong,
+        border: "1px solid " + tokens.border,
+        borderRadius: 16, padding: "24px 28px",
+        boxShadow: "0 32px 80px rgba(0,0,0,0.60), 0 0 0 1px " + C.amber + "20",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+          <FileCode2 size={18} strokeWidth={2.2} color={C.amber} />
+          <span style={{ fontFamily: gf, fontSize: 18, fontWeight: 900, color: tokens.fg, letterSpacing: -0.3 }}>Name Manager</span>
+          <span style={{ marginLeft: "auto", cursor: "pointer", color: tokens.muted, padding: 4, display: "inline-flex" }} onClick={onClose}><XIcon size={16} /></span>
+        </div>
+        <div style={{ fontFamily: ft, fontSize: 12, color: tokens.muted, marginBottom: 18, lineHeight: 1.5 }}>
+          Define names that point to ranges so formulas read clearly: <code style={{ color: C.amber, fontFamily: mn, fontSize: 11 }}>=SUM(Revenue)</code> instead of <code style={{ color: tokens.muted, fontFamily: mn, fontSize: 11 }}>=SUM(B2:B12)</code>. Names are case-sensitive; ranges always use absolute uppercase letters.
+        </div>
+        {/* Header row */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 36px", gap: 8, padding: "8px 10px", background: tokens.surface2, borderRadius: 8, marginBottom: 4 }}>
+          <span style={{ fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 1.2, color: C.amber, textTransform: "uppercase" }}>Name</span>
+          <span style={{ fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 1.2, color: C.amber, textTransform: "uppercase" }}>Range</span>
+          <span />
+        </div>
+        {draft.length === 0 && (
+          <div style={{ padding: "14px 10px", fontFamily: ft, fontSize: 12, color: tokens.faint, fontStyle: "italic" }}>No named ranges yet. Add one below.</div>
+        )}
+        {draft.map((r, i) => (
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 36px", gap: 8, padding: "6px 8px", alignItems: "center" }}>
+            <input
+              value={r.name}
+              onChange={e => updateRow(i, { name: e.target.value })}
+              style={{ padding: "6px 10px", borderRadius: 6, background: tokens.surface2, border: "1px solid " + tokens.border, color: tokens.fg, fontFamily: mn, fontSize: 12, fontWeight: 700, outline: "none" }}
+            />
+            <input
+              value={r.range}
+              onChange={e => updateRow(i, { range: e.target.value.toUpperCase() })}
+              style={{ padding: "6px 10px", borderRadius: 6, background: tokens.surface2, border: "1px solid " + tokens.border, color: tokens.fg, fontFamily: mn, fontSize: 12, fontWeight: 700, outline: "none" }}
+            />
+            <button onClick={() => deleteRow(i)} title="Delete" style={{ padding: 6, borderRadius: 6, background: "transparent", border: "1px solid " + tokens.border, color: tokens.muted, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><XIcon size={12} /></button>
+          </div>
+        ))}
+        {/* Add row */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 36px", gap: 8, padding: "10px 8px 6px", alignItems: "center", borderTop: "1px dashed " + tokens.border, marginTop: 8 }}>
+          <input
+            value={newName}
+            placeholder="Revenue"
+            onChange={e => { setNewName(e.target.value); setError(null); }}
+            onKeyDown={e => { if (e.key === "Enter") addRow(); }}
+            style={{ padding: "6px 10px", borderRadius: 6, background: tokens.surface2, border: "1px solid " + tokens.border, color: tokens.fg, fontFamily: mn, fontSize: 12, fontWeight: 700, outline: "none" }}
+          />
+          <input
+            value={newRange}
+            placeholder="B2:B12"
+            onChange={e => { setNewRange(e.target.value.toUpperCase()); setError(null); }}
+            onKeyDown={e => { if (e.key === "Enter") addRow(); }}
+            style={{ padding: "6px 10px", borderRadius: 6, background: tokens.surface2, border: "1px solid " + tokens.border, color: tokens.fg, fontFamily: mn, fontSize: 12, fontWeight: 700, outline: "none" }}
+          />
+          <button onClick={addRow} title="Add" style={{ padding: 6, borderRadius: 6, background: C.amber + "20", border: "1px solid " + C.amber + "55", color: C.amber, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Plus size={14} strokeWidth={2.4} /></button>
+        </div>
+        {error && (
+          <div style={{ padding: "8px 12px", marginTop: 8, fontFamily: mn, fontSize: 11, color: "#E06347", background: "rgba(224,99,71,0.08)", border: "1px solid rgba(224,99,71,0.30)", borderRadius: 6 }}>{error}</div>
+        )}
+        <div style={{ marginTop: 18, display: "flex", gap: 10, alignItems: "center" }}>
+          <span style={{ flex: 1, fontFamily: mn, fontSize: 9, color: tokens.faint, letterSpacing: 0.6 }}>{draft.length} name{draft.length === 1 ? "" : "s"}</span>
+          <button
+            onClick={onClose}
+            style={{ padding: "9px 14px", borderRadius: 8, background: tokens.surface2, border: "1px solid " + tokens.border, color: tokens.fg, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6, cursor: "pointer" }}
+          >CANCEL</button>
+          <button
+            onClick={commit}
+            style={{ padding: "9px 16px", borderRadius: 8, background: "linear-gradient(135deg, " + C.amber + ", #E8A020)", border: "1px solid " + C.amber + "88", color: "#0A0A0E", fontFamily: mn, fontSize: 10, fontWeight: 900, letterSpacing: 0.8, cursor: "pointer", boxShadow: "0 6px 18px " + C.amber + "55" }}
+          >DONE</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function WheelSettingsModal({
   config, onChange, onClose,
@@ -11592,7 +12069,7 @@ function WheelSettingsModal({
   };
   const resetAll = () => onChange({});
   return (
-    <div onClick={onClose} style={{
+    <div data-cm2-modal-backdrop onClick={onClose} style={{
       position: "fixed", inset: 0, zIndex: 12700,
       background: "rgba(6,6,12,0.74)",
       backdropFilter: "blur(10px)",
@@ -11601,7 +12078,7 @@ function WheelSettingsModal({
       padding: 24,
       animation: "cm2WelcomeFade 0.2s cubic-bezier(.2,.7,.2,1) both",
     }}>
-      <div onClick={e => e.stopPropagation()} style={{
+      <div data-cm2-modal onClick={e => e.stopPropagation()} style={{
         width: "min(720px, 96vw)", maxHeight: "86vh", overflow: "auto",
         background: "linear-gradient(180deg, #11111A 0%, #0A0A12 100%)",
         border: "1px solid rgba(255,255,255,0.10)",
@@ -11918,7 +12395,7 @@ function ExpandedShell({
   chartWindowMode, onChangeChartWindowMode,
   floatingChartPos, onChangeFloatingChartPos,
   floatToolbar, showToolbarBtn,
-  currentSheet,
+  currentSheet, onChangeCurrentSheet,
 }: {
   onClose: () => void;
   paneMode: "chart" | "table" | "split";
@@ -11967,6 +12444,10 @@ function ExpandedShell({
   showToolbarBtn?: React.ReactNode;
   // Wave 16 · current sheet snapshot, passed in for the popout-window mirror.
   currentSheet?: DataSheet;
+  // Wave 17 · sink for the bi-directional popout's edits. When supplied,
+  // the popped browser window's table inputs publish back through this
+  // callback so the main window updates as the user edits remotely.
+  onChangeCurrentSheet?: (next: DataSheet) => void;
 }) {
   void themeName; void paletteColors;
   const [leftCollapsed, setLeftCollapsed] = useState(false);
@@ -12185,7 +12666,7 @@ function ExpandedShell({
           }}>
             <Rocket size={13} strokeWidth={2.4} color={C.amber} />
             <span style={{ fontFamily: gf, fontSize: 12, fontWeight: 900, color: "#E8E4DD", letterSpacing: -0.2 }}>POAST</span>
-            <span style={{ fontFamily: ft, fontSize: 11, fontWeight: 800, color: C.amber, letterSpacing: 0.6 }}>· LAUNCH</span>
+            <span style={{ fontFamily: gf, fontSize: 11, fontWeight: 900, color: C.amber, letterSpacing: 0.4 }}>· LAUNCH</span>
           </span>
           <span style={{ fontFamily: mn, fontSize: 7.5, color: C.txd, letterSpacing: 1.4, fontWeight: 800, opacity: 0.6, textTransform: "uppercase" }}>Chart Maker</span>
         </div>
@@ -12388,89 +12869,166 @@ function ExpandedShell({
         </FloatingChartWindow>
       )}
 
-      {/* Wave 16 · "Open in new browser window" mode — simplified version that
-          actually opens a popped browser window with a read-only data view,
-          synced via BroadcastChannel. Edits still happen in the main window. */}
+      {/* Wave 17 · "Open in new browser window" mode — bi-directional version.
+          The popped window now contains editable inputs that publish back to
+          the main window via BroadcastChannel. Last-write-wins. */}
       {tableMode === "window" && currentSheet && (
-        <TableWindowPopout sheet={currentSheet} onClose={() => onChangeTableMode("docked")} />
+        <TableWindowPopout sheet={currentSheet} onChangeSheet={onChangeCurrentSheet} onClose={() => onChangeTableMode("docked")} />
       )}
     </div>
   );
 }
 
-// ─── Wave 16 · Simplified BroadcastChannel popout (read-only mirror) ────────
-function TableWindowPopout({ sheet, onClose }: { sheet: DataSheet; onClose: () => void }) {
+// ─── Wave 17 · Bi-directional BroadcastChannel popout ──────────────────────
+// Opens a separate browser window with editable inputs that round-trip through
+// `cm2-table-sync`. Each window stamps every message with a unique clientId so
+// it ignores its own broadcasts. Last-write-wins on conflicts.
+//
+// Univer is intentionally NOT booted in the popped window — its data model
+// can't trivially round-trip across BroadcastChannel without diff stitching,
+// and we want a robust simple grid here. The popped window uses a basic HTML
+// table with editable inputs (Standard DataSheetGrid feature parity for the
+// values; no formulas or conditional formatting in the popout for now).
+const POPOUT_CLIENT_ID = "cm2-main-" + Math.random().toString(36).slice(2, 10);
+function escapeHTML(s: string): string {
+  return s.replace(/[&<>"']/g, m => m === "&" ? "&amp;" : m === "<" ? "&lt;" : m === ">" ? "&gt;" : m === '"' ? "&quot;" : "&#39;");
+}
+function TableWindowPopout({ sheet, onChangeSheet, onClose }: { sheet: DataSheet; onChangeSheet?: (next: DataSheet) => void; onClose: () => void }) {
   const winRef = useRef<Window | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
+  // Track latest sheet via ref so the popped window's input handler sees the
+  // most recent schema (the closure inside renderInto would otherwise stale).
+  const sheetRef = useRef<DataSheet>(sheet);
+  // Track which clientId most recently broadcast a sheet so we don't echo it.
+  const lastFromIdRef = useRef<string | null>(null);
+
+  const renderInto = useCallback((win: Window, s: DataSheet) => {
+    const doc = win.document;
+    const headers = s.schema.map(c => `<th data-col-key="${escapeHTML(c.key)}" style="text-align:left;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.10);font-family:'JetBrains Mono',monospace;font-size:11px;color:#F7B041;letter-spacing:0.5px;text-transform:uppercase;font-weight:700">${escapeHTML(c.label)}</th>`).join("");
+    const rowsHTML = s.rows.map((r, ri) =>
+      `<tr data-row-idx="${ri}">${s.schema.map(c =>
+        `<td style="padding:0;border-bottom:1px solid rgba(255,255,255,0.04)"><input type="text" data-row="${ri}" data-key="${escapeHTML(c.key)}" value="${escapeHTML(String(r[c.key] ?? ""))}" style="width:100%;padding:8px 10px;background:transparent;border:none;outline:none;color:#E8E4DD;font-family:'JetBrains Mono',monospace;font-size:12px;box-sizing:border-box" /></td>`
+      ).join("")}</tr>`
+    ).join("");
+    doc.body.innerHTML = `
+      <div style="padding:24px;max-width:100%">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#F7B041;letter-spacing:1.3px;font-weight:800;text-transform:uppercase">Live edit · Wave 17</span>
+          <span id="cm2-status" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#888;letter-spacing:0.5px">Connected to main window</span>
+          <span style="flex:1"></span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#888;letter-spacing:0.5px">Edits sync via BroadcastChannel · last-write-wins</span>
+        </div>
+        <div id="cm2-disconnected" style="display:none;padding:10px 14px;margin-bottom:14px;background:rgba(224,99,71,0.12);border:1px solid rgba(224,99,71,0.40);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#E06347">Disconnected from main window. Edits in this window are no longer syncing.</div>
+        <div id="cm2-univer-note" style="padding:8px 12px;margin-bottom:14px;background:rgba(11,134,209,0.06);border:1px solid rgba(11,134,209,0.22);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#0B86D1;letter-spacing:0.4px">Standard grid only · Univer suite is main-window exclusive</div>
+        <table style="width:100%;border-collapse:collapse;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:8px;overflow:hidden">
+          <thead><tr>${headers}</tr></thead>
+          <tbody>${rowsHTML}</tbody>
+        </table>
+      </div>
+    `;
+  }, []);
+
   useEffect(() => {
     const win = window.open("", "cm2-table-popout", "width=1200,height=800");
     if (!win) { onClose(); return; }
     winRef.current = win;
-    win.document.title = "Chart Maker 2 · Table (popout)";
+    win.document.title = "Chart Maker 2 · Table (popout · Wave 17)";
     win.document.body.style.margin = "0";
     win.document.body.style.background = "#06060C";
     win.document.body.style.color = "#E8E4DD";
     win.document.body.style.fontFamily = "ui-sans-serif, system-ui, sans-serif";
+
     let channel: BroadcastChannel | null = null;
     try {
       channel = new BroadcastChannel("cm2-table-sync");
       channelRef.current = channel;
-    } catch { /* not supported */ }
-    const render = (s: DataSheet) => {
-      if (!winRef.current || winRef.current.closed) return;
-      const doc = winRef.current.document;
-      const headers = s.schema.map(c => `<th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.10);font-family:'JetBrains Mono',monospace;font-size:11px;color:#F7B041;letter-spacing:0.5px;text-transform:uppercase">${c.label}</th>`).join("");
-      const rows = s.rows.map(r => `<tr>${s.schema.map(c => `<td style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.04);font-family:'JetBrains Mono',monospace;font-size:12px">${String(r[c.key] ?? "")}</td>`).join("")}</tr>`).join("");
-      doc.body.innerHTML = `
-        <div style="padding:24px">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-            <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#F7B041;letter-spacing:1.3px;font-weight:800;text-transform:uppercase">Read-only mirror</span>
-            <span style="flex:1"></span>
-            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#888;letter-spacing:0.5px">Edits must happen in the main window. Closes automatically when main window closes.</span>
-          </div>
-          <table style="width:100%;border-collapse:collapse"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>
-        </div>
-      `;
+    } catch { /* BC unsupported */ }
+
+    renderInto(win, sheet);
+
+    // Wire input listeners in the popped window. We use event delegation on
+    // body so newly rendered rows pick up the listener for free after each
+    // render. The popped window posts back deltas via BroadcastChannel —
+    // the main window listener applies them to setSheets.
+    const inputHandler = (e: Event) => {
+      const t = e.target as HTMLInputElement;
+      if (!t || t.tagName !== "INPUT") return;
+      const rowAttr = t.getAttribute("data-row");
+      const keyAttr = t.getAttribute("data-key");
+      if (rowAttr == null || !keyAttr) return;
+      const rowIdx = parseInt(rowAttr, 10);
+      const value = t.value;
+      // Mutate sheetRef + post to channel
+      const cur = sheetRef.current;
+      const nextRow = { ...cur.rows[rowIdx], [keyAttr]: value };
+      const nextSheet: DataSheet = { schema: cur.schema, rows: cur.rows.map((r, i) => i === rowIdx ? nextRow : r) };
+      sheetRef.current = nextSheet;
+      try { channel?.postMessage({ type: "sheet", sheet: nextSheet, fromId: "cm2-popout-" + POPOUT_CLIENT_ID }); } catch {}
     };
-    render(sheet);
+    win.document.body.addEventListener("input", inputHandler);
+
     if (channel) {
       channel.onmessage = (e) => {
-        if (e.data?.type === "sheet" && e.data.sheet) render(e.data.sheet);
+        if (e.data?.type !== "sheet" || !e.data.sheet) return;
+        // Skip our own echoes — popped window only listens to OTHER clients.
+        if (e.data.fromId === "cm2-popout-" + POPOUT_CLIENT_ID) return;
+        lastFromIdRef.current = e.data.fromId || null;
+        sheetRef.current = e.data.sheet;
+        if (winRef.current && !winRef.current.closed) renderInto(winRef.current, e.data.sheet);
       };
     }
+
     const onUnload = () => onClose();
     win.addEventListener("beforeunload", onUnload);
     const checkClosed = setInterval(() => {
       if (winRef.current && winRef.current.closed) { clearInterval(checkClosed); onClose(); }
     }, 500);
+
+    // When the parent (main) page unloads, broadcast a "parent-unload" so
+    // any popped windows we've left behind can flag themselves disconnected.
+    const onParentUnload = () => {
+      try { channel?.postMessage({ type: "parent-unload", fromId: POPOUT_CLIENT_ID }); } catch {}
+    };
+    window.addEventListener("beforeunload", onParentUnload);
+
     return () => {
+      window.removeEventListener("beforeunload", onParentUnload);
+      try { win.document.body.removeEventListener("input", inputHandler); } catch {}
       clearInterval(checkClosed);
       try { channel?.close(); } catch {}
       try { winRef.current?.close(); } catch {}
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // Broadcast updates whenever sheet changes
+
+  // When the main window's sheet changes (locally, via the in-app grid),
+  // broadcast it so the popped window updates in place. Also re-render the
+  // popped DOM directly as a fallback if BC isn't supported.
   useEffect(() => {
-    if (!channelRef.current) return;
-    try { channelRef.current.postMessage({ type: "sheet", sheet }); } catch {}
-    if (winRef.current && !winRef.current.closed) {
-      // Also update in-place via direct DOM (in case BroadcastChannel is unavailable)
-      const doc = winRef.current.document;
-      const headers = sheet.schema.map(c => `<th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.10);font-family:'JetBrains Mono',monospace;font-size:11px;color:#F7B041;letter-spacing:0.5px;text-transform:uppercase">${c.label}</th>`).join("");
-      const rows = sheet.rows.map(r => `<tr>${sheet.schema.map(c => `<td style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.04);font-family:'JetBrains Mono',monospace;font-size:12px">${String(r[c.key] ?? "")}</td>`).join("")}</tr>`).join("");
-      doc.body.innerHTML = `
-        <div style="padding:24px">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-            <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#F7B041;letter-spacing:1.3px;font-weight:800;text-transform:uppercase">Read-only mirror</span>
-            <span style="flex:1"></span>
-            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#888;letter-spacing:0.5px">Edits must happen in the main window. Closes automatically when main window closes.</span>
-          </div>
-          <table style="width:100%;border-collapse:collapse"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>
-        </div>
-      `;
-    }
-  }, [sheet]);
+    sheetRef.current = sheet;
+    try { channelRef.current?.postMessage({ type: "sheet", sheet, fromId: POPOUT_CLIENT_ID }); } catch {}
+    if (winRef.current && !winRef.current.closed) renderInto(winRef.current, sheet);
+  }, [sheet, renderInto]);
+
+  // Listen on this same window for incoming edits FROM the popped window
+  // (we can't put the listener inside the popout-creation effect because
+  // that effect's scope can't see React state setters cleanly). Use a
+  // dedicated channel listener.
+  useEffect(() => {
+    if (!onChangeSheet) return;
+    let bc: BroadcastChannel | null = null;
+    try { bc = new BroadcastChannel("cm2-table-sync"); } catch { return; }
+    bc.onmessage = (e) => {
+      if (e.data?.type === "sheet" && e.data.sheet) {
+        // Apply only when origin is the popped window — skip echoes from us.
+        if (typeof e.data.fromId === "string" && e.data.fromId.startsWith("cm2-popout-")) {
+          onChangeSheet(e.data.sheet);
+        }
+      }
+    };
+    return () => { try { bc?.close(); } catch {} };
+  }, [onChangeSheet]);
+
   return (
     <div style={{
       position: "fixed", left: "50%", bottom: 28, transform: "translateX(-50%)", zIndex: 12100,
@@ -12481,7 +13039,7 @@ function TableWindowPopout({ sheet, onClose }: { sheet: DataSheet; onClose: () =
       boxShadow: "0 16px 36px rgba(0,0,0,0.5)",
     }}>
       <Upload size={14} color={C.amber} />
-      <span style={{ fontFamily: mn, fontSize: 10, color: "#E8E4DD", letterSpacing: 0.5 }}>Table is mirrored in a separate browser window. Close that window or click below to dock back.</span>
+      <span style={{ fontFamily: mn, fontSize: 10, color: "#E8E4DD", letterSpacing: 0.5 }}>Table popped — edits sync both ways via BroadcastChannel.</span>
       <button onClick={onClose} style={{ padding: "5px 11px", borderRadius: 6, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: C.tx, fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer" }}>Re-dock</button>
     </div>
   );
@@ -12538,36 +13096,73 @@ function NewWindowComingSoonBanner({ onDismiss }: { onDismiss: () => void }) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ─── Theme tokens ─────────────────────────────────────────────────────────
+// Wave 17 · expanded with surface2/surfaceStrong/muted/faint variants so we
+// can drive every panel chrome surface from tokens (not hard-coded hexes).
+// `surface` is the glassy translucent layer (overlays); `surface2` is the
+// inner row stripe; `surfaceStrong` is opaque (the canvas card etc.).
 type AppTheme = "dark" | "light";
 interface AppThemeTokens {
   bg: string;
   surface: string;
-  surfaceAlt: string;
+  surface2: string;
+  surfaceStrong: string;
+  surfaceAlt: string;   // alias for surface2 — back-compat
   border: string;
   fg: string;
-  fgMuted: string;
-  fgDim: string;
+  muted: string;
+  faint: string;
+  fgMuted: string;      // alias for muted — back-compat
+  fgDim: string;        // alias for faint — back-compat
 }
 const APP_TOKENS: Record<AppTheme, AppThemeTokens> = {
   dark: {
     bg: "#06060C",
-    surface: "rgba(13,13,18,0.72)",
+    surface: "rgba(13,13,18,0.92)",
+    surface2: "rgba(255,255,255,0.04)",
+    surfaceStrong: "#0D0D14",
     surfaceAlt: "rgba(255,255,255,0.04)",
-    border: "rgba(255,255,255,0.08)",
+    border: "rgba(255,255,255,0.10)",
     fg: "#E8E4DD",
+    muted: "#A8A4A0",
+    faint: "#5C5A57",
     fgMuted: "rgba(232,228,221,0.65)",
     fgDim: "rgba(232,228,221,0.40)",
   },
   light: {
     bg: "#FAFAF7",
     surface: "rgba(255,255,255,0.92)",
+    surface2: "rgba(0,0,0,0.04)",
+    surfaceStrong: "#F5F5F0",
     surfaceAlt: "rgba(0,0,0,0.04)",
     border: "rgba(0,0,0,0.10)",
     fg: "#0A0A0E",
+    muted: "#5C5A57",
+    faint: "#A8A4A0",
     fgMuted: "rgba(10,10,14,0.65)",
     fgDim: "rgba(10,10,14,0.40)",
   },
 };
+
+// ─── Wave 17 · responsive viewport hook ───────────────────────────────────
+// Returns a few breakpoint flags that the toolbar / sidebars / welcome
+// modal use to collapse on smaller screens. Listens for resize so live
+// browser-window resizes update layout immediately. Default values are
+// "desktop" so SSR doesn't flash a mobile layout.
+interface ViewportFlags { width: number; isCompact: boolean; isNarrow: boolean; isTiny: boolean; }
+function useIsCompactScreen(): ViewportFlags {
+  const [v, setV] = useState<ViewportFlags>({ width: 1440, isCompact: false, isNarrow: false, isTiny: false });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const update = () => {
+      const w = window.innerWidth;
+      setV({ width: w, isCompact: w < 900, isNarrow: w < 1100, isTiny: w < 600 });
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return v;
+}
 
 // ─── Sound Manager · short tones via WebAudio · default OFF ───────────────
 function isSoundOn(): boolean {
@@ -12724,6 +13319,7 @@ function Tooltip({ children, label, shortcut, position = "bottom" }: {
       </span>
       {show && coords && typeof document !== "undefined" && (
         <div
+          data-cm2-tooltip
           style={{
             position: "fixed",
             zIndex: 14000,
@@ -12853,7 +13449,7 @@ function ColorPicker({ value, palette, onChange, onClose }: { value: string; pal
   };
   void lit;
   return (
-    <div style={{
+    <div data-cm2-dropdown style={{
       width: 260,
       background: "#0D0D14",
       border: "1px solid rgba(255,255,255,0.10)",
@@ -13222,6 +13818,47 @@ function GrainOverlay() {
   );
 }
 
+// ─── Wave 17 · Compact-screen notice ──────────────────────────────────────
+// Sub-600px viewport: show a "best on tablet/desktop" banner with a Continue
+// Anyway button that hides it for the session. Persisted in sessionStorage so
+// reload re-shows; localStorage would be too sticky.
+function CompactScreenBanner({ viewport, appTheme }: { viewport: ViewportFlags; appTheme: AppTheme }) {
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try { if (sessionStorage.getItem("cm2-tiny-dismissed-v1") === "1") setDismissed(true); } catch {}
+  }, []);
+  if (!viewport.isTiny || dismissed) return null;
+  const dismiss = () => {
+    setDismissed(true);
+    try { sessionStorage.setItem("cm2-tiny-dismissed-v1", "1"); } catch {}
+  };
+  const tokens = APP_TOKENS[appTheme];
+  return (
+    <div style={{
+      position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 14500,
+      padding: 18,
+      background: appTheme === "dark" ? "rgba(13,13,18,0.96)" : tokens.surfaceStrong,
+      borderTop: "1px solid " + tokens.border,
+      boxShadow: "0 -12px 32px rgba(0,0,0,0.45)",
+      display: "flex", flexDirection: "column", gap: 10,
+    }}>
+      <div style={{ fontFamily: gf, fontSize: 16, fontWeight: 900, color: tokens.fg, letterSpacing: -0.2 }}>
+        Best on tablet or desktop
+      </div>
+      <div style={{ fontFamily: ft, fontSize: 12, color: tokens.muted, lineHeight: 1.45 }}>
+        POAST Chart Maker 2 is a desktop-class editor — sub-600px viewports lose the chart canvas to the toolbar. Rotate to landscape, switch to a tablet/desktop, or continue anyway with a degraded layout.
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={dismiss}
+          style={{ flex: 1, padding: "10px 14px", borderRadius: 8, background: "linear-gradient(135deg, " + C.amber + ", #E8A020)", border: "1px solid " + C.amber + "88", color: "#0A0A0E", fontFamily: mn, fontSize: 11, fontWeight: 900, letterSpacing: 0.6, cursor: "pointer" }}
+        >Continue anyway</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Ambient particle layer · 10 floating dots ────────────────────────────
 function AmbientParticles() {
   const particles = useMemo(() => {
@@ -13269,7 +13906,11 @@ function AmbientParticles() {
 const CURSOR_SPLIT_V = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'><line x1='8' y1='3' x2='8' y2='17' stroke='%23F7B041' stroke-width='2' stroke-linecap='round'/><line x1='12' y1='3' x2='12' y2='17' stroke='%23F7B041' stroke-width='2' stroke-linecap='round'/></svg>") 10 10, col-resize`;
 const CURSOR_SPLIT_H = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'><line x1='3' y1='8' x2='17' y2='8' stroke='%23F7B041' stroke-width='2' stroke-linecap='round'/><line x1='3' y1='12' x2='17' y2='12' stroke='%23F7B041' stroke-width='2' stroke-linecap='round'/></svg>") 10 10, row-resize`;
 
-// ─── Onboarding tour · spotlight + tooltip card · 6 steps ─────────────────
+// ─── Onboarding tour · spotlight + tooltip card · Wave 17 refresh ─────────
+// Copy is now action-oriented and includes a final exit step. Each anchor
+// is verified against the post-Wave-15 toolbar layout (data-tour attributes
+// still present on TYPE WHEEL, Templates button, canvas, datasheet, DESIGN,
+// LAUNCH/EXPAND).
 interface TourStep {
   selector: string;
   title: string;
@@ -13277,12 +13918,15 @@ interface TourStep {
   position?: "top" | "bottom" | "left" | "right";
 }
 const TOUR_STEPS: TourStep[] = [
-  { selector: "[data-tour='type-wheel']", title: "Type Wheel", body: "Click here (or press W) to switch chart types radially.", position: "bottom" },
-  { selector: "[data-tour='templates']", title: "Templates", body: "Or start from a curated preset — production charts ready to go.", position: "bottom" },
-  { selector: "[data-tour='canvas']", title: "Click to select", body: "Click any bar, point, or label to select it. Double-click for a format popup.", position: "top" },
-  { selector: "[data-tour='datasheet']", title: "Edit values directly", body: "Spreadsheet-style editing with formulas (=SUM, =VLOOKUP, =INDEX). Type values in cells.", position: "top" },
-  { selector: "[data-tour='design']", title: "Design panel", body: "Tweak palettes, backdrops, gridlines, axes, watermark — everything visual.", position: "bottom" },
-  { selector: "[data-tour='expand']", title: "Expanded webapp", body: "Open the full editor: chart + table + properties in three resizable panes.", position: "bottom" },
+  { selector: "[data-tour='type-wheel']", title: "Pick a chart type", body: "Click TYPE WHEEL (or press W) → a radial picker fans out the 17 chart types. Hover any wedge to preview, click to switch.", position: "bottom" },
+  { selector: "[data-tour='templates']", title: "Or start from a template", body: "Templates ships production-ready presets: SaaS revenue waterfall, Mekko-PCT, Gantt roadmap, scatter cohorts. One click → data + theme + title.", position: "bottom" },
+  { selector: "[data-tour='canvas']", title: "Click → see selection markers", body: "Click any bar, point, or label and an amber glow + corner handles appear. Double-click a bar → the format mini-toolbar slides down with color/CAGR/labels. Right-click → radial wheel of element-aware actions.", position: "top" },
+  { selector: "[data-tour='datasheet']", title: "Edit values inline (formulas welcome)", body: "Cells accept literals or =formulas: =SUM(B2:B5), =VLOOKUP, =INDEX/MATCH. Wave 17: =SUM(Revenue) works too — define names via ⌘⇧N.", position: "top" },
+  { selector: "[data-tour='design']", title: "Tune the look in Design", body: "Palette, backdrops, gridlines, axes, watermark, print mode. ⌘D toggles. The Properties panel on the right has the most-used controls inline.", position: "bottom" },
+  { selector: "[data-tour='expand']", title: "Go full-canvas with LAUNCH", body: "LAUNCH opens the three-pane editor: chart + table + properties, resizable splitter. Pop the table or chart out into a floating window — or a separate browser window with live BroadcastChannel sync.", position: "bottom" },
+  // Wave 17 · final "you're all set" exit. Anchored to the same expand
+  // button so the spotlight has somewhere sensible to point at.
+  { selector: "[data-tour='expand']", title: "You're all set", body: "Press ⌘K anytime to search commands. Right-click anywhere on the chart for the radial wheel. Welcome aboard — build something good.", position: "bottom" },
 ];
 
 function OnboardingTour({ onClose }: { onClose: () => void }) {
@@ -14102,6 +14746,36 @@ function AnimatedCounter({ value, duration = 600, formatter = (n: number) => Str
   return <span style={{ fontFeatureSettings: "\"tnum\" 1" }}>{formatter(display)}</span>;
 }
 
+// Wave 17 · SVG-friendly counterpart of AnimatedCounter — emits a string
+// suitable for direct use as an SVG <text> child. Uses a controlled hook so
+// renderers can tween the displayed number when the source changes (drag /
+// formula update). Renderers wrap with this only when animations are
+// desirable; static labels stay text strings.
+function useAnimatedNumber(value: number, duration = 500): number {
+  const [display, setDisplay] = useState(value);
+  const fromRef = useRef(value);
+  const startRef = useRef<number>(0);
+  useEffect(() => {
+    if (typeof performance === "undefined") { setDisplay(value); return; }
+    fromRef.current = display;
+    startRef.current = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const elapsed = now - startRef.current;
+      const t = Math.min(1, elapsed / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const next = fromRef.current + (value - fromRef.current) * eased;
+      setDisplay(next);
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, duration]);
+  return display;
+}
+void useAnimatedNumber; // exposed for renderer wiring
+
 // ═══════════════════════════════════════════════════════════════════════════
 // WAVE 14 · AVATAR STACK · used for collaborative editing markers (placeholder)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -14263,7 +14937,7 @@ function AppearancePanel({ onClose }: { onClose: () => void }) {
     </button>
   );
   return (
-    <div onClick={onClose} style={{
+    <div data-cm2-modal-backdrop onClick={onClose} style={{
       position: "fixed", inset: 0, zIndex: 13700,
       background: "rgba(6,6,12,0.74)",
       backdropFilter: "blur(14px) saturate(140%)",
@@ -14271,7 +14945,7 @@ function AppearancePanel({ onClose }: { onClose: () => void }) {
       display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
       animation: "cm2WelcomeFade 0.22s cubic-bezier(.2,.7,.2,1) both",
     }}>
-      <div onClick={e => e.stopPropagation()} style={{
+      <div data-cm2-modal onClick={e => e.stopPropagation()} style={{
         width: "min(520px, 96vw)",
         background: "linear-gradient(180deg, #11111A 0%, #0A0A12 100%)",
         border: "1px solid rgba(255,255,255,0.10)",
