@@ -13,6 +13,7 @@ import {
   FileCode2, ArrowLeftRight, ArrowLeft, Square, Diamond, MinusSquare,
   ClipboardPaste, Sparkles, Type, Keyboard, X as XIcon,
   Palette, Lock, Unlock, Table, ChevronLeft, ChevronRight,
+  Maximize2, Minimize2, Settings, Image as ImageIcon, Columns2, Rows2,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1138,6 +1139,10 @@ type Annotation =
   | { id: string; kind: "refline"; value: number; label?: string; color?: string }
   | { id: string; kind: "cagr"; rowFrom: number; rowTo: number; seriesKey: string }
   | { id: string; kind: "diff"; rowFrom: number; rowTo: number; seriesKey: string }
+  // Wave 11 · series CAGR shown next to the last data point of a series
+  | { id: string; kind: "seriesCagr"; seriesKey: string }
+  // Wave 11 · total difference between column totals (vs same-series diff)
+  | { id: string; kind: "totalDiff"; rowFrom: number; rowTo: number }
   // Free-form text callout placed via the ANNOTATE tool. x/y are in
   // SVG viewBox coords so positions stay stable across re-renders.
   | { id: string; kind: "callout"; x: number; y: number; text: string; color?: string };
@@ -1149,9 +1154,9 @@ type PickMode = null | { kind: "cagr" | "diff"; bars: Array<{ rowIdx: number; ke
 type PlaceMode = null | { kind: "callout" };
 type OnPickBar = (rowIdx: number, key: string) => boolean; // returns true if pick consumed the click
 
-// Floating mini-toolbar selection · the click-to-select interaction that
-// makes think-cell feel intuitive. Selection lives at chart-maker level
-// so the toolbar can render on top of the SVG.
+// Floating mini-toolbar selection · LEGACY · kept for backwards
+// compatibility with the old FloatingMiniToolbar fallback. The new
+// SelectedElement model below drives the think-cell-style selection.
 interface BarSelection {
   kind: "bar";
   rowIdx: number;
@@ -1163,6 +1168,27 @@ interface BarSelection {
 }
 type OnSelect = (sel: BarSelection | null) => void;
 
+// ─── Wave 11 · think-cell selection paradigm ───────────────────────────────
+// Click an element first → it shows a glow + handles. Then drag the top
+// midpoint handle to resize, or right-click / press M for the radial wheel.
+// Esc deselects, click-on-canvas deselects.
+// Wave 12 · anchorX/anchorY are CLIENT (viewport) coords captured at the
+// click site. They drive the SelectionPopup placement. Optional so older
+// callers that haven't been threaded through yet still type-check.
+type SelectedElement =
+  | { kind: "segment"; rowIdx: number; key: string; color: string; anchorX?: number; anchorY?: number }
+  | { kind: "point"; rowIdx: number; key: string; color: string; anchorX?: number; anchorY?: number }
+  | { kind: "label"; labelType: "segment" | "series" | "total" | "category"; rowIdx?: number; key?: string; anchorX?: number; anchorY?: number }
+  | { kind: "annotation"; id: string; anchorX?: number; anchorY?: number }
+  | { kind: "axis"; which: "x" | "y"; anchorX?: number; anchorY?: number }
+  | { kind: "legend"; key: string; anchorX?: number; anchorY?: number }
+  | { kind: "mekkoColumn"; rowIdx: number; anchorX?: number; anchorY?: number }
+  | { kind: "canvas"; anchorX?: number; anchorY?: number };
+type OnSelectElement = (sel: SelectedElement | null, anchor?: { x: number; y: number }) => void;
+
+// Position of the radial wheel — anchored at the cursor when opened.
+interface WheelAnchor { x: number; y: number; selected: SelectedElement | null }
+
 interface CatProps {
   sheet: DataSheet; cfg: ChartConfig; W: number; H: number;
   onUpdateRow?: OnUpdateRow;
@@ -1173,6 +1199,11 @@ interface CatProps {
   pickMode?: PickMode;
   onPickBar?: OnPickBar;
   onSelect?: OnSelect;
+  // Wave 11 · selection-driven UI
+  selected?: SelectedElement | null;
+  onSelectElement?: OnSelectElement;
+  // Open the radial wheel at the given client coords for the current selection.
+  onOpenWheel?: (clientX: number, clientY: number) => void;
   // Per-series color override (changes apply to the whole series).
   onSetSeriesColor?: (key: string, color: string | null) => void;
 }
@@ -1193,6 +1224,64 @@ function pointerToSvg(e: React.PointerEvent | PointerEvent, target: Element): { 
   return { x: t.x, y: t.y };
 }
 
+// ─── Wave 11 · selection handles ───────────────────────────────────────────
+// Render an amber glow box + corner / edge handles around a selected
+// element. The TOP MIDPOINT receives drag events for vertical resize.
+function SelectionHandles({
+  x, y, w, h, accent = C.amber, onTopHandleDown, onTopHandleMove, onTopHandleUp,
+  showCornerHandles = true, showEdgeHandles = true,
+}: {
+  x: number; y: number; w: number; h: number; accent?: string;
+  onTopHandleDown?: (e: React.PointerEvent) => void;
+  onTopHandleMove?: (e: React.PointerEvent) => void;
+  onTopHandleUp?: (e: React.PointerEvent) => void;
+  showCornerHandles?: boolean; showEdgeHandles?: boolean;
+}) {
+  const corners: Array<[number, number, string]> = [
+    [x, y, "nwse-resize"],
+    [x + w, y, "nesw-resize"],
+    [x, y + h, "nesw-resize"],
+    [x + w, y + h, "nwse-resize"],
+  ];
+  return (
+    <g>
+      <g pointerEvents="none">
+        <rect
+          x={x - 2} y={y - 2} width={w + 4} height={Math.max(0, h + 4)}
+          fill="none" stroke={accent} strokeWidth={2}
+          strokeDasharray="none"
+          filter="url(#cm2SelGlow)"
+        >
+          <animate attributeName="opacity" values="0.7;1.0;0.7" dur="1.6s" repeatCount="indefinite" />
+        </rect>
+        {showCornerHandles && corners.map(([hx, hy, cur], i) => (
+          <rect key={"c"+i} x={hx - 3.5} y={hy - 3.5} width={7} height={7}
+            fill="#FFFFFF" stroke={accent} strokeWidth={1.5} rx={1}
+            style={{ cursor: cur }} />
+        ))}
+        {showEdgeHandles && (
+          <rect
+            x={x + w / 2 - 3.5} y={y + h - 3.5} width={7} height={7}
+            fill="#FFFFFF" stroke={accent} strokeWidth={1.5} rx={1}
+            style={{ cursor: "ns-resize" }}
+          />
+        )}
+      </g>
+      {/* TOP HANDLE · interactive drag-to-resize */}
+      {showEdgeHandles && (
+        <rect
+          x={x + w / 2 - 5} y={y - 5} width={10} height={10}
+          fill={accent} stroke="#FFFFFF" strokeWidth={1.5} rx={2}
+          style={{ cursor: "ns-resize" }}
+          onPointerDown={onTopHandleDown}
+          onPointerMove={onTopHandleMove}
+          onPointerUp={onTopHandleUp}
+        />
+      )}
+    </g>
+  );
+}
+
 function getCategoricalSeries(sheet: DataSheet) {
   const catCol = sheet.schema[0];
   const seriesCols = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent");
@@ -1201,13 +1290,62 @@ function getCategoricalSeries(sheet: DataSheet) {
   return { categories, series };
 }
 
+// Watermark · POAST box logo behind the chart data. Position is stable
+// per-chart (hashed from W*H) so re-renders don't jitter the logo. Two
+// modes:
+//   centered → dead-center on the chart canvas
+//   random   → offset 10–30% from center toward bottom-right
+function Watermark({ cfg, W, H }: { cfg: ChartConfig; W: number; H: number }) {
+  if (!cfg.watermark || cfg.watermark === "off") return null;
+  const SIZE = 280;
+  let cx: number;
+  let cy: number;
+  if (cfg.watermark === "centered") {
+    cx = W / 2 - SIZE / 2;
+    cy = H / 2 - SIZE / 2;
+  } else {
+    // Stable hash → fraction in [0.10, 0.30] for both axes, biased toward
+    // bottom-right of the canvas so the data still reads on top.
+    const hash = (Math.sin(W * H * 0.000131) * 10000) % 1;
+    const offX = 0.10 + Math.abs(hash) * 0.20;
+    const offY = 0.10 + Math.abs((hash * 1.7) % 1) * 0.20;
+    cx = W * (0.5 + offX) - SIZE / 2;
+    cy = H * (0.5 + offY) - SIZE / 2;
+  }
+  return (
+    <image
+      href="/box-logo.png"
+      xlinkHref="/box-logo.png"
+      x={cx}
+      y={cy}
+      width={SIZE}
+      height={SIZE}
+      opacity={0.20}
+      style={{ pointerEvents: "none" }}
+    />
+  );
+}
+
 function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 48 }: { cfg: ChartConfig; W: number; H: number; children: React.ReactNode; leftPad?: number; rightPad?: number; topPad?: number; bottomPad?: number }) {
   void rightPad; void bottomPad;
   const cc = chartColors(cfg);
   const chartH = H - topPad - bottomPad;
   return (
     <g>
-      <rect x="0" y="0" width={W} height={H} fill="transparent" />
+      {/* Wave 11 · selection-glow filter + handle pulse animation */}
+      <defs>
+        <filter id="cm2SelGlow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="g" />
+          <feMerge><feMergeNode in="g" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <filter id="cm2SelGlowSoft" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="g" />
+          <feMerge><feMergeNode in="g" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
+      <rect x="0" y="0" width={W} height={H} fill="transparent" pointerEvents="none" />
+      {/* Wave 12 · watermark sits BEHIND title + data so it whispers, not shouts */}
+      <Watermark cfg={cfg} W={W} H={H} />
       <text x={leftPad} y="28" fill={cc.text} style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 900 }}>{cfg.title}</text>
       <text x={leftPad} y="48" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 1 }}>{cfg.subtitle.toUpperCase()}</text>
       {cfg.yLabel && (
@@ -1234,7 +1372,7 @@ function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad =
   );
 }
 
-function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, onShowElementMenu, annotations, pickMode, onPickBar, onSelect, onSetSeriesColor }: CatProps) {
+function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, onShowElementMenu, annotations, pickMode, onPickBar, onSelect, onSetSeriesColor, selected, onSelectElement, onOpenWheel }: CatProps) {
   void pickMode;
   const [hoverCat, setHoverCat] = useState<number | null>(null);
   const { categories, series } = getCategoricalSeries(sheet);
@@ -1269,7 +1407,9 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
   const groupW = chartW / categories.length;
   const barW = Math.min(groupW * 0.65, 80);
 
-  // Drag the top edge of any segment to set its value. Pointer y maps to a
+  // Wave 11 · CLICK-TO-SELECT then DRAG-HANDLE-TO-RESIZE.
+  // Click on body of a bar selects it only — drag is initiated via the
+  // TOP MIDPOINT HANDLE rendered when selected. Pointer y maps to a
   // cumulative value (counting from baseline up); subtract the segments
   // below to get this segment's height.
   const dragRef = useRef<{ rowIdx: number; key: string; cumBelow: number } | null>(null);
@@ -1279,14 +1419,24 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
     const localY = pt.y - topPad;
     return Math.max(0, tickMax * (1 - localY / chartH));
   };
-  const onDown = (rowIdx: number, key: string, cumBelow: number) => (e: React.PointerEvent) => {
+  const onBodyDown = (rowIdx: number, key: string) => (e: React.PointerEvent) => {
     if (!onUpdateRow) return;
     e.stopPropagation();
     if (onPickBar && onPickBar(rowIdx, key)) return;
-    // Open the floating mini-toolbar on left-click (anchored to pointer)
-    if (onSelect && e.button === 0) onSelect({ kind: "bar", rowIdx, key, color: palette[seriesKeys.indexOf(key) % palette.length], anchorX: e.clientX, anchorY: e.clientY });
+    if (e.button !== 0) return;
+    const color = palette[seriesKeys.indexOf(key) % palette.length];
+    if (onSelectElement) {
+      onSelectElement({ kind: "segment", rowIdx, key, color, anchorX: e.clientX, anchorY: e.clientY });
+    }
+    // Legacy hook for FloatingMiniToolbar (kept as fallback)
+    if (onSelect) onSelect({ kind: "bar", rowIdx, key, color, anchorX: e.clientX, anchorY: e.clientY });
+  };
+  const onTopHandleDown = (rowIdx: number, key: string, cumBelow: number) => (e: React.PointerEvent) => {
+    if (!onUpdateRow) return;
+    e.stopPropagation();
+    e.preventDefault();
     dragRef.current = { rowIdx, key, cumBelow };
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     const cv = cumValueAt(e);
     if (cv != null) onUpdateRow(rowIdx, { [key]: niceRound(Math.max(0, cv - cumBelow)) });
   };
@@ -1303,6 +1453,7 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
       {ticks.map(t => (
         <g key={t}>
           {cfg.showGridlines !== false && <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke={cc.grid} strokeWidth="1" />}
+          {cfg.showTickMarks && <line x1={leftPad - 4} x2={leftPad} y1={yOf(t)} y2={yOf(t)} stroke={cc.muted} strokeWidth="1.5" />}
           <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
@@ -1323,25 +1474,29 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
               cum += v;
               const key = seriesKeys[si];
               const isTop = cfg.roundedCorners && si === topSeriesIdx && v > 0;
+              const segX = leftPad + i * groupW + (groupW - barW) / 2;
+              const segH = Math.max(0, y0 - y1);
+              const isSelected = selected?.kind === "segment" && selected.rowIdx === i && selected.key === key;
               return (
                 <g key={si}>
                 <rect
-                  x={leftPad + i * groupW + (groupW - barW) / 2}
+                  x={segX}
                   y={y1}
                   width={barW}
-                  height={Math.max(0, y0 - y1)}
+                  height={segH}
                   rx={isTop ? 4 : 0}
                   ry={isTop ? 4 : 0}
                   fill={colorOf(seriesKeys[si], si)}
                   stroke={cfg.showBorders ? cc.barBorder : "none"}
                   strokeWidth={cfg.showBorders ? 1 : 0}
-                  onPointerDown={onDown(i, key, cumBelow)}
-                  onPointerMove={onMove}
-                  onPointerUp={onUp}
+                  onPointerDown={onBodyDown(i, key)}
                   onMouseEnter={() => setHoverCat(i)}
                   onMouseLeave={() => setHoverCat(h => h === i ? null : h)}
                   onContextMenu={e => {
                     e.preventDefault(); e.stopPropagation();
+                    const color = colorOf(seriesKeys[si], si);
+                    if (onSelectElement) onSelectElement({ kind: "segment", rowIdx: i, key, color, anchorX: e.clientX, anchorY: e.clientY });
+                    if (onOpenWheel) { onOpenWheel(e.clientX, e.clientY); return; }
                     if (onShowElementMenu) {
                       onShowElementMenu({ x: e.clientX, y: e.clientY, kind: "bar", rowIdx: i, seriesKey: key, currentColor: cfg.seriesColors?.[key] });
                     } else {
@@ -1353,7 +1508,7 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
                       ]);
                     }
                   }}
-                  style={{ cursor: onUpdateRow ? "ns-resize" : "default" }}
+                  style={{ cursor: onUpdateRow ? "pointer" : "default" }}
                 />
                 {cfg.showSegmentLabels && (y0 - y1) > 14 && barW > 20 && (
                   <text
@@ -1364,10 +1519,18 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
                     style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 800, pointerEvents: "none" }}
                   >{fmtVal(v, cfg.numFmt)}</text>
                 )}
+                {isSelected && (
+                  <SelectionHandles
+                    x={segX} y={y1} w={barW} h={segH}
+                    onTopHandleDown={onTopHandleDown(i, key, cumBelow)}
+                    onTopHandleMove={onMove}
+                    onTopHandleUp={onUp}
+                  />
+                )}
               </g>
               );
             })}
-            <text x={leftPad + i * groupW + groupW / 2} y={yOf(totals[i]) - 6} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, pointerEvents: "none" }}>{fmtVal(totals[i], cfg.numFmt)}</text>
+            {cfg.showTotalLabels !== false && <text x={leftPad + i * groupW + groupW / 2} y={yOf(totals[i]) - 6} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, pointerEvents: "none" }}>{fmtVal(totals[i], cfg.numFmt)}</text>}
             {editingCat === i ? (
               <foreignObject x={leftPad + i * groupW + 6} y={chartH + 8} width={groupW - 12} height={26}>
                 <input
@@ -1435,6 +1598,26 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
           const cx = leftPad + rowIdx * groupW + groupW / 2;
           return { x: cx, y: yOf(cum), value: Number(sheet.rows[rowIdx]?.[key] ?? 0) };
         }}
+        getColumnTop={(rowIdx) => {
+          const cx = leftPad + rowIdx * groupW + groupW / 2;
+          return { x: cx, y: yOf(totals[rowIdx]), total: totals[rowIdx] };
+        }}
+        getSeriesEndPoint={(key) => {
+          const si = seriesKeys.indexOf(key);
+          if (si < 0) return null;
+          const lastIdx = sheet.rows.length - 1;
+          if (lastIdx < 0) return null;
+          let cum = 0;
+          for (const k of seriesKeys) {
+            const v = Number(sheet.rows[lastIdx]?.[k] ?? 0);
+            cum += v;
+            if (k === key) break;
+          }
+          const first = Number(sheet.rows[0]?.[key] ?? 0);
+          const last = Number(sheet.rows[lastIdx]?.[key] ?? 0);
+          const cx = leftPad + lastIdx * groupW + groupW / 2;
+          return { x: cx, y: yOf(cum), first, last, steps: lastIdx, color: colorOf(key, si) };
+        }}
         chartW={W - leftPad - rightPad}
         chartH={chartH}
         leftPad={leftPad}
@@ -1447,7 +1630,7 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
   );
 }
 
-function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, onShowElementMenu, annotations, pickMode, onPickBar, onSelect, onSetSeriesColor }: CatProps) {
+function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, onShowElementMenu, annotations, pickMode, onPickBar, onSelect, onSetSeriesColor, selected, onSelectElement, onOpenWheel }: CatProps) {
   const { categories, series } = getCategoricalSeries(sheet);
   const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
   const catKey = sheet.schema[0]?.key || "category";
@@ -1488,14 +1671,22 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
     return Math.max(0, tickMax * (1 - localY / chartH));
   };
   const dragRef = useRef<{ rowIdx: number; key: string } | null>(null);
-  const onDown = (rowIdx: number, key: string) => (e: React.PointerEvent) => {
+  // Click body = select; the TOP HANDLE (rendered when selected) drives drag.
+  const onBodyDown = (rowIdx: number, key: string) => (e: React.PointerEvent) => {
     if (!onUpdateRow) return;
     e.stopPropagation();
-    // If we're in CAGR/diff pick mode, treat click as a pick + bail out of drag
     if (onPickBar && onPickBar(rowIdx, key)) return;
-    if (onSelect && e.button === 0) onSelect({ kind: "bar", rowIdx, key, color: palette[seriesKeys.indexOf(key) % palette.length], anchorX: e.clientX, anchorY: e.clientY });
+    if (e.button !== 0) return;
+    const color = palette[seriesKeys.indexOf(key) % palette.length];
+    if (onSelectElement) onSelectElement({ kind: "segment", rowIdx, key, color, anchorX: e.clientX, anchorY: e.clientY });
+    if (onSelect) onSelect({ kind: "bar", rowIdx, key, color, anchorX: e.clientX, anchorY: e.clientY });
+  };
+  const onTopHandleDown = (rowIdx: number, key: string) => (e: React.PointerEvent) => {
+    if (!onUpdateRow) return;
+    e.stopPropagation();
+    e.preventDefault();
     dragRef.current = { rowIdx, key };
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     const v = valueAtPointer(e);
     if (v != null) onUpdateRow(rowIdx, { [key]: niceRound(v) });
   };
@@ -1522,6 +1713,7 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
             const x = leftPad + i * groupW + innerPad + si * barW;
             const y = yOf(v);
             const key = seriesKeys[si];
+            const isSel = selected?.kind === "segment" && selected.rowIdx === i && selected.key === key;
             return (
               <g key={si}>
                 <rect
@@ -1529,11 +1721,12 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
                   rx={cfg.roundedCorners ? 4 : 0}
                   ry={cfg.roundedCorners ? 4 : 0}
                   fill={colorOf(seriesKeys[si], si)}
-                  onPointerDown={onDown(i, key)}
-                  onPointerMove={onMove}
-                  onPointerUp={onUp}
+                  onPointerDown={onBodyDown(i, key)}
                   onContextMenu={e => {
                     e.preventDefault(); e.stopPropagation();
+                    const color = colorOf(seriesKeys[si], si);
+                    if (onSelectElement) onSelectElement({ kind: "segment", rowIdx: i, key, color, anchorX: e.clientX, anchorY: e.clientY });
+                    if (onOpenWheel) { onOpenWheel(e.clientX, e.clientY); return; }
                     if (onShowElementMenu) {
                       onShowElementMenu({ x: e.clientX, y: e.clientY, kind: "bar", rowIdx: i, seriesKey: key, currentColor: cfg.seriesColors?.[key] });
                     } else {
@@ -1546,9 +1739,17 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
                       ]);
                     }
                   }}
-                  style={{ cursor: onUpdateRow ? "ns-resize" : "default" }}
+                  style={{ cursor: onUpdateRow ? "pointer" : "default" }}
                 />
                 <text x={x + barW / 2} y={y - 4} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>{fmtVal(v, cfg.numFmt)}</text>
+                {isSel && (
+                  <SelectionHandles
+                    x={x + 1} y={y} w={barW - 2} h={chartH - y}
+                    onTopHandleDown={onTopHandleDown(i, key)}
+                    onTopHandleMove={onMove}
+                    onTopHandleUp={onUp}
+                  />
+                )}
               </g>
             );
           })}
@@ -1583,6 +1784,24 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
           const cx = leftPad + rowIdx * groupW + innerPad + si * barW + barW / 2;
           const cy = yOf(Number(sheet.rows[rowIdx]?.[key] ?? 0));
           return { x: cx, y: cy, value: Number(sheet.rows[rowIdx]?.[key] ?? 0) };
+        }}
+        getColumnTop={(rowIdx) => {
+          // For clustered, "column total" = sum of all series values for the row;
+          // anchor x = group center, y at sum of values
+          const total = seriesKeys.reduce((a, k) => a + (Number(sheet.rows[rowIdx]?.[k]) || 0), 0);
+          const cx = leftPad + rowIdx * groupW + groupW / 2;
+          const maxAtRow = Math.max(0, ...seriesKeys.map(k => Number(sheet.rows[rowIdx]?.[k]) || 0));
+          return { x: cx, y: yOf(maxAtRow), total };
+        }}
+        getSeriesEndPoint={(key) => {
+          const si = seriesKeys.indexOf(key);
+          if (si < 0) return null;
+          const lastIdx = sheet.rows.length - 1;
+          if (lastIdx < 0) return null;
+          const cx = leftPad + lastIdx * groupW + innerPad + si * barW + barW / 2;
+          const last = Number(sheet.rows[lastIdx]?.[key] ?? 0);
+          const first = Number(sheet.rows[0]?.[key] ?? 0);
+          return { x: cx, y: yOf(last), first, last, steps: lastIdx, color: colorOf(key, si) };
         }}
         chartW={W - leftPad - rightPad}
         chartH={chartH}
@@ -1660,7 +1879,7 @@ function PercentColumn({ sheet, cfg, W, H }: CatProps) {
   );
 }
 
-function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, pct100 = false, onUpdateRow }: CatProps & { fill?: boolean; stacked?: boolean; pct100?: boolean }) {
+function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, pct100 = false, onUpdateRow, selected, onSelectElement, onOpenWheel }: CatProps & { fill?: boolean; stacked?: boolean; pct100?: boolean }) {
   const { categories, series: rawSeries } = getCategoricalSeries(sheet);
   // Normalize to 100% per column when pct100 is set
   const series = pct100
@@ -1752,11 +1971,19 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, pct100 =
         return renderedSeries.map((s, si) => {
           const path = s.cumValues.map((v, i) => `${i === 0 ? "M" : "L"} ${xOf(i)} ${yOf(v)}`).join(" ");
           const key = seriesKeys[si];
+          const lineColor = colorOf(key, si);
+          // Wave 11 · point click-to-select; drag only when the point is
+          // already selected (so casual clicks don't slam values around).
           const onDown = (rowIdx: number) => (e: React.PointerEvent) => {
             if (!onUpdateRow) return;
             e.stopPropagation();
+            const isSel = selected?.kind === "point" && selected.rowIdx === rowIdx && selected.key === key;
+            if (!isSel) {
+              if (onSelectElement) onSelectElement({ kind: "point", rowIdx, key, color: lineColor, anchorX: e.clientX, anchorY: e.clientY });
+              return; // don't drag yet — first click just selects
+            }
             dragRefHack.current = { rowIdx, key };
-            (e.target as Element).setPointerCapture?.(e.pointerId);
+            (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
           };
           const onMove = (e: React.PointerEvent) => {
             const ds = dragRefHack.current;
@@ -1773,25 +2000,38 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, pct100 =
             }
           };
           const onUp = () => { dragRefHack.current = null; };
-          const lineColor = colorOf(key, si);
           const lastIdx = s.cumValues.length - 1;
           const lastVal = s.cumValues[lastIdx];
           return (
             <g key={si}>
               <path d={path} fill="none" stroke={lineColor} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
-              {s.cumValues.map((v, i) => (
-                <circle
-                  key={i}
-                  cx={xOf(i)} cy={yOf(v)} r="6"
-                  fill={cc.barBorder}
-                  stroke={lineColor}
-                  strokeWidth="2"
-                  onPointerDown={onDown(i)}
-                  onPointerMove={onMove}
-                  onPointerUp={onUp}
-                  style={{ cursor: onUpdateRow ? "ns-resize" : "default" }}
-                />
-              ))}
+              {s.cumValues.map((v, i) => {
+                const ptSel = selected?.kind === "point" && selected.rowIdx === i && selected.key === key;
+                return (
+                  <g key={i}>
+                    {ptSel && (
+                      <circle cx={xOf(i)} cy={yOf(v)} r={11} fill="none" stroke={C.amber} strokeWidth={2} filter="url(#cm2SelGlow)">
+                        <animate attributeName="opacity" values="0.7;1.0;0.7" dur="1.6s" repeatCount="indefinite" />
+                      </circle>
+                    )}
+                    <circle
+                      cx={xOf(i)} cy={yOf(v)} r="6"
+                      fill={cc.barBorder}
+                      stroke={ptSel ? C.amber : lineColor}
+                      strokeWidth={ptSel ? 2.6 : 2}
+                      onPointerDown={onDown(i)}
+                      onPointerMove={onMove}
+                      onPointerUp={onUp}
+                      onContextMenu={e => {
+                        e.preventDefault(); e.stopPropagation();
+                        if (onSelectElement) onSelectElement({ kind: "point", rowIdx: i, key, color: lineColor, anchorX: e.clientX, anchorY: e.clientY });
+                        if (onOpenWheel) onOpenWheel(e.clientX, e.clientY);
+                      }}
+                      style={{ cursor: onUpdateRow ? "pointer" : "default" }}
+                    />
+                  </g>
+                );
+              })}
               {/* Data point markers */}
               {cfg.markerShape && cfg.markerShape !== "none" && s.cumValues.map((v, i) => {
                 const mx = xOf(i), my = yOf(v);
@@ -2106,10 +2346,14 @@ function CalloutNode({ annot, onMove, onEdit, onDelete }: {
 // Annotations layer · reference lines, CAGR arrows, and Δ markers.
 // `getBarTop(rowIdx, key)` resolves to {x, y, value} of the targeted bar's
 // top in chart-local coords (after the ChartFrame translate).
-function AnnotationLayer({ annotations, getBarTop, chartW, chartH, leftPad, topPad, tickMax, yOf, fmt }: {
+function AnnotationLayer({ annotations, getBarTop, getColumnTop, getSeriesEndPoint, chartW, chartH, leftPad, topPad, tickMax, yOf, fmt }: {
   annotations: Annotation[];
   getX?: (rowIdx: number) => number;
   getBarTop: (rowIdx: number, key: string) => { x: number; y: number; value: number };
+  // Optional · column total top (used by `totalDiff` annotations)
+  getColumnTop?: (rowIdx: number) => { x: number; y: number; total: number };
+  // Optional · last point of a series (used by `seriesCagr` annotations)
+  getSeriesEndPoint?: (seriesKey: string) => { x: number; y: number; first: number; last: number; steps: number; color: string } | null;
   chartW: number;
   chartH: number;
   leftPad: number;
@@ -2166,6 +2410,39 @@ function AnnotationLayer({ annotations, getBarTop, chartW, chartH, leftPad, topP
             </g>
           );
         }
+        if (a.kind === "totalDiff" && getColumnTop) {
+          const A = getColumnTop(a.rowFrom);
+          const B = getColumnTop(a.rowTo);
+          if (!A || !B) return null;
+          const arcTop = Math.min(A.y, B.y) - 36;
+          const midX = (A.x + B.x) / 2;
+          const path = `M ${A.x} ${A.y} Q ${midX} ${arcTop} ${B.x} ${B.y}`;
+          const delta = B.total - A.total;
+          const pct = A.total !== 0 ? (delta / A.total) * 100 : 0;
+          const labelText = "Σ " + (delta >= 0 ? "+" : "") + fmtVal(delta, fmt) + " (" + (pct >= 0 ? "+" : "") + pct.toFixed(0) + "%)";
+          const labelW = labelText.length * 6.5 + 18;
+          return (
+            <g key={a.id}>
+              <path d={path} fill="none" stroke="#2EAD8E" strokeWidth="2" strokeDasharray="6 4" />
+              <polygon points={`${B.x - 5},${B.y - 10} ${B.x + 5},${B.y - 10} ${B.x},${B.y - 1}`} fill="#2EAD8E" />
+              <rect x={midX - labelW / 2} y={arcTop - 12} width={labelW} height="20" rx="4" fill="#0A0A0E" stroke="#2EAD8E" strokeWidth="1" />
+              <text x={midX} y={arcTop + 2} textAnchor="middle" fill="#2EAD8E" style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 800, letterSpacing: 0.3 }}>{labelText}</text>
+            </g>
+          );
+        }
+        if (a.kind === "seriesCagr" && getSeriesEndPoint) {
+          const ep = getSeriesEndPoint(a.seriesKey);
+          if (!ep || ep.first <= 0 || ep.last <= 0 || ep.steps <= 0) return null;
+          const pct = cagrPct(ep.first, ep.last, ep.steps);
+          const txt = "CAGR " + (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%";
+          const w = txt.length * 6.6 + 14;
+          return (
+            <g key={a.id}>
+              <rect x={ep.x + 8} y={ep.y - 22} width={w} height="20" rx="4" fill="#0A0A0E" stroke={ep.color} strokeWidth="1" />
+              <text x={ep.x + 8 + w / 2} y={ep.y - 8} textAnchor="middle" fill={ep.color} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 800, letterSpacing: 0.3 }}>{txt}</text>
+            </g>
+          );
+        }
         return null;
       })}
     </g>
@@ -2175,7 +2452,7 @@ function AnnotationLayer({ annotations, getBarTop, chartW, chartH, leftPad, topP
 // Zebra BI-flavored variance chart · AC bars with PY reference markers and
 // auto green/red ΔV labels. Schema is (Category, AC, PY); falls back to
 // the first two number columns if those exact keys are missing.
-function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow, onShowElementMenu }: CatProps) {
+function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow, onShowElementMenu, selected, onSelectElement, onOpenWheel }: CatProps) {
   void onShowMenu; void onDeleteRow;
   const palette = THEMES[cfg.theme].colors;
   const cc = chartColors(cfg);
@@ -2210,7 +2487,7 @@ function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow, o
   const groupW = chartW / rows.length;
   const barW = Math.min(groupW * 0.55, 70);
 
-  // Drag the AC bar top to set AC value
+  // Wave 11 · click-to-select then drag the top handle.
   const dragRef = useRef<{ rowIdx: number } | null>(null);
   const valueAt = (e: React.PointerEvent): number | null => {
     const pt = pointerToSvg(e, e.currentTarget);
@@ -2218,11 +2495,18 @@ function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow, o
     const localY = pt.y - topPad;
     return Math.max(0, tickMax * (1 - localY / chartH));
   };
-  const onDown = (rowIdx: number) => (e: React.PointerEvent) => {
+  const onBodyDown = (rowIdx: number) => (e: React.PointerEvent) => {
     if (!onUpdateRow) return;
     e.stopPropagation();
+    if (e.button !== 0) return;
+    if (onSelectElement) onSelectElement({ kind: "segment", rowIdx, key: acCol.key, color: acColor, anchorX: e.clientX, anchorY: e.clientY });
+  };
+  const onTopHandleDown = (rowIdx: number) => (e: React.PointerEvent) => {
+    if (!onUpdateRow) return;
+    e.stopPropagation();
+    e.preventDefault();
     dragRef.current = { rowIdx };
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     const v = valueAt(e);
     if (v != null) onUpdateRow(rowIdx, { [acCol.key]: niceRound(v) });
   };
@@ -2256,17 +2540,25 @@ function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow, o
             <rect
               x={cx} y={yAc} width={barW} height={chartH - yAc}
               fill={acColor}
-              onPointerDown={onDown(i)}
-              onPointerMove={onMove}
-              onPointerUp={onUp}
+              onPointerDown={onBodyDown(i)}
               onContextMenu={e => {
                 e.preventDefault(); e.stopPropagation();
+                if (onSelectElement) onSelectElement({ kind: "segment", rowIdx: i, key: acCol.key, color: acColor, anchorX: e.clientX, anchorY: e.clientY });
+                if (onOpenWheel) { onOpenWheel(e.clientX, e.clientY); return; }
                 if (onShowElementMenu) {
                   onShowElementMenu({ x: e.clientX, y: e.clientY, kind: "bar", rowIdx: i, seriesKey: acCol.key, currentColor: cfg.seriesColors?.[acCol.key] });
                 }
               }}
-              style={{ cursor: onUpdateRow ? "ns-resize" : "default" }}
+              style={{ cursor: onUpdateRow ? "pointer" : "default" }}
             />
+            {selected?.kind === "segment" && selected.rowIdx === i && selected.key === acCol.key && (
+              <SelectionHandles
+                x={cx} y={yAc} w={barW} h={chartH - yAc}
+                onTopHandleDown={onTopHandleDown(i)}
+                onTopHandleMove={onMove}
+                onTopHandleUp={onUp}
+              />
+            )}
             {/* PY reference bracket — small horizontal mark on top of where PY would land */}
             <line x1={cx - 3} x2={cx + barW + 3} y1={yPy} y2={yPy} stroke={pyColor} strokeWidth="2" strokeDasharray="3 3" />
             <text x={cx + barW + 6} y={yPy + 3} fill={pyColor} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>PY {fmtVal(r.py, cfg.numFmt)}</text>
@@ -2497,7 +2789,13 @@ interface GanttOpts {
 
 // ─── Mekko % ─────────────────────────────────────────────────────────────────
 // Variable-width columns (width ∝ `weight` col), stacked-% bars within each.
-function MekkoPercent({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig; W: number; H: number }) {
+function MekkoPercent({ sheet, cfg, W, H, onUpdateRow, selected, onSelectElement, onOpenWheel }: {
+  sheet: DataSheet; cfg: ChartConfig; W: number; H: number;
+  onUpdateRow?: OnUpdateRow;
+  selected?: SelectedElement | null;
+  onSelectElement?: OnSelectElement;
+  onOpenWheel?: (clientX: number, clientY: number) => void;
+}) {
   const { categories, series } = getCategoricalSeries(sheet);
   const palette = THEMES[cfg.theme].colors;
   const cc = chartColors(cfg);
@@ -2523,6 +2821,24 @@ function MekkoPercent({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig
     return { cat, x, colW, i };
   });
 
+  // Wave 11 · drag the right edge of a column to resize its weight.
+  const colDrag = useRef<{ rowIdx: number; startX: number; startW: number; oldWeight: number } | null>(null);
+  const onColDown = (rowIdx: number, startX: number, startW: number) => (e: React.PointerEvent) => {
+    if (!onUpdateRow) return;
+    e.stopPropagation(); e.preventDefault();
+    colDrag.current = { rowIdx, startX, startW, oldWeight: weights[rowIdx] };
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onColMove = (e: React.PointerEvent) => {
+    const ds = colDrag.current; if (!ds || !onUpdateRow) return;
+    const pt = pointerToSvg(e, e.currentTarget); if (!pt) return;
+    const newPxW = Math.max(8, pt.x - ds.startX);
+    // Maintain proportionality vs total chart width
+    const ratio = newPxW / Math.max(1, ds.startW);
+    onUpdateRow(ds.rowIdx, { [weightKey]: niceRound(Math.max(0.1, ds.oldWeight * ratio)) });
+  };
+  const onColUp = () => { colDrag.current = null; };
+
   return (
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
       {ticks.map(t => (
@@ -2531,12 +2847,31 @@ function MekkoPercent({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig
           <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10 }}>{t}%</text>
         </g>
       ))}
+      {/* 100% indicator — top-of-chart cap line */}
+      {cfg.show100Indicator && (
+        <line x1={leftPad} x2={W - rightPad} y1={yOf(100)} y2={yOf(100)} stroke={C.amber} strokeWidth={1.5} strokeDasharray="4 3" opacity={0.65} />
+      )}
       {cols.map(({ cat, x, colW, i }) => {
         const total = series.reduce((a, s) => a + (s.values[i] ?? 0), 0) || 1;
         let cum = 0;
         const GAP = colW > 6 ? 2 : 0;
+        const isColSel = selected?.kind === "mekkoColumn" && selected.rowIdx === i;
         return (
           <g key={i}>
+            {/* Click-to-select column hitbox (under segments). */}
+            <rect x={x} y={0} width={colW} height={chartH} fill="transparent"
+              onPointerDown={e => {
+                if (e.button !== 0) return;
+                e.stopPropagation();
+                if (onSelectElement) onSelectElement({ kind: "mekkoColumn", rowIdx: i, anchorX: e.clientX, anchorY: e.clientY });
+              }}
+              onContextMenu={e => {
+                e.preventDefault(); e.stopPropagation();
+                if (onSelectElement) onSelectElement({ kind: "mekkoColumn", rowIdx: i, anchorX: e.clientX, anchorY: e.clientY });
+                if (onOpenWheel) onOpenWheel(e.clientX, e.clientY);
+              }}
+              style={{ cursor: "pointer" }}
+            />
             {series.map((s, si) => {
               const pct = ((s.values[i] ?? 0) / total) * 100;
               const y0 = yOf(cum);
@@ -2549,10 +2884,11 @@ function MekkoPercent({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig
                   <rect x={bx} y={y1} width={bw} height={Math.max(0, y0 - y1)}
                     fill={palette[si % palette.length]}
                     stroke={cfg.showBorders ? cc.barBorder : "none"}
-                    strokeWidth={cfg.showBorders ? 1 : 0} />
+                    strokeWidth={cfg.showBorders ? 1 : 0}
+                    pointerEvents="none" />
                   {(y0 - y1) > 16 && bw > 28 && (
                     <text x={bx + bw / 2} y={(y0 + y1) / 2 + 3} textAnchor="middle"
-                      fill={cc.onBar} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 800 }}>
+                      fill={cc.onBar} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 800, pointerEvents: "none" }}>
                       {Math.round(pct)}%
                     </text>
                   )}
@@ -2561,11 +2897,28 @@ function MekkoPercent({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig
             })}
             {/* Category label + weight % below the column */}
             <text x={x + colW / 2} y={chartH + 14} textAnchor="middle" fill={cc.muted}
-              style={{ fontFamily: fontSans, fontSize: 10, fontWeight: 700 }}>{cat}</text>
+              style={{ fontFamily: fontSans, fontSize: 10, fontWeight: 700, pointerEvents: "none" }}>{cat}</text>
             <text x={x + colW / 2} y={chartH + 28} textAnchor="middle" fill={cc.faint}
-              style={{ fontFamily: fontMono, fontSize: 9 }}>{Math.round((weights[i] / totalWeight) * 100)}%</text>
+              style={{ fontFamily: fontMono, fontSize: 9, pointerEvents: "none" }}>{Math.round((weights[i] / totalWeight) * 100)}%</text>
             {/* Column divider */}
-            {i > 0 && <line x1={x} x2={x} y1={0} y2={chartH} stroke={cc.gridStrong} strokeWidth="1" />}
+            {i > 0 && <line x1={x} x2={x} y1={0} y2={chartH} stroke={cc.gridStrong} strokeWidth="1" pointerEvents="none" />}
+            {/* Selection · column glow + right-edge resize handle */}
+            {isColSel && (
+              <>
+                <rect x={x - 1} y={-1} width={colW + 2} height={chartH + 2}
+                  fill="none" stroke={C.amber} strokeWidth={2} filter="url(#cm2SelGlow)" pointerEvents="none">
+                  <animate attributeName="opacity" values="0.7;1.0;0.7" dur="1.6s" repeatCount="indefinite" />
+                </rect>
+                <rect
+                  x={x + colW - 4} y={chartH / 2 - 12} width={8} height={24}
+                  fill={C.amber} stroke="#FFFFFF" strokeWidth={1.5} rx={2}
+                  style={{ cursor: "ew-resize" }}
+                  onPointerDown={onColDown(i, x, colW)}
+                  onPointerMove={onColMove}
+                  onPointerUp={onColUp}
+                />
+              </>
+            )}
           </g>
         );
       })}
@@ -2581,8 +2934,15 @@ function MekkoPercent({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig
 // Absolute Marimekko: column widths proportional to a weight column, bar
 // heights show absolute stacked values (not %). Y-axis is numeric, not %.
 // Same data schema as Mekko Pct (category, weight/Total, s1, s2, ...).
-function MekkoUnit({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig; W: number; H: number }) {
+function MekkoUnit({ sheet, cfg, W, H, onUpdateRow, selected, onSelectElement, onOpenWheel }: {
+  sheet: DataSheet; cfg: ChartConfig; W: number; H: number;
+  onUpdateRow?: OnUpdateRow;
+  selected?: SelectedElement | null;
+  onSelectElement?: OnSelectElement;
+  onOpenWheel?: (clientX: number, clientY: number) => void;
+}) {
   const { categories, series } = getCategoricalSeries(sheet);
+  void series;
   const palette = THEMES[cfg.theme].colors;
   const colorOf = (key: string, idx: number) => cfg.seriesColors?.[key] || palette[idx % palette.length];
   const cc = chartColors(cfg);
@@ -2610,6 +2970,23 @@ function MekkoUnit({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig; W
     return { cat, x, colW, i };
   });
 
+  // Wave 11 · column width drag (resizes weight)
+  const colDrag = useRef<{ rowIdx: number; startX: number; startW: number; oldWeight: number } | null>(null);
+  const onColDown = (rowIdx: number, startX: number, startW: number) => (e: React.PointerEvent) => {
+    if (!onUpdateRow) return;
+    e.stopPropagation(); e.preventDefault();
+    colDrag.current = { rowIdx, startX, startW, oldWeight: weights[rowIdx] };
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onColMove = (e: React.PointerEvent) => {
+    const ds = colDrag.current; if (!ds || !onUpdateRow) return;
+    const pt = pointerToSvg(e, e.currentTarget); if (!pt) return;
+    const newPxW = Math.max(8, pt.x - ds.startX);
+    const ratio = newPxW / Math.max(1, ds.startW);
+    onUpdateRow(ds.rowIdx, { [weightKey]: niceRound(Math.max(0.1, ds.oldWeight * ratio)) });
+  };
+  const onColUp = () => { colDrag.current = null; };
+
   return (
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
       {ticks.map(t => (
@@ -2621,8 +2998,22 @@ function MekkoUnit({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig; W
       {cols.map(({ cat, x, colW, i }) => {
         let cum = 0;
         const GAP = colW > 6 ? 2 : 0;
+        const isColSel = selected?.kind === "mekkoColumn" && selected.rowIdx === i;
         return (
           <g key={i}>
+            <rect x={x} y={0} width={colW} height={chartH} fill="transparent"
+              onPointerDown={e => {
+                if (e.button !== 0) return;
+                e.stopPropagation();
+                if (onSelectElement) onSelectElement({ kind: "mekkoColumn", rowIdx: i, anchorX: e.clientX, anchorY: e.clientY });
+              }}
+              onContextMenu={e => {
+                e.preventDefault(); e.stopPropagation();
+                if (onSelectElement) onSelectElement({ kind: "mekkoColumn", rowIdx: i, anchorX: e.clientX, anchorY: e.clientY });
+                if (onOpenWheel) onOpenWheel(e.clientX, e.clientY);
+              }}
+              style={{ cursor: "pointer" }}
+            />
             {seriesKeys.map((sk, si) => {
               const v = Number(sheet.rows[i]?.[sk]) || 0;
               const y0 = yOf(cum);
@@ -2635,7 +3026,8 @@ function MekkoUnit({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig; W
                   <rect x={bx} y={y1} width={bw} height={Math.max(0, y0 - y1)}
                     fill={colorOf(sk, si)}
                     stroke={cfg.showBorders ? cc.barBorder : "none"}
-                    strokeWidth={cfg.showBorders ? 1 : 0} />
+                    strokeWidth={cfg.showBorders ? 1 : 0}
+                    pointerEvents="none" />
                   {cfg.showSegmentLabels && (y0 - y1) > 14 && bw > 24 && (
                     <text x={bx + bw / 2} y={(y0 + y1) / 2 + 3} textAnchor="middle"
                       fill={cc.onBar} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 800, pointerEvents: "none" }}>
@@ -2646,10 +3038,26 @@ function MekkoUnit({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig; W
               );
             })}
             <text x={x + colW / 2} y={chartH + 14} textAnchor="middle" fill={cc.muted}
-              style={{ fontFamily: fontSans, fontSize: 10, fontWeight: 700 }}>{cat}</text>
+              style={{ fontFamily: fontSans, fontSize: 10, fontWeight: 700, pointerEvents: "none" }}>{cat}</text>
             <text x={x + colW / 2} y={chartH + 28} textAnchor="middle" fill={cc.faint}
-              style={{ fontFamily: fontMono, fontSize: 9 }}>{Math.round((weights[i] / totalWeight) * 100)}%</text>
-            {i > 0 && <line x1={x} x2={x} y1={0} y2={chartH} stroke={cc.gridStrong} strokeWidth="1" />}
+              style={{ fontFamily: fontMono, fontSize: 9, pointerEvents: "none" }}>{Math.round((weights[i] / totalWeight) * 100)}%</text>
+            {i > 0 && <line x1={x} x2={x} y1={0} y2={chartH} stroke={cc.gridStrong} strokeWidth="1" pointerEvents="none" />}
+            {isColSel && (
+              <>
+                <rect x={x - 1} y={-1} width={colW + 2} height={chartH + 2}
+                  fill="none" stroke={C.amber} strokeWidth={2} filter="url(#cm2SelGlow)" pointerEvents="none">
+                  <animate attributeName="opacity" values="0.7;1.0;0.7" dur="1.6s" repeatCount="indefinite" />
+                </rect>
+                <rect
+                  x={x + colW - 4} y={chartH / 2 - 12} width={8} height={24}
+                  fill={C.amber} stroke="#FFFFFF" strokeWidth={1.5} rx={2}
+                  style={{ cursor: "ew-resize" }}
+                  onPointerDown={onColDown(i, x, colW)}
+                  onPointerMove={onColMove}
+                  onPointerUp={onColUp}
+                />
+              </>
+            )}
           </g>
         );
       })}
@@ -3072,6 +3480,15 @@ interface ChartConfig {
   roundedCorners?: boolean;
   showSecondaryAxis?: boolean;
   pieOtherThreshold?: number;
+  // Wave 11 · think-cell parity additions
+  showTotalLabels?: boolean;     // category-total label above stacked bars
+  showTickMarks?: boolean;       // short tick marks on the Y axis
+  show100Indicator?: boolean;    // 100% marker for percent charts
+  axisBreak?: boolean;           // cosmetic Y-axis break for outliers
+  // Wave 12 · POAST box-logo watermark behind the chart data. Stable
+  // pseudo-random offset (hashed from chart W*H) so it doesn't jitter on
+  // re-render. "centered" pins to dead-center; "off" hides entirely.
+  watermark?: "off" | "random" | "centered";
 }
 
 // Adaptive color set · text + grid pull from the backdrop mode so light
@@ -3353,6 +3770,507 @@ function ElementIconMenu({ state, onClose, palette }: { state: ElementMenuState;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// RADIAL CONTEXT WHEEL · Wave 11 · think-cell's true radial wheel of icons
+// arranged in a CIRCLE around the cursor. Replaces the linear ElementIconMenu
+// for right-click on selected elements. Press M while something is selected
+// or right-click on the element to open it.
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface WheelIcon {
+  Icon: LucideIcon;
+  title: string;
+  onClick: () => void;
+  danger?: boolean;
+  active?: boolean;
+  // Wave 12 · stable id used by the WheelSettingsModal to enable / disable
+  // each icon per element kind. Optional so existing callers still type-check.
+  toolId?: string;
+}
+
+function RadialContextWheel({ x, y, icons, label, onClose }: {
+  x: number; y: number;
+  icons: WheelIcon[];
+  label: string;
+  onClose: () => void;
+}) {
+  const [hov, setHov] = useState<number | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onAny = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest("[data-radial-wheel]")) return;
+      onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const id = setTimeout(() => {
+      document.addEventListener("mousedown", onAny);
+      document.addEventListener("contextmenu", onAny);
+    }, 0);
+    return () => {
+      clearTimeout(id);
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onAny);
+      document.removeEventListener("contextmenu", onAny);
+    };
+  }, [onClose]);
+  // Radius + clamp so the wheel doesn't fly off-screen
+  const R = 100;
+  const D = R * 2 + 56;
+  const winW = typeof window !== "undefined" ? window.innerWidth : 1600;
+  const winH = typeof window !== "undefined" ? window.innerHeight : 900;
+  const cx = Math.min(Math.max(D / 2 + 8, x), winW - D / 2 - 8);
+  const cy = Math.min(Math.max(D / 2 + 8, y), winH - D / 2 - 8);
+  // Position icons around the ring; start at the top (-PI/2)
+  const positions = icons.map((_, i) => {
+    const angle = (i / Math.max(1, icons.length)) * 2 * Math.PI - Math.PI / 2;
+    return { dx: Math.cos(angle) * R, dy: Math.sin(angle) * R };
+  });
+  return (
+    <div
+      data-radial-wheel
+      onContextMenu={e => e.preventDefault()}
+      style={{
+        position: "fixed",
+        left: cx - D / 2,
+        top: cy - D / 2,
+        width: D, height: D,
+        zIndex: 12000,
+        pointerEvents: "none",
+        animation: "cm2WheelOpen 0.18s cubic-bezier(.2,.7,.2,1) both",
+      }}
+    >
+      <style>{`
+        @keyframes cm2WheelOpen { from { opacity: 0; transform: scale(0.82) } to { opacity: 1; transform: scale(1) } }
+      `}</style>
+      {/* center label disk */}
+      <div style={{
+        position: "absolute", left: D / 2 - 36, top: D / 2 - 36,
+        width: 72, height: 72, borderRadius: "50%",
+        background: "rgba(13,13,18,0.92)",
+        backdropFilter: "blur(14px) saturate(140%)",
+        WebkitBackdropFilter: "blur(14px) saturate(140%)",
+        border: "1px solid " + C.amber + "55",
+        display: "inline-flex", alignItems: "center", justifyContent: "center", textAlign: "center",
+        boxShadow: "0 12px 32px rgba(0,0,0,0.5), 0 0 24px " + C.amber + "30",
+        pointerEvents: "auto",
+        flexDirection: "column",
+        padding: 6, lineHeight: 1.05,
+      }}>
+        <div style={{ fontFamily: mn, fontSize: 8, fontWeight: 800, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase" }}>
+          {hov !== null ? icons[hov].title : label}
+        </div>
+        <div style={{ fontFamily: mn, fontSize: 7, fontWeight: 700, color: C.txd, letterSpacing: 0.8, marginTop: 2, textTransform: "uppercase" }}>
+          {hov !== null ? "click" : "wheel"}
+        </div>
+      </div>
+      {icons.map((ic, i) => {
+        const p = positions[i];
+        const accent = ic.danger ? "#E06347" : C.amber;
+        const isHov = hov === i;
+        return (
+          <button
+            key={i}
+            onMouseEnter={() => setHov(i)}
+            onMouseLeave={() => setHov(h => h === i ? null : h)}
+            onClick={() => { ic.onClick(); onClose(); }}
+            title={ic.title}
+            style={{
+              position: "absolute",
+              left: D / 2 + p.dx - 19,
+              top: D / 2 + p.dy - 19,
+              width: 38, height: 38, borderRadius: "50%",
+              background: ic.active ? accent + "30" : (isHov ? "rgba(13,13,18,0.96)" : "rgba(13,13,18,0.85)"),
+              backdropFilter: "blur(10px) saturate(140%)",
+              WebkitBackdropFilter: "blur(10px) saturate(140%)",
+              border: "1px solid " + (ic.active ? accent + "88" : (isHov ? accent : "rgba(255,255,255,0.14)")),
+              color: isHov || ic.active ? accent : "#E8E4DD",
+              cursor: "pointer",
+              pointerEvents: "auto",
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              transform: isHov ? "scale(1.18)" : "scale(1)",
+              boxShadow: isHov ? "0 10px 26px " + accent + "55, 0 0 16px " + accent + "44" : "0 6px 14px rgba(0,0,0,0.35)",
+              transition: "all 0.14s cubic-bezier(.2,.7,.2,1)",
+            }}
+          >
+            <ic.Icon size={16} strokeWidth={2.4} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TOP MINI-TOOLBAR · Wave 11 · selection-driven horizontal toolbar that sits
+// at the top of the chart card. Slides down when something is selected,
+// shows context-specific controls for the selected element kind.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function TopMiniToolbar({
+  selected, onClose, palette,
+  onSetSeriesColor, currentSeriesColor, onUpdateRow, sheet, numFmt, onChangeNumFmt,
+  onAddTotalLabel, onAddSegmentLabel, onAddPercentLabel, onAddSeriesCagr, onAddTotalDiff,
+  showGridlines, onToggleGridlines, showBorders, onToggleBorders,
+  showTotalLabels, onToggleTotalLabels, showTickMarks, onToggleTickMarks,
+  show100Indicator, onToggle100Indicator, onResetSelection,
+}: {
+  selected: SelectedElement;
+  onClose: () => void;
+  palette: string[];
+  onSetSeriesColor?: (key: string, color: string | null) => void;
+  currentSeriesColor?: string;
+  onUpdateRow?: OnUpdateRow;
+  sheet: DataSheet;
+  numFmt: NumberFormat;
+  onChangeNumFmt: (n: NumberFormat) => void;
+  onAddTotalLabel?: () => void;
+  onAddSegmentLabel?: () => void;
+  onAddPercentLabel?: () => void;
+  onAddSeriesCagr?: () => void;
+  onAddTotalDiff?: () => void;
+  showGridlines: boolean; onToggleGridlines: () => void;
+  showBorders: boolean; onToggleBorders: () => void;
+  showTotalLabels: boolean; onToggleTotalLabels: () => void;
+  showTickMarks: boolean; onToggleTickMarks: () => void;
+  show100Indicator: boolean; onToggle100Indicator: () => void;
+  onResetSelection: () => void;
+}) {
+  void onAddTotalDiff;
+  const Btn = ({ active, onClick, title, children, danger }: { active?: boolean; onClick: () => void; title: string; children: React.ReactNode; danger?: boolean }) => {
+    const [hov, setHov] = useState(false);
+    const accent = danger ? "#E06347" : C.amber;
+    return (
+      <button
+        onClick={onClick} title={title}
+        onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+        style={{
+          padding: "5px 9px", borderRadius: 6,
+          background: active ? accent + "22" : (hov ? "rgba(255,255,255,0.06)" : "transparent"),
+          border: "1px solid " + (active ? accent + "66" : (hov ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.08)")),
+          color: active ? accent : (hov ? "#E8E4DD" : C.txm),
+          fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+          cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5,
+          transition: "all 0.14s",
+        }}
+      >{children}</button>
+    );
+  };
+  const labelKind = selected.kind.toUpperCase();
+  return (
+    <div
+      data-mini-toolbar
+      style={{
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "6px 10px",
+        marginBottom: 10,
+        background: "rgba(13,13,18,0.85)",
+        backdropFilter: "blur(14px) saturate(140%)",
+        WebkitBackdropFilter: "blur(14px) saturate(140%)",
+        border: "1px solid " + C.amber + "44",
+        borderRadius: 10,
+        boxShadow: "0 8px 22px rgba(0,0,0,0.35), 0 0 0 1px " + C.amber + "12 inset",
+        animation: "cm2ToolbarSlide 0.22s cubic-bezier(.2,.7,.2,1) both",
+        flexWrap: "wrap",
+      }}
+    >
+      <style>{`@keyframes cm2ToolbarSlide { from { opacity: 0; transform: translateY(-6px) } to { opacity: 1; transform: translateY(0) } }`}</style>
+      <span style={{
+        fontFamily: mn, fontSize: 9, fontWeight: 800,
+        color: C.amber, letterSpacing: 1.2,
+        padding: "2px 8px",
+        background: C.amber + "18",
+        border: "1px solid " + C.amber + "55",
+        borderRadius: 4,
+      }}>{labelKind}</span>
+      {/* Segment / Point — color picker */}
+      {(selected.kind === "segment" || selected.kind === "point") && onSetSeriesColor && (
+        <span style={{ display: "inline-flex", gap: 3, alignItems: "center" }}>
+          <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6, marginRight: 2 }}>FILL</span>
+          {palette.slice(0, 8).map((c, i) => (
+            <button
+              key={i}
+              onClick={() => onSetSeriesColor(selected.key, c)}
+              title={c}
+              style={{ width: 16, height: 16, borderRadius: 3, background: c, border: "1px solid " + (currentSeriesColor === c ? "#fff" : "rgba(0,0,0,0.5)"), cursor: "pointer", boxShadow: currentSeriesColor === c ? "0 0 0 2px " + c + "60" : "none" }}
+            />
+          ))}
+          <button
+            onClick={() => onSetSeriesColor(selected.key, null)}
+            title="Reset color"
+            style={{ width: 16, height: 16, borderRadius: 3, background: "transparent", border: "1px dashed rgba(255,255,255,0.3)", cursor: "pointer", color: C.txm, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+          ><X size={9} strokeWidth={2.4} /></button>
+        </span>
+      )}
+      {/* Segment label toggles */}
+      {selected.kind === "segment" && (
+        <>
+          <span style={{ width: 1, height: 18, background: "rgba(255,255,255,0.10)", margin: "0 2px" }} />
+          {onAddTotalLabel && <Btn title="Toggle total labels" active={showTotalLabels} onClick={onAddTotalLabel}>Σ TOTAL</Btn>}
+          {onAddSegmentLabel && <Btn title="Show value in segment" onClick={onAddSegmentLabel}># VALUE</Btn>}
+          {onAddPercentLabel && <Btn title="Show percent of total" onClick={onAddPercentLabel}>% PCT</Btn>}
+          {onAddSeriesCagr && <Btn title="Add CAGR badge to this series" onClick={onAddSeriesCagr}>↗ CAGR</Btn>}
+          {onUpdateRow && (selected.kind === "segment") && (
+            <>
+              <span style={{ width: 1, height: 18, background: "rgba(255,255,255,0.10)", margin: "0 2px" }} />
+              <input
+                type="number"
+                value={Number(sheet.rows[selected.rowIdx]?.[selected.key] ?? 0)}
+                onChange={e => onUpdateRow(selected.rowIdx, { [selected.key]: Number(e.target.value) || 0 })}
+                style={{ width: 64, padding: "4px 6px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 5, color: "#E8E4DD", fontFamily: mn, fontSize: 11, fontWeight: 700, outline: "none" }}
+                title="Edit value"
+              />
+              <Btn title="Set this segment to 0" danger onClick={() => onUpdateRow(selected.rowIdx, { [selected.key]: 0 })}>0</Btn>
+            </>
+          )}
+        </>
+      )}
+      {/* Axis */}
+      {selected.kind === "axis" && (
+        <>
+          <Btn title="Gridlines" active={showGridlines} onClick={onToggleGridlines}>▦ GRID</Btn>
+          <Btn title="Tick marks" active={showTickMarks} onClick={onToggleTickMarks}>| TICKS</Btn>
+          <Btn title="100% indicator" active={show100Indicator} onClick={onToggle100Indicator}>= 100%</Btn>
+        </>
+      )}
+      {/* Canvas */}
+      {selected.kind === "canvas" && (
+        <>
+          <Btn title="Gridlines" active={showGridlines} onClick={onToggleGridlines}>▦ GRID</Btn>
+          <Btn title="Borders" active={showBorders} onClick={onToggleBorders}>▢ BORDERS</Btn>
+          <Btn title="Total labels" active={showTotalLabels} onClick={onToggleTotalLabels}>Σ TOTAL</Btn>
+          <Btn title="Tick marks" active={showTickMarks} onClick={onToggleTickMarks}>| TICKS</Btn>
+        </>
+      )}
+      {/* Label */}
+      {selected.kind === "label" && (
+        <>
+          <span style={{ fontFamily: mn, fontSize: 9, color: C.txm }}>FORMAT</span>
+          {(["auto", "int", "dec1", "pct", "k", "m", "b"] as const).map(fmt => (
+            <Btn key={fmt} title={NUM_FMT_LABELS[fmt]} active={numFmt === fmt} onClick={() => onChangeNumFmt(fmt)}>{NUM_FMT_LABELS[fmt]}</Btn>
+          ))}
+        </>
+      )}
+      <span style={{ flex: 1 }} />
+      <Btn title="Deselect (Esc)" onClick={() => { onResetSelection(); onClose(); }}><X size={12} strokeWidth={2.4} /></Btn>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SELECTION POPUP · Wave 12 · think-cell mini-toolbar that floats just
+// above the clicked element in viewport coords. Appears the INSTANT a
+// segment / point / mekkoColumn is selected — no need to pop the radial
+// wheel. Inline color row + value input + label toggles + trash.
+// ═══════════════════════════════════════════════════════════════════════════
+interface SelectionPopupProps {
+  selected: SelectedElement;
+  palette: string[];
+  currentSeriesColor?: string;
+  onSetSeriesColor?: (key: string, color: string | null) => void;
+  onUpdateRow?: OnUpdateRow;
+  sheet: DataSheet;
+  showSegmentLabels: boolean;
+  showTotalLabels: boolean;
+  onToggleSegmentLabels: () => void;
+  onToggleTotalLabels: () => void;
+  onTogglePercent: () => void;
+  onClose: () => void;
+}
+
+function SelectionPopup({
+  selected, palette, currentSeriesColor, onSetSeriesColor, onUpdateRow, sheet,
+  showSegmentLabels, showTotalLabels, onToggleSegmentLabels, onToggleTotalLabels, onTogglePercent, onClose,
+}: SelectionPopupProps) {
+  // Pull the click anchor from the selection. Fall back to viewport center
+  // if the selection has no anchor (keyboard-driven, programmatic).
+  const winW = typeof window !== "undefined" ? window.innerWidth : 1280;
+  const winH = typeof window !== "undefined" ? window.innerHeight : 800;
+  const ax = selected.anchorX ?? winW / 2;
+  const ay = selected.anchorY ?? winH / 2;
+  // POPUP_W is approximate — the popup auto-sizes via inline-flex but we
+  // need a number to clamp horizontally. Tall layouts wrap to a 2nd row.
+  const POPUP_W = 380;
+  const POPUP_H = 64;
+  const left = Math.max(10, Math.min(winW - POPUP_W - 10, ax - POPUP_W / 2));
+  // Float ABOVE the anchor by 16px. If that's off-screen flip below.
+  const aboveTop = ay - POPUP_H - 18;
+  const top = aboveTop < 12 ? Math.min(winH - POPUP_H - 12, ay + 18) : aboveTop;
+  // Editable value reference for segment / point selections.
+  const isCellish = selected.kind === "segment" || selected.kind === "point";
+  const cellVal = isCellish ? Number(sheet.rows[selected.rowIdx]?.[selected.key] ?? 0) : 0;
+  const [valStr, setValStr] = useState(String(cellVal));
+  // When the selection changes (different bar clicked), reset the input.
+  useEffect(() => { setValStr(String(cellVal)); }, [cellVal, selected.kind, isCellish ? selected.rowIdx : -1, isCellish ? selected.key : ""]);
+  const commit = useCallback(() => {
+    if (!onUpdateRow || !isCellish) return;
+    const n = Number(valStr);
+    if (!Number.isFinite(n)) { setValStr(String(cellVal)); return; }
+    onUpdateRow(selected.rowIdx, { [selected.key]: n });
+  }, [onUpdateRow, isCellish, valStr, cellVal, selected]);
+  // Esc / click-outside dismissal. We rely on the parent to flip selected
+  // back to null; here we just tell it via onClose.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest("[data-selection-popup]")) return;
+      if (t.closest("[data-mini-toolbar]")) return;
+      if (t.closest("[data-radial-wheel]")) return;
+      // Don't dismiss when clicking another selectable element — the new
+      // selection will replace the popup naturally.
+      if (t.closest("svg")) return;
+      onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const id = setTimeout(() => document.addEventListener("mousedown", onDown), 0);
+    return () => {
+      clearTimeout(id);
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [onClose]);
+  const Sw = ({ c }: { c: string }) => {
+    const on = currentSeriesColor === c;
+    return (
+      <button
+        onClick={() => onSetSeriesColor && isCellish && onSetSeriesColor(selected.key, c)}
+        title={c}
+        style={{
+          width: 18, height: 18, borderRadius: 4,
+          background: c,
+          border: "1px solid " + (on ? "#fff" : "rgba(0,0,0,0.5)"),
+          boxShadow: on ? "0 0 0 2px " + c + "60, 0 2px 6px " + c + "55" : "0 1px 2px rgba(0,0,0,0.3)",
+          cursor: "pointer", padding: 0, transition: "all 0.14s",
+        }}
+      />
+    );
+  };
+  const Tog = ({ on, label, title, onClick }: { on: boolean; label: string; title: string; onClick: () => void }) => {
+    const [hov, setHov] = useState(false);
+    return (
+      <button
+        onClick={onClick}
+        title={title}
+        onMouseEnter={() => setHov(true)}
+        onMouseLeave={() => setHov(false)}
+        style={{
+          padding: "4px 8px", borderRadius: 5,
+          background: on ? C.amber + "26" : (hov ? "rgba(255,255,255,0.06)" : "transparent"),
+          border: "1px solid " + (on ? C.amber + "70" : (hov ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.10)")),
+          color: on ? C.amber : (hov ? "#E8E4DD" : C.txm),
+          fontFamily: mn, fontSize: 9.5, fontWeight: 800, letterSpacing: 0.5,
+          cursor: "pointer", whiteSpace: "nowrap",
+          transition: "all 0.14s",
+        }}
+      >{label}</button>
+    );
+  };
+  return (
+    <div
+      data-selection-popup
+      style={{
+        position: "fixed",
+        left, top,
+        zIndex: 11500,
+        display: "inline-flex", alignItems: "center", gap: 6,
+        padding: "7px 10px",
+        background: "rgba(13,13,18,0.92)",
+        backdropFilter: "blur(18px) saturate(160%)",
+        WebkitBackdropFilter: "blur(18px) saturate(160%)",
+        border: "1px solid " + C.amber + "55",
+        borderRadius: 11,
+        boxShadow: "0 14px 38px rgba(0,0,0,0.55), 0 0 0 1px " + C.amber + "18 inset, 0 0 28px " + C.amber + "30",
+        animation: "cm2SelPopupIn 0.20s cubic-bezier(.2,.7,.2,1) both",
+        flexWrap: "wrap",
+        maxWidth: POPUP_W,
+        pointerEvents: "auto",
+      }}
+    >
+      <style>{`@keyframes cm2SelPopupIn { from { opacity: 0; transform: translateY(6px) scale(0.96) } to { opacity: 1; transform: translateY(0) scale(1) } }`}</style>
+      {/* Color swatch row (first 12 palette colors + reset) */}
+      {isCellish && onSetSeriesColor && (
+        <span style={{ display: "inline-flex", gap: 3, alignItems: "center" }}>
+          {palette.slice(0, 12).map((c, i) => <Sw key={i} c={c} />)}
+          <button
+            onClick={() => onSetSeriesColor(selected.key, null)}
+            title="Reset color"
+            style={{
+              width: 18, height: 18, borderRadius: 4,
+              background: "transparent",
+              border: "1px dashed rgba(255,255,255,0.32)",
+              cursor: "pointer", color: C.txm, padding: 0,
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+            }}
+          ><X size={9} strokeWidth={2.4} /></button>
+        </span>
+      )}
+      {/* Editable value input (commits on Enter / blur) */}
+      {isCellish && onUpdateRow && (
+        <>
+          <span style={{ width: 1, height: 16, background: "rgba(255,255,255,0.12)", margin: "0 1px" }} />
+          <input
+            type="number"
+            value={valStr}
+            onChange={e => setValStr(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") { (e.currentTarget as HTMLInputElement).blur(); } }}
+            onBlur={commit}
+            style={{
+              width: 64, padding: "4px 6px",
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.18)",
+              borderRadius: 5,
+              color: "#E8E4DD",
+              fontFamily: mn, fontSize: 11, fontWeight: 700,
+              outline: "none",
+              fontFeatureSettings: "'tnum'",
+            }}
+            title="Edit value · Enter to commit"
+          />
+        </>
+      )}
+      <span style={{ width: 1, height: 16, background: "rgba(255,255,255,0.12)", margin: "0 1px" }} />
+      {/* Label toggles */}
+      <Tog on={showTotalLabels} label="Σ" title="Toggle total labels" onClick={onToggleTotalLabels} />
+      <Tog on={showSegmentLabels} label="#" title="Toggle value labels" onClick={onToggleSegmentLabels} />
+      <Tog on={false} label="%" title="Show as percent" onClick={onTogglePercent} />
+      {/* Trash · zero this segment */}
+      {isCellish && onUpdateRow && (
+        <button
+          onClick={() => { if (selected.kind === "segment" || selected.kind === "point") onUpdateRow(selected.rowIdx, { [selected.key]: 0 }); }}
+          title="Set value to 0"
+          style={{
+            padding: "4px 7px", borderRadius: 5,
+            background: "rgba(224,99,71,0.10)",
+            border: "1px solid rgba(224,99,71,0.40)",
+            color: "#E06347",
+            cursor: "pointer", display: "inline-flex", alignItems: "center",
+            transition: "all 0.14s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = "rgba(224,99,71,0.20)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "rgba(224,99,71,0.10)"; }}
+        ><Trash2 size={11} strokeWidth={2.4} /></button>
+      )}
+      {/* The little tail/arrow pointing toward the anchor — purely decorative */}
+      <span
+        style={{
+          position: "absolute",
+          left: Math.max(12, Math.min(POPUP_W - 24, ax - left - 6)),
+          bottom: aboveTop < 12 ? "auto" : -6,
+          top: aboveTop < 12 ? -6 : "auto",
+          width: 12, height: 12,
+          background: "rgba(13,13,18,0.92)",
+          border: "1px solid " + C.amber + "55",
+          borderRight: "none", borderBottom: aboveTop < 12 ? "none" : "1px solid " + C.amber + "55",
+          borderTop: aboveTop < 12 ? "1px solid " + C.amber + "55" : "none",
+          transform: "rotate(45deg)",
+          pointerEvents: "none",
+        }}
+      />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // STATUS BAR · slim row at the bottom of the canvas. Mirrors LibreOffice's
 // status bar with type · row/col counts · sum · format · theme.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3410,6 +4328,8 @@ function PropertiesPanel({
   chartType,
   series, onSetSeriesColor, palette,
   onOpenDesign,
+  watermark, onChangeWatermark,
+  onOpenExpanded,
 }: {
   tab: "design" | "annotations" | "series";
   onChangeTab: (t: "design" | "annotations" | "series") => void;
@@ -3430,6 +4350,8 @@ function PropertiesPanel({
   onSetSeriesColor: (key: string, color: string | null) => void;
   palette: string[];
   onOpenDesign: () => void;
+  watermark: "off" | "centered" | "random"; onChangeWatermark: (w: "off" | "centered" | "random") => void;
+  onOpenExpanded: () => void;
 }) {
   const tabs: Array<{ id: "design" | "annotations" | "series"; label: string }> = [
     { id: "design", label: "Design" }, { id: "annotations", label: "Annotate" }, { id: "series", label: "Series" },
@@ -3508,6 +4430,35 @@ function PropertiesPanel({
                 })}
               </div>
             </div>
+            <div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8, fontWeight: 800 }}>Watermark</div>
+              <div style={{ display: "flex", gap: 3, padding: 3, background: "rgba(255,255,255,0.025)", borderRadius: 7 }}>
+                {(["off", "centered", "random"] as const).map(m => {
+                  const on = watermark === m;
+                  return (
+                    <button key={m} onClick={() => onChangeWatermark(m)} style={{ flex: 1, padding: "7px 4px", borderRadius: 5, background: on ? C.amber + "22" : "transparent", border: "none", color: on ? C.amber : C.txm, fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer", textTransform: "uppercase" }}>{m}</button>
+                  );
+                })}
+              </div>
+            </div>
+            <button
+              onClick={onOpenExpanded}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                padding: "10px 12px", borderRadius: 8,
+                background: "linear-gradient(135deg, " + C.amber + "22, " + C.amber + "11)",
+                border: "1px solid " + C.amber + "55",
+                color: C.amber,
+                fontFamily: mn, fontSize: 10, fontWeight: 900, letterSpacing: 0.6,
+                cursor: "pointer", textTransform: "uppercase",
+                transition: "all 0.16s",
+                boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "linear-gradient(135deg, " + C.amber + "44, " + C.amber + "22)"; e.currentTarget.style.boxShadow = "0 6px 20px " + C.amber + "44, 0 1px 0 rgba(255,255,255,0.06) inset"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "linear-gradient(135deg, " + C.amber + "22, " + C.amber + "11)"; e.currentTarget.style.boxShadow = "0 1px 0 rgba(255,255,255,0.04) inset"; e.currentTarget.style.transform = "translateY(0)"; }}
+            >
+              <Maximize2 size={12} strokeWidth={2.4} /> Open Expanded Mode
+            </button>
             <button onClick={onOpenDesign} style={{ padding: "9px 12px", borderRadius: 7, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", color: C.tx, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer", textTransform: "uppercase" }}>Open full design panel →</button>
           </div>
         )}
@@ -3539,7 +4490,10 @@ function PropertiesPanel({
                   const label = a.kind === "cagr" ? "CAGR " + a.rowFrom + "→" + a.rowTo
                     : a.kind === "diff" ? "Δ " + a.rowFrom + "→" + a.rowTo
                     : a.kind === "refline" ? "Ref " + (a.label || a.value)
-                    : "Text · " + a.text.slice(0, 20);
+                    : a.kind === "callout" ? "Text · " + a.text.slice(0, 20)
+                    : a.kind === "seriesCagr" ? "Series CAGR · " + a.seriesKey
+                    : a.kind === "totalDiff" ? "Σ Δ " + a.rowFrom + "→" + a.rowTo
+                    : "Annotation";
                   return (
                     <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 7px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 5 }}>
                       <span style={{ fontFamily: mn, fontSize: 10, color: C.tx, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
@@ -3651,8 +4605,37 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const [pickMode, setPickMode] = useState<PickMode>(null);
   // Single-click placement mode for the ANNOTATE TEXT tool.
   const [placeMode, setPlaceMode] = useState<PlaceMode>(null);
-  // Floating toolbar selection
+  // Floating toolbar selection (LEGACY · still kept for backwards compat)
   const [selection, setSelection] = useState<BarSelection | null>(null);
+  // Wave 11 · think-cell-style selection — primary UI driver
+  const [selected, setSelected] = useState<SelectedElement | null>(null);
+  const [wheelAnchor, setWheelAnchor] = useState<WheelAnchor | null>(null);
+  // Wave 11 · new feature toggles
+  const [showTotalLabels, setShowTotalLabels] = useState(true);
+  const [showTickMarks, setShowTickMarks] = useState(false);
+  const [show100Indicator, setShow100Indicator] = useState(false);
+  const [axisBreak, setAxisBreak] = useState(false);
+  void axisBreak; void setAxisBreak;
+  // Wave 12 · POAST box-logo watermark mode (off / centered / random)
+  const [watermark, setWatermark] = useState<"off" | "centered" | "random">("off");
+  // Wave 12 · expanded webapp mode + pane state
+  const [expandedMode, setExpandedMode] = useState(false);
+  const [paneMode, setPaneMode] = useState<"chart" | "table" | "split">("split");
+  const [splitOrientation, setSplitOrientation] = useState<"vertical" | "horizontal">("vertical");
+  const [splitterPos, setSplitterPos] = useState(0.55); // 0..1 ratio of first pane
+  // Wave 12 · radial wheel customization (which icons appear per kind).
+  // Loaded from localStorage so user prefs persist across sessions.
+  const [wheelConfig, setWheelConfig] = useState<Record<string, string[] | "all">>({});
+  const [wheelSettingsOpen, setWheelSettingsOpen] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("cm2-wheel-config-v1");
+      if (raw) setWheelConfig(JSON.parse(raw));
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem("cm2-wheel-config-v1", JSON.stringify(wheelConfig)); } catch {}
+  }, [wheelConfig]);
 
   const rawSheet = sheets[type] || samplePerType(type);
   // Renderers read the computed sheet (formulas evaluated) so chart values
@@ -3731,7 +4714,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     collapseAll: false, collapsedKeys: {},
   });
 
-  const cfg: ChartConfig = { type, title, subtitle, theme, numFmt, seriesColors, yMin: axis.yMin, yMax: axis.yMax, xMin: axis.xMin, xMax: axis.xMax, lightBackdrop: backdropMode === "light", showBorders, showGridlines, showSegmentLabels, legendPos, yLabel: yLabel || undefined, xLabel: xLabel || undefined, locked, logScale, showEndLabels, markerShape, roundedCorners, pieOtherThreshold };
+  const cfg: ChartConfig = { type, title, subtitle, theme, numFmt, seriesColors, yMin: axis.yMin, yMax: axis.yMax, xMin: axis.xMin, xMax: axis.xMax, lightBackdrop: backdropMode === "light", showBorders, showGridlines, showSegmentLabels, legendPos, yLabel: yLabel || undefined, xLabel: xLabel || undefined, locked, logScale, showEndLabels, markerShape, roundedCorners, pieOtherThreshold, showTotalLabels, showTickMarks, show100Indicator, axisBreak, watermark };
 
   // Pick-mode handler · column-chart renderers call this on bar click.
   // Returns true if the click was consumed (we're in pick mode); the
@@ -3779,6 +4762,9 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     if (!sheets[type]) setSheets(p => ({ ...p, [type]: samplePerType(type) }));
     // also align title to type
     if (type === "gantt" && title.indexOf("Outlook") !== -1) setTitle("SemiAnalysis · 2026 Brand Launch");
+    // Wave 11 · clear selection when type changes (selected refs may be stale)
+    setSelected(null);
+    setWheelAnchor(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type]);
 
@@ -3938,12 +4924,27 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       // Don't intercept inside inputs / textareas
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
       if (e.key === "?" || (e.key === "/" && e.shiftKey)) { e.preventDefault(); setShortcutsOpen(v => !v); }
-      if (e.key === "Escape") { setShortcutsOpen(false); setWheelOpen(false); }
+      if (e.key === "Escape") {
+        setShortcutsOpen(false); setWheelOpen(false); setWheelAnchor(null);
+        setSelected(null); setSelection(null);
+        // Wave 12 · Esc also exits expanded mode if no other overlay caught it
+        setExpandedMode(false);
+      }
       if (e.key === "w" || e.key === "W") { e.preventDefault(); setWheelOpen(v => !v); }
+      // Wave 11 · M opens the radial wheel for the current selection
+      if (e.key === "m" || e.key === "M") {
+        if (selected) {
+          e.preventDefault();
+          // Anchor at center of viewport when keyboard-triggered
+          const cx = (typeof window !== "undefined" ? window.innerWidth : 1280) / 2;
+          const cy = (typeof window !== "undefined" ? window.innerHeight : 800) / 2;
+          setWheelAnchor({ x: cx, y: cy, selected });
+        }
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [selected]);
   const onShowMenu: OnShowMenu = useCallback((e, items) => {
     e.preventDefault();
     e.stopPropagation();
@@ -3970,8 +4971,11 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     });
   }, [annotByType, type, sheets, setAnnotations, setSeriesColor, onUpdateRow]);
 
+  const onOpenWheel = useCallback((clientX: number, clientY: number) => {
+    setWheelAnchor({ x: clientX, y: clientY, selected });
+  }, [selected]);
   const renderChart = () => {
-    const a = { onUpdateRow, onDeleteRow, onShowMenu, onShowElementMenu, annotations, pickMode, onPickBar, onSelect: setSelection, onSetSeriesColor: setSeriesColor };
+    const a = { onUpdateRow, onDeleteRow, onShowMenu, onShowElementMenu, annotations, pickMode, onPickBar, onSelect: setSelection, onSetSeriesColor: setSeriesColor, selected, onSelectElement: setSelected, onOpenWheel };
     switch (type) {
       case "stacked": return <StackedColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
       case "clustered": return <ClusteredColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
@@ -3983,8 +4987,8 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       case "scatter": return <Scatter sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "bubble": return <Scatter sheet={sheet} cfg={cfg} W={W} H={H} bubble />;
       case "pctArea": return <LineProfile sheet={sheet} cfg={cfg} W={W} H={H} fill stacked pct100 {...a} />;
-      case "mekkoPct": return <MekkoPercent sheet={sheet} cfg={cfg} W={W} H={H} />;
-      case "mekkoUnit": return <MekkoUnit sheet={sheet} cfg={cfg} W={W} H={H} />;
+      case "mekkoPct": return <MekkoPercent sheet={sheet} cfg={cfg} W={W} H={H} onUpdateRow={onUpdateRow} selected={selected} onSelectElement={setSelected} onOpenWheel={onOpenWheel} />;
+      case "mekkoUnit": return <MekkoUnit sheet={sheet} cfg={cfg} W={W} H={H} onUpdateRow={onUpdateRow} selected={selected} onSelectElement={setSelected} onOpenWheel={onOpenWheel} />;
       case "combo": return <ComboChart sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "wfup": return <Waterfall sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "wfdn": return <Waterfall sheet={sheet} cfg={cfg} W={W} H={H} />;
@@ -4006,13 +5010,36 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const borderC = "rgba(255,255,255,0.06)";
 
   return (
-    <div style={{ padding: "32px 0 0", maxWidth: 1400, margin: "0 auto" }}>
-      <style>{`@keyframes cm2ChartSwap { 0% { opacity: 0; transform: translateY(6px) } 100% { opacity: 1; transform: translateY(0) } }`}</style>
+    <div style={{ padding: "32px 0 0", maxWidth: 1400, margin: "0 auto", position: "relative" }}>
+      <style>{`
+        @keyframes cm2ChartSwap { 0% { opacity: 0; transform: translateY(6px) } 100% { opacity: 1; transform: translateY(0) } }
+        @keyframes cmGlowDrift1 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(40px,-26px) } }
+        @keyframes cmGlowDrift2 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(-30px,18px) } }
+        @keyframes cmGlowDrift3 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(22px,28px) } }
+        @keyframes cmGlowDrift4 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(-18px,-22px) } }
+        @keyframes cm2ExpandPop { 0% { opacity: 0; transform: scale(0.985) } 100% { opacity: 1; transform: scale(1) } }
+      `}</style>
+      {/* Wave 12 · animated glow drift background — sits BEHIND content */}
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0, overflow: "hidden", borderRadius: 16 }}>
+        <div style={{ position:"absolute", top:"-12%", right:"-6%", width:"55vw", height:"55vw", borderRadius:"50%",
+          background:"radial-gradient(circle, rgba(247,176,65,0.06) 0%, transparent 60%)",
+          animation:"cmGlowDrift1 22s ease-in-out infinite" }} />
+        <div style={{ position:"absolute", bottom:"-15%", left:"8%", width:"60vw", height:"60vw", borderRadius:"50%",
+          background:"radial-gradient(circle, rgba(11,134,209,0.05) 0%, transparent 60%)",
+          animation:"cmGlowDrift2 28s ease-in-out infinite" }} />
+        <div style={{ position:"absolute", top:"35%", left:"-12%", width:"42vw", height:"42vw", borderRadius:"50%",
+          background:"radial-gradient(circle, rgba(46,173,142,0.04) 0%, transparent 60%)",
+          animation:"cmGlowDrift3 32s ease-in-out infinite" }} />
+        <div style={{ position:"absolute", top:"12%", right:"30%", width:"20vw", height:"20vw", borderRadius:"50%",
+          background:"radial-gradient(circle, rgba(224,99,71,0.05) 0%, transparent 60%)",
+          animation:"cmGlowDrift4 26s ease-in-out infinite" }} />
+      </div>
+      <div style={{ position: "relative", zIndex: 1 }}>
       <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap", paddingTop: standalone ? 16 : 0 }}>
         {!standalone && (
           <div style={{ flex: "1 1 auto", minWidth: 280 }}>
             <div style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.5 }}>Chart Maker 2</div>
-            <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 4, letterSpacing: 1 }}>THINK-CELL STYLE // PICK · EDIT · ANNOTATE · EXPORT</div>
+            <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 4, letterSpacing: 1.2, fontWeight: 800 }}>THINK-CELL STYLE // PICK · EDIT · ANNOTATE · EXPORT</div>
           </div>
         )}
         {standalone && <div style={{ flex: "1 1 auto" }} />}
@@ -4078,6 +5105,18 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           })}
         </div>
         <LockToggle locked={locked} onChange={setLocked} />
+        {/* Wave 12 · expanded mode toggle (Maximize2) */}
+        <GlassButton
+          onClick={() => setExpandedMode(true)}
+          title="Open expanded webapp · chart + table + split + properties (Esc to exit)"
+          Icon={Maximize2}
+        >EXPAND</GlassButton>
+        {/* Wave 12 · radial-wheel settings */}
+        <GlassButton
+          onClick={() => setWheelSettingsOpen(true)}
+          title="Customize the radial context wheel · pick which tools appear per element"
+          Icon={Settings}
+        >WHEEL</GlassButton>
         <ExportSplitButton onPNG={exportPNG} onSVG={exportSVG} onCopy={copyPNG} />
       </div>
 
@@ -4134,25 +5173,76 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             </div>
           )}
 
-          {/* Chart preview · drag bars / points to edit values directly.
+          {/* Wave 11 · selection-driven mini toolbar. Renders only when
+              something is selected (segment / point / label / axis / canvas). */}
+          {selected && selected.kind !== "annotation" && selected.kind !== "legend" && (
+            <TopMiniToolbar
+              selected={selected}
+              onClose={() => setSelected(null)}
+              palette={THEMES[theme].colors}
+              onSetSeriesColor={setSeriesColor}
+              currentSeriesColor={(selected.kind === "segment" || selected.kind === "point") ? seriesColors[selected.key] : undefined}
+              onUpdateRow={onUpdateRow}
+              sheet={sheet}
+              numFmt={numFmt}
+              onChangeNumFmt={setNumFmt}
+              onAddTotalLabel={() => setShowTotalLabels(v => !v)}
+              onAddSegmentLabel={() => setShowSegmentLabels(v => !v)}
+              onAddPercentLabel={() => setShowSegmentLabels(v => !v)}
+              onAddSeriesCagr={() => {
+                if (selected.kind === "segment" || selected.kind === "point") {
+                  setAnnotations([...annotations, { id: Math.random().toString(36).slice(2, 9), kind: "seriesCagr", seriesKey: selected.key }]);
+                }
+              }}
+              showGridlines={showGridlines}
+              onToggleGridlines={() => setShowGridlines(v => !v)}
+              showBorders={showBorders}
+              onToggleBorders={() => setShowBorders(v => !v)}
+              showTotalLabels={showTotalLabels}
+              onToggleTotalLabels={() => setShowTotalLabels(v => !v)}
+              showTickMarks={showTickMarks}
+              onToggleTickMarks={() => setShowTickMarks(v => !v)}
+              show100Indicator={show100Indicator}
+              onToggle100Indicator={() => setShow100Indicator(v => !v)}
+              onResetSelection={() => setSelected(null)}
+            />
+          )}
+
+          {/* Chart preview · click any element to select it (think-cell style).
               Backdrop layer + chart sit inside a glass frame; the backdrop
               becomes the SVG fill on export so the saved PNG matches. */}
           <div style={{
             position: "relative",
             background: backdropCss(backdropMode === "dark" ? BACKDROPS_DARK[backdrop] : BACKDROPS_LIGHT[backdrop]),
-            border: "1px solid rgba(255,255,255,0.07)",
-            borderRadius: 14,
-            padding: "20px 24px",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 16,
+            padding: "22px 26px",
             marginBottom: 14,
             overflow: "auto",
-            boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 32px rgba(0,0,0,0.32)",
+            boxShadow: "0 1px 0 rgba(255,255,255,0.06) inset, 0 32px 64px rgba(0,0,0,0.45)",
           }}>
             <svg
               key={type}
               ref={svgRef}
               viewBox={`0 0 ${W} ${H}`}
               style={{ width: "100%", height: "auto", display: "block", fontFamily: ft, touchAction: "none", cursor: placeMode?.kind === "callout" ? "crosshair" : "default", animation: "cm2ChartSwap 0.32s cubic-bezier(.2,.7,.2,1) both" }}
+              onContextMenu={e => {
+                // Right-click on canvas (not on a selectable element) — the
+                // bar / point's own onContextMenu stops propagation, so this
+                // only fires on chart background. Open the radial wheel for
+                // canvas if nothing is selected, else keep current selection.
+                if (e.target === e.currentTarget || (e.target as Element).tagName === "rect" && (e.target as Element).getAttribute("fill") === "transparent") {
+                  e.preventDefault();
+                  setSelected({ kind: "canvas" });
+                  setWheelAnchor({ x: e.clientX, y: e.clientY, selected: { kind: "canvas" } });
+                }
+              }}
             >
+              {/* Click-on-canvas (background) deselects · sits BEHIND chart */}
+              <rect
+                x="0" y="0" width={W} height={H} fill="transparent"
+                onPointerDown={() => { if (selected) setSelected(null); }}
+              />
               {renderChart()}
               {/* Free-form text callouts (ANNOTATE TEXT) — rendered after
                   the chart so they sit on top. */}
@@ -4294,6 +5384,9 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             onSetSeriesColor={setSeriesColor}
             palette={THEMES[theme].colors}
             onOpenDesign={() => setDesignOpen(true)}
+            watermark={watermark}
+            onChangeWatermark={setWatermark}
+            onOpenExpanded={() => setExpandedMode(true)}
           />
         )}
       </div>
@@ -4331,6 +5424,127 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       >?!</button>
       {elementMenu && <ElementIconMenu state={elementMenu} onClose={() => setElementMenu(null)} palette={THEMES[theme].colors} />}
       {selection && <FloatingMiniToolbar selection={selection} onClose={() => setSelection(null)} onUpdateRow={onUpdateRow} onDeleteRow={onDeleteRow} themes={THEMES} currentTheme={theme} />}
+      {/* Wave 11 · Radial context wheel — primary right-click target. */}
+      {wheelAnchor && wheelAnchor.selected && (() => {
+        const sel = wheelAnchor.selected;
+        const close = () => setWheelAnchor(null);
+        const palette = THEMES[theme].colors;
+        let icons: WheelIcon[] = [];
+        let label = "WHEEL";
+        if (sel.kind === "segment") {
+          label = "SEGMENT";
+          icons = [
+            { toolId: "fill", Icon: Palette, title: "Fill color", onClick: () => {
+              // Cycle through the palette — first tap re-applies first palette color.
+              const cur = sel.key;
+              const idx = palette.indexOf(seriesColors[cur] || sel.color);
+              const next = palette[(idx + 1) % palette.length];
+              setSeriesColor(cur, next);
+            }},
+            { toolId: "totalLabels", Icon: Sigma, title: "Toggle total labels", onClick: () => setShowTotalLabels(v => !v), active: showTotalLabels },
+            { toolId: "segmentLabels", Icon: Hash, title: "Toggle segment labels", onClick: () => setShowSegmentLabels(v => !v), active: showSegmentLabels },
+            { toolId: "cagr", Icon: TrendingUp, title: "CAGR arrow (pick a 2nd bar)", onClick: () => setPickMode({ kind: "cagr", bars: [{ rowIdx: sel.rowIdx, key: sel.key }] }) },
+            { toolId: "diff", Icon: ArrowLeftRight, title: "Diff arrow (pick a 2nd bar)", onClick: () => setPickMode({ kind: "diff", bars: [{ rowIdx: sel.rowIdx, key: sel.key }] }) },
+            { toolId: "totalDiff", Icon: ArrowUpDown, title: "Total diff arrow (pick a 2nd column)", onClick: () => {
+              // For now plant a totalDiff between this column and the next column.
+              const nextRow = (sel.rowIdx + 1) % Math.max(1, sheet.rows.length);
+              setAnnotations([...annotations, { id: Math.random().toString(36).slice(2, 9), kind: "totalDiff", rowFrom: sel.rowIdx, rowTo: nextRow }]);
+            }},
+            { toolId: "seriesCagr", Icon: Activity, title: "Series CAGR badge", onClick: () => setAnnotations([...annotations, { id: Math.random().toString(36).slice(2, 9), kind: "seriesCagr", seriesKey: sel.key }]) },
+            { toolId: "refLine", Icon: Minus, title: "Reference line at this value", onClick: () => {
+              const v = Number(sheet.rows[sel.rowIdx]?.[sel.key]) || 0;
+              setAnnotations([...annotations, { id: Math.random().toString(36).slice(2, 9), kind: "refline", value: v, label: String(v) }]);
+            }},
+            { toolId: "callout", Icon: Type, title: "Drop a callout", onClick: () => setPlaceMode({ kind: "callout" }) },
+            { toolId: "delete", Icon: Trash2, title: "Set to 0", danger: true, onClick: () => onUpdateRow(sel.rowIdx, { [sel.key]: 0 }) },
+          ];
+        } else if (sel.kind === "point") {
+          label = "POINT";
+          icons = [
+            { toolId: "fill", Icon: Palette, title: "Fill color", onClick: () => {
+              const idx = palette.indexOf(seriesColors[sel.key] || sel.color);
+              const next = palette[(idx + 1) % palette.length];
+              setSeriesColor(sel.key, next);
+            }},
+            { toolId: "endLabels", Icon: Hash, title: "Toggle end labels", onClick: () => setShowEndLabels(v => !v), active: showEndLabels },
+            { toolId: "cagr", Icon: TrendingUp, title: "CAGR arrow", onClick: () => setPickMode({ kind: "cagr", bars: [{ rowIdx: sel.rowIdx, key: sel.key }] }) },
+            { toolId: "diff", Icon: ArrowLeftRight, title: "Diff arrow", onClick: () => setPickMode({ kind: "diff", bars: [{ rowIdx: sel.rowIdx, key: sel.key }] }) },
+            { toolId: "seriesCagr", Icon: Activity, title: "Series CAGR badge", onClick: () => setAnnotations([...annotations, { id: Math.random().toString(36).slice(2, 9), kind: "seriesCagr", seriesKey: sel.key }]) },
+            { toolId: "refLine", Icon: Minus, title: "Reference line", onClick: () => {
+              const v = Number(sheet.rows[sel.rowIdx]?.[sel.key]) || 0;
+              setAnnotations([...annotations, { id: Math.random().toString(36).slice(2, 9), kind: "refline", value: v, label: String(v) }]);
+            }},
+            { toolId: "marker", Icon: Circle, title: "Cycle marker shape", onClick: () => setMarkerShape(s => s === "circle" ? "square" : s === "square" ? "diamond" : s === "diamond" ? "none" : "circle") },
+            { toolId: "callout", Icon: Type, title: "Callout", onClick: () => setPlaceMode({ kind: "callout" }) },
+            { toolId: "delete", Icon: Trash2, title: "Set to 0", danger: true, onClick: () => onUpdateRow(sel.rowIdx, { [sel.key]: 0 }) },
+          ];
+        } else if (sel.kind === "axis") {
+          label = "AXIS";
+          icons = [
+            { toolId: "logScale", Icon: Activity, title: "Toggle log scale", active: logScale, onClick: () => setLogScale(v => !v) },
+            { toolId: "gridlines", Icon: Grid3x3, title: "Gridlines", active: showGridlines, onClick: () => setShowGridlines(v => !v) },
+            { toolId: "ticks", Icon: MinusSquare, title: "Tick marks", active: showTickMarks, onClick: () => setShowTickMarks(v => !v) },
+            { toolId: "axisBreak", Icon: Layers, title: "Axis break", active: axisBreak, onClick: () => setAxisBreak(v => !v) },
+            { toolId: "numFmt", Icon: Hash, title: "Number format · cycle", onClick: () => {
+              const order: NumberFormat[] = ["auto", "int", "dec1", "pct", "k", "m", "b"];
+              const idx = order.indexOf(numFmt);
+              setNumFmt(order[(idx + 1) % order.length]);
+            }},
+          ];
+        } else if (sel.kind === "label") {
+          label = "LABEL";
+          icons = [
+            { toolId: "numFmt", Icon: Hash, title: "Cycle number format", onClick: () => {
+              const order: NumberFormat[] = ["auto", "int", "dec1", "pct", "k", "m", "b"];
+              const idx = order.indexOf(numFmt);
+              setNumFmt(order[(idx + 1) % order.length]);
+            }},
+            { toolId: "totalLabels", Icon: Sigma, title: "Toggle total labels", active: showTotalLabels, onClick: () => setShowTotalLabels(v => !v) },
+            { toolId: "hideLabels", Icon: EyeOff, title: "Hide labels", onClick: () => setShowSegmentLabels(false) },
+          ];
+        } else if (sel.kind === "mekkoColumn") {
+          label = "COLUMN";
+          icons = [
+            { toolId: "shiftLeft", Icon: ChevronLeft, title: "Shift left", onClick: () => {} },
+            { toolId: "shiftRight", Icon: ChevronRight, title: "Shift right", onClick: () => {} },
+            { toolId: "delete", Icon: Trash2, title: "Delete column", danger: true, onClick: () => onDeleteRow(sel.rowIdx) },
+          ];
+        } else {
+          // canvas
+          label = "CANVAS";
+          icons = [
+            { toolId: "addSeries", Icon: Plus, title: "Add series", onClick: () => {
+              setSheets(p => {
+                const cur = p[type] || samplePerType(type);
+                const next = { ...cur };
+                const newKey = "s" + (cur.schema.length + 1);
+                next.schema = [...cur.schema, { key: newKey, label: "Series " + cur.schema.length, type: "number" }];
+                next.rows = cur.rows.map(r => ({ ...r, [newKey]: 0 }));
+                return { ...p, [type]: next };
+              });
+            }},
+            { toolId: "typeWheel", Icon: Sparkles, title: "Type wheel", onClick: () => setWheelOpen(true) },
+            { toolId: "gridlines", Icon: Grid3x3, title: "Gridlines", active: showGridlines, onClick: () => setShowGridlines(v => !v) },
+            { toolId: "borders", Icon: Square, title: "Borders", active: showBorders, onClick: () => setShowBorders(v => !v) },
+            { toolId: "totalLabels", Icon: Sigma, title: "Total labels", active: showTotalLabels, onClick: () => setShowTotalLabels(v => !v) },
+            { toolId: "ticks", Icon: MinusSquare, title: "Tick marks", active: showTickMarks, onClick: () => setShowTickMarks(v => !v) },
+            { toolId: "numFmt", Icon: Hash, title: "Cycle number format", onClick: () => {
+              const order: NumberFormat[] = ["auto", "int", "dec1", "pct", "k", "m", "b"];
+              const idx = order.indexOf(numFmt);
+              setNumFmt(order[(idx + 1) % order.length]);
+            }},
+            { toolId: "theme", Icon: Palette, title: "Cycle theme", onClick: () => setTheme(t => t === "saCore" ? "saSpectrum" : "saCore") },
+            { toolId: "reset", Icon: Undo2, title: "Reset chart (clear annotations)", onClick: () => setAnnotByType(p => ({ ...p, [type]: [] })) },
+          ];
+        }
+        // Wave 12 · filter against the user's wheelConfig (per-kind allowlist)
+        const cfgForKind = wheelConfig[sel.kind];
+        if (cfgForKind && cfgForKind !== "all" && Array.isArray(cfgForKind)) {
+          const allow = new Set(cfgForKind);
+          icons = icons.filter(i => !i.toolId || allow.has(i.toolId));
+        }
+        return <RadialContextWheel x={wheelAnchor.x} y={wheelAnchor.y} icons={icons} label={label} onClose={close} />;
+      })()}
       {shortcutsOpen && <ShortcutsOverlay onClose={() => setShortcutsOpen(false)} />}
       {designOpen && (
         <DesignDrawer
@@ -4349,6 +5563,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           roundedCorners={roundedCorners} onToggleRoundedCorners={() => setRoundedCorners(v => !v)}
           showEndLabels={showEndLabels} onToggleEndLabels={() => setShowEndLabels(v => !v)}
           markerShape={markerShape} onChangeMarkerShape={setMarkerShape}
+          watermark={watermark} onChangeWatermark={setWatermark}
         />
       )}
       {/* Floating help button · always-on glass pill, opens shortcuts overlay */}
@@ -4374,6 +5589,98 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       >
         ?
       </button>
+
+      {/* Wave 12 · Selection popup floats above the clicked element with
+          inline color row, value input, and label toggles. Coexists with
+          TopMiniToolbar (which sits at the top of the canvas card). */}
+      {selected && (selected.kind === "segment" || selected.kind === "point" || selected.kind === "mekkoColumn") && (
+        <SelectionPopup
+          selected={selected}
+          palette={THEMES[theme].colors}
+          currentSeriesColor={(selected.kind === "segment" || selected.kind === "point") ? seriesColors[selected.key] : undefined}
+          onSetSeriesColor={setSeriesColor}
+          onUpdateRow={onUpdateRow}
+          sheet={sheet}
+          showSegmentLabels={showSegmentLabels}
+          showTotalLabels={showTotalLabels}
+          onToggleSegmentLabels={() => setShowSegmentLabels(v => !v)}
+          onToggleTotalLabels={() => setShowTotalLabels(v => !v)}
+          onTogglePercent={() => {
+            // Toggle percent column for the percent-of-total chart family.
+            // For other types, swap the number format to/from pct as a
+            // useful shorthand.
+            setNumFmt(f => f === "pct" ? "auto" : "pct");
+          }}
+          onClose={() => setSelected(null)}
+        />
+      )}
+
+      {/* Wave 12 · radial-wheel customizer modal */}
+      {wheelSettingsOpen && (
+        <WheelSettingsModal
+          config={wheelConfig}
+          onChange={setWheelConfig}
+          onClose={() => setWheelSettingsOpen(false)}
+        />
+      )}
+
+      {/* Wave 12 · Expanded webapp mode — full-viewport overlay with
+          chart / table / split panes and animated glow background. */}
+      {expandedMode && (
+        <ExpandedShell
+          onClose={() => setExpandedMode(false)}
+          paneMode={paneMode}
+          onChangePaneMode={setPaneMode}
+          splitOrientation={splitOrientation}
+          onChangeSplitOrientation={setSplitOrientation}
+          splitterPos={splitterPos}
+          onChangeSplitterPos={setSplitterPos}
+          chartType={type}
+          onChangeChartType={setType}
+          themeName={THEMES[theme].name}
+          paletteColors={THEMES[theme].colors}
+          chartCard={(
+            <div style={{
+              position: "relative",
+              background: backdropCss(backdropMode === "dark" ? BACKDROPS_DARK[backdrop] : BACKDROPS_LIGHT[backdrop]),
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 16,
+              padding: "26px 30px",
+              overflow: "auto",
+              width: "100%",
+              boxShadow: "0 1px 0 rgba(255,255,255,0.06) inset, 0 32px 64px rgba(0,0,0,0.45)",
+            }}>
+              <svg
+                viewBox={`0 0 ${W} ${H}`}
+                style={{ width: "100%", height: "auto", display: "block", fontFamily: ft, touchAction: "none" }}
+              >
+                <rect x="0" y="0" width={W} height={H} fill="transparent" onPointerDown={() => { if (selected) setSelected(null); }} />
+                {renderChart()}
+              </svg>
+            </div>
+          )}
+          dataSheet={(
+            <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+              <div style={{
+                padding: "10px 14px",
+                borderBottom: "1px solid rgba(255,255,255,0.06)",
+                display: "flex", alignItems: "center", gap: 10,
+                background: "rgba(13,13,18,0.72)",
+                backdropFilter: "blur(14px) saturate(140%)",
+                WebkitBackdropFilter: "blur(14px) saturate(140%)",
+              }}>
+                <Table size={13} strokeWidth={2.4} color={C.amber} />
+                <span style={{ fontFamily: mn, fontSize: 10, color: C.amber, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 800 }}>Data sheet</span>
+                <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6 }}>· edits sync to the chart in real time</span>
+              </div>
+              <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: 14 }}>
+                <DataSheetGrid sheet={rawSheet} onChange={setSheet} sliderMode={sliderMode} onToggleSliderMode={() => setSliderMode(v => !v)} />
+              </div>
+            </div>
+          )}
+        />
+      )}
+      </div>
     </div>
   );
 }
@@ -5298,7 +6605,7 @@ function AxisRangePicker({ axis, onChange, type }: { axis: { yMin?: number; yMax
 }
 
 // ─── DESIGN drawer · slide-in pane consolidating styling controls ────────
-function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, onChangeBackdrop, onChangeMode, legendPos, onChangeLegendPos, showBorders, onToggleBorders, showGridlines, onToggleGridlines, showSegmentLabels, onToggleSegmentLabels, axis, onChangeAxis, chartType, yLabel, onChangeYLabel, xLabel, onChangeXLabel, logScale, onToggleLogScale, roundedCorners, onToggleRoundedCorners, showEndLabels, onToggleEndLabels, markerShape, onChangeMarkerShape }: {
+function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, onChangeBackdrop, onChangeMode, legendPos, onChangeLegendPos, showBorders, onToggleBorders, showGridlines, onToggleGridlines, showSegmentLabels, onToggleSegmentLabels, axis, onChangeAxis, chartType, yLabel, onChangeYLabel, xLabel, onChangeXLabel, logScale, onToggleLogScale, roundedCorners, onToggleRoundedCorners, showEndLabels, onToggleEndLabels, markerShape, onChangeMarkerShape, watermark, onChangeWatermark }: {
   onClose: () => void;
   theme: ThemeId; onChangeTheme: (t: ThemeId) => void;
   backdrop: BackdropKey; backdropMode: BackdropMode;
@@ -5316,6 +6623,7 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
   roundedCorners: boolean; onToggleRoundedCorners: () => void;
   showEndLabels: boolean; onToggleEndLabels: () => void;
   markerShape: "none" | "circle" | "square" | "diamond"; onChangeMarkerShape: (s: "none" | "circle" | "square" | "diamond") => void;
+  watermark: "off" | "centered" | "random"; onChangeWatermark: (w: "off" | "centered" | "random") => void;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -5444,6 +6752,31 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
               />
             </div>
             <AxisRangeBlock axis={axis} onChange={onChangeAxis} xApplies={xApplies} chartType={chartType} />
+          </Section>
+
+          {/* WATERMARK · Wave 12 · POAST box-logo behind the chart */}
+          <Section title="Watermark">
+            <div style={{ display: "flex", gap: 4, padding: 3, background: "rgba(255,255,255,0.025)", borderRadius: 7 }}>
+              {(["off", "centered", "random"] as const).map(m => {
+                const on = watermark === m;
+                return (
+                  <button
+                    key={m}
+                    onClick={() => onChangeWatermark(m)}
+                    style={{
+                      flex: 1, padding: "9px 10px", borderRadius: 5,
+                      background: on ? C.amber + "22" : "transparent",
+                      border: "none",
+                      color: on ? C.amber : C.txm,
+                      fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
+                      cursor: "pointer", textTransform: "uppercase",
+                      transition: "all 0.14s",
+                    }}
+                  >{m}</button>
+                );
+              })}
+            </div>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 8, letterSpacing: 0.5 }}>POAST box-logo at 20% opacity behind the chart.</div>
           </Section>
         </div>
       </div>
@@ -6246,13 +7579,14 @@ const WELCOME_STEPS: WelcomeStep[] = [
     cta: { label: "Open Type Wheel", action: "wheel" },
   },
   {
-    title: "Right-Click for the Icon Menu",
-    body: "Right-click any bar or segment to open a floating icon strip. Add a CAGR arrow, diff arrow, value line, callout, or recolor — all from one panel.",
+    title: "Click to Select · Right-Click for the Wheel",
+    body: "Wave 11 is a major paradigm shift. Click any bar, segment, or point to SELECT it (it shows an amber glow + handles). Then drag the top handle to resize, or right-click for the radial wheel of context tools.",
     bullets: [
-      "🎨 Fill color · click to recolor entire series",
-      "↗ CAGR · click two bars to draw a growth arrow",
-      "↔ Δ Diff · absolute or % change between two bars",
-      "T Text · drop a draggable text callout anywhere",
+      "Click bar / point → glow outline + selection handles appear",
+      "Drag the TOP HANDLE to resize the value (not the body)",
+      "Right-click selected element → radial wheel of icons around the cursor",
+      "Press M while selected = open wheel · Esc deselects · click empty canvas deselects",
+      "Click an empty area → canvas-context wheel (gridlines, totals, theme)",
     ],
     Icon: Palette,
     accent: "#0B86D1",
@@ -6270,14 +7604,27 @@ const WELCOME_STEPS: WelcomeStep[] = [
     accent: "#2EAD8E",
   },
   {
+    title: "Compact or full suite — your choice",
+    body: "Click the expand icon for a full chart-building webapp. Toggle Chart, Table, or Split Screen — drag the divider, switch between vertical and horizontal layouts.",
+    bullets: [
+      "Click any element → instant color picker + format controls float above",
+      "Press M to open the radial wheel anywhere on the chart",
+      "Customize the wheel: choose which tools appear per element kind",
+      "Watermark: drop the POAST mark behind every chart, centered or random",
+      "Esc exits expanded mode · the splitter snaps to vertical ↔ horizontal",
+    ],
+    Icon: Maximize2,
+    accent: "#0B86D1",
+  },
+  {
     title: "Tips & Tricks",
     body: "A few power-user moves that will save you hours. Press ? anytime to open the full keyboard reference.",
     bullets: [
-      "W · open the Type Wheel · Esc to close",
-      "? · keyboard shortcut overlay · ⌘Z undo · ⌘⇧Z redo",
-      "Alt + drag a number cell to scrub the value",
-      "Paste TSV/CSV from Excel — auto-detects SA-horizontal layouts",
-      "Use the right Properties panel for design + annotations + series",
+      "W · type wheel · M · radial context wheel for the current selection",
+      "Esc · deselect / close any overlay · ? · keyboard shortcut overlay",
+      "⌘Z undo · ⌘⇧Z redo · drag the top handle of a selected bar to resize",
+      "Alt + drag a number cell to scrub the value · paste TSV/CSV from Excel",
+      "Mekko: click a column then drag its right edge to resize column width",
       "Lock 🔒 mode prevents accidental edits while you style",
     ],
     Icon: Keyboard,
@@ -6499,6 +7846,459 @@ function WelcomeScreen({
               onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; }}
             >GET STARTED →</button>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WHEEL SETTINGS MODAL · Wave 12 · lets the user pick which icons appear in
+// the radial wheel for each element kind. Persists to localStorage. The
+// `wheelConfig` map stores `kind -> string[] | "all"` where the strings are
+// tool IDs. Default = "all" (every tool enabled).
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface WheelToolDef { id: string; label: string; }
+const WHEEL_TOOLS_BY_KIND: Record<string, WheelToolDef[]> = {
+  segment: [
+    { id: "fill", label: "Fill color" },
+    { id: "totalLabels", label: "Total labels" },
+    { id: "segmentLabels", label: "Segment labels" },
+    { id: "cagr", label: "CAGR arrow" },
+    { id: "diff", label: "Diff arrow" },
+    { id: "totalDiff", label: "Total diff arrow" },
+    { id: "seriesCagr", label: "Series CAGR badge" },
+    { id: "refLine", label: "Reference line" },
+    { id: "callout", label: "Callout text" },
+    { id: "delete", label: "Set to 0" },
+  ],
+  point: [
+    { id: "fill", label: "Fill color" },
+    { id: "endLabels", label: "End labels" },
+    { id: "cagr", label: "CAGR arrow" },
+    { id: "diff", label: "Diff arrow" },
+    { id: "seriesCagr", label: "Series CAGR badge" },
+    { id: "refLine", label: "Reference line" },
+    { id: "marker", label: "Marker shape" },
+    { id: "callout", label: "Callout text" },
+    { id: "delete", label: "Set to 0" },
+  ],
+  axis: [
+    { id: "logScale", label: "Log scale" },
+    { id: "gridlines", label: "Gridlines" },
+    { id: "ticks", label: "Tick marks" },
+    { id: "axisBreak", label: "Axis break" },
+    { id: "numFmt", label: "Number format" },
+  ],
+  label: [
+    { id: "numFmt", label: "Number format" },
+    { id: "totalLabels", label: "Total labels" },
+    { id: "hideLabels", label: "Hide labels" },
+  ],
+  mekkoColumn: [
+    { id: "shiftLeft", label: "Shift left" },
+    { id: "shiftRight", label: "Shift right" },
+    { id: "delete", label: "Delete column" },
+  ],
+  canvas: [
+    { id: "addSeries", label: "Add series" },
+    { id: "typeWheel", label: "Type wheel" },
+    { id: "gridlines", label: "Gridlines" },
+    { id: "borders", label: "Borders" },
+    { id: "totalLabels", label: "Total labels" },
+    { id: "ticks", label: "Tick marks" },
+    { id: "numFmt", label: "Number format" },
+    { id: "theme", label: "Cycle theme" },
+    { id: "reset", label: "Reset chart" },
+  ],
+};
+
+function WheelSettingsModal({
+  config, onChange, onClose,
+}: {
+  config: Record<string, string[] | "all">;
+  onChange: (next: Record<string, string[] | "all">) => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const isEnabled = (kind: string, id: string) => {
+    const cur = config[kind];
+    if (cur === undefined || cur === "all") return true;
+    return cur.includes(id);
+  };
+  const toggleTool = (kind: string, id: string) => {
+    const all = WHEEL_TOOLS_BY_KIND[kind].map(t => t.id);
+    const cur = config[kind];
+    const enabled = cur === undefined || cur === "all" ? all.slice() : cur.slice();
+    const idx = enabled.indexOf(id);
+    if (idx >= 0) enabled.splice(idx, 1);
+    else enabled.push(id);
+    // If everything is enabled, store "all" (compact form).
+    const next = { ...config };
+    if (enabled.length === all.length) next[kind] = "all";
+    else next[kind] = enabled;
+    onChange(next);
+  };
+  const resetAll = () => onChange({});
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, zIndex: 12700,
+      background: "rgba(6,6,12,0.74)",
+      backdropFilter: "blur(10px)",
+      WebkitBackdropFilter: "blur(10px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 24,
+      animation: "cm2WelcomeFade 0.2s cubic-bezier(.2,.7,.2,1) both",
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: "min(720px, 96vw)", maxHeight: "86vh", overflow: "auto",
+        background: "linear-gradient(180deg, #11111A 0%, #0A0A12 100%)",
+        border: "1px solid rgba(255,255,255,0.10)",
+        borderRadius: 16, padding: "24px 28px",
+        boxShadow: "0 32px 80px rgba(0,0,0,0.60), 0 0 0 1px " + C.amber + "20",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+          <Settings size={18} strokeWidth={2.2} color={C.amber} />
+          <span style={{ fontFamily: gf, fontSize: 18, fontWeight: 900, color: "#E8E4DD", letterSpacing: -0.3 }}>Customize Radial Wheel</span>
+          <span style={{ marginLeft: "auto", cursor: "pointer", color: C.txm, padding: 4, display: "inline-flex" }} onClick={onClose}><XIcon size={16} /></span>
+        </div>
+        <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, marginBottom: 18, lineHeight: 1.5 }}>
+          Pick which tools appear in the radial wheel when you right-click each element kind. Disabled tools won&apos;t crowd your wheel.
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {(Object.entries(WHEEL_TOOLS_BY_KIND) as [string, WheelToolDef[]][]).map(([kind, tools]) => (
+            <div key={kind} style={{ padding: 14, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10 }}>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 800, marginBottom: 10 }}>{kind}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {tools.map(t => {
+                  const on = isEnabled(kind, t.id);
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => toggleTool(kind, t.id)}
+                      style={{
+                        padding: "6px 12px", borderRadius: 6,
+                        background: on ? C.amber + "20" : "rgba(255,255,255,0.03)",
+                        border: "1px solid " + (on ? C.amber + "55" : "rgba(255,255,255,0.10)"),
+                        color: on ? C.amber : C.txm,
+                        fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
+                        cursor: "pointer", transition: "all 0.14s",
+                      }}
+                    >{on ? "✓ " : ""}{t.label}</button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 18, display: "flex", gap: 10, alignItems: "center" }}>
+          <button
+            onClick={resetAll}
+            style={{
+              padding: "9px 14px", borderRadius: 8,
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              color: C.tx, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
+              cursor: "pointer",
+            }}
+          >RESET TO DEFAULT</button>
+          <span style={{ flex: 1 }} />
+          <button
+            onClick={onClose}
+            style={{
+              padding: "9px 16px", borderRadius: 8,
+              background: "linear-gradient(135deg, " + C.amber + ", #E8A020)",
+              border: "1px solid " + C.amber + "88",
+              color: "#0A0A0E", fontFamily: mn, fontSize: 10, fontWeight: 900, letterSpacing: 0.8,
+              cursor: "pointer",
+              boxShadow: "0 6px 18px " + C.amber + "55",
+            }}
+          >DONE</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EXPANDED SHELL · Wave 12 · full-viewport overlay containing a top bar
+// (Chart / Table / Split / Compact / Export), left chart-type sidebar,
+// middle pane (chart-only / table-only / split with draggable splitter),
+// and a sticky right Properties pane. Splitter drag updates `splitterPos`.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ExpandedShell({
+  onClose,
+  paneMode, onChangePaneMode,
+  splitOrientation, onChangeSplitOrientation,
+  splitterPos, onChangeSplitterPos,
+  chartType, onChangeChartType,
+  themeName, paletteColors,
+  chartCard, dataSheet,
+}: {
+  onClose: () => void;
+  paneMode: "chart" | "table" | "split";
+  onChangePaneMode: (m: "chart" | "table" | "split") => void;
+  splitOrientation: "vertical" | "horizontal";
+  onChangeSplitOrientation: (o: "vertical" | "horizontal") => void;
+  splitterPos: number;
+  onChangeSplitterPos: (p: number) => void;
+  chartType: ChartType;
+  onChangeChartType: (t: ChartType) => void;
+  themeName: string;
+  paletteColors: string[];
+  chartCard: React.ReactNode;
+  dataSheet: React.ReactNode;
+}) {
+  void themeName; void paletteColors;
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const middleRef = useRef<HTMLDivElement | null>(null);
+  const draggingRef = useRef(false);
+  // Splitter drag handler — pointer-capturing on the splitter element.
+  const onSplitterDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    draggingRef.current = true;
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onSplitterMove = (e: React.PointerEvent) => {
+    if (!draggingRef.current) return;
+    const box = middleRef.current?.getBoundingClientRect();
+    if (!box) return;
+    const ratio = splitOrientation === "vertical"
+      ? (e.clientX - box.left) / Math.max(1, box.width)
+      : (e.clientY - box.top) / Math.max(1, box.height);
+    onChangeSplitterPos(Math.max(0.20, Math.min(0.80, ratio)));
+  };
+  const onSplitterUp = () => { draggingRef.current = false; };
+
+  // Top-bar pill button helper
+  const TabBtn = ({ active, onClick, Icon, label, title }: { active: boolean; onClick: () => void; Icon: LucideIconCmp; label: string; title?: string }) => {
+    const [hov, setHov] = useState(false);
+    return (
+      <button
+        onClick={onClick}
+        title={title}
+        onMouseEnter={() => setHov(true)}
+        onMouseLeave={() => setHov(false)}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          padding: "7px 12px", borderRadius: 8,
+          background: active ? C.amber + "26" : (hov ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.03)"),
+          border: "1px solid " + (active ? C.amber + "70" : (hov ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.10)")),
+          color: active ? C.amber : (hov ? "#E8E4DD" : C.txm),
+          fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
+          cursor: "pointer", transition: "all 0.16s cubic-bezier(.2,.7,.2,1)",
+          textTransform: "uppercase",
+        }}
+      >
+        <Icon size={12} strokeWidth={2.4} />
+        {label}
+      </button>
+    );
+  };
+
+  // Click handler for the SPLIT button — first press goes to split, while
+  // already in split toggles vertical ↔ horizontal orientation.
+  const onSplitClick = () => {
+    if (paneMode !== "split") {
+      onChangePaneMode("split");
+    } else {
+      onChangeSplitOrientation(splitOrientation === "vertical" ? "horizontal" : "vertical");
+    }
+  };
+
+  // Chart-only / table-only render the appropriate pane filling the middle.
+  // Split renders both with a 5px draggable splitter between them.
+  const middleContent = (() => {
+    if (paneMode === "chart") {
+      return (
+        <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: "20px 22px", display: "flex" }}>
+          <div style={{ flex: 1, minWidth: 0, alignSelf: "flex-start", width: "100%" }}>{chartCard}</div>
+        </div>
+      );
+    }
+    if (paneMode === "table") {
+      return (
+        <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>{dataSheet}</div>
+      );
+    }
+    // SPLIT mode
+    const isV = splitOrientation === "vertical";
+    return (
+      <div
+        ref={middleRef}
+        style={{
+          flex: 1, minHeight: 0, minWidth: 0,
+          display: "flex",
+          flexDirection: isV ? "row" : "column",
+        }}
+      >
+        <div style={{
+          flexBasis: `${splitterPos * 100}%`,
+          flexShrink: 0,
+          minWidth: 0, minHeight: 0,
+          overflow: "auto",
+          padding: "20px 22px",
+        }}>
+          {chartCard}
+        </div>
+        {/* Splitter */}
+        <div
+          onPointerDown={onSplitterDown}
+          onPointerMove={onSplitterMove}
+          onPointerUp={onSplitterUp}
+          style={{
+            width: isV ? 5 : "auto",
+            height: isV ? "auto" : 5,
+            background: draggingRef.current ? C.amber + "55" : "rgba(255,255,255,0.06)",
+            cursor: isV ? "col-resize" : "row-resize",
+            flexShrink: 0,
+            transition: "background 0.16s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = C.amber + "66"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}
+        />
+        <div style={{
+          flex: 1,
+          minWidth: 0, minHeight: 0,
+          display: "flex", flexDirection: "column",
+        }}>
+          {dataSheet}
+        </div>
+      </div>
+    );
+  })();
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 11000,
+        background: "linear-gradient(180deg, #06060C 0%, #0A0A12 100%)",
+        display: "flex", flexDirection: "column",
+        animation: "cm2ExpandPop 0.28s cubic-bezier(.2,.7,.2,1) both",
+        overflow: "hidden",
+      }}
+    >
+      {/* Animated glow drift orbs (4 of them) — sit BEHIND content */}
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden", zIndex: 0 }}>
+        <div style={{ position:"absolute", top:"-12%", right:"-6%", width:"55vw", height:"55vw", borderRadius:"50%",
+          background:"radial-gradient(circle, rgba(247,176,65,0.07) 0%, transparent 60%)",
+          animation:"cmGlowDrift1 22s ease-in-out infinite" }} />
+        <div style={{ position:"absolute", bottom:"-15%", left:"8%", width:"60vw", height:"60vw", borderRadius:"50%",
+          background:"radial-gradient(circle, rgba(11,134,209,0.06) 0%, transparent 60%)",
+          animation:"cmGlowDrift2 28s ease-in-out infinite" }} />
+        <div style={{ position:"absolute", top:"35%", left:"-12%", width:"42vw", height:"42vw", borderRadius:"50%",
+          background:"radial-gradient(circle, rgba(46,173,142,0.05) 0%, transparent 60%)",
+          animation:"cmGlowDrift3 32s ease-in-out infinite" }} />
+        <div style={{ position:"absolute", top:"12%", right:"30%", width:"20vw", height:"20vw", borderRadius:"50%",
+          background:"radial-gradient(circle, rgba(224,99,71,0.06) 0%, transparent 60%)",
+          animation:"cmGlowDrift4 26s ease-in-out infinite" }} />
+      </div>
+
+      {/* TOP BAR */}
+      <div style={{
+        position: "relative", zIndex: 2,
+        height: 52,
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "0 16px",
+        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        background: "rgba(13,13,18,0.78)",
+        backdropFilter: "blur(18px) saturate(140%)",
+        WebkitBackdropFilter: "blur(18px) saturate(140%)",
+      }}>
+        {/* POAST mark */}
+        <span style={{
+          display: "inline-flex", alignItems: "center", gap: 8,
+          padding: "5px 10px", borderRadius: 7,
+          background: "rgba(247,176,65,0.10)",
+          border: "1px solid " + C.amber + "44",
+        }}>
+          <Sparkles size={13} strokeWidth={2.4} color={C.amber} />
+          <span style={{ fontFamily: gf, fontSize: 12, fontWeight: 900, color: "#E8E4DD", letterSpacing: -0.2 }}>POAST</span>
+        </span>
+        <span style={{ fontFamily: ft, fontSize: 13, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.2 }}>
+          Chart Maker <span style={{ color: C.amber }}>· Expanded</span>
+        </span>
+        <span style={{ flex: 1 }} />
+        {/* Pane mode tabs */}
+        <TabBtn active={paneMode === "chart"} onClick={() => onChangePaneMode("chart")} Icon={BarChart3} label="Chart" title="Chart only" />
+        <TabBtn active={paneMode === "table"} onClick={() => onChangePaneMode("table")} Icon={Table} label="Table" title="Table only" />
+        <TabBtn
+          active={paneMode === "split"}
+          onClick={onSplitClick}
+          Icon={splitOrientation === "vertical" ? Columns2 : Rows2}
+          label={paneMode === "split" ? (splitOrientation === "vertical" ? "Split V" : "Split H") : "Split"}
+          title={paneMode === "split" ? "Toggle vertical / horizontal split" : "Open split view"}
+        />
+        <span style={{ width: 1, height: 22, background: "rgba(255,255,255,0.10)", margin: "0 4px" }} />
+        <button
+          onClick={onClose}
+          title="Back to compact mode (Esc)"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "7px 12px", borderRadius: 8,
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            color: C.txm,
+            fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
+            cursor: "pointer", transition: "all 0.16s",
+            textTransform: "uppercase",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "#E8E4DD"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = C.txm; }}
+        >
+          <Minimize2 size={12} strokeWidth={2.4} />
+          Back to Compact
+        </button>
+      </div>
+
+      {/* MAIN GRID · LEFT (sidebar) | MIDDLE (chart/table/split) | RIGHT (props) */}
+      <div style={{ position: "relative", zIndex: 1, flex: 1, minHeight: 0, display: "flex" }}>
+        {/* LEFT — chart-type sidebar (collapsible) */}
+        <div style={{
+          width: leftCollapsed ? 44 : 240,
+          flexShrink: 0,
+          borderRight: "1px solid rgba(255,255,255,0.06)",
+          background: "rgba(13,13,18,0.72)",
+          backdropFilter: "blur(18px) saturate(140%)",
+          WebkitBackdropFilter: "blur(18px) saturate(140%)",
+          overflow: "hidden",
+          display: "flex", flexDirection: "column",
+          transition: "width 0.22s cubic-bezier(.2,.7,.2,1)",
+        }}>
+          <div style={{
+            padding: "10px 12px",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            display: "flex", alignItems: "center", gap: 6,
+          }}>
+            {!leftCollapsed && <span style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 800, flex: 1 }}>Types</span>}
+            <button
+              onClick={() => setLeftCollapsed(v => !v)}
+              title={leftCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              style={{
+                width: 24, height: 24, borderRadius: 6,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.10)",
+                color: C.txm,
+                cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
+              }}
+            >{leftCollapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}</button>
+          </div>
+          {!leftCollapsed && (
+            <div style={{ overflowY: "auto", padding: 10, display: "flex", flexDirection: "column", gap: 4 }}>
+              {TYPES.flat().map(spec => <ChartTypeRow key={spec.id} spec={spec} active={chartType === spec.id} onClick={() => onChangeChartType(spec.id)} />)}
+            </div>
+          )}
+        </div>
+
+        {/* MIDDLE pane(s) */}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+          {middleContent}
         </div>
       </div>
     </div>
