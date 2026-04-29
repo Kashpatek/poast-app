@@ -5388,7 +5388,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         <PasteDataButton onPaste={raw => { const ds = parsePasteForCategorical(raw); if (ds) setSheets(p => ({ ...p, [type]: ds })); else showToast("Couldn't parse the paste — expected TSV or CSV with headers"); }} />
         <ImportExcelButton onImport={ds => setSheets(p => ({ ...p, [type]: ds }))} />
         <NumberFormatPicker fmt={numFmt} onChange={setNumFmt} />
-        <GlassButton onClick={() => setDesignOpen(true)} title="Design panel · theme, backdrop, legend, borders, axes" Icon={Palette}>DESIGN</GlassButton>
+        <GlassButton onClick={() => setDesignOpen(v => !v)} title="Design panel · click to toggle" Icon={Palette} primary={designOpen}>DESIGN</GlassButton>
         {/* SIMPLE | ADVANCED pill toggle */}
         <div style={{ display: "inline-flex", padding: 3, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 999 }}>
           {(["simple", "advanced"] as const).map(m => {
@@ -5691,7 +5691,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             })()}
             onSetSeriesColor={setSeriesColor}
             palette={THEMES[theme].colors}
-            onOpenDesign={() => setDesignOpen(true)}
+            onOpenDesign={() => setDesignOpen(v => !v)}
             watermark={watermark}
             onChangeWatermark={setWatermark}
             onOpenExpanded={() => setExpandedMode(true)}
@@ -6095,7 +6095,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               })()}
               onSetSeriesColor={setSeriesColor}
               palette={THEMES[theme].colors}
-              onOpenDesign={() => setDesignOpen(true)}
+              onOpenDesign={() => setDesignOpen(v => !v)}
               watermark={watermark}
               onChangeWatermark={setWatermark}
               onOpenExpanded={() => setExpandedMode(true)}
