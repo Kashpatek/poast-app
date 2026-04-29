@@ -12,6 +12,8 @@
     "@remotion/cli": "^4.0.448",
     "@remotion/player": "^4.0.448",
     "@supabase/supabase-js": "^2.103.0",
+    "@univerjs/preset-sheets-core": "^0.21.1",
+    "@univerjs/presets": "^0.21.1",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.37.0",
     "@vercel/blob": "^2.3.3",

@@ -3,6 +3,14 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { createPortal } from "react-dom";
 import { D as C, ft, gf, mn } from "./shared-constants";
 import { showToast } from "./toast-context";
+// Wave 14.2 · Univer (full Excel-grade spreadsheet) · The CSS bundle for the
+// Univer presets ships as a flat ~80 KB stylesheet. We import it eagerly so
+// that when the user toggles EXCEL SUITE in Launch mode, all of Univer's UI
+// (formula bar, ribbon, sheet tabs, find/replace, conditional formatting)
+// renders styled instantly without a CSS race. The Univer JS itself
+// (~3 MB) is still loaded lazily inside UniverSheetPane via dynamic import,
+// so initial route weight is unaffected.
+import "@univerjs/preset-sheets-core/lib/index.css";
 import {
   Calendar, Download, Eye, EyeOff, Plus, X, ChevronUp, ChevronDown,
   BarChart3, Columns3, AlignVerticalDistributeCenter, AlignVerticalJustifyCenter,
@@ -5003,6 +5011,22 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     setSelectedRowIdxsByType(p => { const next = { ...p }; delete next[type]; return next; });
   }, [type]);
   const [sliderMode, setSliderMode] = useState(false);
+  // Wave 14.2 · Table engine selector for Launch (Expanded) mode. Standard
+  // = the existing in-house DataSheetGrid (lean, ~0 KB extra). Univer =
+  // full Excel-grade spreadsheet (formula engine, multi-sheet, freeze
+  // panes, conditional formatting). Persisted to localStorage so the
+  // user's preference survives reloads. Default Standard so the chart
+  // route stays fast for first-time visitors.
+  const [tableEngine, setTableEngine] = useState<"standard" | "univer">("standard");
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("cm2-table-engine");
+      if (v === "univer" || v === "standard") setTableEngine(v);
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem("cm2-table-engine", tableEngine); } catch {}
+  }, [tableEngine]);
   const annotations = annotByType[type] || [];
   const setSheet = useCallback((s: DataSheet) => setSheetsRaw(p => ({ ...p, [type]: s })), [type]);
 
@@ -6309,20 +6333,63 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
                 <Table size={13} strokeWidth={2.4} color={C.amber} />
                 <span style={{ fontFamily: mn, fontSize: 10, color: C.amber, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 800 }}>Data sheet</span>
                 <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6 }}>· edits sync to the chart in real time</span>
+                <span style={{ flex: 1 }} />
+                {/* Wave 14.2 · Table engine toggle. EXCEL SUITE swaps in Univer
+                    (full Excel-grade spreadsheet) for power features. */}
+                <div style={{
+                  display: "inline-flex",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 8,
+                  overflow: "hidden",
+                  background: "rgba(255,255,255,0.03)",
+                }}>
+                  {(["standard", "univer"] as const).map(eng => {
+                    const active = tableEngine === eng;
+                    const label = eng === "standard" ? "Standard" : "Excel Suite";
+                    return (
+                      <button
+                        key={eng}
+                        onClick={() => setTableEngine(eng)}
+                        title={eng === "standard" ? "Lean in-house data grid" : "Full Excel-grade spreadsheet (Univer · formulas, freeze panes, multi-sheet, conditional formatting)"}
+                        style={{
+                          padding: "5px 10px",
+                          background: active ? C.amber + "26" : "transparent",
+                          border: "none",
+                          borderRight: eng === "standard" ? "1px solid rgba(255,255,255,0.10)" : "none",
+                          color: active ? C.amber : C.txm,
+                          fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 1.2,
+                          textTransform: "uppercase", cursor: "pointer",
+                          transition: "all 0.16s cubic-bezier(.2,.7,.2,1)",
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: 14 }}>
-                <DataSheetGrid
-                  sheet={rawSheet}
-                  onChange={setSheet}
-                  sliderMode={sliderMode}
-                  onToggleSliderMode={() => setSliderMode(v => !v)}
-                  selectedRowIdxs={selectedRowIdxs}
-                  onChangeSelectedRowIdxs={setSelectedRowIdxs}
-                  chartedRowsActive={chartedRowsActive}
-                  onToggleChartedRows={toggleChartedRows}
-                  onClearChartedRows={clearChartedRows}
-                />
-              </div>
+              {tableEngine === "univer" ? (
+                // Univer takes the entire pane — it ships its own toolbar,
+                // formula bar, sheet tabs, and scrollbars, so we drop the
+                // outer padding/scroll wrapper used by the Standard grid.
+                <div style={{ flex: 1, minHeight: 0, padding: 8 }}>
+                  <UniverSheetPane initialSheet={rawSheet} onChange={setSheet} />
+                </div>
+              ) : (
+                <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: 14 }}>
+                  <DataSheetGrid
+                    sheet={rawSheet}
+                    onChange={setSheet}
+                    sliderMode={sliderMode}
+                    onToggleSliderMode={() => setSliderMode(v => !v)}
+                    selectedRowIdxs={selectedRowIdxs}
+                    onChangeSelectedRowIdxs={setSelectedRowIdxs}
+                    chartedRowsActive={chartedRowsActive}
+                    onToggleChartedRows={toggleChartedRows}
+                    onClearChartedRows={clearChartedRows}
+                  />
+                </div>
+              )}
             </div>
           )}
           propsPanel={(
@@ -8625,6 +8692,7 @@ const WELCOME_STEPS: WelcomeStep[] = [
       "IMPORT EXCEL button → pick .xlsx → choose tab → preview → import",
       "Expanded mode → full Properties panel + Chart/Table/Split layout",
       "Click row numbers to select rows · Shift+click extends · Cmd/Ctrl+click toggles",
+      "Toggle EXCEL SUITE in Launch mode for a full Univer-powered spreadsheet — multi-sheet, real formulas, freeze panes, conditional formatting",
     ],
     Icon: Maximize2,
     accent: "#0B86D1",
@@ -9052,6 +9120,228 @@ function WheelSettingsModal({
           >DONE</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UNIVER SHEET PANE · Wave 14.2 · Full Excel-grade spreadsheet (Univer)
+// embedded inside the Launch-mode table pane when the user toggles
+// EXCEL SUITE. Univer brings a real Excel-compatible formula engine,
+// multi-sheet workbooks, formula bar with autocomplete, freeze panes,
+// find/replace, conditional formatting, and native xlsx I/O.
+//
+// Loading model: the @univerjs/* JS bundle is ~3 MB. We lazy-load it via
+// `await import()` inside a useEffect so the cost only materializes when
+// a user actually flips to EXCEL SUITE. The CSS (~80 KB) is imported at
+// the top of this file because Next.js doesn't reliably code-split CSS
+// from dynamic JS imports — and 80 KB on the chart route is a fair price
+// for instant styled-up rendering on toggle.
+//
+// Bridging to DataSheet: on init, we project the existing DataSheet shape
+// (schema + rows) onto a Univer workbook (row 0 = headers, rows 1..N =
+// data). On every SheetValueChanged event we read back the cell matrix
+// and reconstruct a DataSheet so the chart re-renders. Column types are
+// preserved from the original schema; new values are coerced (number if
+// the original column was numeric, otherwise string).
+// ═══════════════════════════════════════════════════════════════════════════
+function UniverSheetPane({
+  initialSheet,
+  onChange,
+}: {
+  initialSheet: DataSheet;
+  onChange: (s: DataSheet) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  // Hold the Univer instance + workbook so we can dispose them on unmount.
+  // Typed `any` because the Univer Facade types span ~12 packages and
+  // change between point releases — pinning the surface here would create
+  // brittle imports for what is, behaviorally, a stable plugin handshake.
+  const univerRef = useRef<any>(null);
+  const workbookRef = useRef<any>(null);
+  const onChangeRef = useRef(onChange);
+  // Schema must be remembered across renders because we project Univer's
+  // raw cell matrix back onto the DataSheet schema on every edit. We also
+  // need the original column order so the chart wires up correctly.
+  const schemaRef = useRef(initialSheet.schema);
+  // Suppress the change handler while we apply the initial workbook —
+  // otherwise creating the workbook would fire SheetValueChanged and
+  // overwrite the chart-config sheet with our own data.
+  const suppressChangeRef = useRef(true);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Keep the latest onChange in a ref — Univer's event subscription is
+  // installed once at mount and we don't want to tear it down on every
+  // parent re-render.
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!containerRef.current) return;
+
+    let disposed = false;
+    let disposeEvent: { dispose: () => void } | null = null;
+
+    (async () => {
+      try {
+        // Dynamic imports — only fetched when the user flips to EXCEL SUITE.
+        const presetsMod = await import("@univerjs/presets");
+        const sheetsCoreMod = await import("@univerjs/preset-sheets-core");
+        // The locale ships as a default-export object. We accept either
+        // shape (default export or namespace) to survive package re-bundles.
+        const enUSMod: any = await import("@univerjs/preset-sheets-core/locales/en-US");
+
+        if (disposed || !containerRef.current) return;
+
+        const { createUniver, LocaleType, mergeLocales } = presetsMod as any;
+        const { UniverSheetsCorePreset } = sheetsCoreMod as any;
+        const enUSLocale = (enUSMod && (enUSMod.default ?? enUSMod)) as Record<string, unknown>;
+
+        const { univer, univerAPI } = createUniver({
+          locale: LocaleType.EN_US,
+          locales: {
+            [LocaleType.EN_US]: mergeLocales(enUSLocale),
+          },
+          presets: [
+            UniverSheetsCorePreset({ container: containerRef.current }),
+          ],
+        });
+        univerRef.current = univer;
+
+        // Build initial workbook data from the DataSheet. Row 0 holds the
+        // bold-styled headers; rows 1..N hold the values.
+        const headerRow: Record<number, { v: string | number; s?: any }> = {};
+        initialSheet.schema.forEach((col, c) => {
+          headerRow[c] = { v: col.label, s: { bl: 1 } };
+        });
+        const cellData: Record<number, Record<number, { v: string | number }>> = { 0: headerRow };
+        initialSheet.rows.forEach((row, r) => {
+          const out: Record<number, { v: string | number }> = {};
+          initialSheet.schema.forEach((col, c) => {
+            const v = row[col.key];
+            if (v !== undefined && v !== "" && v !== null) {
+              out[c] = { v: typeof v === "number" ? v : String(v) };
+            }
+          });
+          cellData[r + 1] = out;
+        });
+
+        const rowCount = Math.max(50, initialSheet.rows.length + 20);
+        const columnCount = Math.max(20, initialSheet.schema.length + 5);
+
+        const workbook = univerAPI.createWorkbook({
+          id: "cm2-univer-workbook",
+          name: "Chart Data",
+          sheetOrder: ["cm2-sheet"],
+          sheets: {
+            "cm2-sheet": {
+              id: "cm2-sheet",
+              name: "Data",
+              cellData,
+              rowCount,
+              columnCount,
+            },
+          },
+        });
+        workbookRef.current = workbook;
+
+        // Subscribe to value changes. The Facade fires SheetValueChanged
+        // for both user edits and programmatic edits (incl. the workbook
+        // creation we just did), so we filter via suppressChangeRef.
+        if (univerAPI && typeof univerAPI.addEvent === "function" && univerAPI.Event) {
+          disposeEvent = univerAPI.addEvent(univerAPI.Event.SheetValueChanged, () => {
+            if (suppressChangeRef.current) return;
+            try {
+              const target = univerAPI.getActiveSheet();
+              if (!target) return;
+              const ws = target.worksheet;
+              const schema = schemaRef.current;
+              // Read the data block (rows 1..rowCount-1, cols 0..schema.length-1).
+              const range = ws.getRange(1, 0, Math.max(1, rowCount - 1), schema.length);
+              const values: any[][] = range.getValues() || [];
+              const newRows: Array<Record<string, CellValue>> = [];
+              for (const row of values) {
+                if (!row) continue;
+                // Skip rows that are entirely null/empty.
+                const nonEmpty = row.some(v => v !== null && v !== undefined && v !== "");
+                if (!nonEmpty) continue;
+                const out: Record<string, CellValue> = {};
+                schema.forEach((col, c) => {
+                  const raw = row[c];
+                  if (raw === null || raw === undefined) {
+                    out[col.key] = col.type === "number" || col.type === "percent" ? 0 : "";
+                    return;
+                  }
+                  if (col.type === "number" || col.type === "percent") {
+                    const n = typeof raw === "number" ? raw : Number(String(raw).replace(/[^0-9.\-eE]/g, ""));
+                    out[col.key] = Number.isFinite(n) ? n : 0;
+                  } else {
+                    out[col.key] = String(raw);
+                  }
+                });
+                newRows.push(out);
+              }
+              onChangeRef.current({ schema, rows: newRows });
+            } catch {
+              // Read failures are non-fatal — the user keeps editing,
+              // the chart just won't update for this tick.
+            }
+          });
+        }
+
+        // Release the suppression on the next tick so the initial
+        // workbook-creation events have already drained.
+        setTimeout(() => { if (!disposed) suppressChangeRef.current = false; }, 0);
+
+        if (!disposed) setStatus("ready");
+      } catch (e) {
+        if (disposed) return;
+        const msg = e instanceof Error ? e.message : String(e);
+        setErrorMsg(msg);
+        setStatus("error");
+        // eslint-disable-next-line no-console
+        console.error("[ChartMaker2] Univer init failed:", e);
+      }
+    })();
+
+    return () => {
+      disposed = true;
+      try { disposeEvent?.dispose(); } catch {}
+      try { univerRef.current?.dispose?.(); } catch {}
+      univerRef.current = null;
+      workbookRef.current = null;
+    };
+    // We deliberately mount Univer once. Schema/rows changes are not
+    // propagated back into the workbook after init — Univer becomes the
+    // source of truth while EXCEL SUITE is active.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 0, background: "#FAFAF7", borderRadius: 8, overflow: "hidden" }}>
+      {status === "loading" && (
+        <div style={{
+          position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+          flexDirection: "column", gap: 8, color: C.txm, fontFamily: mn, fontSize: 10, letterSpacing: 1.2, textTransform: "uppercase",
+          background: "rgba(13,13,18,0.55)",
+        }}>
+          <Sparkles size={18} strokeWidth={2.4} color={C.amber} />
+          <span>Loading Excel Suite…</span>
+          <span style={{ fontSize: 9, color: C.txm, letterSpacing: 0.6, textTransform: "none" }}>Univer · ~3 MB · first load only</span>
+        </div>
+      )}
+      {status === "error" && (
+        <div style={{
+          position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+          flexDirection: "column", gap: 6, padding: 24, color: "#E06347", fontFamily: ft, fontSize: 12,
+          textAlign: "center",
+        }}>
+          <span style={{ fontWeight: 800 }}>Excel Suite failed to initialize</span>
+          <span style={{ color: C.txm, fontSize: 11 }}>Falling back to Standard table is recommended.</span>
+          {errorMsg && <span style={{ color: C.txm, fontSize: 10, fontFamily: mn, opacity: 0.8 }}>{errorMsg}</span>}
+        </div>
+      )}
+      <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
     </div>
   );
 }
