@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { D as C, ft, gf, mn } from "./shared-constants";
 import { showToast } from "./toast-context";
 import {
@@ -4931,6 +4932,17 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const [chartedRowsByType, setChartedRowsByType] = useState<Partial<Record<ChartType, number[]>>>({});
   // Wave 12 · expanded webapp mode + pane state
   const [expandedMode, setExpandedMode] = useState(false);
+  // Lock body scroll while expanded so the expanded shell isn't competing
+  // with the outer /charts page header (which is sticky and can show through
+  // if the page scrolls underneath the portal).
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (expandedMode) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => { document.body.style.overflow = prev; };
+    }
+  }, [expandedMode]);
   const [paneMode, setPaneMode] = useState<"chart" | "table" | "split">("split");
   const [splitOrientation, setSplitOrientation] = useState<"vertical" | "horizontal">("vertical");
   const [splitterPos, setSplitterPos] = useState(0.55); // 0..1 ratio of first pane
@@ -6186,8 +6198,10 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       )}
 
       {/* Wave 12 · Expanded webapp mode — full-viewport overlay with
-          chart / table / split panes and animated glow background. */}
-      {expandedMode && (
+          chart / table / split panes and animated glow background.
+          Rendered to a portal at document.body so no parent scroll/transform
+          can break the position:fixed layout. */}
+      {expandedMode && typeof document !== "undefined" && createPortal(
         <ExpandedShell
           transitionFrom={expandTransitionFrom}
           onClose={() => setExpandedMode(false)}
@@ -6297,7 +6311,8 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               onChangeAxis={setAxis}
             />
           )}
-        />
+        />,
+        document.body
       )}
       </div>
     </div>
