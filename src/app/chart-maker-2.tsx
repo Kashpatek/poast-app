@@ -38,7 +38,7 @@ type ChartType =
   | "mekkoUnit" | "pie" | "doughnut" | "scatter" | "bubble"
   | "variance" | "gantt";
 
-type ThemeId = "saCore" | "saSpectrum" | "saBrand";
+type ThemeId = "saCore" | "saSpectrum";
 
 // Official SemiAnalysis chart palettes — verbatim from the brand spec.
 // Use S1-S4 for ≤4 series, S5-S8 for 5-8, S9-S12 for 9+. Never skip
@@ -78,24 +78,6 @@ const THEMES: Record<ThemeId, { name: string; sub: string; colors: string[] }> =
       "#E8C83A", // S10 Sunflower
       "#495BCE", // S11 Indigo
       "#BF49B5", // S12 Magenta
-    ],
-  },
-  saBrand: {
-    name: "SA Brand",
-    sub: "Official SA template palette · Excel-matched",
-    colors: [
-      "#4472C4", // S1  Primary Blue
-      "#ED7D31", // S2  Orange
-      "#70AD47", // S3  Green
-      "#FFC000", // S4  Gold
-      "#5B9BD5", // S5  Light Blue
-      "#A5A5A5", // S6  Gray
-      "#44546A", // S7  Charcoal
-      "#264478", // S8  Navy (darker primary)
-      "#9E480E", // S9  Burnt orange
-      "#43682B", // S10 Dark green
-      "#7F6000", // S11 Olive
-      "#2E4D70", // S12 Steel
     ],
   },
 };
@@ -1635,7 +1617,7 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
     : (v: number) => chartH - (v / tickMax) * chartH;
 
   const groupW = chartW / categories.length;
-  const barW = Math.min(groupW * ((cfg.barWidthPct ?? 65) / 100), 100);
+  const barW = Math.max(2, Math.min(groupW * ((cfg.barWidthPct ?? 65) / 100), groupW * 0.92));
 
   // Wave 11 · CLICK-TO-SELECT then DRAG-HANDLE-TO-RESIZE.
   // Click on body of a bar selects it only — drag is initiated via the
@@ -2070,7 +2052,7 @@ function PercentColumn({ sheet, cfg, W, H }: CatProps) {
   const chartW = W - leftPad - rightPad;
   const chartH = H - topPad - bottomPad;
   const groupW = chartW / categories.length;
-  const barW = Math.min(groupW * ((cfg.barWidthPct ?? 65) / 100), 100);
+  const barW = Math.max(2, Math.min(groupW * ((cfg.barWidthPct ?? 65) / 100), groupW * 0.92));
 
   const ticks = [0, 25, 50, 75, 100];
   const yOf = (v: number) => chartH - (v / 100) * chartH;
@@ -2466,7 +2448,7 @@ function Waterfall({ sheet, cfg, W, H }: CatProps) {
   const chartW = W - leftPad - rightPad;
   const chartH = H - topPad - bottomPad;
   const groupW = chartW / items.length;
-  const barW = Math.min(groupW * ((cfg.barWidthPct ?? 65) / 100), 100);
+  const barW = Math.max(2, Math.min(groupW * ((cfg.barWidthPct ?? 65) / 100), groupW * 0.92));
 
   // Compute running totals and bar positions
   let running = 0;
@@ -2718,7 +2700,7 @@ function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow, o
   const yOf = (v: number) => chartH - (v / tickMax) * chartH;
 
   const groupW = chartW / rows.length;
-  const barW = Math.min(groupW * ((cfg.barWidthPct ?? 65) / 100), 100);
+  const barW = Math.max(2, Math.min(groupW * ((cfg.barWidthPct ?? 65) / 100), groupW * 0.92));
 
   // Wave 11 · click-to-select then drag the top handle.
   const dragRef = useRef<{ rowIdx: number } | null>(null);
@@ -5795,85 +5777,77 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           </div>
         )}
         {standalone && <div style={{ flex: "1 1 auto" }} />}
-        {/* Back-to-POAST button removed — the /charts page header already
-            has a "← POAST" chip top-left, so it was redundant here. */}
-        {/* Wave 15 · Toolbar reorg — grouped FILE / EDIT / INSERT / FORMAT / VIEW
-            with hairline separators and tiny uppercase group labels. Reads
-            like Excel/Figma: every control instantly findable. SIMPLE/ADVANCED
-            now lives next to LAUNCH (both are mode controls). Right edge =
-            sound, theme, download icon (with PNG/JPG/SVG/PPTX/Copy menu). */}
+        {/* Wave 15.2 · Toolbar redesign — single compact row. LAUNCH leads
+            (most prominent CTA), mode toggle right next to it. Group labels
+            removed for vertical compactness; visual grouping comes from
+            <Sep /> hairlines. Annotations bar deleted — those tools live in
+            the radial wheel + Properties panel already. */}
 
-        {/* FILE — Templates · Paste · Import Excel */}
-        <ToolGroup label="File">
-          <span data-tour="templates" ref={templatesAnchorRef} style={{ display: "inline-flex" }}>
-            <TemplatesButton onPick={applyTemplate} />
-          </span>
-          <PasteDataButton onPaste={raw => { const ds = parsePasteForCategorical(raw); if (ds) setSheets(p => ({ ...p, [type]: ds })); else showToast("Couldn't parse the paste — expected TSV or CSV with headers"); }} />
-          <ImportExcelButton onImport={ds => setSheets(p => ({ ...p, [type]: ds }))} />
-        </ToolGroup>
+        {/* LAUNCH + mode — primary controls */}
+        <span data-tour="expand" ref={expandAnchorRef} style={{ display: "inline-flex" }}>
+          <LaunchButton onClick={() => {
+            if (expandAnchorRef.current) {
+              const r = expandAnchorRef.current.getBoundingClientRect();
+              setExpandTransitionFrom({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+            }
+            setExpandedMode(true);
+          }} />
+        </span>
+        <div style={{ display: "inline-flex", padding: 3, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 999 }}>
+          {(["simple", "advanced"] as const).map(m => {
+            const on = (m === "advanced") === advancedMode;
+            return (
+              <button
+                key={m}
+                onClick={() => setAdvancedMode(m === "advanced")}
+                style={{ padding: "6px 12px", borderRadius: 999, background: on ? C.amber + "22" : "transparent", border: "none", color: on ? C.amber : C.txm, fontFamily: mn, fontSize: 9.5, fontWeight: 800, letterSpacing: 0.6, cursor: "pointer", textTransform: "uppercase" }}
+              >{m}</button>
+            );
+          })}
+        </div>
         <Sep />
 
-        {/* EDIT — Undo · Redo · Lock */}
-        <ToolGroup label="Edit">
-          <UndoRedoButtons onUndo={undo} onRedo={redo} canUndo={past.current.length > 0} canRedo={future.current.length > 0} />
-          <Tooltip label={locked ? "Unlock editing" : "Lock chart"} shortcut="⌘L" position="bottom">
-            <span style={{ display: "inline-flex" }}><LockToggle locked={locked} onChange={setLocked} /></span>
+        {/* Insert — type wheel + number format */}
+        <span data-tour="type-wheel">
+          <Tooltip label="Open chart-type wheel · radial picker" shortcut="W" position="bottom">
+            <GlassButton onClick={() => setWheelOpen(true)} title="Open chart-type wheel · radial picker (W)" Icon={Sparkles} primary>TYPE</GlassButton>
           </Tooltip>
-        </ToolGroup>
+        </span>
+        <NumberFormatPicker fmt={numFmt} onChange={setNumFmt} />
         <Sep />
 
-        {/* INSERT — Type Wheel · Number Format */}
-        <ToolGroup label="Insert">
-          <span data-tour="type-wheel">
-            <Tooltip label="Open chart-type wheel · radial picker" shortcut="W" position="bottom">
-              <GlassButton onClick={() => setWheelOpen(true)} title="Open chart-type wheel · radial picker (W)" Icon={Sparkles} primary>TYPE WHEEL</GlassButton>
-            </Tooltip>
-          </span>
-          <NumberFormatPicker fmt={numFmt} onChange={setNumFmt} />
-        </ToolGroup>
+        {/* File — templates / paste / import */}
+        <span data-tour="templates" ref={templatesAnchorRef} style={{ display: "inline-flex" }}>
+          <TemplatesButton onPick={applyTemplate} />
+        </span>
+        <PasteDataButton onPaste={raw => { const ds = parsePasteForCategorical(raw); if (ds) setSheets(p => ({ ...p, [type]: ds })); else showToast("Couldn't parse the paste — expected TSV or CSV with headers"); }} />
+        <ImportExcelButton onImport={ds => setSheets(p => ({ ...p, [type]: ds }))} />
         <Sep />
 
-        {/* FORMAT — Design · Wheel Settings */}
-        <ToolGroup label="Format">
-          <span data-tour="design">
-            <Tooltip label="Design panel · palette, backdrops, gridlines" shortcut="⌘D" position="bottom">
-              <GlassButton onClick={() => setDesignOpen(v => !v)} title="Design panel · click to toggle (⌘D)" Icon={Palette} primary={designOpen}>DESIGN</GlassButton>
-            </Tooltip>
-          </span>
-          <Tooltip label="Customize the radial context wheel" position="bottom">
-            <GlassButton
-              onClick={() => setWheelSettingsOpen(true)}
-              title="Customize the radial context wheel · pick which tools appear per element"
-              Icon={Settings}
-            >WHEEL</GlassButton>
+        {/* Edit — undo / redo / lock */}
+        <UndoRedoButtons onUndo={undo} onRedo={redo} canUndo={past.current.length > 0} canRedo={future.current.length > 0} />
+        <Tooltip label={locked ? "Unlock editing" : "Lock chart"} shortcut="⌘L" position="bottom">
+          <span style={{ display: "inline-flex" }}><LockToggle locked={locked} onChange={setLocked} /></span>
+        </Tooltip>
+        <Sep />
+
+        {/* Format — design + wheel-settings */}
+        <span data-tour="design">
+          <Tooltip label="Design panel · palette, backdrops, gridlines" shortcut="⌘D" position="bottom">
+            <GlassButton onClick={() => setDesignOpen(v => !v)} title="Design panel · click to toggle (⌘D)" Icon={Palette} primary={designOpen}>DESIGN</GlassButton>
           </Tooltip>
-        </ToolGroup>
-        <Sep />
+        </span>
+        <Tooltip label="Customize the radial context wheel" position="bottom">
+          <GlassButton
+            onClick={() => setWheelSettingsOpen(true)}
+            title="Customize the radial context wheel · pick which tools appear per element"
+            Icon={Settings}
+          >WHEEL</GlassButton>
+        </Tooltip>
 
-        {/* VIEW — Simple/Advanced · Launch · Tour */}
-        <ToolGroup label="View">
-          <div style={{ display: "inline-flex", padding: 3, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 999 }}>
-            {(["simple", "advanced"] as const).map(m => {
-              const on = (m === "advanced") === advancedMode;
-              return (
-                <button
-                  key={m}
-                  onClick={() => setAdvancedMode(m === "advanced")}
-                  style={{ padding: "6px 14px", borderRadius: 999, background: on ? C.amber + "22" : "transparent", border: "none", color: on ? C.amber : C.txm, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6, cursor: "pointer", textTransform: "uppercase" }}
-                >{m}</button>
-              );
-            })}
-          </div>
-          <span data-tour="expand" ref={expandAnchorRef}>
-            <LaunchButton onClick={() => {
-              if (expandAnchorRef.current) {
-                const r = expandAnchorRef.current.getBoundingClientRect();
-                setExpandTransitionFrom({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
-              }
-              setExpandedMode(true);
-            }} />
-          </span>
-          {!tourCompleted() && (
+        {!tourCompleted() && (
+          <>
+            <Sep />
             <Tooltip label="Take the tour" position="bottom">
               <button
                 onClick={() => setTourOpen(true)}
@@ -5883,17 +5857,17 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
                   padding: "9px 12px", borderRadius: 9,
                   background: "linear-gradient(135deg, #2EAD8E 0%, #2EAD8Ecc 100%)",
                   border: "1px solid #2EAD8E88", color: "#0A0A0E",
-                  fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.5,
+                  fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
                   cursor: "pointer",
                   boxShadow: "0 4px 14px rgba(46,173,142,0.35), 0 1px 0 rgba(255,255,255,0.18) inset",
                 }}
               >
-                <HelpCircle size={13} strokeWidth={2.4} />
+                <HelpCircle size={12} strokeWidth={2.4} />
                 TOUR
               </button>
             </Tooltip>
-          )}
-        </ToolGroup>
+          </>
+        )}
 
         <span style={{ flex: 1 }} />
 
@@ -5909,19 +5883,28 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         />
       </div>
 
-      {/* Annotations toolbar — context-wheel action chips */}
-      <AnnotationsBar
-        annotations={annotations}
-        type={type}
-        pickMode={pickMode}
-        placeMode={placeMode}
-        onStartPick={kind => { setPlaceMode(null); setPickMode({ kind, bars: [] }); }}
-        onCancelPick={() => setPickMode(null)}
-        onAddRefLine={addReferenceLine}
-        onTogglePlaceText={() => { setPickMode(null); setPlaceMode(placeMode?.kind === "callout" ? null : { kind: "callout" }); }}
-        onRemove={removeAnnotation}
-        onClearAll={clearAllAnnotations}
-      />
+      {/* AnnotationsBar removed in Wave 15.2 — annotation tools (CAGR, Δ DIFF,
+          REF LINE, TEXT) are accessible from the right-click radial wheel and
+          the Properties panel "Annotate" tab. The always-visible bar was
+          taking vertical space that competed with the chart canvas. AnnotationsBar
+          component is preserved in code; only the always-on render was deleted.
+          To re-enable, render <AnnotationsBar/> with the same prop set above
+          this comment. The annotation pick-mode UX (CAGR/diff multi-step) is
+          still triggered from the wheel — keyboard Esc still cancels. */}
+      {(pickMode || placeMode) && (
+        <AnnotationsBar
+          annotations={annotations}
+          type={type}
+          pickMode={pickMode}
+          placeMode={placeMode}
+          onStartPick={kind => { setPlaceMode(null); setPickMode({ kind, bars: [] }); }}
+          onCancelPick={() => setPickMode(null)}
+          onAddRefLine={addReferenceLine}
+          onTogglePlaceText={() => { setPickMode(null); setPlaceMode(placeMode?.kind === "callout" ? null : { kind: "callout" }); }}
+          onRemove={removeAnnotation}
+          onClearAll={clearAllAnnotations}
+        />
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" style={inputCSS(cardBg, borderC)} />
@@ -6406,7 +6389,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               const idx = order.indexOf(numFmt);
               setNumFmt(order[(idx + 1) % order.length]);
             }},
-            { toolId: "theme", Icon: Palette, title: "Cycle theme", onClick: () => setTheme(t => t === "saCore" ? "saSpectrum" : t === "saSpectrum" ? "saBrand" : "saCore") },
+            { toolId: "theme", Icon: Palette, title: "Cycle theme", onClick: () => setTheme(t => t === "saCore" ? "saSpectrum" : "saCore") },
             { toolId: "reset", Icon: Undo2, title: "Reset chart (clear annotations)", onClick: () => setAnnotByType(p => ({ ...p, [type]: [] })) },
             // Wave 13 · canvas-level new tools
             { toolId: "watermark", Icon: ImageIcon, title: "Cycle watermark (off / centered / random)", active: watermark !== "off", onClick: () => setWatermark(w => w === "off" ? "centered" : w === "centered" ? "random" : "off") },
@@ -8711,7 +8694,7 @@ const TEMPLATES: TemplateSpec[] = [
     type: "clustered",
     title: "Clustered Bar Chart",
     subtitle: "Source: SemiAnalysis · SA Brand template",
-    theme: "saBrand",
+    theme: "saCore",
     build: () => ({
       schema: [
         { key: "category", label: "Category", type: "text" },
@@ -8736,7 +8719,7 @@ const TEMPLATES: TemplateSpec[] = [
     type: "line",
     title: "Line Chart",
     subtitle: "Source: SemiAnalysis · SA Brand template",
-    theme: "saBrand",
+    theme: "saCore",
     build: () => ({
       schema: [
         { key: "category", label: "Month", type: "text" },
@@ -8764,7 +8747,7 @@ const TEMPLATES: TemplateSpec[] = [
     type: "stacked",
     title: "Stacked Bar Chart",
     subtitle: "Source: SemiAnalysis · SA Brand template",
-    theme: "saBrand",
+    theme: "saCore",
     build: () => ({
       schema: [
         { key: "category", label: "Region", type: "text" },
@@ -8790,7 +8773,7 @@ const TEMPLATES: TemplateSpec[] = [
     type: "pie",
     title: "Pie Chart",
     subtitle: "Source: SemiAnalysis · SA Brand template",
-    theme: "saBrand",
+    theme: "saCore",
     build: () => ({
       schema: [
         { key: "label", label: "Segment", type: "text" },
@@ -8814,7 +8797,7 @@ const TEMPLATES: TemplateSpec[] = [
     type: "wfup",
     title: "Waterfall Chart",
     subtitle: "Source: SemiAnalysis · SA Brand template",
-    theme: "saBrand",
+    theme: "saCore",
     build: () => ({
       schema: [
         { key: "category", label: "Item", type: "text" },
@@ -8840,7 +8823,7 @@ const TEMPLATES: TemplateSpec[] = [
     type: "scatter",
     title: "Scatter Plot",
     subtitle: "Source: SemiAnalysis · SA Brand template",
-    theme: "saBrand",
+    theme: "saCore",
     build: () => ({
       schema: [
         { key: "label", label: "Chip", type: "text" },
@@ -8869,7 +8852,7 @@ const TEMPLATES: TemplateSpec[] = [
     type: "stackedArea",
     title: "Accelerator Shipments",
     subtitle: "Source: SemiAnalysis · SA Brand template",
-    theme: "saBrand",
+    theme: "saCore",
     build: () => ({
       schema: [
         { key: "category", label: "Year", type: "text" },
@@ -8895,7 +8878,7 @@ const TEMPLATES: TemplateSpec[] = [
     type: "clustered",
     title: "TPU FLOPs Availability",
     subtitle: "Source: SemiAnalysis · BF16 TFLOPS by launch",
-    theme: "saBrand",
+    theme: "saCore",
     build: () => ({
       schema: [
         { key: "category", label: "Generation", type: "text" },
@@ -8919,7 +8902,7 @@ const TEMPLATES: TemplateSpec[] = [
     type: "clustered",
     title: "TCO per Effective Training PFLOP at various MFUs",
     subtitle: "Source: SemiAnalysis · Bar Chart template ($/hr per Eff PFLOP)",
-    theme: "saBrand",
+    theme: "saCore",
     build: () => ({
       schema: [
         { key: "category", label: "Configuration", type: "text" },
