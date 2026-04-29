@@ -1388,8 +1388,8 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
           </g>
         );
       })}
-      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={2} />}
-      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W + 6} />}
+      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={2} chartH={chartH} sideW={SIDE_LEGEND_W} />}
+      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W} chartH={chartH} sideW={SIDE_LEGEND_W} />}
       {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} textColor={cc.muted} />}
       {hoverCat !== null && (() => {
         const i = hoverCat;
@@ -1571,8 +1571,8 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
           )}
         </g>
       ))}
-      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={2} />}
-      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W + 6} />}
+      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={2} chartH={chartH} sideW={SIDE_LEGEND_W} />}
+      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W} chartH={chartH} sideW={SIDE_LEGEND_W} />}
       {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} textColor={cc.muted} />}
       {/* Annotations layer · reference lines, CAGR arrows, Δ markers */}
       <AnnotationLayer
@@ -1653,8 +1653,8 @@ function PercentColumn({ sheet, cfg, W, H }: CatProps) {
           </g>
         );
       })}
-      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={2} />}
-      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W + 6} />}
+      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={2} chartH={chartH} sideW={SIDE_LEGEND_W} />}
+      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W} chartH={chartH} sideW={SIDE_LEGEND_W} />}
       {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} textColor={cc.muted} />}
     </ChartFrame>
   );
@@ -1838,8 +1838,8 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, pct100 =
           <text key={i} x={xOf(i)} y={chartH + 22} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{cat}</text>
         ))
       )}
-      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={2} />}
-      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W + 6} />}
+      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={2} chartH={chartH} sideW={SIDE_LEGEND_W} />}
+      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W} chartH={chartH} sideW={SIDE_LEGEND_W} />}
       {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} textColor={cc.muted} />}
     </ChartFrame>
   );
@@ -2302,25 +2302,35 @@ function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow, o
   );
 }
 
-function Legend({ series, W, y, leftPad, onSwatchClick, textColor, vertical, vertX }: { series: Array<{ label: string; color: string; key?: string }>; W: number; y: number; leftPad: number; onSwatchClick?: (key: string, e: React.MouseEvent) => void; textColor?: string; vertical?: boolean; vertX?: number }) {
+function Legend({ series, W, y, leftPad, onSwatchClick, textColor, vertical, vertX, chartH, sideW }: { series: Array<{ label: string; color: string; key?: string }>; W: number; y: number; leftPad: number; onSwatchClick?: (key: string, e: React.MouseEvent) => void; textColor?: string; vertical?: boolean; vertX?: number; chartH?: number; sideW?: number }) {
   const tc = textColor || C.txm;
-  const Swatch = ({ s }: { s: typeof series[number] }) => (
+  const Swatch = ({ s, big }: { s: typeof series[number]; big?: boolean }) => (
     <rect
-      x="0" y="-8" width="14" height="14" rx="3" fill={s.color}
+      x={big ? -10 : 0} y={big ? -10 : -8} width={big ? 20 : 14} height={big ? 20 : 14} rx={big ? 4 : 3} fill={s.color}
       stroke={onSwatchClick ? "rgba(255,255,255,0.20)" : "none"} strokeWidth={onSwatchClick ? 1 : 0}
       onClick={onSwatchClick && s.key ? (e => onSwatchClick(s.key!, e)) : undefined}
       style={{ cursor: onSwatchClick ? "pointer" : "default" }}
     >{onSwatchClick && <title>Click to recolor this series</title>}</rect>
   );
   if (vertical) {
+    // Vertical legend · stacked layout (swatch on top, label below). Spread out
+    // and vertically centered within the chart area. Each item ~52px tall.
+    const itemH = 52;
+    const totalH = series.length * itemH;
+    const colW = sideW ?? 100;
+    const colX = (vertX ?? 2) + colW / 2;  // horizontal center of the legend column
+    const startY = (y) + Math.max(0, ((chartH ?? totalH) - totalH) / 2);
     return (
       <g>
-        {series.map((s, i) => (
-          <g key={i} transform={`translate(${vertX ?? 2}, ${y + i * 22})`}>
-            <Swatch s={s} />
-            <text x="20" y="3" fill={tc} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 0.5 }}>{s.label.toUpperCase()}</text>
-          </g>
-        ))}
+        {series.map((s, i) => {
+          const itemY = startY + i * itemH + itemH / 2;
+          return (
+            <g key={i} transform={`translate(${colX}, ${itemY})`}>
+              <Swatch s={s} big />
+              <text x="0" y="22" textAnchor="middle" fill={tc} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 800, letterSpacing: 0.8 }}>{s.label.toUpperCase()}</text>
+            </g>
+          );
+        })}
       </g>
     );
   }
@@ -2735,8 +2745,8 @@ function ComboChart({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig; 
         </>
       )}
       {/* Legend */}
-      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={2} />}
-      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W + 6} />}
+      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={2} chartH={chartH} sideW={SIDE_LEGEND_W} />}
+      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W} chartH={chartH} sideW={SIDE_LEGEND_W} />}
       {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} textColor={cc.muted} />}
     </ChartFrame>
   );
@@ -3111,14 +3121,30 @@ function familyColor(f: "column" | "line" | "mekko" | "gantt"): string {
   return "#E06347"; // coral
 }
 
+// Short labels for the radial wheel — full names like "Variance (AC vs PY)"
+// don't fit in a 22.5° wedge. Falls back to spec.label if not in the map.
+const WHEEL_SHORT_LABEL: Partial<Record<ChartType, string>> = {
+  variance: "VARIANCE",
+  stackedArea: "STK AREA",
+  pctArea: "100% AREA",
+  mekkoUnit: "MEKKO U",
+  mekkoPct: "MEKKO %",
+  wfup: "WF +",
+  wfdn: "WF −",
+  doughnut: "DONUT",
+  clustered: "CLUSTER",
+};
+
 function ChartTypeWheel({ active, onSelect, onClose }: { active: ChartType; onSelect: (t: ChartType) => void; onClose: () => void }) {
   const types = TYPES.flat();
   const N = types.length; // expected 16
   const cx = 260, cy = 260;
   const outerR = 230;
   const innerR = 100;
-  const labelR = (outerR + innerR) / 2;
-  const iconR = labelR + 12;
+  // Push icon toward outer ring, label toward inner ring — gives each wedge
+  // a clear icon-on-top, label-below stack along its radial axis.
+  const iconR = outerR - 38;
+  const labelR = innerR + 30;
   const segDeg = 360 / N;
   const [hovered, setHovered] = useState<number | null>(null);
   useEffect(() => {
@@ -3204,11 +3230,11 @@ function ChartTypeWheel({ active, onSelect, onClose }: { active: ChartType; onSe
                 </foreignObject>
                 <text
                   x={labelPos.x}
-                  y={labelPos.y + 14}
+                  y={labelPos.y + 4}
                   textAnchor="middle"
                   fill={isActive ? C.amber : (isHov ? "#E8E4DD" : C.txm)}
-                  style={{ fontFamily: mn, fontSize: 9.5, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", pointerEvents: "none" }}
-                >{spec.label}</text>
+                  style={{ fontFamily: mn, fontSize: 8.5, fontWeight: 800, letterSpacing: 0.4, textTransform: "uppercase", pointerEvents: "none" }}
+                >{WHEEL_SHORT_LABEL[spec.id] ?? spec.label.toUpperCase()}</text>
               </g>
             );
           })}
@@ -3455,8 +3481,8 @@ function PropertiesPanel({
             </div>
             <div>
               <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8, fontWeight: 800 }}>Legend</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 3 }}>
-                {(["top", "bottom", "left", "right", "hidden"] as const).map(p => {
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 3 }}>
+                {(["bottom", "left", "right", "hidden"] as const).map(p => {
                   const on = legendPos === p;
                   return <button key={p} onClick={() => onChangeLegendPos(p)} style={{ padding: "7px 2px", borderRadius: 5, background: on ? C.amber + "20" : "rgba(255,255,255,0.025)", border: "1px solid " + (on ? C.amber + "55" : "rgba(255,255,255,0.08)"), color: on ? C.amber : C.tx, fontFamily: mn, fontSize: 8, fontWeight: 800, letterSpacing: 0.4, cursor: "pointer", textTransform: "uppercase" }}>{p}</button>;
                 })}
@@ -5366,8 +5392,8 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
 
           {/* LEGEND POSITION */}
           <Section title="Legend Position">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4 }}>
-              {(["top", "bottom", "left", "right", "hidden"] as const).map(p => {
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
+              {(["bottom", "left", "right", "hidden"] as const).map(p => {
                 const on = legendPos === p;
                 return <button key={p} onClick={() => onChangeLegendPos(p)} style={{ padding: "10px 4px", borderRadius: 6, background: on ? C.amber + "20" : "rgba(255,255,255,0.025)", border: "1px solid " + (on ? C.amber + "55" : "rgba(255,255,255,0.08)"), color: on ? C.amber : C.tx, fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer", textTransform: "uppercase" }}>{p}</button>;
               })}
