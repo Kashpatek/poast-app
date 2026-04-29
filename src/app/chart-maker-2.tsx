@@ -4972,6 +4972,33 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const [paneMode, setPaneMode] = useState<"chart" | "table" | "split">("split");
   const [splitOrientation, setSplitOrientation] = useState<"vertical" | "horizontal">("vertical");
   const [splitterPos, setSplitterPos] = useState(0.55); // 0..1 ratio of first pane
+  // Wave 15 · zoom for the Launch chart pane. "fit" auto-scales to fill the
+  // pane (the default — and what we snap back to whenever the layout
+  // changes); a numeric percentage scales by that factor and lets the pane
+  // scroll if oversized. Presets: 50/75/100/125/150/200/300.
+  const [chartZoom, setChartZoom] = useState<"fit" | number>("fit");
+  // Wave 15 · pop-out modes for the Launch table pane.
+  //   "docked"   — table inside the split layout (default)
+  //   "floating" — table is a draggable + resizable floating window over the shell
+  //   "window"   — table is in a separate browser window via window.open()
+  const [tableWindowMode, setTableWindowMode] = useState<"docked" | "floating" | "window">("docked");
+  const [floatingTablePos, setFloatingTablePos] = useState<{ x: number; y: number; w: number; h: number }>(() => {
+    if (typeof window === "undefined") return { x: 80, y: 80, w: 720, h: 520 };
+    try {
+      const raw = localStorage.getItem("cm2-floating-table-pos");
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return { x: Math.max(40, (typeof window !== "undefined" ? window.innerWidth : 1280) - 760), y: 100, w: 720, h: 520 };
+  });
+  useEffect(() => {
+    try { localStorage.setItem("cm2-floating-table-pos", JSON.stringify(floatingTablePos)); } catch {}
+  }, [floatingTablePos]);
+  // Wave 15 · auto-fit zoom whenever the chart pane changes shape. Snapping
+  // to "fit" on every layout flip keeps the chart filling its container —
+  // the user can always re-zoom afterwards.
+  useEffect(() => {
+    setChartZoom("fit");
+  }, [paneMode, splitOrientation, splitterPos, expandedMode]);
   // Wave 14 · cinematic transition · captured anchor coords for expand morph
   const [expandTransitionFrom, setExpandTransitionFrom] = useState<{ x: number; y: number } | null>(null);
   const expandAnchorRef = useRef<HTMLSpanElement | null>(null);
@@ -5033,9 +5060,12 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   // = the existing in-house DataSheetGrid (lean, ~0 KB extra). Univer =
   // full Excel-grade spreadsheet (formula engine, multi-sheet, freeze
   // panes, conditional formatting). Persisted to localStorage so the
-  // user's preference survives reloads. Default Standard so the chart
-  // route stays fast for first-time visitors.
-  const [tableEngine, setTableEngine] = useState<"standard" | "univer">("standard");
+  // user's preference survives reloads.
+  // Wave 15 · Default UNIVER so Launch mode feels like a real Excel-grade
+  // suite the moment a user enters it. Univer JS still loads lazily inside
+  // UniverSheetPane, so the compact route weight is unchanged — Univer only
+  // boots up if the user actually opens Launch.
+  const [tableEngine, setTableEngine] = useState<"standard" | "univer">("univer");
   useEffect(() => {
     try {
       const v = localStorage.getItem("cm2-table-engine");
@@ -5191,7 +5221,11 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   // Slug for the downloaded file
   const slug = () => (title || "chart").replace(/\s+/g, "-").toLowerCase();
 
-  const exportPNG = () => {
+  // Wave 15 · Shared canvas-bake pipeline. Serializes the live SVG, paints
+  // it into a 2× retina canvas with the current backdrop, and yields the
+  // canvas back to a callback. PNG / JPG / PPTX all use this so they share
+  // identical fidelity (no drift between formats).
+  const bakeChartCanvas = (cb: (cv: HTMLCanvasElement, w: number, h: number) => void) => {
     if (!svgRef.current) return;
     const svg = svgRef.current;
     const xml = new XMLSerializer().serializeToString(svg);
@@ -5204,9 +5238,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       const cv = document.createElement("canvas");
       cv.width = w * 2; cv.height = h * 2;
       const ctx = cv.getContext("2d");
-      if (!ctx) return;
-      // Paint the backdrop into the canvas so the saved PNG has the
-      // same base color + radial glows the user sees in the app.
+      if (!ctx) { URL.revokeObjectURL(url); return; }
       const spec = backdropMode === "dark" ? BACKDROPS_DARK[backdrop] : BACKDROPS_LIGHT[backdrop];
       ctx.fillStyle = spec.base;
       ctx.fillRect(0, 0, cv.width, cv.height);
@@ -5221,7 +5253,6 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       }
       ctx.scale(2, 2);
       ctx.drawImage(img, 0, 0, w, h);
-      // Wave 14 · branded export footer (toggle in Design panel)
       if (exportBranding) {
         ctx.save();
         ctx.fillStyle = "rgba(168,164,160,0.55)";
@@ -5232,6 +5263,14 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         ctx.restore();
       }
       URL.revokeObjectURL(url);
+      cb(cv, w, h);
+    };
+    img.onerror = () => { showToast("Couldn't render chart"); URL.revokeObjectURL(url); };
+    img.src = url;
+  };
+
+  const exportPNG = () => {
+    bakeChartCanvas((cv) => {
       cv.toBlob(b => {
         if (!b) return;
         const dl = URL.createObjectURL(b);
@@ -5241,9 +5280,72 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         a.click();
         URL.revokeObjectURL(dl);
       }, "image/png");
-    };
-    img.onerror = () => { showToast("Couldn't render PNG"); URL.revokeObjectURL(url); };
-    img.src = url;
+    });
+  };
+
+  // Wave 15 · JPG export — same pipeline, lossy JPEG at 0.92 quality.
+  // Smaller files than PNG, ideal for slide decks and email attachments.
+  const exportJPG = () => {
+    bakeChartCanvas((cv) => {
+      cv.toBlob(b => {
+        if (!b) return;
+        const dl = URL.createObjectURL(b);
+        const a = document.createElement("a");
+        a.href = dl;
+        a.download = slug() + ".jpg";
+        a.click();
+        URL.revokeObjectURL(dl);
+      }, "image/jpeg", 0.92);
+    });
+  };
+
+  // Wave 15 · Capture chart as PNG data-URL (used by the PPTX exporter
+  // and any future "drop chart into a doc" pipeline). Returns a Promise
+  // so the caller can await the bake before composing the slide.
+  const captureChartAsPngDataUrl = (): Promise<string> =>
+    new Promise<string>((resolve, reject) => {
+      try {
+        bakeChartCanvas((cv) => {
+          try { resolve(cv.toDataURL("image/png")); }
+          catch (e) { reject(e); }
+        });
+      } catch (e) { reject(e); }
+    });
+
+  // Wave 15 · PowerPoint (.pptx) export via pptxgenjs. Dynamic-imported so
+  // the ~250 KB library only loads when a user actually clicks the button —
+  // compact mode stays unaffected. Slide layout: title + subtitle on top,
+  // chart image centered, "Built with POAST Chart Maker" footer.
+  const exportPPTX = async () => {
+    try {
+      const dataUrl = await captureChartAsPngDataUrl();
+      const mod = await import("pptxgenjs");
+      const PptxCtor = (mod as { default: new () => unknown }).default;
+      const pres = new PptxCtor() as {
+        title: string;
+        author: string;
+        addSlide: () => {
+          background: { color: string };
+          addText: (txt: string, opts: Record<string, unknown>) => void;
+          addImage: (opts: Record<string, unknown>) => void;
+        };
+        writeFile: (opts: { fileName: string }) => Promise<unknown>;
+      };
+      pres.title = title || "POAST Chart";
+      pres.author = "POAST Chart Maker";
+      const slide = pres.addSlide();
+      slide.background = { color: "0A0A0E" };
+      slide.addText(title || "Untitled chart", { x: 0.5, y: 0.3, w: 9, h: 0.6, fontSize: 28, color: "F7B041", bold: true, fontFace: "Outfit" });
+      if (subtitle) {
+        slide.addText(subtitle, { x: 0.5, y: 1.0, w: 9, h: 0.4, fontSize: 14, color: "A8A4A0", fontFace: "Outfit" });
+      }
+      slide.addImage({ data: dataUrl, x: 0.5, y: 1.6, w: 9, h: 5 });
+      slide.addText("Built with POAST Chart Maker", { x: 0.5, y: 7.0, w: 9, h: 0.3, fontSize: 9, color: "5C5A57", italic: true, align: "right", fontFace: "Outfit" });
+      await pres.writeFile({ fileName: slug() + ".pptx" });
+    } catch (e) {
+      console.error("PPTX export failed", e);
+      showToast("Couldn't export PowerPoint — try PNG instead");
+    }
   };
 
   // Vector SVG export · serializes the live SVG and downloads the file
@@ -5561,160 +5663,129 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             <ArrowLeft size={13} strokeWidth={2.4} /> POAST
           </a>
         )}
-        <span data-tour="type-wheel">
-          <Tooltip label="Open chart-type wheel · radial picker" shortcut="W" position="bottom">
-            <GlassButton onClick={() => setWheelOpen(true)} title="Open chart-type wheel · radial picker (W)" Icon={Sparkles} primary>TYPE WHEEL</GlassButton>
+        {/* Wave 15 · Toolbar reorg — grouped FILE / EDIT / INSERT / FORMAT / VIEW
+            with hairline separators and tiny uppercase group labels. Reads
+            like Excel/Figma: every control instantly findable. SIMPLE/ADVANCED
+            now lives next to LAUNCH (both are mode controls). Right edge =
+            sound, theme, download icon (with PNG/JPG/SVG/PPTX/Copy menu). */}
+
+        {/* FILE — Templates · Paste · Import Excel */}
+        <ToolGroup label="File">
+          <span data-tour="templates" ref={templatesAnchorRef} style={{ display: "inline-flex" }}>
+            <TemplatesButton onPick={tpl => {
+              setType(tpl.type);
+              const built = tpl.build();
+              if (built && typeof built === "object" && "primary" in built) {
+                const dual = built as { primary: DataSheet; secondary?: DataSheet };
+                setSheets(p => ({ ...p, [tpl.type]: dual.primary }));
+                if (dual.secondary) setSecondarySheets(p => ({ ...p, [tpl.type]: dual.secondary }));
+              } else {
+                setSheets(p => ({ ...p, [tpl.type]: built as DataSheet }));
+              }
+              if (tpl.title) setTitle(tpl.title);
+              if (tpl.subtitle) setSubtitle(tpl.subtitle);
+              if (tpl.theme) setTheme(tpl.theme);
+            }} />
+          </span>
+          <PasteDataButton onPaste={raw => { const ds = parsePasteForCategorical(raw); if (ds) setSheets(p => ({ ...p, [type]: ds })); else showToast("Couldn't parse the paste — expected TSV or CSV with headers"); }} />
+          <ImportExcelButton onImport={ds => setSheets(p => ({ ...p, [type]: ds }))} />
+        </ToolGroup>
+        <Sep />
+
+        {/* EDIT — Undo · Redo · Lock */}
+        <ToolGroup label="Edit">
+          <UndoRedoButtons onUndo={undo} onRedo={redo} canUndo={past.current.length > 0} canRedo={future.current.length > 0} />
+          <Tooltip label={locked ? "Unlock editing" : "Lock chart"} shortcut="⌘L" position="bottom">
+            <span style={{ display: "inline-flex" }}><LockToggle locked={locked} onChange={setLocked} /></span>
           </Tooltip>
-        </span>
-        <UndoRedoButtons onUndo={undo} onRedo={redo} canUndo={past.current.length > 0} canRedo={future.current.length > 0} />
-        <span data-tour="templates" ref={templatesAnchorRef}>
-        <TemplatesButton onPick={tpl => {
-          setType(tpl.type);
-          const built = tpl.build();
-          if (built && typeof built === "object" && "primary" in built) {
-            const dual = built as { primary: DataSheet; secondary?: DataSheet };
-            setSheets(p => ({ ...p, [tpl.type]: dual.primary }));
-            if (dual.secondary) setSecondarySheets(p => ({ ...p, [tpl.type]: dual.secondary }));
-          } else {
-            setSheets(p => ({ ...p, [tpl.type]: built as DataSheet }));
-          }
-          if (tpl.title) setTitle(tpl.title);
-          if (tpl.subtitle) setSubtitle(tpl.subtitle);
-          if (tpl.theme) setTheme(tpl.theme);
-        }} />
-        </span>
-        <PasteDataButton onPaste={raw => { const ds = parsePasteForCategorical(raw); if (ds) setSheets(p => ({ ...p, [type]: ds })); else showToast("Couldn't parse the paste — expected TSV or CSV with headers"); }} />
-        <ImportExcelButton onImport={ds => setSheets(p => ({ ...p, [type]: ds }))} />
-        <NumberFormatPicker fmt={numFmt} onChange={setNumFmt} />
-        <span data-tour="design">
-          <Tooltip label="Design panel · palette, backdrops, gridlines" shortcut="⌘D" position="bottom">
-            <GlassButton onClick={() => setDesignOpen(v => !v)} title="Design panel · click to toggle (⌘D)" Icon={Palette} primary={designOpen}>DESIGN</GlassButton>
+        </ToolGroup>
+        <Sep />
+
+        {/* INSERT — Type Wheel · Number Format */}
+        <ToolGroup label="Insert">
+          <span data-tour="type-wheel">
+            <Tooltip label="Open chart-type wheel · radial picker" shortcut="W" position="bottom">
+              <GlassButton onClick={() => setWheelOpen(true)} title="Open chart-type wheel · radial picker (W)" Icon={Sparkles} primary>TYPE WHEEL</GlassButton>
+            </Tooltip>
+          </span>
+          <NumberFormatPicker fmt={numFmt} onChange={setNumFmt} />
+        </ToolGroup>
+        <Sep />
+
+        {/* FORMAT — Design · Wheel Settings */}
+        <ToolGroup label="Format">
+          <span data-tour="design">
+            <Tooltip label="Design panel · palette, backdrops, gridlines" shortcut="⌘D" position="bottom">
+              <GlassButton onClick={() => setDesignOpen(v => !v)} title="Design panel · click to toggle (⌘D)" Icon={Palette} primary={designOpen}>DESIGN</GlassButton>
+            </Tooltip>
+          </span>
+          <Tooltip label="Customize the radial context wheel" position="bottom">
+            <GlassButton
+              onClick={() => setWheelSettingsOpen(true)}
+              title="Customize the radial context wheel · pick which tools appear per element"
+              Icon={Settings}
+            >WHEEL</GlassButton>
           </Tooltip>
-        </span>
-        {/* SIMPLE | ADVANCED pill toggle */}
-        <div style={{ display: "inline-flex", padding: 3, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 999 }}>
-          {(["simple", "advanced"] as const).map(m => {
-            const on = (m === "advanced") === advancedMode;
-            return (
+        </ToolGroup>
+        <Sep />
+
+        {/* VIEW — Simple/Advanced · Launch · Tour */}
+        <ToolGroup label="View">
+          <div style={{ display: "inline-flex", padding: 3, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 999 }}>
+            {(["simple", "advanced"] as const).map(m => {
+              const on = (m === "advanced") === advancedMode;
+              return (
+                <button
+                  key={m}
+                  onClick={() => setAdvancedMode(m === "advanced")}
+                  style={{ padding: "6px 14px", borderRadius: 999, background: on ? C.amber + "22" : "transparent", border: "none", color: on ? C.amber : C.txm, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6, cursor: "pointer", textTransform: "uppercase" }}
+                >{m}</button>
+              );
+            })}
+          </div>
+          <span data-tour="expand" ref={expandAnchorRef}>
+            <LaunchButton onClick={() => {
+              if (expandAnchorRef.current) {
+                const r = expandAnchorRef.current.getBoundingClientRect();
+                setExpandTransitionFrom({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+              }
+              setExpandedMode(true);
+            }} />
+          </span>
+          {!tourCompleted() && (
+            <Tooltip label="Take the tour" position="bottom">
               <button
-                key={m}
-                onClick={() => setAdvancedMode(m === "advanced")}
-                style={{ padding: "6px 14px", borderRadius: 999, background: on ? C.amber + "22" : "transparent", border: "none", color: on ? C.amber : C.txm, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6, cursor: "pointer", textTransform: "uppercase" }}
-              >{m}</button>
-            );
-          })}
-        </div>
-        <Tooltip label={locked ? "Unlock editing" : "Lock chart"} shortcut="⌘L" position="bottom">
-          <span style={{ display: "inline-flex" }}><LockToggle locked={locked} onChange={setLocked} /></span>
-        </Tooltip>
-        {/* Wave 14.1 · LAUNCH — colorful, eye-catching CTA that opens the
-            full expanded webapp suite. */}
-        <span data-tour="expand" ref={expandAnchorRef}>
-          <Tooltip label="Launch the full chart-building suite" shortcut="⌘⇧E" position="bottom">
-            <button
-              onClick={() => {
-                if (expandAnchorRef.current) {
-                  const r = expandAnchorRef.current.getBoundingClientRect();
-                  setExpandTransitionFrom({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
-                }
-                setExpandedMode(true);
-              }}
-              title="Launch the full chart-building suite (⌘⇧E · Esc to exit)"
-              style={{
-                position: "relative",
-                display: "inline-flex", alignItems: "center", gap: 9,
-                padding: "10px 18px", borderRadius: 11,
-                background: "linear-gradient(135deg, #F7B041 0%, #E06347 38%, #905CCB 72%, #0B86D1 100%)",
-                backgroundSize: "200% 200%",
-                border: "1px solid rgba(255,255,255,0.32)",
-                color: "#0A0A0E",
-                fontFamily: gf, fontSize: 12, fontWeight: 900, letterSpacing: 0.4,
-                cursor: "pointer",
-                transition: "all 0.22s cubic-bezier(.2,.7,.2,1)",
-                boxShadow:
-                  "0 10px 28px rgba(247,176,65,0.45)" +
-                  ", 0 6px 18px rgba(224,99,71,0.32)" +
-                  ", 0 4px 14px rgba(144,92,203,0.28)" +
-                  ", 0 1px 0 rgba(255,255,255,0.42) inset" +
-                  ", 0 0 0 1px rgba(255,255,255,0.10)",
-                animation: "cm2LaunchPulse 4.2s ease-in-out infinite, cm2LaunchShimmer 7s ease-in-out infinite",
-                textTransform: "uppercase",
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.transform = "translateY(-2px) scale(1.03)";
-                e.currentTarget.style.boxShadow =
-                  "0 16px 40px rgba(247,176,65,0.60)" +
-                  ", 0 10px 26px rgba(224,99,71,0.45)" +
-                  ", 0 6px 18px rgba(144,92,203,0.40)" +
-                  ", 0 0 32px rgba(247,176,65,0.30)" +
-                  ", 0 1px 0 rgba(255,255,255,0.50) inset";
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.transform = "translateY(0) scale(1)";
-                e.currentTarget.style.boxShadow =
-                  "0 10px 28px rgba(247,176,65,0.45)" +
-                  ", 0 6px 18px rgba(224,99,71,0.32)" +
-                  ", 0 4px 14px rgba(144,92,203,0.28)" +
-                  ", 0 1px 0 rgba(255,255,255,0.42) inset" +
-                  ", 0 0 0 1px rgba(255,255,255,0.10)";
-              }}
-            >
-              <style>{`
-                @keyframes cm2LaunchPulse {
-                  0%,100% { filter: brightness(1) saturate(1.05); }
-                  50%     { filter: brightness(1.10) saturate(1.20); }
-                }
-                @keyframes cm2LaunchShimmer {
-                  0%,100% { background-position: 0% 50%; }
-                  50%     { background-position: 100% 50%; }
-                }
-                @keyframes cm2LaunchRocket {
-                  0%,100% { transform: translateY(0) rotate(-8deg); }
-                  50%     { transform: translateY(-2px) rotate(8deg); }
-                }
-              `}</style>
-              <Rocket size={14} strokeWidth={2.6} style={{ animation: "cm2LaunchRocket 2.4s ease-in-out infinite", transformOrigin: "center" }} />
-              LAUNCH
-              <span style={{
-                width: 5, height: 5, borderRadius: "50%",
-                background: "#FFFFFF",
-                boxShadow: "0 0 8px #FFFFFF, 0 0 14px #F7B041",
-                animation: "cm2LaunchPulse 1.6s ease-in-out infinite",
-              }} />
-            </button>
-          </Tooltip>
-        </span>
-        {/* Wave 12 · radial-wheel settings */}
-        <Tooltip label="Customize the radial context wheel" position="bottom">
-          <GlassButton
-            onClick={() => setWheelSettingsOpen(true)}
-            title="Customize the radial context wheel · pick which tools appear per element"
-            Icon={Settings}
-          >WHEEL</GlassButton>
-        </Tooltip>
-        <ExportSplitButton onPNG={() => { exportPNG(); playExportChime(); }} onSVG={() => { exportSVG(); playExportChime(); }} onCopy={() => { copyPNG(); playExportChime(); }} />
+                onClick={() => setTourOpen(true)}
+                title="Take the interactive tour"
+                style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  padding: "9px 12px", borderRadius: 9,
+                  background: "linear-gradient(135deg, #2EAD8E 0%, #2EAD8Ecc 100%)",
+                  border: "1px solid #2EAD8E88", color: "#0A0A0E",
+                  fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.5,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 14px rgba(46,173,142,0.35), 0 1px 0 rgba(255,255,255,0.18) inset",
+                }}
+              >
+                <HelpCircle size={13} strokeWidth={2.4} />
+                TOUR
+              </button>
+            </Tooltip>
+          )}
+        </ToolGroup>
+
+        <span style={{ flex: 1 }} />
+
+        {/* RIGHT EDGE — Sound · Theme · Export download icon */}
         <SoundToggle />
         <AppThemeToggle theme={appTheme} onChange={setAppTheme} />
-        {tourCompleted() ? null : (
-          <Tooltip label="Take the tour" position="bottom">
-            <button
-              onClick={() => setTourOpen(true)}
-              title="Take the interactive tour"
-              style={{
-                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-                padding: "9px 12px", borderRadius: 9,
-                background: "linear-gradient(135deg, #2EAD8E 0%, #2EAD8Ecc 100%)",
-                border: "1px solid #2EAD8E88", color: "#0A0A0E",
-                fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.5,
-                cursor: "pointer",
-                boxShadow: "0 4px 14px rgba(46,173,142,0.35), 0 1px 0 rgba(255,255,255,0.18) inset",
-              }}
-            >
-              <HelpCircle size={13} strokeWidth={2.4} />
-              TOUR
-            </button>
-          </Tooltip>
-        )}
+        <ExportDropdownIcon
+          onPNG={() => { exportPNG(); playExportChime(); }}
+          onJPG={() => { exportJPG(); playExportChime(); }}
+          onSVG={() => { exportSVG(); playExportChime(); }}
+          onPPTX={() => { exportPPTX(); playExportChime(); }}
+          onCopyPNG={() => { copyPNG(); playExportChime(); }}
+        />
       </div>
 
       {/* Annotations toolbar — context-wheel action chips */}
@@ -6318,25 +6389,92 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           onChangeChartType={setType}
           themeName={THEMES[theme].name}
           paletteColors={THEMES[theme].colors}
+          chartZoom={chartZoom}
+          onChangeChartZoom={setChartZoom}
+          tableMode={tableWindowMode}
+          onChangeTableMode={setTableWindowMode}
+          floatingTablePos={floatingTablePos}
+          onChangeFloatingTablePos={setFloatingTablePos}
+          topBarExtras={(
+            // Wave 15 · Full toolbar inside Launch top bar — same FILE/EDIT/
+            // INSERT/FORMAT controls the compact mode has, so Launch genuinely
+            // is the "ultimate tool". The pane mode tabs and zoom widget live
+            // in ExpandedShell itself (they're shell-specific).
+            <>
+              <ToolGroup label="File">
+                <TemplatesButton onPick={tpl => {
+                  setType(tpl.type);
+                  const built = tpl.build();
+                  if (built && typeof built === "object" && "primary" in built) {
+                    const dual = built as { primary: DataSheet; secondary?: DataSheet };
+                    setSheets(p => ({ ...p, [tpl.type]: dual.primary }));
+                    if (dual.secondary) setSecondarySheets(p => ({ ...p, [tpl.type]: dual.secondary }));
+                  } else {
+                    setSheets(p => ({ ...p, [tpl.type]: built as DataSheet }));
+                  }
+                  if (tpl.title) setTitle(tpl.title);
+                  if (tpl.subtitle) setSubtitle(tpl.subtitle);
+                  if (tpl.theme) setTheme(tpl.theme);
+                }} />
+                <PasteDataButton onPaste={raw => { const ds = parsePasteForCategorical(raw); if (ds) setSheets(p => ({ ...p, [type]: ds })); else showToast("Couldn't parse the paste — expected TSV or CSV with headers"); }} />
+                <ImportExcelButton onImport={ds => setSheets(p => ({ ...p, [type]: ds }))} />
+              </ToolGroup>
+              <Sep />
+              <ToolGroup label="Edit">
+                <UndoRedoButtons onUndo={undo} onRedo={redo} canUndo={past.current.length > 0} canRedo={future.current.length > 0} />
+                <Tooltip label={locked ? "Unlock editing" : "Lock chart"} shortcut="⌘L" position="bottom">
+                  <span style={{ display: "inline-flex" }}><LockToggle locked={locked} onChange={setLocked} /></span>
+                </Tooltip>
+              </ToolGroup>
+              <Sep />
+              <ToolGroup label="Insert">
+                <Tooltip label="Open chart-type wheel · radial picker" shortcut="W" position="bottom">
+                  <GlassButton onClick={() => setWheelOpen(true)} title="Open chart-type wheel · radial picker (W)" Icon={Sparkles} primary>TYPE WHEEL</GlassButton>
+                </Tooltip>
+                <NumberFormatPicker fmt={numFmt} onChange={setNumFmt} />
+              </ToolGroup>
+              <Sep />
+              <ToolGroup label="Format">
+                <Tooltip label="Design panel · palette, backdrops, gridlines" shortcut="⌘D" position="bottom">
+                  <GlassButton onClick={() => setDesignOpen(v => !v)} title="Design panel · click to toggle (⌘D)" Icon={Palette} primary={designOpen}>DESIGN</GlassButton>
+                </Tooltip>
+                <Tooltip label="Customize the radial context wheel" position="bottom">
+                  <GlassButton
+                    onClick={() => setWheelSettingsOpen(true)}
+                    title="Customize the radial context wheel · pick which tools appear per element"
+                    Icon={Settings}
+                  >WHEEL</GlassButton>
+                </Tooltip>
+              </ToolGroup>
+            </>
+          )}
+          topBarRightExtras={(
+            <>
+              <SoundToggle />
+              <AppThemeToggle theme={appTheme} onChange={setAppTheme} />
+              <ExportDropdownIcon
+                onPNG={() => { exportPNG(); playExportChime(); }}
+                onJPG={() => { exportJPG(); playExportChime(); }}
+                onSVG={() => { exportSVG(); playExportChime(); }}
+                onPPTX={() => { exportPPTX(); playExportChime(); }}
+                onCopyPNG={() => { copyPNG(); playExportChime(); }}
+              />
+            </>
+          )}
           chartCard={(
-            <div style={{
-              position: "relative",
-              background: backdropCss(backdropMode === "dark" ? BACKDROPS_DARK[backdrop] : BACKDROPS_LIGHT[backdrop]),
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 16,
-              padding: "26px 30px",
-              overflow: "auto",
-              width: "100%",
-              boxShadow: "0 1px 0 rgba(255,255,255,0.06) inset, 0 32px 64px rgba(0,0,0,0.45)",
-            }}>
-              <svg
-                viewBox={`0 0 ${W} ${H}`}
-                style={{ width: "100%", height: "auto", display: "block", fontFamily: ft, touchAction: "none" }}
-              >
-                <rect x="0" y="0" width={W} height={H} fill="transparent" onPointerDown={() => { if (selected) setSelected(null); }} />
-                {renderChart()}
-              </svg>
-            </div>
+            // Wave 15 · ResizeObserver-driven chart sizing happens inside
+            // ExpandedShell (it owns the pane DOM). We just hand it a render
+            // function so the chart's W/H can adapt to the live pane size.
+            <ChartPaneInner
+              backdrop={backdrop}
+              backdropMode={backdropMode}
+              renderChart={renderChart}
+              setSelected={setSelected}
+              selected={selected}
+              chartZoom={chartZoom}
+              defaultW={W}
+              defaultH={H}
+            />
           )}
           dataSheet={(
             <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
@@ -6385,6 +6523,26 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
                     );
                   })}
                 </div>
+                {/* Wave 15 · pop-out controls — let the user detach the table
+                    into a draggable in-app floating window. */}
+                <button
+                  onClick={() => setTableWindowMode(tableWindowMode === "floating" ? "docked" : "floating")}
+                  title={tableWindowMode === "floating" ? "Dock the table back into the layout" : "Pop the table out into a draggable floating window"}
+                  style={{
+                    padding: "5px 10px",
+                    border: "1px solid " + (tableWindowMode === "floating" ? C.amber + "70" : "rgba(255,255,255,0.12)"),
+                    borderRadius: 8,
+                    background: tableWindowMode === "floating" ? C.amber + "22" : "rgba(255,255,255,0.03)",
+                    color: tableWindowMode === "floating" ? C.amber : C.txm,
+                    fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 1.2,
+                    textTransform: "uppercase", cursor: "pointer",
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    transition: "all 0.16s cubic-bezier(.2,.7,.2,1)",
+                  }}
+                >
+                  <Maximize2 size={11} strokeWidth={2.4} />
+                  {tableWindowMode === "floating" ? "Dock" : "Pop Out"}
+                </button>
               </div>
               {tableEngine === "univer" ? (
                 // Univer takes the entire pane — it ships its own toolbar,
@@ -6586,6 +6744,434 @@ function ExportSplitButton({ onPNG, onSVG, onCopy }: { onPNG: () => void; onSVG:
 }
 function dropItem(): React.CSSProperties {
   return { padding: "9px 12px", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, color: "#E8E4DD", fontFamily: ft, fontSize: 12, fontWeight: 600, transition: "background 0.12s" };
+}
+
+// ─── Wave 15 · Toolbar grouping primitives ───────────────────────────────
+// ToolGroup: visual cluster of related buttons + a tiny uppercase label
+// underneath ("FILE", "EDIT", etc.). Sep renders a hairline between groups.
+// Goal: compact toolbar that reads like Excel/Figma — every control
+// instantly findable, no vertical bloat.
+function ToolGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{children}</div>
+      <span style={{ fontFamily: mn, fontSize: 7.5, color: C.txd, letterSpacing: 1.4, fontWeight: 800, opacity: 0.6, textTransform: "uppercase" }}>{label}</span>
+    </div>
+  );
+}
+
+// ─── Wave 15 · LAUNCH button · reusable colorful CTA ────────────────────
+// Animated gradient pill that opens the full expanded webapp suite.
+// Pulled out of inline JSX so it can also live inside the Launch top bar
+// (as a "you are here" badge — visible state, but disabled).
+function LaunchButton({ onClick, badge = false }: { onClick?: () => void; badge?: boolean }) {
+  return (
+    <Tooltip label={badge ? "You're in Launch mode" : "Launch the full chart-building suite"} shortcut={badge ? undefined : "⌘⇧E"} position="bottom">
+      <button
+        onClick={onClick}
+        title={badge ? "Currently in Launch mode" : "Launch the full chart-building suite (⌘⇧E · Esc to exit)"}
+        disabled={badge}
+        style={{
+          position: "relative",
+          display: "inline-flex", alignItems: "center", gap: 9,
+          padding: badge ? "8px 14px" : "10px 18px", borderRadius: 11,
+          background: "linear-gradient(135deg, #F7B041 0%, #E06347 38%, #905CCB 72%, #0B86D1 100%)",
+          backgroundSize: "200% 200%",
+          border: "1px solid rgba(255,255,255,0.32)",
+          color: "#0A0A0E",
+          fontFamily: gf, fontSize: badge ? 11 : 12, fontWeight: 900, letterSpacing: 0.4,
+          cursor: badge ? "default" : "pointer",
+          transition: "all 0.22s cubic-bezier(.2,.7,.2,1)",
+          boxShadow:
+            "0 10px 28px rgba(247,176,65,0.45)" +
+            ", 0 6px 18px rgba(224,99,71,0.32)" +
+            ", 0 4px 14px rgba(144,92,203,0.28)" +
+            ", 0 1px 0 rgba(255,255,255,0.42) inset" +
+            ", 0 0 0 1px rgba(255,255,255,0.10)",
+          animation: "cm2LaunchPulse 4.2s ease-in-out infinite, cm2LaunchShimmer 7s ease-in-out infinite",
+          textTransform: "uppercase",
+          opacity: badge ? 0.95 : 1,
+        }}
+        onMouseEnter={badge ? undefined : (e => {
+          e.currentTarget.style.transform = "translateY(-2px) scale(1.03)";
+          e.currentTarget.style.boxShadow =
+            "0 16px 40px rgba(247,176,65,0.60)" +
+            ", 0 10px 26px rgba(224,99,71,0.45)" +
+            ", 0 6px 18px rgba(144,92,203,0.40)" +
+            ", 0 0 32px rgba(247,176,65,0.30)" +
+            ", 0 1px 0 rgba(255,255,255,0.50) inset";
+        })}
+        onMouseLeave={badge ? undefined : (e => {
+          e.currentTarget.style.transform = "translateY(0) scale(1)";
+          e.currentTarget.style.boxShadow =
+            "0 10px 28px rgba(247,176,65,0.45)" +
+            ", 0 6px 18px rgba(224,99,71,0.32)" +
+            ", 0 4px 14px rgba(144,92,203,0.28)" +
+            ", 0 1px 0 rgba(255,255,255,0.42) inset" +
+            ", 0 0 0 1px rgba(255,255,255,0.10)";
+        })}
+      >
+        <style>{`
+          @keyframes cm2LaunchPulse {
+            0%,100% { filter: brightness(1) saturate(1.05); }
+            50%     { filter: brightness(1.10) saturate(1.20); }
+          }
+          @keyframes cm2LaunchShimmer {
+            0%,100% { background-position: 0% 50%; }
+            50%     { background-position: 100% 50%; }
+          }
+          @keyframes cm2LaunchRocket {
+            0%,100% { transform: translateY(0) rotate(-8deg); }
+            50%     { transform: translateY(-2px) rotate(8deg); }
+          }
+        `}</style>
+        <Rocket size={badge ? 13 : 14} strokeWidth={2.6} style={{ animation: "cm2LaunchRocket 2.4s ease-in-out infinite", transformOrigin: "center" }} />
+        LAUNCH
+        <span style={{
+          width: 5, height: 5, borderRadius: "50%",
+          background: "#FFFFFF",
+          boxShadow: "0 0 8px #FFFFFF, 0 0 14px #F7B041",
+          animation: "cm2LaunchPulse 1.6s ease-in-out infinite",
+        }} />
+      </button>
+    </Tooltip>
+  );
+}
+
+// ─── Wave 15 · Export dropdown icon · replaces verbose ExportSplitButton ──
+// Single small icon button. Click → 5-row dropdown:
+//   PNG · JPG · SVG · PowerPoint (.pptx) · Copy PNG
+// Position absolute right of the toolbar so the menu opens flush to the
+// right edge.
+function ExportDropdownIcon({ onPNG, onJPG, onSVG, onPPTX, onCopyPNG }: {
+  onPNG: () => void;
+  onJPG: () => void;
+  onSVG: () => void;
+  onPPTX: () => void;
+  onCopyPNG: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [hov, setHov] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    setTimeout(() => document.addEventListener("click", close), 0);
+    return () => document.removeEventListener("click", close);
+  }, [open]);
+  return (
+    <div style={{ position: "relative", display: "inline-flex" }} onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        onMouseEnter={() => setHov(true)}
+        onMouseLeave={() => setHov(false)}
+        title="Export · PNG, JPG, SVG, PowerPoint, Copy"
+        style={{
+          width: 36, height: 36, borderRadius: 9,
+          background: open || hov ? "linear-gradient(135deg," + C.amber + "," + "#E8A020)" : "rgba(255,255,255,0.04)",
+          border: "1px solid " + (open || hov ? C.amber + "70" : "rgba(255,255,255,0.10)"),
+          color: open || hov ? "#060608" : C.txm,
+          cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
+          transition: "all 0.16s cubic-bezier(.2,.7,.2,1)",
+          boxShadow: open || hov ? "0 6px 18px " + C.amber + "55, 0 1px 0 rgba(255,255,255,0.20) inset" : "none",
+        }}
+      >
+        <Download size={15} strokeWidth={2.4} />
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", right: 0, top: "calc(100% + 6px)",
+          background: "#0D0D14", border: "1px solid rgba(255,255,255,0.12)",
+          borderRadius: 10, padding: 4, minWidth: 232, zIndex: 1100,
+          boxShadow: "0 18px 40px rgba(0,0,0,0.55)",
+        }}>
+          <div onClick={() => { onPNG(); setOpen(false); }} style={dropItem()}>
+            <ImageIcon size={13} strokeWidth={2.2} color={C.amber} />
+            <span style={{ flex: 1 }}>PNG</span>
+            <span style={{ fontSize: 9, color: C.txd, fontFamily: mn, letterSpacing: 0.8 }}>2× retina</span>
+          </div>
+          <div onClick={() => { onJPG(); setOpen(false); }} style={dropItem()}>
+            <ImageIcon size={13} strokeWidth={2.2} color="#0B86D1" />
+            <span style={{ flex: 1 }}>JPG</span>
+            <span style={{ fontSize: 9, color: C.txd, fontFamily: mn, letterSpacing: 0.8 }}>92%</span>
+          </div>
+          <div onClick={() => { onSVG(); setOpen(false); }} style={dropItem()}>
+            <FileCode2 size={13} strokeWidth={2.2} color="#2EAD8E" />
+            <span style={{ flex: 1 }}>SVG</span>
+            <span style={{ fontSize: 9, color: C.txd, fontFamily: mn, letterSpacing: 0.8 }}>vector</span>
+          </div>
+          <div onClick={() => { onPPTX(); setOpen(false); }} style={dropItem()}>
+            <FileSpreadsheet size={13} strokeWidth={2.2} color="#E06347" />
+            <span style={{ flex: 1 }}>PowerPoint</span>
+            <span style={{ fontSize: 9, color: C.txd, fontFamily: mn, letterSpacing: 0.8 }}>.pptx</span>
+          </div>
+          <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 6px" }} />
+          <div onClick={() => { onCopyPNG(); setOpen(false); }} style={dropItem()}>
+            <ClipboardPaste size={13} strokeWidth={2.2} color="#905CCB" />
+            <span style={{ flex: 1 }}>Copy PNG</span>
+            <span style={{ fontSize: 9, color: C.txd, fontFamily: mn, letterSpacing: 0.8 }}>⌘⇧C</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Wave 15 · Chart pane inner · auto-fit + zoom-aware chart container ──
+// Watches its own pane size with ResizeObserver and computes a 16:9 W/H
+// that fills the available space. Applies the user's `chartZoom` either by
+// "fit" (default, scales SVG to 100% width) or by an absolute scale factor
+// (50/75/100/125/150/200/300%). When zoom > 100% the container scrolls.
+function ChartPaneInner({
+  backdrop, backdropMode, renderChart, setSelected, selected,
+  chartZoom, defaultW, defaultH,
+}: {
+  backdrop: BackdropKey;
+  backdropMode: BackdropMode;
+  renderChart: () => React.ReactNode;
+  setSelected: (s: SelectedElement | null) => void;
+  selected: SelectedElement | null;
+  chartZoom: "fit" | number;
+  defaultW: number;
+  defaultH: number;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [size, setSize] = useState<{ w: number; h: number }>({ w: defaultW, h: defaultH });
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const update = () => {
+      const rect = el.getBoundingClientRect();
+      const padX = 60;  // horizontal card padding (26 each side + a touch)
+      const padY = 60;
+      const w = Math.max(420, rect.width - padX);
+      // Cap height so we never produce squashed-wide charts. 16:9 default,
+      // but bounded by the actual available pane height.
+      const h = Math.max(280, Math.min(rect.height - padY, w * 0.62));
+      setSize({ w: Math.round(w), h: Math.round(h) });
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  void defaultW; void defaultH;
+  const W = size.w;
+  const H = size.h;
+  const scale = chartZoom === "fit" ? 1 : chartZoom / 100;
+  return (
+    <div ref={containerRef} style={{
+      position: "relative",
+      width: "100%", height: "100%",
+      background: backdropCss(backdropMode === "dark" ? BACKDROPS_DARK[backdrop] : BACKDROPS_LIGHT[backdrop]),
+      border: "1px solid rgba(255,255,255,0.08)",
+      borderRadius: 16,
+      padding: "26px 30px",
+      overflow: chartZoom === "fit" ? "hidden" : "auto",
+      boxShadow: "0 1px 0 rgba(255,255,255,0.06) inset, 0 32px 64px rgba(0,0,0,0.45)",
+    }}>
+      <div style={{
+        width: chartZoom === "fit" ? "100%" : W * scale,
+        height: chartZoom === "fit" ? "100%" : H * scale,
+        transformOrigin: "top left",
+      }}>
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          style={{
+            width: chartZoom === "fit" ? "100%" : W * scale,
+            height: chartZoom === "fit" ? "auto" : H * scale,
+            display: "block",
+            fontFamily: ft,
+            touchAction: "none",
+          }}
+        >
+          <rect x="0" y="0" width={W} height={H} fill="transparent" onPointerDown={() => { if (selected) setSelected(null); }} />
+          {renderChart()}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+// ─── Wave 15 · Zoom widget · used in the Launch top bar ──────────────────
+// [−] [PCT▼] [+] [Fit]. Click PCT to pick a preset; − / + step by 25%.
+// "Fit" snaps back to auto-fit the pane.
+function ZoomWidget({ zoom, onChange }: { zoom: "fit" | number; onChange: (z: "fit" | number) => void }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    setTimeout(() => document.addEventListener("click", close), 0);
+    return () => document.removeEventListener("click", close);
+  }, [open]);
+  const pct = zoom === "fit" ? 100 : zoom;
+  const presets: Array<"fit" | number> = ["fit", 50, 75, 100, 125, 150, 200, 300];
+  const step = (delta: number) => {
+    const cur = zoom === "fit" ? 100 : zoom;
+    const next = Math.max(25, Math.min(400, Math.round((cur + delta) / 25) * 25));
+    onChange(next);
+  };
+  const btn = (content: React.ReactNode, onClick: () => void, title: string, extra: React.CSSProperties = {}) => (
+    <button onClick={onClick} title={title} style={{
+      padding: "5px 8px", borderRadius: 6,
+      background: "transparent", border: "none",
+      color: C.txm, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.4,
+      cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 3,
+      transition: "all 0.16s",
+      ...extra,
+    }}
+      onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "#E8E4DD"; }}
+      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.txm; }}
+    >{content}</button>
+  );
+  return (
+    <div style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 0,
+      padding: 2,
+      background: "rgba(255,255,255,0.03)",
+      border: "1px solid rgba(255,255,255,0.10)",
+      borderRadius: 8,
+    }} onClick={e => e.stopPropagation()}>
+      {btn(<Minus size={11} strokeWidth={2.4} />, () => step(-25), "Zoom out · -25%")}
+      {btn(
+        <span style={{ minWidth: 38, textAlign: "center" }}>{zoom === "fit" ? "Fit" : `${pct}%`}</span>,
+        () => setOpen(v => !v),
+        "Zoom presets",
+        { background: open ? C.amber + "22" : "transparent", color: open ? C.amber : C.txm }
+      )}
+      {btn(<Plus size={11} strokeWidth={2.4} />, () => step(25), "Zoom in · +25%")}
+      <span style={{ width: 1, height: 14, background: "rgba(255,255,255,0.10)", margin: "0 2px" }} />
+      {btn(
+        <span>FIT</span>,
+        () => onChange("fit"),
+        "Fit chart to pane",
+        { color: zoom === "fit" ? C.amber : C.txm, background: zoom === "fit" ? C.amber + "18" : "transparent" }
+      )}
+      {open && (
+        <div style={{
+          position: "absolute", left: 0, top: "calc(100% + 6px)",
+          background: "#0D0D14", border: "1px solid rgba(255,255,255,0.12)",
+          borderRadius: 8, padding: 4, minWidth: 110, zIndex: 1100,
+          boxShadow: "0 18px 40px rgba(0,0,0,0.55)",
+        }}>
+          {presets.map(p => {
+            const isActive = (p === "fit" && zoom === "fit") || (typeof p === "number" && zoom === p);
+            return (
+              <div key={String(p)}
+                onClick={() => { onChange(p); setOpen(false); }}
+                style={{
+                  ...dropItem(),
+                  padding: "6px 10px",
+                  background: isActive ? C.amber + "18" : "transparent",
+                  color: isActive ? C.amber : "#E8E4DD",
+                  fontSize: 11,
+                }}
+              >
+                <span style={{ flex: 1 }}>{p === "fit" ? "Fit to pane" : `${p}%`}</span>
+                {isActive && <Check size={11} strokeWidth={2.4} />}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Wave 15 · FloatingTableWindow · draggable in-app table window ───────
+// Glass-shell window with a drag header (move) + bottom-right resize
+// handle. Persisted position/size lives in localStorage so it survives
+// page reloads. Close button reverts to docked mode.
+function FloatingTableWindow({
+  pos, onChangePos, onClose, children,
+}: {
+  pos: { x: number; y: number; w: number; h: number };
+  onChangePos: (p: { x: number; y: number; w: number; h: number }) => void;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  const dragRef = useRef<{ kind: "move" | "resize"; startX: number; startY: number; orig: typeof pos } | null>(null);
+  const onHeaderDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    dragRef.current = { kind: "move", startX: e.clientX, startY: e.clientY, orig: pos };
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onResizeDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragRef.current = { kind: "resize", startX: e.clientX, startY: e.clientY, orig: pos };
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onMove = (e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const { kind, startX, startY, orig } = dragRef.current;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    if (kind === "move") {
+      onChangePos({ ...orig, x: Math.max(0, orig.x + dx), y: Math.max(0, orig.y + dy) });
+    } else {
+      onChangePos({ ...orig, w: Math.max(360, orig.w + dx), h: Math.max(240, orig.h + dy) });
+    }
+  };
+  const onUp = () => { dragRef.current = null; };
+  return (
+    <div
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={onUp}
+      style={{
+        position: "fixed",
+        left: pos.x, top: pos.y, width: pos.w, height: pos.h,
+        background: "rgba(13,13,18,0.92)",
+        backdropFilter: "blur(22px) saturate(160%)",
+        WebkitBackdropFilter: "blur(22px) saturate(160%)",
+        border: "1px solid rgba(255,255,255,0.14)",
+        borderRadius: 14,
+        boxShadow: "0 24px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(247,176,65,0.10)",
+        zIndex: 12000,
+        display: "flex", flexDirection: "column",
+        overflow: "hidden",
+        animation: "cm2ExpandPop 0.22s cubic-bezier(.2,.7,.2,1) both",
+      }}
+    >
+      <div
+        onPointerDown={onHeaderDown}
+        style={{
+          padding: "10px 14px",
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          background: "rgba(13,13,18,0.78)",
+          display: "flex", alignItems: "center", gap: 10,
+          cursor: "move",
+          flexShrink: 0,
+          userSelect: "none",
+        }}
+      >
+        <Table size={13} strokeWidth={2.4} color={C.amber} />
+        <span style={{ fontFamily: mn, fontSize: 10, color: C.amber, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 800 }}>Data sheet · floating</span>
+        <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6 }}>· drag to move · resize from corner</span>
+        <span style={{ flex: 1 }} />
+        <button
+          onClick={onClose}
+          title="Dock back into the split layout"
+          style={{
+            width: 22, height: 22, borderRadius: 5,
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            color: C.txm,
+            cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
+          }}
+        ><XIcon size={12} /></button>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>{children}</div>
+      <div
+        onPointerDown={onResizeDown}
+        style={{
+          position: "absolute", right: 0, bottom: 0, width: 18, height: 18,
+          cursor: "nwse-resize",
+          background: "linear-gradient(135deg, transparent 50%, " + C.amber + "55 50%, " + C.amber + "55 60%, transparent 60%, transparent 70%, " + C.amber + "55 70%, " + C.amber + "55 80%, transparent 80%)",
+          borderRadius: "0 0 14px 0",
+        }}
+      />
+    </div>
+  );
 }
 
 // ─── Templates · port of ChartMaker 1's quick-start preset library ───────
@@ -9619,6 +10205,10 @@ function ExpandedShell({
   chartCard, dataSheet,
   propsPanel,
   transitionFrom,
+  topBarExtras, topBarRightExtras,
+  chartZoom, onChangeChartZoom,
+  tableMode, onChangeTableMode,
+  floatingTablePos, onChangeFloatingTablePos,
 }: {
   onClose: () => void;
   paneMode: "chart" | "table" | "split";
@@ -9637,6 +10227,19 @@ function ExpandedShell({
   propsPanel?: React.ReactNode;
   // Wave 14 · captured anchor for FLIP-style scale-from-button morph
   transitionFrom?: { x: number; y: number } | null;
+  // Wave 15 · full toolbar groups (FILE/EDIT/INSERT/FORMAT) injected from
+  // the parent so Launch shares the exact same controls as Compact mode.
+  topBarExtras?: React.ReactNode;
+  // Wave 15 · right-edge utilities (sound, theme, export download icon).
+  topBarRightExtras?: React.ReactNode;
+  // Wave 15 · zoom + table-mode controls live in the top bar; the parent
+  // owns state so it survives Launch open/close.
+  chartZoom: "fit" | number;
+  onChangeChartZoom: (z: "fit" | number) => void;
+  tableMode: "docked" | "floating" | "window";
+  onChangeTableMode: (m: "docked" | "floating" | "window") => void;
+  floatingTablePos: { x: number; y: number; w: number; h: number };
+  onChangeFloatingTablePos: (p: { x: number; y: number; w: number; h: number }) => void;
 }) {
   void themeName; void paletteColors;
   const [leftCollapsed, setLeftCollapsed] = useState(false);
@@ -9696,17 +10299,24 @@ function ExpandedShell({
     }
   };
 
+  // Wave 15 · When the table is floating or in a separate browser window,
+  // the docked split layout collapses to chart-only (the table is shown
+  // elsewhere). Same for table-only paneMode + floating mode.
+  const tableIsDetached = tableMode === "floating" || tableMode === "window";
+  const effectivePaneMode: "chart" | "table" | "split" =
+    tableIsDetached && (paneMode === "split" || paneMode === "table") ? "chart" : paneMode;
+
   // Chart-only / table-only render the appropriate pane filling the middle.
   // Split renders both with a 5px draggable splitter between them.
   const middleContent = (() => {
-    if (paneMode === "chart") {
+    if (effectivePaneMode === "chart") {
       return (
         <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: "20px 22px", display: "flex" }}>
           <div style={{ flex: 1, minWidth: 0, alignSelf: "flex-start", width: "100%" }}>{chartCard}</div>
         </div>
       );
     }
-    if (paneMode === "table") {
+    if (effectivePaneMode === "table") {
       return (
         <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>{dataSheet}</div>
       );
@@ -9788,61 +10398,105 @@ function ExpandedShell({
           animation:"cmGlowDrift4 26s ease-in-out infinite" }} />
       </div>
 
-      {/* TOP BAR */}
+      {/* TOP BAR · Wave 15 · full toolbar lives here so Launch is the
+          ultimate tool. Two-row tall (78px) to host the ToolGroup labels. */}
       <div style={{
         position: "relative", zIndex: 2,
-        height: 52,
-        display: "flex", alignItems: "center", gap: 12,
-        padding: "0 16px",
+        minHeight: 78,
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "8px 14px",
         borderBottom: "1px solid rgba(255,255,255,0.06)",
         background: "rgba(13,13,18,0.78)",
         backdropFilter: "blur(18px) saturate(140%)",
         WebkitBackdropFilter: "blur(18px) saturate(140%)",
+        flexWrap: "wrap",
       }}>
-        {/* POAST mark */}
-        <span style={{
-          display: "inline-flex", alignItems: "center", gap: 8,
-          padding: "5px 10px", borderRadius: 7,
-          background: "rgba(247,176,65,0.10)",
-          border: "1px solid " + C.amber + "44",
-        }}>
-          <Sparkles size={13} strokeWidth={2.4} color={C.amber} />
-          <span style={{ fontFamily: gf, fontSize: 12, fontWeight: 900, color: "#E8E4DD", letterSpacing: -0.2 }}>POAST</span>
-        </span>
-        <span style={{ fontFamily: ft, fontSize: 13, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.2 }}>
-          Chart Maker <span style={{ color: C.amber }}>· Expanded</span>
-        </span>
+        {/* POAST · CHART MAKER · LAUNCH brand block */}
+        <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 2, paddingRight: 4 }}>
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: 8,
+            padding: "5px 10px", borderRadius: 7,
+            background: "rgba(247,176,65,0.10)",
+            border: "1px solid " + C.amber + "44",
+          }}>
+            <Rocket size={13} strokeWidth={2.4} color={C.amber} />
+            <span style={{ fontFamily: gf, fontSize: 12, fontWeight: 900, color: "#E8E4DD", letterSpacing: -0.2 }}>POAST</span>
+            <span style={{ fontFamily: ft, fontSize: 11, fontWeight: 800, color: C.amber, letterSpacing: 0.6 }}>· LAUNCH</span>
+          </span>
+          <span style={{ fontFamily: mn, fontSize: 7.5, color: C.txd, letterSpacing: 1.4, fontWeight: 800, opacity: 0.6, textTransform: "uppercase" }}>Chart Maker</span>
+        </div>
+        <Sep />
+
+        {/* FILE / EDIT / INSERT / FORMAT — injected from parent (same controls
+            as compact mode). */}
+        {topBarExtras}
+        <Sep />
+
+        {/* VIEW group · pane tabs + zoom widget */}
+        <ToolGroup label="View">
+          <div style={{ display: "inline-flex", gap: 6 }}>
+            <TabBtn active={paneMode === "chart"} onClick={() => onChangePaneMode("chart")} Icon={BarChart3} label="Chart" title="Chart only" />
+            <TabBtn active={paneMode === "table"} onClick={() => onChangePaneMode("table")} Icon={Table} label="Table" title="Table only" />
+            <TabBtn
+              active={paneMode === "split"}
+              onClick={onSplitClick}
+              Icon={splitOrientation === "vertical" ? Columns2 : Rows2}
+              label={paneMode === "split" ? (splitOrientation === "vertical" ? "Split V" : "Split H") : "Split"}
+              title={paneMode === "split" ? "Toggle vertical / horizontal split" : "Open split view"}
+            />
+            <ZoomWidget zoom={chartZoom} onChange={onChangeChartZoom} />
+          </div>
+        </ToolGroup>
+
         <span style={{ flex: 1 }} />
-        {/* Pane mode tabs */}
-        <TabBtn active={paneMode === "chart"} onClick={() => onChangePaneMode("chart")} Icon={BarChart3} label="Chart" title="Chart only" />
-        <TabBtn active={paneMode === "table"} onClick={() => onChangePaneMode("table")} Icon={Table} label="Table" title="Table only" />
-        <TabBtn
-          active={paneMode === "split"}
-          onClick={onSplitClick}
-          Icon={splitOrientation === "vertical" ? Columns2 : Rows2}
-          label={paneMode === "split" ? (splitOrientation === "vertical" ? "Split V" : "Split H") : "Split"}
-          title={paneMode === "split" ? "Toggle vertical / horizontal split" : "Open split view"}
-        />
-        <span style={{ width: 1, height: 22, background: "rgba(255,255,255,0.10)", margin: "0 4px" }} />
-        <button
-          onClick={onClose}
-          title="Back to compact mode (Esc)"
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
-            padding: "7px 12px", borderRadius: 8,
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.10)",
-            color: C.txm,
-            fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
-            cursor: "pointer", transition: "all 0.16s",
-            textTransform: "uppercase",
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "#E8E4DD"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = C.txm; }}
-        >
-          <Minimize2 size={12} strokeWidth={2.4} />
-          Back to Compact
-        </button>
+
+        {/* RIGHT EDGE — sound, theme, export download icon */}
+        {topBarRightExtras}
+        <Sep />
+
+        {/* Back to compact + table-mode picker. Table mode shows only when
+            the user is actually viewing the table (paneMode = table or split). */}
+        <ToolGroup label="Window">
+          <div style={{ display: "inline-flex", gap: 6 }}>
+            {(paneMode === "table" || paneMode === "split") && (
+              <>
+                <TabBtn
+                  active={tableMode === "floating"}
+                  onClick={() => onChangeTableMode(tableMode === "floating" ? "docked" : "floating")}
+                  Icon={Maximize2}
+                  label={tableMode === "floating" ? "Dock" : "Pop Out"}
+                  title={tableMode === "floating" ? "Dock the table back into the layout" : "Pop the table out into a draggable floating window"}
+                />
+                <TabBtn
+                  active={tableMode === "window"}
+                  onClick={() => onChangeTableMode(tableMode === "window" ? "docked" : "window")}
+                  Icon={Upload}
+                  label={tableMode === "window" ? "Re-dock" : "New Window"}
+                  title={tableMode === "window" ? "Close the popped browser window and dock the table back" : "Open the table in a separate browser window (BroadcastChannel sync · experimental)"}
+                />
+              </>
+            )}
+            <button
+              onClick={onClose}
+              title="Back to compact mode (Esc)"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "7px 12px", borderRadius: 8,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.10)",
+                color: C.txm,
+                fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
+                cursor: "pointer", transition: "all 0.16s",
+                textTransform: "uppercase",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "#E8E4DD"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = C.txm; }}
+            >
+              <Minimize2 size={12} strokeWidth={2.4} />
+              Compact
+            </button>
+          </div>
+        </ToolGroup>
       </div>
 
       {/* MAIN GRID · LEFT (sidebar) | MIDDLE (chart/table/split) | RIGHT (props) */}
@@ -9928,6 +10582,70 @@ function ExpandedShell({
           </div>
         )}
       </div>
+
+      {/* Wave 15 · Floating table window — appears as a draggable, resizable
+          panel over the shell. The docked split layout collapses to chart-only
+          while floating so the full chart fills the middle pane. */}
+      {tableMode === "floating" && (
+        <FloatingTableWindow
+          pos={floatingTablePos}
+          onChangePos={onChangeFloatingTablePos}
+          onClose={() => onChangeTableMode("docked")}
+        >
+          {dataSheet}
+        </FloatingTableWindow>
+      )}
+
+      {/* Wave 15 · "Open in new browser window" mode (5b) — coming-soon
+          placeholder banner. We keep state + UX wired up so when the
+          BroadcastChannel pipeline lands, no compact-mode changes are
+          needed. For now the table just stays docked-style; we surface a
+          dismissible banner explaining the experimental status. */}
+      {tableMode === "window" && (
+        <NewWindowComingSoonBanner onDismiss={() => onChangeTableMode("docked")} />
+      )}
+    </div>
+  );
+}
+
+// ─── Wave 15 · Coming-soon banner for "Open in new browser window" ──────
+function NewWindowComingSoonBanner({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <div style={{
+      position: "fixed",
+      left: "50%", bottom: 28,
+      transform: "translateX(-50%)",
+      zIndex: 12100,
+      padding: "12px 18px",
+      borderRadius: 12,
+      background: "rgba(13,13,18,0.92)",
+      backdropFilter: "blur(18px) saturate(140%)",
+      WebkitBackdropFilter: "blur(18px) saturate(140%)",
+      border: "1px solid " + C.amber + "55",
+      boxShadow: "0 18px 40px rgba(0,0,0,0.55), 0 0 0 1px " + C.amber + "22",
+      display: "flex", alignItems: "center", gap: 14,
+      maxWidth: 540,
+      animation: "cm2ExpandPop 0.22s cubic-bezier(.2,.7,.2,1) both",
+    }}>
+      <Upload size={16} strokeWidth={2.4} color={C.amber} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.3, textTransform: "uppercase", fontWeight: 800, marginBottom: 2 }}>New Window mode</div>
+        <div style={{ fontFamily: ft, fontSize: 12, color: "#E8E4DD", lineHeight: 1.4 }}>
+          Coming soon — the table will open in a separate browser window with live BroadcastChannel sync.
+          For now use <strong style={{ color: C.amber }}>Pop Out</strong> for an in-app floating window.
+        </div>
+      </div>
+      <button
+        onClick={onDismiss}
+        title="Dismiss"
+        style={{
+          width: 24, height: 24, borderRadius: 6,
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          color: C.txm,
+          cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
+        }}
+      ><XIcon size={12} /></button>
     </div>
   );
 }
