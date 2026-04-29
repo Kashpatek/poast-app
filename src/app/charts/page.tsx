@@ -79,7 +79,7 @@ export default function ChartsPage() {
               }}>2</span>
               <span style={{ fontFamily: mn, fontSize: 8, fontWeight: 800, color: C.amber, letterSpacing: 1.5, padding: "2px 7px", border: "1px solid " + C.amber + "55", borderRadius: 3, background: C.amber + "16", boxShadow: "0 0 12px " + C.amber + "20" }}>BETA</span>
             </div>
-            <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1.4, textTransform: "uppercase", marginTop: 2 }}>Think-cell-grade chart builder · SemiAnalysis</div>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1.4, textTransform: "uppercase", marginTop: 2 }}>Professional chart builder · SemiAnalysis</div>
           </div>
         </div>
 

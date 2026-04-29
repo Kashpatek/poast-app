@@ -14,10 +14,11 @@ import {
   ClipboardPaste, Sparkles, Type, Keyboard, X as XIcon,
   Palette, Lock, Unlock, Table, ChevronLeft, ChevronRight,
   Maximize2, Minimize2, Settings, Image as ImageIcon, Columns2, Rows2,
+  CornerUpLeft, Repeat, ArrowDownUp, MoveHorizontal, Upload, FileSpreadsheet,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CHART TYPE REGISTRY · maps Think-cell's grid to in-app renderers
+// CHART TYPE REGISTRY · maps the chart-type grid to in-app renderers
 // ═══════════════════════════════════════════════════════════════════════════
 
 type ChartType =
@@ -652,8 +653,46 @@ function computeSheet(sheet: DataSheet): DataSheet {
   return { schema: sheet.schema, rows };
 }
 
-function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode }: { sheet: DataSheet; onChange: (s: DataSheet) => void; sliderMode: boolean; onToggleSliderMode: () => void }) {
+function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode, selectedRowIdxs, onChangeSelectedRowIdxs, chartedRowsActive, onToggleChartedRows, onClearChartedRows }: {
+  sheet: DataSheet;
+  onChange: (s: DataSheet) => void;
+  sliderMode: boolean;
+  onToggleSliderMode: () => void;
+  // Wave 13 · selected-row state, lifted to ChartMaker2 so the chart can
+  // filter to "chart selected only".
+  selectedRowIdxs?: Set<number>;
+  onChangeSelectedRowIdxs?: (s: Set<number>) => void;
+  // Whether the chart is currently filtered to selected rows
+  chartedRowsActive?: boolean;
+  onToggleChartedRows?: () => void;
+  onClearChartedRows?: () => void;
+}) {
   const [active, setActive] = useState<{ row: number; col: number } | null>(null);
+  // Wave 13 · row selection — internal fallback when not lifted.
+  const [internalSelected, setInternalSelected] = useState<Set<number>>(new Set());
+  const sel = selectedRowIdxs ?? internalSelected;
+  const setSel = (next: Set<number>) => {
+    if (onChangeSelectedRowIdxs) onChangeSelectedRowIdxs(next);
+    else setInternalSelected(next);
+  };
+  const lastClickedRowRef = useRef<number | null>(null);
+  const onRowNumberClick = (e: React.MouseEvent, r: number) => {
+    e.stopPropagation();
+    const next = new Set(sel);
+    if (e.shiftKey && lastClickedRowRef.current !== null) {
+      const lo = Math.min(lastClickedRowRef.current, r);
+      const hi = Math.max(lastClickedRowRef.current, r);
+      for (let i = lo; i <= hi; i++) next.add(i);
+    } else if (e.metaKey || e.ctrlKey) {
+      if (next.has(r)) next.delete(r); else next.add(r);
+    } else {
+      // Plain click toggles single row (clears the rest).
+      if (next.has(r) && next.size === 1) next.clear();
+      else { next.clear(); next.add(r); }
+    }
+    lastClickedRowRef.current = r;
+    setSel(next);
+  };
   const setCell = (rowIdx: number, key: string, raw: string) => {
     const next = sheet.rows.slice();
     const col = sheet.schema.find(c => c.key === key);
@@ -748,6 +787,58 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode }: { sh
         <Toggle on={sliderMode} onChange={onToggleSliderMode} label="Slider" title="Toggle slider mode for number cells" />
       </div>
 
+      {/* Wave 13 · row-selection status pill — shows when 1+ rows selected. */}
+      {sel.size > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "7px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)",
+          background: `linear-gradient(180deg, ${C.amber}10, transparent)`,
+        }}>
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "4px 9px", borderRadius: 999,
+            background: C.amber + "1A",
+            border: "1px solid " + C.amber + "55",
+            color: C.amber,
+            fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
+            textTransform: "uppercase",
+          }}>
+            {sel.size} ROW{sel.size === 1 ? "" : "S"} SELECTED
+          </span>
+          {onToggleChartedRows && (
+            <button
+              onClick={onToggleChartedRows}
+              title="Toggle: chart only the selected rows vs. all rows"
+              style={{
+                padding: "5px 10px", borderRadius: 6,
+                background: chartedRowsActive ? C.amber + "26" : "rgba(255,255,255,0.04)",
+                border: "1px solid " + (chartedRowsActive ? C.amber + "70" : "rgba(255,255,255,0.10)"),
+                color: chartedRowsActive ? C.amber : C.txm,
+                fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
+                cursor: "pointer", textTransform: "uppercase",
+                display: "inline-flex", alignItems: "center", gap: 5,
+              }}
+            >
+              CHART SELECTED ONLY {chartedRowsActive ? "✓" : "↗"}
+            </button>
+          )}
+          <span style={{ flex: 1 }} />
+          <button
+            onClick={() => { setSel(new Set()); onClearChartedRows?.(); }}
+            title="Clear row selection"
+            style={{
+              padding: "5px 10px", borderRadius: 6,
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              color: C.txm,
+              fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
+              cursor: "pointer", textTransform: "uppercase",
+              display: "inline-flex", alignItems: "center", gap: 5,
+            }}
+          >CLEAR ×</button>
+        </div>
+      )}
+
       <div style={{ overflow: "auto", maxHeight: 480 }}>
         <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
           <colgroup>
@@ -787,11 +878,28 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode }: { sh
             </tr>
           </thead>
           <tbody>
-            {sheet.rows.map((row, r) => (
-              <tr key={r} style={{ background: r % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)" }}>
-                <td style={{ width: 44, textAlign: "center", borderTop: "1px solid rgba(255,255,255,0.04)", color: active && active.row === r ? C.amber : C.txd, fontFamily: mn, fontSize: 10, fontWeight: 700, position: "relative", background: "rgba(255,255,255,0.02)" }}>
+            {sheet.rows.map((row, r) => {
+              const isRowSel = sel.has(r);
+              const rowBgBase = r % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)";
+              const rowBg = isRowSel ? "rgba(247,176,65,0.10)" : rowBgBase;
+              return (
+              <tr key={r} style={{ background: rowBg }}>
+                <td
+                  onClick={(e) => onRowNumberClick(e, r)}
+                  title="Click to toggle row selection · Shift-click for range · Ctrl/Cmd-click for additive"
+                  style={{
+                    width: 44, textAlign: "center",
+                    borderTop: "1px solid rgba(255,255,255,0.04)",
+                    borderLeft: isRowSel ? `3px solid ${C.amber}` : "3px solid transparent",
+                    color: isRowSel ? C.amber : (active && active.row === r ? C.amber : C.txd),
+                    fontFamily: mn, fontSize: 10, fontWeight: 700, position: "relative",
+                    background: isRowSel ? "rgba(247,176,65,0.14)" : "rgba(255,255,255,0.02)",
+                    cursor: "pointer",
+                    userSelect: "none",
+                  }}
+                >
                   <span style={{ display: "inline-block", padding: "6px 4px" }}>{r + 1}</span>
-                  <span onClick={() => removeRow(r)} title="Remove row" style={{ position: "absolute", top: "50%", right: 4, transform: "translateY(-50%)", cursor: "pointer", padding: 2, color: C.txd, lineHeight: 0, display: "inline-flex", opacity: 0.5 }} onMouseEnter={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.color = "#E06347"; }} onMouseLeave={e => { e.currentTarget.style.opacity = "0.5"; e.currentTarget.style.color = C.txd; }}>
+                  <span onClick={(e) => { e.stopPropagation(); removeRow(r); }} title="Remove row" style={{ position: "absolute", top: "50%", right: 4, transform: "translateY(-50%)", cursor: "pointer", padding: 2, color: C.txd, lineHeight: 0, display: "inline-flex", opacity: 0.5 }} onMouseEnter={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.color = "#E06347"; }} onMouseLeave={e => { e.currentTarget.style.opacity = "0.5"; e.currentTarget.style.color = C.txd; }}>
                     <X size={10} />
                   </span>
                 </td>
@@ -844,7 +952,8 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode }: { sh
                 })}
                 <td style={{ width: 36, borderTop: "1px solid rgba(255,255,255,0.04)" }} />
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -947,6 +1056,93 @@ function CellInput({ value, onCommit, style, type, onScrub }: { value: string; o
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// DRAG-SCRUB INPUT · Wave 13 · generalized Alt+drag scrub for any numeric
+// input. Drop-in replacement for <input type="number"> with magnitude-aware
+// step. Hold Shift while dragging for fine-grained (×0.1) movement.
+// ═══════════════════════════════════════════════════════════════════════════
+type DragScrubInputProps = {
+  value: number;
+  onChange: (v: number) => void;
+  step?: number;
+  min?: number;
+  max?: number;
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "type" | "min" | "max" | "step">;
+function DragScrubInput({ value, onChange, step, min, max, style, title, onKeyDown, onBlur, ...rest }: DragScrubInputProps) {
+  const [local, setLocal] = useState(String(value));
+  const focusedRef = useRef(false);
+  const scrubRef = useRef<{ x: number; v: number } | null>(null);
+  const [altHeld, setAltHeld] = useState(false);
+  useEffect(() => { if (!focusedRef.current) setLocal(String(value)); }, [value]);
+  useEffect(() => {
+    const onKD = (e: KeyboardEvent) => { if (e.altKey) setAltHeld(true); };
+    const onKU = (e: KeyboardEvent) => { if (!e.altKey) setAltHeld(false); };
+    window.addEventListener("keydown", onKD);
+    window.addEventListener("keyup", onKU);
+    return () => { window.removeEventListener("keydown", onKD); window.removeEventListener("keyup", onKU); };
+  }, []);
+  const clamp = useCallback((n: number) => {
+    let r = n;
+    if (typeof min === "number" && r < min) r = min;
+    if (typeof max === "number" && r > max) r = max;
+    return r;
+  }, [min, max]);
+  const commit = useCallback((s: string) => {
+    const n = Number(s);
+    if (!Number.isFinite(n)) { setLocal(String(value)); return; }
+    const clamped = clamp(n);
+    onChange(clamped);
+    setLocal(String(clamped));
+  }, [value, onChange, clamp]);
+  return (
+    <input
+      {...rest}
+      type="text"
+      value={local}
+      onChange={e => setLocal(e.target.value)}
+      onFocus={e => { focusedRef.current = true; e.target.select(); }}
+      onBlur={e => { focusedRef.current = false; if (local !== String(value)) commit(local); onBlur?.(e); }}
+      onKeyDown={e => {
+        if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+        else if (e.key === "Escape") { setLocal(String(value)); (e.target as HTMLInputElement).blur(); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); commit(String(clamp(Number(local) + (step ?? 1)))); }
+        else if (e.key === "ArrowDown") { e.preventDefault(); commit(String(clamp(Number(local) - (step ?? 1)))); }
+        onKeyDown?.(e);
+      }}
+      onPointerDown={e => {
+        if (!e.altKey) return;
+        e.preventDefault();
+        const numV = Number(local) || 0;
+        scrubRef.current = { x: e.clientX, v: numV };
+        (e.target as Element).setPointerCapture?.(e.pointerId);
+        const onMove = (ev: PointerEvent) => {
+          const ds = scrubRef.current;
+          if (!ds) return;
+          const dx = ev.clientX - ds.x;
+          // Magnitude-aware: 1px = 1 unit when value is small; scaled up
+          // when value is large. Shift = ×0.1 fine-grained.
+          const baseScale = Math.max(step ?? 1, Math.abs(ds.v) / 100);
+          const scale = ev.shiftKey ? baseScale * 0.1 : baseScale;
+          const next = ds.v + dx * scale;
+          const rounded = Math.round(next * 100) / 100;
+          const c = clamp(rounded);
+          setLocal(String(c));
+          onChange(c);
+        };
+        const onUp = () => {
+          scrubRef.current = null;
+          window.removeEventListener("pointermove", onMove);
+          window.removeEventListener("pointerup", onUp);
+        };
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+      }}
+      title={title ?? "Alt-drag horizontally to scrub the value (Shift for fine)"}
+      style={{ ...style, cursor: altHeld ? "ew-resize" : (style as React.CSSProperties)?.cursor }}
+    />
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // COMMON SVG HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
 const fontSans = "'Outfit', ui-sans-serif, system-ui, sans-serif";
@@ -960,8 +1156,8 @@ function fmtNum(n: number): string {
   return Math.round(n * 10) / 10 + "";
 }
 
-// Chart-wide number formatting · think-cell offers per-label control;
-// we ship a chart-wide setting that covers the 8 most useful presets.
+// Chart-wide number formatting · we ship a chart-wide setting that
+// covers the 8 most useful presets (no per-label control yet).
 type NumberFormat = "auto" | "int" | "dec1" | "pct" | "usd" | "k" | "m" | "b";
 function fmtVal(v: number, f: NumberFormat): string {
   if (f === "auto") return fmtNum(v);
@@ -1134,7 +1330,7 @@ interface ElementMenuState {
 }
 type OnShowElementMenu = (state: ElementMenuState) => void;
 
-// ─── Annotations · think-cell-style overlays on top of the data ────────────
+// ─── Annotations · annotation-arrow overlays on top of the data ───────────
 type Annotation =
   | { id: string; kind: "refline"; value: number; label?: string; color?: string }
   | { id: string; kind: "cagr"; rowFrom: number; rowTo: number; seriesKey: string }
@@ -1156,7 +1352,7 @@ type OnPickBar = (rowIdx: number, key: string) => boolean; // returns true if pi
 
 // Floating mini-toolbar selection · LEGACY · kept for backwards
 // compatibility with the old FloatingMiniToolbar fallback. The new
-// SelectedElement model below drives the think-cell-style selection.
+// SelectedElement model below drives the radial-menu selection.
 interface BarSelection {
   kind: "bar";
   rowIdx: number;
@@ -1168,7 +1364,7 @@ interface BarSelection {
 }
 type OnSelect = (sel: BarSelection | null) => void;
 
-// ─── Wave 11 · think-cell selection paradigm ───────────────────────────────
+// ─── Wave 11 · radial-menu selection paradigm ─────────────────────────────
 // Click an element first → it shows a glow + handles. Then drag the top
 // midpoint handle to resize, or right-click / press M for the radial wheel.
 // Esc deselects, click-on-canvas deselects.
@@ -1405,7 +1601,7 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
     : (v: number) => chartH - (v / tickMax) * chartH;
 
   const groupW = chartW / categories.length;
-  const barW = Math.min(groupW * 0.65, 80);
+  const barW = Math.min(groupW * ((cfg.barWidthPct ?? 65) / 100), 100);
 
   // Wave 11 · CLICK-TO-SELECT then DRAG-HANDLE-TO-RESIZE.
   // Click on body of a bar selects it only — drag is initiated via the
@@ -1658,8 +1854,11 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
     : (v: number) => chartH - (v / tickMax) * chartH;
 
   const groupW = chartW / categories.length;
-  const innerPad = groupW * 0.22;
-  const innerW = groupW - innerPad * 2;
+  // Wave 13 · barWidthPct controls the total fraction of groupW the cluster
+  // takes up. Inner pad is split symmetrically on each side.
+  const clusterFrac = (cfg.barWidthPct ?? 65) / 100;
+  const innerW = groupW * clusterFrac;
+  const innerPad = (groupW - innerW) / 2;
   const barW = innerW / series.length;
 
   // Pointer y (in SVG viewBox coords) → numeric value. Subtract topPad
@@ -1837,7 +2036,7 @@ function PercentColumn({ sheet, cfg, W, H }: CatProps) {
   const chartW = W - leftPad - rightPad;
   const chartH = H - topPad - bottomPad;
   const groupW = chartW / categories.length;
-  const barW = Math.min(groupW * 0.65, 80);
+  const barW = Math.min(groupW * ((cfg.barWidthPct ?? 65) / 100), 100);
 
   const ticks = [0, 25, 50, 75, 100];
   const yOf = (v: number) => chartH - (v / 100) * chartH;
@@ -2233,7 +2432,7 @@ function Waterfall({ sheet, cfg, W, H }: CatProps) {
   const chartW = W - leftPad - rightPad;
   const chartH = H - topPad - bottomPad;
   const groupW = chartW / items.length;
-  const barW = Math.min(groupW * 0.6, 64);
+  const barW = Math.min(groupW * ((cfg.barWidthPct ?? 65) / 100), 100);
 
   // Compute running totals and bar positions
   let running = 0;
@@ -2485,7 +2684,7 @@ function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow, o
   const yOf = (v: number) => chartH - (v / tickMax) * chartH;
 
   const groupW = chartW / rows.length;
-  const barW = Math.min(groupW * 0.55, 70);
+  const barW = Math.min(groupW * ((cfg.barWidthPct ?? 65) / 100), 100);
 
   // Wave 11 · click-to-select then drag the top handle.
   const dragRef = useRef<{ rowIdx: number } | null>(null);
@@ -2854,7 +3053,9 @@ function MekkoPercent({ sheet, cfg, W, H, onUpdateRow, selected, onSelectElement
       {cols.map(({ cat, x, colW, i }) => {
         const total = series.reduce((a, s) => a + (s.values[i] ?? 0), 0) || 1;
         let cum = 0;
-        const GAP = colW > 6 ? 2 : 0;
+        // Wave 13 · Mekko applies barWidthPct as the inner column gap so
+        // tighter bar-width = wider columns (less inter-column spacing).
+        const GAP = colW > 6 ? Math.max(0, (100 - (cfg.barWidthPct ?? 65)) * 0.06) : 0;
         const isColSel = selected?.kind === "mekkoColumn" && selected.rowIdx === i;
         return (
           <g key={i}>
@@ -2997,7 +3198,8 @@ function MekkoUnit({ sheet, cfg, W, H, onUpdateRow, selected, onSelectElement, o
       ))}
       {cols.map(({ cat, x, colW, i }) => {
         let cum = 0;
-        const GAP = colW > 6 ? 2 : 0;
+        // Wave 13 · Mekko-Unit · barWidthPct drives inner column gap.
+        const GAP = colW > 6 ? Math.max(0, (100 - (cfg.barWidthPct ?? 65)) * 0.06) : 0;
         const isColSel = selected?.kind === "mekkoColumn" && selected.rowIdx === i;
         return (
           <g key={i}>
@@ -3091,7 +3293,7 @@ function ComboChart({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig; 
   const barSeriesKeys = seriesKeys.slice(0, Math.max(1, seriesKeys.length - 1));
   const lineSeriesKey = seriesKeys[seriesKeys.length - 1];
 
-  const barW = Math.min((groupW / Math.max(1, barSeries.length)) * 0.75, 40);
+  const barW = Math.min((groupW / Math.max(1, barSeries.length)) * ((cfg.barWidthPct ?? 65) / 100) * 1.15, 60);
   const barGroupW = barW * barSeries.length;
 
   const allBarVals = barSeries.flatMap(s => s.values);
@@ -3480,7 +3682,7 @@ interface ChartConfig {
   roundedCorners?: boolean;
   showSecondaryAxis?: boolean;
   pieOtherThreshold?: number;
-  // Wave 11 · think-cell parity additions
+  // Wave 11 · feature additions
   showTotalLabels?: boolean;     // category-total label above stacked bars
   showTickMarks?: boolean;       // short tick marks on the Y axis
   show100Indicator?: boolean;    // 100% marker for percent charts
@@ -3489,6 +3691,10 @@ interface ChartConfig {
   // pseudo-random offset (hashed from chart W*H) so it doesn't jitter on
   // re-render. "centered" pins to dead-center; "off" hides entirely.
   watermark?: "off" | "random" | "centered";
+  // Wave 13 · global bar-width control. Percentage of group width for
+  // bar/column charts (default 65, range 20-95). For Mekko charts the
+  // value drives the inner gap rather than the column width itself.
+  barWidthPct?: number;
 }
 
 // Adaptive color set · text + grid pull from the backdrop mode so light
@@ -3518,7 +3724,7 @@ function chartColors(cfg: ChartConfig) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CHART TYPE WHEEL · Think-cell-style radial picker. Shows all 16 chart types
+// CHART TYPE WHEEL · radial picker. Shows all 16 chart types
 // arranged in 22.5° wedges grouped visually by family (column · line · mekko ·
 // gantt/scatter). Click a wedge to switch type; Esc / outside-click closes.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3671,7 +3877,7 @@ function ChartTypeWheel({ active, onSelect, onClose }: { active: ChartType; onSe
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ELEMENT ICON MENU · Think-cell's horizontal context strip that pops next to
+// ELEMENT ICON MENU · horizontal context strip that pops next to
 // a clicked bar. Compact icon row: fill color (with inline swatch row) · CAGR
 // arrow · diff arrow · ref line · callout · delete · more.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3770,7 +3976,7 @@ function ElementIconMenu({ state, onClose, palette }: { state: ElementMenuState;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// RADIAL CONTEXT WHEEL · Wave 11 · think-cell's true radial wheel of icons
+// RADIAL CONTEXT WHEEL · Wave 11 · radial wheel of icons
 // arranged in a CIRCLE around the cursor. Replaces the linear ElementIconMenu
 // for right-click on selected elements. Press M while something is selected
 // or right-click on the element to open it.
@@ -3814,7 +4020,8 @@ function RadialContextWheel({ x, y, icons, label, onClose }: {
     };
   }, [onClose]);
   // Radius + clamp so the wheel doesn't fly off-screen
-  const R = 100;
+  // Wave 13 · bumped from 100→110 to fit more icons (auto-spaced).
+  const R = 110;
   const D = R * 2 + 56;
   const winW = typeof window !== "undefined" ? window.innerWidth : 1600;
   const winH = typeof window !== "undefined" ? window.innerHeight : 900;
@@ -4057,7 +4264,7 @@ function TopMiniToolbar({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SELECTION POPUP · Wave 12 · think-cell mini-toolbar that floats just
+// SELECTION POPUP · Wave 12 · mini-toolbar that floats just
 // above the clicked element in viewport coords. Appears the INSTANT a
 // segment / point / mekkoColumn is selected — no need to pop the radial
 // wheel. Inline color row + value input + label toggles + trash.
@@ -4098,15 +4305,10 @@ function SelectionPopup({
   // Editable value reference for segment / point selections.
   const isCellish = selected.kind === "segment" || selected.kind === "point";
   const cellVal = isCellish ? Number(sheet.rows[selected.rowIdx]?.[selected.key] ?? 0) : 0;
+  // valStr is kept as a local mirror so the DragScrubInput re-syncs when a
+  // different bar is selected. The DragScrubInput itself owns its draft state.
   const [valStr, setValStr] = useState(String(cellVal));
-  // When the selection changes (different bar clicked), reset the input.
   useEffect(() => { setValStr(String(cellVal)); }, [cellVal, selected.kind, isCellish ? selected.rowIdx : -1, isCellish ? selected.key : ""]);
-  const commit = useCallback(() => {
-    if (!onUpdateRow || !isCellish) return;
-    const n = Number(valStr);
-    if (!Number.isFinite(n)) { setValStr(String(cellVal)); return; }
-    onUpdateRow(selected.rowIdx, { [selected.key]: n });
-  }, [onUpdateRow, isCellish, valStr, cellVal, selected]);
   // Esc / click-outside dismissal. We rely on the parent to flip selected
   // back to null; here we just tell it via onClose.
   useEffect(() => {
@@ -4204,16 +4406,19 @@ function SelectionPopup({
           ><X size={9} strokeWidth={2.4} /></button>
         </span>
       )}
-      {/* Editable value input (commits on Enter / blur) */}
+      {/* Editable value input (commits on Enter / blur).
+          Wave 13 · Alt-drag to scrub via DragScrubInput. */}
       {isCellish && onUpdateRow && (
         <>
           <span style={{ width: 1, height: 16, background: "rgba(255,255,255,0.12)", margin: "0 1px" }} />
-          <input
-            type="number"
-            value={valStr}
-            onChange={e => setValStr(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") { (e.currentTarget as HTMLInputElement).blur(); } }}
-            onBlur={commit}
+          <DragScrubInput
+            value={Number(valStr) || 0}
+            onChange={(n) => {
+              setValStr(String(n));
+              if (selected.kind === "segment" || selected.kind === "point") {
+                onUpdateRow(selected.rowIdx, { [selected.key]: n });
+              }
+            }}
             style={{
               width: 64, padding: "4px 6px",
               background: "rgba(255,255,255,0.05)",
@@ -4224,7 +4429,7 @@ function SelectionPopup({
               outline: "none",
               fontFeatureSettings: "'tnum'",
             }}
-            title="Edit value · Enter to commit"
+            title="Edit value · Enter to commit · Alt-drag to scrub"
           />
         </>
       )}
@@ -4330,6 +4535,8 @@ function PropertiesPanel({
   onOpenDesign,
   watermark, onChangeWatermark,
   onOpenExpanded,
+  barWidthPct, onChangeBarWidthPct,
+  axis, onChangeAxis,
 }: {
   tab: "design" | "annotations" | "series";
   onChangeTab: (t: "design" | "annotations" | "series") => void;
@@ -4352,6 +4559,10 @@ function PropertiesPanel({
   onOpenDesign: () => void;
   watermark: "off" | "centered" | "random"; onChangeWatermark: (w: "off" | "centered" | "random") => void;
   onOpenExpanded: () => void;
+  // Wave 13 · global bar-width slider + axis range inputs
+  barWidthPct: number; onChangeBarWidthPct: (v: number) => void;
+  axis: { yMin?: number; yMax?: number; xMin?: number; xMax?: number };
+  onChangeAxis: (next: { yMin?: number; yMax?: number; xMin?: number; xMax?: number }) => void;
 }) {
   const tabs: Array<{ id: "design" | "annotations" | "series"; label: string }> = [
     { id: "design", label: "Design" }, { id: "annotations", label: "Annotate" }, { id: "series", label: "Series" },
@@ -4420,6 +4631,27 @@ function PropertiesPanel({
                 <DesignToggle on={showEndLabels} label="End Labels" sub="Series labels at last point" onChange={onToggleEndLabels} />
               </div>
             </div>
+            {/* Wave 13 · global bar-width slider */}
+            <div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8, fontWeight: 800 }}>BAR WIDTH</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <input
+                  type="range"
+                  min={20}
+                  max={95}
+                  value={barWidthPct}
+                  onChange={e => onChangeBarWidthPct(Number(e.target.value))}
+                  style={{ flex: 1, accentColor: C.amber }}
+                />
+                <span style={{ fontFamily: mn, fontSize: 11, fontWeight: 800, color: C.amber, minWidth: 36, textAlign: "right" }}>{barWidthPct}%</span>
+              </div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6, letterSpacing: 0.4 }}>Affects all bar / column / mekko charts.</div>
+            </div>
+            {/* Wave 13 · axes range section */}
+            <div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8, fontWeight: 800 }}>Axes</div>
+              <AxisRangeBlock axis={axis} onChange={onChangeAxis} xApplies={["line", "stackedArea", "scatter", "bubble"].includes(chartType)} chartType={chartType} />
+            </div>
             <div>
               <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8, fontWeight: 800 }}>Markers</div>
               <div style={{ display: "flex", gap: 4 }}>
@@ -4473,7 +4705,7 @@ function PropertiesPanel({
             <div>
               <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 6, fontWeight: 800 }}>Reference line</div>
               <div style={{ display: "flex", gap: 4 }}>
-                <input value={refValue} onChange={e => setRefValue(e.target.value)} placeholder="value" style={{ width: 60, padding: "7px 8px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 5, color: C.tx, fontFamily: mn, fontSize: 10, outline: "none" }} />
+                <DragScrubInput value={Number(refValue) || 0} onChange={(n) => setRefValue(String(n))} placeholder="value" style={{ width: 60, padding: "7px 8px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 5, color: C.tx, fontFamily: mn, fontSize: 10, outline: "none" }} title="Alt-drag to scrub" />
                 <input value={refLabel} onChange={e => setRefLabel(e.target.value)} placeholder="label" style={{ flex: 1, padding: "7px 8px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 5, color: C.tx, fontFamily: ft, fontSize: 11, outline: "none" }} />
                 <button onClick={() => { const n = Number(refValue); if (!isNaN(n)) { onAddRefLine(n, refLabel); setRefValue("0"); setRefLabel(""); } }} style={{ padding: "7px 12px", background: C.amber, border: "none", borderRadius: 5, color: "#060608", fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>ADD</button>
               </div>
@@ -4607,8 +4839,40 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const [placeMode, setPlaceMode] = useState<PlaceMode>(null);
   // Floating toolbar selection (LEGACY · still kept for backwards compat)
   const [selection, setSelection] = useState<BarSelection | null>(null);
-  // Wave 11 · think-cell-style selection — primary UI driver
+  // Wave 11 · radial-menu-style selection — primary UI driver
   const [selected, setSelected] = useState<SelectedElement | null>(null);
+  // Wave 13 · click model split: single click sets `selected` (handles only),
+  // double click (or 2nd click on already-selected) flips popupOpen=true.
+  const [popupOpen, setPopupOpen] = useState(false);
+  const lastSelectAtRef = useRef<{ key: string; t: number }>({ key: "", t: 0 });
+  // Stable identity key for a selection — used to detect "second click on
+  // same element" within the 300ms double-click window.
+  const selKey = useCallback((s: SelectedElement | null): string => {
+    if (!s) return "";
+    if (s.kind === "segment" || s.kind === "point") return `${s.kind}:${s.rowIdx}:${s.key}`;
+    if (s.kind === "mekkoColumn") return `mekkoColumn:${s.rowIdx}`;
+    if (s.kind === "label") return `label:${s.labelType}:${s.rowIdx ?? -1}:${s.key ?? ""}`;
+    if (s.kind === "annotation") return `annotation:${s.id}`;
+    if (s.kind === "axis") return `axis:${s.which}`;
+    if (s.kind === "legend") return `legend:${s.key}`;
+    return s.kind;
+  }, []);
+  // Wrapping selection handler: single click selects + closes popup; second
+  // click on same element (or fast double click) opens the popup.
+  const selectElement: OnSelectElement = useCallback((sel) => {
+    if (!sel) { setSelected(null); setPopupOpen(false); lastSelectAtRef.current = { key: "", t: 0 }; return; }
+    const k = selKey(sel);
+    const now = Date.now();
+    const prev = lastSelectAtRef.current;
+    const isSameRecent = prev.key === k && now - prev.t < 320;
+    setSelected(sel);
+    if (isSameRecent) {
+      setPopupOpen(true);
+    } else {
+      setPopupOpen(false);
+    }
+    lastSelectAtRef.current = { key: k, t: now };
+  }, [selKey]);
   const [wheelAnchor, setWheelAnchor] = useState<WheelAnchor | null>(null);
   // Wave 11 · new feature toggles
   const [showTotalLabels, setShowTotalLabels] = useState(true);
@@ -4618,6 +4882,13 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   void axisBreak; void setAxisBreak;
   // Wave 12 · POAST box-logo watermark mode (off / centered / random)
   const [watermark, setWatermark] = useState<"off" | "centered" | "random">("off");
+  // Wave 13 · global bar-width slider (percentage of group width).
+  const [barWidthPct, setBarWidthPct] = useState(65);
+  // Wave 13 · row-selection state per chart type. The DataSheet always shows
+  // the full sheet for editing; renderers consume a filtered view when set.
+  const [selectedRowIdxsByType, setSelectedRowIdxsByType] = useState<Partial<Record<ChartType, number[]>>>({});
+  // Whether to actually filter the chart to selected rows (per type).
+  const [chartedRowsByType, setChartedRowsByType] = useState<Partial<Record<ChartType, number[]>>>({});
   // Wave 12 · expanded webapp mode + pane state
   const [expandedMode, setExpandedMode] = useState(false);
   const [paneMode, setPaneMode] = useState<"chart" | "table" | "split">("split");
@@ -4641,7 +4912,32 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   // Renderers read the computed sheet (formulas evaluated) so chart values
   // reflect =SUM/=A1+B2 etc. The data sheet itself receives the raw sheet
   // so users can keep editing the formulas.
-  const sheet = useMemo(() => computeSheet(rawSheet), [rawSheet]);
+  const sheetFull = useMemo(() => computeSheet(rawSheet), [rawSheet]);
+  // Wave 13 · filtered sheet — applied when "Chart selected only" is on.
+  const sheet = useMemo(() => {
+    const filter = chartedRowsByType[type];
+    if (!filter || filter.length === 0) return sheetFull;
+    const rows = filter.map(i => sheetFull.rows[i]).filter(Boolean);
+    return { ...sheetFull, rows };
+  }, [sheetFull, chartedRowsByType, type]);
+  // Wave 13 · selected-row Set wrapper for the current chart type.
+  const selectedRowIdxs = useMemo(() => new Set(selectedRowIdxsByType[type] ?? []), [selectedRowIdxsByType, type]);
+  const setSelectedRowIdxs = useCallback((next: Set<number>) => {
+    setSelectedRowIdxsByType(p => ({ ...p, [type]: Array.from(next).sort((a, b) => a - b) }));
+  }, [type]);
+  const chartedRowsActive = !!chartedRowsByType[type] && (chartedRowsByType[type]?.length ?? 0) > 0;
+  const toggleChartedRows = useCallback(() => {
+    setChartedRowsByType(p => {
+      if (p[type] && (p[type]?.length ?? 0) > 0) { const next = { ...p }; delete next[type]; return next; }
+      const sel = selectedRowIdxsByType[type] ?? [];
+      if (sel.length === 0) return p;
+      return { ...p, [type]: sel };
+    });
+  }, [type, selectedRowIdxsByType]);
+  const clearChartedRows = useCallback(() => {
+    setChartedRowsByType(p => { const next = { ...p }; delete next[type]; return next; });
+    setSelectedRowIdxsByType(p => { const next = { ...p }; delete next[type]; return next; });
+  }, [type]);
   const [sliderMode, setSliderMode] = useState(false);
   const annotations = annotByType[type] || [];
   const setSheet = useCallback((s: DataSheet) => setSheetsRaw(p => ({ ...p, [type]: s })), [type]);
@@ -4714,7 +5010,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     collapseAll: false, collapsedKeys: {},
   });
 
-  const cfg: ChartConfig = { type, title, subtitle, theme, numFmt, seriesColors, yMin: axis.yMin, yMax: axis.yMax, xMin: axis.xMin, xMax: axis.xMax, lightBackdrop: backdropMode === "light", showBorders, showGridlines, showSegmentLabels, legendPos, yLabel: yLabel || undefined, xLabel: xLabel || undefined, locked, logScale, showEndLabels, markerShape, roundedCorners, pieOtherThreshold, showTotalLabels, showTickMarks, show100Indicator, axisBreak, watermark };
+  const cfg: ChartConfig = { type, title, subtitle, theme, numFmt, seriesColors, yMin: axis.yMin, yMax: axis.yMax, xMin: axis.xMin, xMax: axis.xMax, lightBackdrop: backdropMode === "light", showBorders, showGridlines, showSegmentLabels, legendPos, yLabel: yLabel || undefined, xLabel: xLabel || undefined, locked, logScale, showEndLabels, markerShape, roundedCorners, pieOtherThreshold, showTotalLabels, showTickMarks, show100Indicator, axisBreak, watermark, barWidthPct };
 
   // Pick-mode handler · column-chart renderers call this on bar click.
   // Returns true if the click was consumed (we're in pick mode); the
@@ -4764,6 +5060,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     if (type === "gantt" && title.indexOf("Outlook") !== -1) setTitle("SemiAnalysis · 2026 Brand Launch");
     // Wave 11 · clear selection when type changes (selected refs may be stale)
     setSelected(null);
+    setPopupOpen(false);
     setWheelAnchor(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type]);
@@ -4926,7 +5223,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       if (e.key === "?" || (e.key === "/" && e.shiftKey)) { e.preventDefault(); setShortcutsOpen(v => !v); }
       if (e.key === "Escape") {
         setShortcutsOpen(false); setWheelOpen(false); setWheelAnchor(null);
-        setSelected(null); setSelection(null);
+        setSelected(null); setPopupOpen(false); setSelection(null);
         // Wave 12 · Esc also exits expanded mode if no other overlay caught it
         setExpandedMode(false);
       }
@@ -4975,7 +5272,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     setWheelAnchor({ x: clientX, y: clientY, selected });
   }, [selected]);
   const renderChart = () => {
-    const a = { onUpdateRow, onDeleteRow, onShowMenu, onShowElementMenu, annotations, pickMode, onPickBar, onSelect: setSelection, onSetSeriesColor: setSeriesColor, selected, onSelectElement: setSelected, onOpenWheel };
+    const a = { onUpdateRow, onDeleteRow, onShowMenu, onShowElementMenu, annotations, pickMode, onPickBar, onSelect: setSelection, onSetSeriesColor: setSeriesColor, selected, onSelectElement: selectElement, onOpenWheel };
     switch (type) {
       case "stacked": return <StackedColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
       case "clustered": return <ClusteredColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
@@ -4987,8 +5284,8 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       case "scatter": return <Scatter sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "bubble": return <Scatter sheet={sheet} cfg={cfg} W={W} H={H} bubble />;
       case "pctArea": return <LineProfile sheet={sheet} cfg={cfg} W={W} H={H} fill stacked pct100 {...a} />;
-      case "mekkoPct": return <MekkoPercent sheet={sheet} cfg={cfg} W={W} H={H} onUpdateRow={onUpdateRow} selected={selected} onSelectElement={setSelected} onOpenWheel={onOpenWheel} />;
-      case "mekkoUnit": return <MekkoUnit sheet={sheet} cfg={cfg} W={W} H={H} onUpdateRow={onUpdateRow} selected={selected} onSelectElement={setSelected} onOpenWheel={onOpenWheel} />;
+      case "mekkoPct": return <MekkoPercent sheet={sheet} cfg={cfg} W={W} H={H} onUpdateRow={onUpdateRow} selected={selected} onSelectElement={selectElement} onOpenWheel={onOpenWheel} />;
+      case "mekkoUnit": return <MekkoUnit sheet={sheet} cfg={cfg} W={W} H={H} onUpdateRow={onUpdateRow} selected={selected} onSelectElement={selectElement} onOpenWheel={onOpenWheel} />;
       case "combo": return <ComboChart sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "wfup": return <Waterfall sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "wfdn": return <Waterfall sheet={sheet} cfg={cfg} W={W} H={H} />;
@@ -5039,7 +5336,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         {!standalone && (
           <div style={{ flex: "1 1 auto", minWidth: 280 }}>
             <div style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.5 }}>Chart Maker 2</div>
-            <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 4, letterSpacing: 1.2, fontWeight: 800 }}>THINK-CELL STYLE // PICK · EDIT · ANNOTATE · EXPORT</div>
+            <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 4, letterSpacing: 1.2, fontWeight: 800 }}>RADIAL MENU // PICK · EDIT · ANNOTATE · EXPORT</div>
           </div>
         )}
         {standalone && <div style={{ flex: "1 1 auto" }} />}
@@ -5089,6 +5386,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           if (tpl.theme) setTheme(tpl.theme);
         }} />
         <PasteDataButton onPaste={raw => { const ds = parsePasteForCategorical(raw); if (ds) setSheets(p => ({ ...p, [type]: ds })); else showToast("Couldn't parse the paste — expected TSV or CSV with headers"); }} />
+        <ImportExcelButton onImport={ds => setSheets(p => ({ ...p, [type]: ds }))} />
         <NumberFormatPicker fmt={numFmt} onChange={setNumFmt} />
         <GlassButton onClick={() => setDesignOpen(true)} title="Design panel · theme, backdrop, legend, borders, axes" Icon={Palette}>DESIGN</GlassButton>
         {/* SIMPLE | ADVANCED pill toggle */}
@@ -5120,7 +5418,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         <ExportSplitButton onPNG={exportPNG} onSVG={exportSVG} onCopy={copyPNG} />
       </div>
 
-      {/* Annotations toolbar — Think-cell-style action chips */}
+      {/* Annotations toolbar — context-wheel action chips */}
       <AnnotationsBar
         annotations={annotations}
         type={type}
@@ -5178,7 +5476,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           {selected && selected.kind !== "annotation" && selected.kind !== "legend" && (
             <TopMiniToolbar
               selected={selected}
-              onClose={() => setSelected(null)}
+              onClose={() => { setSelected(null); setPopupOpen(false); }}
               palette={THEMES[theme].colors}
               onSetSeriesColor={setSeriesColor}
               currentSeriesColor={(selected.kind === "segment" || selected.kind === "point") ? seriesColors[selected.key] : undefined}
@@ -5204,11 +5502,11 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               onToggleTickMarks={() => setShowTickMarks(v => !v)}
               show100Indicator={show100Indicator}
               onToggle100Indicator={() => setShow100Indicator(v => !v)}
-              onResetSelection={() => setSelected(null)}
+              onResetSelection={() => { setSelected(null); setPopupOpen(false); }}
             />
           )}
 
-          {/* Chart preview · click any element to select it (think-cell style).
+          {/* Chart preview · click any element to select it (radial-menu style).
               Backdrop layer + chart sit inside a glass frame; the backdrop
               becomes the SVG fill on export so the saved PNG matches. */}
           <div style={{
@@ -5241,7 +5539,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               {/* Click-on-canvas (background) deselects · sits BEHIND chart */}
               <rect
                 x="0" y="0" width={W} height={H} fill="transparent"
-                onPointerDown={() => { if (selected) setSelected(null); }}
+                onPointerDown={() => { if (selected) { setSelected(null); setPopupOpen(false); } }}
               />
               {renderChart()}
               {/* Free-form text callouts (ANNOTATE TEXT) — rendered after
@@ -5329,7 +5627,17 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               </div>
             </div>
             {activeDataTab === "primary" || !secondarySheets[type] ? (
-              <DataSheetGrid sheet={rawSheet} onChange={setSheet} sliderMode={sliderMode} onToggleSliderMode={() => setSliderMode(v => !v)} />
+              <DataSheetGrid
+                sheet={rawSheet}
+                onChange={setSheet}
+                sliderMode={sliderMode}
+                onToggleSliderMode={() => setSliderMode(v => !v)}
+                selectedRowIdxs={selectedRowIdxs}
+                onChangeSelectedRowIdxs={setSelectedRowIdxs}
+                chartedRowsActive={chartedRowsActive}
+                onToggleChartedRows={toggleChartedRows}
+                onClearChartedRows={clearChartedRows}
+              />
             ) : (
               <DataSheetGrid
                 sheet={secondarySheets[type]!}
@@ -5387,6 +5695,10 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             watermark={watermark}
             onChangeWatermark={setWatermark}
             onOpenExpanded={() => setExpandedMode(true)}
+            barWidthPct={barWidthPct}
+            onChangeBarWidthPct={setBarWidthPct}
+            axis={axis}
+            onChangeAxis={setAxis}
           />
         )}
       </div>
@@ -5456,6 +5768,24 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               setAnnotations([...annotations, { id: Math.random().toString(36).slice(2, 9), kind: "refline", value: v, label: String(v) }]);
             }},
             { toolId: "callout", Icon: Type, title: "Drop a callout", onClick: () => setPlaceMode({ kind: "callout" }) },
+            // Wave 13 · new tools
+            { toolId: "roundedCorners", Icon: CornerUpLeft, title: "Rounded corners", active: roundedCorners, onClick: () => setRoundedCorners(v => !v) },
+            { toolId: "endLabels", Icon: Hash, title: "End labels", active: showEndLabels, onClick: () => setShowEndLabels(v => !v) },
+            { toolId: "swap", Icon: MoveHorizontal, title: "Swap series with adjacent", onClick: () => {
+              // Swap this series with the next one in the schema (or previous if it's the last).
+              setSheets(p => {
+                const cur = p[type] || samplePerType(type);
+                const numericKeys = cur.schema.filter(s => s.type === "number" || s.type === "percent").map(s => s.key);
+                const idx = numericKeys.indexOf(sel.key);
+                if (idx < 0) return p;
+                const otherIdx = idx + 1 < numericKeys.length ? idx + 1 : idx - 1;
+                if (otherIdx < 0) return p;
+                const a = sel.key, b = numericKeys[otherIdx];
+                const newSchema = cur.schema.map(s => s.key === a ? { ...s, key: b } : s.key === b ? { ...s, key: a } : s);
+                const newRows = cur.rows.map(r => { const next = { ...r }; const av = next[a]; next[a] = next[b]; next[b] = av; return next; });
+                return { ...p, [type]: { schema: newSchema, rows: newRows } };
+              });
+            }},
             { toolId: "delete", Icon: Trash2, title: "Set to 0", danger: true, onClick: () => onUpdateRow(sel.rowIdx, { [sel.key]: 0 }) },
           ];
         } else if (sel.kind === "point") {
@@ -5476,6 +5806,8 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             }},
             { toolId: "marker", Icon: Circle, title: "Cycle marker shape", onClick: () => setMarkerShape(s => s === "circle" ? "square" : s === "square" ? "diamond" : s === "diamond" ? "none" : "circle") },
             { toolId: "callout", Icon: Type, title: "Callout", onClick: () => setPlaceMode({ kind: "callout" }) },
+            // Wave 13 · new tools
+            { toolId: "roundedCorners", Icon: CornerUpLeft, title: "Rounded corners (smooth fills)", active: roundedCorners, onClick: () => setRoundedCorners(v => !v) },
             { toolId: "delete", Icon: Trash2, title: "Set to 0", danger: true, onClick: () => onUpdateRow(sel.rowIdx, { [sel.key]: 0 }) },
           ];
         } else if (sel.kind === "axis") {
@@ -5490,6 +5822,23 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               const idx = order.indexOf(numFmt);
               setNumFmt(order[(idx + 1) % order.length]);
             }},
+            // Wave 13 · new tools
+            { toolId: "tickStep", Icon: MinusSquare, title: "Tick step (prompt — sets yMax to a multiple of step)", onClick: () => {
+              const stepStr = typeof window !== "undefined" ? window.prompt("Tick step (numeric):", "10") : null;
+              const step = Number(stepStr);
+              if (Number.isFinite(step) && step > 0) {
+                // Round current yMax up to nearest multiple of step
+                const curMax = axis.yMax ?? 100;
+                const newMax = Math.ceil(curMax / step) * step;
+                setAxis({ ...axis, yMax: newMax });
+              }
+            }},
+            { toolId: "direction", Icon: ArrowDownUp, title: "Cycle axis direction (asc / desc placeholder)", onClick: () => {
+              // Cosmetic toggle · invert min/max swap when both are set.
+              if (axis.yMin !== undefined && axis.yMax !== undefined) {
+                setAxis({ ...axis, yMin: axis.yMax, yMax: axis.yMin });
+              }
+            }},
           ];
         } else if (sel.kind === "label") {
           label = "LABEL";
@@ -5501,6 +5850,17 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             }},
             { toolId: "totalLabels", Icon: Sigma, title: "Toggle total labels", active: showTotalLabels, onClick: () => setShowTotalLabels(v => !v) },
             { toolId: "hideLabels", Icon: EyeOff, title: "Hide labels", onClick: () => setShowSegmentLabels(false) },
+            // Wave 13 · new tools
+            { toolId: "content", Icon: Type, title: "Cycle label content (value / percent / total)", onClick: () => {
+              // Cycles three label shorthands by toggling related toggles.
+              if (showSegmentLabels && !showTotalLabels) { setShowSegmentLabels(false); setShowTotalLabels(true); }
+              else if (showTotalLabels && !showSegmentLabels) { setShowTotalLabels(true); setShowSegmentLabels(true); }
+              else { setShowSegmentLabels(true); setShowTotalLabels(false); }
+            }},
+            { toolId: "position", Icon: AlignVerticalJustifyCenter, title: "Cycle label position (auto/inside/outside placeholder)", onClick: () => {
+              // Position toggle is a placeholder — cycles markerShape as a stand-in indicator.
+              setMarkerShape(s => s === "none" ? "circle" : s === "circle" ? "square" : s === "square" ? "diamond" : "none");
+            }},
           ];
         } else if (sel.kind === "mekkoColumn") {
           label = "COLUMN";
@@ -5535,6 +5895,15 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             }},
             { toolId: "theme", Icon: Palette, title: "Cycle theme", onClick: () => setTheme(t => t === "saCore" ? "saSpectrum" : "saCore") },
             { toolId: "reset", Icon: Undo2, title: "Reset chart (clear annotations)", onClick: () => setAnnotByType(p => ({ ...p, [type]: [] })) },
+            // Wave 13 · canvas-level new tools
+            { toolId: "watermark", Icon: ImageIcon, title: "Cycle watermark (off / centered / random)", active: watermark !== "off", onClick: () => setWatermark(w => w === "off" ? "centered" : w === "centered" ? "random" : "off") },
+            { toolId: "logScale", Icon: Activity, title: "Toggle log scale", active: logScale, onClick: () => setLogScale(v => !v) },
+            { toolId: "axisBreak", Icon: Layers, title: "Axis break", active: axisBreak, onClick: () => setAxisBreak(v => !v) },
+            { toolId: "markerShape", Icon: Circle, title: "Cycle marker shape", onClick: () => setMarkerShape(s => s === "circle" ? "square" : s === "square" ? "diamond" : s === "diamond" ? "none" : "circle") },
+            { toolId: "roundedCorners", Icon: CornerUpLeft, title: "Toggle rounded bar corners", active: roundedCorners, onClick: () => setRoundedCorners(v => !v) },
+            { toolId: "endLabels", Icon: Hash, title: "Toggle end labels", active: showEndLabels, onClick: () => setShowEndLabels(v => !v) },
+            { toolId: "barWidth", Icon: MoveHorizontal, title: "Cycle bar width (thin / med / thick)", onClick: () => setBarWidthPct(p => p < 40 ? 65 : p < 75 ? 90 : 30) },
+            { toolId: "backdropMode", Icon: Eye, title: "Toggle backdrop dark / light", onClick: () => setBackdropMode(m => m === "dark" ? "light" : "dark") },
           ];
         }
         // Wave 12 · filter against the user's wheelConfig (per-kind allowlist)
@@ -5564,6 +5933,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           showEndLabels={showEndLabels} onToggleEndLabels={() => setShowEndLabels(v => !v)}
           markerShape={markerShape} onChangeMarkerShape={setMarkerShape}
           watermark={watermark} onChangeWatermark={setWatermark}
+          barWidthPct={barWidthPct} onChangeBarWidthPct={setBarWidthPct}
         />
       )}
       {/* Floating help button · always-on glass pill, opens shortcuts overlay */}
@@ -5593,7 +5963,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       {/* Wave 12 · Selection popup floats above the clicked element with
           inline color row, value input, and label toggles. Coexists with
           TopMiniToolbar (which sits at the top of the canvas card). */}
-      {selected && (selected.kind === "segment" || selected.kind === "point" || selected.kind === "mekkoColumn") && (
+      {popupOpen && selected && (selected.kind === "segment" || selected.kind === "point" || selected.kind === "mekkoColumn") && (
         <SelectionPopup
           selected={selected}
           palette={THEMES[theme].colors}
@@ -5611,7 +5981,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             // useful shorthand.
             setNumFmt(f => f === "pct" ? "auto" : "pct");
           }}
-          onClose={() => setSelected(null)}
+          onClose={() => { setPopupOpen(false); setSelected(null); }}
         />
       )}
 
@@ -5674,9 +6044,66 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
                 <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6 }}>· edits sync to the chart in real time</span>
               </div>
               <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: 14 }}>
-                <DataSheetGrid sheet={rawSheet} onChange={setSheet} sliderMode={sliderMode} onToggleSliderMode={() => setSliderMode(v => !v)} />
+                <DataSheetGrid
+                  sheet={rawSheet}
+                  onChange={setSheet}
+                  sliderMode={sliderMode}
+                  onToggleSliderMode={() => setSliderMode(v => !v)}
+                  selectedRowIdxs={selectedRowIdxs}
+                  onChangeSelectedRowIdxs={setSelectedRowIdxs}
+                  chartedRowsActive={chartedRowsActive}
+                  onToggleChartedRows={toggleChartedRows}
+                  onClearChartedRows={clearChartedRows}
+                />
               </div>
             </div>
+          )}
+          propsPanel={(
+            <PropertiesPanel
+              tab={rightTab}
+              onChangeTab={setRightTab}
+              theme={theme}
+              onChangeTheme={setTheme}
+              legendPos={legendPos}
+              onChangeLegendPos={setLegendPos}
+              showGridlines={showGridlines}
+              onToggleGridlines={() => setShowGridlines(v => !v)}
+              showBorders={showBorders}
+              onToggleBorders={() => setShowBorders(v => !v)}
+              logScale={logScale}
+              onToggleLogScale={() => setLogScale(v => !v)}
+              roundedCorners={roundedCorners}
+              onToggleRoundedCorners={() => setRoundedCorners(v => !v)}
+              showEndLabels={showEndLabels}
+              onToggleEndLabels={() => setShowEndLabels(v => !v)}
+              markerShape={markerShape}
+              onChangeMarkerShape={setMarkerShape}
+              annotations={annotations}
+              onRemoveAnnotation={removeAnnotation}
+              onClearAnnotations={clearAllAnnotations}
+              pickMode={pickMode}
+              placeMode={placeMode}
+              onStartPick={kind => { setPlaceMode(null); setPickMode({ kind, bars: [] }); }}
+              onCancelPick={() => setPickMode(null)}
+              onAddRefLine={addReferenceLine}
+              onTogglePlaceText={() => { setPickMode(null); setPlaceMode(placeMode?.kind === "callout" ? null : { kind: "callout" }); }}
+              chartType={type}
+              series={(() => {
+                const palette = THEMES[theme].colors;
+                const cols = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent");
+                return cols.map((c, i) => ({ key: c.key, label: c.label, color: seriesColors[c.key] || palette[i % palette.length] }));
+              })()}
+              onSetSeriesColor={setSeriesColor}
+              palette={THEMES[theme].colors}
+              onOpenDesign={() => setDesignOpen(true)}
+              watermark={watermark}
+              onChangeWatermark={setWatermark}
+              onOpenExpanded={() => setExpandedMode(true)}
+              barWidthPct={barWidthPct}
+              onChangeBarWidthPct={setBarWidthPct}
+              axis={axis}
+              onChangeAxis={setAxis}
+            />
           )}
         />
       )}
@@ -6580,15 +7007,39 @@ function AxisRangePicker({ axis, onChange, type }: { axis: { yMin?: number; yMax
         <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 1100, background: "#0D0D14", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 9, padding: 12, minWidth: 280, boxShadow: "0 18px 48px rgba(0,0,0,0.5)" }}>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8 }}>Y axis range</div>
           <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-            <input value={yMinStr} onChange={e => setYMinStr(e.target.value)} placeholder="y min" style={inputCSS("#06060A", "rgba(255,255,255,0.10)")} />
-            <input value={yMaxStr} onChange={e => setYMaxStr(e.target.value)} placeholder="y max" style={inputCSS("#06060A", "rgba(255,255,255,0.10)")} />
+            <DragScrubInput
+              value={Number(yMinStr) || 0}
+              onChange={(n) => setYMinStr(String(n))}
+              placeholder="y min"
+              style={inputCSS("#06060A", "rgba(255,255,255,0.10)")}
+              title="Alt-drag to scrub · empty = auto"
+            />
+            <DragScrubInput
+              value={Number(yMaxStr) || 0}
+              onChange={(n) => setYMaxStr(String(n))}
+              placeholder="y max"
+              style={inputCSS("#06060A", "rgba(255,255,255,0.10)")}
+              title="Alt-drag to scrub · empty = auto"
+            />
           </div>
           {xApplies && (
             <>
               <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8 }}>X axis range {type === "line" || type === "stackedArea" ? "(unix ms)" : ""}</div>
               <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-                <input value={xMinStr} onChange={e => setXMinStr(e.target.value)} placeholder="x min" style={inputCSS("#06060A", "rgba(255,255,255,0.10)")} />
-                <input value={xMaxStr} onChange={e => setXMaxStr(e.target.value)} placeholder="x max" style={inputCSS("#06060A", "rgba(255,255,255,0.10)")} />
+                <DragScrubInput
+                  value={Number(xMinStr) || 0}
+                  onChange={(n) => setXMinStr(String(n))}
+                  placeholder="x min"
+                  style={inputCSS("#06060A", "rgba(255,255,255,0.10)")}
+                  title="Alt-drag to scrub · empty = auto"
+                />
+                <DragScrubInput
+                  value={Number(xMaxStr) || 0}
+                  onChange={(n) => setXMaxStr(String(n))}
+                  placeholder="x max"
+                  style={inputCSS("#06060A", "rgba(255,255,255,0.10)")}
+                  title="Alt-drag to scrub · empty = auto"
+                />
               </div>
             </>
           )}
@@ -6605,7 +7056,7 @@ function AxisRangePicker({ axis, onChange, type }: { axis: { yMin?: number; yMax
 }
 
 // ─── DESIGN drawer · slide-in pane consolidating styling controls ────────
-function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, onChangeBackdrop, onChangeMode, legendPos, onChangeLegendPos, showBorders, onToggleBorders, showGridlines, onToggleGridlines, showSegmentLabels, onToggleSegmentLabels, axis, onChangeAxis, chartType, yLabel, onChangeYLabel, xLabel, onChangeXLabel, logScale, onToggleLogScale, roundedCorners, onToggleRoundedCorners, showEndLabels, onToggleEndLabels, markerShape, onChangeMarkerShape, watermark, onChangeWatermark }: {
+function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, onChangeBackdrop, onChangeMode, legendPos, onChangeLegendPos, showBorders, onToggleBorders, showGridlines, onToggleGridlines, showSegmentLabels, onToggleSegmentLabels, axis, onChangeAxis, chartType, yLabel, onChangeYLabel, xLabel, onChangeXLabel, logScale, onToggleLogScale, roundedCorners, onToggleRoundedCorners, showEndLabels, onToggleEndLabels, markerShape, onChangeMarkerShape, watermark, onChangeWatermark, barWidthPct, onChangeBarWidthPct }: {
   onClose: () => void;
   theme: ThemeId; onChangeTheme: (t: ThemeId) => void;
   backdrop: BackdropKey; backdropMode: BackdropMode;
@@ -6624,6 +7075,8 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
   showEndLabels: boolean; onToggleEndLabels: () => void;
   markerShape: "none" | "circle" | "square" | "diamond"; onChangeMarkerShape: (s: "none" | "circle" | "square" | "diamond") => void;
   watermark: "off" | "centered" | "random"; onChangeWatermark: (w: "off" | "centered" | "random") => void;
+  // Wave 13 · global bar-width slider (0-100, default 65)
+  barWidthPct: number; onChangeBarWidthPct: (v: number) => void;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -6731,6 +7184,22 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
             </div>
           </Section>
 
+          {/* Wave 13 · BAR WIDTH (global) */}
+          <Section title="Bar Width">
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <input
+                type="range"
+                min={20}
+                max={95}
+                value={barWidthPct}
+                onChange={e => onChangeBarWidthPct(Number(e.target.value))}
+                style={{ flex: 1, accentColor: C.amber }}
+              />
+              <span style={{ fontFamily: mn, fontSize: 11, fontWeight: 800, color: C.amber, minWidth: 36, textAlign: "right" }}>{barWidthPct}%</span>
+            </div>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 8, letterSpacing: 0.5 }}>Affects all bar / column / mekko charts uniformly.</div>
+          </Section>
+
           {/* AXES */}
           <Section title="Axes">
             <div style={{ marginBottom: 12 }}>
@@ -6812,14 +7281,14 @@ function AxisRangeBlock({ axis, onChange, xApplies, chartType }: { axis: { yMin?
     <div>
       <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1, marginBottom: 6 }}>Y AXIS</div>
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-        <input value={yMinStr} onChange={e => setYMinStr(e.target.value)} placeholder="min" style={inputCSS("rgba(255,255,255,0.025)", "rgba(255,255,255,0.10)")} />
-        <input value={yMaxStr} onChange={e => setYMaxStr(e.target.value)} placeholder="max" style={inputCSS("rgba(255,255,255,0.025)", "rgba(255,255,255,0.10)")} />
+        <DragScrubInput value={Number(yMinStr) || 0} onChange={(n) => setYMinStr(String(n))} placeholder="min" style={inputCSS("rgba(255,255,255,0.025)", "rgba(255,255,255,0.10)")} title="Alt-drag to scrub" />
+        <DragScrubInput value={Number(yMaxStr) || 0} onChange={(n) => setYMaxStr(String(n))} placeholder="max" style={inputCSS("rgba(255,255,255,0.025)", "rgba(255,255,255,0.10)")} title="Alt-drag to scrub" />
       </div>
       {xApplies && (<>
         <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1, marginBottom: 6 }}>X AXIS</div>
         <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-          <input value={xMinStr} onChange={e => setXMinStr(e.target.value)} placeholder="min" style={inputCSS("rgba(255,255,255,0.025)", "rgba(255,255,255,0.10)")} />
-          <input value={xMaxStr} onChange={e => setXMaxStr(e.target.value)} placeholder="max" style={inputCSS("rgba(255,255,255,0.025)", "rgba(255,255,255,0.10)")} />
+          <DragScrubInput value={Number(xMinStr) || 0} onChange={(n) => setXMinStr(String(n))} placeholder="min" style={inputCSS("rgba(255,255,255,0.025)", "rgba(255,255,255,0.10)")} title="Alt-drag to scrub" />
+          <DragScrubInput value={Number(xMaxStr) || 0} onChange={(n) => setXMaxStr(String(n))} placeholder="max" style={inputCSS("rgba(255,255,255,0.025)", "rgba(255,255,255,0.10)")} title="Alt-drag to scrub" />
         </div>
       </>)}
       <div style={{ display: "flex", gap: 6 }}>
@@ -6989,6 +7458,212 @@ function PasteDataButton({ onPaste }: { onPaste: (raw: string) => void }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// IMPORT EXCEL · Wave 13 · SheetJS-powered .xlsx upload + tab picker.
+// Falls back to existing parsePasteForCategorical for .csv / .tsv files.
+// xlsx is dynamically imported so it never bloats the initial bundle.
+// ═══════════════════════════════════════════════════════════════════════════
+type WorkbookSheetSnapshot = {
+  name: string;
+  rows: number;
+  cols: number;
+  preview: (string | number)[][]; // first 10 rows
+  raw: (string | number)[][];     // full sheet
+};
+function aoaToDataSheet(aoa: (string | number)[][]): DataSheet {
+  const first = aoa[0] || [];
+  const dataRows = aoa.slice(1);
+  const colCount = Math.max(first.length, ...dataRows.map(r => r.length));
+  const schema: ColumnSpec[] = [];
+  for (let i = 0; i < colCount; i++) {
+    const header = first[i];
+    const sample = dataRows[0]?.[i];
+    const dateLike = typeof sample === "string" && /^\d{4}-\d{2}-\d{2}/.test(sample);
+    const type: ColumnSpec["type"] =
+      typeof sample === "number" ? "number" :
+      dateLike ? "date" : "text";
+    const key = i === 0 ? "category" : `s${i}`;
+    schema.push({ key, label: String(header ?? `Col ${i + 1}`), type });
+  }
+  const rows = dataRows.map(row => {
+    const r: Record<string, CellValue> = {};
+    schema.forEach((c, i) => { r[c.key] = row[i] !== undefined ? row[i] : ""; });
+    return r;
+  });
+  return { schema, rows };
+}
+
+function ExcelTabPickerModal({ snapshots, fileName, onPick, onClose }: {
+  snapshots: WorkbookSheetSnapshot[];
+  fileName: string;
+  onPick: (snapshot: WorkbookSheetSnapshot) => void;
+  onClose: () => void;
+}) {
+  const [active, setActive] = useState(snapshots[0]?.name ?? "");
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const cur = snapshots.find(s => s.name === active) ?? snapshots[0];
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(6,6,12,0.74)", backdropFilter: "blur(8px) saturate(140%)", WebkitBackdropFilter: "blur(8px) saturate(140%)", zIndex: 12500, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: "min(720px, 94vw)", maxHeight: "86vh", display: "flex", flexDirection: "column",
+        background: "rgba(13,13,18,0.96)",
+        backdropFilter: "blur(18px) saturate(140%)",
+        WebkitBackdropFilter: "blur(18px) saturate(140%)",
+        border: "1px solid " + C.amber + "30",
+        borderRadius: 14,
+        boxShadow: "0 32px 80px rgba(0,0,0,0.55), 0 0 0 1px " + C.amber + "10",
+        animation: "cm2ExcelIn 0.22s cubic-bezier(.2,.7,.2,1) both",
+      }}>
+        <style>{`@keyframes cm2ExcelIn{from{opacity:0;transform:translateY(8px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}`}</style>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 22px", borderBottom: "1px solid rgba(255,255,255,0.06)", background: "linear-gradient(180deg, " + C.amber + "08, transparent)" }}>
+          <FileSpreadsheet size={16} strokeWidth={2.2} color={C.amber} />
+          <span style={{ fontFamily: gf, fontSize: 16, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.2 }}>Import Excel</span>
+          <span style={{ fontFamily: mn, fontSize: 10, color: C.txm, letterSpacing: 0.6, marginLeft: 6, padding: "2px 8px", background: "rgba(255,255,255,0.04)", borderRadius: 4, border: "1px solid rgba(255,255,255,0.08)" }}>{fileName}</span>
+          <span style={{ flex: 1 }} />
+          <button onClick={onClose} title="Close · Esc" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 6, borderRadius: 6, background: "transparent", border: "none", color: C.txm, cursor: "pointer" }} onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+            <X size={14} />
+          </button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", gap: 0, flex: 1, minHeight: 0 }}>
+          {/* Sheet list */}
+          <div style={{ borderRight: "1px solid rgba(255,255,255,0.06)", padding: 10, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+            {snapshots.map(s => {
+              const on = s.name === active;
+              return (
+                <button
+                  key={s.name}
+                  onClick={() => setActive(s.name)}
+                  style={{
+                    display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4,
+                    padding: "10px 12px", borderRadius: 8,
+                    background: on ? C.amber + "16" : "rgba(255,255,255,0.025)",
+                    border: "1px solid " + (on ? C.amber + "55" : "rgba(255,255,255,0.08)"),
+                    cursor: "pointer", textAlign: "left",
+                  }}
+                >
+                  <span style={{ fontFamily: ft, fontSize: 12, fontWeight: 800, color: on ? C.amber : "#E8E4DD" }}>{s.name}</span>
+                  <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.5 }}>{s.rows} row{s.rows === 1 ? "" : "s"} × {s.cols} col{s.cols === 1 ? "" : "s"}</span>
+                  <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 0.3, maxWidth: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={s.preview[0]?.map(String).join(" · ")}>
+                    {(s.preview[0] ?? []).map(String).join(" · ").slice(0, 80)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {/* Preview pane */}
+          <div style={{ padding: 14, overflow: "auto" }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8, fontWeight: 800 }}>Preview · first 10 rows</div>
+            {cur ? (
+              <div style={{ overflow: "auto", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: mn, fontSize: 11, color: C.tx }}>
+                  <tbody>
+                    {cur.preview.map((row, ri) => (
+                      <tr key={ri} style={{ background: ri === 0 ? "rgba(247,176,65,0.06)" : (ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)") }}>
+                        {row.map((cell, ci) => (
+                          <td key={ci} style={{ padding: "6px 10px", borderTop: "1px solid rgba(255,255,255,0.05)", borderLeft: ci === 0 ? "none" : "1px solid rgba(255,255,255,0.04)", color: ri === 0 ? C.amber : C.tx, fontWeight: ri === 0 ? 800 : 500, whiteSpace: "nowrap" }}>{String(cell)}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ fontFamily: mn, fontSize: 11, color: C.txm }}>No sheet selected.</div>
+            )}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 10, padding: "14px 22px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <span style={{ flex: 1 }} />
+          <GlassButton onClick={onClose}>CANCEL</GlassButton>
+          <GlassButton onClick={() => cur && onPick(cur)} primary Icon={Sparkles} disabled={!cur}>IMPORT THIS SHEET</GlassButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ImportExcelButton({ onImport }: { onImport: (sheet: DataSheet) => void }) {
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [snapshots, setSnapshots] = useState<WorkbookSheetSnapshot[] | null>(null);
+  const [fileName, setFileName] = useState("");
+  const onFile = useCallback(async (file: File) => {
+    setFileName(file.name);
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith(".csv") || lower.endsWith(".tsv")) {
+      const text = await file.text();
+      const ds = parsePasteForCategorical(text);
+      if (ds) onImport(ds);
+      else showToast("Couldn't parse the file — expected TSV or CSV with headers");
+      return;
+    }
+    if (!(lower.endsWith(".xlsx") || lower.endsWith(".xls"))) {
+      showToast("Unsupported file type — pick .xlsx, .xls, .csv, or .tsv");
+      return;
+    }
+    try {
+      const buf = await file.arrayBuffer();
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(buf, { type: "array" });
+      const snaps: WorkbookSheetSnapshot[] = wb.SheetNames.map(name => {
+        const ws = wb.Sheets[name];
+        const aoa = XLSX.utils.sheet_to_json<(string | number)[]>(ws, { header: 1, defval: "" });
+        const rows = aoa.length;
+        const cols = aoa.reduce((m, r) => Math.max(m, r.length), 0);
+        return {
+          name,
+          rows,
+          cols,
+          preview: aoa.slice(0, 10),
+          raw: aoa,
+        };
+      });
+      if (snaps.length === 0) {
+        showToast("No sheets found in workbook");
+        return;
+      }
+      if (snaps.length === 1) {
+        onImport(aoaToDataSheet(snaps[0].raw));
+        return;
+      }
+      setSnapshots(snaps);
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to parse the Excel file");
+    }
+  }, [onImport]);
+  return (
+    <>
+      <GlassButton onClick={() => fileRef.current?.click()} title="Import Excel · .xlsx, .xls, .csv, .tsv" Icon={FileSpreadsheet}>
+        IMPORT EXCEL
+      </GlassButton>
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".xlsx,.xls,.csv,.tsv"
+        style={{ display: "none" }}
+        onChange={e => {
+          const file = e.target.files?.[0];
+          if (file) onFile(file);
+          // Reset so the same file can be re-imported
+          e.target.value = "";
+        }}
+      />
+      {snapshots && (
+        <ExcelTabPickerModal
+          snapshots={snapshots}
+          fileName={fileName}
+          onPick={(snap) => { onImport(aoaToDataSheet(snap.raw)); setSnapshots(null); }}
+          onClose={() => setSnapshots(null)}
+        />
+      )}
+    </>
+  );
+}
+
 // ─── Top-bar Undo/Redo buttons ─────────────────────────────────────────────
 function UndoRedoButtons({ onUndo, onRedo, canUndo, canRedo }: { onUndo: () => void; onRedo: () => void; canUndo: boolean; canRedo: boolean }) {
   return (
@@ -7141,7 +7816,7 @@ function AnnotationsBar({ annotations, type, pickMode, placeMode, onStartPick, o
       <AnnotChip active={placeMode?.kind === "callout"} title="Click chart to drop a free-form text annotation" Icon={Type} onClick={onTogglePlaceText}>TEXT</AnnotChip>
       {refOpen && (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "0 4px" }}>
-          <input value={refValue} onChange={e => setRefValue(e.target.value)} placeholder="value" style={{ width: 72, padding: "6px 9px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 6, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none" }} />
+          <DragScrubInput value={Number(refValue) || 0} onChange={(n) => setRefValue(String(n))} placeholder="value" style={{ width: 72, padding: "6px 9px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 6, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none" }} title="Alt-drag to scrub" />
           <input value={refLabel} onChange={e => setRefLabel(e.target.value)} placeholder="label" style={{ width: 110, padding: "6px 9px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 6, color: C.tx, fontFamily: ft, fontSize: 11, outline: "none" }} />
           <GlassButton onClick={() => { const n = Number(refValue); if (!isNaN(n)) { onAddRefLine(n, refLabel); setRefValue("0"); setRefLabel(""); setRefOpen(false); } }} primary>ADD</GlassButton>
         </span>
@@ -7201,7 +7876,7 @@ function AnnotChip({ active, disabled, title, Icon, onClick, children, danger }:
   );
 }
 
-// ─── Floating mini-toolbar · Think-cell's "context wheel" pattern ──────────
+// ─── Floating mini-toolbar · the "context wheel" pattern ──────────────────
 // Pops up next to a selected bar with a tight set of actions: change color
 // (cycle theme palette), set value to 0, delete the row.
 function FloatingMiniToolbar({ selection, onClose, onUpdateRow, onDeleteRow, themes, currentTheme }: {
@@ -7555,7 +8230,7 @@ interface WelcomeStep {
 const WELCOME_STEPS: WelcomeStep[] = [
   {
     title: "Welcome to Chart Maker 2",
-    body: "A think-cell-grade chart builder for SemiAnalysis decks. Pick a type, drop in data, annotate, export — fully in browser.",
+    body: "A professional chart builder for SemiAnalysis decks. Pick a type, drop in data, annotate, export — fully in browser.",
     bullets: [
       "16 chart types · waterfall, mekko, gantt, scatter, variance",
       "Drag bars to edit values directly on the chart",
@@ -7604,14 +8279,14 @@ const WELCOME_STEPS: WelcomeStep[] = [
     accent: "#2EAD8E",
   },
   {
-    title: "Compact or full suite — your choice",
-    body: "Click the expand icon for a full chart-building webapp. Toggle Chart, Table, or Split Screen — drag the divider, switch between vertical and horizontal layouts.",
+    title: "Excel-grade table + Expanded mode",
+    body: "Upload .xlsx files to import data. Click row numbers to select rows. Toggle 'Chart selected only' to chart a subset. Press Maximize for the full webapp.",
     bullets: [
-      "Click any element → instant color picker + format controls float above",
-      "Press M to open the radial wheel anywhere on the chart",
-      "Customize the wheel: choose which tools appear per element kind",
-      "Watermark: drop the POAST mark behind every chart, centered or random",
-      "Esc exits expanded mode · the splitter snaps to vertical ↔ horizontal",
+      "Single click element → handles appear; double-click → format popup",
+      "Alt + drag any number input → scrub the value (Shift = fine grain)",
+      "IMPORT EXCEL button → pick .xlsx → choose tab → preview → import",
+      "Expanded mode → full Properties panel + Chart/Table/Split layout",
+      "Click row numbers to select rows · Shift+click extends · Cmd/Ctrl+click toggles",
     ],
     Icon: Maximize2,
     accent: "#0B86D1",
@@ -7871,6 +8546,9 @@ const WHEEL_TOOLS_BY_KIND: Record<string, WheelToolDef[]> = {
     { id: "seriesCagr", label: "Series CAGR badge" },
     { id: "refLine", label: "Reference line" },
     { id: "callout", label: "Callout text" },
+    { id: "roundedCorners", label: "Rounded corners" },
+    { id: "endLabels", label: "End labels" },
+    { id: "swap", label: "Swap with adjacent" },
     { id: "delete", label: "Set to 0" },
   ],
   point: [
@@ -7882,6 +8560,7 @@ const WHEEL_TOOLS_BY_KIND: Record<string, WheelToolDef[]> = {
     { id: "refLine", label: "Reference line" },
     { id: "marker", label: "Marker shape" },
     { id: "callout", label: "Callout text" },
+    { id: "roundedCorners", label: "Rounded corners" },
     { id: "delete", label: "Set to 0" },
   ],
   axis: [
@@ -7890,11 +8569,15 @@ const WHEEL_TOOLS_BY_KIND: Record<string, WheelToolDef[]> = {
     { id: "ticks", label: "Tick marks" },
     { id: "axisBreak", label: "Axis break" },
     { id: "numFmt", label: "Number format" },
+    { id: "tickStep", label: "Tick step" },
+    { id: "direction", label: "Direction" },
   ],
   label: [
     { id: "numFmt", label: "Number format" },
     { id: "totalLabels", label: "Total labels" },
     { id: "hideLabels", label: "Hide labels" },
+    { id: "content", label: "Cycle content" },
+    { id: "position", label: "Cycle position" },
   ],
   mekkoColumn: [
     { id: "shiftLeft", label: "Shift left" },
@@ -7911,6 +8594,14 @@ const WHEEL_TOOLS_BY_KIND: Record<string, WheelToolDef[]> = {
     { id: "numFmt", label: "Number format" },
     { id: "theme", label: "Cycle theme" },
     { id: "reset", label: "Reset chart" },
+    { id: "watermark", label: "Watermark cycle" },
+    { id: "logScale", label: "Log scale" },
+    { id: "axisBreak", label: "Axis break" },
+    { id: "markerShape", label: "Marker shape" },
+    { id: "roundedCorners", label: "Rounded corners" },
+    { id: "endLabels", label: "End labels" },
+    { id: "barWidth", label: "Bar width" },
+    { id: "backdropMode", label: "Backdrop mode" },
   ],
 };
 
@@ -8040,6 +8731,7 @@ function ExpandedShell({
   chartType, onChangeChartType,
   themeName, paletteColors,
   chartCard, dataSheet,
+  propsPanel,
 }: {
   onClose: () => void;
   paneMode: "chart" | "table" | "split";
@@ -8054,9 +8746,12 @@ function ExpandedShell({
   paletteColors: string[];
   chartCard: React.ReactNode;
   dataSheet: React.ReactNode;
+  // Wave 13 · right-side Properties panel (collapsible).
+  propsPanel?: React.ReactNode;
 }) {
   void themeName; void paletteColors;
   const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
   const middleRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
   // Splitter drag handler — pointer-capturing on the splitter element.
@@ -8300,6 +8995,45 @@ function ExpandedShell({
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
           {middleContent}
         </div>
+
+        {/* RIGHT — Properties panel (collapsible) */}
+        {propsPanel && (
+          <div style={{
+            width: rightCollapsed ? 36 : 320,
+            flexShrink: 0,
+            borderLeft: "1px solid rgba(255,255,255,0.06)",
+            background: "rgba(13,13,18,0.72)",
+            backdropFilter: "blur(18px) saturate(140%)",
+            WebkitBackdropFilter: "blur(18px) saturate(140%)",
+            display: "flex", flexDirection: "column",
+            transition: "width 0.22s cubic-bezier(.2,.7,.2,1)",
+            overflow: "hidden",
+          }}>
+            <div style={{
+              padding: "10px 12px",
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+              <button
+                onClick={() => setRightCollapsed(v => !v)}
+                title={rightCollapsed ? "Expand properties" : "Collapse properties"}
+                style={{
+                  width: 24, height: 24, borderRadius: 6,
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  color: C.txm,
+                  cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
+                }}
+              >{rightCollapsed ? <ChevronLeft size={12} /> : <ChevronRight size={12} />}</button>
+              {!rightCollapsed && <span style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 800, flex: 1 }}>Properties</span>}
+            </div>
+            {!rightCollapsed && (
+              <div style={{ overflowY: "auto", flex: 1, padding: 12 }}>
+                {propsPanel}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
