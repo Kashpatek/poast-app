@@ -25,6 +25,7 @@ import {
   Maximize2, Minimize2, Settings, Image as ImageIcon, Columns2, Rows2, Rocket,
   CornerUpLeft, Repeat, ArrowDownUp, MoveHorizontal, Upload, FileSpreadsheet,
   Volume2, VolumeX, Sun, Moon, HelpCircle, Pipette, Check,
+  GripVertical, Pin, PinOff, ZoomIn, ZoomOut, Wrench,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4993,6 +4994,70 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   useEffect(() => {
     try { localStorage.setItem("cm2-floating-table-pos", JSON.stringify(floatingTablePos)); } catch {}
   }, [floatingTablePos]);
+  // Wave 15.1 · floating Launch toolbar (movable, pinnable, customizable).
+  // Persists tool list, position, pinned state, and visibility to
+  // localStorage so it survives reloads.
+  const [floatToolbarTools, setFloatToolbarTools] = useState<FloatToolId[]>(() => {
+    if (typeof window === "undefined") return DEFAULT_FLOAT_TOOLS.slice();
+    try {
+      const raw = localStorage.getItem("cm2-float-toolbar-tools");
+      if (raw) {
+        const parsed = parseFloatToolsSaved(JSON.parse(raw));
+        if (parsed) return parsed;
+      }
+    } catch {}
+    return DEFAULT_FLOAT_TOOLS.slice();
+  });
+  const [floatToolbarPos, setFloatToolbarPos] = useState<{ x: number; y: number } | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem("cm2-float-toolbar-pos");
+      if (raw) {
+        const v = JSON.parse(raw);
+        if (v && typeof v.x === "number" && typeof v.y === "number") return { x: v.x, y: v.y };
+      }
+    } catch {}
+    return null;
+  });
+  const [floatToolbarPinned, setFloatToolbarPinned] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      const raw = localStorage.getItem("cm2-float-toolbar-pinned");
+      if (raw === "0") return false;
+      if (raw === "1") return true;
+    } catch {}
+    return true;
+  });
+  const [floatToolbarVisible, setFloatToolbarVisible] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      const raw = localStorage.getItem("cm2-float-toolbar-visible");
+      if (raw === "0") return false;
+      if (raw === "1") return true;
+    } catch {}
+    return true;
+  });
+  const [floatToolbarEditorOpen, setFloatToolbarEditorOpen] = useState(false);
+  // Wave 15.1 · imperative open flag for the Templates modal — wired from
+  // the float toolbar's "Templates" action so it can open the SAME modal the
+  // FILE-group button opens (both render the headless instance via the
+  // `openExternal` flag, so the user gets a single consistent gallery).
+  const [floatToolbarTemplatesOpen, setFloatToolbarTemplatesOpen] = useState(false);
+  useEffect(() => {
+    try { localStorage.setItem("cm2-float-toolbar-tools", JSON.stringify(floatToolbarTools)); } catch {}
+  }, [floatToolbarTools]);
+  useEffect(() => {
+    try {
+      if (floatToolbarPos) localStorage.setItem("cm2-float-toolbar-pos", JSON.stringify(floatToolbarPos));
+      else localStorage.removeItem("cm2-float-toolbar-pos");
+    } catch {}
+  }, [floatToolbarPos]);
+  useEffect(() => {
+    try { localStorage.setItem("cm2-float-toolbar-pinned", floatToolbarPinned ? "1" : "0"); } catch {}
+  }, [floatToolbarPinned]);
+  useEffect(() => {
+    try { localStorage.setItem("cm2-float-toolbar-visible", floatToolbarVisible ? "1" : "0"); } catch {}
+  }, [floatToolbarVisible]);
   // Wave 15 · auto-fit zoom whenever the chart pane changes shape. Snapping
   // to "fit" on every layout flip keeps the chart filling its container —
   // the user can always re-zoom afterwards.
@@ -5574,6 +5639,86 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const borderC = tokens.border;
   void tokens; // tokens reserved for future theme-aware refactors
 
+  // Wave 15.1 · shared template apply handler so every entry point (FILE
+  // group button + float toolbar action) lands the same data + theme.
+  const applyTemplate = useCallback((tpl: TemplateSpec) => {
+    setType(tpl.type);
+    const built = tpl.build();
+    if (built && typeof built === "object" && "primary" in built) {
+      const dual = built as { primary: DataSheet; secondary?: DataSheet };
+      setSheets(p => ({ ...p, [tpl.type]: dual.primary }));
+      if (dual.secondary) setSecondarySheets(p => ({ ...p, [tpl.type]: dual.secondary }));
+    } else {
+      setSheets(p => ({ ...p, [tpl.type]: built as DataSheet }));
+    }
+    if (tpl.title) setTitle(tpl.title);
+    if (tpl.subtitle) setSubtitle(tpl.subtitle);
+    if (tpl.theme) setTheme(tpl.theme);
+  }, [setSheets]);
+
+  // Wave 15.1 · float toolbar quick actions for sheet edits. These reuse the
+  // same setSheets path the inline "Add row / Add column" buttons use so
+  // undo/redo + history snapshots keep working uniformly.
+  const floatAddRow = useCallback(() => {
+    setSheets(p => {
+      const cur = p[type] || samplePerType(type);
+      const blank: Record<string, CellValue> = {};
+      cur.schema.forEach(c => { blank[c.key] = c.type === "number" || c.type === "percent" ? 0 : ""; });
+      return { ...p, [type]: { ...cur, rows: [...cur.rows, blank] } };
+    });
+  }, [setSheets, type]);
+  const floatAddCol = useCallback(() => {
+    setSheets(p => {
+      const cur = p[type] || samplePerType(type);
+      let n = 1;
+      while (cur.schema.some(c => c.key === "s" + n)) n++;
+      const newCol: ColumnSpec = { key: "s" + n, label: "Series " + n, type: "number" };
+      return { ...p, [type]: { schema: [...cur.schema, newCol], rows: cur.rows.map(r => ({ ...r, [newCol.key]: 0 })) } };
+    });
+  }, [setSheets, type]);
+  // Best-effort delete-selection handler — drops the row of a selected
+  // segment/point/label, removes a selected annotation, or no-ops when
+  // nothing is selected.
+  const floatDeleteSel = useCallback(() => {
+    if (selected) {
+      if (selected.kind === "annotation") {
+        removeAnnotation(selected.id);
+        setSelected(null);
+        return;
+      }
+      const rowIdx = (selected as { rowIdx?: number }).rowIdx;
+      if (typeof rowIdx === "number") {
+        onDeleteRow(rowIdx);
+        setSelected(null);
+        return;
+      }
+    }
+    showToast("Select a row, label, or annotation first to delete it");
+  }, [selected, onDeleteRow]);
+  // Toggle browser fullscreen.
+  const floatFullScreen = useCallback(() => {
+    if (typeof document === "undefined") return;
+    try {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+    } catch {}
+  }, []);
+  // Stepwise zoom for the Launch chart pane (mirrors ZoomWidget +/- step).
+  const floatZoomBy = useCallback((delta: number) => {
+    setChartZoom(prev => {
+      const cur = prev === "fit" ? 100 : prev;
+      return Math.max(25, Math.min(400, Math.round((cur + delta) / 25) * 25));
+    });
+  }, []);
+  // Sound + theme toggles (already wired to localStorage via their hooks).
+  const [floatSoundOn, setFloatSoundOn] = useState<boolean>(() => isSoundOn());
+  useEffect(() => { setFloatSoundOn(isSoundOn()); }, []);
+  const floatToggleSound = useCallback(() => {
+    const next = !isSoundOn();
+    setSoundOn(next);
+    setFloatSoundOn(next);
+  }, []);
+
   return (
     <div style={{ padding: "32px 0 0", maxWidth: 1400, margin: "0 auto", position: "relative" }}>
       <style>{`
@@ -5672,20 +5817,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         {/* FILE — Templates · Paste · Import Excel */}
         <ToolGroup label="File">
           <span data-tour="templates" ref={templatesAnchorRef} style={{ display: "inline-flex" }}>
-            <TemplatesButton onPick={tpl => {
-              setType(tpl.type);
-              const built = tpl.build();
-              if (built && typeof built === "object" && "primary" in built) {
-                const dual = built as { primary: DataSheet; secondary?: DataSheet };
-                setSheets(p => ({ ...p, [tpl.type]: dual.primary }));
-                if (dual.secondary) setSecondarySheets(p => ({ ...p, [tpl.type]: dual.secondary }));
-              } else {
-                setSheets(p => ({ ...p, [tpl.type]: built as DataSheet }));
-              }
-              if (tpl.title) setTitle(tpl.title);
-              if (tpl.subtitle) setSubtitle(tpl.subtitle);
-              if (tpl.theme) setTheme(tpl.theme);
-            }} />
+            <TemplatesButton onPick={applyTemplate} />
           </span>
           <PasteDataButton onPaste={raw => { const ds = parsePasteForCategorical(raw); if (ds) setSheets(p => ({ ...p, [type]: ds })); else showToast("Couldn't parse the paste — expected TSV or CSV with headers"); }} />
           <ImportExcelButton onImport={ds => setSheets(p => ({ ...p, [type]: ds }))} />
@@ -6371,6 +6503,15 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         />
       )}
 
+      {/* Wave 15.1 · float-toolbar editor — pick + reorder which tools appear */}
+      {floatToolbarEditorOpen && (
+        <FloatToolbarEditor
+          tools={floatToolbarTools}
+          onChange={setFloatToolbarTools}
+          onClose={() => setFloatToolbarEditorOpen(false)}
+        />
+      )}
+
       {/* Wave 12 · Expanded webapp mode — full-viewport overlay with
           chart / table / split panes and animated glow background.
           Rendered to a portal at document.body so no parent scroll/transform
@@ -6402,20 +6543,11 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             // in ExpandedShell itself (they're shell-specific).
             <>
               <ToolGroup label="File">
-                <TemplatesButton onPick={tpl => {
-                  setType(tpl.type);
-                  const built = tpl.build();
-                  if (built && typeof built === "object" && "primary" in built) {
-                    const dual = built as { primary: DataSheet; secondary?: DataSheet };
-                    setSheets(p => ({ ...p, [tpl.type]: dual.primary }));
-                    if (dual.secondary) setSecondarySheets(p => ({ ...p, [tpl.type]: dual.secondary }));
-                  } else {
-                    setSheets(p => ({ ...p, [tpl.type]: built as DataSheet }));
-                  }
-                  if (tpl.title) setTitle(tpl.title);
-                  if (tpl.subtitle) setSubtitle(tpl.subtitle);
-                  if (tpl.theme) setTheme(tpl.theme);
-                }} />
+                <TemplatesButton
+                  onPick={applyTemplate}
+                  openExternal={floatToolbarTemplatesOpen}
+                  onCloseExternal={() => setFloatToolbarTemplatesOpen(false)}
+                />
                 <PasteDataButton onPaste={raw => { const ds = parsePasteForCategorical(raw); if (ds) setSheets(p => ({ ...p, [type]: ds })); else showToast("Couldn't parse the paste — expected TSV or CSV with headers"); }} />
                 <ImportExcelButton onImport={ds => setSheets(p => ({ ...p, [type]: ds }))} />
               </ToolGroup>
@@ -6448,6 +6580,93 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               </ToolGroup>
             </>
           )}
+          floatToolbar={floatToolbarVisible ? (
+            <FloatingLaunchToolbar
+              tools={floatToolbarTools}
+              pos={floatToolbarPos}
+              pinned={floatToolbarPinned}
+              onMove={setFloatToolbarPos}
+              onTogglePin={() => setFloatToolbarPinned(p => !p)}
+              onClose={() => setFloatToolbarVisible(false)}
+              onEditTools={() => setFloatToolbarEditorOpen(true)}
+              flags={{
+                designOpen,
+                locked,
+                popOutActive: tableWindowMode === "floating",
+                canUndo: past.current.length > 0,
+                canRedo: future.current.length > 0,
+              }}
+              actions={{
+                templates: () => setFloatToolbarTemplatesOpen(true),
+                paste: () => {
+                  // Try to read clipboard text; if granted, parse it the same
+                  // way the FILE-group Paste button does. Falls back to a
+                  // toast guiding the user to the toolbar button.
+                  try {
+                    if (typeof navigator !== "undefined" && navigator.clipboard?.readText) {
+                      navigator.clipboard.readText().then(raw => {
+                        const ds = parsePasteForCategorical(raw);
+                        if (ds) setSheets(p => ({ ...p, [type]: ds }));
+                        else showToast("Clipboard didn't look like TSV/CSV — use the FILE · Paste button");
+                      }).catch(() => showToast("Clipboard read denied — use the FILE · Paste button"));
+                    } else {
+                      showToast("Clipboard API unavailable — use the FILE · Paste button");
+                    }
+                  } catch { showToast("Use the FILE · Paste button to paste TSV/CSV"); }
+                },
+                importExcel: () => { showToast("Click the FILE · IMPORT button — file pickers can't be triggered without a direct user click"); },
+                typeWheel: () => setWheelOpen(true),
+                numFmt: () => {
+                  const order: NumberFormat[] = ["auto", "int", "dec1", "pct", "k", "m", "b"];
+                  const idx = order.indexOf(numFmt);
+                  setNumFmt(order[(idx + 1) % order.length]);
+                  showToast("Number format · " + order[(idx + 1) % order.length]);
+                },
+                design: () => setDesignOpen(v => !v),
+                wheelSettings: () => setWheelSettingsOpen(true),
+                undo: () => undo(),
+                redo: () => redo(),
+                lock: () => setLocked(v => !v),
+                exportPNG: () => { exportPNG(); playExportChime(); },
+                exportSVG: () => { exportSVG(); playExportChime(); },
+                exportPPTX: () => { exportPPTX(); playExportChime(); },
+                copyPNG: () => { copyPNG(); playExportChime(); },
+                popOutTable: () => setTableWindowMode(tableWindowMode === "floating" ? "docked" : "floating"),
+                fitChart: () => setChartZoom("fit"),
+                zoomIn: () => floatZoomBy(25),
+                zoomOut: () => floatZoomBy(-25),
+                fullScreen: floatFullScreen,
+                tour: () => setTourOpen(true),
+                soundToggle: floatToggleSound,
+                themeToggle: () => setAppTheme(appTheme === "dark" ? "light" : "dark"),
+                addRow: floatAddRow,
+                addCol: floatAddCol,
+                deleteSel: floatDeleteSel,
+                wheelOpen: () => setWheelOpen(true),
+              }}
+            />
+          ) : null}
+          showToolbarBtn={!floatToolbarVisible ? (
+            <button
+              onClick={() => setFloatToolbarVisible(true)}
+              title="Show the floating launch toolbar"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "7px 12px", borderRadius: 8,
+                background: C.amber + "1A",
+                border: "1px solid " + C.amber + "55",
+                color: C.amber,
+                fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
+                cursor: "pointer", transition: "all 0.16s",
+                textTransform: "uppercase",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = C.amber + "26"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = C.amber + "1A"; }}
+            >
+              <Wrench size={12} strokeWidth={2.4} />
+              Show Toolbar
+            </button>
+          ) : null}
           topBarRightExtras={(
             <>
               <SoundToggle />
@@ -7170,6 +7389,587 @@ function FloatingTableWindow({
           borderRadius: "0 0 14px 0",
         }}
       />
+    </div>
+  );
+}
+
+// ─── Wave 15.1 · FloatingLaunchToolbar · movable, pinnable, customizable ─
+// Glass-shell horizontal toolbar that lives ONLY in Launch mode. Drag handle
+// on left, settings gear + close on right. Pin snaps it to top-center;
+// unpinned mode keeps it wherever the user dropped it. Tools are stocked
+// from a registry; the editor modal (FloatToolbarEditor) lets users
+// add/remove/reorder them. State (tools list, position, pinned, visibility)
+// persists to localStorage so it survives reloads.
+
+type FloatToolId =
+  | "templates" | "paste" | "importExcel"
+  | "typeWheel" | "numFmt" | "design" | "wheelSettings"
+  | "undo" | "redo" | "lock"
+  | "exportPNG" | "exportSVG" | "exportPPTX" | "copyPNG"
+  | "popOutTable" | "fitChart" | "zoomIn" | "zoomOut" | "fullScreen"
+  | "tour" | "soundToggle" | "themeToggle"
+  | "addRow" | "addCol" | "deleteSel"
+  | "wheelOpen";
+
+interface FloatToolMeta {
+  label: string;
+  Icon: LucideIconCmp;
+  description: string;
+}
+const FLOAT_TOOLS: Record<FloatToolId, FloatToolMeta> = {
+  templates:     { label: "Templates",       Icon: Sparkles,        description: "Quick-start gallery · production-ready charts" },
+  paste:         { label: "Paste",           Icon: ClipboardPaste,  description: "Paste TSV/CSV directly into the data sheet" },
+  importExcel:   { label: "Import",          Icon: Upload,          description: "Upload an .xlsx or .csv workbook" },
+  typeWheel:     { label: "Type Wheel",      Icon: Sparkles,        description: "Radial chart-type picker (W)" },
+  numFmt:        { label: "Number Format",   Icon: Hash,            description: "Switch number formatting · auto / pct / k / m / b" },
+  design:        { label: "Design",          Icon: Palette,         description: "Palette, backdrops, gridlines (⌘D)" },
+  wheelSettings: { label: "Wheel Settings",  Icon: Settings,        description: "Customize the radial context wheel" },
+  undo:          { label: "Undo",            Icon: Undo2,           description: "Undo last change (⌘Z)" },
+  redo:          { label: "Redo",            Icon: Redo2,           description: "Redo undone change (⌘⇧Z)" },
+  lock:          { label: "Lock",            Icon: Lock,            description: "Lock chart from edits (⌘L)" },
+  exportPNG:     { label: "Export PNG",      Icon: Download,        description: "Export chart as PNG" },
+  exportSVG:     { label: "Export SVG",      Icon: FileCode2,       description: "Export chart as SVG" },
+  exportPPTX:    { label: "Export PPTX",     Icon: FileSpreadsheet, description: "Export as PowerPoint slide" },
+  copyPNG:       { label: "Copy PNG",        Icon: ImageIcon,       description: "Copy chart PNG to clipboard (⌘⇧C)" },
+  popOutTable:   { label: "Pop Out Table",   Icon: Maximize2,       description: "Detach the data sheet into a floating window" },
+  fitChart:      { label: "Fit Chart",       Icon: Minimize2,       description: "Fit chart to pane" },
+  zoomIn:        { label: "Zoom In",         Icon: ZoomIn,          description: "Zoom chart in by 25%" },
+  zoomOut:       { label: "Zoom Out",        Icon: ZoomOut,         description: "Zoom chart out by 25%" },
+  fullScreen:    { label: "Full Screen",     Icon: Maximize2,       description: "Toggle browser full-screen" },
+  tour:          { label: "Tour",            Icon: HelpCircle,      description: "Run the onboarding tour" },
+  soundToggle:   { label: "Sound",           Icon: Volume2,         description: "Toggle sound effects" },
+  themeToggle:   { label: "Theme",           Icon: Sun,             description: "Toggle light / dark theme" },
+  addRow:        { label: "Add Row",         Icon: Plus,            description: "Append a blank row to the data sheet" },
+  addCol:        { label: "Add Column",      Icon: Columns3,        description: "Append a new series column" },
+  deleteSel:     { label: "Delete",          Icon: Trash2,          description: "Delete the selected element" },
+  wheelOpen:     { label: "Element Wheel",   Icon: Disc,            description: "Open the radial wheel for the selected element" },
+};
+
+const DEFAULT_FLOAT_TOOLS: FloatToolId[] = [
+  "templates", "paste", "importExcel",
+  "typeWheel", "design", "wheelSettings",
+  "undo", "redo", "lock",
+  "exportPNG", "popOutTable", "fitChart",
+];
+
+// Validates a JSON-parsed value and returns a clean FloatToolId[] or null.
+function parseFloatToolsSaved(raw: unknown): FloatToolId[] | null {
+  if (!Array.isArray(raw)) return null;
+  const valid = new Set(Object.keys(FLOAT_TOOLS));
+  const out: FloatToolId[] = [];
+  for (const r of raw) {
+    if (typeof r === "string" && valid.has(r)) out.push(r as FloatToolId);
+  }
+  return out.length > 0 ? out : null;
+}
+
+interface FloatToolbarActions {
+  templates: () => void;
+  paste: () => void;
+  importExcel: () => void;
+  typeWheel: () => void;
+  numFmt: () => void;
+  design: () => void;
+  wheelSettings: () => void;
+  undo: () => void;
+  redo: () => void;
+  lock: () => void;
+  exportPNG: () => void;
+  exportSVG: () => void;
+  exportPPTX: () => void;
+  copyPNG: () => void;
+  popOutTable: () => void;
+  fitChart: () => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  fullScreen: () => void;
+  tour: () => void;
+  soundToggle: () => void;
+  themeToggle: () => void;
+  addRow: () => void;
+  addCol: () => void;
+  deleteSel: () => void;
+  wheelOpen: () => void;
+}
+
+interface FloatToolbarStateFlags {
+  designOpen?: boolean;
+  locked?: boolean;
+  popOutActive?: boolean;
+  canUndo?: boolean;
+  canRedo?: boolean;
+}
+
+function FloatingLaunchToolbar({
+  tools, pos, pinned, onMove, onTogglePin, onClose, onEditTools, actions, flags,
+}: {
+  tools: FloatToolId[];
+  pos: { x: number; y: number } | null;
+  pinned: boolean;
+  onMove: (p: { x: number; y: number } | null) => void;
+  onTogglePin: () => void;
+  onClose: () => void;
+  onEditTools: () => void;
+  actions: FloatToolbarActions;
+  flags: FloatToolbarStateFlags;
+}) {
+  const dragRef = useRef<{ startX: number; startY: number; orig: { x: number; y: number } } | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const onHandleDown = (e: React.PointerEvent) => {
+    if (pinned) return; // pinned toolbars are not draggable
+    e.preventDefault();
+    const orig = pos ?? { x: 0, y: 0 };
+    dragRef.current = { startX: e.clientX, startY: e.clientY, orig };
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const { startX, startY, orig } = dragRef.current;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    if (rafRef.current != null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      // Constrain inside viewport (rough — toolbar may be ~640px wide).
+      const maxX = (typeof window !== "undefined" ? window.innerWidth : 1280) - 80;
+      const maxY = (typeof window !== "undefined" ? window.innerHeight : 720) - 60;
+      const nx = Math.max(8, Math.min(maxX, orig.x + dx));
+      const ny = Math.max(80, Math.min(maxY, orig.y + dy));
+      onMove({ x: nx, y: ny });
+    });
+  };
+  const onPointerUp = () => { dragRef.current = null; };
+
+  // Pinned mode: top-center (transform translateX(-50%)).
+  // Unpinned mode: free-floating at user-set absolute coords.
+  const positionStyle: React.CSSProperties = pinned
+    ? { left: "50%", top: 24, transform: "translateX(-50%)" }
+    : pos
+      ? { left: pos.x, top: pos.y }
+      : { left: "50%", top: 24, transform: "translateX(-50%)" };
+
+  const renderTool = (id: FloatToolId, idx: number) => {
+    const meta = FLOAT_TOOLS[id];
+    if (!meta) return null;
+    const { Icon, label, description } = meta;
+    let active = false;
+    let disabled = false;
+    if (id === "design") active = !!flags.designOpen;
+    if (id === "lock") active = !!flags.locked;
+    if (id === "popOutTable") active = !!flags.popOutActive;
+    if (id === "undo" && flags.canUndo === false) disabled = true;
+    if (id === "redo" && flags.canRedo === false) disabled = true;
+    const onClick = () => {
+      if (disabled) return;
+      const fn = actions[id];
+      if (fn) fn();
+    };
+    return (
+      <FloatToolButton
+        key={`${id}-${idx}`}
+        Icon={Icon}
+        title={label + " · " + description}
+        active={active}
+        disabled={disabled}
+        onClick={onClick}
+      />
+    );
+  };
+
+  return (
+    <div
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      style={{
+        position: "absolute",
+        ...positionStyle,
+        zIndex: 11500,
+        background: "rgba(13,13,18,0.92)",
+        backdropFilter: "blur(18px) saturate(140%)",
+        WebkitBackdropFilter: "blur(18px) saturate(140%)",
+        border: "1px solid " + C.amber + "55",
+        borderRadius: 12,
+        boxShadow: "0 18px 44px rgba(0,0,0,0.55), 0 0 0 1px " + C.amber + "20, 0 0 24px " + C.amber + "18",
+        minHeight: 52,
+        display: "inline-flex", alignItems: "center", gap: 6,
+        padding: "6px 8px",
+        userSelect: "none",
+        animation: "cm2ExpandPop 0.22s cubic-bezier(.2,.7,.2,1) both",
+        transition: pinned ? "left 0.28s cubic-bezier(.2,.7,.2,1), top 0.28s cubic-bezier(.2,.7,.2,1), transform 0.28s cubic-bezier(.2,.7,.2,1)" : "none",
+      }}
+    >
+      {/* Drag handle (only enabled when unpinned) */}
+      <div
+        onPointerDown={onHandleDown}
+        title={pinned ? "Unpin to drag" : "Drag to move"}
+        style={{
+          width: 22, height: 36, borderRadius: 6,
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          color: pinned ? C.txd : C.txm,
+          cursor: pinned ? "not-allowed" : "grab",
+          opacity: pinned ? 0.45 : 1,
+          background: pinned ? "transparent" : "rgba(255,255,255,0.04)",
+          border: "1px solid " + (pinned ? "transparent" : "rgba(255,255,255,0.08)"),
+          transition: "all 0.16s",
+        }}
+      >
+        <GripVertical size={14} strokeWidth={2.4} />
+      </div>
+
+      {/* Brand label */}
+      <span style={{
+        fontFamily: mn, fontSize: 8.5, color: C.amber,
+        letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 800,
+        padding: "0 6px",
+      }}>
+        Toolbar
+      </span>
+
+      <span style={{ width: 1, height: 24, background: "rgba(255,255,255,0.08)", margin: "0 4px" }} />
+
+      {/* Tool buttons */}
+      {tools.map((id, i) => renderTool(id, i))}
+
+      {tools.length === 0 && (
+        <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, padding: "0 10px" }}>
+          No tools — click the gear to add some
+        </span>
+      )}
+
+      <span style={{ width: 1, height: 24, background: "rgba(255,255,255,0.08)", margin: "0 4px" }} />
+
+      {/* Right edge cluster — pin, settings, close */}
+      <FloatToolButton
+        Icon={pinned ? Pin : PinOff}
+        title={pinned ? "Pinned · click to unpin and drag freely" : "Unpinned · click to snap to top-center"}
+        active={pinned}
+        onClick={onTogglePin}
+      />
+      <FloatToolButton
+        Icon={Settings}
+        title="Edit toolbar · add, remove, or reorder tools"
+        onClick={onEditTools}
+      />
+      <FloatToolButton
+        Icon={XIcon}
+        title="Hide toolbar · re-show from the Launch top bar"
+        onClick={onClose}
+      />
+    </div>
+  );
+}
+
+function FloatToolButton({
+  Icon, title, active, disabled, onClick,
+}: {
+  Icon: LucideIconCmp;
+  title: string;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      onClick={onClick}
+      title={title}
+      disabled={disabled}
+      style={{
+        width: 36, height: 36, borderRadius: 8,
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        background: active
+          ? C.amber + "26"
+          : hov && !disabled ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)",
+        border: "1px solid " + (active
+          ? C.amber + "70"
+          : hov && !disabled ? C.amber + "55" : "rgba(255,255,255,0.10)"),
+        color: active ? C.amber : (hov && !disabled ? "#E8E4DD" : C.txm),
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.40 : 1,
+        boxShadow: hov && !disabled
+          ? "0 0 12px " + C.amber + "30, 0 1px 0 rgba(255,255,255,0.06) inset"
+          : "0 1px 0 rgba(255,255,255,0.04) inset",
+        transition: "all 0.16s cubic-bezier(.2,.7,.2,1)",
+      }}
+    >
+      <Icon size={18} strokeWidth={2.2} />
+    </button>
+  );
+}
+
+// ─── Wave 15.1 · FloatToolbarEditor · pick + reorder which tools appear ───
+// Modal with two columns: LEFT lists every tool with a checkbox, RIGHT lists
+// the currently-active tools with drag-to-reorder + remove handles. The
+// drag-and-drop reorder is a tiny pointer-event implementation — no library.
+function FloatToolbarEditor({
+  tools, onChange, onClose,
+}: {
+  tools: FloatToolId[];
+  onChange: (next: FloatToolId[]) => void;
+  onClose: () => void;
+}) {
+  // Local mirror so reordering is snappy without parent re-renders mid-drag.
+  const [draft, setDraft] = useState<FloatToolId[]>(tools);
+  useEffect(() => { setDraft(tools); }, [tools]);
+
+  const allIds = Object.keys(FLOAT_TOOLS) as FloatToolId[];
+  const activeSet = new Set(draft);
+
+  const toggleTool = (id: FloatToolId) => {
+    setDraft(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  };
+
+  // Drag-to-reorder · we track which index is being dragged + hover index.
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+
+  const onItemDown = (i: number) => (e: React.PointerEvent) => {
+    e.preventDefault();
+    setDragIdx(i);
+    setHoverIdx(i);
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onItemMove = (i: number) => (e: React.PointerEvent) => {
+    if (dragIdx == null) return;
+    e.preventDefault();
+    setHoverIdx(i);
+  };
+  const onItemUp = () => {
+    if (dragIdx != null && hoverIdx != null && dragIdx !== hoverIdx) {
+      setDraft(p => {
+        const next = p.slice();
+        const [moved] = next.splice(dragIdx, 1);
+        next.splice(hoverIdx, 0, moved);
+        return next;
+      });
+    }
+    setDragIdx(null);
+    setHoverIdx(null);
+  };
+
+  const removeAt = (i: number) => {
+    setDraft(p => p.filter((_, j) => j !== i));
+  };
+
+  const apply = () => { onChange(draft); onClose(); };
+  const reset = () => { setDraft(DEFAULT_FLOAT_TOOLS.slice()); };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 12500,
+        background: "rgba(6,6,12,0.74)",
+        backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: "min(820px, 96vw)", maxHeight: "86vh",
+          display: "flex", flexDirection: "column",
+          background: "#0D0D14",
+          border: "1px solid rgba(255,255,255,0.12)",
+          borderRadius: 14,
+          boxShadow: "0 32px 80px rgba(0,0,0,0.55), 0 0 0 1px " + C.amber + "10",
+          overflow: "hidden",
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "16px 20px",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+        }}>
+          <Wrench size={16} strokeWidth={2.2} color={C.amber} />
+          <span style={{ fontFamily: gf, fontSize: 17, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.2 }}>
+            Edit floating toolbar
+          </span>
+          <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1 }}>
+            {draft.length} active · {allIds.length} total
+          </span>
+          <button
+            onClick={onClose}
+            title="Close"
+            style={{
+              width: 26, height: 26, borderRadius: 6,
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              color: C.txm, cursor: "pointer",
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+            }}
+          ><XIcon size={13} /></button>
+        </div>
+
+        <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, padding: "10px 20px 0", lineHeight: 1.5 }}>
+          Pick which tools appear on the floating toolbar. Drag the right column to reorder.
+          Changes save instantly when you press Done.
+        </div>
+
+        {/* Two-column body */}
+        <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
+          {/* LEFT — available tools */}
+          <div style={{
+            padding: 16, overflowY: "auto",
+            borderRight: "1px solid rgba(255,255,255,0.06)",
+          }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 800, marginBottom: 10 }}>
+              Available tools
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {allIds.map(id => {
+                const m = FLOAT_TOOLS[id];
+                const on = activeSet.has(id);
+                return (
+                  <label
+                    key={id}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "8px 10px", borderRadius: 8,
+                      background: on ? C.amber + "12" : "rgba(255,255,255,0.025)",
+                      border: "1px solid " + (on ? C.amber + "44" : "rgba(255,255,255,0.06)"),
+                      cursor: "pointer",
+                      transition: "all 0.16s",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() => toggleTool(id)}
+                      style={{ accentColor: C.amber, cursor: "pointer" }}
+                    />
+                    <m.Icon size={14} strokeWidth={2.2} color={on ? C.amber : C.txm} />
+                    <span style={{ fontFamily: mn, fontSize: 11, fontWeight: 700, color: on ? C.amber : "#E8E4DD" }}>
+                      {m.label}
+                    </span>
+                    <span style={{ marginLeft: "auto", fontFamily: ft, fontSize: 10, color: C.txd, lineHeight: 1.3, textAlign: "right", maxWidth: "55%" }}>
+                      {m.description}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* RIGHT — active list, drag-to-reorder */}
+          <div style={{ padding: 16, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 800, marginBottom: 10 }}>
+              Active toolbar order
+            </div>
+            {draft.length === 0 && (
+              <div style={{
+                padding: 20, borderRadius: 10,
+                border: "1px dashed rgba(255,255,255,0.10)",
+                fontFamily: ft, fontSize: 11, color: C.txd, textAlign: "center",
+              }}>
+                No tools selected. Pick some on the left.
+              </div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }} onPointerUp={onItemUp}>
+              {draft.map((id, i) => {
+                const m = FLOAT_TOOLS[id];
+                const isDragging = dragIdx === i;
+                const isHovered = hoverIdx === i && dragIdx !== null && dragIdx !== i;
+                return (
+                  <div
+                    key={`${id}-${i}`}
+                    onPointerDown={onItemDown(i)}
+                    onPointerMove={onItemMove(i)}
+                    onPointerUp={onItemUp}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "8px 10px", borderRadius: 8,
+                      background: isDragging
+                        ? C.amber + "26"
+                        : isHovered
+                          ? C.amber + "12"
+                          : "rgba(255,255,255,0.03)",
+                      border: "1px solid " + (isDragging
+                        ? C.amber + "88"
+                        : isHovered
+                          ? C.amber + "55"
+                          : "rgba(255,255,255,0.10)"),
+                      cursor: isDragging ? "grabbing" : "grab",
+                      transition: isDragging ? "none" : "all 0.16s",
+                      userSelect: "none",
+                    }}
+                  >
+                    <GripVertical size={13} strokeWidth={2.2} color={C.txm} />
+                    <m.Icon size={14} strokeWidth={2.2} color={C.amber} />
+                    <span style={{ fontFamily: mn, fontSize: 11, fontWeight: 700, color: "#E8E4DD" }}>
+                      {m.label}
+                    </span>
+                    <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 0.6 }}>
+                      #{i + 1}
+                    </span>
+                    <button
+                      onPointerDown={e => e.stopPropagation()}
+                      onClick={() => removeAt(i)}
+                      title="Remove from toolbar"
+                      style={{
+                        width: 22, height: 22, borderRadius: 5,
+                        background: "rgba(255,255,255,0.04)",
+                        border: "1px solid rgba(255,255,255,0.10)",
+                        color: C.txm, cursor: "pointer",
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      }}
+                    ><XIcon size={11} /></button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: "14px 20px",
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+          display: "flex", alignItems: "center", gap: 8,
+          background: "rgba(255,255,255,0.02)",
+        }}>
+          <button
+            onClick={reset}
+            title="Restore the standard tool set"
+            style={{
+              padding: "8px 14px", borderRadius: 8,
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              color: C.txm, cursor: "pointer",
+              fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
+              textTransform: "uppercase",
+            }}
+          >Reset to default</button>
+          <span style={{ flex: 1 }} />
+          <button
+            onClick={onClose}
+            style={{
+              padding: "8px 14px", borderRadius: 8,
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              color: C.txm, cursor: "pointer",
+              fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
+              textTransform: "uppercase",
+            }}
+          >Cancel</button>
+          <button
+            onClick={apply}
+            style={{
+              padding: "8px 16px", borderRadius: 8,
+              background: C.amber + "26",
+              border: "1px solid " + C.amber + "70",
+              color: C.amber, cursor: "pointer",
+              fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
+              textTransform: "uppercase",
+            }}
+          >Done</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -8501,8 +9301,26 @@ function LockToggle({ locked, onChange }: { locked: boolean; onChange: (v: boole
 }
 
 // ─── Templates · quick-start preset gallery ──────────────────────────────
-function TemplatesButton({ onPick }: { onPick: (tpl: TemplateSpec) => void }) {
-  const [open, setOpen] = useState(false);
+function TemplatesButton({ onPick, openExternal, onCloseExternal, hideTrigger }: {
+  onPick: (tpl: TemplateSpec) => void;
+  // Wave 15.1 · external control so the floating Launch toolbar can open the
+  // SAME modal the FILE-group button opens (shared instance via portal).
+  openExternal?: boolean;
+  onCloseExternal?: () => void;
+  // When true, render only the modal (no trigger button) — used by the
+  // floating toolbar which has its own button.
+  hideTrigger?: boolean;
+}) {
+  const [openInternal, setOpenInternal] = useState(false);
+  const open = hideTrigger ? !!openExternal : (openInternal || !!openExternal);
+  const setOpen = (next: boolean) => {
+    if (hideTrigger) {
+      if (!next) onCloseExternal?.();
+    } else {
+      setOpenInternal(next);
+      if (!next && openExternal) onCloseExternal?.();
+    }
+  };
   const [catFilter, setCatFilter] = useState<TemplateCategory | "all">("all");
   const cats: Array<{ id: TemplateCategory | "all"; label: string }> = [
     { id: "all", label: "All" },
@@ -8515,7 +9333,9 @@ function TemplatesButton({ onPick }: { onPick: (tpl: TemplateSpec) => void }) {
   const filtered = catFilter === "all" ? TEMPLATES : TEMPLATES.filter(t => t.category === catFilter);
   return (
     <>
-      <GlassButton onClick={() => setOpen(true)} title="Quick-start templates · production charts" Icon={Sparkles}>TEMPLATES</GlassButton>
+      {!hideTrigger && (
+        <GlassButton onClick={() => setOpen(true)} title="Quick-start templates · production charts" Icon={Sparkles}>TEMPLATES</GlassButton>
+      )}
       {open && (
         <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(6,6,12,0.74)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", zIndex: 12000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{
@@ -10209,6 +11029,7 @@ function ExpandedShell({
   chartZoom, onChangeChartZoom,
   tableMode, onChangeTableMode,
   floatingTablePos, onChangeFloatingTablePos,
+  floatToolbar, showToolbarBtn,
 }: {
   onClose: () => void;
   paneMode: "chart" | "table" | "split";
@@ -10240,6 +11061,12 @@ function ExpandedShell({
   onChangeTableMode: (m: "docked" | "floating" | "window") => void;
   floatingTablePos: { x: number; y: number; w: number; h: number };
   onChangeFloatingTablePos: (p: { x: number; y: number; w: number; h: number }) => void;
+  // Wave 15.1 · floating toolbar overlay rendered absolutely inside the
+  // shell so it stays above the chart but inside the Launch portal.
+  floatToolbar?: React.ReactNode;
+  // Wave 15.1 · "Show Toolbar" button injected into the Window group when
+  // the float toolbar has been closed.
+  showToolbarBtn?: React.ReactNode;
 }) {
   void themeName; void paletteColors;
   const [leftCollapsed, setLeftCollapsed] = useState(false);
@@ -10458,6 +11285,7 @@ function ExpandedShell({
             the user is actually viewing the table (paneMode = table or split). */}
         <ToolGroup label="Window">
           <div style={{ display: "inline-flex", gap: 6 }}>
+            {showToolbarBtn}
             {(paneMode === "table" || paneMode === "split") && (
               <>
                 <TabBtn
@@ -10582,6 +11410,11 @@ function ExpandedShell({
           </div>
         )}
       </div>
+
+      {/* Wave 15.1 · Floating Launch toolbar — movable, pinnable, customizable.
+          Sits above the chart and inside the Launch portal so it overlays the
+          shell without escaping it. */}
+      {floatToolbar}
 
       {/* Wave 15 · Floating table window — appears as a draggable, resizable
           panel over the shell. The docked split layout collapses to chart-only
