@@ -37,7 +37,7 @@ type ChartType =
   | "mekkoUnit" | "pie" | "doughnut" | "scatter" | "bubble"
   | "variance" | "gantt";
 
-type ThemeId = "saCore" | "saSpectrum";
+type ThemeId = "saCore" | "saSpectrum" | "saBrand";
 
 // Official SemiAnalysis chart palettes — verbatim from the brand spec.
 // Use S1-S4 for ≤4 series, S5-S8 for 5-8, S9-S12 for 9+. Never skip
@@ -77,6 +77,24 @@ const THEMES: Record<ThemeId, { name: string; sub: string; colors: string[] }> =
       "#E8C83A", // S10 Sunflower
       "#495BCE", // S11 Indigo
       "#BF49B5", // S12 Magenta
+    ],
+  },
+  saBrand: {
+    name: "SA Brand",
+    sub: "Official SA template palette · Excel-matched",
+    colors: [
+      "#4472C4", // S1  Primary Blue
+      "#ED7D31", // S2  Orange
+      "#70AD47", // S3  Green
+      "#FFC000", // S4  Gold
+      "#5B9BD5", // S5  Light Blue
+      "#A5A5A5", // S6  Gray
+      "#44546A", // S7  Charcoal
+      "#264478", // S8  Navy (darker primary)
+      "#9E480E", // S9  Burnt orange
+      "#43682B", // S10 Dark green
+      "#7F6000", // S11 Olive
+      "#2E4D70", // S12 Steel
     ],
   },
 };
@@ -6196,7 +6214,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               const idx = order.indexOf(numFmt);
               setNumFmt(order[(idx + 1) % order.length]);
             }},
-            { toolId: "theme", Icon: Palette, title: "Cycle theme", onClick: () => setTheme(t => t === "saCore" ? "saSpectrum" : "saCore") },
+            { toolId: "theme", Icon: Palette, title: "Cycle theme", onClick: () => setTheme(t => t === "saCore" ? "saSpectrum" : t === "saSpectrum" ? "saBrand" : "saCore") },
             { toolId: "reset", Icon: Undo2, title: "Reset chart (clear annotations)", onClick: () => setAnnotByType(p => ({ ...p, [type]: [] })) },
             // Wave 13 · canvas-level new tools
             { toolId: "watermark", Icon: ImageIcon, title: "Cycle watermark (off / centered / random)", active: watermark !== "off", onClick: () => setWatermark(w => w === "off" ? "centered" : w === "centered" ? "random" : "off") },
@@ -7215,6 +7233,244 @@ const TEMPLATES: TemplateSpec[] = [
         { label: "TPU v5p", x: 459, y: 0, size: 20 },
         { label: "TPU v6", x: 918, y: 0, size: 30 },
         { label: "Gaudi 3", x: 1835, y: 10, size: 35 },
+      ],
+    }),
+  },
+  // ── SA Brand · Official SemiAnalysis Excel templates ────────────────────
+  // Imported verbatim from /SEMIANALYSIS/Brand/Brand 2026 Launch/Excel
+  // Templates/Template - Light and Dark - Outfit.xlsx — values are the
+  // real numbers shipped in the brand-approved decks, not made up.
+  {
+    id: "sa-brand-clustered-bar",
+    emoji: "📊",
+    label: "SA · Clustered Bar (Showcase)",
+    desc: "Q1-Q4 2025 · 3 series — official template",
+    category: "financial",
+    type: "clustered",
+    title: "Clustered Bar Chart",
+    subtitle: "Source: SemiAnalysis · SA Brand template",
+    theme: "saBrand",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Category", type: "text" },
+        { key: "s1", label: "Series A", type: "number" },
+        { key: "s2", label: "Series B", type: "number" },
+        { key: "s3", label: "Series C", type: "number" },
+      ],
+      rows: [
+        { category: "Q1 2025", s1: 245, s2: 180, s3: 120 },
+        { category: "Q2 2025", s1: 310, s2: 220, s3: 165 },
+        { category: "Q3 2025", s1: 385, s2: 290, s3: 210 },
+        { category: "Q4 2025", s1: 420, s2: 340, s3: 275 },
+      ],
+    }),
+  },
+  {
+    id: "sa-brand-line-monthly",
+    emoji: "📈",
+    label: "SA · Line Trend (Showcase)",
+    desc: "Revenue · Cost · Profit · Forecast — 6mo",
+    category: "financial",
+    type: "line",
+    title: "Line Chart",
+    subtitle: "Source: SemiAnalysis · SA Brand template",
+    theme: "saBrand",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Month", type: "text" },
+        { key: "s1", label: "Revenue", type: "number" },
+        { key: "s2", label: "Cost", type: "number" },
+        { key: "s3", label: "Profit", type: "number" },
+        { key: "s4", label: "Forecast", type: "number" },
+      ],
+      rows: [
+        { category: "Jan", s1: 150, s2: 90,  s3: 60,  s4: 55  },
+        { category: "Feb", s1: 175, s2: 95,  s3: 80,  s4: 72  },
+        { category: "Mar", s1: 200, s2: 100, s3: 100, s4: 90  },
+        { category: "Apr", s1: 190, s2: 110, s3: 80,  s4: 85  },
+        { category: "May", s1: 230, s2: 105, s3: 125, s4: 110 },
+        { category: "Jun", s1: 260, s2: 115, s3: 145, s4: 130 },
+      ],
+    }),
+  },
+  {
+    id: "sa-brand-stacked-region",
+    emoji: "🌐",
+    label: "SA · Stacked Bar by Region",
+    desc: "Hardware / Software / Services / Cloud × 4 regions",
+    category: "financial",
+    type: "stacked",
+    title: "Stacked Bar Chart",
+    subtitle: "Source: SemiAnalysis · SA Brand template",
+    theme: "saBrand",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Region", type: "text" },
+        { key: "s1", label: "Hardware", type: "number" },
+        { key: "s2", label: "Software", type: "number" },
+        { key: "s3", label: "Services", type: "number" },
+        { key: "s4", label: "Cloud", type: "number" },
+      ],
+      rows: [
+        { category: "North America", s1: 450, s2: 320, s3: 180, s4: 250 },
+        { category: "Europe",        s1: 380, s2: 270, s3: 150, s4: 200 },
+        { category: "Asia Pacific",  s1: 520, s2: 190, s3: 220, s4: 310 },
+        { category: "LATAM",         s1: 180, s2: 120, s3: 90,  s4: 110 },
+      ],
+    }),
+  },
+  {
+    id: "sa-brand-pie-segment",
+    emoji: "🥧",
+    label: "SA · Pie · Segment Share",
+    desc: "Data Center / Edge / Consumer / Auto / Other",
+    category: "comparison",
+    type: "pie",
+    title: "Pie Chart",
+    subtitle: "Source: SemiAnalysis · SA Brand template",
+    theme: "saBrand",
+    build: () => ({
+      schema: [
+        { key: "label", label: "Segment", type: "text" },
+        { key: "value", label: "Share", type: "number" },
+      ],
+      rows: [
+        { label: "Data Center", value: 42 },
+        { label: "Edge AI",     value: 25 },
+        { label: "Consumer",    value: 18 },
+        { label: "Automotive",  value: 10 },
+        { label: "Other",       value: 5  },
+      ],
+    }),
+  },
+  {
+    id: "sa-brand-waterfall-pl",
+    emoji: "💧",
+    label: "SA · Waterfall (P&L)",
+    desc: "Revenue → COGS → GP → OpEx → EBITDA → D&A → EBIT",
+    category: "financial",
+    type: "wfup",
+    title: "Waterfall Chart",
+    subtitle: "Source: SemiAnalysis · SA Brand template",
+    theme: "saBrand",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Item", type: "text" },
+        { key: "value",    label: "Value", type: "number" },
+      ],
+      rows: [
+        { category: "Revenue",      value: 1000 },
+        { category: "COGS",         value: -420 },
+        { category: "Gross Profit", value: 580  },
+        { category: "OpEx",         value: -280 },
+        { category: "EBITDA",       value: 300  },
+        { category: "D&A",          value: -50  },
+        { category: "EBIT",         value: 250  },
+      ],
+    }),
+  },
+  {
+    id: "sa-brand-scatter-flops-power",
+    emoji: "⚡",
+    label: "SA · Scatter · FLOPs vs Power",
+    desc: "9 chips · x=FLOPs(T), y=Power(W), size=Perf/$",
+    category: "tech",
+    type: "scatter",
+    title: "Scatter Plot",
+    subtitle: "Source: SemiAnalysis · SA Brand template",
+    theme: "saBrand",
+    build: () => ({
+      schema: [
+        { key: "label", label: "Chip", type: "text" },
+        { key: "x", label: "FLOPs (T)", type: "number" },
+        { key: "y", label: "Power (W)", type: "number" },
+        { key: "size", label: "Perf/$", type: "number" },
+      ],
+      rows: [
+        { label: "Chip 1", x: 1000, y: 400,  size: 2.5 },
+        { label: "Chip 2", x: 2500, y: 700,  size: 3.6 },
+        { label: "Chip 3", x: 4500, y: 1200, size: 3.8 },
+        { label: "Chip 4", x: 5000, y: 1000, size: 5.0 },
+        { label: "Chip 5", x: 3200, y: 800,  size: 4.0 },
+        { label: "Chip 6", x: 6000, y: 1500, size: 4.0 },
+        { label: "Chip 7", x: 8000, y: 1800, size: 4.4 },
+        { label: "Chip 8", x: 4000, y: 600,  size: 6.7 },
+      ],
+    }),
+  },
+  {
+    id: "sa-brand-stackedarea-accelerator",
+    emoji: "📐",
+    label: "SA · Stacked Area · Accelerator Mix",
+    desc: "GPU / TPU / Custom · 2020-2024",
+    category: "tech",
+    type: "stackedArea",
+    title: "Accelerator Shipments",
+    subtitle: "Source: SemiAnalysis · SA Brand template",
+    theme: "saBrand",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Year", type: "text" },
+        { key: "s1", label: "GPU", type: "number" },
+        { key: "s2", label: "TPU", type: "number" },
+        { key: "s3", label: "Custom", type: "number" },
+      ],
+      rows: [
+        { category: "2020", s1: 120, s2: 40,  s3: 10  },
+        { category: "2021", s1: 180, s2: 65,  s3: 25  },
+        { category: "2022", s1: 290, s2: 110, s3: 55  },
+        { category: "2023", s1: 450, s2: 180, s3: 95  },
+        { category: "2024", s1: 680, s2: 300, s3: 170 },
+      ],
+    }),
+  },
+  {
+    id: "sa-brand-flops-availability",
+    emoji: "🚀",
+    label: "SA · FLOPs Availability (TPU)",
+    desc: "TPU v4 → v7 · BF16 TFLOPs by launch quarter",
+    category: "tech",
+    type: "clustered",
+    title: "TPU FLOPs Availability",
+    subtitle: "Source: SemiAnalysis · BF16 TFLOPS by launch",
+    theme: "saBrand",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Generation", type: "text" },
+        { key: "s1", label: "BF16 TFLOPS", type: "number" },
+      ],
+      rows: [
+        { category: "TPU v4 (2Q22)",  s1: 275  },
+        { category: "TPU v5e (4Q23)", s1: 197  },
+        { category: "TPU v5p (1Q24)", s1: 459  },
+        { category: "TPU v6 (4Q24)",  s1: 918  },
+        { category: "TPU v7 (4Q25)",  s1: 2307 },
+      ],
+    }),
+  },
+  {
+    id: "sa-brand-tco-pflop",
+    emoji: "💰",
+    label: "SA · TCO per Effective Training PFLOP",
+    desc: "B300 / GB300 NVL72 / TPU v7 (20-60% MFU)",
+    category: "financial",
+    type: "clustered",
+    title: "TCO per Effective Training PFLOP at various MFUs",
+    subtitle: "Source: SemiAnalysis · Bar Chart template ($/hr per Eff PFLOP)",
+    theme: "saBrand",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Configuration", type: "text" },
+        { key: "s1", label: "$/hr per Eff PFLOP", type: "number" },
+      ],
+      rows: [
+        { category: "B300 1200W (30% MFU)",      s1: 1.98 },
+        { category: "GB300 NVL72 (30% MFU)",     s1: 1.82 },
+        { category: "TPU v7 3D Torus (20% MFU)", s1: 1.73 },
+        { category: "TPU v7 3D Torus (30% MFU)", s1: 1.16 },
+        { category: "TPU v7 3D Torus (40% MFU)", s1: 0.87 },
+        { category: "TPU v7 3D Torus (50% MFU)", s1: 0.69 },
+        { category: "TPU v7 3D Torus (60% MFU)", s1: 0.58 },
       ],
     }),
   },
