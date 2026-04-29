@@ -4978,6 +4978,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   // changes); a numeric percentage scales by that factor and lets the pane
   // scroll if oversized. Presets: 50/75/100/125/150/200/300.
   const [chartZoom, setChartZoom] = useState<"fit" | number>("fit");
+  const [chartAspect, setChartAspect] = useState<ChartAspect>("fit");
   // Wave 15 · pop-out modes for the Launch table pane.
   //   "docked"   — table inside the split layout (default)
   //   "floating" — table is a draggable + resizable floating window over the shell
@@ -4985,11 +4986,26 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const [tableWindowMode, setTableWindowMode] = useState<"docked" | "floating" | "window">("docked");
   const [floatingTablePos, setFloatingTablePos] = useState<{ x: number; y: number; w: number; h: number }>(() => {
     if (typeof window === "undefined") return { x: 80, y: 80, w: 720, h: 520 };
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const fallback = { x: Math.max(40, vw - 760), y: 100, w: Math.min(720, vw - 80), h: Math.min(520, vh - 160) };
     try {
       const raw = localStorage.getItem("cm2-floating-table-pos");
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        // Validate saved coords: ensure header (top 44px) is reachable on screen.
+        // If user shrank the window or position is off-screen, reset to fallback.
+        if (
+          typeof saved?.x === "number" && typeof saved?.y === "number" &&
+          typeof saved?.w === "number" && typeof saved?.h === "number" &&
+          saved.x >= -saved.w + 120 && saved.x <= vw - 120 &&
+          saved.y >= 40 && saved.y <= vh - 60 &&
+          saved.w >= 320 && saved.h >= 200
+        ) {
+          return saved;
+        }
+      }
     } catch {}
-    return { x: Math.max(40, (typeof window !== "undefined" ? window.innerWidth : 1280) - 760), y: 100, w: 720, h: 520 };
+    return fallback;
   });
   useEffect(() => {
     try { localStorage.setItem("cm2-floating-table-pos", JSON.stringify(floatingTablePos)); } catch {}
@@ -6505,6 +6521,8 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           paletteColors={THEMES[theme].colors}
           chartZoom={chartZoom}
           onChangeChartZoom={setChartZoom}
+          chartAspect={chartAspect}
+          onChangeChartAspect={setChartAspect}
           tableMode={tableWindowMode}
           onChangeTableMode={setTableWindowMode}
           floatingTablePos={floatingTablePos}
@@ -6664,6 +6682,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               setSelected={setSelected}
               selected={selected}
               chartZoom={chartZoom}
+              chartAspect={chartAspect}
               defaultW={W}
               defaultH={H}
             />
@@ -7113,9 +7132,22 @@ function ExportDropdownIcon({ onPNG, onJPG, onSVG, onPPTX, onCopyPNG }: {
 // that fills the available space. Applies the user's `chartZoom` either by
 // "fit" (default, scales SVG to 100% width) or by an absolute scale factor
 // (50/75/100/125/150/200/300%). When zoom > 100% the container scrolls.
+// Aspect-ratio choices a user can lock the chart frame to. "fit" tracks the
+// pane shape exactly; the others lock to the named ratio and center inside.
+type ChartAspect = "fit" | "16:9" | "4:3" | "1:1" | "3:4" | "9:16";
+function aspectRatio(a: ChartAspect): number | null {
+  if (a === "fit")   return null;
+  if (a === "16:9")  return 16 / 9;
+  if (a === "4:3")   return 4 / 3;
+  if (a === "1:1")   return 1;
+  if (a === "3:4")   return 3 / 4;
+  if (a === "9:16")  return 9 / 16;
+  return null;
+}
+
 function ChartPaneInner({
   backdrop, backdropMode, renderChart, setSelected, selected,
-  chartZoom, defaultW, defaultH,
+  chartZoom, chartAspect, defaultW, defaultH,
 }: {
   backdrop: BackdropKey;
   backdropMode: BackdropMode;
@@ -7123,6 +7155,7 @@ function ChartPaneInner({
   setSelected: (s: SelectedElement | null) => void;
   selected: SelectedElement | null;
   chartZoom: "fit" | number;
+  chartAspect: ChartAspect;
   defaultW: number;
   defaultH: number;
 }) {
@@ -7133,23 +7166,39 @@ function ChartPaneInner({
     if (!el || typeof ResizeObserver === "undefined") return;
     const update = () => {
       const rect = el.getBoundingClientRect();
-      const padX = 60;  // horizontal card padding (26 each side + a touch)
+      // Account for backdrop card padding so the chart frame sits inside.
+      const padX = 60;
       const padY = 60;
-      const w = Math.max(420, rect.width - padX);
-      // Cap height so we never produce squashed-wide charts. 16:9 default,
-      // but bounded by the actual available pane height.
-      const h = Math.max(280, Math.min(rect.height - padY, w * 0.62));
+      const availW = Math.max(320, rect.width - padX);
+      const availH = Math.max(220, rect.height - padY);
+      const ratio = aspectRatio(chartAspect);
+      let w = availW;
+      let h = availH;
+      if (ratio !== null) {
+        // Lock to ratio. Fit the largest WxH that maintains it within available.
+        if (availW / availH > ratio) {
+          // Pane wider than locked ratio → height-constrained
+          h = availH;
+          w = Math.round(h * ratio);
+        } else {
+          w = availW;
+          h = Math.round(w / ratio);
+        }
+      }
       setSize({ w: Math.round(w), h: Math.round(h) });
     };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [chartAspect]);
   void defaultW; void defaultH;
   const W = size.w;
   const H = size.h;
   const scale = chartZoom === "fit" ? 1 : chartZoom / 100;
+  // When aspect ratio is locked, the chart is centered horizontally and vertically
+  // inside the backdrop card; "fit" lets it fill 100% × 100%.
+  const isLocked = chartAspect !== "fit";
   return (
     <div ref={containerRef} style={{
       position: "relative",
@@ -7160,17 +7209,20 @@ function ChartPaneInner({
       padding: "26px 30px",
       overflow: chartZoom === "fit" ? "hidden" : "auto",
       boxShadow: "0 1px 0 rgba(255,255,255,0.06) inset, 0 32px 64px rgba(0,0,0,0.45)",
+      display: "flex", alignItems: "center", justifyContent: "center",
     }}>
       <div style={{
-        width: chartZoom === "fit" ? "100%" : W * scale,
-        height: chartZoom === "fit" ? "100%" : H * scale,
-        transformOrigin: "top left",
+        width: isLocked ? W * scale : (chartZoom === "fit" ? "100%" : W * scale),
+        height: isLocked ? H * scale : (chartZoom === "fit" ? "100%" : H * scale),
+        transformOrigin: "center center",
+        flex: isLocked ? "0 0 auto" : undefined,
       }}>
         <svg
           viewBox={`0 0 ${W} ${H}`}
+          preserveAspectRatio="xMidYMid meet"
           style={{
-            width: chartZoom === "fit" ? "100%" : W * scale,
-            height: chartZoom === "fit" ? "auto" : H * scale,
+            width: "100%",
+            height: "100%",
             display: "block",
             fontFamily: ft,
             touchAction: "none",
@@ -7180,6 +7232,32 @@ function ChartPaneInner({
           {renderChart()}
         </svg>
       </div>
+    </div>
+  );
+}
+
+// Aspect-ratio picker pill — sits next to the zoom widget in Launch.
+function AspectPicker({ aspect, onChange }: { aspect: ChartAspect; onChange: (a: ChartAspect) => void }) {
+  const opts: ChartAspect[] = ["fit", "16:9", "4:3", "1:1", "3:4", "9:16"];
+  return (
+    <div style={{ display: "inline-flex", padding: 3, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 9, gap: 2 }}>
+      {opts.map(a => {
+        const on = aspect === a;
+        return (
+          <button
+            key={a}
+            onClick={() => onChange(a)}
+            title={a === "fit" ? "Fit to pane" : `Lock to ${a}`}
+            style={{
+              padding: "6px 9px", borderRadius: 6, border: "none",
+              background: on ? C.amber + "22" : "transparent",
+              color: on ? C.amber : C.txm,
+              fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
+              cursor: "pointer", textTransform: "uppercase",
+            }}
+          >{a === "fit" ? "FIT" : a}</button>
+        );
+      })}
     </div>
   );
 }
@@ -7338,13 +7416,35 @@ function FloatingTableWindow({
       >
         <Table size={13} strokeWidth={2.4} color={C.amber} />
         <span style={{ fontFamily: mn, fontSize: 10, color: C.amber, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 800 }}>Data sheet · floating</span>
-        <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6 }}>· drag to move · resize from corner</span>
+        <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6 }}>· drag header · resize corner</span>
         <span style={{ flex: 1 }} />
+        {/* Prominent DOCK button — the X alone was too easy to miss */}
         <button
           onClick={onClose}
           title="Dock back into the split layout"
+          onPointerDown={e => e.stopPropagation()}
           style={{
-            width: 22, height: 22, borderRadius: 5,
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "5px 10px", borderRadius: 6,
+            background: C.amber + "26",
+            border: "1px solid " + C.amber + "66",
+            color: C.amber,
+            fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
+            cursor: "pointer", textTransform: "uppercase",
+            transition: "all 0.16s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = C.amber + "40"; e.currentTarget.style.boxShadow = "0 4px 14px " + C.amber + "55"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = C.amber + "26"; e.currentTarget.style.boxShadow = "none"; }}
+        >
+          <ChevronDown size={11} strokeWidth={2.6} style={{ transform: "rotate(45deg)" }} />
+          Dock
+        </button>
+        <button
+          onClick={onClose}
+          title="Close · same as Dock"
+          onPointerDown={e => e.stopPropagation()}
+          style={{
+            width: 24, height: 24, borderRadius: 5,
             background: "rgba(255,255,255,0.04)",
             border: "1px solid rgba(255,255,255,0.10)",
             color: C.txm,
@@ -11003,6 +11103,7 @@ function ExpandedShell({
   transitionFrom,
   topBarExtras, topBarRightExtras,
   chartZoom, onChangeChartZoom,
+  chartAspect, onChangeChartAspect,
   tableMode, onChangeTableMode,
   floatingTablePos, onChangeFloatingTablePos,
   floatToolbar, showToolbarBtn,
@@ -11033,6 +11134,8 @@ function ExpandedShell({
   // owns state so it survives Launch open/close.
   chartZoom: "fit" | number;
   onChangeChartZoom: (z: "fit" | number) => void;
+  chartAspect: ChartAspect;
+  onChangeChartAspect: (a: ChartAspect) => void;
   tableMode: "docked" | "floating" | "window";
   onChangeTableMode: (m: "docked" | "floating" | "window") => void;
   floatingTablePos: { x: number; y: number; w: number; h: number };
@@ -11248,6 +11351,7 @@ function ExpandedShell({
               title={paneMode === "split" ? "Toggle vertical / horizontal split" : "Open split view"}
             />
             <ZoomWidget zoom={chartZoom} onChange={onChangeChartZoom} />
+            <AspectPicker aspect={chartAspect} onChange={onChangeChartAspect} />
           </div>
         </ToolGroup>
 
