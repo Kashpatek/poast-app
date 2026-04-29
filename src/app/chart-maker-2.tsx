@@ -4674,44 +4674,48 @@ function PropertiesPanel({
             <div>
               <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8, fontWeight: 800 }}>Display</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <DesignToggle on={showGridlines} label="Gridlines" sub="Y axis guide lines" onChange={onToggleGridlines} />
-                <DesignToggle on={showBorders} label="Borders" sub="Bar/segment outlines" onChange={onToggleBorders} />
-                <DesignToggle on={logScale} label="Log Scale" sub="Logarithmic Y axis" onChange={onToggleLogScale} />
-                <DesignToggle on={roundedCorners} label="Rounded" sub="Rounded bar corners" onChange={onToggleRoundedCorners} />
-                <DesignToggle on={showEndLabels} label="End Labels" sub="Series labels at last point" onChange={onToggleEndLabels} />
+                {toggleApplies("gridlines", chartType) && <DesignToggle on={showGridlines} label="Gridlines" sub="Y axis guide lines" onChange={onToggleGridlines} />}
+                {toggleApplies("borders", chartType) && <DesignToggle on={showBorders} label="Borders" sub="Bar/segment outlines" onChange={onToggleBorders} />}
+                {toggleApplies("logScale", chartType) && <DesignToggle on={logScale} label="Log Scale" sub="Logarithmic Y axis" onChange={onToggleLogScale} />}
+                {toggleApplies("rounded", chartType) && <DesignToggle on={roundedCorners} label="Rounded" sub="Rounded bar corners" onChange={onToggleRoundedCorners} />}
+                {toggleApplies("endLabels", chartType) && <DesignToggle on={showEndLabels} label="End Labels" sub="Series labels at last point" onChange={onToggleEndLabels} />}
               </div>
             </div>
             {/* Wave 13 · global bar-width slider */}
-            <div>
-              <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8, fontWeight: 800 }}>BAR WIDTH</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <input
-                  type="range"
-                  min={20}
-                  max={95}
-                  value={barWidthPct}
-                  onChange={e => onChangeBarWidthPct(Number(e.target.value))}
-                  style={{ flex: 1, accentColor: C.amber }}
-                />
-                <span style={{ fontFamily: mn, fontSize: 11, fontWeight: 800, color: C.amber, minWidth: 36, textAlign: "right" }}>{barWidthPct}%</span>
+            {toggleApplies("barWidth", chartType) && (
+              <div>
+                <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8, fontWeight: 800 }}>BAR WIDTH</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <input
+                    type="range"
+                    min={20}
+                    max={95}
+                    value={barWidthPct}
+                    onChange={e => onChangeBarWidthPct(Number(e.target.value))}
+                    style={{ flex: 1, accentColor: C.amber }}
+                  />
+                  <span style={{ fontFamily: mn, fontSize: 11, fontWeight: 800, color: C.amber, minWidth: 36, textAlign: "right" }}>{barWidthPct}%</span>
+                </div>
+                <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6, letterSpacing: 0.4 }}>Affects bar / column / mekko charts.</div>
               </div>
-              <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6, letterSpacing: 0.4 }}>Affects all bar / column / mekko charts.</div>
-            </div>
+            )}
             {/* Wave 13 · axes range section */}
             <div>
               <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8, fontWeight: 800 }}>Axes</div>
               <AxisRangeBlock axis={axis} onChange={onChangeAxis} xApplies={["line", "stackedArea", "scatter", "bubble"].includes(chartType)} chartType={chartType} />
             </div>
-            <div>
-              <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8, fontWeight: 800 }}>Markers</div>
-              <div style={{ display: "flex", gap: 4 }}>
-                {(["none", "circle", "square", "diamond"] as const).map(s => {
-                  const on = markerShape === s;
-                  const lbl = s === "none" ? "—" : s === "circle" ? "●" : s === "square" ? "■" : "◆";
-                  return <button key={s} onClick={() => onChangeMarkerShape(s)} style={{ flex: 1, padding: "7px 4px", borderRadius: 5, background: on ? C.amber + "20" : "rgba(255,255,255,0.025)", border: "1px solid " + (on ? C.amber + "55" : "rgba(255,255,255,0.08)"), color: on ? C.amber : C.tx, fontFamily: mn, fontSize: 11, fontWeight: 800, cursor: "pointer", textAlign: "center" }}>{lbl}</button>;
-                })}
+            {toggleApplies("markers", chartType) && (
+              <div>
+                <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8, fontWeight: 800 }}>Markers</div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {(["none", "circle", "square", "diamond"] as const).map(s => {
+                    const on = markerShape === s;
+                    const lbl = s === "none" ? "—" : s === "circle" ? "●" : s === "square" ? "■" : "◆";
+                    return <button key={s} onClick={() => onChangeMarkerShape(s)} style={{ flex: 1, padding: "7px 4px", borderRadius: 5, background: on ? C.amber + "20" : "rgba(255,255,255,0.025)", border: "1px solid " + (on ? C.amber + "55" : "rgba(255,255,255,0.08)"), color: on ? C.amber : C.tx, fontFamily: mn, fontSize: 11, fontWeight: 800, cursor: "pointer", textAlign: "center" }}>{lbl}</button>;
+                  })}
+                </div>
               </div>
-            </div>
+            )}
             <div>
               <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8, fontWeight: 800 }}>Watermark</div>
               <div style={{ display: "flex", gap: 3, padding: 3, background: "rgba(255,255,255,0.025)", borderRadius: 7 }}>
@@ -7115,6 +7119,31 @@ function ExportDropdownIcon({ onPNG, onJPG, onSVG, onPPTX, onCopyPNG }: {
 // that fills the available space. Applies the user's `chartZoom` either by
 // "fit" (default, scales SVG to 100% width) or by an absolute scale factor
 // (50/75/100/125/150/200/300%). When zoom > 100% the container scrolls.
+// Wave 15.3 · Chart-type ↔ display-toggle relevance map. The Display section
+// in both PropertiesPanel and DesignDrawer used to render every toggle for
+// every chart type — showing "Segment labels" on a pie chart was confusing.
+// Each toggle now declares the set of chart types it applies to; renderers
+// gate visibility against this map.
+const TOGGLE_APPLIES: Record<string, ChartType[]> = {
+  gridlines:    ["stacked","clustered","pct","line","stackedArea","pctArea","scatter","bubble","combo","variance","wfup","wfdn","mekkoPct","mekkoUnit"],
+  borders:      ["stacked","clustered","pct","mekkoPct","mekkoUnit","wfup","wfdn","variance","combo","pie","doughnut"],
+  segmentLabels:["stacked","pct","mekkoPct","mekkoUnit"],
+  totalLabels:  ["stacked","clustered","mekkoPct","mekkoUnit"],
+  logScale:     ["stacked","clustered","line","stackedArea","scatter","bubble","combo","variance","wfup","wfdn"],
+  rounded:      ["stacked","clustered","pct","wfup","wfdn","variance","mekkoPct","mekkoUnit","combo"],
+  endLabels:    ["line","stackedArea","pctArea"],
+  markers:      ["line","stackedArea","pctArea","scatter","bubble","combo"],
+  hundredIndicator: ["pct","pctArea","mekkoPct"],
+  axisBreak:    ["stacked","clustered","line","stackedArea","scatter","bubble","combo","variance","wfup","wfdn"],
+  tickMarks:    ["stacked","clustered","pct","line","stackedArea","pctArea","scatter","bubble","combo","variance","wfup","wfdn","mekkoPct","mekkoUnit"],
+  barWidth:     ["stacked","clustered","pct","wfup","wfdn","variance","mekkoPct","mekkoUnit","combo"],
+  watermark:    ["stacked","clustered","pct","line","stackedArea","pctArea","scatter","bubble","combo","variance","wfup","wfdn","mekkoPct","mekkoUnit","pie","doughnut","gantt"],
+  pieOther:     ["pie","doughnut"],
+};
+function toggleApplies(id: string, t: ChartType): boolean {
+  return TOGGLE_APPLIES[id]?.includes(t) ?? true;
+}
+
 // Aspect-ratio choices a user can lock the chart frame to. "fit" tracks the
 // pane shape exactly; the others lock to the named ratio and center inside.
 type ChartAspect = "fit" | "16:9" | "4:3" | "1:1" | "3:4" | "9:16";
@@ -9204,12 +9233,12 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
           {/* TOGGLES */}
           <Section title="Display">
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <DesignToggle on={showBorders} label="Bar borders" sub="Outline between stacked segments" onChange={onToggleBorders} />
-              <DesignToggle on={showGridlines} label="Gridlines" sub="Horizontal Y axis guides" onChange={onToggleGridlines} />
-              <DesignToggle on={showSegmentLabels} label="Segment labels" sub="Value inside each stacked bar segment" onChange={onToggleSegmentLabels} />
-              <DesignToggle on={logScale} label="Log Scale" sub="Logarithmic Y axis (powers of 10)" onChange={onToggleLogScale} />
-              <DesignToggle on={roundedCorners} label="Rounded Corners" sub="Rounded top corners on bars" onChange={onToggleRoundedCorners} />
-              <DesignToggle on={showEndLabels} label="End Labels" sub="Series label at end of last line point" onChange={onToggleEndLabels} />
+              {toggleApplies("borders", chartType) && <DesignToggle on={showBorders} label="Bar borders" sub="Outline between stacked segments" onChange={onToggleBorders} />}
+              {toggleApplies("gridlines", chartType) && <DesignToggle on={showGridlines} label="Gridlines" sub="Horizontal Y axis guides" onChange={onToggleGridlines} />}
+              {toggleApplies("segmentLabels", chartType) && <DesignToggle on={showSegmentLabels} label="Segment labels" sub="Value inside each stacked bar segment" onChange={onToggleSegmentLabels} />}
+              {toggleApplies("logScale", chartType) && <DesignToggle on={logScale} label="Log Scale" sub="Logarithmic Y axis (powers of 10)" onChange={onToggleLogScale} />}
+              {toggleApplies("rounded", chartType) && <DesignToggle on={roundedCorners} label="Rounded Corners" sub="Rounded top corners on bars" onChange={onToggleRoundedCorners} />}
+              {toggleApplies("endLabels", chartType) && <DesignToggle on={showEndLabels} label="End Labels" sub="Series label at end of last line point" onChange={onToggleEndLabels} />}
               {onToggleVignette && (
                 <DesignToggle on={vignette} label="Vignette" sub="Soft inner shadow on canvas (focus center)" onChange={onToggleVignette} />
               )}
