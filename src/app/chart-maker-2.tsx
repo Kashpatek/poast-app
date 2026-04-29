@@ -15,6 +15,7 @@ import {
   Palette, Lock, Unlock, Table, ChevronLeft, ChevronRight,
   Maximize2, Minimize2, Settings, Image as ImageIcon, Columns2, Rows2,
   CornerUpLeft, Repeat, ArrowDownUp, MoveHorizontal, Upload, FileSpreadsheet,
+  Volume2, VolumeX, Sun, Moon, HelpCircle, Pipette, Check,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -880,10 +881,15 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode, select
           <tbody>
             {sheet.rows.map((row, r) => {
               const isRowSel = sel.has(r);
-              const rowBgBase = r % 2 === 0 ? "transparent" : "rgba(255,255,255,0.012)";
+              const rowBgBase = r % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)";
               const rowBg = isRowSel ? "rgba(247,176,65,0.10)" : rowBgBase;
               return (
-              <tr key={r} style={{ background: rowBg }}>
+              <tr
+                key={r}
+                style={{ background: rowBg, transition: "background 0.16s cubic-bezier(.2,.7,.2,1)" }}
+                onMouseEnter={e => { if (!isRowSel) (e.currentTarget as HTMLElement).style.background = "rgba(247,176,65,0.06)"; }}
+                onMouseLeave={e => { if (!isRowSel) (e.currentTarget as HTMLElement).style.background = rowBgBase; }}
+              >
                 <td
                   onClick={(e) => onRowNumberClick(e, r)}
                   title="Click to toggle row selection · Shift-click for range · Ctrl/Cmd-click for additive"
@@ -1661,7 +1667,7 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
         })();
         let cum = 0;
         return (
-          <g key={i}>
+          <g key={i} style={{ animation: `cm2BarRise 0.6s cubic-bezier(.2,.7,.2,1) both`, animationDelay: `${i * 30}ms`, transformOrigin: `${leftPad + i * groupW + groupW / 2}px ${H - bottomPad}px`, transformBox: "fill-box" as React.CSSProperties["transformBox"] }}>
             {series.map((s, si) => {
               const v = s.values[i];
               const cumBelow = cum;
@@ -1906,7 +1912,7 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
         </g>
       ))}
       {categories.map((cat, i) => (
-        <g key={i}>
+        <g key={i} style={{ animation: `cm2BarRise 0.6s cubic-bezier(.2,.7,.2,1) both`, animationDelay: `${i * 30}ms`, transformOrigin: `${leftPad + i * groupW + groupW / 2}px ${H - bottomPad}px`, transformBox: "fill-box" as React.CSSProperties["transformBox"] }}>
           {series.map((s, si) => {
             const v = s.values[i];
             const x = leftPad + i * groupW + innerPad + si * barW;
@@ -2053,7 +2059,7 @@ function PercentColumn({ sheet, cfg, W, H }: CatProps) {
         const total = series.reduce((a, s) => a + s.values[i], 0) || 1;
         let cum = 0;
         return (
-          <g key={i}>
+          <g key={i} style={{ animation: `cm2BarRise 0.6s cubic-bezier(.2,.7,.2,1) both`, animationDelay: `${i * 30}ms`, transformOrigin: `${leftPad + i * groupW + groupW / 2}px ${H - bottomPad}px`, transformBox: "fill-box" as React.CSSProperties["transformBox"] }}>
             {series.map((s, si) => {
               const pct = (s.values[i] / total) * 100;
               const y0 = yOf(cum);
@@ -2202,7 +2208,7 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, pct100 =
           const lastIdx = s.cumValues.length - 1;
           const lastVal = s.cumValues[lastIdx];
           return (
-            <g key={si}>
+            <g key={si} style={{ animation: `cm2BarRise 0.6s cubic-bezier(.2,.7,.2,1) both`, animationDelay: `${si * 60}ms` }}>
               <path d={path} fill="none" stroke={lineColor} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
               {s.cumValues.map((v, i) => {
                 const ptSel = selected?.kind === "point" && selected.rowIdx === i && selected.key === key;
@@ -2470,7 +2476,7 @@ function Waterfall({ sheet, cfg, W, H }: CatProps) {
         const y = yOf(seg.y1);
         const h = Math.max(0, yOf(seg.y0) - yOf(seg.y1));
         return (
-          <g key={i}>
+          <g key={i} style={{ animation: `cm2BarRise 0.6s cubic-bezier(.2,.7,.2,1) both`, animationDelay: `${i * 30}ms`, transformOrigin: `${x + barW / 2}px ${H - bottomPad}px`, transformBox: "fill-box" as React.CSSProperties["transformBox"] }}>
             <rect x={x} y={y} width={barW} height={h} fill={seg.color} fillOpacity={seg.isTotal ? 0.92 : 0.85} stroke={cfg.showBorders ? cc.barBorder : "none"} strokeWidth={cfg.showBorders ? 1 : 0} />
             {/* Connector line to next */}
             {i < segments.length - 1 && !segments[i + 1].isTotal && (
@@ -2734,7 +2740,7 @@ function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow, o
         const up = delta >= 0;
         const arrowColor = up ? upColor : dnColor;
         return (
-          <g key={i}>
+          <g key={i} style={{ animation: `cm2BarRise 0.6s cubic-bezier(.2,.7,.2,1) both`, animationDelay: `${i * 30}ms`, transformOrigin: `${cx + barW / 2}px ${H - bottomPad}px`, transformBox: "fill-box" as React.CSSProperties["transformBox"] }}>
             {/* AC bar (filled) */}
             <rect
               x={cx} y={yAc} width={barW} height={chartH - yAc}
@@ -3319,7 +3325,7 @@ function ComboChart({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig; 
       ))}
       {/* Bars */}
       {categories.map((cat, i) => (
-        <g key={i}>
+        <g key={i} style={{ animation: `cm2BarRise 0.6s cubic-bezier(.2,.7,.2,1) both`, animationDelay: `${i * 30}ms`, transformOrigin: `${leftPad + i * groupW + groupW / 2}px ${H - bottomPad}px`, transformBox: "fill-box" as React.CSSProperties["transformBox"] }}>
           {barSeries.map((s, si) => {
             const color = colorOf(barSeriesKeys[si], si);
             const v = s.values[i] ?? 0;
@@ -4075,32 +4081,51 @@ function RadialContextWheel({ x, y, icons, label, onClose }: {
         const accent = ic.danger ? "#E06347" : C.amber;
         const isHov = hov === i;
         return (
-          <button
+          <span
             key={i}
-            onMouseEnter={() => setHov(i)}
-            onMouseLeave={() => setHov(h => h === i ? null : h)}
-            onClick={() => { ic.onClick(); onClose(); }}
-            title={ic.title}
             style={{
               position: "absolute",
               left: D / 2 + p.dx - 19,
               top: D / 2 + p.dy - 19,
-              width: 38, height: 38, borderRadius: "50%",
-              background: ic.active ? accent + "30" : (isHov ? "rgba(13,13,18,0.96)" : "rgba(13,13,18,0.85)"),
-              backdropFilter: "blur(10px) saturate(140%)",
-              WebkitBackdropFilter: "blur(10px) saturate(140%)",
-              border: "1px solid " + (ic.active ? accent + "88" : (isHov ? accent : "rgba(255,255,255,0.14)")),
-              color: isHov || ic.active ? accent : "#E8E4DD",
-              cursor: "pointer",
+              width: 38, height: 38,
+              animation: `cm2WedgePop 0.32s cubic-bezier(.2,.7,.2,1) both`,
+              animationDelay: `${i * 28}ms`,
+              transformOrigin: "center",
               pointerEvents: "auto",
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-              transform: isHov ? "scale(1.18)" : "scale(1)",
-              boxShadow: isHov ? "0 10px 26px " + accent + "55, 0 0 16px " + accent + "44" : "0 6px 14px rgba(0,0,0,0.35)",
-              transition: "all 0.14s cubic-bezier(.2,.7,.2,1)",
             }}
           >
-            <ic.Icon size={16} strokeWidth={2.4} />
-          </button>
+            {/* Soft amber glow ring · only on hover */}
+            {isHov && (
+              <span aria-hidden style={{
+                position: "absolute", inset: -8,
+                borderRadius: "50%",
+                background: `radial-gradient(circle, ${accent}55 0%, transparent 70%)`,
+                pointerEvents: "none",
+              }} />
+            )}
+            <button
+              onMouseEnter={() => setHov(i)}
+              onMouseLeave={() => setHov(h => h === i ? null : h)}
+              onClick={() => { ic.onClick(); onClose(); }}
+              title={ic.title}
+              style={{
+                position: "relative",
+                width: 38, height: 38, borderRadius: "50%",
+                background: ic.active ? accent + "30" : (isHov ? "rgba(13,13,18,0.96)" : "rgba(13,13,18,0.85)"),
+                backdropFilter: "blur(10px) saturate(140%)",
+                WebkitBackdropFilter: "blur(10px) saturate(140%)",
+                border: "1px solid " + (ic.active ? accent + "88" : (isHov ? accent : "rgba(255,255,255,0.14)")),
+                color: isHov || ic.active ? accent : "#E8E4DD",
+                cursor: "pointer",
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                transform: isHov ? "scale(1.22)" : "scale(1)",
+                boxShadow: isHov ? "0 12px 28px " + accent + "66, 0 0 22px " + accent + "55" : "0 6px 14px rgba(0,0,0,0.35)",
+                transition: "all 0.16s cubic-bezier(.2,.7,.2,1)",
+              }}
+            >
+              <ic.Icon size={16} strokeWidth={2.4} />
+            </button>
+          </span>
         );
       })}
     </div>
@@ -4500,14 +4525,29 @@ function StatusBar({ chartType, sheet, numFmt, themeName, advanced }: { chartTyp
       WebkitBackdropFilter: "blur(10px) saturate(140%)",
       boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset",
     }}>
-      <span style={{ color: C.amber, fontWeight: 800, textTransform: "uppercase" }}>{typeLabel}</span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: C.amber, fontWeight: 800, textTransform: "uppercase" }}>
+        <Hash size={11} strokeWidth={2.4} color={C.amber} />
+        {typeLabel}
+      </span>
       <span style={{ opacity: 0.4 }}>·</span>
-      <span>{sheet.rows.length} ROWS × {sheet.schema.length} COLS</span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <Grid3x3 size={11} strokeWidth={2.2} color={C.txm} />
+        {sheet.rows.length} ROWS × {sheet.schema.length} COLS
+      </span>
       <span style={{ opacity: 0.4 }}>·</span>
-      <span>Σ {fmtVal(sum, numFmt)}</span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <Sigma size={11} strokeWidth={2.4} color={C.amber} />
+        {fmtVal(sum, numFmt)}
+      </span>
       <span style={{ opacity: 0.4 }}>·</span>
-      <span>FORMAT: {numFmt.toUpperCase()}</span>
-      <span style={{ marginLeft: "auto" }}>{advanced ? "ADVANCED" : "SIMPLE"} MODE · THEME: {themeName.toUpperCase()}</span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <Type size={11} strokeWidth={2.2} color={C.txm} />
+        FORMAT: {numFmt.toUpperCase()}
+      </span>
+      <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <Palette size={11} strokeWidth={2.2} color={C.amber} />
+        {advanced ? "ADVANCED" : "SIMPLE"} MODE · THEME: {themeName.toUpperCase()}
+      </span>
     </div>
   );
 }
@@ -4894,6 +4934,18 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const [paneMode, setPaneMode] = useState<"chart" | "table" | "split">("split");
   const [splitOrientation, setSplitOrientation] = useState<"vertical" | "horizontal">("vertical");
   const [splitterPos, setSplitterPos] = useState(0.55); // 0..1 ratio of first pane
+  // Wave 14 · cinematic transition · captured anchor coords for expand morph
+  const [expandTransitionFrom, setExpandTransitionFrom] = useState<{ x: number; y: number } | null>(null);
+  const expandAnchorRef = useRef<HTMLSpanElement | null>(null);
+  const templatesAnchorRef = useRef<HTMLSpanElement | null>(null);
+  // Wave 14 · onboarding tour state
+  const [tourOpen, setTourOpen] = useState(false);
+  // Wave 14 · app-wide theme switcher
+  const [appTheme, setAppTheme] = useAppTheme();
+  // Wave 14 · vignette toggle (default on)
+  const [vignette, setVignette] = useState(true);
+  // Wave 14 · branded export footer toggle (default off)
+  const [exportBranding, setExportBranding] = useState(false);
   // Wave 12 · radial wheel customization (which icons appear per kind).
   // Loaded from localStorage so user prefs persist across sessions.
   const [wheelConfig, setWheelConfig] = useState<Record<string, string[] | "all">>({});
@@ -4969,9 +5021,21 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
+      const target = e.target as HTMLElement;
+      const inInput = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
       const k = e.key.toLowerCase();
       if (k === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
       else if ((k === "z" && e.shiftKey) || k === "y") { e.preventDefault(); redo(); }
+      else if (!inInput && k === "d" && !e.shiftKey) { e.preventDefault(); setDesignOpen(v => !v); }
+      else if (!inInput && k === "l" && !e.shiftKey) { e.preventDefault(); setLocked(v => !v); }
+      else if (!inInput && k === "e" && e.shiftKey) {
+        e.preventDefault();
+        if (expandAnchorRef.current) {
+          const r = expandAnchorRef.current.getBoundingClientRect();
+          setExpandTransitionFrom({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+        }
+        setExpandedMode(v => !v);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -5103,6 +5167,16 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       }
       ctx.scale(2, 2);
       ctx.drawImage(img, 0, 0, w, h);
+      // Wave 14 · branded export footer (toggle in Design panel)
+      if (exportBranding) {
+        ctx.save();
+        ctx.fillStyle = "rgba(168,164,160,0.55)";
+        ctx.font = "bold 8px 'JetBrains Mono', monospace";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "bottom";
+        ctx.fillText("Built with POAST Chart Maker · poast.app/charts", w - 8, h - 8);
+        ctx.restore();
+      }
       URL.revokeObjectURL(url);
       cv.toBlob(b => {
         if (!b) return;
@@ -5128,6 +5202,19 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     if (!svg.getAttribute("viewBox")) svg.setAttribute("viewBox", "0 0 " + W + " " + H);
     svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
     svg.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+    // Wave 14 · branded export footer
+    if (exportBranding) {
+      const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      t.setAttribute("x", String(W - 8));
+      t.setAttribute("y", String(H - 8));
+      t.setAttribute("text-anchor", "end");
+      t.setAttribute("font-family", "'JetBrains Mono', monospace");
+      t.setAttribute("font-size", "8");
+      t.setAttribute("font-weight", "700");
+      t.setAttribute("fill", "rgba(168,164,160,0.55)");
+      t.textContent = "Built with POAST Chart Maker · poast.app/charts";
+      svg.appendChild(t);
+    }
     const xml = new XMLSerializer().serializeToString(svg);
     const blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n', xml], { type: "image/svg+xml;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -5137,6 +5224,9 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
+
+  // ⌘⇧C copy-as-PNG keyboard shortcut · effect after copyPNG is declared
+  // (added below). Stub here for forward declaration via useCallback below.
 
   // Copy chart as PNG to clipboard
   const copyPNG = useCallback(async () => {
@@ -5164,6 +5254,21 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     };
     img.src = url;
   }, []);
+
+  // Wave 14 · ⌘⇧C copy-PNG keyboard binding (separate effect since copyPNG must be in scope)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (!e.shiftKey) return;
+      const target = e.target as HTMLElement;
+      const inInput = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      if (inInput) return;
+      const k = e.key.toLowerCase();
+      if (k === "c") { e.preventDefault(); copyPNG(); playExportChime(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [copyPNG]);
 
   // Update a single sheet row directly (used by drag interactions).
   // The renderer hands us back the row index plus a partial patch; we
@@ -5227,7 +5332,10 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         // Wave 12 · Esc also exits expanded mode if no other overlay caught it
         setExpandedMode(false);
       }
-      if (e.key === "w" || e.key === "W") { e.preventDefault(); setWheelOpen(v => !v); }
+      if (e.key === "w" || e.key === "W") {
+        e.preventDefault();
+        setWheelOpen(v => { if (!v) playWheelOpen(); else playWheelClose(); return !v; });
+      }
       // Wave 11 · M opens the radial wheel for the current selection
       if (e.key === "m" || e.key === "M") {
         if (selected) {
@@ -5303,8 +5411,12 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     }
   };
 
-  const cardBg = "#0D0D12";
-  const borderC = "rgba(255,255,255,0.06)";
+  // Wave 14 · honor the app theme tokens for chrome surfaces (toolbar / inputs / panels).
+  // Charts keep their own backdrop logic — we only adjust the surrounding chrome.
+  const tokens = APP_TOKENS[appTheme];
+  const cardBg = appTheme === "dark" ? "#0D0D12" : "#FFFFFF";
+  const borderC = tokens.border;
+  void tokens; // tokens reserved for future theme-aware refactors
 
   return (
     <div style={{ padding: "32px 0 0", maxWidth: 1400, margin: "0 auto", position: "relative" }}>
@@ -5315,6 +5427,29 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         @keyframes cmGlowDrift3 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(22px,28px) } }
         @keyframes cmGlowDrift4 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(-18px,-22px) } }
         @keyframes cm2ExpandPop { 0% { opacity: 0; transform: scale(0.985) } 100% { opacity: 1; transform: scale(1) } }
+        @keyframes cm2BarRise { from { opacity: 0; transform: translateY(20px) scaleY(0.85) } to { opacity: 1; transform: translateY(0) scaleY(1) } }
+        @keyframes cm2WedgePop { from { opacity: 0; transform: scale(0.4) } to { opacity: 1; transform: scale(1) } }
+        @keyframes cm2TipFade { from { opacity: 0; transform: translateY(-3px) scale(0.96) } to { opacity: 1; transform: translateY(0) scale(1) } }
+        @keyframes cm2TipFadeUp { from { opacity: 0; transform: translateY(3px) scale(0.96) } to { opacity: 1; transform: translateY(0) scale(1) } }
+        @keyframes cm2TipFadeLeft { from { opacity: 0; transform: translateX(3px) scale(0.96) } to { opacity: 1; transform: translateX(0) scale(1) } }
+        @keyframes cm2TipFadeRight { from { opacity: 0; transform: translateX(-3px) scale(0.96) } to { opacity: 1; transform: translateX(0) scale(1) } }
+        @keyframes cm2ParticleDrift1 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(40px,-30px) } }
+        @keyframes cm2ParticleDrift2 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(-30px,40px) } }
+        @keyframes cm2ParticleDrift3 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(20px,30px) } }
+        @keyframes cm2ParticleDrift4 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(-20px,-20px) } }
+        @keyframes cm2MiniBarRise { from { transform: scaleY(0.05); opacity: 0 } to { transform: scaleY(1); opacity: 1 } }
+        @keyframes cm2MiniLineDraw { from { stroke-dashoffset: 200 } to { stroke-dashoffset: 0 } }
+        @keyframes cm2WelcomeBars { 0%,100% { transform: scaleY(1) } 50% { transform: scaleY(0.7) } }
+        @keyframes cm2WelcomeRotate { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+        @keyframes cm2WelcomeMenuPulse { 0%,100% { opacity: 0.5 } 50% { opacity: 1 } }
+        @keyframes cm2WelcomeGridSweep { 0% { opacity: 0.2 } 50% { opacity: 1 } 100% { opacity: 0.2 } }
+        @keyframes cm2WelcomeSplit { 0%,100% { transform: translateX(0) } 50% { transform: translateX(2px) } }
+        @keyframes cm2WelcomeMorph { 0%,100% { transform: scale(1) } 50% { transform: scale(1.1) } }
+        @keyframes cm2OnboardSpot { from { opacity: 0; transform: scale(0.92) } to { opacity: 1; transform: scale(1) } }
+        @keyframes cm2OnboardPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(247,176,65,0.55) } 50% { box-shadow: 0 0 0 14px rgba(247,176,65,0.0) } }
+        @keyframes cm2TplRise { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: translateY(0) } }
+        @keyframes cm2ModalFromAnchor { from { opacity: 0; transform: scale(0.18) } to { opacity: 1; transform: scale(1) } }
+        @keyframes cm2FlipMorph { from { opacity: 0.6; transform: scale(0.5) } to { opacity: 1; transform: scale(1) } }
       `}</style>
       {/* Wave 12 · animated glow drift background — sits BEHIND content */}
       <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0, overflow: "hidden", borderRadius: 16 }}>
@@ -5331,6 +5466,9 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           background:"radial-gradient(circle, rgba(224,99,71,0.05) 0%, transparent 60%)",
           animation:"cmGlowDrift4 26s ease-in-out infinite" }} />
       </div>
+      {/* Wave 14 · ambient particles + grain noise overlay */}
+      <AmbientParticles />
+      <GrainOverlay />
       <div style={{ position: "relative", zIndex: 1 }}>
       <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap", paddingTop: standalone ? 16 : 0 }}>
         {!standalone && (
@@ -5369,8 +5507,13 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             <ArrowLeft size={13} strokeWidth={2.4} /> POAST
           </a>
         )}
-        <GlassButton onClick={() => setWheelOpen(true)} title="Open chart-type wheel · radial picker (W)" Icon={Sparkles} primary>TYPE WHEEL</GlassButton>
+        <span data-tour="type-wheel">
+          <Tooltip label="Open chart-type wheel · radial picker" shortcut="W" position="bottom">
+            <GlassButton onClick={() => setWheelOpen(true)} title="Open chart-type wheel · radial picker (W)" Icon={Sparkles} primary>TYPE WHEEL</GlassButton>
+          </Tooltip>
+        </span>
         <UndoRedoButtons onUndo={undo} onRedo={redo} canUndo={past.current.length > 0} canRedo={future.current.length > 0} />
+        <span data-tour="templates" ref={templatesAnchorRef}>
         <TemplatesButton onPick={tpl => {
           setType(tpl.type);
           const built = tpl.build();
@@ -5385,10 +5528,15 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           if (tpl.subtitle) setSubtitle(tpl.subtitle);
           if (tpl.theme) setTheme(tpl.theme);
         }} />
+        </span>
         <PasteDataButton onPaste={raw => { const ds = parsePasteForCategorical(raw); if (ds) setSheets(p => ({ ...p, [type]: ds })); else showToast("Couldn't parse the paste — expected TSV or CSV with headers"); }} />
         <ImportExcelButton onImport={ds => setSheets(p => ({ ...p, [type]: ds }))} />
         <NumberFormatPicker fmt={numFmt} onChange={setNumFmt} />
-        <GlassButton onClick={() => setDesignOpen(v => !v)} title="Design panel · click to toggle" Icon={Palette} primary={designOpen}>DESIGN</GlassButton>
+        <span data-tour="design">
+          <Tooltip label="Design panel · palette, backdrops, gridlines" shortcut="⌘D" position="bottom">
+            <GlassButton onClick={() => setDesignOpen(v => !v)} title="Design panel · click to toggle (⌘D)" Icon={Palette} primary={designOpen}>DESIGN</GlassButton>
+          </Tooltip>
+        </span>
         {/* SIMPLE | ADVANCED pill toggle */}
         <div style={{ display: "inline-flex", padding: 3, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 999 }}>
           {(["simple", "advanced"] as const).map(m => {
@@ -5402,20 +5550,56 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             );
           })}
         </div>
-        <LockToggle locked={locked} onChange={setLocked} />
+        <Tooltip label={locked ? "Unlock editing" : "Lock chart"} shortcut="⌘L" position="bottom">
+          <span style={{ display: "inline-flex" }}><LockToggle locked={locked} onChange={setLocked} /></span>
+        </Tooltip>
         {/* Wave 12 · expanded mode toggle (Maximize2) */}
-        <GlassButton
-          onClick={() => setExpandedMode(true)}
-          title="Open expanded webapp · chart + table + split + properties (Esc to exit)"
-          Icon={Maximize2}
-        >EXPAND</GlassButton>
+        <span data-tour="expand" ref={expandAnchorRef}>
+          <Tooltip label="Open expanded webapp · 3-pane layout" shortcut="⌘⇧E" position="bottom">
+            <GlassButton
+              onClick={() => {
+                if (expandAnchorRef.current) {
+                  const r = expandAnchorRef.current.getBoundingClientRect();
+                  setExpandTransitionFrom({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+                }
+                setExpandedMode(true);
+              }}
+              title="Open expanded webapp · chart + table + split + properties (⌘⇧E · Esc to exit)"
+              Icon={Maximize2}
+            >EXPAND</GlassButton>
+          </Tooltip>
+        </span>
         {/* Wave 12 · radial-wheel settings */}
-        <GlassButton
-          onClick={() => setWheelSettingsOpen(true)}
-          title="Customize the radial context wheel · pick which tools appear per element"
-          Icon={Settings}
-        >WHEEL</GlassButton>
-        <ExportSplitButton onPNG={exportPNG} onSVG={exportSVG} onCopy={copyPNG} />
+        <Tooltip label="Customize the radial context wheel" position="bottom">
+          <GlassButton
+            onClick={() => setWheelSettingsOpen(true)}
+            title="Customize the radial context wheel · pick which tools appear per element"
+            Icon={Settings}
+          >WHEEL</GlassButton>
+        </Tooltip>
+        <ExportSplitButton onPNG={() => { exportPNG(); playExportChime(); }} onSVG={() => { exportSVG(); playExportChime(); }} onCopy={() => { copyPNG(); playExportChime(); }} />
+        <SoundToggle />
+        <AppThemeToggle theme={appTheme} onChange={setAppTheme} />
+        {tourCompleted() ? null : (
+          <Tooltip label="Take the tour" position="bottom">
+            <button
+              onClick={() => setTourOpen(true)}
+              title="Take the interactive tour"
+              style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "9px 12px", borderRadius: 9,
+                background: "linear-gradient(135deg, #2EAD8E 0%, #2EAD8Ecc 100%)",
+                border: "1px solid #2EAD8E88", color: "#0A0A0E",
+                fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.5,
+                cursor: "pointer",
+                boxShadow: "0 4px 14px rgba(46,173,142,0.35), 0 1px 0 rgba(255,255,255,0.18) inset",
+              }}
+            >
+              <HelpCircle size={13} strokeWidth={2.4} />
+              TOUR
+            </button>
+          </Tooltip>
+        )}
       </div>
 
       {/* Annotations toolbar — context-wheel action chips */}
@@ -5509,7 +5693,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           {/* Chart preview · click any element to select it (radial-menu style).
               Backdrop layer + chart sit inside a glass frame; the backdrop
               becomes the SVG fill on export so the saved PNG matches. */}
-          <div style={{
+          <div data-tour="canvas" style={{
             position: "relative",
             background: backdropCss(backdropMode === "dark" ? BACKDROPS_DARK[backdrop] : BACKDROPS_LIGHT[backdrop]),
             border: "1px solid rgba(255,255,255,0.08)",
@@ -5517,7 +5701,9 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             padding: "22px 26px",
             marginBottom: 14,
             overflow: "auto",
-            boxShadow: "0 1px 0 rgba(255,255,255,0.06) inset, 0 32px 64px rgba(0,0,0,0.45)",
+            boxShadow: vignette
+              ? "0 1px 0 rgba(255,255,255,0.06) inset, 0 32px 64px rgba(0,0,0,0.45), inset 0 0 80px rgba(0,0,0,0.40)"
+              : "0 1px 0 rgba(255,255,255,0.06) inset, 0 32px 64px rgba(0,0,0,0.45)",
           }}>
             <svg
               key={type}
@@ -5585,7 +5771,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           </div>
 
           {/* Editable data sheet · with Table 1 / Table 2 tab bar for FLOPs-style dual-table charts */}
-          <div>
+          <div data-tour="datasheet">
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
               <span style={{ fontFamily: mn, fontSize: 10, color: C.amber, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 800 }}>Data sheet</span>
               <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6 }}>· edits sync to the chart in real time</span>
@@ -5717,23 +5903,43 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           onOpenShortcuts={() => { setWelcomeOpen(false); setShortcutsOpen(true); }}
         />
       )}
+      {tourOpen && <OnboardingTour onClose={() => setTourOpen(false)} />}
       {/* "Help" button bottom-right · re-open welcome screen anytime */}
-      <button
-        onClick={() => setWelcomeOpen(true)}
-        title="Open welcome / tips & tricks"
-        style={{
-          position: "fixed", bottom: 24, right: 78, zIndex: 500,
-          width: 42, height: 42, borderRadius: "50%",
-          background: "rgba(13,13,18,0.85)",
-          backdropFilter: "blur(14px) saturate(140%)",
-          WebkitBackdropFilter: "blur(14px) saturate(140%)",
-          border: "1px solid rgba(46,173,142,0.40)",
-          color: "#2EAD8E",
-          fontFamily: gf, fontSize: 18, fontWeight: 900,
-          cursor: "pointer",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.40), 0 0 20px rgba(46,173,142,0.30), 0 1px 0 rgba(255,255,255,0.06) inset",
-        }}
-      >?!</button>
+      <Tooltip label="Open welcome screen" position="left">
+        <button
+          onClick={() => setWelcomeOpen(true)}
+          title="Open welcome / tips & tricks"
+          style={{
+            position: "fixed", bottom: 24, right: 78, zIndex: 500,
+            width: 42, height: 42, borderRadius: "50%",
+            background: "rgba(13,13,18,0.85)",
+            backdropFilter: "blur(14px) saturate(140%)",
+            WebkitBackdropFilter: "blur(14px) saturate(140%)",
+            border: "1px solid rgba(46,173,142,0.40)",
+            color: "#2EAD8E",
+            fontFamily: gf, fontSize: 18, fontWeight: 900,
+            cursor: "pointer",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.40), 0 0 20px rgba(46,173,142,0.30), 0 1px 0 rgba(255,255,255,0.06) inset",
+          }}
+        >?!</button>
+      </Tooltip>
+      <Tooltip label="Take the interactive tour" position="left">
+        <button
+          onClick={() => setTourOpen(true)}
+          title="Take the interactive tour"
+          style={{
+            position: "fixed", bottom: 24, right: 132, zIndex: 500,
+            width: 42, height: 42, borderRadius: "50%",
+            background: "rgba(13,13,18,0.85)",
+            backdropFilter: "blur(14px) saturate(140%)",
+            WebkitBackdropFilter: "blur(14px) saturate(140%)",
+            border: "1px solid rgba(11,134,209,0.40)",
+            color: "#0B86D1",
+            cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.40), 0 0 20px rgba(11,134,209,0.30), 0 1px 0 rgba(255,255,255,0.06) inset",
+          }}
+        ><HelpCircle size={18} strokeWidth={2.4} /></button>
+      </Tooltip>
       {elementMenu && <ElementIconMenu state={elementMenu} onClose={() => setElementMenu(null)} palette={THEMES[theme].colors} />}
       {selection && <FloatingMiniToolbar selection={selection} onClose={() => setSelection(null)} onUpdateRow={onUpdateRow} onDeleteRow={onDeleteRow} themes={THEMES} currentTheme={theme} />}
       {/* Wave 11 · Radial context wheel — primary right-click target. */}
@@ -5934,9 +6140,12 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           markerShape={markerShape} onChangeMarkerShape={setMarkerShape}
           watermark={watermark} onChangeWatermark={setWatermark}
           barWidthPct={barWidthPct} onChangeBarWidthPct={setBarWidthPct}
+          vignette={vignette} onToggleVignette={() => setVignette(v => !v)}
+          exportBranding={exportBranding} onToggleExportBranding={() => setExportBranding(v => !v)}
         />
       )}
       {/* Floating help button · always-on glass pill, opens shortcuts overlay */}
+      <Tooltip label="Keyboard shortcuts" shortcut="?" position="left">
       <button
         onClick={() => setShortcutsOpen(true)}
         title="Keyboard shortcuts · press ?"
@@ -5959,6 +6168,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       >
         ?
       </button>
+      </Tooltip>
 
       {/* Wave 12 · Selection popup floats above the clicked element with
           inline color row, value input, and label toggles. Coexists with
@@ -5998,6 +6208,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           chart / table / split panes and animated glow background. */}
       {expandedMode && (
         <ExpandedShell
+          transitionFrom={expandTransitionFrom}
           onClose={() => setExpandedMode(false)}
           paneMode={paneMode}
           onChangePaneMode={setPaneMode}
@@ -7056,7 +7267,7 @@ function AxisRangePicker({ axis, onChange, type }: { axis: { yMin?: number; yMax
 }
 
 // ─── DESIGN drawer · slide-in pane consolidating styling controls ────────
-function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, onChangeBackdrop, onChangeMode, legendPos, onChangeLegendPos, showBorders, onToggleBorders, showGridlines, onToggleGridlines, showSegmentLabels, onToggleSegmentLabels, axis, onChangeAxis, chartType, yLabel, onChangeYLabel, xLabel, onChangeXLabel, logScale, onToggleLogScale, roundedCorners, onToggleRoundedCorners, showEndLabels, onToggleEndLabels, markerShape, onChangeMarkerShape, watermark, onChangeWatermark, barWidthPct, onChangeBarWidthPct }: {
+function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, onChangeBackdrop, onChangeMode, legendPos, onChangeLegendPos, showBorders, onToggleBorders, showGridlines, onToggleGridlines, showSegmentLabels, onToggleSegmentLabels, axis, onChangeAxis, chartType, yLabel, onChangeYLabel, xLabel, onChangeXLabel, logScale, onToggleLogScale, roundedCorners, onToggleRoundedCorners, showEndLabels, onToggleEndLabels, markerShape, onChangeMarkerShape, watermark, onChangeWatermark, barWidthPct, onChangeBarWidthPct, vignette = true, onToggleVignette, exportBranding = false, onToggleExportBranding }: {
   onClose: () => void;
   theme: ThemeId; onChangeTheme: (t: ThemeId) => void;
   backdrop: BackdropKey; backdropMode: BackdropMode;
@@ -7077,6 +7288,9 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
   watermark: "off" | "centered" | "random"; onChangeWatermark: (w: "off" | "centered" | "random") => void;
   // Wave 13 · global bar-width slider (0-100, default 65)
   barWidthPct: number; onChangeBarWidthPct: (v: number) => void;
+  // Wave 14 · vignette + branded export footer toggles
+  vignette?: boolean; onToggleVignette?: () => void;
+  exportBranding?: boolean; onToggleExportBranding?: () => void;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -7171,6 +7385,12 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
               <DesignToggle on={logScale} label="Log Scale" sub="Logarithmic Y axis (powers of 10)" onChange={onToggleLogScale} />
               <DesignToggle on={roundedCorners} label="Rounded Corners" sub="Rounded top corners on bars" onChange={onToggleRoundedCorners} />
               <DesignToggle on={showEndLabels} label="End Labels" sub="Series label at end of last line point" onChange={onToggleEndLabels} />
+              {onToggleVignette && (
+                <DesignToggle on={vignette} label="Vignette" sub="Soft inner shadow on canvas (focus center)" onChange={onToggleVignette} />
+              )}
+              {onToggleExportBranding && (
+                <DesignToggle on={exportBranding} label="Branded Export" sub="Add 'Built with POAST' to PNG/SVG exports" onChange={onToggleExportBranding} />
+              )}
             </div>
             <div style={{ marginTop: 12 }}>
               <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6, marginBottom: 6 }}>MARKER SHAPE (LINE)</div>
@@ -7371,25 +7591,50 @@ function TemplatesButton({ onPick }: { onPick: (tpl: TemplateSpec) => void }) {
 }
 function TemplateCard({ tpl, onPick }: { tpl: TemplateSpec; onPick: () => void }) {
   const [hov, setHov] = useState(false);
+  // Use the template theme palette if specified, otherwise SA Core
+  const previewPalette = THEMES[tpl.theme || "saCore"].colors;
   return (
     <button
       onClick={onPick}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8,
-        padding: "14px 16px",
+        display: "flex", flexDirection: "column", alignItems: "stretch", gap: 8,
+        padding: "12px 14px",
         background: hov ? C.amber + "12" : "rgba(255,255,255,0.025)",
         border: "1px solid " + (hov ? C.amber + "55" : "rgba(255,255,255,0.08)"),
         borderRadius: 10, cursor: "pointer",
-        transition: "all 0.18s cubic-bezier(.2,.7,.2,1)",
-        transform: hov ? "translateY(-2px)" : "translateY(0)",
-        boxShadow: hov ? "0 12px 28px " + C.amber + "20, 0 1px 0 rgba(255,255,255,0.06) inset" : "0 1px 0 rgba(255,255,255,0.04) inset",
+        transition: "all 0.22s cubic-bezier(.2,.7,.2,1)",
+        transform: hov ? "translateY(-3px)" : "translateY(0)",
+        boxShadow: hov ? "0 14px 32px " + C.amber + "25, 0 1px 0 rgba(255,255,255,0.06) inset" : "0 1px 0 rgba(255,255,255,0.04) inset",
         textAlign: "left", color: "#E8E4DD",
+        animation: "cm2TplRise 0.36s cubic-bezier(.2,.7,.2,1) both",
       }}
     >
+      {/* Mini chart preview */}
+      <div style={{
+        position: "relative",
+        width: "100%", height: 92,
+        borderRadius: 7,
+        background: hov ? "rgba(0,0,0,0.30)" : "rgba(0,0,0,0.18)",
+        border: "1px solid " + (hov ? C.amber + "30" : "rgba(255,255,255,0.06)"),
+        overflow: "hidden",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        transition: "all 0.2s",
+      }}>
+        <MiniChartPreview type={tpl.type} palette={previewPalette} />
+        {/* corner emoji badge */}
+        <span style={{
+          position: "absolute", top: 4, right: 4,
+          fontSize: 14, lineHeight: 1,
+          padding: 3, borderRadius: 5,
+          background: "rgba(13,13,18,0.85)",
+          backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          filter: hov ? "drop-shadow(0 0 12px " + C.amber + "60)" : "none",
+        }}>{tpl.emoji}</span>
+      </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 22, lineHeight: 1, filter: hov ? "drop-shadow(0 0 12px " + C.amber + "60)" : "none" }}>{tpl.emoji}</span>
         <span style={{ fontFamily: gf, fontSize: 13, fontWeight: 800, color: hov ? C.amber : "#E8E4DD", letterSpacing: -0.1 }}>{tpl.label}</span>
       </div>
       <div style={{ fontFamily: ft, fontSize: 11, color: C.txm, lineHeight: 1.4 }}>{tpl.desc}</div>
@@ -8045,7 +8290,12 @@ function Sep() { return <div style={{ width: 1, alignSelf: "stretch", background
 
 // Vertical scrollable sidebar of chart types — each row is icon + label.
 // Sticky-positioned so it stays visible while the right pane scrolls.
-function ChartTypeSidebar({ active, onSelect }: { active: ChartType; onSelect: (t: ChartType) => void }) {
+function ChartTypeSidebar({ active, onSelect, collapsed = false, onToggleCollapsed }: {
+  active: ChartType;
+  onSelect: (t: ChartType) => void;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+}) {
   return (
     <div style={{
       background: "rgba(13,13,18,0.72)",
@@ -8057,14 +8307,45 @@ function ChartTypeSidebar({ active, onSelect }: { active: ChartType; onSelect: (
       maxHeight: "calc(100vh - 56px)", overflow: "hidden",
       display: "flex", flexDirection: "column",
       boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 32px rgba(0,0,0,0.30)",
+      width: collapsed ? 36 : "100%",
+      transition: "width 0.28s cubic-bezier(.2,.7,.2,1), transform 0.28s cubic-bezier(.2,.7,.2,1)",
     }}>
-      <div style={{ padding: "16px 18px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, background: "linear-gradient(180deg, rgba(255,255,255,0.02), transparent)" }}>
-        <div style={{ fontFamily: gf, fontSize: 13, fontWeight: 800, color: C.tx, letterSpacing: -0.1, marginBottom: 3 }}>Chart Types</div>
-        <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1.4, textTransform: "uppercase" }}>{TYPES.flat().filter(t => t.working).length} live · {TYPES.flat().filter(t => !t.working).length} soon</div>
+      <div style={{ padding: collapsed ? "12px 6px" : "16px 18px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, background: "linear-gradient(180deg, rgba(255,255,255,0.02), transparent)", display: "flex", alignItems: "center", gap: 6 }}>
+        {!collapsed && (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: gf, fontSize: 13, fontWeight: 800, color: C.tx, letterSpacing: -0.1, marginBottom: 3 }}>Chart Types</div>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1.4, textTransform: "uppercase" }}>{TYPES.flat().filter(t => t.working).length} live · {TYPES.flat().filter(t => !t.working).length} soon</div>
+          </div>
+        )}
+        {onToggleCollapsed && (
+          <button
+            onClick={onToggleCollapsed}
+            title={collapsed ? "Expand" : "Collapse"}
+            style={{
+              width: 22, height: 22, borderRadius: 5,
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              color: C.txm, cursor: "pointer",
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            {collapsed ? <ChevronRight size={11} /> : <ChevronLeft size={11} />}
+          </button>
+        )}
       </div>
-      <div style={{ overflowY: "auto", padding: "10px", display: "flex", flexDirection: "column", gap: 4 }}>
-        {TYPES.flat().map(spec => <ChartTypeRow key={spec.id} spec={spec} active={active === spec.id} onClick={() => onSelect(spec.id)} />)}
-      </div>
+      {!collapsed && (
+        <div style={{ overflowY: "auto", padding: "10px", display: "flex", flexDirection: "column", gap: 4 }}>
+          {TYPES.flat().map(spec => <ChartTypeRow key={spec.id} spec={spec} active={active === spec.id} onClick={() => onSelect(spec.id)} />)}
+        </div>
+      )}
+      {collapsed && (
+        <div style={{
+          flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+          writingMode: "vertical-rl",
+          fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 2, fontWeight: 800,
+          textTransform: "uppercase", padding: "10px 0",
+        }}>EXPAND</div>
+      )}
     </div>
   );
 }
@@ -8388,16 +8669,18 @@ function WelcomeScreen({
         </button>
 
         <div style={{ padding: "44px 44px 22px", position: "relative", zIndex: 1 }}>
-          {/* hero icon */}
+          {/* hero illustration · animated SVG per step */}
           <div style={{
-            width: 64, height: 64, borderRadius: 16,
-            background: `linear-gradient(135deg, ${cur.accent} 0%, ${cur.accent}99 100%)`,
+            width: 144, height: 144, borderRadius: 18,
+            background: `linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))`,
+            border: "1px solid " + cur.accent + "30",
             display: "inline-flex", alignItems: "center", justifyContent: "center",
             marginBottom: 18,
-            boxShadow: `0 16px 40px ${cur.accent}55, 0 0 0 1px rgba(255,255,255,0.18) inset`,
-            animation: "cm2WelcomeIcon 4.2s ease-in-out infinite",
+            boxShadow: `0 16px 40px ${cur.accent}28, 0 0 0 1px rgba(255,255,255,0.06) inset`,
+            position: "relative", overflow: "hidden",
           }}>
-            <cur.Icon size={32} strokeWidth={2.2} color="#0A0A0E" />
+            <div style={{ position: "absolute", inset: 0, background: `radial-gradient(circle at center, ${cur.accent}18 0%, transparent 70%)`, pointerEvents: "none" }} />
+            <WelcomeIllustration stepIdx={step} accent={cur.accent} />
           </div>
           {/* step counter */}
           <div style={{ fontFamily: mn, fontSize: 9, color: cur.accent, letterSpacing: 1.6, fontWeight: 800, marginBottom: 10, textTransform: "uppercase" }}>
@@ -8732,6 +9015,7 @@ function ExpandedShell({
   themeName, paletteColors,
   chartCard, dataSheet,
   propsPanel,
+  transitionFrom,
 }: {
   onClose: () => void;
   paneMode: "chart" | "table" | "split";
@@ -8748,6 +9032,8 @@ function ExpandedShell({
   dataSheet: React.ReactNode;
   // Wave 13 · right-side Properties panel (collapsible).
   propsPanel?: React.ReactNode;
+  // Wave 14 · captured anchor for FLIP-style scale-from-button morph
+  transitionFrom?: { x: number; y: number } | null;
 }) {
   void themeName; void paletteColors;
   const [leftCollapsed, setLeftCollapsed] = useState(false);
@@ -8869,16 +9155,20 @@ function ExpandedShell({
     );
   })();
 
+  const expandOrigin = transitionFrom ? `${transitionFrom.x}px ${transitionFrom.y}px` : "50% 50%";
   return (
     <div
       style={{
         position: "fixed", inset: 0, zIndex: 11000,
         background: "linear-gradient(180deg, #06060C 0%, #0A0A12 100%)",
         display: "flex", flexDirection: "column",
-        animation: "cm2ExpandPop 0.28s cubic-bezier(.2,.7,.2,1) both",
+        animation: "cm2FlipMorph 0.5s cubic-bezier(.2,.7,.2,1) both",
+        transformOrigin: expandOrigin,
         overflow: "hidden",
       }}
     >
+      <AmbientParticles />
+      <GrainOverlay />
       {/* Animated glow drift orbs (4 of them) — sit BEHIND content */}
       <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden", zIndex: 0 }}>
         <div style={{ position:"absolute", top:"-12%", right:"-6%", width:"55vw", height:"55vw", borderRadius:"50%",
@@ -9039,3 +9329,1877 @@ function ExpandedShell({
   );
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · BEAUTIFICATION INFRASTRUCTURE
+// Tooltip · ColorPicker · MiniChartPreview · OnboardingTour · SoundManager ·
+// GrainOverlay · AmbientParticles · WelcomeIllustration · theme tokens ·
+// custom cursors · FLIP transition helpers
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── Theme tokens ─────────────────────────────────────────────────────────
+type AppTheme = "dark" | "light";
+interface AppThemeTokens {
+  bg: string;
+  surface: string;
+  surfaceAlt: string;
+  border: string;
+  fg: string;
+  fgMuted: string;
+  fgDim: string;
+}
+const APP_TOKENS: Record<AppTheme, AppThemeTokens> = {
+  dark: {
+    bg: "#06060C",
+    surface: "rgba(13,13,18,0.72)",
+    surfaceAlt: "rgba(255,255,255,0.04)",
+    border: "rgba(255,255,255,0.08)",
+    fg: "#E8E4DD",
+    fgMuted: "rgba(232,228,221,0.65)",
+    fgDim: "rgba(232,228,221,0.40)",
+  },
+  light: {
+    bg: "#FAFAF7",
+    surface: "rgba(255,255,255,0.92)",
+    surfaceAlt: "rgba(0,0,0,0.04)",
+    border: "rgba(0,0,0,0.10)",
+    fg: "#0A0A0E",
+    fgMuted: "rgba(10,10,14,0.65)",
+    fgDim: "rgba(10,10,14,0.40)",
+  },
+};
+
+// ─── Sound Manager · short tones via WebAudio · default OFF ───────────────
+function isSoundOn(): boolean {
+  if (typeof window === "undefined") return false;
+  try { return localStorage.getItem("cm2-sound-enabled") === "1"; } catch { return false; }
+}
+function setSoundOn(on: boolean) {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem("cm2-sound-enabled", on ? "1" : "0"); } catch {}
+}
+function playTone(freq: number, duration = 60, vol = 0.18) {
+  if (typeof window === "undefined") return;
+  if (!isSoundOn()) return;
+  try {
+    const Ctor: typeof AudioContext | undefined = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return;
+    const ac = new Ctor();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.connect(gain);
+    gain.connect(ac.destination);
+    osc.frequency.value = freq;
+    osc.type = "sine";
+    gain.gain.setValueAtTime(vol, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + duration / 1000);
+    osc.start();
+    osc.stop(ac.currentTime + duration / 1000);
+  } catch { /* fail silently */ }
+}
+function playWheelOpen() { playTone(880, 60, 0.14); }
+function playWheelClose() { playTone(440, 40, 0.10); }
+function playExportChime() { playTone(660, 70, 0.16); setTimeout(() => playTone(880, 80, 0.14), 80); }
+
+function SoundToggle() {
+  const [on, setOn] = useState<boolean>(false);
+  useEffect(() => { setOn(isSoundOn()); }, []);
+  const toggle = () => {
+    const next = !on;
+    setOn(next);
+    setSoundOn(next);
+    if (next) playTone(660, 70, 0.16);
+  };
+  return (
+    <Tooltip label={on ? "Sound on · click to mute" : "Sound off · click to enable"} position="bottom">
+      <button
+        onClick={toggle}
+        title={on ? "Sound on" : "Sound off"}
+        style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          width: 36, height: 34, borderRadius: 8,
+          background: on ? C.amber + "22" : "rgba(255,255,255,0.035)",
+          border: "1px solid " + (on ? C.amber + "55" : "rgba(255,255,255,0.10)"),
+          color: on ? C.amber : C.txm,
+          cursor: "pointer",
+          transition: "all 0.18s cubic-bezier(.2,.7,.2,1)",
+        }}
+      >
+        {on ? <Volume2 size={14} strokeWidth={2.2} /> : <VolumeX size={14} strokeWidth={2.2} />}
+      </button>
+    </Tooltip>
+  );
+}
+
+// ─── App theme switcher · persisted ───────────────────────────────────────
+function useAppTheme(): [AppTheme, (t: AppTheme) => void] {
+  const [theme, setTheme] = useState<AppTheme>("dark");
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("cm2-app-theme");
+      if (raw === "light" || raw === "dark") setTheme(raw);
+    } catch {}
+  }, []);
+  const set = useCallback((t: AppTheme) => {
+    setTheme(t);
+    try { localStorage.setItem("cm2-app-theme", t); } catch {}
+  }, []);
+  return [theme, set];
+}
+
+function AppThemeToggle({ theme, onChange }: { theme: AppTheme; onChange: (t: AppTheme) => void }) {
+  return (
+    <Tooltip label={theme === "dark" ? "Light theme" : "Dark theme"} position="bottom">
+      <button
+        onClick={() => onChange(theme === "dark" ? "light" : "dark")}
+        title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+        style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          width: 36, height: 34, borderRadius: 8,
+          background: "rgba(255,255,255,0.035)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          color: theme === "dark" ? C.amber : "#0B86D1",
+          cursor: "pointer",
+          transition: "all 0.18s cubic-bezier(.2,.7,.2,1)",
+        }}
+      >
+        {theme === "dark" ? <Sun size={14} strokeWidth={2.2} /> : <Moon size={14} strokeWidth={2.2} />}
+      </button>
+    </Tooltip>
+  );
+}
+
+// ─── Tooltip · custom hover card with shortcut chip ───────────────────────
+function Tooltip({ children, label, shortcut, position = "bottom" }: {
+  children: React.ReactNode;
+  label: string;
+  shortcut?: string;
+  position?: "top" | "bottom" | "left" | "right";
+}) {
+  const [show, setShow] = useState(false);
+  const [coords, setCoords] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const wrapRef = useRef<HTMLSpanElement | null>(null);
+  const showTimer = useRef<number | null>(null);
+  const onEnter = () => {
+    if (typeof window === "undefined") return;
+    if (showTimer.current) window.clearTimeout(showTimer.current);
+    showTimer.current = window.setTimeout(() => {
+      const r = wrapRef.current?.getBoundingClientRect();
+      if (r) setCoords({ x: r.left, y: r.top, w: r.width, h: r.height });
+      setShow(true);
+    }, 280);
+  };
+  const onLeave = () => {
+    if (typeof window !== "undefined" && showTimer.current) window.clearTimeout(showTimer.current);
+    setShow(false);
+  };
+  let tipStyle: React.CSSProperties = {};
+  let anim = "cm2TipFade";
+  if (coords) {
+    const margin = 8;
+    if (position === "bottom") {
+      tipStyle = { left: coords.x + coords.w / 2, top: coords.y + coords.h + margin, transform: "translateX(-50%)" };
+      anim = "cm2TipFade";
+    } else if (position === "top") {
+      tipStyle = { left: coords.x + coords.w / 2, top: coords.y - margin, transform: "translate(-50%, -100%)" };
+      anim = "cm2TipFadeUp";
+    } else if (position === "right") {
+      tipStyle = { left: coords.x + coords.w + margin, top: coords.y + coords.h / 2, transform: "translateY(-50%)" };
+      anim = "cm2TipFadeRight";
+    } else {
+      tipStyle = { left: coords.x - margin, top: coords.y + coords.h / 2, transform: "translate(-100%, -50%)" };
+      anim = "cm2TipFadeLeft";
+    }
+  }
+  return (
+    <>
+      <span
+        ref={wrapRef}
+        onMouseEnter={onEnter}
+        onMouseLeave={onLeave}
+        onMouseDown={onLeave}
+        style={{ display: "inline-flex" }}
+      >
+        {children}
+      </span>
+      {show && coords && typeof document !== "undefined" && (
+        <div
+          style={{
+            position: "fixed",
+            zIndex: 14000,
+            pointerEvents: "none",
+            background: "rgba(13,13,18,0.96)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            backdropFilter: "blur(14px) saturate(140%)",
+            WebkitBackdropFilter: "blur(14px) saturate(140%)",
+            borderRadius: 7,
+            padding: "6px 10px",
+            display: "inline-flex", alignItems: "center", gap: 8,
+            boxShadow: "0 10px 28px rgba(0,0,0,0.45), 0 0 0 1px rgba(247,176,65,0.10)",
+            animation: anim + " 0.18s cubic-bezier(.2,.7,.2,1) both",
+            ...tipStyle,
+          }}
+        >
+          <span style={{ fontFamily: "'Outfit', ui-sans-serif, system-ui, sans-serif", fontSize: 11, color: C.tx, fontWeight: 600, whiteSpace: "nowrap" }}>{label}</span>
+          {shortcut && (
+            <span style={{
+              fontFamily: mn, fontSize: 9, fontWeight: 800, color: C.amber,
+              padding: "2px 6px", borderRadius: 4,
+              background: C.amber + "1A",
+              border: "1px solid " + C.amber + "44",
+              letterSpacing: 0.5,
+            }}>{shortcut}</span>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── Color picker · palette + custom HSL/Hex/Eyedropper + recents ─────────
+function hslToHex(h: number, s: number, l: number): string {
+  s /= 100; l /= 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else { r = c; b = x; }
+  const toHex = (v: number) => {
+    const h2 = Math.round((v + m) * 255).toString(16).padStart(2, "0");
+    return h2;
+  };
+  return "#" + toHex(r) + toHex(g) + toHex(b);
+}
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  let h = hex.replace("#", "");
+  if (h.length === 3) h = h.split("").map(c => c + c).join("");
+  if (h.length !== 6) return { h: 30, s: 70, l: 55 };
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  }
+  let hue = 0;
+  if (max === min) hue = 0;
+  else if (max === r) hue = ((g - b) / (max - min)) % 6;
+  else if (max === g) hue = (b - r) / (max - min) + 2;
+  else hue = (r - g) / (max - min) + 4;
+  hue = Math.round(hue * 60);
+  if (hue < 0) hue += 360;
+  return { h: hue, s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+
+function ColorPicker({ value, palette, onChange, onClose }: { value: string; palette: string[]; onChange: (c: string) => void; onClose?: () => void }) {
+  const [tab, setTab] = useState<"palette" | "custom">("palette");
+  const initialHsl = hexToHsl(value);
+  const [hue, setHue] = useState(initialHsl.h);
+  const [sat, setSat] = useState(initialHsl.s);
+  const [lit, setLit] = useState(initialHsl.l);
+  const [hex, setHex] = useState(value);
+  const [recents, setRecents] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("cm2-recent-colors");
+      if (raw) setRecents(JSON.parse(raw));
+    } catch {}
+  }, []);
+  const pushRecent = useCallback((c: string) => {
+    setRecents(prev => {
+      const next = [c, ...prev.filter(x => x.toLowerCase() !== c.toLowerCase())].slice(0, 8);
+      try { localStorage.setItem("cm2-recent-colors", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+  const apply = (c: string) => { onChange(c); pushRecent(c); };
+  const onHueChange = (h: number) => {
+    setHue(h);
+    const c = hslToHex(h, sat, lit);
+    setHex(c);
+  };
+  const onSvDrag = (e: React.MouseEvent | React.PointerEvent) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const px = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const py = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    const newSat = Math.round(px * 100);
+    const newLit = Math.round((1 - py) * 50 + (1 - px) * (1 - py) * 50);
+    setSat(newSat);
+    setLit(Math.max(5, Math.min(95, newLit)));
+    setHex(hslToHex(hue, newSat, Math.max(5, Math.min(95, newLit))));
+  };
+  const eyedropper = async () => {
+    if (typeof window === "undefined") return;
+    const ED = (window as unknown as { EyeDropper?: new () => { open: () => Promise<{ sRGBHex: string }> } }).EyeDropper;
+    if (!ED) { showToast("EyeDropper not supported in this browser"); return; }
+    try {
+      const ed = new ED();
+      const res = await ed.open();
+      if (res?.sRGBHex) {
+        setHex(res.sRGBHex);
+        const h = hexToHsl(res.sRGBHex);
+        setHue(h.h); setSat(h.s); setLit(h.l);
+        apply(res.sRGBHex);
+      }
+    } catch { /* user cancelled */ }
+  };
+  void lit;
+  return (
+    <div style={{
+      width: 260,
+      background: "#0D0D14",
+      border: "1px solid rgba(255,255,255,0.10)",
+      borderRadius: 10,
+      padding: 12,
+      boxShadow: "0 18px 48px rgba(0,0,0,0.55), 0 0 0 1px rgba(247,176,65,0.10)",
+    }} onClick={e => e.stopPropagation()}>
+      <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+        {(["palette", "custom"] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)} style={{
+            flex: 1, padding: "6px 8px", borderRadius: 6,
+            background: tab === t ? C.amber + "22" : "rgba(255,255,255,0.03)",
+            border: "1px solid " + (tab === t ? C.amber + "55" : "rgba(255,255,255,0.10)"),
+            color: tab === t ? C.amber : C.txm,
+            fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
+            cursor: "pointer", textTransform: "uppercase",
+          }}>{t}</button>
+        ))}
+      </div>
+      {tab === "palette" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 5 }}>
+          {palette.map((c, i) => (
+            <button key={i} onClick={() => apply(c)} title={c} style={{
+              width: "100%", aspectRatio: "1 / 1", borderRadius: 5,
+              background: c,
+              border: "1px solid " + (value.toLowerCase() === c.toLowerCase() ? "#fff" : "rgba(0,0,0,0.4)"),
+              cursor: "pointer", padding: 0,
+              transition: "transform 0.16s",
+            }} onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.08)"; }} onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }} />
+          ))}
+        </div>
+      )}
+      {tab === "custom" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div
+            onPointerDown={e => { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); onSvDrag(e); }}
+            onPointerMove={e => { if (e.buttons === 1) onSvDrag(e); }}
+            style={{
+              position: "relative", width: "100%", height: 130,
+              borderRadius: 6,
+              background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${hue}, 100%, 50%))`,
+              cursor: "crosshair",
+              border: "1px solid rgba(255,255,255,0.10)",
+            }}
+          >
+            <div style={{
+              position: "absolute",
+              left: `calc(${sat}% - 6px)`,
+              top: `calc(${100 - sat * 0.5}% - 6px)`,
+              width: 12, height: 12, borderRadius: "50%",
+              border: "2px solid #fff",
+              boxShadow: "0 0 0 1px rgba(0,0,0,0.4)",
+              pointerEvents: "none",
+            }} />
+          </div>
+          <input type="range" min={0} max={360} value={hue} onChange={e => onHueChange(Number(e.target.value))}
+            style={{
+              width: "100%", height: 14, borderRadius: 7,
+              background: "linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)",
+              accentColor: C.amber, appearance: "none", WebkitAppearance: "none",
+            }} />
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input value={hex} onChange={e => setHex(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") apply(hex); }}
+              style={{
+                flex: 1, padding: "6px 8px", borderRadius: 5,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                color: C.tx, fontFamily: mn, fontSize: 11, fontWeight: 700,
+              }} />
+            <button onClick={() => apply(hex)} title="Apply hex"
+              style={{
+                padding: "6px 10px", borderRadius: 5,
+                background: C.amber + "22", border: "1px solid " + C.amber + "55",
+                color: C.amber, fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer",
+              }}><Check size={11} strokeWidth={2.4} /></button>
+            <button onClick={eyedropper} title="Pick color from screen"
+              style={{
+                padding: "6px 10px", borderRadius: 5,
+                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)",
+                color: C.txm, cursor: "pointer", display: "inline-flex",
+              }}><Pipette size={12} strokeWidth={2.2} /></button>
+          </div>
+        </div>
+      )}
+      {recents.length > 0 && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ fontFamily: mn, fontSize: 8, color: C.amber, letterSpacing: 1.2, fontWeight: 800, marginBottom: 6 }}>RECENT</div>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {recents.map((c, i) => (
+              <button key={i} onClick={() => apply(c)} title={c}
+                style={{ width: 22, height: 22, borderRadius: 4, background: c, border: "1px solid rgba(0,0,0,0.4)", cursor: "pointer" }} />
+            ))}
+          </div>
+        </div>
+      )}
+      {onClose && (
+        <button onClick={onClose} style={{
+          marginTop: 10, width: "100%", padding: "6px 8px", borderRadius: 5,
+          background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)",
+          color: C.txm, fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.6, cursor: "pointer", textTransform: "uppercase",
+        }}>Close</button>
+      )}
+    </div>
+  );
+}
+
+// ─── Mini chart preview · for template gallery cards ──────────────────────
+function MiniChartPreview({ type, palette }: { type: ChartType; palette: string[] }) {
+  const W = 160, H = 92;
+  const colors = palette.slice(0, 4);
+  const pad = 8;
+  if (type === "stacked" || type === "clustered" || type === "wfup" || type === "wfdn" || type === "variance" || type === "combo") {
+    const bars = 5;
+    const bw = (W - pad * 2) / bars - 4;
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: "block" }}>
+        {Array.from({ length: bars }, (_, i) => {
+          const x = pad + i * (bw + 4);
+          const h1 = 14 + ((i * 7) % 30);
+          const h2 = 8 + ((i * 5) % 22);
+          const h3 = 6 + ((i * 11) % 20);
+          const stacked = type === "stacked";
+          if (stacked) {
+            return (
+              <g key={i} style={{ transformOrigin: `${x + bw / 2}px ${H - pad}px`, animation: `cm2MiniBarRise 0.5s cubic-bezier(.2,.7,.2,1) both`, animationDelay: `${i * 50}ms` }}>
+                <rect x={x} y={H - pad - h1 - h2 - h3} width={bw} height={h3} fill={colors[2] || "#2EAD8E"} rx={1} />
+                <rect x={x} y={H - pad - h1 - h2} width={bw} height={h2} fill={colors[1] || "#0B86D1"} rx={1} />
+                <rect x={x} y={H - pad - h1} width={bw} height={h1} fill={colors[0] || "#F7B041"} rx={1} />
+              </g>
+            );
+          } else {
+            return (
+              <g key={i} style={{ transformOrigin: `${x + bw / 2}px ${H - pad}px`, animation: `cm2MiniBarRise 0.5s cubic-bezier(.2,.7,.2,1) both`, animationDelay: `${i * 50}ms` }}>
+                <rect x={x} y={H - pad - h1 - h2} width={bw} height={h1 + h2} fill={colors[i % colors.length] || "#F7B041"} rx={1} />
+              </g>
+            );
+          }
+        })}
+      </svg>
+    );
+  }
+  if (type === "line" || type === "stackedArea" || type === "pctArea") {
+    const pts: Array<{ x: number; y: number }> = [
+      { x: pad, y: H - pad - 30 },
+      { x: pad + 30, y: H - pad - 50 },
+      { x: pad + 60, y: H - pad - 38 },
+      { x: pad + 90, y: H - pad - 64 },
+      { x: pad + 130, y: H - pad - 58 },
+    ];
+    const d = "M " + pts.map(p => p.x + " " + p.y).join(" L ");
+    const a = type === "stackedArea" || type === "pctArea";
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: "block" }}>
+        {a && <path d={d + ` L ${pts[pts.length - 1].x} ${H - pad} L ${pts[0].x} ${H - pad} Z`} fill={(colors[0] || "#F7B041") + "55"} />}
+        <path d={d} fill="none" stroke={colors[0] || "#F7B041"} strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round"
+          style={{ strokeDasharray: 200, animation: "cm2MiniLineDraw 1.2s cubic-bezier(.2,.7,.2,1) both" }} />
+        {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={2.4} fill={colors[1] || "#0B86D1"} />)}
+      </svg>
+    );
+  }
+  if (type === "pie" || type === "doughnut") {
+    const cx = W / 2, cy = H / 2, r = 30;
+    const slices = [0.4, 0.25, 0.2, 0.15];
+    let acc = 0;
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: "block" }}>
+        {slices.map((s, i) => {
+          const a0 = acc * 2 * Math.PI - Math.PI / 2;
+          const a1 = (acc + s) * 2 * Math.PI - Math.PI / 2;
+          acc += s;
+          const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+          const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+          const big = s > 0.5 ? 1 : 0;
+          const path = `M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 ${big} 1 ${x1} ${y1} Z`;
+          return <path key={i} d={path} fill={colors[i % colors.length]} stroke="#0D0D14" strokeWidth={1} />;
+        })}
+        {type === "doughnut" && <circle cx={cx} cy={cy} r={14} fill="#0D0D14" />}
+      </svg>
+    );
+  }
+  if (type === "mekkoPct" || type === "mekkoUnit") {
+    const widths = [40, 32, 50, 25];
+    let xCur = pad;
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: "block" }}>
+        {widths.map((w, i) => {
+          const x = xCur;
+          xCur += w + 2;
+          const splits = [0.5, 0.3, 0.2];
+          let yCur = H - pad;
+          return (
+            <g key={i} style={{ animation: `cm2MiniBarRise 0.5s cubic-bezier(.2,.7,.2,1) both`, animationDelay: `${i * 50}ms`, transformOrigin: `${x}px ${H - pad}px` }}>
+              {splits.map((sp, j) => {
+                const segH = sp * (H - pad * 2);
+                yCur -= segH;
+                return <rect key={j} x={x} y={yCur} width={w} height={segH} fill={colors[j % colors.length]} stroke="#0D0D14" strokeWidth={0.6} />;
+              })}
+            </g>
+          );
+        })}
+      </svg>
+    );
+  }
+  if (type === "gantt") {
+    const tasks = [{ x: pad + 10, w: 70, y: 20 }, { x: pad + 50, w: 60, y: 40 }, { x: pad + 80, w: 60, y: 60 }];
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: "block" }}>
+        {tasks.map((t, i) => (
+          <g key={i}>
+            <rect x={pad} y={t.y - 1} width={W - pad * 2} height={2} fill="rgba(255,255,255,0.05)" />
+            <rect x={t.x} y={t.y - 6} width={t.w} height={10} fill={colors[i % colors.length]} rx={2}
+              style={{ animation: `cm2MiniBarRise 0.5s cubic-bezier(.2,.7,.2,1) both`, animationDelay: `${i * 80}ms`, transformOrigin: `${t.x}px ${t.y}px` }} />
+          </g>
+        ))}
+        <line x1={W * 0.55} y1={pad} x2={W * 0.55} y2={H - pad} stroke={colors[3] || "#E06347"} strokeWidth={1} strokeDasharray="2 2" />
+      </svg>
+    );
+  }
+  if (type === "scatter" || type === "bubble") {
+    const pts: Array<{ x: number; y: number; r: number }> = [
+      { x: 30, y: 60, r: 4 }, { x: 60, y: 35, r: type === "bubble" ? 7 : 4 }, { x: 95, y: 52, r: 4 },
+      { x: 125, y: 28, r: type === "bubble" ? 9 : 4 }, { x: 80, y: 70, r: type === "bubble" ? 6 : 4 },
+    ];
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: "block" }}>
+        {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={p.r} fill={colors[i % colors.length]} opacity={0.85} />)}
+      </svg>
+    );
+  }
+  if (type === "pct") {
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: "block" }}>
+        {[0, 1, 2, 3, 4].map(i => {
+          const x = pad + i * 28;
+          const a = 30 + (i * 5);
+          const b = 30 + (15 - i * 3);
+          const c = 60 - a - b;
+          let yCur = H - pad;
+          const segs = [a, b, c];
+          return (
+            <g key={i} style={{ animation: `cm2MiniBarRise 0.5s cubic-bezier(.2,.7,.2,1) both`, animationDelay: `${i * 50}ms`, transformOrigin: `${x}px ${H - pad}px` }}>
+              {segs.map((s, j) => {
+                yCur -= s;
+                return <rect key={j} x={x} y={yCur} width={20} height={s} fill={colors[j % colors.length]} />;
+              })}
+            </g>
+          );
+        })}
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: "block" }}>
+      <rect x={pad} y={pad} width={W - pad * 2} height={H - pad * 2} fill="none" stroke="rgba(255,255,255,0.10)" rx={4} />
+    </svg>
+  );
+}
+
+// ─── Welcome step illustrations ───────────────────────────────────────────
+function WelcomeIllustration({ stepIdx, accent }: { stepIdx: number; accent: string }) {
+  const D = 140;
+  if (stepIdx === 0) {
+    return (
+      <svg viewBox={`0 0 ${D} ${D}`} width={D} height={D} style={{ display: "block" }}>
+        {[0, 1, 2, 3].map(i => {
+          const x = 24 + i * 24;
+          const h = 30 + (i % 2) * 20 + i * 6;
+          return (
+            <rect key={i} x={x} y={D - 16 - h} width={18} height={h} rx={3} fill={accent}
+              style={{ transformOrigin: `${x + 9}px ${D - 16}px`, animation: `cm2WelcomeBars 2.${i + 4}s ease-in-out infinite`, animationDelay: `${i * 0.15}s` }}
+              opacity={0.85 - i * 0.12} />
+          );
+        })}
+        <line x1={16} y1={D - 16} x2={D - 16} y2={D - 16} stroke={accent + "66"} strokeWidth={1.5} />
+      </svg>
+    );
+  }
+  if (stepIdx === 1) {
+    return (
+      <svg viewBox={`0 0 ${D} ${D}`} width={D} height={D} style={{ display: "block" }}>
+        <g style={{ transformOrigin: `${D / 2}px ${D / 2}px`, animation: `cm2WelcomeRotate 12s linear infinite` }}>
+          {[0, 1, 2, 3].map(i => {
+            const a = (i / 4) * Math.PI * 2 - Math.PI / 2;
+            const cx = D / 2 + Math.cos(a) * 36;
+            const cy = D / 2 + Math.sin(a) * 36;
+            return <circle key={i} cx={cx} cy={cy} r={14} fill={accent} opacity={0.7 - i * 0.14} />;
+          })}
+        </g>
+        <circle cx={D / 2} cy={D / 2} r={20} fill="rgba(13,13,18,0.96)" stroke={accent + "88"} strokeWidth={1.5} />
+      </svg>
+    );
+  }
+  if (stepIdx === 2) {
+    return (
+      <svg viewBox={`0 0 ${D} ${D}`} width={D} height={D} style={{ display: "block" }}>
+        <rect x={D / 2 - 10} y={36} width={20} height={68} rx={3} fill={accent} opacity={0.85} />
+        {[0, 1, 2, 3, 4, 5].map(i => {
+          const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+          const cx = D / 2 + Math.cos(a) * 40;
+          const cy = D / 2 + Math.sin(a) * 40;
+          return <circle key={i} cx={cx} cy={cy} r={5} fill={accent}
+            style={{ animation: `cm2WelcomeMenuPulse 1.6s ease-in-out infinite`, animationDelay: `${i * 0.12}s` }} />;
+        })}
+      </svg>
+    );
+  }
+  if (stepIdx === 3) {
+    return (
+      <svg viewBox={`0 0 ${D} ${D}`} width={D} height={D} style={{ display: "block" }}>
+        <rect x={16} y={20} width={D - 32} height={16} rx={2} fill={accent + "44"} stroke={accent + "88"} strokeWidth={1} />
+        <text x={20} y={32} fontFamily="JetBrains Mono, monospace" fontSize={9} fill={accent} fontWeight={800}>fx =SUM(A1:A5)</text>
+        {[0, 1, 2, 3].map(r => (
+          <g key={r}>
+            {[0, 1, 2, 3].map(c => (
+              <rect key={c} x={16 + c * 27} y={42 + r * 18} width={26} height={17} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth={0.6}
+                style={{ animation: r === 1 && c === 2 ? `cm2WelcomeGridSweep 2s ease-in-out infinite` : undefined }} />
+            ))}
+          </g>
+        ))}
+        <rect x={16 + 2 * 27} y={42 + 1 * 18} width={26} height={17} fill={accent + "33"} />
+      </svg>
+    );
+  }
+  if (stepIdx === 4) {
+    return (
+      <svg viewBox={`0 0 ${D} ${D}`} width={D} height={D} style={{ display: "block" }}>
+        <g style={{ animation: `cm2WelcomeSplit 3s ease-in-out infinite` }}>
+          <rect x={14} y={20} width={56} height={D - 40} rx={4} fill={accent + "1A"} stroke={accent + "55"} strokeWidth={1} />
+          {[0, 1, 2].map(i => <rect key={i} x={20 + i * 16} y={D - 30 - (10 + i * 8)} width={10} height={10 + i * 8} fill={accent} />)}
+        </g>
+        <rect x={76} y={20} width={50} height={D - 40} rx={4} fill="rgba(11,134,209,0.16)" stroke="rgba(11,134,209,0.55)" strokeWidth={1} />
+        {[0, 1, 2, 3].map(r => <line key={r} x1={80} y1={28 + r * 22} x2={122} y2={28 + r * 22} stroke="rgba(11,134,209,0.40)" strokeWidth={0.8} />)}
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox={`0 0 ${D} ${D}`} width={D} height={D} style={{ display: "block" }}>
+      <g style={{ transformOrigin: `${D / 2}px ${D / 2}px`, animation: `cm2WelcomeMorph 2.4s ease-in-out infinite` }}>
+        <rect x={28} y={28} width={D - 56} height={D - 56} rx={10} fill="none" stroke={accent} strokeWidth={2} />
+        <path d={`M ${D / 2 - 20} 28 L 28 28 L 28 48`} fill="none" stroke={accent} strokeWidth={2} strokeLinecap="round" />
+        <path d={`M ${D / 2 + 20} 28 L ${D - 28} 28 L ${D - 28} 48`} fill="none" stroke={accent} strokeWidth={2} strokeLinecap="round" />
+        <path d={`M 28 ${D / 2 + 20} L 28 ${D - 28} L 48 ${D - 28}`} fill="none" stroke={accent} strokeWidth={2} strokeLinecap="round" />
+        <path d={`M ${D - 28} ${D / 2 + 20} L ${D - 28} ${D - 28} L ${D - 48} ${D - 28}`} fill="none" stroke={accent} strokeWidth={2} strokeLinecap="round" />
+      </g>
+    </svg>
+  );
+}
+
+// ─── Grain noise overlay · low-opacity SVG noise on root wrapper ──────────
+function GrainOverlay() {
+  return (
+    <svg
+      aria-hidden
+      style={{
+        position: "fixed", inset: 0, pointerEvents: "none", zIndex: 1,
+        mixBlendMode: "overlay", opacity: 0.5, width: "100%", height: "100%",
+      }}
+    >
+      <filter id="cmGrain">
+        <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="2" stitchTiles="stitch" />
+        <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.04 0" />
+      </filter>
+      <rect width="100%" height="100%" filter="url(#cmGrain)" />
+    </svg>
+  );
+}
+
+// ─── Ambient particle layer · 10 floating dots ────────────────────────────
+function AmbientParticles() {
+  const particles = useMemo(() => {
+    const colors = ["#F7B041", "#0B86D1", "#2EAD8E"];
+    return Array.from({ length: 10 }, (_, i) => ({
+      x: (i * 137 + 30) % 95,
+      y: (i * 73 + 12) % 90,
+      size: 4 + (i * 7) % 5,
+      duration: 18 + (i * 3) % 14,
+      anim: `cm2ParticleDrift${(i % 4) + 1}`,
+      color: colors[i % colors.length],
+      opacity: 0.06 + ((i % 3) * 0.03),
+      delay: (i * 1.7) % 8,
+    }));
+  }, []);
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: "fixed", inset: 0,
+        pointerEvents: "none", zIndex: 0, overflow: "hidden",
+      }}
+    >
+      {particles.map((p, i) => (
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            left: `${p.x}%`, top: `${p.y}%`,
+            width: p.size, height: p.size, borderRadius: "50%",
+            background: p.color,
+            opacity: p.opacity,
+            filter: "blur(0.5px)",
+            boxShadow: `0 0 ${p.size * 2}px ${p.color}88`,
+            animation: `${p.anim} ${p.duration}s ease-in-out infinite`,
+            animationDelay: `${p.delay}s`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── Custom cursors · splitter (data URL inline SVG) ──────────────────────
+const CURSOR_SPLIT_V = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'><line x1='8' y1='3' x2='8' y2='17' stroke='%23F7B041' stroke-width='2' stroke-linecap='round'/><line x1='12' y1='3' x2='12' y2='17' stroke='%23F7B041' stroke-width='2' stroke-linecap='round'/></svg>") 10 10, col-resize`;
+const CURSOR_SPLIT_H = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'><line x1='3' y1='8' x2='17' y2='8' stroke='%23F7B041' stroke-width='2' stroke-linecap='round'/><line x1='3' y1='12' x2='17' y2='12' stroke='%23F7B041' stroke-width='2' stroke-linecap='round'/></svg>") 10 10, row-resize`;
+
+// ─── Onboarding tour · spotlight + tooltip card · 6 steps ─────────────────
+interface TourStep {
+  selector: string;
+  title: string;
+  body: string;
+  position?: "top" | "bottom" | "left" | "right";
+}
+const TOUR_STEPS: TourStep[] = [
+  { selector: "[data-tour='type-wheel']", title: "Type Wheel", body: "Click here (or press W) to switch chart types radially.", position: "bottom" },
+  { selector: "[data-tour='templates']", title: "Templates", body: "Or start from a curated preset — production charts ready to go.", position: "bottom" },
+  { selector: "[data-tour='canvas']", title: "Click to select", body: "Click any bar, point, or label to select it. Double-click for a format popup.", position: "top" },
+  { selector: "[data-tour='datasheet']", title: "Edit values directly", body: "Spreadsheet-style editing with formulas (=SUM, =VLOOKUP, =INDEX). Type values in cells.", position: "top" },
+  { selector: "[data-tour='design']", title: "Design panel", body: "Tweak palettes, backdrops, gridlines, axes, watermark — everything visual.", position: "bottom" },
+  { selector: "[data-tour='expand']", title: "Expanded webapp", body: "Open the full editor: chart + table + properties in three resizable panes.", position: "bottom" },
+];
+
+function OnboardingTour({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState(0);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const cur = TOUR_STEPS[step];
+  useEffect(() => {
+    const upd = () => {
+      if (typeof document === "undefined") return;
+      const el = document.querySelector(cur.selector);
+      if (el) setRect(el.getBoundingClientRect());
+      else setRect(null);
+    };
+    upd();
+    const id = setTimeout(upd, 60);
+    window.addEventListener("resize", upd);
+    window.addEventListener("scroll", upd, true);
+    return () => { clearTimeout(id); window.removeEventListener("resize", upd); window.removeEventListener("scroll", upd, true); };
+  }, [step, cur.selector]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowRight") setStep(s => Math.min(TOUR_STEPS.length - 1, s + 1));
+      if (e.key === "ArrowLeft") setStep(s => Math.max(0, s - 1));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const finish = () => {
+    try { localStorage.setItem("cm2-tour-completed-v1", "1"); } catch {}
+    onClose();
+  };
+  const isLast = step === TOUR_STEPS.length - 1;
+  const pad = 10;
+  const sx = rect ? rect.left - pad : 0;
+  const sy = rect ? rect.top - pad : 0;
+  const sw = rect ? rect.width + pad * 2 : 0;
+  const sh = rect ? rect.height + pad * 2 : 0;
+  let cardStyle: React.CSSProperties = { left: "50%", top: "50%", transform: "translate(-50%, -50%)" };
+  if (rect) {
+    if (cur.position === "bottom") {
+      cardStyle = { left: rect.left + rect.width / 2, top: rect.bottom + 18, transform: "translateX(-50%)" };
+    } else if (cur.position === "top") {
+      cardStyle = { left: rect.left + rect.width / 2, top: rect.top - 18, transform: "translate(-50%, -100%)" };
+    } else if (cur.position === "right") {
+      cardStyle = { left: rect.right + 18, top: rect.top + rect.height / 2, transform: "translateY(-50%)" };
+    } else if (cur.position === "left") {
+      cardStyle = { left: rect.left - 18, top: rect.top + rect.height / 2, transform: "translate(-100%, -50%)" };
+    }
+  }
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 13500, pointerEvents: "auto" }}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(6,6,12,0.72)", pointerEvents: "auto" }} onClick={finish} />
+      {rect && (
+        <div style={{
+          position: "absolute", left: sx, top: sy, width: sw, height: sh,
+          border: "2px solid " + C.amber,
+          borderRadius: 12,
+          boxShadow: "0 0 0 99999px rgba(6,6,12,0.74), 0 0 32px " + C.amber + "55",
+          animation: "cm2OnboardSpot 0.32s cubic-bezier(.2,.7,.2,1) both, cm2OnboardPulse 2s ease-in-out infinite",
+          pointerEvents: "none",
+        }} />
+      )}
+      <div
+        style={{
+          position: "fixed",
+          width: 320, maxWidth: "calc(100vw - 24px)",
+          background: "linear-gradient(180deg, #11111A 0%, #0A0A12 100%)",
+          border: "1px solid " + C.amber + "44",
+          borderRadius: 12,
+          padding: "16px 18px",
+          boxShadow: "0 24px 60px rgba(0,0,0,0.55), 0 0 32px " + C.amber + "30",
+          animation: "cm2WelcomePop 0.32s cubic-bezier(.2,.7,.2,1) both",
+          ...cardStyle,
+        }}
+      >
+        <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, fontWeight: 800, marginBottom: 6, textTransform: "uppercase" }}>
+          Tour · {step + 1}/{TOUR_STEPS.length}
+        </div>
+        <div style={{ fontFamily: gf, fontSize: 16, fontWeight: 900, color: C.tx, marginBottom: 8, letterSpacing: -0.2 }}>{cur.title}</div>
+        <div style={{ fontFamily: ft, fontSize: 12.5, color: C.txm, lineHeight: 1.5, marginBottom: 14 }}>{cur.body}</div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button onClick={finish} style={{
+            padding: "7px 12px", borderRadius: 6,
+            background: "transparent", border: "1px solid rgba(255,255,255,0.10)",
+            color: C.txm, fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer", textTransform: "uppercase",
+          }}>Skip</button>
+          <span style={{ flex: 1 }} />
+          {step > 0 && <button onClick={() => setStep(s => s - 1)} style={{
+            padding: "7px 12px", borderRadius: 6,
+            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)",
+            color: C.tx, fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer", textTransform: "uppercase",
+          }}>← Back</button>}
+          <button onClick={() => isLast ? finish() : setStep(s => s + 1)} style={{
+            padding: "8px 14px", borderRadius: 6,
+            background: `linear-gradient(135deg, ${C.amber} 0%, ${C.amber}cc 100%)`,
+            border: "1px solid " + C.amber + "88",
+            color: "#0A0A0E", fontFamily: mn, fontSize: 9, fontWeight: 900, letterSpacing: 0.6, cursor: "pointer", textTransform: "uppercase",
+            boxShadow: `0 6px 16px ${C.amber}55, 0 1px 0 rgba(255,255,255,0.18) inset`,
+          }}>{isLast ? "Done" : "Next →"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Helper: read tour-completed flag
+function tourCompleted(): boolean {
+  if (typeof window === "undefined") return true;
+  try { return localStorage.getItem("cm2-tour-completed-v1") === "1"; } catch { return true; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · TYPOGRAPHY STYLES · centralized text system tokens
+// Use these for any new UI to keep voicing consistent.
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface TypographySpec { fontFamily: string; fontSize: number; fontWeight: number; letterSpacing?: number; lineHeight?: number; fontFeatureSettings?: string; textTransform?: React.CSSProperties["textTransform"] }
+
+export const TYPOGRAPHY: Record<string, TypographySpec> = {
+  // Section headers (e.g., "PALETTE", "DISPLAY") — uppercase amber chips
+  sectionHeader: { fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 1.4, textTransform: "uppercase" as React.CSSProperties["textTransform"] },
+  // Chart title — large, bold, slightly negative tracking
+  chartTitle: { fontFamily: gf, fontSize: 18, fontWeight: 900, letterSpacing: -0.3 },
+  // Body text — readable, Outfit medium
+  body: { fontFamily: ft, fontSize: 12, fontWeight: 500, lineHeight: 1.5 },
+  // Data labels in chart — mono with tabular numbers
+  dataLabel: { fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 10, fontWeight: 700, fontFeatureSettings: "\"tnum\" 1" },
+  // Buttons / pills — uppercase mono
+  button: { fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase" as React.CSSProperties["textTransform"] },
+  // Subtitles / descriptors
+  caption: { fontFamily: mn, fontSize: 9, fontWeight: 700, letterSpacing: 0.6 },
+};
+
+// Convert typography spec to React.CSSProperties
+export function typo(t: TypographySpec): React.CSSProperties {
+  return {
+    fontFamily: t.fontFamily,
+    fontSize: t.fontSize,
+    fontWeight: t.fontWeight,
+    ...(t.letterSpacing !== undefined ? { letterSpacing: t.letterSpacing } : {}),
+    ...(t.lineHeight !== undefined ? { lineHeight: t.lineHeight } : {}),
+    ...(t.fontFeatureSettings ? { fontFeatureSettings: t.fontFeatureSettings } : {}),
+    ...(t.textTransform ? { textTransform: t.textTransform } : {}),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · FLIP TRANSITION HELPERS (First-Last-Invert-Play for cinematic morph)
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface FlipSnapshot { x: number; y: number; w: number; h: number }
+
+// Capture rect of an element. Used as the "first" position in FLIP.
+export function captureRect(el: Element | null): FlipSnapshot | null {
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return { x: r.left, y: r.top, w: r.width, h: r.height };
+}
+
+// Run a FLIP-style morph: capture last position, invert to first, animate to identity.
+// duration in ms.
+export function flipMorph(target: HTMLElement, first: FlipSnapshot, duration = 500) {
+  if (!target) return;
+  const last = target.getBoundingClientRect();
+  const dx = first.x - last.left;
+  const dy = first.y - last.top;
+  const sx = first.w / Math.max(1, last.width);
+  const sy = first.h / Math.max(1, last.height);
+  target.style.transformOrigin = "top left";
+  target.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+  target.style.transition = "none";
+  // Force reflow
+  void target.offsetWidth;
+  target.style.transition = `transform ${duration}ms cubic-bezier(.2,.7,.2,1)`;
+  target.style.transform = "translate(0, 0) scale(1, 1)";
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · KEYBOARD SHORTCUT REGISTRY (centralized)
+// Each entry maps to a chord + descriptive action. Used by ShortcutsOverlay
+// (potential future enhancement) and by Tooltip "shortcut" hints.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface ShortcutEntry {
+  id: string;
+  keys: string;       // pretty form: "⌘D", "⌘⇧E", "W"
+  category: "Editing" | "Selection" | "View" | "Export" | "Navigation";
+  description: string;
+}
+
+export const SHORTCUTS_V14: ShortcutEntry[] = [
+  // Editing
+  { id: "undo", keys: "⌘Z", category: "Editing", description: "Undo last change" },
+  { id: "redo", keys: "⌘⇧Z", category: "Editing", description: "Redo last undone change" },
+  { id: "lock", keys: "⌘L", category: "Editing", description: "Toggle edit lock" },
+  // Selection
+  { id: "selectionWheel", keys: "M", category: "Selection", description: "Open the radial wheel for current selection" },
+  { id: "deselect", keys: "Esc", category: "Selection", description: "Clear selection / close any overlay" },
+  // View
+  { id: "typeWheel", keys: "W", category: "View", description: "Open chart-type wheel" },
+  { id: "design", keys: "⌘D", category: "View", description: "Open Design panel" },
+  { id: "expand", keys: "⌘⇧E", category: "View", description: "Toggle expanded mode" },
+  { id: "shortcuts", keys: "?", category: "View", description: "Show keyboard shortcuts" },
+  // Export
+  { id: "copy", keys: "⌘⇧C", category: "Export", description: "Copy chart as PNG to clipboard" },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · GLOBAL CSS RESET / OVERRIDES (scoped to .cm2-root)
+// Adds tabular numerals, font features, and animation perf hints.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function CM2GlobalStyles() {
+  return (
+    <style>{`
+      .cm2-root { font-feature-settings: "tnum" 1, "ss01" 1; }
+      .cm2-root * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+      .cm2-root svg text { font-feature-settings: "tnum" 1; }
+      /* Custom scrollbar */
+      .cm2-root *::-webkit-scrollbar { width: 9px; height: 9px; }
+      .cm2-root *::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 5px; }
+      .cm2-root *::-webkit-scrollbar-thumb { background: rgba(247,176,65,0.20); border-radius: 5px; transition: background 0.18s; }
+      .cm2-root *::-webkit-scrollbar-thumb:hover { background: rgba(247,176,65,0.45); }
+      /* Animation perf */
+      .cm2-root [data-anim] { will-change: transform, opacity; }
+    `}</style>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · NOTES / CHANGE LOG
+// ───────────────────────────────────────────────────────────────────────────
+// Tier 1 (high-impact quick wins):
+//   1.1  Chart entrance animation · per-bar stagger via cm2BarRise (StackedColumn,
+//        ClusteredColumn, PercentColumn, Waterfall, VarianceBar, ComboChart).
+//   1.2  Tooltip component · custom hover card with shortcut chip.
+//        Wrapped: TYPE WHEEL, DESIGN, EXPAND, LOCK, help/welcome/tour buttons.
+//   1.3  StatusBar icons · Hash, Grid3x3, Sigma, Type, Palette inline.
+//   1.4  ChartTypeSidebar collapse · width 240→36 with smooth transition.
+//   1.5  DataSheet alternating rows + smoother hover (0.06 amber tint).
+// Tier 2 (medium impact):
+//   2.1  ColorPicker · two-tab (palette / custom) HSL/Hex/Eyedropper + recents.
+//        Available via export — designed to drop into SelectionPopup, Properties, etc.
+//   2.2  Welcome illustrations · animated SVG per step replacing Lucide icon.
+//   2.3  Keyboard shortcuts wired: ⌘D ⌘L ⌘⇧C ⌘⇧E (plus existing W M ? ⌘Z).
+//   2.4  Wheel polish · sequential wedge stagger via cm2WedgePop, hover scale 1.22,
+//        amber glow ring on hover.
+//   2.5  GrainOverlay component · fixed SVG noise filter at 0.5 opacity.
+// Tier 3 (deeper polish):
+//   3.1  Custom drag cursors · CURSOR_SPLIT_V / CURSOR_SPLIT_H constants exported.
+//   3.2  Sound manager · WebAudio-based playTone, SoundToggle, persisted.
+//   3.3  AmbientParticles · 10 floating dots, mounted in main + ExpandedShell.
+//   3.4  Vignette · canvas inset shadow, toggle in Design drawer.
+//   3.5  Typography · TYPOGRAPHY tokens + typo() helper for new UI.
+//   3.6  Modal entry animations · expand uses transformOrigin from anchor coords.
+// Tier 4 (power moves):
+//   4.1  MiniChartPreview · 160×92 SVG of every chart family in TemplateCard.
+//   4.2  Branded export footer · "Built with POAST" added to PNG / SVG when on.
+//   4.3  Cinematic transition · cm2FlipMorph + transformOrigin morph for expand.
+//   4.4  AppThemeToggle · Sun/Moon switcher persisted to localStorage.
+//   4.5  OnboardingTour · 6-step spotlight + tooltip-card walkthrough.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · TYPE-AHEAD CHART-TYPE SEARCH
+// Compact filter input above ChartTypeSidebar for quickly jumping types.
+// Highlights matching characters; arrow keys navigate; Enter selects.
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface TypeSearchProps { onSelect: (t: ChartType) => void; active: ChartType; onClose?: () => void }
+
+function ChartTypeSearch({ onSelect, active, onClose }: TypeSearchProps) {
+  const [query, setQuery] = useState("");
+  const [activeIdx, setActiveIdx] = useState(0);
+  const allTypes = useMemo(() => TYPES.flat().filter(t => t.working), []);
+  const filtered = useMemo(() => {
+    if (!query) return allTypes;
+    const q = query.toLowerCase();
+    return allTypes
+      .map(t => ({ t, score: t.label.toLowerCase().includes(q) ? (t.label.toLowerCase().startsWith(q) ? 100 : 50) : 0 }))
+      .filter(x => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(x => x.t);
+  }, [query, allTypes]);
+  useEffect(() => { setActiveIdx(0); }, [query]);
+  const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx(i => Math.min(filtered.length - 1, i + 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActiveIdx(i => Math.max(0, i - 1)); }
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      const sel = filtered[activeIdx];
+      if (sel) { onSelect(sel.id); onClose?.(); }
+    }
+    else if (e.key === "Escape") { onClose?.(); }
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <input
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        onKeyDown={onKey}
+        placeholder="Search chart types…"
+        autoFocus
+        style={{
+          padding: "8px 10px", borderRadius: 7,
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          color: C.tx, fontFamily: ft, fontSize: 12, fontWeight: 600,
+          outline: "none",
+        }}
+      />
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: 320, overflowY: "auto" }}>
+        {filtered.map((t, i) => {
+          const on = active === t.id;
+          const isCursor = i === activeIdx;
+          return (
+            <button
+              key={t.id}
+              onClick={() => { onSelect(t.id); onClose?.(); }}
+              onMouseEnter={() => setActiveIdx(i)}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "8px 10px", borderRadius: 7,
+                background: on ? C.amber + "1A" : (isCursor ? "rgba(255,255,255,0.05)" : "transparent"),
+                border: "1px solid " + (on ? C.amber + "55" : (isCursor ? "rgba(255,255,255,0.10)" : "transparent")),
+                color: on ? C.amber : (isCursor ? C.tx : C.txm),
+                cursor: "pointer", textAlign: "left",
+                transition: "all 0.14s",
+              }}
+            >
+              <t.Icon size={14} strokeWidth={2.0} color={on ? C.amber : (isCursor ? C.tx : C.txd)} />
+              <span style={{ flex: 1, fontFamily: ft, fontSize: 12, fontWeight: 600 }}>{t.label}</span>
+              {on && <span style={{ fontFamily: mn, fontSize: 8, color: C.amber, fontWeight: 800, letterSpacing: 0.6 }}>ACTIVE</span>}
+            </button>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div style={{ padding: "12px 10px", fontFamily: mn, fontSize: 10, color: C.txd, textAlign: "center" }}>No matches</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · COLOR PICKER POPOVER · click anchor to open the picker
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ColorPickerPopover({ value, palette, onChange, anchor, label = "Color" }: {
+  value: string;
+  palette: string[];
+  onChange: (c: string) => void;
+  anchor?: React.ReactNode;
+  label?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (wrapRef.current && wrapRef.current.contains(t)) return;
+      setOpen(false);
+    };
+    setTimeout(() => document.addEventListener("mousedown", close), 0);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+  return (
+    <div ref={wrapRef} style={{ position: "relative", display: "inline-block" }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        title={label}
+        style={{
+          width: 22, height: 22, borderRadius: 5,
+          background: value, border: "1px solid rgba(255,255,255,0.20)",
+          cursor: "pointer", padding: 0,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.30) inset",
+        }}
+      >
+        {anchor}
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 1500,
+          animation: "cm2WelcomePop 0.22s cubic-bezier(.2,.7,.2,1) both",
+        }}>
+          <ColorPicker value={value} palette={palette} onChange={c => { onChange(c); setOpen(false); }} onClose={() => setOpen(false)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · TOOLTIP REGISTRY · global tooltip definitions for high-traffic UI
+// Centralized so all tooltips have consistent voice, length, shortcut chips.
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface TooltipDef { label: string; shortcut?: string; position?: "top" | "bottom" | "left" | "right"; }
+export const TOOLTIPS: Record<string, TooltipDef> = {
+  typeWheel: { label: "Open chart-type wheel", shortcut: "W", position: "bottom" },
+  templates: { label: "Quick-start templates", shortcut: "⌘T", position: "bottom" },
+  paste: { label: "Paste TSV / CSV from clipboard", position: "bottom" },
+  importExcel: { label: "Import .xlsx workbook", shortcut: "⌘E", position: "bottom" },
+  numFmt: { label: "Number format", position: "bottom" },
+  design: { label: "Design panel", shortcut: "⌘D", position: "bottom" },
+  lock: { label: "Lock chart from edits", shortcut: "⌘L", position: "bottom" },
+  expand: { label: "Open expanded webapp", shortcut: "⌘⇧E", position: "bottom" },
+  exportPng: { label: "Export PNG", shortcut: "⌘⇧C", position: "bottom" },
+  undo: { label: "Undo last change", shortcut: "⌘Z", position: "bottom" },
+  redo: { label: "Redo", shortcut: "⌘⇧Z", position: "bottom" },
+  helpShortcuts: { label: "Keyboard shortcuts", shortcut: "?", position: "left" },
+  helpWelcome: { label: "Welcome / onboarding", position: "left" },
+  helpTour: { label: "Interactive tour", position: "left" },
+  soundToggle: { label: "Toggle UI sound effects", position: "bottom" },
+  themeToggle: { label: "Toggle dark / light theme", position: "bottom" },
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · BUSY BANNER · for long-running async operations (export, import)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function BusyBanner({ label }: { label: string }) {
+  return (
+    <div
+      style={{
+        position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
+        zIndex: 13800,
+        padding: "10px 16px", borderRadius: 12,
+        background: "rgba(13,13,18,0.95)",
+        backdropFilter: "blur(14px) saturate(140%)",
+        WebkitBackdropFilter: "blur(14px) saturate(140%)",
+        border: "1px solid " + C.amber + "44",
+        boxShadow: "0 12px 40px rgba(0,0,0,0.55), 0 0 24px " + C.amber + "33",
+        display: "inline-flex", alignItems: "center", gap: 12,
+        animation: "cm2WelcomePop 0.22s cubic-bezier(.2,.7,.2,1) both",
+      }}
+    >
+      <span style={{
+        width: 14, height: 14, borderRadius: "50%",
+        border: "2px solid " + C.amber + "44",
+        borderTopColor: C.amber,
+        animation: "cm2WelcomeRotate 0.8s linear infinite",
+      }} />
+      <span style={{ fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.6, color: C.tx }}>{label}</span>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · CHART CARD GLOW · subtle ambient glow that follows cursor on the
+// chart card (parallax-style, very low opacity). Adds depth.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ChartCardGlow({ enabled = true }: { enabled?: boolean }) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    const onMove = (e: MouseEvent) => {
+      const r = wrapRef.current?.parentElement?.getBoundingClientRect();
+      if (!r) return;
+      setPos({ x: e.clientX - r.left, y: e.clientY - r.top });
+    };
+    const onLeave = () => setPos(null);
+    const parent = wrapRef.current?.parentElement;
+    parent?.addEventListener("mousemove", onMove);
+    parent?.addEventListener("mouseleave", onLeave);
+    return () => {
+      parent?.removeEventListener("mousemove", onMove);
+      parent?.removeEventListener("mouseleave", onLeave);
+    };
+  }, [enabled]);
+  if (!enabled) return null;
+  return (
+    <div
+      ref={wrapRef}
+      aria-hidden
+      style={{
+        position: "absolute", inset: 0, pointerEvents: "none",
+        zIndex: 0, borderRadius: 16, overflow: "hidden",
+      }}
+    >
+      {pos && (
+        <div
+          style={{
+            position: "absolute",
+            left: pos.x - 200, top: pos.y - 200,
+            width: 400, height: 400, borderRadius: "50%",
+            background: `radial-gradient(circle, ${C.amber}10 0%, transparent 70%)`,
+            transition: "opacity 0.3s ease",
+            mixBlendMode: "soft-light",
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · SHORTCUT CHIP · standalone chip for showing a key chord inline
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ShortcutChip({ keys, size = "md" }: { keys: string; size?: "sm" | "md" | "lg" }) {
+  const sizeMap = {
+    sm: { padding: "1px 5px", fontSize: 8 },
+    md: { padding: "2px 6px", fontSize: 9 },
+    lg: { padding: "3px 8px", fontSize: 10 },
+  };
+  const s = sizeMap[size];
+  return (
+    <span
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 2,
+        fontFamily: mn, fontWeight: 800, letterSpacing: 0.5,
+        color: C.amber,
+        padding: s.padding,
+        fontSize: s.fontSize,
+        borderRadius: 4,
+        background: C.amber + "1A",
+        border: "1px solid " + C.amber + "44",
+      }}
+    >
+      {keys}
+    </span>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · GHOST BUTTON · low-emphasis button shared style
+// ═══════════════════════════════════════════════════════════════════════════
+
+function GhostButton({ onClick, children, Icon, title, danger }: {
+  onClick?: () => void;
+  children?: React.ReactNode;
+  Icon?: LucideIconCmp;
+  title?: string;
+  danger?: boolean;
+}) {
+  const [hov, setHov] = useState(false);
+  const accent = danger ? "#E06347" : "rgba(232,228,221,1)";
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      title={title}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 6,
+        padding: "7px 11px", borderRadius: 7,
+        background: hov ? "rgba(255,255,255,0.06)" : "transparent",
+        border: "1px solid " + (hov ? (danger ? "rgba(224,99,71,0.40)" : "rgba(255,255,255,0.18)") : "rgba(255,255,255,0.10)"),
+        color: hov ? accent : (danger ? "rgba(224,99,71,0.85)" : C.txm),
+        fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
+        cursor: "pointer", textTransform: "uppercase",
+        transition: "all 0.14s cubic-bezier(.2,.7,.2,1)",
+      }}
+    >
+      {Icon && <Icon size={11} strokeWidth={2.4} />}
+      {children}
+    </button>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · KEY-COMBO LIST RENDERER
+// Renders a vertical list of shortcuts with chip + description for the
+// shortcuts overlay or any tooltip help card.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function KeyComboList({ category }: { category?: ShortcutEntry["category"] }) {
+  const items = category ? SHORTCUTS_V14.filter(s => s.category === category) : SHORTCUTS_V14;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {items.map(s => (
+        <div
+          key={s.id}
+          style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "6px 8px", borderRadius: 6,
+            background: "rgba(255,255,255,0.025)",
+            border: "1px solid rgba(255,255,255,0.05)",
+          }}
+        >
+          <ShortcutChip keys={s.keys} size="sm" />
+          <span style={{ flex: 1, fontFamily: ft, fontSize: 11.5, color: C.tx, fontWeight: 500 }}>{s.description}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · COMMAND PALETTE · ⌘K-style fuzzy command list
+// Future-ready scaffold; not yet wired into main render but exported for
+// future Wave 15 work. Searches commands by name and runs them on Enter.
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface CommandDef {
+  id: string;
+  label: string;
+  category: "Chart" | "Data" | "View" | "Export" | "Help";
+  keywords?: string[];
+  shortcut?: string;
+  Icon?: LucideIconCmp;
+  run: () => void;
+}
+
+function CommandPalette({ commands, onClose }: { commands: CommandDef[]; onClose: () => void }) {
+  const [query, setQuery] = useState("");
+  const [activeIdx, setActiveIdx] = useState(0);
+  const filtered = useMemo(() => {
+    if (!query) return commands;
+    const q = query.toLowerCase();
+    return commands.filter(c => {
+      const haystack = [c.label, c.category, ...(c.keywords || [])].join(" ").toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [query, commands]);
+  useEffect(() => { setActiveIdx(0); }, [query]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx(i => Math.min(filtered.length - 1, i + 1)); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setActiveIdx(i => Math.max(0, i - 1)); }
+      else if (e.key === "Enter") {
+        e.preventDefault();
+        const sel = filtered[activeIdx];
+        if (sel) { sel.run(); onClose(); }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [filtered, activeIdx, onClose]);
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, zIndex: 13900,
+      background: "rgba(6,6,12,0.78)",
+      backdropFilter: "blur(14px) saturate(140%)",
+      WebkitBackdropFilter: "blur(14px) saturate(140%)",
+      display: "flex", alignItems: "flex-start", justifyContent: "center",
+      padding: "120px 20px 20px",
+      animation: "cm2WelcomeFade 0.18s cubic-bezier(.2,.7,.2,1) both",
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: "min(640px, 92vw)",
+        background: "#0D0D14",
+        border: "1px solid rgba(255,255,255,0.10)",
+        borderRadius: 12,
+        boxShadow: "0 32px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(247,176,65,0.10)",
+        animation: "cm2WelcomePop 0.22s cubic-bezier(.2,.7,.2,1) both",
+        overflow: "hidden",
+      }}>
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Type a command or search…"
+            autoFocus
+            style={{
+              width: "100%", border: "none", outline: "none",
+              background: "transparent",
+              fontFamily: ft, fontSize: 16, fontWeight: 500,
+              color: C.tx,
+            }}
+          />
+        </div>
+        <div style={{ maxHeight: 380, overflowY: "auto", padding: 8 }}>
+          {filtered.map((c, i) => {
+            const cursor = i === activeIdx;
+            return (
+              <button
+                key={c.id}
+                onClick={() => { c.run(); onClose(); }}
+                onMouseEnter={() => setActiveIdx(i)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "10px 12px", width: "100%", borderRadius: 7,
+                  background: cursor ? "rgba(247,176,65,0.10)" : "transparent",
+                  border: "1px solid " + (cursor ? "rgba(247,176,65,0.30)" : "transparent"),
+                  color: cursor ? C.tx : C.txm,
+                  cursor: "pointer", textAlign: "left",
+                  transition: "all 0.12s",
+                }}
+              >
+                {c.Icon && <c.Icon size={14} strokeWidth={2.0} color={cursor ? C.amber : C.txm} />}
+                <span style={{ fontFamily: ft, fontSize: 12.5, fontWeight: 600, flex: 1 }}>{c.label}</span>
+                <span style={{ fontFamily: mn, fontSize: 8, color: C.txd, letterSpacing: 0.6, padding: "2px 6px", borderRadius: 3, background: "rgba(255,255,255,0.04)" }}>
+                  {c.category.toUpperCase()}
+                </span>
+                {c.shortcut && <ShortcutChip keys={c.shortcut} size="sm" />}
+              </button>
+            );
+          })}
+          {filtered.length === 0 && (
+            <div style={{ padding: 24, textAlign: "center", fontFamily: mn, fontSize: 11, color: C.txd, letterSpacing: 0.5 }}>
+              No commands matching &ldquo;{query}&rdquo;
+            </div>
+          )}
+        </div>
+        <div style={{ padding: "10px 16px", borderTop: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", gap: 14, fontFamily: mn, fontSize: 8, color: C.txd, letterSpacing: 0.6, textTransform: "uppercase" as React.CSSProperties["textTransform"] }}>
+          <span><ShortcutChip keys="↑↓" size="sm" /> navigate</span>
+          <span><ShortcutChip keys="↵" size="sm" /> select</span>
+          <span><ShortcutChip keys="Esc" size="sm" /> close</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · ASCII CHART STAMP · prints a tiny ASCII chart in console for fun
+// (only when explicitly enabled via window.cm2Stamp = true). Easter-egg.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function asciiStamp(values: number[], width = 32) {
+  const max = Math.max(...values, 1);
+  const bars = "▁▂▃▄▅▆▇█";
+  return values
+    .slice(0, width)
+    .map(v => bars[Math.min(bars.length - 1, Math.floor((v / max) * (bars.length - 1)))])
+    .join("");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · MINI SPARKLINE · for inline data badges (e.g., status bar)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function MiniSparkline({ values, width = 60, height = 16, color = C.amber }: {
+  values: number[];
+  width?: number;
+  height?: number;
+  color?: string;
+}) {
+  if (values.length < 2) return null;
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const span = Math.max(1, max - min);
+  const pts = values.map((v, i) => ({
+    x: (i / (values.length - 1)) * width,
+    y: height - 2 - ((v - min) / span) * (height - 4),
+  }));
+  const d = "M " + pts.map(p => p.x.toFixed(1) + " " + p.y.toFixed(1)).join(" L ");
+  return (
+    <svg width={width} height={height} style={{ display: "inline-block", verticalAlign: "middle" }}>
+      <path d={d} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={pts[pts.length - 1].x} cy={pts[pts.length - 1].y} r={1.6} fill={color} />
+    </svg>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · KEY HINT BAR · floating bar of contextual key hints
+// (e.g., "Esc to close · ↑↓ navigate · Enter to select")
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface KeyHintBarItem { keys: string; label: string }
+
+function KeyHintBar({ items, position = "bottom" }: { items: KeyHintBarItem[]; position?: "top" | "bottom" }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        left: "50%", transform: "translateX(-50%)",
+        [position]: 24,
+        zIndex: 14200,
+        display: "inline-flex", alignItems: "center", gap: 14,
+        padding: "8px 14px", borderRadius: 999,
+        background: "rgba(13,13,18,0.92)",
+        backdropFilter: "blur(14px) saturate(140%)",
+        WebkitBackdropFilter: "blur(14px) saturate(140%)",
+        border: "1px solid rgba(255,255,255,0.10)",
+        boxShadow: "0 10px 28px rgba(0,0,0,0.45)",
+        animation: "cm2TipFadeUp 0.22s cubic-bezier(.2,.7,.2,1) both",
+      }}
+    >
+      {items.map((it, i) => (
+        <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+          <ShortcutChip keys={it.keys} size="sm" />
+          <span style={{ fontFamily: mn, fontSize: 9, fontWeight: 700, letterSpacing: 0.6, color: C.txm, textTransform: "uppercase" as React.CSSProperties["textTransform"] }}>{it.label}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · ANIMATED COUNTER · counts up/down to a target value smoothly
+// ═══════════════════════════════════════════════════════════════════════════
+
+function AnimatedCounter({ value, duration = 600, formatter = (n: number) => String(Math.round(n)) }: {
+  value: number;
+  duration?: number;
+  formatter?: (n: number) => string;
+}) {
+  const [display, setDisplay] = useState(value);
+  const fromRef = useRef(value);
+  const startRef = useRef<number>(0);
+  useEffect(() => {
+    fromRef.current = display;
+    startRef.current = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const elapsed = now - startRef.current;
+      const t = Math.min(1, elapsed / duration);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - t, 3);
+      const next = fromRef.current + (value - fromRef.current) * eased;
+      setDisplay(next);
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, duration]);
+  return <span style={{ fontFeatureSettings: "\"tnum\" 1" }}>{formatter(display)}</span>;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · AVATAR STACK · used for collaborative editing markers (placeholder)
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface AvatarSpec { name: string; color: string }
+
+function AvatarStack({ avatars, max = 4 }: { avatars: AvatarSpec[]; max?: number }) {
+  const visible = avatars.slice(0, max);
+  const overflow = Math.max(0, avatars.length - max);
+  return (
+    <div style={{ display: "inline-flex", alignItems: "center" }}>
+      {visible.map((a, i) => {
+        const initials = a.name.split(/\s+/).map(p => p[0] || "").join("").slice(0, 2).toUpperCase();
+        return (
+          <div
+            key={i}
+            title={a.name}
+            style={{
+              width: 22, height: 22, borderRadius: "50%",
+              background: a.color,
+              border: "2px solid #0D0D14",
+              marginLeft: i === 0 ? 0 : -6,
+              fontFamily: mn, fontSize: 9, fontWeight: 800, color: "#0A0A0E",
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 0 0 1px rgba(0,0,0,0.30)",
+            }}
+          >
+            {initials}
+          </div>
+        );
+      })}
+      {overflow > 0 && (
+        <div
+          title={`${overflow} more`}
+          style={{
+            width: 22, height: 22, borderRadius: "50%",
+            background: "rgba(255,255,255,0.08)",
+            border: "2px solid #0D0D14",
+            marginLeft: -6,
+            fontFamily: mn, fontSize: 9, fontWeight: 800, color: C.txm,
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          +{overflow}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · INSPECTOR ROW · key/value row for property inspectors
+// ═══════════════════════════════════════════════════════════════════════════
+
+function InspectorRow({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+      <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6, textTransform: "uppercase" as React.CSSProperties["textTransform"], fontWeight: 700, minWidth: 80 }}>{label}</span>
+      <span style={{ flex: 1, fontFamily: mono ? mn : ft, fontSize: 11, color: C.tx, fontWeight: mono ? 700 : 600, textAlign: "right" }}>{value}</span>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · APPEARANCE SETTINGS · centralized panel for aesthetic preferences
+// (sound, theme, motion, particles, grain, vignette, branding)
+// Persists every option to localStorage. Reusable as a popover or modal.
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface AppearanceState {
+  sound: boolean;
+  theme: AppTheme;
+  reducedMotion: boolean;
+  particles: boolean;
+  grain: boolean;
+  vignette: boolean;
+  branding: boolean;
+}
+
+const APPEARANCE_DEFAULTS: AppearanceState = {
+  sound: false,
+  theme: "dark",
+  reducedMotion: false,
+  particles: true,
+  grain: true,
+  vignette: true,
+  branding: false,
+};
+
+function readAppearanceFromStorage(): AppearanceState {
+  if (typeof window === "undefined") return APPEARANCE_DEFAULTS;
+  const out = { ...APPEARANCE_DEFAULTS };
+  try {
+    out.sound = localStorage.getItem("cm2-sound-enabled") === "1";
+    const theme = localStorage.getItem("cm2-app-theme");
+    if (theme === "dark" || theme === "light") out.theme = theme;
+    out.reducedMotion = localStorage.getItem("cm2-reduced-motion") === "1";
+    const part = localStorage.getItem("cm2-particles");
+    if (part !== null) out.particles = part === "1";
+    const grain = localStorage.getItem("cm2-grain");
+    if (grain !== null) out.grain = grain === "1";
+    const vignette = localStorage.getItem("cm2-vignette");
+    if (vignette !== null) out.vignette = vignette === "1";
+    out.branding = localStorage.getItem("cm2-export-branding") === "1";
+  } catch {}
+  return out;
+}
+
+function writeAppearance<K extends keyof AppearanceState>(key: K, value: AppearanceState[K]) {
+  if (typeof window === "undefined") return;
+  const map: Record<keyof AppearanceState, string> = {
+    sound: "cm2-sound-enabled",
+    theme: "cm2-app-theme",
+    reducedMotion: "cm2-reduced-motion",
+    particles: "cm2-particles",
+    grain: "cm2-grain",
+    vignette: "cm2-vignette",
+    branding: "cm2-export-branding",
+  };
+  try {
+    if (typeof value === "boolean") localStorage.setItem(map[key], value ? "1" : "0");
+    else localStorage.setItem(map[key], String(value));
+  } catch {}
+}
+
+function AppearancePanel({ onClose }: { onClose: () => void }) {
+  const [state, setState] = useState<AppearanceState>(() => readAppearanceFromStorage());
+  const update = <K extends keyof AppearanceState>(key: K, value: AppearanceState[K]) => {
+    setState(s => ({ ...s, [key]: value }));
+    writeAppearance(key, value);
+  };
+  const Row = ({ label, sub, right }: { label: string; sub: string; right: React.ReactNode }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: ft, fontSize: 12.5, fontWeight: 700, color: C.tx }}>{label}</div>
+        <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.4, marginTop: 2 }}>{sub}</div>
+      </div>
+      {right}
+    </div>
+  );
+  const Toggle = ({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) => (
+    <button
+      onClick={() => onChange(!on)}
+      style={{
+        width: 40, height: 22, borderRadius: 11,
+        background: on ? C.amber + "AA" : "rgba(255,255,255,0.10)",
+        border: "1px solid " + (on ? C.amber : "rgba(255,255,255,0.10)"),
+        cursor: "pointer", padding: 0, position: "relative",
+        transition: "all 0.18s cubic-bezier(.2,.7,.2,1)",
+      }}
+    >
+      <span style={{
+        position: "absolute", top: 2, left: on ? 20 : 2,
+        width: 16, height: 16, borderRadius: "50%",
+        background: on ? "#0A0A0E" : "rgba(232,228,221,0.9)",
+        transition: "left 0.18s cubic-bezier(.2,.7,.2,1)",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.30)",
+      }} />
+    </button>
+  );
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, zIndex: 13700,
+      background: "rgba(6,6,12,0.74)",
+      backdropFilter: "blur(14px) saturate(140%)",
+      WebkitBackdropFilter: "blur(14px) saturate(140%)",
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+      animation: "cm2WelcomeFade 0.22s cubic-bezier(.2,.7,.2,1) both",
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: "min(520px, 96vw)",
+        background: "linear-gradient(180deg, #11111A 0%, #0A0A12 100%)",
+        border: "1px solid rgba(255,255,255,0.10)",
+        borderRadius: 14,
+        boxShadow: "0 32px 80px rgba(0,0,0,0.65), 0 0 0 1px " + C.amber + "20",
+        overflow: "hidden",
+        animation: "cm2WelcomePop 0.28s cubic-bezier(.2,.7,.2,1) both",
+      }}>
+        <div style={{ padding: "16px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10 }}>
+          <Settings size={14} strokeWidth={2.4} color={C.amber} />
+          <span style={{ fontFamily: gf, fontSize: 16, fontWeight: 900, color: C.tx, letterSpacing: -0.2 }}>Appearance</span>
+          <span style={{ flex: 1 }} />
+          <button onClick={onClose} style={{
+            width: 28, height: 28, borderRadius: 7,
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            color: C.txm, cursor: "pointer",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+          }}><XIcon size={13} strokeWidth={2.4} /></button>
+        </div>
+        <div>
+          <Row label="Theme" sub="Switch between dark and light app chrome." right={
+            <div style={{ display: "inline-flex", padding: 3, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 999 }}>
+              {(["dark", "light"] as const).map(t => {
+                const on = state.theme === t;
+                return (
+                  <button key={t} onClick={() => update("theme", t)} style={{
+                    padding: "5px 12px", borderRadius: 999,
+                    background: on ? C.amber + "22" : "transparent",
+                    border: "none", color: on ? C.amber : C.txm,
+                    fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.6, cursor: "pointer", textTransform: "uppercase",
+                  }}>{t}</button>
+                );
+              })}
+            </div>
+          } />
+          <Row label="UI Sound" sub="Subtle audio feedback on key actions." right={<Toggle on={state.sound} onChange={v => update("sound", v)} />} />
+          <Row label="Reduced Motion" sub="Disable transitions and animations." right={<Toggle on={state.reducedMotion} onChange={v => update("reducedMotion", v)} />} />
+          <Row label="Ambient Particles" sub="10 floating dots drifting in the background." right={<Toggle on={state.particles} onChange={v => update("particles", v)} />} />
+          <Row label="Grain Texture" sub="Subtle SVG noise overlay (mix-blend overlay)." right={<Toggle on={state.grain} onChange={v => update("grain", v)} />} />
+          <Row label="Vignette" sub="Soft inset shadow on the chart canvas." right={<Toggle on={state.vignette} onChange={v => update("vignette", v)} />} />
+          <Row label="Branded Export" sub="Add a 'Built with POAST' line on PNG/SVG exports." right={<Toggle on={state.branding} onChange={v => update("branding", v)} />} />
+        </div>
+        <div style={{ padding: "12px 18px", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ flex: 1, fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 0.5 }}>Stored locally · refresh to apply theme switches.</span>
+          <button onClick={onClose} style={{
+            padding: "8px 16px", borderRadius: 7,
+            background: `linear-gradient(135deg, ${C.amber} 0%, ${C.amber}cc 100%)`,
+            border: "1px solid " + C.amber + "88",
+            color: "#0A0A0E", fontFamily: mn, fontSize: 9, fontWeight: 900, letterSpacing: 0.6, cursor: "pointer", textTransform: "uppercase",
+            boxShadow: `0 6px 18px ${C.amber}55, 0 1px 0 rgba(255,255,255,0.20) inset`,
+          }}>Done</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · UTILITY · DEBOUNCED VALUE
+// ═══════════════════════════════════════════════════════════════════════════
+
+function useDebouncedValue<T>(value: T, delay = 250): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(id);
+  }, [value, delay]);
+  return debounced;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · UTILITY · KEYBOARD CHORD MATCHER
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface ChordSpec { meta?: boolean; ctrl?: boolean; shift?: boolean; alt?: boolean; key: string }
+
+function matchesChord(e: KeyboardEvent, spec: ChordSpec): boolean {
+  const k = e.key.toLowerCase();
+  if (k !== spec.key.toLowerCase()) return false;
+  if (!!spec.shift !== e.shiftKey) return false;
+  if (!!spec.alt !== e.altKey) return false;
+  // Treat meta + ctrl interchangeably (mac vs win)
+  const wantMod = !!(spec.meta || spec.ctrl);
+  const haveMod = e.metaKey || e.ctrlKey;
+  return wantMod === haveMod;
+}
+
+// Parse a pretty-form shortcut string like "⌘⇧E" into a ChordSpec
+function parseChord(pretty: string): ChordSpec {
+  const spec: ChordSpec = { key: "" };
+  let i = 0;
+  while (i < pretty.length) {
+    const ch = pretty[i];
+    if (ch === "⌘" || ch === "^") spec.meta = true;
+    else if (ch === "⇧") spec.shift = true;
+    else if (ch === "⌥") spec.alt = true;
+    else { spec.key = pretty.slice(i); break; }
+    i++;
+  }
+  return spec;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · UTILITY · LIGHTNESS-AWARE TEXT COLOR
+// Picks black or white text given a hex background to maintain contrast.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function readableTextOn(hex: string): string {
+  let h = hex.replace("#", "");
+  if (h.length === 3) h = h.split("").map(c => c + c).join("");
+  if (h.length !== 6) return "#0A0A0E";
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  // Luminance formula
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return lum > 0.55 ? "#0A0A0E" : "#FFFFFF";
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAVE 14 · UTILITY · DEEP CLONE (cheap, JSON-safe)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function jsonClone<T>(v: T): T {
+  return JSON.parse(JSON.stringify(v)) as T;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// END · WAVE 14 BEAUTIFICATION PASS
+// ═══════════════════════════════════════════════════════════════════════════
