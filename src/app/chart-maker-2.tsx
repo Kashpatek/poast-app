@@ -1542,6 +1542,13 @@ function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad =
   void rightPad; void bottomPad;
   const cc = chartColors(cfg);
   const chartH = H - topPad - bottomPad;
+  // Wave 15.5 · inline title / subtitle editing in Launch mode. The cfg
+  // exposes onInlineEditTitle / onInlineEditSubtitle only when in Launch;
+  // a click swaps the SVG <text> for a foreignObject input that syncs back
+  // on Enter or blur (Esc cancels).
+  const [editing, setEditing] = useState<"title" | "subtitle" | null>(null);
+  const titleEditable = !!cfg.onInlineEditTitle;
+  const subtitleEditable = !!cfg.onInlineEditSubtitle;
   return (
     <g>
       {/* Wave 11 · selection-glow filter + handle pulse animation */}
@@ -1558,8 +1565,56 @@ function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad =
       <rect x="0" y="0" width={W} height={H} fill="transparent" pointerEvents="none" />
       {/* Wave 12 · watermark sits BEHIND title + data so it whispers, not shouts */}
       <Watermark cfg={cfg} W={W} H={H} />
-      <text x={leftPad} y="28" fill={cc.text} style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 900 }}>{cfg.title}</text>
-      <text x={leftPad} y="48" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 1 }}>{cfg.subtitle.toUpperCase()}</text>
+      {editing === "title" && cfg.onInlineEditTitle ? (
+        <foreignObject x={leftPad - 4} y={10} width={W - leftPad - 24} height={28}>
+          <input
+            autoFocus
+            defaultValue={cfg.title}
+            onBlur={e => { cfg.onInlineEditTitle?.((e.target as HTMLInputElement).value); setEditing(null); }}
+            onKeyDown={e => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              else if (e.key === "Escape") setEditing(null);
+            }}
+            style={{
+              width: "100%", height: "100%", padding: "0 6px", boxSizing: "border-box",
+              background: "rgba(0,0,0,0.55)", color: cc.text,
+              border: "1px solid " + C.amber + "80", borderRadius: 4,
+              fontFamily: fontSans, fontSize: 18, fontWeight: 900, outline: "none",
+            }}
+          />
+        </foreignObject>
+      ) : (
+        <text
+          x={leftPad} y="28" fill={cc.text}
+          onClick={titleEditable ? () => setEditing("title") : undefined}
+          style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 900, cursor: titleEditable ? "text" : "default" }}
+        >{cfg.title}</text>
+      )}
+      {editing === "subtitle" && cfg.onInlineEditSubtitle ? (
+        <foreignObject x={leftPad - 4} y={34} width={W - leftPad - 24} height={20}>
+          <input
+            autoFocus
+            defaultValue={cfg.subtitle}
+            onBlur={e => { cfg.onInlineEditSubtitle?.((e.target as HTMLInputElement).value); setEditing(null); }}
+            onKeyDown={e => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              else if (e.key === "Escape") setEditing(null);
+            }}
+            style={{
+              width: "100%", height: "100%", padding: "0 6px", boxSizing: "border-box",
+              background: "rgba(0,0,0,0.55)", color: cc.muted,
+              border: "1px solid " + C.amber + "80", borderRadius: 4,
+              fontFamily: fontMono, fontSize: 10, letterSpacing: 1, outline: "none",
+            }}
+          />
+        </foreignObject>
+      ) : (
+        <text
+          x={leftPad} y="48" fill={cc.muted}
+          onClick={subtitleEditable ? () => setEditing("subtitle") : undefined}
+          style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 1, cursor: subtitleEditable ? "text" : "default" }}
+        >{cfg.subtitle.toUpperCase()}</text>
+      )}
       {cfg.yLabel && (
         <text
           textAnchor="middle"
@@ -1633,6 +1688,8 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
   };
   const onBodyDown = (rowIdx: number, key: string) => (e: React.PointerEvent) => {
     if (!onUpdateRow) return;
+    // Wave 15.5 · let right-clicks fall through to onContextMenu cleanly.
+    if (e.button === 2) return;
     e.stopPropagation();
     if (onPickBar && onPickBar(rowIdx, key)) return;
     if (e.button !== 0) return;
@@ -1756,16 +1813,16 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
             ) : (
               <text
                 x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={cc.muted}
-                onDoubleClick={() => onUpdateRow && setEditingCat(i)}
+                onClick={() => onUpdateRow && setEditingCat(i)}
                 style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600, cursor: onUpdateRow ? "text" : "default" }}
               >{cat}</text>
             )}
           </g>
         );
       })}
-      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={2} chartH={chartH} sideW={SIDE_LEGEND_W} />}
-      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W} chartH={chartH} sideW={SIDE_LEGEND_W} />}
-      {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} textColor={cc.muted} />}
+      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={2} chartH={chartH} sideW={SIDE_LEGEND_W} onLabelEdit={cfg.onInlineEditSeriesLabel} />}
+      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W} chartH={chartH} sideW={SIDE_LEGEND_W} onLabelEdit={cfg.onInlineEditSeriesLabel} />}
+      {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} textColor={cc.muted} onLabelEdit={cfg.onInlineEditSeriesLabel} />}
       {hoverCat !== null && (() => {
         const i = hoverCat;
         const cx = leftPad + i * groupW + groupW / 2;
@@ -1889,6 +1946,8 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
   // Click body = select; the TOP HANDLE (rendered when selected) drives drag.
   const onBodyDown = (rowIdx: number, key: string) => (e: React.PointerEvent) => {
     if (!onUpdateRow) return;
+    // Wave 15.5 · right-click falls through to onContextMenu.
+    if (e.button === 2) return;
     e.stopPropagation();
     if (onPickBar && onPickBar(rowIdx, key)) return;
     if (e.button !== 0) return;
@@ -1981,15 +2040,15 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
           ) : (
             <text
               x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={cc.muted}
-              onDoubleClick={() => onUpdateRow && setEditingCat(i)}
+              onClick={() => onUpdateRow && setEditingCat(i)}
               style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600, cursor: onUpdateRow ? "text" : "default" }}
             >{cat}</text>
           )}
         </g>
       ))}
-      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={2} chartH={chartH} sideW={SIDE_LEGEND_W} />}
-      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W} chartH={chartH} sideW={SIDE_LEGEND_W} />}
-      {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} textColor={cc.muted} />}
+      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={2} chartH={chartH} sideW={SIDE_LEGEND_W} onLabelEdit={cfg.onInlineEditSeriesLabel} />}
+      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W} chartH={chartH} sideW={SIDE_LEGEND_W} onLabelEdit={cfg.onInlineEditSeriesLabel} />}
+      {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} textColor={cc.muted} onLabelEdit={cfg.onInlineEditSeriesLabel} />}
       {/* Annotations layer · reference lines, CAGR arrows, Δ markers */}
       <AnnotationLayer
         annotations={annotations || []}
@@ -2191,6 +2250,8 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, pct100 =
           // already selected (so casual clicks don't slam values around).
           const onDown = (rowIdx: number) => (e: React.PointerEvent) => {
             if (!onUpdateRow) return;
+            // Wave 15.5 · right-click falls through to onContextMenu.
+            if (e.button === 2) return;
             e.stopPropagation();
             const isSel = selected?.kind === "point" && selected.rowIdx === rowIdx && selected.key === key;
             if (!isSel) {
@@ -2712,6 +2773,8 @@ function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow, o
   };
   const onBodyDown = (rowIdx: number) => (e: React.PointerEvent) => {
     if (!onUpdateRow) return;
+    // Wave 15.5 · right-click falls through to onContextMenu.
+    if (e.button === 2) return;
     e.stopPropagation();
     if (e.button !== 0) return;
     if (onSelectElement) onSelectElement({ kind: "segment", rowIdx, key: acCol.key, color: acColor, anchorX: e.clientX, anchorY: e.clientY });
@@ -2809,8 +2872,12 @@ function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow, o
   );
 }
 
-function Legend({ series, W, y, leftPad, onSwatchClick, textColor, vertical, vertX, chartH, sideW }: { series: Array<{ label: string; color: string; key?: string }>; W: number; y: number; leftPad: number; onSwatchClick?: (key: string, e: React.MouseEvent) => void; textColor?: string; vertical?: boolean; vertX?: number; chartH?: number; sideW?: number }) {
+function Legend({ series, W, y, leftPad, onSwatchClick, textColor, vertical, vertX, chartH, sideW, onLabelEdit }: { series: Array<{ label: string; color: string; key?: string }>; W: number; y: number; leftPad: number; onSwatchClick?: (key: string, e: React.MouseEvent) => void; textColor?: string; vertical?: boolean; vertX?: number; chartH?: number; sideW?: number; onLabelEdit?: (key: string, next: string) => void }) {
   const tc = textColor || C.txm;
+  // Wave 15.5 · inline series-label editing — when onLabelEdit is provided
+  // (Launch mode), clicking a legend label swaps it for a foreignObject
+  // input. Tracked by series key so re-renders don't lose focus.
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const Swatch = ({ s, big }: { s: typeof series[number]; big?: boolean }) => (
     <rect
       x={big ? -10 : 0} y={big ? -10 : -8} width={big ? 20 : 14} height={big ? 20 : 14} rx={big ? 4 : 3} fill={s.color}
@@ -2831,10 +2898,27 @@ function Legend({ series, W, y, leftPad, onSwatchClick, textColor, vertical, ver
       <g>
         {series.map((s, i) => {
           const itemY = startY + i * itemH + itemH / 2;
+          const editing = onLabelEdit && s.key && editingKey === s.key;
           return (
             <g key={i} transform={`translate(${colX}, ${itemY})`}>
               <Swatch s={s} big />
-              <text x="0" y="22" textAnchor="middle" fill={tc} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 800, letterSpacing: 0.8 }}>{s.label.toUpperCase()}</text>
+              {editing ? (
+                <foreignObject x={-(colW / 2) + 4} y={12} width={colW - 8} height={20}>
+                  <input
+                    autoFocus
+                    defaultValue={s.label}
+                    onBlur={e => { onLabelEdit?.(s.key!, (e.target as HTMLInputElement).value); setEditingKey(null); }}
+                    onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); else if (e.key === "Escape") setEditingKey(null); }}
+                    style={{ width: "100%", height: "100%", padding: "0 4px", boxSizing: "border-box", background: "rgba(0,0,0,0.65)", color: tc, border: "1px solid " + C.amber + "80", borderRadius: 3, fontFamily: fontMono, fontSize: 10, fontWeight: 800, letterSpacing: 0.8, outline: "none", textAlign: "center" }}
+                  />
+                </foreignObject>
+              ) : (
+                <text
+                  x="0" y="22" textAnchor="middle" fill={tc}
+                  onClick={onLabelEdit && s.key ? () => setEditingKey(s.key!) : undefined}
+                  style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 800, letterSpacing: 0.8, cursor: onLabelEdit && s.key ? "text" : "default" }}
+                >{s.label.toUpperCase()}</text>
+              )}
             </g>
           );
         })}
@@ -2847,12 +2931,31 @@ function Legend({ series, W, y, leftPad, onSwatchClick, textColor, vertical, ver
   const startX = Math.max(leftPad, (W - totalW) / 2);
   return (
     <g>
-      {series.map((s, i) => (
-        <g key={i} transform={`translate(${startX + i * itemW}, ${y})`}>
-          <Swatch s={s} />
-          <text x="20" y="3" fill={tc} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 0.5 }}>{s.label.toUpperCase()}</text>
-        </g>
-      ))}
+      {series.map((s, i) => {
+        const editing = onLabelEdit && s.key && editingKey === s.key;
+        return (
+          <g key={i} transform={`translate(${startX + i * itemW}, ${y})`}>
+            <Swatch s={s} />
+            {editing ? (
+              <foreignObject x={20} y={-9} width={itemW - 24} height={18}>
+                <input
+                  autoFocus
+                  defaultValue={s.label}
+                  onBlur={e => { onLabelEdit?.(s.key!, (e.target as HTMLInputElement).value); setEditingKey(null); }}
+                  onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); else if (e.key === "Escape") setEditingKey(null); }}
+                  style={{ width: "100%", height: "100%", padding: "0 4px", boxSizing: "border-box", background: "rgba(0,0,0,0.65)", color: tc, border: "1px solid " + C.amber + "80", borderRadius: 3, fontFamily: fontMono, fontSize: 10, letterSpacing: 0.5, outline: "none" }}
+                />
+              </foreignObject>
+            ) : (
+              <text
+                x="20" y="3" fill={tc}
+                onClick={onLabelEdit && s.key ? () => setEditingKey(s.key!) : undefined}
+                style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 0.5, cursor: onLabelEdit && s.key ? "text" : "default" }}
+              >{s.label.toUpperCase()}</text>
+            )}
+          </g>
+        );
+      })}
     </g>
   );
 }
@@ -3711,6 +3814,12 @@ interface ChartConfig {
   // bar/column charts (default 65, range 20-95). For Mekko charts the
   // value drives the inner gap rather than the column width itself.
   barWidthPct?: number;
+  // Wave 15.5 · inline-edit hooks. When provided, chart renderers turn
+  // titles / subtitles / category labels / series labels into click-to-edit
+  // foreignObject inputs. Wired only in Launch mode so compact stays clean.
+  onInlineEditTitle?: (next: string) => void;
+  onInlineEditSubtitle?: (next: string) => void;
+  onInlineEditSeriesLabel?: (key: string, next: string) => void;
 }
 
 // Adaptive color set · text + grid pull from the backdrop mode so light
@@ -4633,6 +4742,9 @@ function PropertiesPanel({
       display: "flex", flexDirection: "column",
       boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 32px rgba(0,0,0,0.30)",
       width: 300,
+      // Wave 15.5 · ensure flex children can shrink so the inner scroll body
+      // honors its overflow:auto instead of pushing the parent past viewport.
+      minHeight: 0,
     }}>
       <div style={{ padding: "12px 14px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
         <div style={{ fontFamily: gf, fontSize: 13, fontWeight: 800, color: C.tx, letterSpacing: -0.1, marginBottom: 8 }}>Properties</div>
@@ -4645,7 +4757,7 @@ function PropertiesPanel({
           })}
         </div>
       </div>
-      <div style={{ overflowY: "auto", flex: 1, padding: "14px 14px 16px" }}>
+      <div style={{ overflowY: "auto", flex: 1, minHeight: 0, padding: "14px 14px 16px" }}>
         {tab === "design" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
@@ -5078,6 +5190,24 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     return true;
   });
   const [floatToolbarEditorOpen, setFloatToolbarEditorOpen] = useState(false);
+  // Wave 15.5 · home anchor for the floating toolbar. The Launch top bar
+  // renders an invisible chip in the WINDOW group at the position the
+  // toolbar should "live"; clicking the pin button on the toolbar snaps it
+  // back to right below this chip (with a smooth animated flight).
+  const floatToolbarHomeRef = useRef<HTMLDivElement | null>(null);
+  // Flag that briefly enables CSS transition on the toolbar's position so
+  // the flight back to the home anchor animates instead of teleporting.
+  const [floatToolbarFlying, setFloatToolbarFlying] = useState(false);
+  // Snap the toolbar to the home anchor (under the SHOW TOOLBAR chip).
+  const flyFloatToolbarHome = useCallback(() => {
+    const rect = floatToolbarHomeRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setFloatToolbarFlying(true);
+    setFloatToolbarPos({ x: rect.left, y: rect.bottom + 6 });
+    // Clear the transition flag after the animation completes so subsequent
+    // drags don't lag behind the cursor.
+    window.setTimeout(() => setFloatToolbarFlying(false), 320);
+  }, []);
   // Wave 15.1 · imperative open flag for the Templates modal — wired from
   // the float toolbar's "Templates" action so it can open the SAME modal the
   // FILE-group button opens (both render the headless instance via the
@@ -5098,6 +5228,17 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   useEffect(() => {
     try { localStorage.setItem("cm2-float-toolbar-visible", floatToolbarVisible ? "1" : "0"); } catch {}
   }, [floatToolbarVisible]);
+  // Wave 15.5 · when entering Launch with a pinned toolbar, snap it to home.
+  // Wrapped in a rAF so the home anchor has rendered and has a real rect.
+  useEffect(() => {
+    if (!expandedMode || !floatToolbarVisible || !floatToolbarPinned) return;
+    const id = requestAnimationFrame(() => {
+      const rect = floatToolbarHomeRef.current?.getBoundingClientRect();
+      if (rect) setFloatToolbarPos({ x: rect.left, y: rect.bottom + 6 });
+    });
+    return () => cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedMode, floatToolbarVisible]);
   // Wave 15 · auto-fit zoom whenever the chart pane changes shape. Snapping
   // to "fit" on every layout flip keeps the chart filling its container —
   // the user can always re-zoom afterwards.
@@ -5263,7 +5404,37 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     collapseAll: false, collapsedKeys: {},
   });
 
-  const cfg: ChartConfig = { type, title, subtitle, theme, numFmt, seriesColors, yMin: axis.yMin, yMax: axis.yMax, xMin: axis.xMin, xMax: axis.xMax, lightBackdrop: backdropMode === "light", showBorders, showGridlines, showSegmentLabels, legendPos, yLabel: yLabel || undefined, xLabel: xLabel || undefined, locked, logScale, showEndLabels, markerShape, roundedCorners, pieOtherThreshold, showTotalLabels, showTickMarks, show100Indicator, axisBreak, watermark, barWidthPct };
+  // Wave 15.5 · setter for series labels — updates sheet.schema[*].label
+  // for the active type. Wired into cfg.onInlineEditSeriesLabel below so
+  // chart renderers can rename a series in place via foreignObject inputs.
+  const setSeriesLabel = useCallback((key: string, next: string) => {
+    setSheets(p => {
+      const cur = p[type] || samplePerType(type);
+      return {
+        ...p,
+        [type]: {
+          ...cur,
+          schema: cur.schema.map(c => c.key === key ? { ...c, label: next } : c),
+        },
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type]);
+  const cfg: ChartConfig = {
+    type, title, subtitle, theme, numFmt, seriesColors,
+    yMin: axis.yMin, yMax: axis.yMax, xMin: axis.xMin, xMax: axis.xMax,
+    lightBackdrop: backdropMode === "light",
+    showBorders, showGridlines, showSegmentLabels, legendPos,
+    yLabel: yLabel || undefined, xLabel: xLabel || undefined,
+    locked, logScale, showEndLabels, markerShape, roundedCorners,
+    pieOtherThreshold, showTotalLabels, showTickMarks, show100Indicator,
+    axisBreak, watermark, barWidthPct,
+    // Wave 15.5 · only wire inline-edit hooks in Launch mode so the
+    // compact card keeps its edit-via-inputs-below pattern.
+    onInlineEditTitle: expandedMode ? setTitle : undefined,
+    onInlineEditSubtitle: expandedMode ? setSubtitle : undefined,
+    onInlineEditSeriesLabel: expandedMode ? setSeriesLabel : undefined,
+  };
 
   // Pick-mode handler · column-chart renderers call this on bar click.
   // Returns true if the click was consumed (we're in pick mode); the
@@ -5581,6 +5752,15 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       if (!seen) setWelcomeOpen(true);
     } catch {}
   }, []);
+  // Wave 15.5 · live cursor tracker — used by M-shortcut to open the radial
+  // wheel at the user's actual mouse position instead of viewport center.
+  const cursorRef = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onMove = (e: MouseEvent) => { cursorRef.current = { x: e.clientX, y: e.clientY }; };
+    window.addEventListener("mousemove", onMove);
+    return () => window.removeEventListener("mousemove", onMove);
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
@@ -5597,15 +5777,14 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         e.preventDefault();
         setWheelOpen(v => { if (!v) playWheelOpen(); else playWheelClose(); return !v; });
       }
-      // Wave 11 · M opens the radial wheel for the current selection
+      // Wave 11 · M opens the radial wheel · Wave 15.5 · works even with no
+      // selection (falls back to canvas) and anchors at the live cursor when
+      // we have one, otherwise viewport center.
       if (e.key === "m" || e.key === "M") {
-        if (selected) {
-          e.preventDefault();
-          // Anchor at center of viewport when keyboard-triggered
-          const cx = (typeof window !== "undefined" ? window.innerWidth : 1280) / 2;
-          const cy = (typeof window !== "undefined" ? window.innerHeight : 800) / 2;
-          setWheelAnchor({ x: cx, y: cy, selected });
-        }
+        e.preventDefault();
+        const cx = cursorRef.current?.x ?? (typeof window !== "undefined" ? window.innerWidth : 1280) / 2;
+        const cy = cursorRef.current?.y ?? (typeof window !== "undefined" ? window.innerHeight : 800) / 2;
+        setWheelAnchor({ x: cx, y: cy, selected: selected || { kind: "canvas" } });
       }
     };
     window.addEventListener("keydown", onKey);
@@ -6097,15 +6276,15 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               viewBox={`0 0 ${W} ${H}`}
               style={{ width: "100%", height: "auto", display: "block", fontFamily: ft, touchAction: "none", cursor: placeMode?.kind === "callout" ? "crosshair" : "default", animation: "cm2ChartSwap 0.32s cubic-bezier(.2,.7,.2,1) both" }}
               onContextMenu={e => {
-                // Right-click on canvas (not on a selectable element) — the
-                // bar / point's own onContextMenu stops propagation, so this
-                // only fires on chart background. Open the radial wheel for
-                // canvas if nothing is selected, else keep current selection.
-                if (e.target === e.currentTarget || (e.target as Element).tagName === "rect" && (e.target as Element).getAttribute("fill") === "transparent") {
-                  e.preventDefault();
-                  setSelected({ kind: "canvas" });
-                  setWheelAnchor({ x: e.clientX, y: e.clientY, selected: { kind: "canvas" } });
-                }
+                // Wave 15.5 · ALWAYS prevent the default browser context menu
+                // and fall through to opening the radial wheel for the current
+                // selection (or canvas if nothing is selected). Bars / points
+                // that have their own onContextMenu stop propagation, so this
+                // only runs when the click reached the SVG background.
+                e.preventDefault();
+                const sel = selected || { kind: "canvas" as const };
+                if (!selected) setSelected({ kind: "canvas" });
+                setWheelAnchor({ x: e.clientX, y: e.clientY, selected: sel });
               }}
             >
               {/* Click-on-canvas (background) deselects · sits BEHIND chart */}
@@ -6659,8 +6838,19 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               tools={floatToolbarTools}
               pos={floatToolbarPos}
               pinned={floatToolbarPinned}
-              onMove={setFloatToolbarPos}
-              onTogglePin={() => setFloatToolbarPinned(p => !p)}
+              flying={floatToolbarFlying}
+              onMove={p => { setFloatToolbarFlying(false); setFloatToolbarPos(p); }}
+              onTogglePin={() => {
+                // Wave 15.5 · pin = fly back to the home anchor; unpin = stay
+                // wherever the toolbar currently is. The home anchor lives in
+                // the Launch top bar's WINDOW group right next to (or in
+                // place of) the SHOW TOOLBAR chip.
+                setFloatToolbarPinned(p => {
+                  const next = !p;
+                  if (next) flyFloatToolbarHome();
+                  return next;
+                });
+              }}
               onClose={() => setFloatToolbarVisible(false)}
               onEditTools={() => setFloatToolbarEditorOpen(true)}
               flags={{
@@ -6722,27 +6912,64 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               }}
             />
           ) : null}
-          showToolbarBtn={!floatToolbarVisible ? (
-            <button
-              onClick={() => setFloatToolbarVisible(true)}
-              title="Show the floating launch toolbar"
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "7px 12px", borderRadius: 8,
-                background: C.amber + "1A",
-                border: "1px solid " + C.amber + "55",
-                color: C.amber,
-                fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
-                cursor: "pointer", transition: "all 0.16s",
-                textTransform: "uppercase",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = C.amber + "26"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = C.amber + "1A"; }}
-            >
-              <Wrench size={12} strokeWidth={2.4} />
-              Show Toolbar
-            </button>
-          ) : null}
+          showToolbarBtn={(
+            // Wave 15.5 · ALWAYS render the home-anchor wrapper so the
+            // toolbar's pin button has a stable target rect to fly home to.
+            // When the toolbar is hidden, the anchor renders the SHOW
+            // TOOLBAR button. When visible, it renders an invisible chip
+            // marking the same spot (so the toolbar can dock back here).
+            <div ref={floatToolbarHomeRef} style={{ display: "inline-flex", alignItems: "center" }}>
+              {!floatToolbarVisible ? (
+                <button
+                  onClick={() => setFloatToolbarVisible(true)}
+                  title="Show the floating launch toolbar"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "7px 12px", borderRadius: 8,
+                    background: C.amber + "1A",
+                    border: "1px solid " + C.amber + "55",
+                    color: C.amber,
+                    fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
+                    cursor: "pointer", transition: "all 0.16s",
+                    textTransform: "uppercase",
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = C.amber + "26"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = C.amber + "1A"; }}
+                >
+                  <Wrench size={12} strokeWidth={2.4} />
+                  Show Toolbar
+                </button>
+              ) : (
+                // Subtle pinned-home chip — same width as the SHOW TOOLBAR
+                // button so layout doesn't jump when the toolbar is shown.
+                // Clicking it pins the toolbar back home (handy if the user
+                // dragged it far away and wants it back without finding the
+                // pin button on the floating bar itself).
+                <button
+                  onClick={() => {
+                    setFloatToolbarPinned(true);
+                    flyFloatToolbarHome();
+                  }}
+                  title="Toolbar home · click to dock the floating toolbar back here"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "7px 12px", borderRadius: 8,
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px dashed " + C.amber + "44",
+                    color: C.amber + "BB",
+                    fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
+                    cursor: "pointer", transition: "all 0.16s",
+                    textTransform: "uppercase",
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "rgba(247,176,65,0.10)"; e.currentTarget.style.borderStyle = "solid"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; e.currentTarget.style.borderStyle = "dashed"; }}
+                >
+                  <Pin size={12} strokeWidth={2.4} />
+                  Dock
+                </button>
+              )}
+            </div>
+          )}
           topBarRightExtras={(
             <>
               <AppThemeToggle theme={appTheme} onChange={setAppTheme} />
@@ -7901,7 +8128,7 @@ interface FloatToolbarStateFlags {
 }
 
 function FloatingLaunchToolbar({
-  tools, pos, pinned, onMove, onTogglePin, onClose, onEditTools, actions, flags,
+  tools, pos, pinned, onMove, onTogglePin, onClose, onEditTools, actions, flags, flying,
 }: {
   tools: FloatToolId[];
   pos: { x: number; y: number } | null;
@@ -7912,6 +8139,8 @@ function FloatingLaunchToolbar({
   onEditTools: () => void;
   actions: FloatToolbarActions;
   flags: FloatToolbarStateFlags;
+  // Wave 15.5 · while flying back to the home anchor, animate left/top.
+  flying?: boolean;
 }) {
   const dragRef = useRef<{ startX: number; startY: number; orig: { x: number; y: number } } | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -8004,6 +8233,10 @@ function FloatingLaunchToolbar({
         padding: "6px 8px",
         userSelect: "none",
         animation: "cm2ExpandPop 0.22s cubic-bezier(.2,.7,.2,1) both",
+        // Wave 15.5 · animate the flight back to the home anchor when
+        // re-pinning. CSS transition only kicks in while `flying` is true so
+        // dragging stays cursor-locked.
+        transition: flying ? "left 0.30s cubic-bezier(.2,.7,.2,1), top 0.30s cubic-bezier(.2,.7,.2,1)" : undefined,
       }}
     >
       {/* Drag handle (only enabled when unpinned) */}
@@ -8025,10 +8258,12 @@ function FloatingLaunchToolbar({
       </div>
 
       {/* Pin lives right next to the grip — together they own the
-          "where does this toolbar live" interaction. */}
+          "where does this toolbar live" interaction. Wave 15.5 · clicking
+          pin from the unpinned state flies the toolbar back to its home
+          anchor (right under the SHOW TOOLBAR chip in the Launch top bar). */}
       <FloatToolButton
         Icon={pinned ? Pin : PinOff}
-        title={pinned ? "Pinned · locked in place. Click to unlock and drag freely." : "Unpinned · drag freely. Click to lock at the current position."}
+        title={pinned ? "Pinned · locked at home. Click to unlock and drag freely." : "Click to fly home and pin · re-locks the toolbar under the SHOW TOOLBAR chip."}
         active={pinned}
         onClick={onTogglePin}
       />
@@ -9494,13 +9729,25 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
         display: "flex", flexDirection: "column",
         animation: "cm2DrawerSlide 0.24s cubic-bezier(.2,.7,.2,1) forwards",
         pointerEvents: "auto",
+        // Wave 15.5 · clamp height + min-height: 0 so the body's overflow:auto
+        // works regardless of viewport — without minHeight: 0 the body grows
+        // past the viewport and forces page-level scroll to reach the X.
+        height: "100vh",
+        maxHeight: "100vh",
+        minHeight: 0,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", background: "linear-gradient(180deg, rgba(247,176,65,0.05), transparent)" }}>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "16px 20px",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          background: "linear-gradient(180deg, rgba(247,176,65,0.05), transparent)",
+          flexShrink: 0,
+        }}>
           <Palette size={16} strokeWidth={2.2} color={C.amber} />
           <span style={{ fontFamily: gf, fontSize: 16, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.2 }}>Design</span>
           <span style={{ marginLeft: "auto", cursor: "pointer", color: C.txm, padding: 6, display: "inline-flex", borderRadius: 6 }} onClick={onClose} onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }} title="Close · Esc"><XIcon size={16} /></span>
         </div>
-        <div style={{ overflow: "auto", flex: 1 }}>
+        <div style={{ overflowY: "auto", overflowX: "hidden", flex: 1, minHeight: 0 }}>
           {/* PALETTE */}
           <Section title="Color Palette">
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -11868,7 +12115,7 @@ function ExpandedShell({
               {!rightCollapsed && <span style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 800, flex: 1 }}>Properties</span>}
             </div>
             {!rightCollapsed && (
-              <div style={{ overflowY: "auto", flex: 1, padding: 12 }}>
+              <div style={{ overflowY: "auto", flex: 1, minHeight: 0, padding: 12 }}>
                 {propsPanel}
               </div>
             )}
