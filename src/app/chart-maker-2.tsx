@@ -10,9 +10,9 @@ import {
   PieChart, Disc, ScatterChart, Circle,
   GanttChart,
   Undo2, Redo2, Hash, Sigma, ArrowUpDown, Minus, Trash2,
-  FileCode2, ArrowLeftRight, Square, Diamond, MinusSquare,
+  FileCode2, ArrowLeftRight, ArrowLeft, Square, Diamond, MinusSquare,
   ClipboardPaste, Sparkles, Type, Keyboard, X as XIcon,
-  Palette, Lock, Unlock,
+  Palette, Lock, Unlock, Table, ChevronLeft, ChevronRight,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -266,18 +266,18 @@ const TYPES: TypeSpec[][] = [
     { id: "variance",    label: "Variance (AC vs PY)", Icon: ArrowLeftRight,          working: true  },
   ],
   [
-    { id: "mekkoPct",    label: "Mekko %",    Icon: Grid3x3,                          working: false },
-    { id: "combo",       label: "Combo",      Icon: GitBranch,                        working: false },
+    { id: "mekkoPct",    label: "Mekko %",    Icon: Grid3x3,                          working: true  },
+    { id: "combo",       label: "Combo",      Icon: GitBranch,                        working: true  },
     { id: "line",        label: "Line",       Icon: LineChart,                        working: true  },
     { id: "stackedArea", label: "Stacked Area", Icon: Layers,                         working: true  },
-    { id: "pctArea",     label: "100% Area",  Icon: Activity,                         working: false },
+    { id: "pctArea",     label: "100% Area",  Icon: Activity,                         working: true  },
   ],
   [
-    { id: "mekkoUnit",   label: "Mekko Unit", Icon: BarChart3,                        working: false },
+    { id: "mekkoUnit",   label: "Mekko Unit", Icon: BarChart3,                        working: true  },
     { id: "pie",         label: "Pie",        Icon: PieChart,                         working: true  },
     { id: "doughnut",    label: "Doughnut",   Icon: Disc,                             working: true  },
     { id: "scatter",     label: "Scatter",    Icon: ScatterChart,                     working: true  },
-    { id: "bubble",      label: "Bubble",     Icon: Circle,                           working: false },
+    { id: "bubble",      label: "Bubble",     Icon: Circle,                           working: true  },
   ],
   [
     { id: "gantt",       label: "Gantt",      Icon: GanttChart,                       working: true  },
@@ -297,9 +297,11 @@ function colLetter(idx: number): string {
   while (true) { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; if (n < 0) break; }
   return s;
 }
-// Parse a cell address like "A1" or "AB42" into {col, row}. Zero-indexed.
+// Parse a cell address like "A1", "AB42", or absolute "$A$1" / "$A1" / "A$1"
+// into {col, row}. Zero-indexed. The $ markers are stripped (we don't track
+// absolute vs relative because there's no fill-down auto-shift in this app).
 function parseCellRef(ref: string): { col: number; row: number } | null {
-  const m = ref.match(/^([A-Z]+)(\d+)$/);
+  const m = ref.match(/^\$?([A-Z]+)\$?(\d+)$/);
   if (!m) return null;
   let col = 0;
   for (const ch of m[1]) col = col * 26 + (ch.charCodeAt(0) - 64);
@@ -336,6 +338,48 @@ function expandRange(start: string, end: string, sheet: DataSheet, depth: number
   }
   return out;
 }
+
+// Resolve a 2D range "A1:D5" into a 2D array of raw cell values (string|number).
+function resolveRange2D(rangeStr: string, sheet: DataSheet): (string | number)[][] {
+  const parts = rangeStr.trim().split(":");
+  if (parts.length !== 2) return [];
+  const a = parseCellRef(parts[0].trim());
+  const b = parseCellRef(parts[1].trim());
+  if (!a || !b) return [];
+  const out: (string | number)[][] = [];
+  for (let r = a.row; r <= b.row; r++) {
+    const row: (string | number)[] = [];
+    for (let c = a.col; c <= b.col; c++) {
+      const colKey = sheet.schema[c]?.key;
+      if (!colKey) { row.push(""); continue; }
+      const v = sheet.rows[r]?.[colKey];
+      row.push(v === undefined ? "" : v);
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+// Evaluate a criteria string like ">5", "<10", ">=3", "text", "=5" against a value.
+function evalCriteria(criteria: string, val: string | number): boolean {
+  const c = String(criteria).trim();
+  const n = Number(val);
+  const ops: Array<[string, (a: number, b: number) => boolean]> = [
+    [">=", (a, b) => a >= b], ["<=", (a, b) => a <= b],
+    ["<>", (a, b) => a !== b], [">", (a, b) => a > b],
+    ["<", (a, b) => a < b], ["=", (a, b) => a === b],
+  ];
+  for (const [op, fn] of ops) {
+    if (c.startsWith(op)) {
+      const rhs = Number(c.slice(op.length));
+      if (!isNaN(rhs) && !isNaN(n)) return fn(n, rhs);
+      return String(val) === c.slice(op.length);
+    }
+  }
+  // Exact match
+  if (!isNaN(Number(c)) && !isNaN(n)) return n === Number(c);
+  return String(val).toLowerCase() === c.toLowerCase();
+}
 // Evaluate a formula string. Supports SUM / AVG / AVERAGE / MIN / MAX /
 // COUNT and basic arithmetic with cell references (A1 + B2 etc).
 function evalFormula(expr: string, sheet: DataSheet, depth = 0): number | string {
@@ -343,8 +387,182 @@ function evalFormula(expr: string, sheet: DataSheet, depth = 0): number | string
   const e = (expr.startsWith("=") ? expr.slice(1) : expr).trim();
   if (!e) return "";
   try {
-    // 1) Resolve range refs (A1:A5) into comma-joined numbers
-    let s = e.replace(/([A-Z]+\d+):([A-Z]+\d+)/g, (_, a, b) => expandRange(a, b, sheet, depth).join(","));
+    let s = e;
+
+    // TODAY() — return ISO date string
+    s = s.replace(/TODAY\s*\(\s*\)/gi, () => {
+      const d = new Date(); return '"' + d.toISOString().slice(0, 10) + '"';
+    });
+
+    // CONCAT / CONCATENATE(a, b, ...)
+    s = s.replace(/(?:CONCAT|CONCATENATE)\s*\(([^)]+)\)/gi, (_, body) => {
+      const parts = body.split(",").map((p: string) => {
+        const t = p.trim();
+        const ref = parseCellRef(t);
+        if (ref) {
+          const colKey = sheet.schema[ref.col]?.key;
+          return colKey ? String(sheet.rows[ref.row]?.[colKey] ?? "") : "";
+        }
+        return t.replace(/^["']|["']$/g, "");
+      });
+      return '"' + parts.join("") + '"';
+    });
+
+    // VLOOKUP(lookup, A1:D5, col_index, [0]) — supports $ absolute refs
+    s = s.replace(/VLOOKUP\s*\(([^,]+),\s*(\$?[A-Z]+\$?\d+:\$?[A-Z]+\$?\d+)\s*,\s*(\d+)(?:\s*,\s*[^)]+)?\)/gi, (_, lookupRaw, rangeStr, colIdxRaw) => {
+      const lookup = lookupRaw.trim().replace(/^["']|["']$/g, "");
+      const colIdx = parseInt(colIdxRaw, 10) - 1;
+      const table = resolveRange2D(rangeStr, sheet);
+      for (const row of table) {
+        if (evalCriteria(lookup, row[0] as string | number)) {
+          const v = row[colIdx];
+          return v !== undefined ? String(v) : "#N/A";
+        }
+      }
+      return "0";
+    });
+
+    // HLOOKUP(lookup, A1:D5, row_index, [0]) — like VLOOKUP but searches first row
+    s = s.replace(/HLOOKUP\s*\(([^,]+),\s*(\$?[A-Z]+\$?\d+:\$?[A-Z]+\$?\d+)\s*,\s*(\d+)(?:\s*,\s*[^)]+)?\)/gi, (_, lookupRaw, rangeStr, rowIdxRaw) => {
+      const lookup = lookupRaw.trim().replace(/^["']|["']$/g, "");
+      const rowIdx = parseInt(rowIdxRaw, 10) - 1;
+      const table = resolveRange2D(rangeStr, sheet);
+      if (!table[0]) return "#N/A";
+      for (let c = 0; c < table[0].length; c++) {
+        if (evalCriteria(lookup, table[0][c] as string | number)) {
+          const v = table[rowIdx]?.[c];
+          return v !== undefined ? String(v) : "#N/A";
+        }
+      }
+      return "0";
+    });
+
+    // INDEX(A1:D5, row, col)
+    s = s.replace(/INDEX\s*\((\$?[A-Z]+\$?\d+:\$?[A-Z]+\$?\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/gi, (_, rangeStr, rowRaw, colRaw) => {
+      const rowIdx = parseInt(rowRaw, 10) - 1;
+      const colIdx = parseInt(colRaw, 10) - 1;
+      const table = resolveRange2D(rangeStr, sheet);
+      const v = table[rowIdx]?.[colIdx];
+      return v !== undefined ? String(v) : "0";
+    });
+
+    // MATCH(lookup, A1:A5, [0])
+    s = s.replace(/MATCH\s*\(([^,]+),\s*(\$?[A-Z]+\$?\d+:\$?[A-Z]+\$?\d+)(?:\s*,\s*[^)]+)?\)/gi, (_, lookupRaw, rangeStr) => {
+      const lookup = lookupRaw.trim().replace(/^["']|["']$/g, "");
+      const table = resolveRange2D(rangeStr, sheet);
+      // flatten to 1D
+      const flat = table.flat();
+      for (let i = 0; i < flat.length; i++) {
+        if (evalCriteria(lookup, flat[i] as string | number)) return String(i + 1);
+      }
+      return "0";
+    });
+
+    // SUMIFS(sum_range, crit_range1, crit1, [crit_range2, crit2, ...])
+    s = s.replace(/SUMIFS\s*\((\$?[A-Z]+\$?\d+:\$?[A-Z]+\$?\d+)((?:\s*,\s*\$?[A-Z]+\$?\d+:\$?[A-Z]+\$?\d+\s*,\s*[^,)]+)+)\s*\)/gi, (_, sumRange, rest) => {
+      const sumVals = resolveRange2D(sumRange, sheet).flat();
+      // Parse pairs (range, criteria) from rest
+      const pairs: Array<{ range: string; crit: string }> = [];
+      const re = /,\s*(\$?[A-Z]+\$?\d+:\$?[A-Z]+\$?\d+)\s*,\s*([^,)]+)/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(rest)) !== null) {
+        pairs.push({ range: m[1], crit: m[2].trim().replace(/^["']|["']$/g, "") });
+      }
+      const checkArrays = pairs.map(p => resolveRange2D(p.range, sheet).flat());
+      let total = 0;
+      for (let i = 0; i < sumVals.length; i++) {
+        const allMatch = pairs.every((p, pi) => evalCriteria(p.crit, checkArrays[pi][i] as string | number));
+        if (allMatch) total += Number(sumVals[i]) || 0;
+      }
+      return String(total);
+    });
+
+    // SUMIF(A1:A5, criteria, B1:B5)
+    s = s.replace(/SUMIF\s*\((\$?[A-Z]+\$?\d+:\$?[A-Z]+\$?\d+)\s*,\s*([^,]+)\s*,\s*(\$?[A-Z]+\$?\d+:\$?[A-Z]+\$?\d+)\s*\)/gi, (_, rangeStr, criteriaRaw, sumRangeStr) => {
+      const criteria = criteriaRaw.trim().replace(/^["']|["']$/g, "");
+      const checkVals = resolveRange2D(rangeStr, sheet).flat();
+      const sumVals = resolveRange2D(sumRangeStr, sheet).flat();
+      let total = 0;
+      for (let i = 0; i < checkVals.length; i++) {
+        if (evalCriteria(criteria, checkVals[i] as string | number)) total += Number(sumVals[i]) || 0;
+      }
+      return String(total);
+    });
+
+    // SUMIF(A1:A5, criteria) — implicit sum_range = range
+    s = s.replace(/SUMIF\s*\((\$?[A-Z]+\$?\d+:\$?[A-Z]+\$?\d+)\s*,\s*([^)]+)\s*\)/gi, (_, rangeStr, criteriaRaw) => {
+      const criteria = criteriaRaw.trim().replace(/^["']|["']$/g, "");
+      const vals = resolveRange2D(rangeStr, sheet).flat();
+      let total = 0;
+      for (const v of vals) { if (evalCriteria(criteria, v as string | number)) total += Number(v) || 0; }
+      return String(total);
+    });
+
+    // COUNTIF(A1:A5, criteria)
+    s = s.replace(/COUNTIF\s*\((\$?[A-Z]+\$?\d+:\$?[A-Z]+\$?\d+)\s*,\s*([^)]+)\s*\)/gi, (_, rangeStr, criteriaRaw) => {
+      const criteria = criteriaRaw.trim().replace(/^["']|["']$/g, "");
+      const vals = resolveRange2D(rangeStr, sheet).flat();
+      let count = 0;
+      for (const v of vals) { if (evalCriteria(criteria, v as string | number)) count++; }
+      return String(count);
+    });
+
+    // String functions: LEN/LEFT/RIGHT/MID
+    s = s.replace(/LEN\s*\(([^)]+)\)/gi, (_, body) => {
+      const t = body.trim();
+      const ref = parseCellRef(t);
+      if (ref) {
+        const colKey = sheet.schema[ref.col]?.key;
+        return String((colKey ? String(sheet.rows[ref.row]?.[colKey] ?? "") : "").length);
+      }
+      return String(t.replace(/^["']|["']$/g, "").length);
+    });
+    s = s.replace(/LEFT\s*\(([^,]+),\s*(\d+)\s*\)/gi, (_, body, n) => {
+      const t = body.trim();
+      const ref = parseCellRef(t);
+      const text = ref && sheet.schema[ref.col] ? String(sheet.rows[ref.row]?.[sheet.schema[ref.col].key] ?? "") : t.replace(/^["']|["']$/g, "");
+      return '"' + text.slice(0, parseInt(n, 10)) + '"';
+    });
+    s = s.replace(/RIGHT\s*\(([^,]+),\s*(\d+)\s*\)/gi, (_, body, n) => {
+      const t = body.trim();
+      const ref = parseCellRef(t);
+      const text = ref && sheet.schema[ref.col] ? String(sheet.rows[ref.row]?.[sheet.schema[ref.col].key] ?? "") : t.replace(/^["']|["']$/g, "");
+      return '"' + text.slice(-parseInt(n, 10)) + '"';
+    });
+    s = s.replace(/MID\s*\(([^,]+),\s*(\d+)\s*,\s*(\d+)\s*\)/gi, (_, body, startN, lenN) => {
+      const t = body.trim();
+      const ref = parseCellRef(t);
+      const text = ref && sheet.schema[ref.col] ? String(sheet.rows[ref.row]?.[sheet.schema[ref.col].key] ?? "") : t.replace(/^["']|["']$/g, "");
+      const start = parseInt(startN, 10) - 1;
+      const len = parseInt(lenN, 10);
+      return '"' + text.slice(start, start + len) + '"';
+    });
+
+    // Date helpers: YEAR/MONTH/DAY of an ISO date string
+    s = s.replace(/YEAR\s*\(([^)]+)\)/gi, (_, body) => {
+      const t = body.trim().replace(/^["']|["']$/g, "");
+      const ref = parseCellRef(t);
+      const ds = ref && sheet.schema[ref.col] ? String(sheet.rows[ref.row]?.[sheet.schema[ref.col].key] ?? "") : t;
+      const d = new Date(ds);
+      return isNaN(d.getTime()) ? "0" : String(d.getUTCFullYear());
+    });
+    s = s.replace(/MONTH\s*\(([^)]+)\)/gi, (_, body) => {
+      const t = body.trim().replace(/^["']|["']$/g, "");
+      const ref = parseCellRef(t);
+      const ds = ref && sheet.schema[ref.col] ? String(sheet.rows[ref.row]?.[sheet.schema[ref.col].key] ?? "") : t;
+      const d = new Date(ds);
+      return isNaN(d.getTime()) ? "0" : String(d.getUTCMonth() + 1);
+    });
+    s = s.replace(/DAY\s*\(([^)]+)\)/gi, (_, body) => {
+      const t = body.trim().replace(/^["']|["']$/g, "");
+      const ref = parseCellRef(t);
+      const ds = ref && sheet.schema[ref.col] ? String(sheet.rows[ref.row]?.[sheet.schema[ref.col].key] ?? "") : t;
+      const d = new Date(ds);
+      return isNaN(d.getTime()) ? "0" : String(d.getUTCDate());
+    });
+
+    // 1) Resolve range refs (A1:A5) into comma-joined numbers — supports $
+    s = s.replace(/(\$?[A-Z]+\$?\d+):(\$?[A-Z]+\$?\d+)/g, (_, a, b) => expandRange(a, b, sheet, depth).join(","));
     // 2) Resolve named functions before single-cell substitution so SUM(A1) etc work
     const runFn = (raw: string, body: (vs: number[]) => number) => {
       // Parse body args: split by comma, each arg is either a number or a single cell ref
@@ -382,7 +600,7 @@ function evalFormula(expr: string, sheet: DataSheet, depth = 0): number | string
       // IF(cond, then, else) — cond is any arithmetic expression evaluated for truthiness
       .replace(/IF\s*\(([^,]+),([^,]+),([^)]+)\)/gi, (_, cond, t, f) => {
         try {
-          const cs = cond.replace(/[A-Z]+\d+/g, (ref: string) => String(resolveCell(ref, sheet, depth + 1)));
+          const cs = cond.replace(/\$?[A-Z]+\$?\d+/g, (ref: string) => String(resolveCell(ref, sheet, depth + 1)));
           if (!/^[\d\s.+\-*/(),<>=!&|]+$/.test(cs)) return f.trim();
           const tFn = parseCellRef(t.trim()) ? resolveCell(t.trim(), sheet, depth + 1) : (Number(t) || t.trim());
           const fFn = parseCellRef(f.trim()) ? resolveCell(f.trim(), sheet, depth + 1) : (Number(f) || f.trim());
@@ -394,16 +612,17 @@ function evalFormula(expr: string, sheet: DataSheet, depth = 0): number | string
       // IFERROR(value, fallback) — try evaluating value, return fallback on error
       .replace(/IFERROR\s*\(([^,]+),([^)]+)\)/gi, (_, v, fb) => {
         try {
-          const vs = v.replace(/[A-Z]+\d+/g, (ref: string) => String(resolveCell(ref, sheet, depth + 1)));
+          const vs = v.replace(/\$?[A-Z]+\$?\d+/g, (ref: string) => String(resolveCell(ref, sheet, depth + 1)));
           if (!/^[\d\s.+\-*/(),]+$/.test(vs)) return fb.trim();
           // eslint-disable-next-line @typescript-eslint/no-implied-eval
           const r = Function("\"use strict\"; return (" + vs + ");")();
           return typeof r === "number" && isFinite(r) ? String(r) : fb.trim();
         } catch { return fb.trim(); }
       });
-    // 3) Resolve remaining single-cell refs
-    s = s.replace(/[A-Z]+\d+/g, ref => String(resolveCell(ref, sheet, depth + 1)));
-    // 4) Pure arithmetic — whitelist before eval
+    // 3) Resolve remaining single-cell refs (allows $A$1 etc.)
+    s = s.replace(/\$?[A-Z]+\$?\d+/g, ref => String(resolveCell(ref, sheet, depth + 1)));
+    // 4) Pure arithmetic (or quoted string) — whitelist before eval
+    if (s.startsWith('"') && s.endsWith('"')) return s.slice(1, -1);
     if (!/^[\d\s.+\-*/(),]+$/.test(s)) return "#REF";
     // eslint-disable-next-line @typescript-eslint/no-implied-eval
     const result = Function("\"use strict\"; return (" + s + ");")();
@@ -457,6 +676,27 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode }: { sh
     if (sheet.rows.length <= 1) return;
     onChange({ ...sheet, rows: sheet.rows.filter((_, j) => j !== i) });
     if (active && active.row === i) setActive(null);
+  };
+  const insertRowAt = (i: number, dir: "above" | "below") => {
+    const blank: Record<string, CellValue> = {};
+    sheet.schema.forEach(c => { blank[c.key] = c.type === "number" || c.type === "percent" ? 0 : ""; });
+    const next = sheet.rows.slice();
+    next.splice(dir === "above" ? i : i + 1, 0, blank);
+    onChange({ ...sheet, rows: next });
+  };
+  const clearRow = (i: number) => {
+    const blank: Record<string, CellValue> = {};
+    sheet.schema.forEach(c => { blank[c.key] = c.type === "number" || c.type === "percent" ? 0 : ""; });
+    const next = sheet.rows.slice();
+    next[i] = blank;
+    onChange({ ...sheet, rows: next });
+  };
+  // DataSheet context menu state
+  const [dsMenu, setDsMenu] = useState<{ x: number; y: number; rowIdx: number } | null>(null);
+  const onRowContextMenu = (e: React.MouseEvent, rowIdx: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDsMenu({ x: e.clientX, y: e.clientY, rowIdx });
   };
   const renameCol = (key: string, newLabel: string) => onChange({ ...sheet, schema: sheet.schema.map(c => c.key === key ? { ...c, label: newLabel } : c) });
   const addCol = () => {
@@ -517,19 +757,19 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode }: { sh
           <thead>
             {/* Column letters (A, B, C…) */}
             <tr>
-              <th style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.10)", padding: "4px 0", fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 0.4 }} />
+              <th style={{ position: "sticky", top: 0, zIndex: 20, background: "#0D0D14", borderBottom: "1px solid rgba(255,255,255,0.10)", padding: "4px 0", fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 0.4 }} />
               {sheet.schema.map((col, i) => (
-                <th key={col.key} style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.10)", borderLeft: "1px solid rgba(255,255,255,0.04)", padding: "4px 0", fontFamily: mn, fontSize: 9, fontWeight: 800, color: active && active.col === i ? C.amber : C.txm, letterSpacing: 0.6, textAlign: "center" }}>
+                <th key={col.key} style={{ position: "sticky", top: 0, zIndex: 20, background: "#0D0D14", borderBottom: "1px solid rgba(255,255,255,0.10)", borderLeft: "1px solid rgba(255,255,255,0.04)", padding: "4px 0", fontFamily: mn, fontSize: 9, fontWeight: 800, color: active && active.col === i ? C.amber : C.txm, letterSpacing: 0.6, textAlign: "center" }}>
                   {colLetter(i)}
                 </th>
               ))}
-              <th style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.10)", padding: 0 }} />
+              <th style={{ position: "sticky", top: 0, zIndex: 20, background: "#0D0D14", borderBottom: "1px solid rgba(255,255,255,0.10)", padding: 0 }} />
             </tr>
             {/* Editable column labels */}
             <tr>
-              <th style={{ background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.10)", padding: 0 }} />
+              <th style={{ position: "sticky", top: 24, zIndex: 19, background: "#0D0D12", borderBottom: "1px solid rgba(255,255,255,0.10)", padding: 0 }} />
               {sheet.schema.map((col, i) => (
-                <th key={col.key} style={{ background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.10)", borderLeft: "1px solid rgba(255,255,255,0.04)", padding: 0, position: "relative" }}>
+                <th key={col.key} style={{ position: "sticky", top: 24, zIndex: 19, background: "#0D0D12", borderBottom: "1px solid rgba(255,255,255,0.10)", borderLeft: "1px solid rgba(255,255,255,0.04)", padding: 0 }}>
                   <CellInput value={col.label} onCommit={v => renameCol(col.key, v || col.label)} style={headerInput} />
                   {sheet.schema.length > 2 && (
                     <span onClick={() => removeCol(col.key)} title="Remove column" style={{ position: "absolute", top: 4, right: 4, cursor: "pointer", color: C.txd, padding: 2, lineHeight: 0 }}>
@@ -538,7 +778,7 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode }: { sh
                   )}
                 </th>
               ))}
-              <th style={{ background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.10)", padding: 0 }}>
+              <th style={{ position: "sticky", top: 24, zIndex: 19, background: "#0D0D12", borderBottom: "1px solid rgba(255,255,255,0.10)", padding: 0 }}>
                 <span onClick={addCol} title="Add column" style={{ display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.txm, padding: "8px 0" }}>
                   <Plus size={12} strokeWidth={2.2} />
                 </span>
@@ -564,6 +804,7 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode }: { sh
                     <td
                       key={col.key}
                       onClick={() => setActive({ row: r, col: ci })}
+                      onContextMenu={e => onRowContextMenu(e, r)}
                       style={{
                         borderTop: "1px solid rgba(255,255,255,0.04)",
                         borderLeft: "1px solid rgba(255,255,255,0.03)",
@@ -617,6 +858,37 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode }: { sh
         <span style={{ flex: 1 }} />
         <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 0.5 }}>FORMULAS · =SUM(A1:A5) · =AVG · =MIN · =MAX · =A1+B1</span>
       </div>
+      {/* Cell right-click context menu */}
+      {dsMenu && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 1000 }} onClick={() => setDsMenu(null)} onContextMenu={e => { e.preventDefault(); setDsMenu(null); }} />
+          <div style={{
+            position: "fixed", left: dsMenu.x, top: dsMenu.y, zIndex: 1001,
+            background: "rgba(13,13,20,0.97)", backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+            border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.50)", padding: "4px 0", minWidth: 160,
+          }}>
+            {[
+              { label: "Insert row above", action: () => insertRowAt(dsMenu.rowIdx, "above") },
+              { label: "Insert row below", action: () => insertRowAt(dsMenu.rowIdx, "below") },
+              null,
+              { label: "Clear row", action: () => clearRow(dsMenu.rowIdx) },
+              { label: "Delete row", action: () => removeRow(dsMenu.rowIdx), danger: true },
+            ].map((item, i) => item === null
+              ? <div key={i} style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "3px 0" }} />
+              : <button key={i} onClick={() => { item.action(); setDsMenu(null); }} style={{
+                  display: "block", width: "100%", padding: "8px 14px", background: "transparent",
+                  border: "none", textAlign: "left", color: item.danger ? "#E06347" : C.tx,
+                  fontFamily: mn, fontSize: 11, fontWeight: 600, cursor: "pointer", letterSpacing: 0.3,
+                }} onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+                {item.label}
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -843,6 +1115,24 @@ type ContextMenuItem =
   | { kind: "swatchRow"; colors: string[]; onPick: (color: string | null) => void; current?: string };
 type OnShowMenu = (e: React.MouseEvent, items: ContextMenuItem[]) => void;
 
+// ElementIconMenu state
+interface ElementMenuState {
+  x: number;
+  y: number;
+  kind: "bar" | "canvas";
+  rowIdx?: number;
+  seriesKey?: string;
+  palette?: string[];
+  currentColor?: string;
+  onCagr?: () => void;
+  onDiff?: () => void;
+  onRefLine?: () => void;
+  onCallout?: () => void;
+  onSetColor?: (c: string | null) => void;
+  onDelete?: () => void;
+}
+type OnShowElementMenu = (state: ElementMenuState) => void;
+
 // ─── Annotations · think-cell-style overlays on top of the data ────────────
 type Annotation =
   | { id: string; kind: "refline"; value: number; label?: string; color?: string }
@@ -878,6 +1168,7 @@ interface CatProps {
   onUpdateRow?: OnUpdateRow;
   onDeleteRow?: OnDeleteRow;
   onShowMenu?: OnShowMenu;
+  onShowElementMenu?: OnShowElementMenu;
   annotations?: Annotation[];
   pickMode?: PickMode;
   onPickBar?: OnPickBar;
@@ -913,13 +1204,29 @@ function getCategoricalSeries(sheet: DataSheet) {
 function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 48 }: { cfg: ChartConfig; W: number; H: number; children: React.ReactNode; leftPad?: number; rightPad?: number; topPad?: number; bottomPad?: number }) {
   void rightPad; void bottomPad;
   const cc = chartColors(cfg);
-  // Title block + chart area inside the SVG. Title + subtitle adapt to
-  // the active backdrop's brightness via chartColors().
+  const chartH = H - topPad - bottomPad;
   return (
     <g>
       <rect x="0" y="0" width={W} height={H} fill="transparent" />
       <text x={leftPad} y="28" fill={cc.text} style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 900 }}>{cfg.title}</text>
       <text x={leftPad} y="48" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 1 }}>{cfg.subtitle.toUpperCase()}</text>
+      {cfg.yLabel && (
+        <text
+          textAnchor="middle"
+          fill={cc.muted}
+          transform={`translate(12, ${topPad + chartH / 2}) rotate(-90)`}
+          style={{ fontFamily: fontMono, fontSize: 9, letterSpacing: 1 }}
+        >{cfg.yLabel.toUpperCase()}</text>
+      )}
+      {cfg.xLabel && (
+        <text
+          x={(leftPad + W - rightPad) / 2}
+          y={topPad + chartH + bottomPad - 4}
+          textAnchor="middle"
+          fill={cc.muted}
+          style={{ fontFamily: fontMono, fontSize: 9, letterSpacing: 1 }}
+        >{cfg.xLabel.toUpperCase()}</text>
+      )}
       <g transform={`translate(0, ${topPad})`}>
         {children}
       </g>
@@ -927,8 +1234,9 @@ function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad =
   );
 }
 
-function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, annotations, pickMode, onPickBar, onSelect, onSetSeriesColor }: CatProps) {
+function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, onShowElementMenu, annotations, pickMode, onPickBar, onSelect, onSetSeriesColor }: CatProps) {
   void pickMode;
+  const [hoverCat, setHoverCat] = useState<number | null>(null);
   const { categories, series } = getCategoricalSeries(sheet);
   const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
   const catKey = sheet.schema[0]?.key || "category";
@@ -949,9 +1257,14 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
 
   const totals = categories.map((_, i) => series.reduce((a, s) => a + s.values[i], 0));
   const maxVal = Math.max(0, ...totals);
-  const ticks = niceTicks(0, maxVal, 5);
-  const tickMax = cfg.yMax !== undefined ? cfg.yMax : ticks[ticks.length - 1];
-  const yOf = (v: number) => chartH - (v / tickMax) * chartH;
+  const ticks = cfg.logScale
+    ? (() => { const t: number[] = []; let p = 1; while (p <= maxVal * 1.2) { t.push(p); p *= 10; } return t; })()
+    : niceTicks(0, maxVal, 5);
+  const tickMax = cfg.yMax !== undefined ? cfg.yMax : (ticks[ticks.length - 1] || 1);
+  const tMin = 0;
+  const yOf = cfg.logScale
+    ? (v: number) => { if (v <= 0) return chartH; const logMin = Math.log10(Math.max(0.1, tMin + 0.1)); const logMax = Math.log10(tickMax); return chartH * (1 - (Math.log10(Math.max(0.1, v)) - logMin) / (logMax - logMin)); }
+    : (v: number) => chartH - (v / tickMax) * chartH;
 
   const groupW = chartW / categories.length;
   const barW = Math.min(groupW * 0.65, 80);
@@ -994,6 +1307,11 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
         </g>
       ))}
       {categories.map((cat, i) => {
+        // For rounded corners: detect which series is topmost (last non-zero)
+        const topSeriesIdx = (() => {
+          for (let k = series.length - 1; k >= 0; k--) { if (series[k].values[i] > 0) return k; }
+          return series.length - 1;
+        })();
         let cum = 0;
         return (
           <g key={i}>
@@ -1004,27 +1322,49 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
               const y1 = yOf(cum + v);
               cum += v;
               const key = seriesKeys[si];
+              const isTop = cfg.roundedCorners && si === topSeriesIdx && v > 0;
               return (
+                <g key={si}>
                 <rect
-                  key={si}
                   x={leftPad + i * groupW + (groupW - barW) / 2}
                   y={y1}
                   width={barW}
                   height={Math.max(0, y0 - y1)}
+                  rx={isTop ? 4 : 0}
+                  ry={isTop ? 4 : 0}
                   fill={colorOf(seriesKeys[si], si)}
                   stroke={cfg.showBorders ? cc.barBorder : "none"}
                   strokeWidth={cfg.showBorders ? 1 : 0}
                   onPointerDown={onDown(i, key, cumBelow)}
                   onPointerMove={onMove}
                   onPointerUp={onUp}
-                  onContextMenu={e => onShowMenu?.(e, [
-                    { label: "Set segment to 0", onClick: () => onUpdateRow?.(i, { [key]: 0 }) },
-                    { label: "Round to nearest 10", onClick: () => onUpdateRow?.(i, { [key]: Math.round(v / 10) * 10 }) },
-                    { label: "", divider: true, onClick: () => {} },
-                    { label: "Delete row", danger: true, onClick: () => onDeleteRow?.(i) },
-                  ])}
+                  onMouseEnter={() => setHoverCat(i)}
+                  onMouseLeave={() => setHoverCat(h => h === i ? null : h)}
+                  onContextMenu={e => {
+                    e.preventDefault(); e.stopPropagation();
+                    if (onShowElementMenu) {
+                      onShowElementMenu({ x: e.clientX, y: e.clientY, kind: "bar", rowIdx: i, seriesKey: key, currentColor: cfg.seriesColors?.[key] });
+                    } else {
+                      onShowMenu?.(e, [
+                        { label: "Set segment to 0", onClick: () => onUpdateRow?.(i, { [key]: 0 }) },
+                        { label: "Round to nearest 10", onClick: () => onUpdateRow?.(i, { [key]: Math.round(v / 10) * 10 }) },
+                        { label: "", divider: true, onClick: () => {} },
+                        { label: "Delete row", danger: true, onClick: () => onDeleteRow?.(i) },
+                      ]);
+                    }
+                  }}
                   style={{ cursor: onUpdateRow ? "ns-resize" : "default" }}
                 />
+                {cfg.showSegmentLabels && (y0 - y1) > 14 && barW > 20 && (
+                  <text
+                    x={leftPad + i * groupW + (groupW - barW) / 2 + barW / 2}
+                    y={(y0 + y1) / 2 + 3}
+                    textAnchor="middle"
+                    fill={cc.onBar}
+                    style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 800, pointerEvents: "none" }}
+                  >{fmtVal(v, cfg.numFmt)}</text>
+                )}
+              </g>
               );
             })}
             <text x={leftPad + i * groupW + groupW / 2} y={yOf(totals[i]) - 6} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, pointerEvents: "none" }}>{fmtVal(totals[i], cfg.numFmt)}</text>
@@ -1051,6 +1391,35 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
       {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={2} />}
       {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W + 6} />}
       {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} textColor={cc.muted} />}
+      {hoverCat !== null && (() => {
+        const i = hoverCat;
+        const cx = leftPad + i * groupW + groupW / 2;
+        // Tooltip card position — clamp to chart bounds
+        const ttW = 180, ttH = Math.min(140, 36 + series.length * 16);
+        const ttX = Math.min(Math.max(leftPad, cx + 16), W - rightPad - ttW);
+        const ttY = topPad + 8;
+        return (
+          <g pointerEvents="none">
+            <line x1={cx} x2={cx} y1={0} y2={chartH} stroke={cc.muted} strokeDasharray="3 4" strokeWidth={1} opacity={0.6} />
+            <foreignObject x={ttX} y={ttY} width={ttW} height={ttH}>
+              <div style={{ background: "rgba(13,13,18,0.95)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 8, padding: "8px 10px", fontFamily: ft, fontSize: 11, color: "#E8E4DD", boxShadow: "0 8px 20px rgba(0,0,0,0.5)" }}>
+                <div style={{ fontFamily: mn, fontSize: 9, fontWeight: 800, marginBottom: 5, letterSpacing: 0.5, textTransform: "uppercase", color: C.amber }}>{categories[i]}</div>
+                {series.map((s, si) => (
+                  <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 6, padding: "1px 0" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: colorOf(seriesKeys[si], si) }} />
+                    <span style={{ flex: 1 }}>{s.label}</span>
+                    <span style={{ fontFamily: mn, fontWeight: 700 }}>{fmtVal(s.values[i], cfg.numFmt)}</span>
+                  </div>
+                ))}
+                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 0 0", marginTop: 4, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
+                  <span style={{ flex: 1, fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.4, textTransform: "uppercase" }}>Total</span>
+                  <span style={{ fontFamily: mn, fontWeight: 800 }}>{fmtVal(totals[i], cfg.numFmt)}</span>
+                </div>
+              </div>
+            </foreignObject>
+          </g>
+        );
+      })()}
       {/* Annotations · ref lines, CAGR, diff. Anchored to the TOP of the
           stack at each picked row (cumulative sum). */}
       <AnnotationLayer
@@ -1078,7 +1447,7 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
   );
 }
 
-function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, annotations, pickMode, onPickBar, onSelect, onSetSeriesColor }: CatProps) {
+function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, onShowElementMenu, annotations, pickMode, onPickBar, onSelect, onSetSeriesColor }: CatProps) {
   const { categories, series } = getCategoricalSeries(sheet);
   const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
   const catKey = sheet.schema[0]?.key || "category";
@@ -1097,9 +1466,13 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
   const chartH = H - topPad - bottomPad;
 
   const maxVal = Math.max(0, ...series.flatMap(s => s.values));
-  const ticks = niceTicks(0, maxVal, 5);
-  const tickMax = cfg.yMax !== undefined ? cfg.yMax : ticks[ticks.length - 1];
-  const yOf = (v: number) => chartH - (v / tickMax) * chartH;
+  const ticks = cfg.logScale
+    ? (() => { const t: number[] = []; let p = 1; while (p <= maxVal * 1.2) { t.push(p); p *= 10; } return t; })()
+    : niceTicks(0, maxVal, 5);
+  const tickMax = cfg.yMax !== undefined ? cfg.yMax : (ticks[ticks.length - 1] || 1);
+  const yOf = cfg.logScale
+    ? (v: number) => { if (v <= 0) return chartH; const logMax = Math.log10(tickMax); return chartH * (1 - (Math.log10(Math.max(0.1, v)) - Math.log10(0.1)) / (logMax - Math.log10(0.1))); }
+    : (v: number) => chartH - (v / tickMax) * chartH;
 
   const groupW = chartW / categories.length;
   const innerPad = groupW * 0.22;
@@ -1153,17 +1526,26 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
               <g key={si}>
                 <rect
                   x={x + 1} y={y} width={barW - 2} height={chartH - y}
+                  rx={cfg.roundedCorners ? 4 : 0}
+                  ry={cfg.roundedCorners ? 4 : 0}
                   fill={colorOf(seriesKeys[si], si)}
                   onPointerDown={onDown(i, key)}
                   onPointerMove={onMove}
                   onPointerUp={onUp}
-                  onContextMenu={e => onShowMenu?.(e, [
-                    { label: "Set to 0", onClick: () => onUpdateRow?.(i, { [key]: 0 }) },
-                    { label: "Set to max", onClick: () => onUpdateRow?.(i, { [key]: niceRound(tickMax) }) },
-                    { label: "Round to nearest 10", onClick: () => onUpdateRow?.(i, { [key]: Math.round(v / 10) * 10 }) },
-                    { label: "", divider: true, onClick: () => {} },
-                    { label: "Delete row", danger: true, onClick: () => onDeleteRow?.(i) },
-                  ])}
+                  onContextMenu={e => {
+                    e.preventDefault(); e.stopPropagation();
+                    if (onShowElementMenu) {
+                      onShowElementMenu({ x: e.clientX, y: e.clientY, kind: "bar", rowIdx: i, seriesKey: key, currentColor: cfg.seriesColors?.[key] });
+                    } else {
+                      onShowMenu?.(e, [
+                        { label: "Set to 0", onClick: () => onUpdateRow?.(i, { [key]: 0 }) },
+                        { label: "Set to max", onClick: () => onUpdateRow?.(i, { [key]: niceRound(tickMax) }) },
+                        { label: "Round to nearest 10", onClick: () => onUpdateRow?.(i, { [key]: Math.round(v / 10) * 10 }) },
+                        { label: "", divider: true, onClick: () => {} },
+                        { label: "Delete row", danger: true, onClick: () => onDeleteRow?.(i) },
+                      ]);
+                    }
+                  }}
                   style={{ cursor: onUpdateRow ? "ns-resize" : "default" }}
                 />
                 <text x={x + barW / 2} y={y - 4} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>{fmtVal(v, cfg.numFmt)}</text>
@@ -1278,8 +1660,18 @@ function PercentColumn({ sheet, cfg, W, H }: CatProps) {
   );
 }
 
-function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, onUpdateRow }: CatProps & { fill?: boolean; stacked?: boolean }) {
-  const { categories, series } = getCategoricalSeries(sheet);
+function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, pct100 = false, onUpdateRow }: CatProps & { fill?: boolean; stacked?: boolean; pct100?: boolean }) {
+  const { categories, series: rawSeries } = getCategoricalSeries(sheet);
+  // Normalize to 100% per column when pct100 is set
+  const series = pct100
+    ? rawSeries.map((s, si) => ({
+        ...s,
+        values: s.values.map((v, ci) => {
+          const rowTotal = rawSeries.reduce((sum, rs) => sum + (rs.values[ci] ?? 0), 0) || 1;
+          return (v / rowTotal) * 100;
+        }),
+      }))
+    : rawSeries;
   const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
   const palette = THEMES[cfg.theme].colors;
   const colorOf = (key: string, idx: number) => cfg.seriesColors?.[key] || palette[idx % palette.length];
@@ -1381,15 +1773,18 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, onUpdate
             }
           };
           const onUp = () => { dragRefHack.current = null; };
+          const lineColor = colorOf(key, si);
+          const lastIdx = s.cumValues.length - 1;
+          const lastVal = s.cumValues[lastIdx];
           return (
             <g key={si}>
-              <path d={path} fill="none" stroke={palette[si % palette.length]} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
+              <path d={path} fill="none" stroke={lineColor} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
               {s.cumValues.map((v, i) => (
                 <circle
                   key={i}
                   cx={xOf(i)} cy={yOf(v)} r="6"
                   fill={cc.barBorder}
-                  stroke={palette[si % palette.length]}
+                  stroke={lineColor}
                   strokeWidth="2"
                   onPointerDown={onDown(i)}
                   onPointerMove={onMove}
@@ -1397,6 +1792,24 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, onUpdate
                   style={{ cursor: onUpdateRow ? "ns-resize" : "default" }}
                 />
               ))}
+              {/* Data point markers */}
+              {cfg.markerShape && cfg.markerShape !== "none" && s.cumValues.map((v, i) => {
+                const mx = xOf(i), my = yOf(v);
+                if (cfg.markerShape === "circle") return <circle key={"mk"+i} cx={mx} cy={my} r={4} fill={lineColor} stroke="none" pointerEvents="none" />;
+                if (cfg.markerShape === "square") return <rect key={"mk"+i} x={mx-4} y={my-4} width={8} height={8} fill={lineColor} stroke="none" pointerEvents="none" />;
+                if (cfg.markerShape === "diamond") return <polygon key={"mk"+i} points={`${mx},${my-5} ${mx+5},${my} ${mx},${my+5} ${mx-5},${my}`} fill={lineColor} stroke="none" pointerEvents="none" />;
+                return null;
+              })}
+              {/* Series end-label */}
+              {cfg.showEndLabels && lastVal >= tickMin && lastVal <= tickMax && (
+                <text
+                  x={xOf(lastIdx) + 8}
+                  y={yOf(lastVal)}
+                  textAnchor="start"
+                  fill={lineColor}
+                  style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 700, pointerEvents: "none" }}
+                >{s.label}</text>
+              )}
             </g>
           );
         });
@@ -1437,8 +1850,14 @@ function Pie({ sheet, cfg, W, H, doughnut = false }: { sheet: DataSheet; cfg: Ch
   const cc = chartColors(cfg);
   const labelCol = sheet.schema[0];
   const valueCol = sheet.schema.find(c => c.type === "number") || sheet.schema[1];
-  const items = sheet.rows.map(r => ({ label: String(r[labelCol.key] ?? ""), value: Number(r[valueCol.key]) || 0 }))
+  const rawItems = sheet.rows.map(r => ({ label: String(r[labelCol.key] ?? ""), value: Number(r[valueCol.key]) || 0 }))
     .filter(it => it.value > 0);
+  const rawTotal = rawItems.reduce((a, it) => a + it.value, 0) || 1;
+  const threshold = cfg.pieOtherThreshold ?? 3;
+  // Aggregate small slices into "Other"
+  const otherVal = threshold > 0 ? rawItems.filter(it => (it.value / rawTotal) * 100 < threshold).reduce((a, it) => a + it.value, 0) : 0;
+  const mainItems = threshold > 0 ? rawItems.filter(it => (it.value / rawTotal) * 100 >= threshold) : rawItems;
+  const items = otherVal > 0 ? [...mainItems, { label: "Other", value: otherVal, isOther: true }] : mainItems.map(it => ({ ...it, isOther: false }));
   const total = items.reduce((a, it) => a + it.value, 0) || 1;
 
   const cx = W / 2;
@@ -1463,7 +1882,7 @@ function Pie({ sheet, cfg, W, H, doughnut = false }: { sheet: DataSheet; cfg: Ch
     const labelA = (a0 + a1) / 2;
     const labelR = R + 24;
     return {
-      label: it.label, value: it.value, portion, color: palette[i % palette.length], path,
+      label: it.label, value: it.value, portion, color: (it as {isOther?: boolean}).isOther ? SA_METAL : palette[i % palette.length], path,
       labelX: cx + Math.cos(labelA) * labelR,
       labelY: cy + Math.sin(labelA) * labelR,
     };
@@ -1476,7 +1895,7 @@ function Pie({ sheet, cfg, W, H, doughnut = false }: { sheet: DataSheet; cfg: Ch
       <text x="56" y="48" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 1 }}>{cfg.subtitle.toUpperCase()}</text>
       {arcs.map((a, i) => (
         <g key={i}>
-          <path d={a.path} fill={a.color} stroke={cc.barBorder} strokeWidth="1.5" />
+          <path d={a.path} fill={a.color} stroke={cfg.showBorders ? cc.barBorder : "none"} strokeWidth={cfg.showBorders ? 1.5 : 0} />
           {a.portion > 0.04 && (
             <text x={a.labelX} y={a.labelY} textAnchor={a.labelX < cx ? "end" : "start"} fill={cc.text} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 700 }}>
               <tspan>{a.label}</tspan>
@@ -1613,7 +2032,7 @@ function Waterfall({ sheet, cfg, W, H }: CatProps) {
         const h = Math.max(0, yOf(seg.y0) - yOf(seg.y1));
         return (
           <g key={i}>
-            <rect x={x} y={y} width={barW} height={h} fill={seg.color} fillOpacity={seg.isTotal ? 0.85 : 0.7} stroke={cfg.showBorders ? cc.barBorder : seg.color} strokeWidth="1" />
+            <rect x={x} y={y} width={barW} height={h} fill={seg.color} fillOpacity={seg.isTotal ? 0.92 : 0.85} stroke={cfg.showBorders ? cc.barBorder : "none"} strokeWidth={cfg.showBorders ? 1 : 0} />
             {/* Connector line to next */}
             {i < segments.length - 1 && !segments[i + 1].isTotal && (
               <line x1={x + barW} x2={leftPad + (i + 1) * groupW + (groupW - barW) / 2} y1={yOf(seg.cum)} y2={yOf(seg.cum)} stroke={cc.gridStrong} strokeDasharray="3 3" />
@@ -1756,7 +2175,7 @@ function AnnotationLayer({ annotations, getBarTop, chartW, chartH, leftPad, topP
 // Zebra BI-flavored variance chart · AC bars with PY reference markers and
 // auto green/red ΔV labels. Schema is (Category, AC, PY); falls back to
 // the first two number columns if those exact keys are missing.
-function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow }: CatProps) {
+function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow, onShowElementMenu }: CatProps) {
   void onShowMenu; void onDeleteRow;
   const palette = THEMES[cfg.theme].colors;
   const cc = chartColors(cfg);
@@ -1840,6 +2259,12 @@ function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow }:
               onPointerDown={onDown(i)}
               onPointerMove={onMove}
               onPointerUp={onUp}
+              onContextMenu={e => {
+                e.preventDefault(); e.stopPropagation();
+                if (onShowElementMenu) {
+                  onShowElementMenu({ x: e.clientX, y: e.clientY, kind: "bar", rowIdx: i, seriesKey: acCol.key, currentColor: cfg.seriesColors?.[acCol.key] });
+                }
+              }}
               style={{ cursor: onUpdateRow ? "ns-resize" : "default" }}
             />
             {/* PY reference bracket — small horizontal mark on top of where PY would land */}
@@ -2058,6 +2483,263 @@ interface GanttOpts {
   showGroups: boolean;
   collapseAll: boolean;
   collapsedKeys: Record<string, boolean>;
+}
+
+// ─── Mekko % ─────────────────────────────────────────────────────────────────
+// Variable-width columns (width ∝ `weight` col), stacked-% bars within each.
+function MekkoPercent({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig; W: number; H: number }) {
+  const { categories, series } = getCategoricalSeries(sheet);
+  const palette = THEMES[cfg.theme].colors;
+  const cc = chartColors(cfg);
+  const leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 48;
+  const chartW = W - leftPad - rightPad;
+  const chartH = H - topPad - bottomPad;
+
+  // Weight column = "Total" / first number col not already in series
+  const weightKey = sheet.schema.find(c => c.key === "weight" || (c.type === "number" && c.label.toLowerCase() === "total"))?.key
+    ?? sheet.schema.find(c => c.type === "number")?.key ?? "";
+  const weights = sheet.rows.map(r => Math.max(0, Number(r[weightKey]) || 0));
+  const totalWeight = weights.reduce((a, b) => a + b, 0) || 1;
+
+  const ticks = [0, 25, 50, 75, 100];
+  const yOf = (v: number) => chartH - (v / 100) * chartH;
+
+  // Build column x-positions proportional to weight
+  let colX = 0;
+  const cols = categories.map((cat, i) => {
+    const colW = (weights[i] / totalWeight) * chartW;
+    const x = leftPad + colX;
+    colX += colW;
+    return { cat, x, colW, i };
+  });
+
+  return (
+    <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
+      {ticks.map(t => (
+        <g key={t}>
+          {cfg.showGridlines !== false && <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke={cc.grid} strokeWidth="1" />}
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10 }}>{t}%</text>
+        </g>
+      ))}
+      {cols.map(({ cat, x, colW, i }) => {
+        const total = series.reduce((a, s) => a + (s.values[i] ?? 0), 0) || 1;
+        let cum = 0;
+        const GAP = colW > 6 ? 2 : 0;
+        return (
+          <g key={i}>
+            {series.map((s, si) => {
+              const pct = ((s.values[i] ?? 0) / total) * 100;
+              const y0 = yOf(cum);
+              const y1 = yOf(cum + pct);
+              cum += pct;
+              const bx = x + GAP / 2;
+              const bw = Math.max(0, colW - GAP);
+              return (
+                <g key={si}>
+                  <rect x={bx} y={y1} width={bw} height={Math.max(0, y0 - y1)}
+                    fill={palette[si % palette.length]}
+                    stroke={cfg.showBorders ? cc.barBorder : "none"}
+                    strokeWidth={cfg.showBorders ? 1 : 0} />
+                  {(y0 - y1) > 16 && bw > 28 && (
+                    <text x={bx + bw / 2} y={(y0 + y1) / 2 + 3} textAnchor="middle"
+                      fill={cc.onBar} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 800 }}>
+                      {Math.round(pct)}%
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+            {/* Category label + weight % below the column */}
+            <text x={x + colW / 2} y={chartH + 14} textAnchor="middle" fill={cc.muted}
+              style={{ fontFamily: fontSans, fontSize: 10, fontWeight: 700 }}>{cat}</text>
+            <text x={x + colW / 2} y={chartH + 28} textAnchor="middle" fill={cc.faint}
+              style={{ fontFamily: fontMono, fontSize: 9 }}>{Math.round((weights[i] / totalWeight) * 100)}%</text>
+            {/* Column divider */}
+            {i > 0 && <line x1={x} x2={x} y1={0} y2={chartH} stroke={cc.gridStrong} strokeWidth="1" />}
+          </g>
+        );
+      })}
+      {cfg.legendPos !== "hidden" && (
+        <Legend series={series.map((s, si) => ({ label: s.label, color: palette[si % palette.length] }))}
+          W={W} y={chartH + 36} leftPad={leftPad} textColor={cc.muted} />
+      )}
+    </ChartFrame>
+  );
+}
+
+// ─── Mekko Unit ──────────────────────────────────────────────────────────────
+// Absolute Marimekko: column widths proportional to a weight column, bar
+// heights show absolute stacked values (not %). Y-axis is numeric, not %.
+// Same data schema as Mekko Pct (category, weight/Total, s1, s2, ...).
+function MekkoUnit({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig; W: number; H: number }) {
+  const { categories, series } = getCategoricalSeries(sheet);
+  const palette = THEMES[cfg.theme].colors;
+  const colorOf = (key: string, idx: number) => cfg.seriesColors?.[key] || palette[idx % palette.length];
+  const cc = chartColors(cfg);
+  const leftPad = 56, rightPad = 24, topPad = 70, bottomPad = 48;
+  const chartW = W - leftPad - rightPad;
+  const chartH = H - topPad - bottomPad;
+
+  const weightKey = sheet.schema.find(c => c.key === "weight" || (c.type === "number" && c.label.toLowerCase() === "total"))?.key
+    ?? sheet.schema.find(c => c.type === "number")?.key ?? "";
+  const seriesKeys = sheet.schema.filter(c => (c.type === "number" || c.type === "percent") && c.key !== weightKey).map(c => c.key);
+  const weights = sheet.rows.map(r => Math.max(0, Number(r[weightKey]) || 0));
+  const totalWeight = weights.reduce((a, b) => a + b, 0) || 1;
+
+  const colTotals = categories.map((_, i) => seriesKeys.reduce((a, k) => a + (Number(sheet.rows[i]?.[k]) || 0), 0));
+  const maxTotal = Math.max(0, ...colTotals);
+  const ticks = niceTicks(0, maxTotal, 5);
+  const tickMax = cfg.yMax !== undefined ? cfg.yMax : (ticks[ticks.length - 1] || 1);
+  const yOf = (v: number) => chartH - (v / tickMax) * chartH;
+
+  let colX = 0;
+  const cols = categories.map((cat, i) => {
+    const colW = (weights[i] / totalWeight) * chartW;
+    const x = leftPad + colX;
+    colX += colW;
+    return { cat, x, colW, i };
+  });
+
+  return (
+    <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
+      {ticks.map(t => (
+        <g key={t}>
+          {cfg.showGridlines !== false && <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke={cc.grid} strokeWidth="1" />}
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
+        </g>
+      ))}
+      {cols.map(({ cat, x, colW, i }) => {
+        let cum = 0;
+        const GAP = colW > 6 ? 2 : 0;
+        return (
+          <g key={i}>
+            {seriesKeys.map((sk, si) => {
+              const v = Number(sheet.rows[i]?.[sk]) || 0;
+              const y0 = yOf(cum);
+              const y1 = yOf(cum + v);
+              cum += v;
+              const bx = x + GAP / 2;
+              const bw = Math.max(0, colW - GAP);
+              return (
+                <g key={si}>
+                  <rect x={bx} y={y1} width={bw} height={Math.max(0, y0 - y1)}
+                    fill={colorOf(sk, si)}
+                    stroke={cfg.showBorders ? cc.barBorder : "none"}
+                    strokeWidth={cfg.showBorders ? 1 : 0} />
+                  {cfg.showSegmentLabels && (y0 - y1) > 14 && bw > 24 && (
+                    <text x={bx + bw / 2} y={(y0 + y1) / 2 + 3} textAnchor="middle"
+                      fill={cc.onBar} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 800, pointerEvents: "none" }}>
+                      {fmtVal(v, cfg.numFmt)}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+            <text x={x + colW / 2} y={chartH + 14} textAnchor="middle" fill={cc.muted}
+              style={{ fontFamily: fontSans, fontSize: 10, fontWeight: 700 }}>{cat}</text>
+            <text x={x + colW / 2} y={chartH + 28} textAnchor="middle" fill={cc.faint}
+              style={{ fontFamily: fontMono, fontSize: 9 }}>{Math.round((weights[i] / totalWeight) * 100)}%</text>
+            {i > 0 && <line x1={x} x2={x} y1={0} y2={chartH} stroke={cc.gridStrong} strokeWidth="1" />}
+          </g>
+        );
+      })}
+      {cfg.legendPos !== "hidden" && (
+        <Legend series={seriesKeys.map((k, si) => ({ key: k, label: sheet.schema.find(c => c.key === k)?.label || k, color: colorOf(k, si) }))}
+          W={W} y={chartH + 36} leftPad={leftPad} textColor={cc.muted} />
+      )}
+    </ChartFrame>
+  );
+}
+
+// ─── Combo (bar + line) ───────────────────────────────────────────────────────
+// All series except the last render as clustered bars; the last series renders
+// as a line overlay — useful for actual vs budget or volume vs price.
+function ComboChart({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig; W: number; H: number }) {
+  const { categories, series } = getCategoricalSeries(sheet);
+  const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
+  const palette = THEMES[cfg.theme].colors;
+  const colorOf = (key: string, idx: number) => cfg.seriesColors?.[key] || palette[idx % palette.length];
+  const cc = chartColors(cfg);
+  const SIDE_LEGEND_W = (cfg.legendPos === "left" || cfg.legendPos === "right") ? 100 : 0;
+  const leftPad = cfg.legendPos === "left" ? 56 + SIDE_LEGEND_W : 56;
+  const rightPad = cfg.legendPos === "right" ? 24 + SIDE_LEGEND_W : 24;
+  const topPad = 70, bottomPad = cfg.legendPos === "top" ? 60 : 48;
+  const chartW = W - leftPad - rightPad;
+  const chartH = H - topPad - bottomPad;
+  const groupW = chartW / Math.max(1, categories.length);
+
+  const barSeries = series.slice(0, Math.max(1, series.length - 1));
+  const lineSeries = series[series.length - 1];
+  const barSeriesKeys = seriesKeys.slice(0, Math.max(1, seriesKeys.length - 1));
+  const lineSeriesKey = seriesKeys[seriesKeys.length - 1];
+
+  const barW = Math.min((groupW / Math.max(1, barSeries.length)) * 0.75, 40);
+  const barGroupW = barW * barSeries.length;
+
+  const allBarVals = barSeries.flatMap(s => s.values);
+  const allLineVals = lineSeries?.values ?? [];
+  const allVals = [...allBarVals, ...allLineVals];
+  const minV = Math.min(0, ...allVals);
+  const maxV = Math.max(0, ...allVals);
+  const ticks = niceTicks(minV, maxV, 5);
+  const tickMin = cfg.yMin !== undefined ? cfg.yMin : ticks[0];
+  const tickMax = cfg.yMax !== undefined ? cfg.yMax : ticks[ticks.length - 1];
+  const yOf = (v: number) => chartH - ((v - tickMin) / Math.max(0.0001, tickMax - tickMin)) * chartH;
+  const xOf = (i: number) => leftPad + i * groupW + groupW / 2;
+
+  const lineColor = lineSeries ? colorOf(lineSeriesKey, series.length - 1) : palette[0];
+
+  return (
+    <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
+      {ticks.map(t => (
+        <g key={t}>
+          {cfg.showGridlines !== false && <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke={cc.grid} strokeWidth="1" />}
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
+        </g>
+      ))}
+      {/* Bars */}
+      {categories.map((cat, i) => (
+        <g key={i}>
+          {barSeries.map((s, si) => {
+            const color = colorOf(barSeriesKeys[si], si);
+            const v = s.values[i] ?? 0;
+            const bx = leftPad + i * groupW + (groupW - barGroupW) / 2 + si * barW;
+            const barTop = Math.min(yOf(0), yOf(v));
+            const barH = Math.abs(yOf(v) - yOf(0));
+            return (
+              <rect key={si} x={bx} y={barTop} width={barW - 1} height={Math.max(1, barH)}
+                fill={color}
+                stroke={cfg.showBorders ? cc.barBorder : "none"}
+                strokeWidth={cfg.showBorders ? 1 : 0} />
+            );
+          })}
+          <text x={xOf(i)} y={chartH + 22} textAnchor="middle" fill={cc.muted}
+            style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{cat}</text>
+        </g>
+      ))}
+      {/* Line overlay */}
+      {lineSeries && categories.length >= 2 && (
+        <>
+          <polyline
+            fill="none"
+            stroke={lineColor}
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            points={lineSeries.values.map((v, i) => `${xOf(i)},${yOf(v)}`).join(" ")}
+          />
+          {lineSeries.values.map((v, i) => (
+            <circle key={i} cx={xOf(i)} cy={yOf(v)} r={4}
+              fill={lineColor} stroke={cc.barBorder} strokeWidth={1.5} />
+          ))}
+        </>
+      )}
+      {/* Legend */}
+      {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={2} />}
+      {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W + 6} />}
+      {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} textColor={cc.muted} />}
+    </ChartFrame>
+  );
 }
 
 function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDeleteRow, onShowMenu }: { sheet: DataSheet; cfg: ChartConfig; W: number; H: number; opts: GanttOpts; onToggleGroup: (k: string) => void; onUpdateRow?: OnUpdateRow; onDeleteRow?: OnDeleteRow; onShowMenu?: OnShowMenu }) {
@@ -2361,14 +3043,25 @@ interface ChartConfig {
   // Whether the rendered backdrop is light (forces dark text on chart).
   lightBackdrop?: boolean;
   // Visual toggles · default off so charts read clean
-  showBorders?: boolean;       // stroke between stacked segments / bar edges
-  showGridlines?: boolean;     // horizontal Y axis gridlines (default true)
-  showLegend?: boolean;        // legend visibility (default true)
+  showBorders?: boolean;          // stroke between stacked segments / bar edges
+  showGridlines?: boolean;        // horizontal Y axis gridlines (default true)
+  showLegend?: boolean;           // legend visibility (default true)
+  showSegmentLabels?: boolean;    // value label inside each stacked segment
   // Legend position relative to the chart canvas
   legendPos?: "top" | "bottom" | "left" | "right" | "hidden";
+  // Optional axis labels
+  yLabel?: string;    // vertical label on the left of the chart area
+  xLabel?: string;    // horizontal label below the x-axis categories
   // When true, all chart interactions (drag, dblclick edit, right-click,
   // pointer capture) are no-ops. Lets the design pane be safe to touch.
   locked?: boolean;
+  // New fields (feature additions)
+  logScale?: boolean;
+  showEndLabels?: boolean;
+  markerShape?: "none" | "circle" | "square" | "diamond";
+  roundedCorners?: boolean;
+  showSecondaryAxis?: boolean;
+  pieOtherThreshold?: number;
 }
 
 // Adaptive color set · text + grid pull from the backdrop mode so light
@@ -2397,6 +3090,470 @@ function chartColors(cfg: ChartConfig) {
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// CHART TYPE WHEEL · Think-cell-style radial picker. Shows all 16 chart types
+// arranged in 22.5° wedges grouped visually by family (column · line · mekko ·
+// gantt/scatter). Click a wedge to switch type; Esc / outside-click closes.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Family color tints for the wheel — wedge fills are family color × low alpha
+// so the whole wheel reads at-a-glance even before you read labels.
+function familyForType(t: ChartType): "column" | "line" | "mekko" | "gantt" {
+  if (t === "stacked" || t === "pct" || t === "clustered" || t === "wfup" || t === "wfdn" || t === "variance") return "column";
+  if (t === "line" || t === "stackedArea" || t === "pctArea" || t === "combo") return "line";
+  if (t === "mekkoPct" || t === "mekkoUnit" || t === "pie" || t === "doughnut") return "mekko";
+  return "gantt";
+}
+function familyColor(f: "column" | "line" | "mekko" | "gantt"): string {
+  if (f === "column") return "#F7B041"; // amber
+  if (f === "line")   return "#0B86D1"; // cobalt
+  if (f === "mekko")  return "#2EAD8E"; // mint
+  return "#E06347"; // coral
+}
+
+function ChartTypeWheel({ active, onSelect, onClose }: { active: ChartType; onSelect: (t: ChartType) => void; onClose: () => void }) {
+  const types = TYPES.flat();
+  const N = types.length; // expected 16
+  const cx = 260, cy = 260;
+  const outerR = 230;
+  const innerR = 100;
+  const labelR = (outerR + innerR) / 2;
+  const iconR = labelR + 12;
+  const segDeg = 360 / N;
+  const [hovered, setHovered] = useState<number | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // Polar → cartesian helper. We rotate so wedge 0 starts at -90° (top).
+  const point = (deg: number, r: number) => {
+    const rad = ((deg - 90) * Math.PI) / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  };
+
+  // Build a wedge path for the i-th sector (0…N-1).
+  const wedgePath = (i: number, scale = 1) => {
+    const a0 = i * segDeg;
+    const a1 = (i + 1) * segDeg;
+    const o = outerR * scale;
+    const inn = innerR;
+    const p0 = point(a0, o);
+    const p1 = point(a1, o);
+    const q0 = point(a0, inn);
+    const q1 = point(a1, inn);
+    const large = segDeg > 180 ? 1 : 0;
+    return `M ${q0.x} ${q0.y} L ${p0.x} ${p0.y} A ${o} ${o} 0 ${large} 1 ${p1.x} ${p1.y} L ${q1.x} ${q1.y} A ${inn} ${inn} 0 ${large} 0 ${q0.x} ${q0.y} Z`;
+  };
+
+  const activeIdx = types.findIndex(t => t.id === active);
+  const activeLabel = types[activeIdx]?.label || "";
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 13000,
+        background: "rgba(6,6,12,0.78)",
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        animation: "cm2WheelFade 0.18s ease forwards",
+      }}
+    >
+      <style>{`@keyframes cm2WheelFade{from{opacity:0}to{opacity:1}}@keyframes cm2WheelSpin{from{transform:scale(.96) rotate(15deg);opacity:0}to{transform:scale(1) rotate(0deg);opacity:1}}`}</style>
+      <div onClick={e => e.stopPropagation()} style={{ position: "relative", width: 520, height: 520, animation: "cm2WheelSpin 0.32s cubic-bezier(.2,.7,.2,1) both" }}>
+        <svg viewBox="0 0 520 520" width="520" height="520" style={{ display: "block", overflow: "visible" }}>
+          <defs>
+            <filter id="cm2WheelGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="8" result="g" />
+              <feMerge><feMergeNode in="g" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+          </defs>
+          {types.map((spec, i) => {
+            const fam = familyForType(spec.id);
+            const baseColor = familyColor(fam);
+            const isActive = spec.id === active;
+            const isHov = hovered === i;
+            const scale = isHov || isActive ? 1.04 : 1;
+            const fillAlpha = isActive ? "55" : (isHov ? "33" : "16");
+            const stroke = isActive ? C.amber : (isHov ? baseColor : "rgba(255,255,255,0.06)");
+            const angCenter = i * segDeg + segDeg / 2;
+            const labelPos = point(angCenter, labelR);
+            const iconPos = point(angCenter, iconR);
+            return (
+              <g key={spec.id}
+                onMouseEnter={() => setHovered(i)}
+                onMouseLeave={() => setHovered(h => (h === i ? null : h))}
+                onClick={() => { onSelect(spec.id); onClose(); }}
+                style={{ cursor: "pointer", transition: "transform 0.18s" }}
+              >
+                <path
+                  d={wedgePath(i, scale)}
+                  fill={baseColor + fillAlpha}
+                  stroke={stroke}
+                  strokeWidth={isActive ? 2 : 1}
+                  filter={isActive ? "url(#cm2WheelGlow)" : undefined}
+                />
+                {/* Lucide icon · render as foreignObject so we get a real React component */}
+                <foreignObject x={iconPos.x - 14} y={iconPos.y - 22} width={28} height={28} style={{ pointerEvents: "none" }}>
+                  <div style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <spec.Icon size={20} strokeWidth={isActive ? 2.6 : 2} color={isActive ? C.amber : (isHov ? "#E8E4DD" : baseColor)} />
+                  </div>
+                </foreignObject>
+                <text
+                  x={labelPos.x}
+                  y={labelPos.y + 14}
+                  textAnchor="middle"
+                  fill={isActive ? C.amber : (isHov ? "#E8E4DD" : C.txm)}
+                  style={{ fontFamily: mn, fontSize: 9.5, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", pointerEvents: "none" }}
+                >{spec.label}</text>
+              </g>
+            );
+          })}
+          {/* Center disk */}
+          <circle cx={cx} cy={cy} r={innerR - 6} fill="#0B0B12" stroke="rgba(247,176,65,0.30)" strokeWidth="1.5" />
+          <text x={cx} y={cy - 14} textAnchor="middle" fill={C.amber} style={{ fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 1.5, textTransform: "uppercase" }}>Active</text>
+          <text x={cx} y={cy + 8} textAnchor="middle" fill="#E8E4DD" style={{ fontFamily: gf, fontSize: 17, fontWeight: 900, letterSpacing: -0.3 }}>{activeLabel}</text>
+          <text x={cx} y={cy + 28} textAnchor="middle" fill={C.txm} style={{ fontFamily: mn, fontSize: 8, letterSpacing: 1, textTransform: "uppercase" }}>Click any chart type</text>
+        </svg>
+        {/* Close button */}
+        <button onClick={onClose} title="Close · Esc" style={{ position: "absolute", top: -6, right: -6, width: 36, height: 36, borderRadius: "50%", background: "#0D0D14", border: "1px solid rgba(255,255,255,0.14)", color: C.tx, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 20px rgba(0,0,0,0.5)" }}>
+          <XIcon size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ELEMENT ICON MENU · Think-cell's horizontal context strip that pops next to
+// a clicked bar. Compact icon row: fill color (with inline swatch row) · CAGR
+// arrow · diff arrow · ref line · callout · delete · more.
+// ═══════════════════════════════════════════════════════════════════════════
+function ElementIconMenu({ state, onClose, palette }: { state: ElementMenuState; onClose: () => void; palette: string[] }) {
+  const [showSwatches, setShowSwatches] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onClick = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest("[data-element-menu]")) return;
+      onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    setTimeout(() => document.addEventListener("click", onClick), 0);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("click", onClick); };
+  }, [onClose]);
+
+  const W = 360;
+  const winW = typeof window !== "undefined" ? window.innerWidth : 1600;
+  const winH = typeof window !== "undefined" ? window.innerHeight : 900;
+  const x = Math.min(Math.max(8, state.x - W / 2), winW - W - 8);
+  const y = Math.max(8, Math.min(state.y - 70, winH - 120));
+
+  const IconBtn = ({ Icon, title, onClick, active, danger }: { Icon: LucideIconCmp; title: string; onClick: () => void; active?: boolean; danger?: boolean }) => {
+    const [hov, setHov] = useState(false);
+    const accent = danger ? "#E06347" : C.amber;
+    return (
+      <button
+        onClick={onClick}
+        title={title}
+        onMouseEnter={() => setHov(true)}
+        onMouseLeave={() => setHov(false)}
+        style={{
+          position: "relative",
+          width: 40, height: 40, borderRadius: 8,
+          background: active ? accent + "20" : (hov ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)"),
+          border: "1px solid " + (active ? accent + "60" : (hov ? accent + "30" : "rgba(255,255,255,0.10)")),
+          color: active ? accent : (danger ? accent : (hov ? C.tx : C.txm)),
+          cursor: "pointer",
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          transition: "all 0.14s",
+          boxShadow: active ? "0 0 12px " + accent + "30" : "none",
+        }}
+      >
+        <Icon size={16} strokeWidth={2.2} />
+        {hov && (
+          <span style={{ position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", padding: "4px 8px", background: "#0A0A0E", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 5, fontFamily: mn, fontSize: 9, fontWeight: 700, color: "#E8E4DD", letterSpacing: 0.4, whiteSpace: "nowrap", pointerEvents: "none" }}>{title}</span>
+        )}
+      </button>
+    );
+  };
+
+  return (
+    <div
+      data-element-menu
+      style={{
+        position: "fixed", left: x, top: y, zIndex: 11600,
+        width: W,
+        background: "rgba(13,13,18,0.95)",
+        backdropFilter: "blur(14px) saturate(140%)",
+        WebkitBackdropFilter: "blur(14px) saturate(140%)",
+        border: "1px solid " + C.amber + "40",
+        borderRadius: 14,
+        padding: "8px 10px",
+        boxShadow: "0 20px 50px rgba(0,0,0,0.55), 0 0 0 1px rgba(247,176,65,0.10), 0 0 24px " + C.amber + "20",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <IconBtn Icon={Palette} title="Fill color" onClick={() => setShowSwatches(v => !v)} active={showSwatches} />
+        <IconBtn Icon={TrendingUp} title="CAGR arrow" onClick={() => { state.onCagr?.(); onClose(); }} />
+        <IconBtn Icon={ArrowLeftRight} title="Diff arrow" onClick={() => { state.onDiff?.(); onClose(); }} />
+        <IconBtn Icon={Minus} title="Reference line" onClick={() => { state.onRefLine?.(); onClose(); }} />
+        <IconBtn Icon={Type} title="Callout" onClick={() => { state.onCallout?.(); onClose(); }} />
+        <span style={{ width: 1, height: 24, background: "rgba(255,255,255,0.10)", margin: "0 2px" }} />
+        <IconBtn Icon={Trash2} title="Delete" onClick={() => { state.onDelete?.(); onClose(); }} danger />
+      </div>
+      {showSwatches && (
+        <div style={{ display: "flex", gap: 4, padding: "8px 4px 2px", flexWrap: "wrap" }}>
+          <button
+            onClick={() => { state.onSetColor?.(null); onClose(); }}
+            title="Reset color"
+            style={{ width: 22, height: 22, borderRadius: 4, background: "transparent", border: "1px dashed rgba(255,255,255,0.30)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", color: C.txm }}
+          ><X size={11} strokeWidth={2.4} /></button>
+          {palette.map((c, i) => (
+            <button
+              key={i}
+              onClick={() => { state.onSetColor?.(c); onClose(); }}
+              title={c}
+              style={{ width: 22, height: 22, borderRadius: 4, background: c, border: "1px solid " + (state.currentColor === c ? "#fff" : "rgba(0,0,0,0.4)"), cursor: "pointer", boxShadow: state.currentColor === c ? "0 0 0 2px " + c + "60" : "none" }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATUS BAR · slim row at the bottom of the canvas. Mirrors LibreOffice's
+// status bar with type · row/col counts · sum · format · theme.
+// ═══════════════════════════════════════════════════════════════════════════
+function StatusBar({ chartType, sheet, numFmt, themeName, advanced }: { chartType: ChartType; sheet: DataSheet; numFmt: NumberFormat; themeName: string; advanced: boolean }) {
+  const numericCols = sheet.schema.filter(c => c.type === "number" || c.type === "percent");
+  const sum = sheet.rows.reduce((acc, row) => {
+    return acc + numericCols.reduce((a, col) => {
+      const v = row[col.key];
+      return a + (typeof v === "number" ? v : Number(v) || 0);
+    }, 0);
+  }, 0);
+  const typeLabel = TYPES.flat().find(t => t.id === chartType)?.label || chartType;
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 14,
+      padding: "8px 16px",
+      background: "rgba(13,13,18,0.85)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      borderRadius: 10,
+      fontFamily: mn, fontSize: 10, color: C.txm, letterSpacing: 0.6,
+      backdropFilter: "blur(10px) saturate(140%)",
+      WebkitBackdropFilter: "blur(10px) saturate(140%)",
+      boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset",
+    }}>
+      <span style={{ color: C.amber, fontWeight: 800, textTransform: "uppercase" }}>{typeLabel}</span>
+      <span style={{ opacity: 0.4 }}>·</span>
+      <span>{sheet.rows.length} ROWS × {sheet.schema.length} COLS</span>
+      <span style={{ opacity: 0.4 }}>·</span>
+      <span>Σ {fmtVal(sum, numFmt)}</span>
+      <span style={{ opacity: 0.4 }}>·</span>
+      <span>FORMAT: {numFmt.toUpperCase()}</span>
+      <span style={{ marginLeft: "auto" }}>{advanced ? "ADVANCED" : "SIMPLE"} MODE · THEME: {themeName.toUpperCase()}</span>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROPERTIES PANEL · right-side panel with [Design][Annotations][Series] tabs.
+// Compact summary of the most-used controls so users don't have to open the
+// full Design drawer for every tweak. Falls under the application-shell
+// upgrade — when SIMPLE mode is on this hides via prop.
+// ═══════════════════════════════════════════════════════════════════════════
+function PropertiesPanel({
+  tab, onChangeTab,
+  theme, onChangeTheme,
+  legendPos, onChangeLegendPos,
+  showGridlines, onToggleGridlines,
+  showBorders, onToggleBorders,
+  logScale, onToggleLogScale,
+  roundedCorners, onToggleRoundedCorners,
+  showEndLabels, onToggleEndLabels,
+  markerShape, onChangeMarkerShape,
+  annotations, onRemoveAnnotation, onClearAnnotations,
+  pickMode, placeMode, onStartPick, onCancelPick, onAddRefLine, onTogglePlaceText,
+  chartType,
+  series, onSetSeriesColor, palette,
+  onOpenDesign,
+}: {
+  tab: "design" | "annotations" | "series";
+  onChangeTab: (t: "design" | "annotations" | "series") => void;
+  theme: ThemeId; onChangeTheme: (t: ThemeId) => void;
+  legendPos: NonNullable<ChartConfig["legendPos"]>; onChangeLegendPos: (p: NonNullable<ChartConfig["legendPos"]>) => void;
+  showGridlines: boolean; onToggleGridlines: () => void;
+  showBorders: boolean; onToggleBorders: () => void;
+  logScale: boolean; onToggleLogScale: () => void;
+  roundedCorners: boolean; onToggleRoundedCorners: () => void;
+  showEndLabels: boolean; onToggleEndLabels: () => void;
+  markerShape: "none" | "circle" | "square" | "diamond"; onChangeMarkerShape: (s: "none" | "circle" | "square" | "diamond") => void;
+  annotations: Annotation[]; onRemoveAnnotation: (id: string) => void; onClearAnnotations: () => void;
+  pickMode: PickMode; placeMode: PlaceMode;
+  onStartPick: (k: "cagr" | "diff") => void; onCancelPick: () => void;
+  onAddRefLine: (v: number, l: string) => void; onTogglePlaceText: () => void;
+  chartType: ChartType;
+  series: Array<{ key: string; label: string; color: string }>;
+  onSetSeriesColor: (key: string, color: string | null) => void;
+  palette: string[];
+  onOpenDesign: () => void;
+}) {
+  const tabs: Array<{ id: "design" | "annotations" | "series"; label: string }> = [
+    { id: "design", label: "Design" }, { id: "annotations", label: "Annotate" }, { id: "series", label: "Series" },
+  ];
+  const annotApplies = ["stacked", "clustered", "line", "stackedArea", "wfup"].includes(chartType);
+  const [refValue, setRefValue] = useState("0");
+  const [refLabel, setRefLabel] = useState("");
+  const [editingSeries, setEditingSeries] = useState<string | null>(null);
+  return (
+    <aside style={{
+      background: "rgba(13,13,18,0.72)",
+      backdropFilter: "blur(14px) saturate(140%)",
+      WebkitBackdropFilter: "blur(14px) saturate(140%)",
+      border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 14,
+      position: "sticky", top: 14, alignSelf: "start",
+      maxHeight: "calc(100vh - 56px)", overflow: "hidden",
+      display: "flex", flexDirection: "column",
+      boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 32px rgba(0,0,0,0.30)",
+      width: 300,
+    }}>
+      <div style={{ padding: "12px 14px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
+        <div style={{ fontFamily: gf, fontSize: 13, fontWeight: 800, color: C.tx, letterSpacing: -0.1, marginBottom: 8 }}>Properties</div>
+        <div style={{ display: "flex", gap: 4, marginBottom: 0 }}>
+          {tabs.map(t => {
+            const on = tab === t.id;
+            return (
+              <button key={t.id} onClick={() => onChangeTab(t.id)} style={{ flex: 1, padding: "8px 6px", borderRadius: "6px 6px 0 0", border: "none", borderBottom: on ? "2px solid " + C.amber : "2px solid transparent", background: on ? C.amber + "16" : "transparent", color: on ? C.amber : C.txm, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer", textTransform: "uppercase" }}>{t.label}</button>
+            );
+          })}
+        </div>
+      </div>
+      <div style={{ overflowY: "auto", flex: 1, padding: "14px 14px 16px" }}>
+        {tab === "design" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8, fontWeight: 800 }}>Palette</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {(Object.entries(THEMES) as [ThemeId, typeof THEMES[ThemeId]][]).map(([id, t]) => {
+                  const on = theme === id;
+                  return (
+                    <button key={id} onClick={() => onChangeTheme(id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: on ? C.amber + "16" : "rgba(255,255,255,0.025)", border: "1px solid " + (on ? C.amber + "55" : "rgba(255,255,255,0.08)"), borderRadius: 7, cursor: "pointer", textAlign: "left" }}>
+                      <span style={{ display: "inline-flex", gap: 1.5 }}>{t.colors.slice(0, 6).map((c, i) => <span key={i} style={{ width: 9, height: 14, background: c, borderRadius: 2 }} />)}</span>
+                      <span style={{ fontFamily: ft, fontSize: 11, fontWeight: 800, color: on ? C.amber : "#E8E4DD" }}>{t.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8, fontWeight: 800 }}>Legend</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 3 }}>
+                {(["top", "bottom", "left", "right", "hidden"] as const).map(p => {
+                  const on = legendPos === p;
+                  return <button key={p} onClick={() => onChangeLegendPos(p)} style={{ padding: "7px 2px", borderRadius: 5, background: on ? C.amber + "20" : "rgba(255,255,255,0.025)", border: "1px solid " + (on ? C.amber + "55" : "rgba(255,255,255,0.08)"), color: on ? C.amber : C.tx, fontFamily: mn, fontSize: 8, fontWeight: 800, letterSpacing: 0.4, cursor: "pointer", textTransform: "uppercase" }}>{p}</button>;
+                })}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8, fontWeight: 800 }}>Display</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <DesignToggle on={showGridlines} label="Gridlines" sub="Y axis guide lines" onChange={onToggleGridlines} />
+                <DesignToggle on={showBorders} label="Borders" sub="Bar/segment outlines" onChange={onToggleBorders} />
+                <DesignToggle on={logScale} label="Log Scale" sub="Logarithmic Y axis" onChange={onToggleLogScale} />
+                <DesignToggle on={roundedCorners} label="Rounded" sub="Rounded bar corners" onChange={onToggleRoundedCorners} />
+                <DesignToggle on={showEndLabels} label="End Labels" sub="Series labels at last point" onChange={onToggleEndLabels} />
+              </div>
+            </div>
+            <div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 8, fontWeight: 800 }}>Markers</div>
+              <div style={{ display: "flex", gap: 4 }}>
+                {(["none", "circle", "square", "diamond"] as const).map(s => {
+                  const on = markerShape === s;
+                  const lbl = s === "none" ? "—" : s === "circle" ? "●" : s === "square" ? "■" : "◆";
+                  return <button key={s} onClick={() => onChangeMarkerShape(s)} style={{ flex: 1, padding: "7px 4px", borderRadius: 5, background: on ? C.amber + "20" : "rgba(255,255,255,0.025)", border: "1px solid " + (on ? C.amber + "55" : "rgba(255,255,255,0.08)"), color: on ? C.amber : C.tx, fontFamily: mn, fontSize: 11, fontWeight: 800, cursor: "pointer", textAlign: "center" }}>{lbl}</button>;
+                })}
+              </div>
+            </div>
+            <button onClick={onOpenDesign} style={{ padding: "9px 12px", borderRadius: 7, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", color: C.tx, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer", textTransform: "uppercase" }}>Open full design panel →</button>
+          </div>
+        )}
+        {tab === "annotations" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <button onClick={() => onStartPick("cagr")} disabled={!annotApplies} style={{ padding: "10px 8px", borderRadius: 7, background: pickMode?.kind === "cagr" ? C.amber + "20" : "rgba(255,255,255,0.025)", border: "1px solid " + (pickMode?.kind === "cagr" ? C.amber + "55" : "rgba(255,255,255,0.10)"), color: pickMode?.kind === "cagr" ? C.amber : C.tx, fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: annotApplies ? "pointer" : "not-allowed", opacity: annotApplies ? 1 : 0.4, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5 }}><Sigma size={11} /> CAGR</button>
+              <button onClick={() => onStartPick("diff")} disabled={!annotApplies} style={{ padding: "10px 8px", borderRadius: 7, background: pickMode?.kind === "diff" ? C.amber + "20" : "rgba(255,255,255,0.025)", border: "1px solid " + (pickMode?.kind === "diff" ? C.amber + "55" : "rgba(255,255,255,0.10)"), color: pickMode?.kind === "diff" ? C.amber : C.tx, fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: annotApplies ? "pointer" : "not-allowed", opacity: annotApplies ? 1 : 0.4, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5 }}><ArrowUpDown size={11} /> Δ DIFF</button>
+              <button onClick={onTogglePlaceText} style={{ padding: "10px 8px", borderRadius: 7, background: placeMode?.kind === "callout" ? C.amber + "20" : "rgba(255,255,255,0.025)", border: "1px solid " + (placeMode?.kind === "callout" ? C.amber + "55" : "rgba(255,255,255,0.10)"), color: placeMode?.kind === "callout" ? C.amber : C.tx, fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5 }}><Type size={11} /> TEXT</button>
+              {pickMode && <button onClick={onCancelPick} style={{ padding: "10px 8px", borderRadius: 7, background: "rgba(224,99,71,0.10)", border: "1px solid rgba(224,99,71,0.40)", color: "#E06347", fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>CANCEL</button>}
+            </div>
+            <div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 6, fontWeight: 800 }}>Reference line</div>
+              <div style={{ display: "flex", gap: 4 }}>
+                <input value={refValue} onChange={e => setRefValue(e.target.value)} placeholder="value" style={{ width: 60, padding: "7px 8px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 5, color: C.tx, fontFamily: mn, fontSize: 10, outline: "none" }} />
+                <input value={refLabel} onChange={e => setRefLabel(e.target.value)} placeholder="label" style={{ flex: 1, padding: "7px 8px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 5, color: C.tx, fontFamily: ft, fontSize: 11, outline: "none" }} />
+                <button onClick={() => { const n = Number(refValue); if (!isNaN(n)) { onAddRefLine(n, refLabel); setRefValue("0"); setRefLabel(""); } }} style={{ padding: "7px 12px", background: C.amber, border: "none", borderRadius: 5, color: "#060608", fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>ADD</button>
+              </div>
+            </div>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 800 }}>On chart · {annotations.length}</div>
+                <span style={{ flex: 1 }} />
+                {annotations.length > 0 && <button onClick={onClearAnnotations} style={{ padding: "4px 9px", borderRadius: 5, background: "rgba(224,99,71,0.10)", border: "1px solid rgba(224,99,71,0.40)", color: "#E06347", fontFamily: mn, fontSize: 9, fontWeight: 800, cursor: "pointer" }}>CLEAR</button>}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                {annotations.length === 0 && <span style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>None yet</span>}
+                {annotations.map(a => {
+                  const label = a.kind === "cagr" ? "CAGR " + a.rowFrom + "→" + a.rowTo
+                    : a.kind === "diff" ? "Δ " + a.rowFrom + "→" + a.rowTo
+                    : a.kind === "refline" ? "Ref " + (a.label || a.value)
+                    : "Text · " + a.text.slice(0, 20);
+                  return (
+                    <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 7px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 5 }}>
+                      <span style={{ fontFamily: mn, fontSize: 10, color: C.tx, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+                      <button onClick={() => onRemoveAnnotation(a.id)} title="Remove" style={{ padding: 3, background: "transparent", border: "none", color: "#E06347", cursor: "pointer", display: "inline-flex" }}><X size={11} strokeWidth={2.4} /></button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+        {tab === "series" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {series.length === 0 && <span style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>No series for this chart</span>}
+            {series.map(s => {
+              const editing = editingSeries === s.key;
+              return (
+                <div key={s.key} style={{ display: "flex", flexDirection: "column", gap: 4, padding: "7px 9px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 7 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <button onClick={() => setEditingSeries(editing ? null : s.key)} title="Click to recolor" style={{ width: 18, height: 18, borderRadius: 4, background: s.color, border: "1px solid rgba(255,255,255,0.18)", cursor: "pointer", padding: 0 }} />
+                    <span style={{ flex: 1, fontFamily: ft, fontSize: 12, fontWeight: 700, color: C.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.label}</span>
+                  </div>
+                  {editing && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 3, paddingTop: 4 }}>
+                      <button onClick={() => { onSetSeriesColor(s.key, null); setEditingSeries(null); }} title="Reset" style={{ width: 18, height: 18, borderRadius: 3, background: "transparent", border: "1px dashed rgba(255,255,255,0.30)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", color: C.txm }}><X size={9} strokeWidth={2.4} /></button>
+                      {palette.map((c, i) => (
+                        <button key={i} onClick={() => { onSetSeriesColor(s.key, c); setEditingSeries(null); }} title={c} style={{ width: 18, height: 18, borderRadius: 3, background: c, border: "1px solid " + (s.color === c ? "#fff" : "rgba(0,0,0,0.4)"), cursor: "pointer" }} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+}
+
 export default function ChartMaker2({ standalone = false }: { standalone?: boolean }) {
   const [type, setType] = useState<ChartType>("stacked");
   const [title, setTitle] = useState("SemiAnalysis · 2026 Outlook");
@@ -2409,8 +3566,28 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const [designOpen, setDesignOpen] = useState(false);
   const [showBorders, setShowBorders] = useState(false);
   const [showGridlines, setShowGridlines] = useState(true);
+  const [showSegmentLabels, setShowSegmentLabels] = useState(false);
   const [legendPos, setLegendPos] = useState<NonNullable<ChartConfig["legendPos"]>>("bottom");
+  const [yLabel, setYLabel] = useState("");
+  const [xLabel, setXLabel] = useState("");
   const [locked, setLocked] = useState(false);
+  // New feature states
+  const [logScale, setLogScale] = useState(false);
+  const [showEndLabels, setShowEndLabels] = useState(false);
+  const [markerShape, setMarkerShape] = useState<"none" | "circle" | "square" | "diamond">("circle");
+  const [roundedCorners, setRoundedCorners] = useState(false);
+  const [showSecondaryAxis, setShowSecondaryAxis] = useState(false);
+  const [pieOtherThreshold, setPieOtherThreshold] = useState(3);
+  // Wheel + element menu + mode state
+  const [wheelOpen, setWheelOpen] = useState(false);
+  const [elementMenu, setElementMenu] = useState<ElementMenuState | null>(null);
+  const [advancedMode, setAdvancedMode] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [rightTab, setRightTab] = useState<"design" | "annotations" | "series">("design");
+  // Crosshair hover state — currently per-renderer (StackedColumn etc.); kept
+  // here for potential future "broadcast hover" sync across multiple charts.
+  const [, setHoveredCat] = useState<number | null>(null);
+  void showSecondaryAxis; void setShowSecondaryAxis; void setHoveredCat; void setRightPanelOpen;
   // Per-series color overrides — clicking a Legend swatch lets you
   // recolor the entire series without changing the theme. Stored
   // per-chart-type so different chart types can have different colors.
@@ -2437,6 +3614,11 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   // Per-type sheets so switching types doesn't lose data. Wrapped in
   // history-aware updater so undo/redo can rewind any change.
   const [sheets, setSheetsRaw] = useState<Partial<Record<ChartType, DataSheet>>>(() => ({}));
+  // Optional secondary table per chart type — used by the FLOPs Comparison
+  // template which has TWO tables (raw values + indexed). The data section
+  // shows a [Table 1][Table 2] tab bar when a secondary exists.
+  const [secondarySheets, setSecondarySheets] = useState<Partial<Record<ChartType, DataSheet>>>({});
+  const [activeDataTab, setActiveDataTab] = useState<"primary" | "secondary">("primary");
   // Per-type annotations (CAGR, diff, reference lines)
   const [annotByType, setAnnotByType] = useState<Partial<Record<ChartType, Annotation[]>>>({});
   // Multi-step pick mode for CAGR / diff arrows. Null = idle.
@@ -2523,7 +3705,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     collapseAll: false, collapsedKeys: {},
   });
 
-  const cfg: ChartConfig = { type, title, subtitle, theme, numFmt, seriesColors, yMin: axis.yMin, yMax: axis.yMax, xMin: axis.xMin, xMax: axis.xMax, lightBackdrop: backdropMode === "light", showBorders, showGridlines, legendPos, locked };
+  const cfg: ChartConfig = { type, title, subtitle, theme, numFmt, seriesColors, yMin: axis.yMin, yMax: axis.yMax, xMin: axis.xMin, xMax: axis.xMax, lightBackdrop: backdropMode === "light", showBorders, showGridlines, showSegmentLabels, legendPos, yLabel: yLabel || undefined, xLabel: xLabel || undefined, locked, logScale, showEndLabels, markerShape, roundedCorners, pieOtherThreshold };
 
   // Pick-mode handler · column-chart renderers call this on bar click.
   // Returns true if the click was consumed (we're in pick mode); the
@@ -2647,6 +3829,33 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  // Copy chart as PNG to clipboard
+  const copyPNG = useCallback(async () => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const xml = new XMLSerializer().serializeToString(svg);
+    const blob = new Blob([xml], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const img = new window.Image();
+    img.onload = async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = svg.viewBox.baseVal.width * 2;
+      canvas.height = svg.viewBox.baseVal.height * 2;
+      const ctx = canvas.getContext("2d")!;
+      ctx.scale(2, 2);
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(async (b) => {
+        if (!b) return;
+        try {
+          await navigator.clipboard.write([new ClipboardItem({ "image/png": b })]);
+          showToast("Chart copied to clipboard");
+        } catch { showToast("Copy failed — use Export PNG instead"); }
+      }, "image/png");
+    };
+    img.src = url;
+  }, []);
+
   // Update a single sheet row directly (used by drag interactions).
   // The renderer hands us back the row index plus a partial patch; we
   // splice it into the active type's sheet.
@@ -2688,13 +3897,23 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const [menu, setMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
   // Keyboard shortcut overlay (? key)
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // Welcome screen — first-visit tutorial. Honors `cm2-welcome-seen-v1` flag in
+  // localStorage. Set on mount synchronously so the screen flashes only once.
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
+  useEffect(() => {
+    try {
+      const seen = localStorage.getItem("cm2-welcome-seen-v1");
+      if (!seen) setWelcomeOpen(true);
+    } catch {}
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       // Don't intercept inside inputs / textareas
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
       if (e.key === "?" || (e.key === "/" && e.shiftKey)) { e.preventDefault(); setShortcutsOpen(v => !v); }
-      if (e.key === "Escape") setShortcutsOpen(false);
+      if (e.key === "Escape") { setShortcutsOpen(false); setWheelOpen(false); }
+      if (e.key === "w" || e.key === "W") { e.preventDefault(); setWheelOpen(v => !v); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -2705,8 +3924,28 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     setMenu({ x: e.clientX, y: e.clientY, items });
   }, []);
 
+  // Pre-build the ElementIconMenu callbacks bound to the current state.
+  // The chart renderer passes them in onShowElementMenu and the bar
+  // captures rowIdx/key/color into the menu state when right-clicked.
+  const onShowElementMenu: OnShowElementMenu = useCallback((s) => {
+    setElementMenu({
+      ...s,
+      onCagr: () => setPickMode({ kind: "cagr", bars: s.rowIdx !== undefined && s.seriesKey ? [{ rowIdx: s.rowIdx, key: s.seriesKey }] : [] }),
+      onDiff: () => setPickMode({ kind: "diff", bars: s.rowIdx !== undefined && s.seriesKey ? [{ rowIdx: s.rowIdx, key: s.seriesKey }] : [] }),
+      onRefLine: () => {
+        if (s.rowIdx === undefined || !s.seriesKey) return;
+        const cur = sheets[type] || samplePerType(type);
+        const v = Number(cur.rows[s.rowIdx]?.[s.seriesKey]) || 0;
+        setAnnotations([...(annotByType[type] || []), { id: Math.random().toString(36).slice(2, 9), kind: "refline", value: v, label: String(v) }]);
+      },
+      onCallout: () => setPlaceMode({ kind: "callout" }),
+      onSetColor: (c) => { if (s.seriesKey) setSeriesColor(s.seriesKey, c); },
+      onDelete: () => { if (s.rowIdx !== undefined && s.seriesKey) onUpdateRow(s.rowIdx, { [s.seriesKey]: 0 }); },
+    });
+  }, [annotByType, type, sheets, setAnnotations, setSeriesColor, onUpdateRow]);
+
   const renderChart = () => {
-    const a = { onUpdateRow, onDeleteRow, onShowMenu, annotations, pickMode, onPickBar, onSelect: setSelection, onSetSeriesColor: setSeriesColor };
+    const a = { onUpdateRow, onDeleteRow, onShowMenu, onShowElementMenu, annotations, pickMode, onPickBar, onSelect: setSelection, onSetSeriesColor: setSeriesColor };
     switch (type) {
       case "stacked": return <StackedColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
       case "clustered": return <ClusteredColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
@@ -2716,6 +3955,11 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       case "pie": return <Pie sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "doughnut": return <Pie sheet={sheet} cfg={cfg} W={W} H={H} doughnut />;
       case "scatter": return <Scatter sheet={sheet} cfg={cfg} W={W} H={H} />;
+      case "bubble": return <Scatter sheet={sheet} cfg={cfg} W={W} H={H} bubble />;
+      case "pctArea": return <LineProfile sheet={sheet} cfg={cfg} W={W} H={H} fill stacked pct100 {...a} />;
+      case "mekkoPct": return <MekkoPercent sheet={sheet} cfg={cfg} W={W} H={H} />;
+      case "mekkoUnit": return <MekkoUnit sheet={sheet} cfg={cfg} W={W} H={H} />;
+      case "combo": return <ComboChart sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "wfup": return <Waterfall sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "wfdn": return <Waterfall sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "variance": return <VarianceBar sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
@@ -2746,10 +3990,47 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           </div>
         )}
         {standalone && <div style={{ flex: "1 1 auto" }} />}
+        {standalone && (
+          <a
+            href="/"
+            title="Back to POAST"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 7,
+              padding: "9px 14px", borderRadius: 9,
+              background: "rgba(247,176,65,0.08)",
+              border: "1px solid " + C.amber + "44",
+              color: C.amber,
+              fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.6,
+              textDecoration: "none",
+              transition: "all 0.16s cubic-bezier(.2,.7,.2,1)",
+              boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset",
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = "rgba(247,176,65,0.16)";
+              e.currentTarget.style.borderColor = C.amber + "88";
+              e.currentTarget.style.boxShadow = "0 6px 20px " + C.amber + "30, 0 1px 0 rgba(255,255,255,0.06) inset";
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = "rgba(247,176,65,0.08)";
+              e.currentTarget.style.borderColor = C.amber + "44";
+              e.currentTarget.style.boxShadow = "0 1px 0 rgba(255,255,255,0.04) inset";
+            }}
+          >
+            <ArrowLeft size={13} strokeWidth={2.4} /> POAST
+          </a>
+        )}
+        <GlassButton onClick={() => setWheelOpen(true)} title="Open chart-type wheel · radial picker (W)" Icon={Sparkles} primary>TYPE WHEEL</GlassButton>
         <UndoRedoButtons onUndo={undo} onRedo={redo} canUndo={past.current.length > 0} canRedo={future.current.length > 0} />
         <TemplatesButton onPick={tpl => {
           setType(tpl.type);
-          setSheets(p => ({ ...p, [tpl.type]: tpl.build() }));
+          const built = tpl.build();
+          if (built && typeof built === "object" && "primary" in built) {
+            const dual = built as { primary: DataSheet; secondary?: DataSheet };
+            setSheets(p => ({ ...p, [tpl.type]: dual.primary }));
+            if (dual.secondary) setSecondarySheets(p => ({ ...p, [tpl.type]: dual.secondary }));
+          } else {
+            setSheets(p => ({ ...p, [tpl.type]: built as DataSheet }));
+          }
           if (tpl.title) setTitle(tpl.title);
           if (tpl.subtitle) setSubtitle(tpl.subtitle);
           if (tpl.theme) setTheme(tpl.theme);
@@ -2757,8 +4038,21 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         <PasteDataButton onPaste={raw => { const ds = parsePasteForCategorical(raw); if (ds) setSheets(p => ({ ...p, [type]: ds })); else showToast("Couldn't parse the paste — expected TSV or CSV with headers"); }} />
         <NumberFormatPicker fmt={numFmt} onChange={setNumFmt} />
         <GlassButton onClick={() => setDesignOpen(true)} title="Design panel · theme, backdrop, legend, borders, axes" Icon={Palette}>DESIGN</GlassButton>
+        {/* SIMPLE | ADVANCED pill toggle */}
+        <div style={{ display: "inline-flex", padding: 3, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 999 }}>
+          {(["simple", "advanced"] as const).map(m => {
+            const on = (m === "advanced") === advancedMode;
+            return (
+              <button
+                key={m}
+                onClick={() => setAdvancedMode(m === "advanced")}
+                style={{ padding: "6px 14px", borderRadius: 999, background: on ? C.amber + "22" : "transparent", border: "none", color: on ? C.amber : C.txm, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6, cursor: "pointer", textTransform: "uppercase" }}
+              >{m}</button>
+            );
+          })}
+        </div>
         <LockToggle locked={locked} onChange={setLocked} />
-        <ExportSplitButton onPNG={exportPNG} onSVG={exportSVG} />
+        <ExportSplitButton onPNG={exportPNG} onSVG={exportSVG} onCopy={copyPNG} />
       </div>
 
       {/* Annotations toolbar — Think-cell-style action chips */}
@@ -2780,9 +4074,10 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         <input value={subtitle} onChange={e => setSubtitle(e.target.value)} placeholder="Subtitle" style={inputCSS(cardBg, borderC)} />
       </div>
 
-      {/* Two-column layout: scrollable type sidebar + chart/sheet */}
-      <div style={{ display: "grid", gridTemplateColumns: "260px minmax(0, 1fr)", gap: 18, marginBottom: 28 }}>
-        <ChartTypeSidebar active={type} onSelect={setType} />
+      {/* Three-column layout: type sidebar + canvas/sheet + properties panel.
+          SIMPLE mode hides both side panels; ADVANCED uses the full grid. */}
+      <div style={{ display: "grid", gridTemplateColumns: advancedMode && rightPanelOpen ? "240px minmax(0, 1fr) 300px" : (advancedMode ? "240px minmax(0, 1fr)" : "minmax(0, 1fr)"), gap: 16, marginBottom: 28 }}>
+        {advancedMode && <ChartTypeSidebar active={type} onSelect={setType} />}
 
         <div style={{ minWidth: 0 }}>
           {/* Gantt toggles only show for gantt */}
@@ -2875,18 +4170,140 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             </svg>
           </div>
 
-          {/* Editable data sheet */}
+          {/* Editable data sheet · with Table 1 / Table 2 tab bar for FLOPs-style dual-table charts */}
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
               <span style={{ fontFamily: mn, fontSize: 10, color: C.amber, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 800 }}>Data sheet</span>
               <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6 }}>· edits sync to the chart in real time</span>
+              <span style={{ flex: 1 }} />
+              {/* Table tab bar */}
+              <div style={{ display: "inline-flex", gap: 4, padding: 3, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 7 }}>
+                <button
+                  onClick={() => setActiveDataTab("primary")}
+                  style={{ padding: "5px 11px", borderRadius: 5, background: activeDataTab === "primary" ? C.amber + "22" : "transparent", border: "none", color: activeDataTab === "primary" ? C.amber : C.txm, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer", textTransform: "uppercase" }}
+                >Table 1</button>
+                {secondarySheets[type] ? (
+                  <span style={{ display: "inline-flex", alignItems: "center" }}>
+                    <button
+                      onClick={() => setActiveDataTab("secondary")}
+                      style={{ padding: "5px 11px", borderRadius: 5, background: activeDataTab === "secondary" ? C.amber + "22" : "transparent", border: "none", color: activeDataTab === "secondary" ? C.amber : C.txm, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer", textTransform: "uppercase" }}
+                    >Table 2</button>
+                    <button
+                      onClick={() => { setSecondarySheets(p => { const c = { ...p }; delete c[type]; return c; }); if (activeDataTab === "secondary") setActiveDataTab("primary"); }}
+                      title="Remove Table 2"
+                      style={{ padding: "5px 7px", borderRadius: 5, background: "transparent", border: "none", color: C.txm, cursor: "pointer", display: "inline-flex" }}
+                    ><X size={11} /></button>
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => {
+                      const cur = sheets[type] || samplePerType(type);
+                      const blank: DataSheet = { schema: cur.schema, rows: cur.rows.map(r => {
+                        const out: Record<string, CellValue> = {};
+                        for (const c of cur.schema) out[c.key] = c.type === "number" || c.type === "percent" ? 0 : (typeof r[c.key] === "string" ? r[c.key] : "");
+                        return out;
+                      }) };
+                      setSecondarySheets(p => ({ ...p, [type]: blank }));
+                      setActiveDataTab("secondary");
+                    }}
+                    title="Add a second table — useful for FLOPs comparison (raw + indexed)"
+                    style={{ padding: "5px 9px", borderRadius: 5, background: "transparent", border: "none", color: C.txm, fontFamily: mn, fontSize: 12, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3 }}
+                  ><Plus size={11} /> ADD TABLE 2</button>
+                )}
+              </div>
             </div>
-            <DataSheetGrid sheet={rawSheet} onChange={setSheet} sliderMode={sliderMode} onToggleSliderMode={() => setSliderMode(v => !v)} />
+            {activeDataTab === "primary" || !secondarySheets[type] ? (
+              <DataSheetGrid sheet={rawSheet} onChange={setSheet} sliderMode={sliderMode} onToggleSliderMode={() => setSliderMode(v => !v)} />
+            ) : (
+              <DataSheetGrid
+                sheet={secondarySheets[type]!}
+                onChange={s => setSecondarySheets(p => ({ ...p, [type]: s }))}
+                sliderMode={sliderMode}
+                onToggleSliderMode={() => setSliderMode(v => !v)}
+              />
+            )}
+          </div>
+
+          {/* Status bar — bottom of canvas area */}
+          <div style={{ marginTop: 12 }}>
+            <StatusBar chartType={type} sheet={sheet} numFmt={numFmt} themeName={THEMES[theme].name} advanced={advancedMode} />
           </div>
         </div>
+
+        {advancedMode && rightPanelOpen && (
+          <PropertiesPanel
+            tab={rightTab}
+            onChangeTab={setRightTab}
+            theme={theme}
+            onChangeTheme={setTheme}
+            legendPos={legendPos}
+            onChangeLegendPos={setLegendPos}
+            showGridlines={showGridlines}
+            onToggleGridlines={() => setShowGridlines(v => !v)}
+            showBorders={showBorders}
+            onToggleBorders={() => setShowBorders(v => !v)}
+            logScale={logScale}
+            onToggleLogScale={() => setLogScale(v => !v)}
+            roundedCorners={roundedCorners}
+            onToggleRoundedCorners={() => setRoundedCorners(v => !v)}
+            showEndLabels={showEndLabels}
+            onToggleEndLabels={() => setShowEndLabels(v => !v)}
+            markerShape={markerShape}
+            onChangeMarkerShape={setMarkerShape}
+            annotations={annotations}
+            onRemoveAnnotation={removeAnnotation}
+            onClearAnnotations={clearAllAnnotations}
+            pickMode={pickMode}
+            placeMode={placeMode}
+            onStartPick={kind => { setPlaceMode(null); setPickMode({ kind, bars: [] }); }}
+            onCancelPick={() => setPickMode(null)}
+            onAddRefLine={addReferenceLine}
+            onTogglePlaceText={() => { setPickMode(null); setPlaceMode(placeMode?.kind === "callout" ? null : { kind: "callout" }); }}
+            chartType={type}
+            series={(() => {
+              const palette = THEMES[theme].colors;
+              const cols = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent");
+              return cols.map((c, i) => ({ key: c.key, label: c.label, color: seriesColors[c.key] || palette[i % palette.length] }));
+            })()}
+            onSetSeriesColor={setSeriesColor}
+            palette={THEMES[theme].colors}
+            onOpenDesign={() => setDesignOpen(true)}
+          />
+        )}
       </div>
 
       {menu && <ChartContextMenu menu={menu} onClose={() => setMenu(null)} />}
+      {wheelOpen && <ChartTypeWheel active={type} onSelect={setType} onClose={() => setWheelOpen(false)} />}
+      {welcomeOpen && (
+        <WelcomeScreen
+          onClose={(dontShowAgain) => {
+            if (dontShowAgain) {
+              try { localStorage.setItem("cm2-welcome-seen-v1", "1"); } catch {}
+            }
+            setWelcomeOpen(false);
+          }}
+          onOpenWheel={() => { setWelcomeOpen(false); setWheelOpen(true); }}
+          onOpenShortcuts={() => { setWelcomeOpen(false); setShortcutsOpen(true); }}
+        />
+      )}
+      {/* "Help" button bottom-right · re-open welcome screen anytime */}
+      <button
+        onClick={() => setWelcomeOpen(true)}
+        title="Open welcome / tips & tricks"
+        style={{
+          position: "fixed", bottom: 24, right: 78, zIndex: 500,
+          width: 42, height: 42, borderRadius: "50%",
+          background: "rgba(13,13,18,0.85)",
+          backdropFilter: "blur(14px) saturate(140%)",
+          WebkitBackdropFilter: "blur(14px) saturate(140%)",
+          border: "1px solid rgba(46,173,142,0.40)",
+          color: "#2EAD8E",
+          fontFamily: gf, fontSize: 18, fontWeight: 900,
+          cursor: "pointer",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.40), 0 0 20px rgba(46,173,142,0.30), 0 1px 0 rgba(255,255,255,0.06) inset",
+        }}
+      >?!</button>
+      {elementMenu && <ElementIconMenu state={elementMenu} onClose={() => setElementMenu(null)} palette={THEMES[theme].colors} />}
       {selection && <FloatingMiniToolbar selection={selection} onClose={() => setSelection(null)} onUpdateRow={onUpdateRow} onDeleteRow={onDeleteRow} themes={THEMES} currentTheme={theme} />}
       {shortcutsOpen && <ShortcutsOverlay onClose={() => setShortcutsOpen(false)} />}
       {designOpen && (
@@ -2898,7 +4315,14 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           legendPos={legendPos} onChangeLegendPos={setLegendPos}
           showBorders={showBorders} onToggleBorders={() => setShowBorders(v => !v)}
           showGridlines={showGridlines} onToggleGridlines={() => setShowGridlines(v => !v)}
+          showSegmentLabels={showSegmentLabels} onToggleSegmentLabels={() => setShowSegmentLabels(v => !v)}
           axis={axis} onChangeAxis={setAxis} chartType={type}
+          yLabel={yLabel} onChangeYLabel={setYLabel}
+          xLabel={xLabel} onChangeXLabel={setXLabel}
+          logScale={logScale} onToggleLogScale={() => setLogScale(v => !v)}
+          roundedCorners={roundedCorners} onToggleRoundedCorners={() => setRoundedCorners(v => !v)}
+          showEndLabels={showEndLabels} onToggleEndLabels={() => setShowEndLabels(v => !v)}
+          markerShape={markerShape} onChangeMarkerShape={setMarkerShape}
         />
       )}
       {/* Floating help button · always-on glass pill, opens shortcuts overlay */}
@@ -2994,8 +4418,8 @@ function ShortcutsOverlay({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ─── Export split button · primary action = PNG, dropdown for SVG ─────────
-function ExportSplitButton({ onPNG, onSVG }: { onPNG: () => void; onSVG: () => void }) {
+// ─── Export split button · primary action = PNG, dropdown for SVG, plus COPY ──
+function ExportSplitButton({ onPNG, onSVG, onCopy }: { onPNG: () => void; onSVG: () => void; onCopy?: () => void }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!open) return;
@@ -3036,6 +4460,12 @@ function ExportSplitButton({ onPNG, onSVG }: { onPNG: () => void; onSVG: () => v
             <FileCode2 size={12} strokeWidth={2.2} />
             <span>SVG · vector, infinite zoom</span>
           </div>
+          {onCopy && (
+            <div onClick={() => { onCopy(); setOpen(false); }} style={dropItem()}>
+              <ClipboardPaste size={12} strokeWidth={2.2} />
+              <span>COPY · PNG to clipboard</span>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -3046,13 +4476,18 @@ function dropItem(): React.CSSProperties {
 }
 
 // ─── Templates · port of ChartMaker 1's quick-start preset library ───────
+type TemplateCategory = "financial" | "tech" | "strategy" | "timeline" | "comparison";
+// A template's build() may return a single sheet OR a {primary, secondary?}
+// pair so dual-table charts (FLOPs comparison) ship a starter Table 2.
+type TemplateBuildResult = DataSheet | { primary: DataSheet; secondary?: DataSheet };
 interface TemplateSpec {
   id: string;
   emoji: string;
   label: string;
   desc: string;
   type: ChartType;
-  build: () => DataSheet;
+  category?: TemplateCategory;
+  build: () => TemplateBuildResult;
   title?: string;
   subtitle?: string;
   theme?: ThemeId;
@@ -3062,31 +4497,49 @@ const TEMPLATES: TemplateSpec[] = [
     id: "flops-comparison",
     emoji: "⚡",
     label: "FLOPs Comparison",
-    desc: "TPU v6 vs H100 vs H200 across precisions",
+    desc: "DUAL TABLES · raw specs + indexed (H100=1)",
+    category: "tech",
     type: "clustered",
-    title: "TPU v6 vs H100 vs H200",
-    subtitle: "Source: SemiAnalysis",
-    build: () => ({
-      schema: [
-        { key: "category", label: "Metric", type: "text" },
-        { key: "s1", label: "TPU v6", type: "number" },
-        { key: "s2", label: "H100", type: "number" },
-        { key: "s3", label: "H200", type: "number" },
-      ],
-      rows: [
-        { category: "FP8 TFLOPs", s1: 1, s2: 2.2, s3: 2.2 },
-        { category: "INT8 TFLOPs", s1: 1, s2: 1.1, s3: 1.1 },
-        { category: "BF16 TFLOPs", s1: 1, s2: 1.1, s3: 1.1 },
-        { category: "HBM Capacity", s1: 1, s2: 2.5, s3: 4.4 },
-        { category: "HBM Bandwidth", s1: 1, s2: 2, s3: 2.9 },
-      ],
-    }),
+    title: "TPU v6 vs H100 vs H200 vs B200",
+    subtitle: "Source: SemiAnalysis · Two tables (raw + indexed)",
+    build: () => {
+      // Table 1 — absolute specs per chip
+      const primary: DataSheet = {
+        schema: [
+          { key: "category", label: "Metric", type: "text" },
+          { key: "s1", label: "TPU v6", type: "number" },
+          { key: "s2", label: "H100", type: "number" },
+          { key: "s3", label: "H200", type: "number" },
+          { key: "s4", label: "B200", type: "number" },
+        ],
+        rows: [
+          { category: "FP8 (TFLOPs)",     s1: 918,  s2: 2000, s3: 2000, s4: 4500 },
+          { category: "BF16 (TFLOPs)",    s1: 459,  s2: 989,  s3: 989,  s4: 2250 },
+          { category: "HBM Cap (GB)",     s1: 32,   s2: 80,   s3: 141,  s4: 192  },
+          { category: "HBM BW (TB/s)",    s1: 1.2,  s2: 3.35, s3: 4.8,  s4: 8.0  },
+          { category: "TDP (W)",          s1: 180,  s2: 700,  s3: 700,  s4: 1200 },
+        ],
+      };
+      // Table 2 — indexed to H100 = 1.0× (computed at build time)
+      const numericKeys: Array<"s1" | "s2" | "s3" | "s4"> = ["s1", "s2", "s3", "s4"];
+      const secondary: DataSheet = {
+        schema: primary.schema,
+        rows: primary.rows.map(r => {
+          const base = Number(r.s2) || 1;
+          const out: Record<string, CellValue> = { category: r.category };
+          for (const k of numericKeys) out[k] = Math.round(((Number(r[k]) || 0) / base) * 100) / 100;
+          return out;
+        }),
+      };
+      return { primary, secondary };
+    },
   },
   {
     id: "shipments-stack",
     emoji: "📦",
     label: "AI Shipments Stack",
     desc: "Stacked area · 5y forecast",
+    category: "tech",
     type: "stackedArea",
     title: "AI Compute Shipments by Type",
     subtitle: "Source: SemiAnalysis AI Compute Model",
@@ -3111,6 +4564,7 @@ const TEMPLATES: TemplateSpec[] = [
     emoji: "📈",
     label: "Revenue Forecast",
     desc: "Revenue · cost · profit",
+    category: "financial",
     type: "line",
     title: "Revenue, Cost, Profit",
     subtitle: "Source: SemiAnalysis",
@@ -3135,6 +4589,7 @@ const TEMPLATES: TemplateSpec[] = [
     emoji: "🥧",
     label: "Segment Share",
     desc: "Pie · market by segment",
+    category: "comparison",
     type: "pie",
     title: "Market Share by Segment",
     subtitle: "Source: SemiAnalysis",
@@ -3156,6 +4611,7 @@ const TEMPLATES: TemplateSpec[] = [
     emoji: "🔋",
     label: "FLOPs vs Power",
     desc: "Scatter · efficiency frontier",
+    category: "tech",
     type: "scatter",
     title: "FLOPs vs Power Consumption",
     subtitle: "Source: SemiAnalysis Accelerator Model",
@@ -3181,6 +4637,7 @@ const TEMPLATES: TemplateSpec[] = [
     emoji: "💧",
     label: "Price Waterfall",
     desc: "Build-Down · revenue → net",
+    category: "financial",
     type: "wfdn",
     title: "Revenue to Net Income",
     subtitle: "Q4 2025 · USD millions",
@@ -3204,6 +4661,7 @@ const TEMPLATES: TemplateSpec[] = [
     emoji: "📅",
     label: "Brand Launch Plan",
     desc: "Gantt · 3-phase rollout",
+    category: "timeline",
     type: "gantt",
     title: "SemiAnalysis · 2026 Brand Launch",
     subtitle: "Phased rollout with owner accountability",
@@ -3214,10 +4672,456 @@ const TEMPLATES: TemplateSpec[] = [
     emoji: "Δ",
     label: "AC vs PY Variance",
     desc: "Zebra-BI bar · quarterly",
+    category: "financial",
     type: "variance",
     title: "Quarterly AC vs PY",
     subtitle: "USD millions",
     build: () => samplePerType("variance"),
+  },
+  // ── Financial ────────────────────────────────────────────────────────────
+  {
+    id: "ebitda-bridge",
+    emoji: "🏗",
+    label: "EBITDA Bridge",
+    desc: "Revenue → COGS → SGA → R&D → EBITDA",
+    category: "financial",
+    type: "wfup",
+    title: "EBITDA Bridge",
+    subtitle: "FY 2025 · USD millions",
+    build: () => ({
+      schema: [{ key: "category", label: "Step", type: "text" }, { key: "value", label: "Δ", type: "number" }],
+      rows: [
+        { category: "Revenue", value: 500 },
+        { category: "− COGS", value: -180 },
+        { category: "− SG&A", value: -75 },
+        { category: "− R&D", value: -60 },
+        { category: "Other", value: 15 },
+        { category: "EBITDA", value: 200 },
+      ],
+    }),
+  },
+  {
+    id: "pl-waterfall",
+    emoji: "📉",
+    label: "P&L Waterfall",
+    desc: "Revenue down to Net Income",
+    category: "financial",
+    type: "wfdn",
+    title: "P&L Waterfall",
+    subtitle: "FY 2025 · USD millions",
+    build: () => ({
+      schema: [{ key: "category", label: "Step", type: "text" }, { key: "value", label: "Δ", type: "number" }],
+      rows: [
+        { category: "Revenue", value: 500 },
+        { category: "− COGS", value: -180 },
+        { category: "Gross Profit", value: 320 },
+        { category: "− OpEx", value: -120 },
+        { category: "− D&A", value: -35 },
+        { category: "Net Income", value: 165 },
+      ],
+    }),
+  },
+  {
+    id: "revenue-by-segment",
+    emoji: "📊",
+    label: "Revenue by Segment",
+    desc: "4 segments × 5 quarters stacked",
+    category: "financial",
+    type: "stacked",
+    title: "Revenue by Segment",
+    subtitle: "Quarterly · USD millions",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Quarter", type: "text" },
+        { key: "s1", label: "Cloud", type: "number" },
+        { key: "s2", label: "Enterprise", type: "number" },
+        { key: "s3", label: "Consumer", type: "number" },
+        { key: "s4", label: "Govt", type: "number" },
+      ],
+      rows: [
+        { category: "Q1 '25", s1: 120, s2: 80, s3: 45, s4: 20 },
+        { category: "Q2 '25", s1: 135, s2: 88, s3: 50, s4: 22 },
+        { category: "Q3 '25", s1: 155, s2: 95, s3: 58, s4: 25 },
+        { category: "Q4 '25", s1: 180, s2: 110, s3: 65, s4: 28 },
+        { category: "Q1 '26", s1: 200, s2: 120, s3: 72, s4: 32 },
+      ],
+    }),
+  },
+  {
+    id: "yoy-growth",
+    emoji: "📈",
+    label: "YoY Growth",
+    desc: "3 products × 4 years clustered",
+    category: "financial",
+    type: "clustered",
+    title: "YoY Revenue Growth",
+    subtitle: "USD millions",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Year", type: "text" },
+        { key: "s1", label: "Product A", type: "number" },
+        { key: "s2", label: "Product B", type: "number" },
+        { key: "s3", label: "Product C", type: "number" },
+      ],
+      rows: [
+        { category: "2022", s1: 100, s2: 60, s3: 40 },
+        { category: "2023", s1: 130, s2: 78, s3: 55 },
+        { category: "2024", s1: 170, s2: 102, s3: 78 },
+        { category: "2025", s1: 220, s2: 138, s3: 110 },
+      ],
+    }),
+  },
+  // ── Tech / AI ─────────────────────────────────────────────────────────────
+  {
+    id: "h100-b200-mi300x",
+    emoji: "🖥",
+    label: "H100 vs B200 vs MI300X",
+    desc: "FP8, BF16, HBM, TDP, price",
+    category: "tech",
+    type: "clustered",
+    title: "H100 vs B200 vs MI300X",
+    subtitle: "Source: SemiAnalysis Accelerator Model",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Metric", type: "text" },
+        { key: "s1", label: "H100", type: "number" },
+        { key: "s2", label: "B200", type: "number" },
+        { key: "s3", label: "MI300X", type: "number" },
+      ],
+      rows: [
+        { category: "FP8 (TFLOP/s)", s1: 3958, s2: 9000, s3: 2610 },
+        { category: "BF16 (TFLOP/s)", s1: 1979, s2: 4500, s3: 1300 },
+        { category: "HBM (GB)", s1: 80, s2: 192, s3: 192 },
+        { category: "TDP (W)", s1: 700, s2: 1000, s3: 750 },
+        { category: "Price ($K)", s1: 30, s2: 60, s3: 15 },
+      ],
+    }),
+  },
+  {
+    id: "gpu-shipments",
+    emoji: "📦",
+    label: "GPU Shipments",
+    desc: "NV/AMD/Google/Other by quarter",
+    category: "tech",
+    type: "stackedArea",
+    title: "AI GPU Shipments by Vendor",
+    subtitle: "Q1 2022 – Q4 2026 · Thousands of units",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Quarter", type: "text" },
+        { key: "s1", label: "Nvidia", type: "number" },
+        { key: "s2", label: "AMD", type: "number" },
+        { key: "s3", label: "Google TPU", type: "number" },
+        { key: "s4", label: "Other", type: "number" },
+      ],
+      rows: [
+        { category: "Q1 '22", s1: 200, s2: 30, s3: 50, s4: 20 },
+        { category: "Q4 '22", s1: 400, s2: 60, s3: 80, s4: 35 },
+        { category: "Q4 '23", s1: 1800, s2: 120, s3: 200, s4: 80 },
+        { category: "Q2 '24", s1: 3200, s2: 280, s3: 400, s4: 150 },
+        { category: "Q4 '24", s1: 5800, s2: 520, s3: 700, s4: 280 },
+        { category: "Q4 '25", s1: 14000, s2: 1200, s3: 1500, s4: 600 },
+        { category: "Q4 '26", s1: 28000, s2: 2800, s3: 3200, s4: 1400 },
+      ],
+    }),
+  },
+  {
+    id: "ai-training-compute",
+    emoji: "🧠",
+    label: "AI Training Compute",
+    desc: "GPT-2 to frontier, log scale",
+    category: "tech",
+    type: "line",
+    title: "AI Training Compute Over Time",
+    subtitle: "Source: Epoch AI / SemiAnalysis estimates",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Model", type: "text" },
+        { key: "s1", label: "FLOPs (log)", type: "number" },
+      ],
+      rows: [
+        { category: "GPT-2 (2019)", s1: 1 },
+        { category: "GPT-3 (2020)", s1: 314 },
+        { category: "PaLM (2022)", s1: 2800 },
+        { category: "GPT-4 (2023)", s1: 20000 },
+        { category: "Gemini U (2024)", s1: 60000 },
+        { category: "Frontier (2025)", s1: 300000 },
+      ],
+    }),
+  },
+  {
+    id: "chip-roadmap",
+    emoji: "🗺",
+    label: "Chip Roadmap",
+    desc: "H100→H200→B100→B200→Rubin timeline",
+    category: "tech",
+    type: "gantt",
+    title: "Nvidia GPU Roadmap",
+    subtitle: "2023–2026 · Source: SemiAnalysis",
+    build: () => ({
+      schema: [
+        { key: "task", label: "Task", type: "text" },
+        { key: "start", label: "Start", type: "date" },
+        { key: "end", label: "End", type: "date" },
+        { key: "group", label: "Group", type: "text" },
+        { key: "owner", label: "Owner", type: "text" },
+        { key: "progress", label: "%", type: "percent" },
+      ],
+      rows: [
+        { task: "H100 GA", start: "2022-10-01", end: "2023-12-31", group: "Hopper Gen", owner: "Nvidia", progress: 100 },
+        { task: "H200 GA", start: "2023-06-01", end: "2024-06-30", group: "Hopper Gen", owner: "Nvidia", progress: 100 },
+        { task: "B100 Sampling", start: "2024-03-01", end: "2024-09-30", group: "Blackwell Gen", owner: "Nvidia", progress: 100 },
+        { task: "B200 GA", start: "2024-09-01", end: "2025-06-30", group: "Blackwell Gen", owner: "Nvidia", progress: 75 },
+        { task: "GB200 NVL72", start: "2024-12-01", end: "2025-09-30", group: "Blackwell Gen", owner: "Nvidia", progress: 40 },
+        { task: "Rubin Ultra", start: "2025-06-01", end: "2026-12-31", group: "Rubin Gen", owner: "Nvidia", progress: 0 },
+      ],
+    }),
+  },
+  {
+    id: "datacenter-power",
+    emoji: "⚡",
+    label: "Data Center Power",
+    desc: "CPU/GPU/Networking/Cooling by year",
+    category: "tech",
+    type: "stacked",
+    title: "Hyperscaler Data Center Power Mix",
+    subtitle: "GW · Source: SemiAnalysis estimates",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Year", type: "text" },
+        { key: "s1", label: "GPU/ASIC", type: "number" },
+        { key: "s2", label: "CPU", type: "number" },
+        { key: "s3", label: "Networking", type: "number" },
+        { key: "s4", label: "Cooling", type: "number" },
+      ],
+      rows: [
+        { category: "2022", s1: 4, s2: 8, s3: 3, s4: 5 },
+        { category: "2023", s1: 8, s2: 9, s3: 4, s4: 6 },
+        { category: "2024", s1: 18, s2: 10, s3: 6, s4: 9 },
+        { category: "2025", s1: 42, s2: 12, s3: 9, s4: 18 },
+        { category: "2026", s1: 90, s2: 14, s3: 14, s4: 35 },
+      ],
+    }),
+  },
+  // ── Strategy ────────────────────────────────────────────────────────────
+  {
+    id: "market-map",
+    emoji: "🗺",
+    label: "Market Map",
+    desc: "Mekko % · 4 segments, 3 players",
+    category: "strategy",
+    type: "mekkoPct",
+    title: "AI Infrastructure Market Map",
+    subtitle: "Source: SemiAnalysis",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Segment", type: "text" },
+        { key: "weight", label: "Total ($B)", type: "number" },
+        { key: "s1", label: "Nvidia", type: "number" },
+        { key: "s2", label: "Custom", type: "number" },
+        { key: "s3", label: "Other", type: "number" },
+      ],
+      rows: [
+        { category: "Training", weight: 60, s1: 48, s2: 8, s3: 4 },
+        { category: "Inference", weight: 25, s1: 16, s2: 7, s3: 2 },
+        { category: "Storage", weight: 10, s1: 4, s2: 2, s3: 4 },
+        { category: "Networking", weight: 5, s1: 2, s2: 1, s3: 2 },
+      ],
+    }),
+  },
+  {
+    id: "competitive-scores",
+    emoji: "🏆",
+    label: "Competitive Scores",
+    desc: "5 criteria × 4 competitors, scored 1-5",
+    category: "strategy",
+    type: "clustered",
+    title: "Competitive Assessment",
+    subtitle: "Score 1–5 across key dimensions",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Criteria", type: "text" },
+        { key: "s1", label: "Us", type: "number" },
+        { key: "s2", label: "Competitor A", type: "number" },
+        { key: "s3", label: "Competitor B", type: "number" },
+        { key: "s4", label: "Competitor C", type: "number" },
+      ],
+      rows: [
+        { category: "Performance", s1: 5, s2: 4, s3: 3, s4: 2 },
+        { category: "Price", s1: 3, s2: 4, s3: 5, s4: 3 },
+        { category: "Support", s1: 5, s2: 3, s3: 2, s4: 4 },
+        { category: "Ecosystem", s1: 4, s2: 5, s3: 3, s4: 2 },
+        { category: "Roadmap", s1: 5, s2: 4, s3: 2, s4: 3 },
+      ],
+    }),
+  },
+  {
+    id: "bubble-tam",
+    emoji: "🫧",
+    label: "Bubble Chart TAM",
+    desc: "x=growth, y=margin, size=revenue",
+    category: "strategy",
+    type: "bubble",
+    title: "Market Opportunity Map",
+    subtitle: "Bubble size = TAM ($B)",
+    build: () => ({
+      schema: [
+        { key: "label", label: "Segment", type: "text" },
+        { key: "x", label: "Growth (%)", type: "number" },
+        { key: "y", label: "Margin (%)", type: "number" },
+        { key: "size", label: "TAM ($B)", type: "number" },
+      ],
+      rows: [
+        { label: "AI Training", x: 85, y: 62, size: 120 },
+        { label: "AI Inference", x: 120, y: 45, size: 80 },
+        { label: "Cloud GPU", x: 60, y: 35, size: 200 },
+        { label: "Edge AI", x: 40, y: 28, size: 50 },
+        { label: "Robotics", x: 95, y: 20, size: 30 },
+      ],
+    }),
+  },
+  // ── Timeline ────────────────────────────────────────────────────────────
+  {
+    id: "product-sprint",
+    emoji: "🏃",
+    label: "Product Sprint",
+    desc: "4 sprints, design/eng/qa tracks",
+    category: "timeline",
+    type: "gantt",
+    title: "Product Sprint Plan",
+    subtitle: "Q1 2026",
+    build: () => ({
+      schema: [
+        { key: "task", label: "Task", type: "text" },
+        { key: "start", label: "Start", type: "date" },
+        { key: "end", label: "End", type: "date" },
+        { key: "group", label: "Group", type: "text" },
+        { key: "owner", label: "Owner", type: "text" },
+        { key: "progress", label: "%", type: "percent" },
+      ],
+      rows: [
+        { task: "Sprint 1 Design", start: "2026-01-05", end: "2026-01-16", group: "Sprint 1", owner: "Design", progress: 100 },
+        { task: "Sprint 1 Eng", start: "2026-01-12", end: "2026-01-23", group: "Sprint 1", owner: "Eng", progress: 100 },
+        { task: "Sprint 1 QA", start: "2026-01-21", end: "2026-01-26", group: "Sprint 1", owner: "QA", progress: 100 },
+        { task: "Sprint 2 Design", start: "2026-01-26", end: "2026-02-06", group: "Sprint 2", owner: "Design", progress: 80 },
+        { task: "Sprint 2 Eng", start: "2026-02-02", end: "2026-02-13", group: "Sprint 2", owner: "Eng", progress: 60 },
+        { task: "Sprint 3 Design", start: "2026-02-16", end: "2026-02-27", group: "Sprint 3", owner: "Design", progress: 20 },
+        { task: "Sprint 3 Eng", start: "2026-02-23", end: "2026-03-06", group: "Sprint 3", owner: "Eng", progress: 0 },
+        { task: "Sprint 4 Launch", start: "2026-03-09", end: "2026-03-20", group: "Sprint 4", owner: "All", progress: 0 },
+      ],
+    }),
+  },
+  {
+    id: "go-to-market",
+    emoji: "🚀",
+    label: "Go-to-Market Plan",
+    desc: "3 phases, 8 tasks",
+    category: "timeline",
+    type: "gantt",
+    title: "Go-to-Market Plan",
+    subtitle: "3-phase rollout",
+    build: () => ({
+      schema: [
+        { key: "task", label: "Task", type: "text" },
+        { key: "start", label: "Start", type: "date" },
+        { key: "end", label: "End", type: "date" },
+        { key: "group", label: "Group", type: "text" },
+        { key: "owner", label: "Owner", type: "text" },
+        { key: "progress", label: "%", type: "percent" },
+      ],
+      rows: [
+        { task: "Market research", start: "2026-01-05", end: "2026-01-30", group: "Phase 1 · Prep", owner: "Strategy", progress: 100 },
+        { task: "Brand & messaging", start: "2026-01-20", end: "2026-02-20", group: "Phase 1 · Prep", owner: "Marketing", progress: 80 },
+        { task: "Sales enablement", start: "2026-02-01", end: "2026-03-01", group: "Phase 2 · Build", owner: "Sales", progress: 50 },
+        { task: "Beta program", start: "2026-02-15", end: "2026-03-31", group: "Phase 2 · Build", owner: "Product", progress: 30 },
+        { task: "Press briefings", start: "2026-03-15", end: "2026-04-05", group: "Phase 2 · Build", owner: "PR", progress: 10 },
+        { task: "Launch event", start: "2026-04-06", end: "2026-04-07", group: "Phase 3 · Launch", owner: "All", progress: 0 },
+        { task: "Paid campaigns", start: "2026-04-07", end: "2026-05-31", group: "Phase 3 · Launch", owner: "Marketing", progress: 0 },
+        { task: "Post-launch retro", start: "2026-05-15", end: "2026-05-22", group: "Phase 3 · Launch", owner: "All", progress: 0 },
+      ],
+    }),
+  },
+  // ── Comparison ───────────────────────────────────────────────────────────
+  {
+    id: "before-vs-after",
+    emoji: "↔",
+    label: "Before vs After",
+    desc: "Side-by-side 4 metrics",
+    category: "comparison",
+    type: "clustered",
+    title: "Before vs After",
+    subtitle: "Key metrics comparison",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Metric", type: "text" },
+        { key: "s1", label: "Before", type: "number" },
+        { key: "s2", label: "After", type: "number" },
+      ],
+      rows: [
+        { category: "Throughput", s1: 100, s2: 185 },
+        { category: "Latency (ms)", s1: 240, s2: 95 },
+        { category: "Cost ($)", s1: 180, s2: 110 },
+        { category: "Score", s1: 72, s2: 94 },
+      ],
+    }),
+  },
+  {
+    id: "multi-series-trend",
+    emoji: "📉",
+    label: "Multi-Series Trend",
+    desc: "5 series, 8 time periods",
+    category: "comparison",
+    type: "line",
+    title: "Multi-Series Trend",
+    subtitle: "8-period comparison",
+    build: () => ({
+      schema: [
+        { key: "category", label: "Period", type: "text" },
+        { key: "s1", label: "Series 1", type: "number" },
+        { key: "s2", label: "Series 2", type: "number" },
+        { key: "s3", label: "Series 3", type: "number" },
+        { key: "s4", label: "Series 4", type: "number" },
+        { key: "s5", label: "Series 5", type: "number" },
+      ],
+      rows: [
+        { category: "P1", s1: 100, s2: 80, s3: 60, s4: 40, s5: 20 },
+        { category: "P2", s1: 115, s2: 85, s3: 70, s4: 55, s5: 35 },
+        { category: "P3", s1: 130, s2: 92, s3: 65, s4: 70, s5: 45 },
+        { category: "P4", s1: 125, s2: 100, s3: 80, s4: 60, s5: 58 },
+        { category: "P5", s1: 145, s2: 108, s3: 95, s4: 75, s5: 65 },
+        { category: "P6", s1: 160, s2: 115, s3: 88, s4: 90, s5: 72 },
+        { category: "P7", s1: 175, s2: 125, s3: 105, s4: 85, s5: 80 },
+        { category: "P8", s1: 195, s2: 138, s3: 120, s4: 100, s5: 95 },
+      ],
+    }),
+  },
+  {
+    id: "price-performance",
+    emoji: "💎",
+    label: "Price / Performance",
+    desc: "8 chips: x=perf, y=price",
+    category: "comparison",
+    type: "scatter",
+    title: "AI Chip Price / Performance",
+    subtitle: "Source: SemiAnalysis Accelerator Model",
+    build: () => ({
+      schema: [
+        { key: "label", label: "Chip", type: "text" },
+        { key: "x", label: "BF16 TFLOPs", type: "number" },
+        { key: "y", label: "Price ($K)", type: "number" },
+        { key: "size", label: "Size", type: "number" },
+      ],
+      rows: [
+        { label: "H100 SXM5", x: 1979, y: 30, size: 50 },
+        { label: "H200 SXM5", x: 1979, y: 35, size: 50 },
+        { label: "B200 SXM6", x: 4500, y: 60, size: 80 },
+        { label: "MI300X", x: 1300, y: 15, size: 40 },
+        { label: "MI325X", x: 1300, y: 17, size: 40 },
+        { label: "TPU v5p", x: 459, y: 0, size: 20 },
+        { label: "TPU v6", x: 918, y: 0, size: 30 },
+        { label: "Gaudi 3", x: 1835, y: 10, size: 35 },
+      ],
+    }),
   },
 ];
 
@@ -3368,7 +5272,7 @@ function AxisRangePicker({ axis, onChange, type }: { axis: { yMin?: number; yMax
 }
 
 // ─── DESIGN drawer · slide-in pane consolidating styling controls ────────
-function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, onChangeBackdrop, onChangeMode, legendPos, onChangeLegendPos, showBorders, onToggleBorders, showGridlines, onToggleGridlines, axis, onChangeAxis, chartType }: {
+function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, onChangeBackdrop, onChangeMode, legendPos, onChangeLegendPos, showBorders, onToggleBorders, showGridlines, onToggleGridlines, showSegmentLabels, onToggleSegmentLabels, axis, onChangeAxis, chartType, yLabel, onChangeYLabel, xLabel, onChangeXLabel, logScale, onToggleLogScale, roundedCorners, onToggleRoundedCorners, showEndLabels, onToggleEndLabels, markerShape, onChangeMarkerShape }: {
   onClose: () => void;
   theme: ThemeId; onChangeTheme: (t: ThemeId) => void;
   backdrop: BackdropKey; backdropMode: BackdropMode;
@@ -3376,9 +5280,16 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
   legendPos: NonNullable<ChartConfig["legendPos"]>; onChangeLegendPos: (p: NonNullable<ChartConfig["legendPos"]>) => void;
   showBorders: boolean; onToggleBorders: () => void;
   showGridlines: boolean; onToggleGridlines: () => void;
+  showSegmentLabels: boolean; onToggleSegmentLabels: () => void;
   axis: { yMin?: number; yMax?: number; xMin?: number; xMax?: number };
   onChangeAxis: (next: { yMin?: number; yMax?: number; xMin?: number; xMax?: number }) => void;
   chartType: ChartType;
+  yLabel: string; onChangeYLabel: (v: string) => void;
+  xLabel: string; onChangeXLabel: (v: string) => void;
+  logScale: boolean; onToggleLogScale: () => void;
+  roundedCorners: boolean; onToggleRoundedCorners: () => void;
+  showEndLabels: boolean; onToggleEndLabels: () => void;
+  markerShape: "none" | "circle" | "square" | "diamond"; onChangeMarkerShape: (s: "none" | "circle" | "square" | "diamond") => void;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -3393,7 +5304,7 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
     </div>
   );
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(6,6,12,0.4)", zIndex: 12200, animation: "cm2DrawerFade 0.18s ease forwards" }}>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "transparent", zIndex: 12200, animation: "cm2DrawerFade 0.18s ease forwards", pointerEvents: "none" }}>
       <style>{`@keyframes cm2DrawerFade{from{opacity:0}to{opacity:1}}@keyframes cm2DrawerSlide{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
       <div onClick={e => e.stopPropagation()} style={{
         position: "absolute", right: 0, top: 0, bottom: 0,
@@ -3405,6 +5316,7 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
         boxShadow: "0 0 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(247,176,65,0.04)",
         display: "flex", flexDirection: "column",
         animation: "cm2DrawerSlide 0.24s cubic-bezier(.2,.7,.2,1) forwards",
+        pointerEvents: "auto",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", background: "linear-gradient(180deg, rgba(247,176,65,0.05), transparent)" }}>
           <Palette size={16} strokeWidth={2.2} color={C.amber} />
@@ -3468,11 +5380,43 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <DesignToggle on={showBorders} label="Bar borders" sub="Outline between stacked segments" onChange={onToggleBorders} />
               <DesignToggle on={showGridlines} label="Gridlines" sub="Horizontal Y axis guides" onChange={onToggleGridlines} />
+              <DesignToggle on={showSegmentLabels} label="Segment labels" sub="Value inside each stacked bar segment" onChange={onToggleSegmentLabels} />
+              <DesignToggle on={logScale} label="Log Scale" sub="Logarithmic Y axis (powers of 10)" onChange={onToggleLogScale} />
+              <DesignToggle on={roundedCorners} label="Rounded Corners" sub="Rounded top corners on bars" onChange={onToggleRoundedCorners} />
+              <DesignToggle on={showEndLabels} label="End Labels" sub="Series label at end of last line point" onChange={onToggleEndLabels} />
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6, marginBottom: 6 }}>MARKER SHAPE (LINE)</div>
+              <div style={{ display: "flex", gap: 4 }}>
+                {(["none", "circle", "square", "diamond"] as const).map(s => {
+                  const on = markerShape === s;
+                  const label = s === "none" ? "—" : s === "circle" ? "●" : s === "square" ? "■" : "◆";
+                  return <button key={s} onClick={() => onChangeMarkerShape(s)} style={{ flex: 1, padding: "8px 4px", borderRadius: 6, background: on ? C.amber + "20" : "rgba(255,255,255,0.025)", border: "1px solid " + (on ? C.amber + "55" : "rgba(255,255,255,0.08)"), color: on ? C.amber : C.tx, fontFamily: mn, fontSize: 11, fontWeight: 800, cursor: "pointer", textAlign: "center" }}>{label}</button>;
+                })}
+              </div>
             </div>
           </Section>
 
           {/* AXES */}
           <Section title="Axes">
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6, marginBottom: 6 }}>Y-AXIS LABEL</div>
+              <input
+                value={yLabel}
+                onChange={e => onChangeYLabel(e.target.value)}
+                placeholder="e.g. Revenue ($B)"
+                style={{ width: "100%", padding: "8px 10px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 6, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box" }}
+              />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6, marginBottom: 6 }}>X-AXIS LABEL</div>
+              <input
+                value={xLabel}
+                onChange={e => onChangeXLabel(e.target.value)}
+                placeholder="e.g. Quarter"
+                style={{ width: "100%", padding: "8px 10px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 6, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box" }}
+              />
+            </div>
             <AxisRangeBlock axis={axis} onChange={onChangeAxis} xApplies={xApplies} chartType={chartType} />
           </Section>
         </div>
@@ -3545,9 +5489,19 @@ function LockToggle({ locked, onChange }: { locked: boolean; onChange: (v: boole
 // ─── Templates · quick-start preset gallery ──────────────────────────────
 function TemplatesButton({ onPick }: { onPick: (tpl: TemplateSpec) => void }) {
   const [open, setOpen] = useState(false);
+  const [catFilter, setCatFilter] = useState<TemplateCategory | "all">("all");
+  const cats: Array<{ id: TemplateCategory | "all"; label: string }> = [
+    { id: "all", label: "All" },
+    { id: "financial", label: "Financial" },
+    { id: "tech", label: "Tech" },
+    { id: "strategy", label: "Strategy" },
+    { id: "timeline", label: "Timeline" },
+    { id: "comparison", label: "Comparison" },
+  ];
+  const filtered = catFilter === "all" ? TEMPLATES : TEMPLATES.filter(t => t.category === catFilter);
   return (
     <>
-      <GlassButton onClick={() => setOpen(true)} title="Quick-start templates · 8 production charts" Icon={Sparkles}>TEMPLATES</GlassButton>
+      <GlassButton onClick={() => setOpen(true)} title="Quick-start templates · production charts" Icon={Sparkles}>TEMPLATES</GlassButton>
       {open && (
         <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(6,6,12,0.74)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", zIndex: 12000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{
@@ -3559,16 +5513,25 @@ function TemplatesButton({ onPick }: { onPick: (tpl: TemplateSpec) => void }) {
             padding: "22px 24px",
             boxShadow: "0 32px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(247,176,65,0.05)",
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
               <Sparkles size={16} strokeWidth={2.2} color={C.amber} />
               <span style={{ fontFamily: gf, fontSize: 18, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.2 }}>Quick start</span>
-              <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1 }}>{TEMPLATES.length} templates</span>
+              <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1 }}>{filtered.length}/{TEMPLATES.length} templates</span>
+            </div>
+            {/* Category filter tabs */}
+            <div style={{ display: "flex", gap: 4, marginBottom: 16, flexWrap: "wrap" }}>
+              {cats.map(c => {
+                const on = catFilter === c.id;
+                return (
+                  <button key={c.id} onClick={() => setCatFilter(c.id)} style={{ padding: "6px 12px", borderRadius: 6, background: on ? C.amber + "20" : "rgba(255,255,255,0.03)", border: "1px solid " + (on ? C.amber + "55" : "rgba(255,255,255,0.10)"), color: on ? C.amber : C.txm, fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer", textTransform: "uppercase" }}>{c.label}</button>
+                );
+              })}
             </div>
             <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, lineHeight: 1.5, marginBottom: 18 }}>
               Pick a starting point. Loads sample data + sets the chart type, title, and subtitle. Replaces the active chart's data sheet.
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
-              {TEMPLATES.map(tpl => (
+              {filtered.map(tpl => (
                 <TemplateCard key={tpl.id} tpl={tpl} onPick={() => { onPick(tpl); setOpen(false); }} />
               ))}
             </div>
@@ -4214,3 +6177,305 @@ function Toggle({ on, onChange, label, title }: { on: boolean; onChange: (v: boo
     </button>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WELCOME SCREEN · paginated first-visit tutorial. 5 steps with Next/Back +
+// "Don't show again" checkbox on the final step. Honors `cm2-welcome-seen-v1`
+// in localStorage. Re-openable from the green "?!" button bottom-right.
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface WelcomeStep {
+  title: string;
+  body: string;
+  bullets: string[];
+  Icon: LucideIcon;
+  accent: string;
+  cta?: { label: string; action: "wheel" | "shortcuts" };
+}
+
+const WELCOME_STEPS: WelcomeStep[] = [
+  {
+    title: "Welcome to Chart Maker 2",
+    body: "A think-cell-grade chart builder for SemiAnalysis decks. Pick a type, drop in data, annotate, export — fully in browser.",
+    bullets: [
+      "16 chart types · waterfall, mekko, gantt, scatter, variance",
+      "Drag bars to edit values directly on the chart",
+      "LibreOffice-style spreadsheet with formulas (=SUM, =VLOOKUP, =INDEX)",
+      "Light/dark backdrops · 4 SemiAnalysis-branded color systems",
+    ],
+    Icon: Sparkles,
+    accent: "#F7B041",
+  },
+  {
+    title: "The Type Wheel",
+    body: "Click TYPE WHEEL (or press W) to open the radial chart-type picker. 16 wedges grouped by family. Click any wedge to switch instantly.",
+    bullets: [
+      "Amber wedges = column charts (stacked, clustered, waterfall)",
+      "Cobalt = line + area charts",
+      "Mint = mekko + percent charts",
+      "Coral = scatter, gantt, pie",
+    ],
+    Icon: BarChart3,
+    accent: "#F7B041",
+    cta: { label: "Open Type Wheel", action: "wheel" },
+  },
+  {
+    title: "Right-Click for the Icon Menu",
+    body: "Right-click any bar or segment to open a floating icon strip. Add a CAGR arrow, diff arrow, value line, callout, or recolor — all from one panel.",
+    bullets: [
+      "🎨 Fill color · click to recolor entire series",
+      "↗ CAGR · click two bars to draw a growth arrow",
+      "↔ Δ Diff · absolute or % change between two bars",
+      "T Text · drop a draggable text callout anywhere",
+    ],
+    Icon: Palette,
+    accent: "#0B86D1",
+  },
+  {
+    title: "The Data Sheet",
+    body: "Edit values inline like a spreadsheet. Type formulas with =. Switch to Slider mode for instant value scrubbing. Use Table 2 tab for multi-table charts (FLOPs).",
+    bullets: [
+      "=SUM(A1:A5) · =AVG · =MAX · =MIN · =COUNT · =PRODUCT",
+      "=VLOOKUP · =HLOOKUP · =INDEX · =MATCH · =SUMIF · =COUNTIF",
+      "=IF(cond, then, else) · =IFERROR(value, fallback)",
+      "Use $ for absolute refs: =$A$1 · =$A1 · =A$1",
+    ],
+    Icon: FileCode2,
+    accent: "#2EAD8E",
+  },
+  {
+    title: "Tips & Tricks",
+    body: "A few power-user moves that will save you hours. Press ? anytime to open the full keyboard reference.",
+    bullets: [
+      "W · open the Type Wheel · Esc to close",
+      "? · keyboard shortcut overlay · ⌘Z undo · ⌘⇧Z redo",
+      "Alt + drag a number cell to scrub the value",
+      "Paste TSV/CSV from Excel — auto-detects SA-horizontal layouts",
+      "Use the right Properties panel for design + annotations + series",
+      "Lock 🔒 mode prevents accidental edits while you style",
+    ],
+    Icon: Keyboard,
+    accent: "#E06347",
+    cta: { label: "Open Shortcuts", action: "shortcuts" },
+  },
+];
+
+function WelcomeScreen({
+  onClose,
+  onOpenWheel,
+  onOpenShortcuts,
+}: {
+  onClose: (dontShowAgain: boolean) => void;
+  onOpenWheel: () => void;
+  onOpenShortcuts: () => void;
+}) {
+  const [step, setStep] = useState(0);
+  const [dontShow, setDontShow] = useState(true);
+  const cur = WELCOME_STEPS[step];
+  const isLast = step === WELCOME_STEPS.length - 1;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose(dontShow);
+      if (e.key === "ArrowRight") setStep(s => Math.min(WELCOME_STEPS.length - 1, s + 1));
+      if (e.key === "ArrowLeft") setStep(s => Math.max(0, s - 1));
+      if (e.key === "Enter" && isLast) onClose(dontShow);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dontShow, isLast, onClose]);
+  return (
+    <div
+      onClick={() => onClose(dontShow)}
+      style={{
+        position: "fixed", inset: 0, zIndex: 13000,
+        background: "rgba(6,6,12,0.78)",
+        backdropFilter: "blur(14px) saturate(140%)",
+        WebkitBackdropFilter: "blur(14px) saturate(140%)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 20,
+        animation: "cm2WelcomeFade 0.28s cubic-bezier(.2,.7,.2,1) both",
+      }}
+    >
+      <style>{`
+        @keyframes cm2WelcomeFade { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes cm2WelcomePop { from { opacity: 0; transform: scale(0.94) translateY(12px) } to { opacity: 1; transform: scale(1) translateY(0) } }
+        @keyframes cm2WelcomeIcon { 0%,100% { transform: scale(1) rotate(0deg) } 50% { transform: scale(1.04) rotate(-2deg) } }
+      `}</style>
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          position: "relative",
+          width: "min(720px, 96vw)",
+          background: "linear-gradient(180deg, #11111A 0%, #0A0A12 100%)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          borderRadius: 18,
+          boxShadow: "0 32px 80px rgba(0,0,0,0.65), 0 0 0 1px " + cur.accent + "20, 0 0 80px " + cur.accent + "18",
+          overflow: "hidden",
+          animation: "cm2WelcomePop 0.32s cubic-bezier(.2,.7,.2,1) both",
+        }}
+      >
+        {/* gradient halo top */}
+        <div style={{
+          position: "absolute", top: -160, left: -40, right: -40, height: 280, pointerEvents: "none",
+          background: `radial-gradient(ellipse at center, ${cur.accent}30 0%, ${cur.accent}10 30%, transparent 70%)`,
+          transition: "all 0.4s ease",
+        }} />
+        {/* close + skip */}
+        <button
+          onClick={() => onClose(dontShow)}
+          title="Skip · Esc"
+          style={{
+            position: "absolute", top: 14, right: 14, zIndex: 2,
+            width: 32, height: 32, borderRadius: 8,
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            color: C.txm, cursor: "pointer",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            transition: "all 0.16s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = C.tx; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = C.txm; }}
+        >
+          <XIcon size={15} strokeWidth={2.4} />
+        </button>
+
+        <div style={{ padding: "44px 44px 22px", position: "relative", zIndex: 1 }}>
+          {/* hero icon */}
+          <div style={{
+            width: 64, height: 64, borderRadius: 16,
+            background: `linear-gradient(135deg, ${cur.accent} 0%, ${cur.accent}99 100%)`,
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            marginBottom: 18,
+            boxShadow: `0 16px 40px ${cur.accent}55, 0 0 0 1px rgba(255,255,255,0.18) inset`,
+            animation: "cm2WelcomeIcon 4.2s ease-in-out infinite",
+          }}>
+            <cur.Icon size={32} strokeWidth={2.2} color="#0A0A0E" />
+          </div>
+          {/* step counter */}
+          <div style={{ fontFamily: mn, fontSize: 9, color: cur.accent, letterSpacing: 1.6, fontWeight: 800, marginBottom: 10, textTransform: "uppercase" }}>
+            Step {step + 1} of {WELCOME_STEPS.length}
+          </div>
+          {/* title */}
+          <div style={{
+            fontFamily: gf, fontSize: 30, fontWeight: 900,
+            color: "#E8E4DD", letterSpacing: -0.6, marginBottom: 10, lineHeight: 1.1,
+          }}>{cur.title}</div>
+          {/* body */}
+          <div style={{ fontFamily: ft, fontSize: 14, color: C.txm, lineHeight: 1.55, marginBottom: 22, maxWidth: 580 }}>
+            {cur.body}
+          </div>
+          {/* bullets */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
+            {cur.bullets.map((b, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, fontFamily: ft, fontSize: 12.5, color: "#E8E4DD", lineHeight: 1.5 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: cur.accent, marginTop: 7, flexShrink: 0, boxShadow: `0 0 8px ${cur.accent}80` }} />
+                <span>{b}</span>
+              </div>
+            ))}
+          </div>
+          {cur.cta && (
+            <button
+              onClick={() => cur.cta!.action === "wheel" ? onOpenWheel() : onOpenShortcuts()}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 8,
+                padding: "10px 16px", borderRadius: 9,
+                background: cur.accent + "18",
+                border: "1px solid " + cur.accent + "60",
+                color: cur.accent,
+                fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.6,
+                cursor: "pointer", transition: "all 0.16s",
+                marginBottom: 8,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = cur.accent + "30"; e.currentTarget.style.boxShadow = `0 6px 20px ${cur.accent}40`; }}
+              onMouseLeave={e => { e.currentTarget.style.background = cur.accent + "18"; e.currentTarget.style.boxShadow = "none"; }}
+            >
+              {cur.cta.label} →
+            </button>
+          )}
+        </div>
+
+        {/* footer · pagination dots + actions */}
+        <div style={{
+          padding: "16px 28px",
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+          background: "rgba(0,0,0,0.20)",
+          display: "flex", alignItems: "center", gap: 14,
+        }}>
+          {/* dots */}
+          <div style={{ display: "flex", gap: 6 }}>
+            {WELCOME_STEPS.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setStep(i)}
+                title={`Step ${i + 1}`}
+                style={{
+                  width: i === step ? 24 : 8, height: 8, borderRadius: 999,
+                  background: i === step ? cur.accent : (i < step ? cur.accent + "55" : "rgba(255,255,255,0.12)"),
+                  border: "none", cursor: "pointer",
+                  transition: "all 0.22s cubic-bezier(.2,.7,.2,1)",
+                  boxShadow: i === step ? `0 0 12px ${cur.accent}80` : "none",
+                }}
+              />
+            ))}
+          </div>
+          <span style={{ flex: 1 }} />
+          {/* dont-show-again on last step */}
+          {isLast && (
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 7, cursor: "pointer", fontFamily: mn, fontSize: 10, color: C.txm, letterSpacing: 0.5, userSelect: "none" }}>
+              <input type="checkbox" checked={dontShow} onChange={e => setDontShow(e.target.checked)} style={{ accentColor: cur.accent, width: 14, height: 14 }} />
+              Don&apos;t show again
+            </label>
+          )}
+          {/* back / next / done */}
+          {step > 0 && (
+            <button
+              onClick={() => setStep(s => Math.max(0, s - 1))}
+              style={{
+                padding: "9px 14px", borderRadius: 8,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.10)",
+                color: C.txm,
+                fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
+                cursor: "pointer", transition: "all 0.14s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = C.tx; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = C.txm; }}
+            >← BACK</button>
+          )}
+          {!isLast ? (
+            <button
+              onClick={() => setStep(s => Math.min(WELCOME_STEPS.length - 1, s + 1))}
+              style={{
+                padding: "10px 18px", borderRadius: 8,
+                background: `linear-gradient(135deg, ${cur.accent} 0%, ${cur.accent}cc 100%)`,
+                border: "1px solid " + cur.accent + "88",
+                color: "#0A0A0E",
+                fontFamily: mn, fontSize: 10, fontWeight: 900, letterSpacing: 0.8,
+                cursor: "pointer", transition: "all 0.16s",
+                boxShadow: `0 6px 18px ${cur.accent}55, 0 1px 0 rgba(255,255,255,0.20) inset`,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = `0 10px 26px ${cur.accent}66, 0 1px 0 rgba(255,255,255,0.20) inset`; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = `0 6px 18px ${cur.accent}55, 0 1px 0 rgba(255,255,255,0.20) inset`; }}
+            >NEXT →</button>
+          ) : (
+            <button
+              onClick={() => onClose(dontShow)}
+              style={{
+                padding: "10px 22px", borderRadius: 8,
+                background: `linear-gradient(135deg, ${cur.accent} 0%, ${cur.accent}cc 100%)`,
+                border: "1px solid " + cur.accent + "88",
+                color: "#0A0A0E",
+                fontFamily: mn, fontSize: 10, fontWeight: 900, letterSpacing: 0.8,
+                cursor: "pointer", transition: "all 0.16s",
+                boxShadow: `0 6px 18px ${cur.accent}55, 0 1px 0 rgba(255,255,255,0.20) inset`,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; }}
+            >GET STARTED →</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
