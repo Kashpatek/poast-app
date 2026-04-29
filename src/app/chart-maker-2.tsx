@@ -1,4 +1,11 @@
 "use client";
+// ============================================================================
+// CHART MAKER 2 · Wave 16 · BETA
+// ============================================================================
+// Single-file React/SVG chart builder. Production-tested through Wave 15.x.
+// This file intentionally lives as one ~14k-line module for easier diffing
+// and offline portability. See git log for the full evolution.
+// ============================================================================
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { D as C, ft, gf, mn } from "./shared-constants";
@@ -1359,7 +1366,7 @@ type Annotation =
   // SVG viewBox coords so positions stay stable across re-renders.
   | { id: string; kind: "callout"; x: number; y: number; text: string; color?: string };
 
-type PickMode = null | { kind: "cagr" | "diff"; bars: Array<{ rowIdx: number; key: string }> };
+type PickMode = null | { kind: "cagr" | "diff" | "totalDiff"; bars: Array<{ rowIdx: number; key: string }> };
 // Single-click placement mode for the ANNOTATE TEXT tool — distinct
 // from pickMode (multi-step). Click anywhere on the chart background
 // to drop a callout.
@@ -1579,7 +1586,7 @@ function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad =
               width: "100%", height: "100%", padding: "0 6px", boxSizing: "border-box",
               background: "rgba(0,0,0,0.55)", color: cc.text,
               border: "1px solid " + C.amber + "80", borderRadius: 4,
-              fontFamily: fontSans, fontSize: 18, fontWeight: 900, outline: "none",
+              fontFamily: fontSans, fontSize: 20, fontWeight: 900, outline: "none",
             }}
           />
         </foreignObject>
@@ -1587,7 +1594,7 @@ function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad =
         <text
           x={leftPad} y="28" fill={cc.text}
           onClick={titleEditable ? () => setEditing("title") : undefined}
-          style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 900, cursor: titleEditable ? "text" : "default" }}
+          style={{ fontFamily: fontSans, fontSize: 20, fontWeight: 900, cursor: titleEditable ? "text" : "default" }}
         >{cfg.title}</text>
       )}
       {editing === "subtitle" && cfg.onInlineEditSubtitle ? (
@@ -1604,7 +1611,7 @@ function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad =
               width: "100%", height: "100%", padding: "0 6px", boxSizing: "border-box",
               background: "rgba(0,0,0,0.55)", color: cc.muted,
               border: "1px solid " + C.amber + "80", borderRadius: 4,
-              fontFamily: fontMono, fontSize: 10, letterSpacing: 1, outline: "none",
+              fontFamily: fontMono, fontSize: 12, letterSpacing: 1, outline: "none",
             }}
           />
         </foreignObject>
@@ -1612,7 +1619,7 @@ function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad =
         <text
           x={leftPad} y="48" fill={cc.muted}
           onClick={subtitleEditable ? () => setEditing("subtitle") : undefined}
-          style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 1, cursor: subtitleEditable ? "text" : "default" }}
+          style={{ fontFamily: fontMono, fontSize: 12, letterSpacing: 1, cursor: subtitleEditable ? "text" : "default" }}
         >{cfg.subtitle.toUpperCase()}</text>
       )}
       {cfg.yLabel && (
@@ -1620,7 +1627,7 @@ function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad =
           textAnchor="middle"
           fill={cc.muted}
           transform={`translate(12, ${topPad + chartH / 2}) rotate(-90)`}
-          style={{ fontFamily: fontMono, fontSize: 9, letterSpacing: 1 }}
+          style={{ fontFamily: fontMono, fontSize: 13, letterSpacing: 1 }}
         >{cfg.yLabel.toUpperCase()}</text>
       )}
       {cfg.xLabel && (
@@ -1629,7 +1636,7 @@ function ChartFrame({ cfg, W, H, children, leftPad = 56, rightPad = 24, topPad =
           y={topPad + chartH + bottomPad - 4}
           textAnchor="middle"
           fill={cc.muted}
-          style={{ fontFamily: fontMono, fontSize: 9, letterSpacing: 1 }}
+          style={{ fontFamily: fontMono, fontSize: 13, letterSpacing: 1 }}
         >{cfg.xLabel.toUpperCase()}</text>
       )}
       <g transform={`translate(0, ${topPad})`}>
@@ -1779,13 +1786,13 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
                   }}
                   style={{ cursor: onUpdateRow ? "pointer" : "default" }}
                 />
-                {cfg.showSegmentLabels && (y0 - y1) > 14 && barW > 20 && (
+                {cfg.showSegmentLabels && (y0 - y1) > 18 && barW > 24 && (
                   <text
                     x={leftPad + i * groupW + (groupW - barW) / 2 + barW / 2}
                     y={(y0 + y1) / 2 + 3}
                     textAnchor="middle"
                     fill={cc.onBar}
-                    style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 800, pointerEvents: "none" }}
+                    style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 800, pointerEvents: "none" }}
                   >{fmtVal(v, cfg.numFmt)}</text>
                 )}
                 {isSelected && (
@@ -1799,7 +1806,7 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
               </g>
               );
             })}
-            {cfg.showTotalLabels !== false && <text x={leftPad + i * groupW + groupW / 2} y={yOf(totals[i]) - 6} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, pointerEvents: "none" }}>{fmtVal(totals[i], cfg.numFmt)}</text>}
+            {cfg.showTotalLabels !== false && <text x={leftPad + i * groupW + groupW / 2} y={yOf(totals[i]) - 6} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 12, fontWeight: 700, pointerEvents: "none" }}>{fmtVal(totals[i], cfg.numFmt)}</text>}
             {editingCat === i ? (
               <foreignObject x={leftPad + i * groupW + 6} y={chartH + 8} width={groupW - 12} height={26}>
                 <input
@@ -1807,14 +1814,14 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
                   defaultValue={cat}
                   onBlur={e => { onUpdateRow?.(i, { [catKey]: (e.target as HTMLInputElement).value }); setEditingCat(null); }}
                   onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingCat(null); }}
-                  style={{ width: "100%", height: "100%", padding: "0 6px", background: "#0A0A0E", border: "1px solid " + C.amber + "80", borderRadius: 4, color: "#E8E4DD", fontFamily: fontSans, fontSize: 11, outline: "none", boxSizing: "border-box", textAlign: "center" }}
+                  style={{ width: "100%", height: "100%", padding: "0 6px", background: "#0A0A0E", border: "1px solid " + C.amber + "80", borderRadius: 4, color: "#E8E4DD", fontFamily: fontSans, fontSize: 13, outline: "none", boxSizing: "border-box", textAlign: "center" }}
                 />
               </foreignObject>
             ) : (
               <text
                 x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={cc.muted}
                 onClick={() => onUpdateRow && setEditingCat(i)}
-                style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600, cursor: onUpdateRow ? "text" : "default" }}
+                style={{ fontFamily: fontSans, fontSize: 13, fontWeight: 600, cursor: onUpdateRow ? "text" : "default" }}
               >{cat}</text>
             )}
           </g>
@@ -1900,6 +1907,8 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
 }
 
 function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, onShowElementMenu, annotations, pickMode, onPickBar, onSelect, onSetSeriesColor, selected, onSelectElement, onOpenWheel }: CatProps) {
+  void pickMode;
+  const [hoverCat, setHoverCat] = useState<number | null>(null);
   const { categories, series } = getCategoricalSeries(sheet);
   const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
   const catKey = sheet.schema[0]?.key || "category";
@@ -1996,6 +2005,8 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
                   ry={cfg.roundedCorners ? 4 : 0}
                   fill={colorOf(seriesKeys[si], si)}
                   onPointerDown={onBodyDown(i, key)}
+                  onMouseEnter={() => setHoverCat(i)}
+                  onMouseLeave={() => setHoverCat(h => h === i ? null : h)}
                   onContextMenu={e => {
                     e.preventDefault(); e.stopPropagation();
                     const color = colorOf(seriesKeys[si], si);
@@ -2015,7 +2026,7 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
                   }}
                   style={{ cursor: onUpdateRow ? "pointer" : "default" }}
                 />
-                <text x={x + barW / 2} y={y - 4} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>{fmtVal(v, cfg.numFmt)}</text>
+                <text x={x + barW / 2} y={y - 4} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 700, pointerEvents: "none" }}>{fmtVal(v, cfg.numFmt)}</text>
                 {isSel && (
                   <SelectionHandles
                     x={x + 1} y={y} w={barW - 2} h={chartH - y}
@@ -2034,14 +2045,14 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
                 defaultValue={cat}
                 onBlur={e => { onUpdateRow?.(i, { [catKey]: (e.target as HTMLInputElement).value }); setEditingCat(null); }}
                 onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingCat(null); }}
-                style={{ width: "100%", height: "100%", padding: "0 6px", background: "#0A0A0E", border: "1px solid " + C.amber + "80", borderRadius: 4, color: "#E8E4DD", fontFamily: fontSans, fontSize: 11, outline: "none", boxSizing: "border-box", textAlign: "center" }}
+                style={{ width: "100%", height: "100%", padding: "0 6px", background: "#0A0A0E", border: "1px solid " + C.amber + "80", borderRadius: 4, color: "#E8E4DD", fontFamily: fontSans, fontSize: 13, outline: "none", boxSizing: "border-box", textAlign: "center" }}
               />
             </foreignObject>
           ) : (
             <text
               x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={cc.muted}
               onClick={() => onUpdateRow && setEditingCat(i)}
-              style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600, cursor: onUpdateRow ? "text" : "default" }}
+              style={{ fontFamily: fontSans, fontSize: 13, fontWeight: 600, cursor: onUpdateRow ? "text" : "default" }}
             >{cat}</text>
           )}
         </g>
@@ -2049,6 +2060,30 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
       {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={2} chartH={chartH} sideW={SIDE_LEGEND_W} onLabelEdit={cfg.onInlineEditSeriesLabel} />}
       {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W} chartH={chartH} sideW={SIDE_LEGEND_W} onLabelEdit={cfg.onInlineEditSeriesLabel} />}
       {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} textColor={cc.muted} onLabelEdit={cfg.onInlineEditSeriesLabel} />}
+      {hoverCat !== null && (() => {
+        const i = hoverCat;
+        const cx = leftPad + i * groupW + groupW / 2;
+        const ttW = 180, ttH = Math.min(140, 36 + series.length * 16);
+        const ttX = Math.min(Math.max(leftPad, cx + 12), W - rightPad - ttW);
+        const ttY = topPad + 8;
+        return (
+          <g pointerEvents="none">
+            <line x1={cx} x2={cx} y1={0} y2={chartH} stroke={cc.muted} strokeDasharray="3 4" strokeWidth={1} opacity={0.6} />
+            <foreignObject x={ttX} y={ttY} width={ttW} height={ttH}>
+              <div style={{ background: "rgba(13,13,18,0.95)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 8, padding: "8px 10px", fontFamily: ft, fontSize: 12, color: "#E8E4DD", boxShadow: "0 8px 20px rgba(0,0,0,0.5)" }}>
+                <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 800, marginBottom: 5, letterSpacing: 0.5, textTransform: "uppercase", color: C.amber }}>{categories[i]}</div>
+                {series.map((s, si) => (
+                  <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 6, padding: "1px 0" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: colorOf(seriesKeys[si], si) }} />
+                    <span style={{ flex: 1 }}>{s.label}</span>
+                    <span style={{ fontFamily: mn, fontWeight: 700 }}>{fmtVal(s.values[i], cfg.numFmt)}</span>
+                  </div>
+                ))}
+              </div>
+            </foreignObject>
+          </g>
+        );
+      })()}
       {/* Annotations layer · reference lines, CAGR arrows, Δ markers */}
       <AnnotationLayer
         annotations={annotations || []}
@@ -2138,11 +2173,11 @@ function PercentColumn({ sheet, cfg, W, H }: CatProps) {
               return (
                 <g key={si}>
                   <rect x={cx} y={y1} width={barW} height={Math.max(0, y0 - y1)} fill={palette[si % palette.length]} stroke={cfg.showBorders ? cc.barBorder : "none"} strokeWidth={cfg.showBorders ? 1 : 0} />
-                  {(y0 - y1) > 18 && <text x={cx + barW / 2} y={(y0 + y1) / 2 + 3} textAnchor="middle" fill={cc.onBar} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 800 }}>{Math.round(pct)}%</text>}
+                  {(y0 - y1) > 18 && <text x={cx + barW / 2} y={(y0 + y1) / 2 + 3} textAnchor="middle" fill={cc.onBar} style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 800 }}>{Math.round(pct)}%</text>}
                 </g>
               );
             })}
-            <text x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{cat}</text>
+            <text x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontSans, fontSize: 13, fontWeight: 600 }}>{cat}</text>
           </g>
         );
       })}
@@ -2154,6 +2189,7 @@ function PercentColumn({ sheet, cfg, W, H }: CatProps) {
 }
 
 function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, pct100 = false, onUpdateRow, selected, onSelectElement, onOpenWheel }: CatProps & { fill?: boolean; stacked?: boolean; pct100?: boolean }) {
+  const [hoverCat, setHoverCat] = useState<number | null>(null);
   const { categories, series: rawSeries } = getCategoricalSeries(sheet);
   // Normalize to 100% per column when pct100 is set
   const series = pct100
@@ -2323,7 +2359,7 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, pct100 =
                   y={yOf(lastVal)}
                   textAnchor="start"
                   fill={lineColor}
-                  style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 700, pointerEvents: "none" }}
+                  style={{ fontFamily: fontSans, fontSize: 13, fontWeight: 700, pointerEvents: "none" }}
                 >{s.label}</text>
               )}
             </g>
@@ -2336,7 +2372,7 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, pct100 =
           {timeTicks.map((t, i) => {
             const x = leftPad + ((t - tMin) / tSpan) * chartW;
             if (x < leftPad - 4 || x > leftPad + chartW + 4) return null;
-            return <text key={"tt-" + i} x={x} y={chartH + 22} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, letterSpacing: 0.4 }}>{formatTick(t, timeUnit)}</text>;
+            return <text key={"tt-" + i} x={x} y={chartH + 22} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 12, fontWeight: 700, letterSpacing: 0.4 }}>{formatTick(t, timeUnit)}</text>;
           })}
           {/* Per-point chip labels above each point — ports the SA
               "labels row beneath data" rendering from ChartMaker 1.
@@ -2346,14 +2382,60 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, pct100 =
             const labelKey = "_label_" + seriesKeys[0];
             const lbl = String(sheet.rows[i]?.[labelKey] ?? "");
             if (!lbl) return null;
-            return <text key={"chip-" + i} x={xOf(i)} y={yOf(renderedSeries[0].cumValues[i]) - 14} textAnchor="middle" fill={colorOf(seriesKeys[0], 0)} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 800, letterSpacing: 0.5 }}>{lbl}</text>;
+            return <text key={"chip-" + i} x={xOf(i)} y={yOf(renderedSeries[0].cumValues[i]) - 14} textAnchor="middle" fill={colorOf(seriesKeys[0], 0)} style={{ fontFamily: fontMono, fontSize: 12, fontWeight: 800, letterSpacing: 0.5 }}>{lbl}</text>;
           })}
         </>
       ) : (
         categories.map((cat, i) => (
-          <text key={i} x={xOf(i)} y={chartH + 22} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{cat}</text>
+          <text key={i} x={xOf(i)} y={chartH + 22} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontSans, fontSize: 13, fontWeight: 600 }}>{cat}</text>
         ))
       )}
+      {/* Hover detection — invisible columns over each category for crosshair triggering */}
+      {categories.map((_, i) => {
+        const colW2 = chartW / Math.max(1, categories.length);
+        const x0 = useTime ? Math.max(leftPad, xOf(i) - colW2 / 2) : leftPad + i * colW;
+        const w0 = useTime ? colW2 : colW;
+        return (
+          <rect key={"hov-" + i} x={x0} y={0} width={w0} height={chartH}
+            fill="transparent"
+            onMouseEnter={() => setHoverCat(i)}
+            onMouseLeave={() => setHoverCat(h => h === i ? null : h)}
+            pointerEvents="all"
+          />
+        );
+      })}
+      {hoverCat !== null && (() => {
+        const i = hoverCat;
+        const cx = xOf(i);
+        const ttW = 180;
+        const totals = stacked ? renderedSeries[renderedSeries.length - 1]?.cumValues[i] ?? 0 : 0;
+        const ttH = Math.min(160, 36 + series.length * 16 + (stacked ? 22 : 0));
+        const ttX = Math.min(Math.max(leftPad, cx + 12), W - rightPad - ttW);
+        const ttY = topPad + 8;
+        return (
+          <g pointerEvents="none">
+            <line x1={cx} x2={cx} y1={0} y2={chartH} stroke={cc.muted} strokeDasharray="3 4" strokeWidth={1} opacity={0.6} />
+            <foreignObject x={ttX} y={ttY} width={ttW} height={ttH}>
+              <div style={{ background: "rgba(13,13,18,0.95)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 8, padding: "8px 10px", fontFamily: ft, fontSize: 12, color: "#E8E4DD", boxShadow: "0 8px 20px rgba(0,0,0,0.5)" }}>
+                <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 800, marginBottom: 5, letterSpacing: 0.5, textTransform: "uppercase", color: C.amber }}>{categories[i]}</div>
+                {series.map((s, si) => (
+                  <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 6, padding: "1px 0" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: colorOf(seriesKeys[si], si) }} />
+                    <span style={{ flex: 1 }}>{s.label}</span>
+                    <span style={{ fontFamily: mn, fontWeight: 700 }}>{fmtVal(s.values[i], cfg.numFmt)}</span>
+                  </div>
+                ))}
+                {stacked && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 0 0", marginTop: 4, borderTop: "1px solid rgba(255,255,255,0.10)" }}>
+                    <span style={{ flex: 1, fontFamily: mn, fontSize: 10, color: C.txm, letterSpacing: 0.4, textTransform: "uppercase" }}>Total</span>
+                    <span style={{ fontFamily: mn, fontWeight: 800 }}>{fmtVal(totals, cfg.numFmt)}</span>
+                  </div>
+                )}
+              </div>
+            </foreignObject>
+          </g>
+        );
+      })()}
       {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={2} chartH={chartH} sideW={SIDE_LEGEND_W} />}
       {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W} chartH={chartH} sideW={SIDE_LEGEND_W} />}
       {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} textColor={cc.muted} />}
@@ -2370,10 +2452,12 @@ function Pie({ sheet, cfg, W, H, doughnut = false }: { sheet: DataSheet; cfg: Ch
     .filter(it => it.value > 0);
   const rawTotal = rawItems.reduce((a, it) => a + it.value, 0) || 1;
   const threshold = cfg.pieOtherThreshold ?? 3;
-  // Aggregate small slices into "Other"
-  const otherVal = threshold > 0 ? rawItems.filter(it => (it.value / rawTotal) * 100 < threshold).reduce((a, it) => a + it.value, 0) : 0;
-  const mainItems = threshold > 0 ? rawItems.filter(it => (it.value / rawTotal) * 100 >= threshold) : rawItems;
-  const items = otherVal > 0 ? [...mainItems, { label: "Other", value: otherVal, isOther: true }] : mainItems.map(it => ({ ...it, isOther: false }));
+  // Aggregate small slices into "Other" (only if 6+ slices — no benefit on small charts)
+  const shouldAggregate = threshold > 0 && rawItems.length > 5;
+  const otherVal = shouldAggregate ? rawItems.filter(it => (it.value / rawTotal) * 100 < threshold).reduce((a, it) => a + it.value, 0) : 0;
+  const mainItems = shouldAggregate ? rawItems.filter(it => (it.value / rawTotal) * 100 >= threshold) : rawItems;
+  // "Other" always rendered LAST
+  const items = otherVal > 0 ? [...mainItems.map(it => ({ ...it, isOther: false })), { label: "Other", value: otherVal, isOther: true }] : mainItems.map(it => ({ ...it, isOther: false }));
   const total = items.reduce((a, it) => a + it.value, 0) || 1;
 
   const cx = W / 2;
@@ -2397,8 +2481,9 @@ function Pie({ sheet, cfg, W, H, doughnut = false }: { sheet: DataSheet; cfg: Ch
       : `M ${cx} ${cy} L ${x0} ${y0} A ${R} ${R} 0 ${large} 1 ${x1} ${y1} Z`;
     const labelA = (a0 + a1) / 2;
     const labelR = R + 24;
+    const isOther = (it as {isOther?: boolean}).isOther === true;
     return {
-      label: it.label, value: it.value, portion, color: (it as {isOther?: boolean}).isOther ? SA_METAL : palette[i % palette.length], path,
+      label: it.label, value: it.value, portion, color: isOther ? SA_METAL : palette[i % palette.length], path,
       labelX: cx + Math.cos(labelA) * labelR,
       labelY: cy + Math.sin(labelA) * labelR,
     };
@@ -2407,15 +2492,15 @@ function Pie({ sheet, cfg, W, H, doughnut = false }: { sheet: DataSheet; cfg: Ch
   return (
     <g>
       <rect x="0" y="0" width={W} height={H} fill="transparent" />
-      <text x="56" y="28" fill={cc.text} style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 900 }}>{cfg.title}</text>
-      <text x="56" y="48" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 1 }}>{cfg.subtitle.toUpperCase()}</text>
+      <text x="56" y="28" fill={cc.text} style={{ fontFamily: fontSans, fontSize: 20, fontWeight: 900 }}>{cfg.title}</text>
+      <text x="56" y="48" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 12, letterSpacing: 1 }}>{cfg.subtitle.toUpperCase()}</text>
       {arcs.map((a, i) => (
         <g key={i}>
           <path d={a.path} fill={a.color} stroke={cfg.showBorders ? cc.barBorder : "none"} strokeWidth={cfg.showBorders ? 1.5 : 0} />
           {a.portion > 0.04 && (
-            <text x={a.labelX} y={a.labelY} textAnchor={a.labelX < cx ? "end" : "start"} fill={cc.text} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 700 }}>
+            <text x={a.labelX} y={a.labelY} textAnchor={a.labelX < cx ? "end" : "start"} fill={cc.text} style={{ fontFamily: fontSans, fontSize: 13, fontWeight: 700 }}>
               <tspan>{a.label}</tspan>
-              <tspan x={a.labelX} dy="14" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 600 }}>{Math.round(a.portion * 100)}%</tspan>
+              <tspan x={a.labelX} dy="14" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 12, fontWeight: 600 }}>{Math.round(a.portion * 100)}%</tspan>
             </text>
           )}
         </g>
@@ -2483,7 +2568,7 @@ function Scatter({ sheet, cfg, W, H, bubble = false }: { sheet: DataSheet; cfg: 
       {points.map((p, i) => (
         <g key={i}>
           <circle cx={xOf(p.x)} cy={yOf(p.y)} r={radius(p.size)} fill={palette[i % palette.length]} fillOpacity="0.6" stroke={palette[i % palette.length]} strokeWidth="1.5" />
-          <text x={xOf(p.x)} y={yOf(p.y) - radius(p.size) - 6} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontSans, fontSize: 10, fontWeight: 700 }}>{p.label}</text>
+          <text x={xOf(p.x)} y={yOf(p.y) - radius(p.size) - 6} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontSans, fontSize: 12, fontWeight: 700 }}>{p.label}</text>
         </g>
       ))}
     </ChartFrame>
@@ -2553,8 +2638,8 @@ function Waterfall({ sheet, cfg, W, H }: CatProps) {
             {i < segments.length - 1 && !segments[i + 1].isTotal && (
               <line x1={x + barW} x2={leftPad + (i + 1) * groupW + (groupW - barW) / 2} y1={yOf(seg.cum)} y2={yOf(seg.cum)} stroke={cc.gridStrong} strokeDasharray="3 3" />
             )}
-            <text x={x + barW / 2} y={y - 6} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700 }}>{(seg.label as number) >= 0 ? "+" : ""}{fmtVal(seg.label as number, cfg.numFmt)}</text>
-            <text x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{items[i].label}</text>
+            <text x={x + barW / 2} y={y - 6} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 12, fontWeight: 700 }}>{(seg.label as number) >= 0 ? "+" : ""}{fmtVal(seg.label as number, cfg.numFmt)}</text>
+            <text x={leftPad + i * groupW + groupW / 2} y={chartH + 22} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontSans, fontSize: 13, fontWeight: 600 }}>{items[i].label}</text>
           </g>
         );
       })}
@@ -2609,11 +2694,11 @@ function CalloutNode({ annot, onMove, onEdit, onDelete }: {
             defaultValue={annot.text}
             onBlur={e => { onEdit((e.target as HTMLInputElement).value); setEditing(false); }}
             onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditing(false); }}
-            style={{ width: "100%", height: "100%", padding: "0 8px", background: "transparent", border: "none", color: "#E8E4DD", fontFamily: fontMono, fontSize: 11, fontWeight: 700, outline: "none", boxSizing: "border-box" }}
+            style={{ width: "100%", height: "100%", padding: "0 8px", background: "transparent", border: "none", color: "#E8E4DD", fontFamily: fontMono, fontSize: 13, fontWeight: 700, outline: "none", boxSizing: "border-box" }}
           />
         </foreignObject>
       ) : (
-        <text x={tw / 2} y="2" textAnchor="middle" fill={annot.color || C.amber} style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 800, letterSpacing: 0.3, userSelect: "none" }}>{annot.text}</text>
+        <text x={tw / 2} y="2" textAnchor="middle" fill={annot.color || C.amber} style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 800, letterSpacing: 0.3, userSelect: "none" }}>{annot.text}</text>
       )}
     </g>
   );
@@ -2651,7 +2736,7 @@ function AnnotationLayer({ annotations, getBarTop, getColumnTop, getSeriesEndPoi
             <g key={a.id}>
               <line x1={leftPad} x2={leftPad + chartW} y1={y} y2={y} stroke={a.color || "#E06347"} strokeWidth="1.6" strokeDasharray="4 4" opacity="0.85" />
               <rect x={leftPad + chartW - 8} y={y - 9} width={4 + (a.label || fmtVal(v, fmt)).length * 6.2} height="18" rx="3" fill={a.color || "#E06347"} transform={`translate(-${4 + (a.label || fmtVal(v, fmt)).length * 6.2}, 0)`} />
-              <text x={leftPad + chartW - 12} y={y + 4} textAnchor="end" fill="#fff" style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 800, letterSpacing: 0.5 }}>{a.label || fmtVal(v, fmt)}</text>
+              <text x={leftPad + chartW - 12} y={y + 4} textAnchor="end" fill="#fff" style={{ fontFamily: fontMono, fontSize: 12, fontWeight: 800, letterSpacing: 0.5 }}>{a.label || fmtVal(v, fmt)}</text>
             </g>
           );
         }
@@ -2682,7 +2767,7 @@ function AnnotationLayer({ annotations, getBarTop, getColumnTop, getSeriesEndPoi
               />
               {/* label pill */}
               <rect x={midX - labelW / 2} y={arcTop - 12} width={labelW} height="20" rx="4" fill="#0A0A0E" stroke={C.amber} strokeWidth="1" />
-              <text x={midX} y={arcTop + 2} textAnchor="middle" fill={C.amber} style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 800, letterSpacing: 0.3 }}>{labelText}</text>
+              <text x={midX} y={arcTop + 2} textAnchor="middle" fill={C.amber} style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 800, letterSpacing: 0.3 }}>{labelText}</text>
             </g>
           );
         }
@@ -2702,7 +2787,7 @@ function AnnotationLayer({ annotations, getBarTop, getColumnTop, getSeriesEndPoi
               <path d={path} fill="none" stroke="#2EAD8E" strokeWidth="2" strokeDasharray="6 4" />
               <polygon points={`${B.x - 5},${B.y - 10} ${B.x + 5},${B.y - 10} ${B.x},${B.y - 1}`} fill="#2EAD8E" />
               <rect x={midX - labelW / 2} y={arcTop - 12} width={labelW} height="20" rx="4" fill="#0A0A0E" stroke="#2EAD8E" strokeWidth="1" />
-              <text x={midX} y={arcTop + 2} textAnchor="middle" fill="#2EAD8E" style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 800, letterSpacing: 0.3 }}>{labelText}</text>
+              <text x={midX} y={arcTop + 2} textAnchor="middle" fill="#2EAD8E" style={{ fontFamily: fontMono, fontSize: 12, fontWeight: 800, letterSpacing: 0.3 }}>{labelText}</text>
             </g>
           );
         }
@@ -2715,7 +2800,7 @@ function AnnotationLayer({ annotations, getBarTop, getColumnTop, getSeriesEndPoi
           return (
             <g key={a.id}>
               <rect x={ep.x + 8} y={ep.y - 22} width={w} height="20" rx="4" fill="#0A0A0E" stroke={ep.color} strokeWidth="1" />
-              <text x={ep.x + 8 + w / 2} y={ep.y - 8} textAnchor="middle" fill={ep.color} style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 800, letterSpacing: 0.3 }}>{txt}</text>
+              <text x={ep.x + 8 + w / 2} y={ep.y - 8} textAnchor="middle" fill={ep.color} style={{ fontFamily: fontMono, fontSize: 12, fontWeight: 800, letterSpacing: 0.3 }}>{txt}</text>
             </g>
           );
         }
@@ -2839,20 +2924,20 @@ function VarianceBar({ sheet, cfg, W, H, onUpdateRow, onShowMenu, onDeleteRow, o
             )}
             {/* PY reference bracket — small horizontal mark on top of where PY would land */}
             <line x1={cx - 3} x2={cx + barW + 3} y1={yPy} y2={yPy} stroke={pyColor} strokeWidth="2" strokeDasharray="3 3" />
-            <text x={cx + barW + 6} y={yPy + 3} fill={pyColor} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>PY {fmtVal(r.py, cfg.numFmt)}</text>
+            <text x={cx + barW + 6} y={yPy + 3} fill={pyColor} style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 700, pointerEvents: "none" }}>PY {fmtVal(r.py, cfg.numFmt)}</text>
             {/* AC value label inside or above bar */}
-            <text x={cx + barW / 2} y={yAc - 6} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 800, pointerEvents: "none" }}>{fmtVal(r.ac, cfg.numFmt)}</text>
+            <text x={cx + barW / 2} y={yAc - 6} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 800, pointerEvents: "none" }}>{fmtVal(r.ac, cfg.numFmt)}</text>
             {/* Variance arrow + label · IBCS green = good, red = bad */}
             <g transform={`translate(${cx + barW / 2}, ${chartH + 16})`}>
               <polygon
                 points={up ? "-4,-4 4,-4 0,3" : "-4,4 4,4 0,-3"}
                 fill={arrowColor}
               />
-              <text y={20} textAnchor="middle" fill={arrowColor} style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 800, letterSpacing: 0.3, pointerEvents: "none" }}>{(up ? "+" : "")}{fmtVal(delta, cfg.numFmt)}</text>
-              <text y={34} textAnchor="middle" fill={arrowColor} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, letterSpacing: 0.3, pointerEvents: "none", opacity: 0.85 }}>{(up ? "+" : "")}{Math.abs(pct) < 100 ? pct.toFixed(1) : pct.toFixed(0)}%</text>
+              <text y={20} textAnchor="middle" fill={arrowColor} style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 800, letterSpacing: 0.3, pointerEvents: "none" }}>{(up ? "+" : "")}{fmtVal(delta, cfg.numFmt)}</text>
+              <text y={34} textAnchor="middle" fill={arrowColor} style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 700, letterSpacing: 0.3, pointerEvents: "none", opacity: 0.85 }}>{(up ? "+" : "")}{Math.abs(pct) < 100 ? pct.toFixed(1) : pct.toFixed(0)}%</text>
             </g>
             {/* Category label (above the variance arrow) */}
-            <text x={cx + barW / 2} y={chartH + 4} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{r.cat}</text>
+            <text x={cx + barW / 2} y={chartH + 4} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontSans, fontSize: 13, fontWeight: 600 }}>{r.cat}</text>
           </g>
         );
       })}
@@ -2909,14 +2994,14 @@ function Legend({ series, W, y, leftPad, onSwatchClick, textColor, vertical, ver
                     defaultValue={s.label}
                     onBlur={e => { onLabelEdit?.(s.key!, (e.target as HTMLInputElement).value); setEditingKey(null); }}
                     onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); else if (e.key === "Escape") setEditingKey(null); }}
-                    style={{ width: "100%", height: "100%", padding: "0 4px", boxSizing: "border-box", background: "rgba(0,0,0,0.65)", color: tc, border: "1px solid " + C.amber + "80", borderRadius: 3, fontFamily: fontMono, fontSize: 10, fontWeight: 800, letterSpacing: 0.8, outline: "none", textAlign: "center" }}
+                    style={{ width: "100%", height: "100%", padding: "0 4px", boxSizing: "border-box", background: "rgba(0,0,0,0.65)", color: tc, border: "1px solid " + C.amber + "80", borderRadius: 3, fontFamily: fontMono, fontSize: 12, fontWeight: 800, letterSpacing: 0.8, outline: "none", textAlign: "center" }}
                   />
                 </foreignObject>
               ) : (
                 <text
                   x="0" y="22" textAnchor="middle" fill={tc}
                   onClick={onLabelEdit && s.key ? () => setEditingKey(s.key!) : undefined}
-                  style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 800, letterSpacing: 0.8, cursor: onLabelEdit && s.key ? "text" : "default" }}
+                  style={{ fontFamily: fontMono, fontSize: 12, fontWeight: 800, letterSpacing: 0.8, cursor: onLabelEdit && s.key ? "text" : "default" }}
                 >{s.label.toUpperCase()}</text>
               )}
             </g>
@@ -2943,14 +3028,14 @@ function Legend({ series, W, y, leftPad, onSwatchClick, textColor, vertical, ver
                   defaultValue={s.label}
                   onBlur={e => { onLabelEdit?.(s.key!, (e.target as HTMLInputElement).value); setEditingKey(null); }}
                   onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); else if (e.key === "Escape") setEditingKey(null); }}
-                  style={{ width: "100%", height: "100%", padding: "0 4px", boxSizing: "border-box", background: "rgba(0,0,0,0.65)", color: tc, border: "1px solid " + C.amber + "80", borderRadius: 3, fontFamily: fontMono, fontSize: 10, letterSpacing: 0.5, outline: "none" }}
+                  style={{ width: "100%", height: "100%", padding: "0 4px", boxSizing: "border-box", background: "rgba(0,0,0,0.65)", color: tc, border: "1px solid " + C.amber + "80", borderRadius: 3, fontFamily: fontMono, fontSize: 12, letterSpacing: 0.5, outline: "none" }}
                 />
               </foreignObject>
             ) : (
               <text
                 x="20" y="3" fill={tc}
                 onClick={onLabelEdit && s.key ? () => setEditingKey(s.key!) : undefined}
-                style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 0.5, cursor: onLabelEdit && s.key ? "text" : "default" }}
+                style={{ fontFamily: fontMono, fontSize: 12, letterSpacing: 0.5, cursor: onLabelEdit && s.key ? "text" : "default" }}
               >{s.label.toUpperCase()}</text>
             )}
           </g>
@@ -3208,7 +3293,7 @@ function MekkoPercent({ sheet, cfg, W, H, onUpdateRow, selected, onSelectElement
                     pointerEvents="none" />
                   {(y0 - y1) > 16 && bw > 28 && (
                     <text x={bx + bw / 2} y={(y0 + y1) / 2 + 3} textAnchor="middle"
-                      fill={cc.onBar} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 800, pointerEvents: "none" }}>
+                      fill={cc.onBar} style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 800, pointerEvents: "none" }}>
                       {Math.round(pct)}%
                     </text>
                   )}
@@ -3217,9 +3302,9 @@ function MekkoPercent({ sheet, cfg, W, H, onUpdateRow, selected, onSelectElement
             })}
             {/* Category label + weight % below the column */}
             <text x={x + colW / 2} y={chartH + 14} textAnchor="middle" fill={cc.muted}
-              style={{ fontFamily: fontSans, fontSize: 10, fontWeight: 700, pointerEvents: "none" }}>{cat}</text>
+              style={{ fontFamily: fontSans, fontSize: 12, fontWeight: 700, pointerEvents: "none" }}>{cat}</text>
             <text x={x + colW / 2} y={chartH + 28} textAnchor="middle" fill={cc.faint}
-              style={{ fontFamily: fontMono, fontSize: 9, pointerEvents: "none" }}>{Math.round((weights[i] / totalWeight) * 100)}%</text>
+              style={{ fontFamily: fontMono, fontSize: 13, pointerEvents: "none" }}>{Math.round((weights[i] / totalWeight) * 100)}%</text>
             {/* Column divider */}
             {i > 0 && <line x1={x} x2={x} y1={0} y2={chartH} stroke={cc.gridStrong} strokeWidth="1" pointerEvents="none" />}
             {/* Selection · column glow + right-edge resize handle */}
@@ -3349,9 +3434,9 @@ function MekkoUnit({ sheet, cfg, W, H, onUpdateRow, selected, onSelectElement, o
                     stroke={cfg.showBorders ? cc.barBorder : "none"}
                     strokeWidth={cfg.showBorders ? 1 : 0}
                     pointerEvents="none" />
-                  {cfg.showSegmentLabels && (y0 - y1) > 14 && bw > 24 && (
+                  {cfg.showSegmentLabels && (y0 - y1) > 18 && bw > 28 && (
                     <text x={bx + bw / 2} y={(y0 + y1) / 2 + 3} textAnchor="middle"
-                      fill={cc.onBar} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 800, pointerEvents: "none" }}>
+                      fill={cc.onBar} style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 800, pointerEvents: "none" }}>
                       {fmtVal(v, cfg.numFmt)}
                     </text>
                   )}
@@ -3359,9 +3444,9 @@ function MekkoUnit({ sheet, cfg, W, H, onUpdateRow, selected, onSelectElement, o
               );
             })}
             <text x={x + colW / 2} y={chartH + 14} textAnchor="middle" fill={cc.muted}
-              style={{ fontFamily: fontSans, fontSize: 10, fontWeight: 700, pointerEvents: "none" }}>{cat}</text>
+              style={{ fontFamily: fontSans, fontSize: 12, fontWeight: 700, pointerEvents: "none" }}>{cat}</text>
             <text x={x + colW / 2} y={chartH + 28} textAnchor="middle" fill={cc.faint}
-              style={{ fontFamily: fontMono, fontSize: 9, pointerEvents: "none" }}>{Math.round((weights[i] / totalWeight) * 100)}%</text>
+              style={{ fontFamily: fontMono, fontSize: 13, pointerEvents: "none" }}>{Math.round((weights[i] / totalWeight) * 100)}%</text>
             {i > 0 && <line x1={x} x2={x} y1={0} y2={chartH} stroke={cc.gridStrong} strokeWidth="1" pointerEvents="none" />}
             {isColSel && (
               <>
@@ -3394,6 +3479,7 @@ function MekkoUnit({ sheet, cfg, W, H, onUpdateRow, selected, onSelectElement, o
 // All series except the last render as clustered bars; the last series renders
 // as a line overlay — useful for actual vs budget or volume vs price.
 function ComboChart({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig; W: number; H: number }) {
+  const [hoverCat, setHoverCat] = useState<number | null>(null);
   const { categories, series } = getCategoricalSeries(sheet);
   const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
   const palette = THEMES[cfg.theme].colors;
@@ -3417,14 +3503,24 @@ function ComboChart({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig; 
 
   const allBarVals = barSeries.flatMap(s => s.values);
   const allLineVals = lineSeries?.values ?? [];
-  const allVals = [...allBarVals, ...allLineVals];
-  const minV = Math.min(0, ...allVals);
-  const maxV = Math.max(0, ...allVals);
+  const useSecondary = cfg.showSecondaryAxis === true && lineSeries;
+  // Primary scale = bars only when secondary axis is on, else combined
+  const primaryVals = useSecondary ? allBarVals : [...allBarVals, ...allLineVals];
+  const minV = Math.min(0, ...primaryVals);
+  const maxV = Math.max(0, ...primaryVals);
   const ticks = niceTicks(minV, maxV, 5);
   const tickMin = cfg.yMin !== undefined ? cfg.yMin : ticks[0];
   const tickMax = cfg.yMax !== undefined ? cfg.yMax : ticks[ticks.length - 1];
   const yOf = (v: number) => chartH - ((v - tickMin) / Math.max(0.0001, tickMax - tickMin)) * chartH;
   const xOf = (i: number) => leftPad + i * groupW + groupW / 2;
+
+  // Secondary axis (line series) — independent scale
+  const lineMin2 = Math.min(0, ...allLineVals);
+  const lineMax2 = Math.max(0, ...allLineVals);
+  const ticks2 = useSecondary ? niceTicks(lineMin2, lineMax2, 5) : [];
+  const tickMin2 = useSecondary ? ticks2[0] : tickMin;
+  const tickMax2 = useSecondary ? ticks2[ticks2.length - 1] : tickMax;
+  const yOf2 = (v: number) => chartH - ((v - tickMin2) / Math.max(0.0001, tickMax2 - tickMin2)) * chartH;
 
   const lineColor = lineSeries ? colorOf(lineSeriesKey, series.length - 1) : palette[0];
 
@@ -3433,7 +3529,13 @@ function ComboChart({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig; 
       {ticks.map(t => (
         <g key={t}>
           {cfg.showGridlines !== false && <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke={cc.grid} strokeWidth="1" />}
-          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 12 }}>{fmtVal(t, cfg.numFmt)}</text>
+        </g>
+      ))}
+      {/* Secondary Y axis ticks (right side, line series scale) */}
+      {useSecondary && ticks2.map(t => (
+        <g key={"r-" + t}>
+          <text x={W - rightPad + 8} y={yOf2(t) + 4} textAnchor="start" fill={lineColor} style={{ fontFamily: fontMono, fontSize: 12, fontWeight: 700 }}>{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
       {/* Bars */}
@@ -3453,26 +3555,62 @@ function ComboChart({ sheet, cfg, W, H }: { sheet: DataSheet; cfg: ChartConfig; 
             );
           })}
           <text x={xOf(i)} y={chartH + 22} textAnchor="middle" fill={cc.muted}
-            style={{ fontFamily: fontSans, fontSize: 11, fontWeight: 600 }}>{cat}</text>
+            style={{ fontFamily: fontSans, fontSize: 13, fontWeight: 600 }}>{cat}</text>
         </g>
       ))}
-      {/* Line overlay */}
-      {lineSeries && categories.length >= 2 && (
-        <>
-          <polyline
-            fill="none"
-            stroke={lineColor}
-            strokeWidth="2.5"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-            points={lineSeries.values.map((v, i) => `${xOf(i)},${yOf(v)}`).join(" ")}
-          />
-          {lineSeries.values.map((v, i) => (
-            <circle key={i} cx={xOf(i)} cy={yOf(v)} r={4}
-              fill={lineColor} stroke={cc.barBorder} strokeWidth={1.5} />
-          ))}
-        </>
-      )}
+      {/* Line overlay — uses yOf2 when secondary axis is enabled */}
+      {lineSeries && categories.length >= 2 && (() => {
+        const yL = useSecondary ? yOf2 : yOf;
+        return (
+          <>
+            <polyline
+              fill="none"
+              stroke={lineColor}
+              strokeWidth="2.5"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              points={lineSeries.values.map((v, i) => `${xOf(i)},${yL(v)}`).join(" ")}
+            />
+            {lineSeries.values.map((v, i) => (
+              <circle key={i} cx={xOf(i)} cy={yL(v)} r={4}
+                fill={lineColor} stroke={cc.barBorder} strokeWidth={1.5} />
+            ))}
+          </>
+        );
+      })()}
+      {/* Hover detection columns */}
+      {categories.map((_, i) => (
+        <rect key={"hov-" + i} x={leftPad + i * groupW} y={0} width={groupW} height={chartH}
+          fill="transparent"
+          onMouseEnter={() => setHoverCat(i)}
+          onMouseLeave={() => setHoverCat(h => h === i ? null : h)}
+          pointerEvents="all"
+        />
+      ))}
+      {hoverCat !== null && (() => {
+        const i = hoverCat;
+        const cx = xOf(i);
+        const ttW = 180, ttH = Math.min(160, 36 + series.length * 16);
+        const ttX = Math.min(Math.max(leftPad, cx + 12), W - rightPad - ttW);
+        const ttY = topPad + 8;
+        return (
+          <g pointerEvents="none">
+            <line x1={cx} x2={cx} y1={0} y2={chartH} stroke={cc.muted} strokeDasharray="3 4" strokeWidth={1} opacity={0.6} />
+            <foreignObject x={ttX} y={ttY} width={ttW} height={ttH}>
+              <div style={{ background: "rgba(13,13,18,0.95)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 8, padding: "8px 10px", fontFamily: ft, fontSize: 12, color: "#E8E4DD", boxShadow: "0 8px 20px rgba(0,0,0,0.5)" }}>
+                <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 800, marginBottom: 5, letterSpacing: 0.5, textTransform: "uppercase", color: C.amber }}>{categories[i]}</div>
+                {series.map((s, si) => (
+                  <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 6, padding: "1px 0" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: colorOf(seriesKeys[si], si) }} />
+                    <span style={{ flex: 1 }}>{s.label}</span>
+                    <span style={{ fontFamily: mn, fontWeight: 700 }}>{fmtVal(s.values[i], cfg.numFmt)}</span>
+                  </div>
+                ))}
+              </div>
+            </foreignObject>
+          </g>
+        );
+      })()}
       {/* Legend */}
       {cfg.legendPos === "left" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={2} chartH={chartH} sideW={SIDE_LEGEND_W} />}
       {cfg.legendPos === "right" && <Legend series={series.map((s, si) => ({ key: seriesKeys[si], label: s.label, color: colorOf(seriesKeys[si], si) }))} W={W} y={10} leftPad={0} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W} chartH={chartH} sideW={SIDE_LEGEND_W} />}
@@ -3589,8 +3727,8 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
   return (
     <g>
       <rect x="0" y="0" width={totalW} height={totalH} fill="transparent" />
-      <text x={LEFT_PANEL_W} y="26" fill={cc.text} style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 900 }}>{cfg.title}</text>
-      <text x={LEFT_PANEL_W} y="46" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10, letterSpacing: 1 }}>{cfg.subtitle.toUpperCase()}</text>
+      <text x={LEFT_PANEL_W} y="26" fill={cc.text} style={{ fontFamily: fontSans, fontSize: 20, fontWeight: 900 }}>{cfg.title}</text>
+      <text x={LEFT_PANEL_W} y="46" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 12, letterSpacing: 1 }}>{cfg.subtitle.toUpperCase()}</text>
       {ticks.map((t, i) => {
         const x = xOf(t);
         const next = ticks[i + 1];
@@ -3598,7 +3736,7 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
         return (
           <g key={"tk-" + i}>
             <line x1={x} x2={x} y1={TITLE_H} y2={totalH - PADDING} stroke="rgba(255,255,255,0.04)" />
-            {next && <text x={labelX} y={TITLE_H + 24} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 700 }}>{formatTick(t, opts.unit)}</text>}
+            {next && <text x={labelX} y={TITLE_H + 24} textAnchor="middle" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 700 }}>{formatTick(t, opts.unit)}</text>}
           </g>
         );
       })}
@@ -3659,14 +3797,14 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
                     defaultValue={t.owner}
                     onBlur={e => { onUpdateRow?.(t.sheetIdx, { owner: (e.target as HTMLInputElement).value }); setEditing(null); }}
                     onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditing(null); }}
-                    style={{ width: "100%", height: "100%", padding: "0 6px", background: "#0A0A0E", border: "1px solid " + color + "80", borderRadius: 4, color: color, fontFamily: fontMono, fontSize: 10, fontWeight: 700, outline: "none", boxSizing: "border-box", textAlign: "right" }}
+                    style={{ width: "100%", height: "100%", padding: "0 6px", background: "#0A0A0E", border: "1px solid " + color + "80", borderRadius: 4, color: color, fontFamily: fontMono, fontSize: 12, fontWeight: 700, outline: "none", boxSizing: "border-box", textAlign: "right" }}
                   />
                 </foreignObject>
               ) : (
                 <text
                   x={LEFT_PANEL_W - 12} y={top + ROW_H / 2 + 4} textAnchor="end" fill={color}
                   onDoubleClick={() => onUpdateRow && setEditing({ rowIdx: t.sheetIdx, key: "owner" })}
-                  style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, cursor: onUpdateRow ? "text" : "default" }}
+                  style={{ fontFamily: fontMono, fontSize: 12, fontWeight: 700, cursor: onUpdateRow ? "text" : "default" }}
                 >{t.owner}</text>
               )
             )}
@@ -3720,12 +3858,12 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
                 )}
                 {opts.showDates && w > 60 && (
                   <>
-                    <text x={x1 + 8} y={top + ROW_H / 2 + 4} fill="#0A0A0E" style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>{fmtDateShort(t.start)}</text>
-                    <text x={x2 - 8} y={top + ROW_H / 2 + 4} textAnchor="end" fill="#0A0A0E" style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>{fmtDateShort(t.end)}</text>
+                    <text x={x1 + 8} y={top + ROW_H / 2 + 4} fill="#0A0A0E" style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 700, pointerEvents: "none" }}>{fmtDateShort(t.start)}</text>
+                    <text x={x2 - 8} y={top + ROW_H / 2 + 4} textAnchor="end" fill="#0A0A0E" style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 700, pointerEvents: "none" }}>{fmtDateShort(t.end)}</text>
                   </>
                 )}
-                {opts.showDuration && w > 40 && <text x={x1 + w / 2} y={top + ROW_H / 2 + 4} textAnchor="middle" fill="#0A0A0E" style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 800, pointerEvents: "none" }}>{durationDays(t.start, t.end)}d</text>}
-                {opts.showProgress && t.progress !== undefined && <text x={x2 + 6} y={top + ROW_H / 2 + 4} fill={color} style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, pointerEvents: "none" }}>{t.progress}%</text>}
+                {opts.showDuration && w > 40 && <text x={x1 + w / 2} y={top + ROW_H / 2 + 4} textAnchor="middle" fill="#0A0A0E" style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 800, pointerEvents: "none" }}>{durationDays(t.start, t.end)}d</text>}
+                {opts.showProgress && t.progress !== undefined && <text x={x2 + 6} y={top + ROW_H / 2 + 4} fill={color} style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 700, pointerEvents: "none" }}>{t.progress}%</text>}
                 {/* Edge resize handles · invisible 8px-wide hit areas at each end */}
                 {onUpdateRow && (
                   <>
@@ -3756,7 +3894,7 @@ function GanttSvg({ sheet, cfg, W, H, opts, onToggleGroup, onUpdateRow, onDelete
         <g>
           <line x1={todayX} x2={todayX} y1={TITLE_H + HEADER_H - 8} y2={totalH - PADDING} stroke={C.coral} strokeWidth="1.5" strokeDasharray="3 4" opacity="0.85" />
           <rect x={todayX - 22} y={TITLE_H + HEADER_H - 22} width="44" height="16" rx="3" fill={C.coral} />
-          <text x={todayX} y={TITLE_H + HEADER_H - 10} textAnchor="middle" fill="#fff" style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 800, letterSpacing: 1 }}>TODAY</text>
+          <text x={todayX} y={TITLE_H + HEADER_H - 10} textAnchor="middle" fill="#fff" style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 800, letterSpacing: 1 }}>TODAY</text>
         </g>
       )}
       <line x1={LEFT_PANEL_W} x2={LEFT_PANEL_W} y1={TITLE_H} y2={totalH - PADDING} stroke="rgba(255,255,255,0.10)" />
@@ -4709,7 +4847,7 @@ function PropertiesPanel({
   markerShape: "none" | "circle" | "square" | "diamond"; onChangeMarkerShape: (s: "none" | "circle" | "square" | "diamond") => void;
   annotations: Annotation[]; onRemoveAnnotation: (id: string) => void; onClearAnnotations: () => void;
   pickMode: PickMode; placeMode: PlaceMode;
-  onStartPick: (k: "cagr" | "diff") => void; onCancelPick: () => void;
+  onStartPick: (k: "cagr" | "diff" | "totalDiff") => void; onCancelPick: () => void;
   onAddRefLine: (v: number, l: string) => void; onTogglePlaceText: () => void;
   chartType: ChartType;
   series: Array<{ key: string; label: string; color: string }>;
@@ -4956,6 +5094,9 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const [roundedCorners, setRoundedCorners] = useState(false);
   const [showSecondaryAxis, setShowSecondaryAxis] = useState(false);
   const [pieOtherThreshold, setPieOtherThreshold] = useState(3);
+  // Wave 16 · Command palette + appearance modal
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [appearancePanelOpen, setAppearancePanelOpen] = useState(false);
   // Wheel + element menu + mode state
   const [wheelOpen, setWheelOpen] = useState(false);
   const [elementMenu, setElementMenu] = useState<ElementMenuState | null>(null);
@@ -5356,6 +5497,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       const k = e.key.toLowerCase();
       if (k === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
       else if ((k === "z" && e.shiftKey) || k === "y") { e.preventDefault(); redo(); }
+      else if (k === "k" && !e.shiftKey) { e.preventDefault(); setCommandPaletteOpen(v => !v); }
       else if (!inInput && k === "d" && !e.shiftKey) { e.preventDefault(); setDesignOpen(v => !v); }
       else if (!inInput && k === "l" && !e.shiftKey) { e.preventDefault(); setLocked(v => !v); }
       else if (!inInput && k === "e" && e.shiftKey) {
@@ -5443,13 +5585,20 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     if (!pickMode) return false;
     const next = [...pickMode.bars, { rowIdx, key }];
     if (next.length >= 2) {
-      const annot: Annotation = {
-        id: Math.random().toString(36).slice(2, 9),
-        kind: pickMode.kind,
-        rowFrom: next[0].rowIdx,
-        rowTo: next[1].rowIdx,
-        seriesKey: next[0].key,
-      };
+      const annot: Annotation = pickMode.kind === "totalDiff"
+        ? {
+            id: Math.random().toString(36).slice(2, 9),
+            kind: "totalDiff",
+            rowFrom: next[0].rowIdx,
+            rowTo: next[1].rowIdx,
+          }
+        : {
+            id: Math.random().toString(36).slice(2, 9),
+            kind: pickMode.kind,
+            rowFrom: next[0].rowIdx,
+            rowTo: next[1].rowIdx,
+            seriesKey: next[0].key,
+          };
       setAnnotations([...annotations, annot]);
       setPickMode(null);
     } else {
@@ -5843,7 +5992,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         return (
           <g>
             <rect x="0" y="0" width={W} height={H} fill="transparent" />
-            <text x={W / 2} y={H / 2 - 10} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontSans, fontSize: 18, fontWeight: 800 }}>Coming soon</text>
+            <text x={W / 2} y={H / 2 - 10} textAnchor="middle" fill={C.txm} style={{ fontFamily: fontSans, fontSize: 20, fontWeight: 800 }}>Coming soon</text>
             <text x={W / 2} y={H / 2 + 14} textAnchor="middle" fill={C.txd} style={{ fontFamily: fontMono, fontSize: 11 }}>{TYPES.flat().find(t => t.id === type)?.label.toUpperCase()}</text>
           </g>
         );
@@ -6147,7 +6296,22 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
 
         <span style={{ flex: 1 }} />
 
-        {/* RIGHT EDGE — Theme · Export download icon (Wave 15.4 · sound toggle removed) */}
+        {/* RIGHT EDGE — Aesthetics · Theme · Export download icon */}
+        <button
+          onClick={() => setAppearancePanelOpen(true)}
+          title="Aesthetics"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 5,
+            padding: "6px 10px", borderRadius: 7,
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            color: C.txm, cursor: "pointer",
+            fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
+          }}
+        >
+          <Settings size={11} strokeWidth={2.4} />
+          AESTHETICS
+        </button>
         <AppThemeToggle theme={appTheme} onChange={setAppTheme} />
         <ExportDropdownIcon
           onPNG={() => { exportPNG(); playExportChime(); }}
@@ -6400,8 +6564,22 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           </div>
 
           {/* Status bar — bottom of canvas area */}
-          <div style={{ marginTop: 12 }}>
-            <StatusBar chartType={type} sheet={sheet} numFmt={numFmt} themeName={THEMES[theme].name} advanced={advancedMode} />
+          <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ flex: 1 }}>
+              <StatusBar chartType={type} sheet={sheet} numFmt={numFmt} themeName={THEMES[theme].name} advanced={advancedMode} />
+            </span>
+            <button
+              onClick={() => setCommandPaletteOpen(true)}
+              title="Open command palette"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "5px 10px", borderRadius: 6,
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                color: C.txm, cursor: "pointer",
+                fontFamily: mn, fontSize: 9, fontWeight: 700, letterSpacing: 0.5,
+              }}
+            >Press ⌘K for command palette</button>
           </div>
         </div>
 
@@ -6456,6 +6634,36 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
 
       {menu && <ChartContextMenu menu={menu} onClose={() => setMenu(null)} />}
       {wheelOpen && <ChartTypeWheel active={type} onSelect={setType} onClose={() => setWheelOpen(false)} />}
+      {commandPaletteOpen && (
+        <CommandPalette
+          onClose={() => setCommandPaletteOpen(false)}
+          commands={[
+            { id: "design", label: "Toggle Design Panel", category: "View", shortcut: "⌘D", run: () => setDesignOpen(v => !v) },
+            { id: "lock", label: "Lock / Unlock Chart", category: "View", shortcut: "⌘L", run: () => setLocked(v => !v) },
+            { id: "expand", label: "Toggle Launch Mode", category: "View", shortcut: "⇧⌘E", run: () => setExpandedMode(v => !v) },
+            { id: "wheel", label: "Open Chart Type Wheel", category: "Chart", run: () => setWheelOpen(true) },
+            { id: "aesthetics", label: "Open Appearance Panel", category: "View", run: () => setAppearancePanelOpen(true) },
+            { id: "undo", label: "Undo", category: "Data", shortcut: "⌘Z", run: () => undo() },
+            { id: "redo", label: "Redo", category: "Data", shortcut: "⌘⇧Z", run: () => redo() },
+            { id: "gridlines", label: "Toggle Gridlines", category: "View", run: () => setShowGridlines(v => !v) },
+            { id: "borders", label: "Toggle Borders", category: "View", run: () => setShowBorders(v => !v) },
+            { id: "totalLabels", label: "Toggle Total Labels", category: "View", run: () => setShowTotalLabels(v => !v) },
+            { id: "segmentLabels", label: "Toggle Segment Labels", category: "View", run: () => setShowSegmentLabels(v => !v) },
+            { id: "endLabels", label: "Toggle End Labels", category: "View", run: () => setShowEndLabels(v => !v) },
+            { id: "roundedCorners", label: "Toggle Rounded Corners", category: "View", run: () => setRoundedCorners(v => !v) },
+            { id: "logScale", label: "Toggle Log Scale", category: "View", run: () => setLogScale(v => !v) },
+            { id: "themeDark", label: "Theme · Dark Backdrop", category: "View", run: () => setBackdropMode("dark") },
+            { id: "themeLight", label: "Theme · Light Backdrop", category: "View", run: () => setBackdropMode("light") },
+            { id: "themeCore", label: "Palette · SA Core", category: "View", run: () => setTheme("saCore") },
+            { id: "themeSpectrum", label: "Palette · SA Spectrum", category: "View", run: () => setTheme("saSpectrum") },
+            // Chart type changes
+            ...((["stacked","clustered","pct","line","stackedArea","pctArea","pie","doughnut","scatter","bubble","mekkoPct","mekkoUnit","combo","wfup","wfdn","variance","gantt"] as ChartType[]).map(t => ({
+              id: "type-" + t, label: "Chart Type · " + t, category: "Chart" as const, run: () => setType(t),
+            }))),
+          ]}
+        />
+      )}
+      {appearancePanelOpen && <AppearancePanel onClose={() => setAppearancePanelOpen(false)} />}
       {welcomeOpen && (
         <WelcomeScreen
           onClose={(dontShowAgain) => {
@@ -6529,9 +6737,9 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             { toolId: "cagr", Icon: TrendingUp, title: "CAGR arrow (pick a 2nd bar)", onClick: () => setPickMode({ kind: "cagr", bars: [{ rowIdx: sel.rowIdx, key: sel.key }] }) },
             { toolId: "diff", Icon: ArrowLeftRight, title: "Diff arrow (pick a 2nd bar)", onClick: () => setPickMode({ kind: "diff", bars: [{ rowIdx: sel.rowIdx, key: sel.key }] }) },
             { toolId: "totalDiff", Icon: ArrowUpDown, title: "Total diff arrow (pick a 2nd column)", onClick: () => {
-              // For now plant a totalDiff between this column and the next column.
-              const nextRow = (sel.rowIdx + 1) % Math.max(1, sheet.rows.length);
-              setAnnotations([...annotations, { id: Math.random().toString(36).slice(2, 9), kind: "totalDiff", rowFrom: sel.rowIdx, rowTo: nextRow }]);
+              // 2-click pick — first click already happened (this column),
+              // pickMode primes onPickBar to capture the second click.
+              setPickMode({ kind: "totalDiff", bars: [{ rowIdx: sel.rowIdx, key: sel.key }] });
             }},
             { toolId: "seriesCagr", Icon: Activity, title: "Series CAGR badge", onClick: () => setAnnotations([...annotations, { id: Math.random().toString(36).slice(2, 9), kind: "seriesCagr", seriesKey: sel.key }]) },
             { toolId: "refLine", Icon: Minus, title: "Reference line at this value", onClick: () => {
@@ -6635,9 +6843,24 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           ];
         } else if (sel.kind === "mekkoColumn") {
           label = "COLUMN";
+          const shift = (dir: -1 | 1) => {
+            setSheets(p => {
+              const cur = p[type] || samplePerType(type);
+              const idx = sel.rowIdx;
+              const target = idx + dir;
+              if (target < 0 || target >= cur.rows.length) return p;
+              const newRows = [...cur.rows];
+              const tmp = newRows[idx];
+              newRows[idx] = newRows[target];
+              newRows[target] = tmp;
+              return { ...p, [type]: { ...cur, rows: newRows } };
+            });
+            // Move selection to follow the column
+            selectElement({ kind: "mekkoColumn", rowIdx: sel.rowIdx + dir, anchorX: sel.anchorX, anchorY: sel.anchorY });
+          };
           icons = [
-            { toolId: "shiftLeft", Icon: ChevronLeft, title: "Shift left", onClick: () => {} },
-            { toolId: "shiftRight", Icon: ChevronRight, title: "Shift right", onClick: () => {} },
+            { toolId: "shiftLeft", Icon: ChevronLeft, title: "Shift left", onClick: () => shift(-1) },
+            { toolId: "shiftRight", Icon: ChevronRight, title: "Shift right", onClick: () => shift(1) },
             { toolId: "delete", Icon: Trash2, title: "Delete column", danger: true, onClick: () => onDeleteRow(sel.rowIdx) },
           ];
         } else {
@@ -6765,6 +6988,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           can break the position:fixed layout. */}
       {expandedMode && typeof document !== "undefined" && createPortal(
         <ExpandedShell
+          currentSheet={sheet}
           transitionFrom={expandTransitionFrom}
           onClose={() => setExpandedMode(false)}
           paneMode={paneMode}
@@ -10472,7 +10696,7 @@ function NumberFormatPicker({ fmt, onChange }: { fmt: NumberFormat; onChange: (f
 // ─── Annotations toolbar · Add reference line / CAGR / Δ ──────────────────
 function AnnotationsBar({ annotations, type, pickMode, placeMode, onStartPick, onCancelPick, onAddRefLine, onTogglePlaceText, onRemove, onClearAll }: {
   annotations: Annotation[]; type: ChartType; pickMode: PickMode; placeMode: PlaceMode;
-  onStartPick: (kind: "cagr" | "diff") => void;
+  onStartPick: (kind: "cagr" | "diff" | "totalDiff") => void;
   onCancelPick: () => void;
   onAddRefLine: (value: number, label: string) => void;
   onTogglePlaceText: () => void;
@@ -10500,6 +10724,7 @@ function AnnotationsBar({ annotations, type, pickMode, placeMode, onStartPick, o
       <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1.4, marginRight: 6, textTransform: "uppercase", fontWeight: 800 }}>Annotate</span>
       <AnnotChip active={pickMode?.kind === "cagr"} disabled={!annotApplies} title="Pick two bars/points to draw a CAGR arrow" Icon={Sigma} onClick={() => onStartPick("cagr")}>CAGR</AnnotChip>
       <AnnotChip active={pickMode?.kind === "diff"} disabled={!annotApplies} title="Pick two bars/points to show absolute Δ" Icon={ArrowUpDown} onClick={() => onStartPick("diff")}>Δ DIFF</AnnotChip>
+      <AnnotChip active={pickMode?.kind === "totalDiff"} disabled={!annotApplies} title="Pick two columns to show total Δ" Icon={Sigma} onClick={() => onStartPick("totalDiff")}>Σ Δ TOTAL</AnnotChip>
       <AnnotChip active={refOpen} disabled={!annotApplies} title="Drop a horizontal reference line" Icon={Minus} onClick={() => setRefOpen(v => !v)}>REF LINE</AnnotChip>
       <AnnotChip active={placeMode?.kind === "callout"} title="Click chart to drop a free-form text annotation" Icon={Type} onClick={onTogglePlaceText}>TEXT</AnnotChip>
       {refOpen && (
@@ -11690,6 +11915,7 @@ function ExpandedShell({
   chartWindowMode, onChangeChartWindowMode,
   floatingChartPos, onChangeFloatingChartPos,
   floatToolbar, showToolbarBtn,
+  currentSheet,
 }: {
   onClose: () => void;
   paneMode: "chart" | "table" | "split";
@@ -11736,6 +11962,8 @@ function ExpandedShell({
   // Wave 15.1 · "Show Toolbar" button injected into the Window group when
   // the float toolbar has been closed.
   showToolbarBtn?: React.ReactNode;
+  // Wave 16 · current sheet snapshot, passed in for the popout-window mirror.
+  currentSheet?: DataSheet;
 }) {
   void themeName; void paletteColors;
   const [leftCollapsed, setLeftCollapsed] = useState(false);
@@ -12154,14 +12382,101 @@ function ExpandedShell({
         </FloatingChartWindow>
       )}
 
-      {/* Wave 15 · "Open in new browser window" mode (5b) — coming-soon
-          placeholder banner. We keep state + UX wired up so when the
-          BroadcastChannel pipeline lands, no compact-mode changes are
-          needed. For now the table just stays docked-style; we surface a
-          dismissible banner explaining the experimental status. */}
-      {tableMode === "window" && (
-        <NewWindowComingSoonBanner onDismiss={() => onChangeTableMode("docked")} />
+      {/* Wave 16 · "Open in new browser window" mode — simplified version that
+          actually opens a popped browser window with a read-only data view,
+          synced via BroadcastChannel. Edits still happen in the main window. */}
+      {tableMode === "window" && currentSheet && (
+        <TableWindowPopout sheet={currentSheet} onClose={() => onChangeTableMode("docked")} />
       )}
+    </div>
+  );
+}
+
+// ─── Wave 16 · Simplified BroadcastChannel popout (read-only mirror) ────────
+function TableWindowPopout({ sheet, onClose }: { sheet: DataSheet; onClose: () => void }) {
+  const winRef = useRef<Window | null>(null);
+  const channelRef = useRef<BroadcastChannel | null>(null);
+  useEffect(() => {
+    const win = window.open("", "cm2-table-popout", "width=1200,height=800");
+    if (!win) { onClose(); return; }
+    winRef.current = win;
+    win.document.title = "Chart Maker 2 · Table (popout)";
+    win.document.body.style.margin = "0";
+    win.document.body.style.background = "#06060C";
+    win.document.body.style.color = "#E8E4DD";
+    win.document.body.style.fontFamily = "ui-sans-serif, system-ui, sans-serif";
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel("cm2-table-sync");
+      channelRef.current = channel;
+    } catch { /* not supported */ }
+    const render = (s: DataSheet) => {
+      if (!winRef.current || winRef.current.closed) return;
+      const doc = winRef.current.document;
+      const headers = s.schema.map(c => `<th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.10);font-family:'JetBrains Mono',monospace;font-size:11px;color:#F7B041;letter-spacing:0.5px;text-transform:uppercase">${c.label}</th>`).join("");
+      const rows = s.rows.map(r => `<tr>${s.schema.map(c => `<td style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.04);font-family:'JetBrains Mono',monospace;font-size:12px">${String(r[c.key] ?? "")}</td>`).join("")}</tr>`).join("");
+      doc.body.innerHTML = `
+        <div style="padding:24px">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#F7B041;letter-spacing:1.3px;font-weight:800;text-transform:uppercase">Read-only mirror</span>
+            <span style="flex:1"></span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#888;letter-spacing:0.5px">Edits must happen in the main window. Closes automatically when main window closes.</span>
+          </div>
+          <table style="width:100%;border-collapse:collapse"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>
+        </div>
+      `;
+    };
+    render(sheet);
+    if (channel) {
+      channel.onmessage = (e) => {
+        if (e.data?.type === "sheet" && e.data.sheet) render(e.data.sheet);
+      };
+    }
+    const onUnload = () => onClose();
+    win.addEventListener("beforeunload", onUnload);
+    const checkClosed = setInterval(() => {
+      if (winRef.current && winRef.current.closed) { clearInterval(checkClosed); onClose(); }
+    }, 500);
+    return () => {
+      clearInterval(checkClosed);
+      try { channel?.close(); } catch {}
+      try { winRef.current?.close(); } catch {}
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Broadcast updates whenever sheet changes
+  useEffect(() => {
+    if (!channelRef.current) return;
+    try { channelRef.current.postMessage({ type: "sheet", sheet }); } catch {}
+    if (winRef.current && !winRef.current.closed) {
+      // Also update in-place via direct DOM (in case BroadcastChannel is unavailable)
+      const doc = winRef.current.document;
+      const headers = sheet.schema.map(c => `<th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.10);font-family:'JetBrains Mono',monospace;font-size:11px;color:#F7B041;letter-spacing:0.5px;text-transform:uppercase">${c.label}</th>`).join("");
+      const rows = sheet.rows.map(r => `<tr>${sheet.schema.map(c => `<td style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.04);font-family:'JetBrains Mono',monospace;font-size:12px">${String(r[c.key] ?? "")}</td>`).join("")}</tr>`).join("");
+      doc.body.innerHTML = `
+        <div style="padding:24px">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#F7B041;letter-spacing:1.3px;font-weight:800;text-transform:uppercase">Read-only mirror</span>
+            <span style="flex:1"></span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#888;letter-spacing:0.5px">Edits must happen in the main window. Closes automatically when main window closes.</span>
+          </div>
+          <table style="width:100%;border-collapse:collapse"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>
+        </div>
+      `;
+    }
+  }, [sheet]);
+  return (
+    <div style={{
+      position: "fixed", left: "50%", bottom: 28, transform: "translateX(-50%)", zIndex: 12100,
+      padding: "10px 16px", borderRadius: 10,
+      background: "rgba(13,13,18,0.92)",
+      border: "1px solid " + C.amber + "55",
+      display: "flex", alignItems: "center", gap: 12,
+      boxShadow: "0 16px 36px rgba(0,0,0,0.5)",
+    }}>
+      <Upload size={14} color={C.amber} />
+      <span style={{ fontFamily: mn, fontSize: 10, color: "#E8E4DD", letterSpacing: 0.5 }}>Table is mirrored in a separate browser window. Close that window or click below to dock back.</span>
+      <button onClick={onClose} style={{ padding: "5px 11px", borderRadius: 6, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: C.tx, fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer" }}>Re-dock</button>
     </div>
   );
 }
