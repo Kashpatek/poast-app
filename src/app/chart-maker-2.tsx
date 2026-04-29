@@ -5779,35 +5779,8 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           </div>
         )}
         {standalone && <div style={{ flex: "1 1 auto" }} />}
-        {standalone && (
-          <a
-            href="/"
-            title="Back to POAST"
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 7,
-              padding: "9px 14px", borderRadius: 9,
-              background: "rgba(247,176,65,0.08)",
-              border: "1px solid " + C.amber + "44",
-              color: C.amber,
-              fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.6,
-              textDecoration: "none",
-              transition: "all 0.16s cubic-bezier(.2,.7,.2,1)",
-              boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset",
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = "rgba(247,176,65,0.16)";
-              e.currentTarget.style.borderColor = C.amber + "88";
-              e.currentTarget.style.boxShadow = "0 6px 20px " + C.amber + "30, 0 1px 0 rgba(255,255,255,0.06) inset";
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = "rgba(247,176,65,0.08)";
-              e.currentTarget.style.borderColor = C.amber + "44";
-              e.currentTarget.style.boxShadow = "0 1px 0 rgba(255,255,255,0.04) inset";
-            }}
-          >
-            <ArrowLeft size={13} strokeWidth={2.4} /> POAST
-          </a>
-        )}
+        {/* Back-to-POAST button removed — the /charts page header already
+            has a "← POAST" chip top-left, so it was redundant here. */}
         {/* Wave 15 · Toolbar reorg — grouped FILE / EDIT / INSERT / FORMAT / VIEW
             with hairline separators and tiny uppercase group labels. Reads
             like Excel/Figma: every control instantly findable. SIMPLE/ADVANCED
@@ -7617,6 +7590,15 @@ function FloatingLaunchToolbar({
         <GripVertical size={14} strokeWidth={2.4} />
       </div>
 
+      {/* Pin lives right next to the grip — together they own the
+          "where does this toolbar live" interaction. */}
+      <FloatToolButton
+        Icon={pinned ? Pin : PinOff}
+        title={pinned ? "Pinned · click to unpin and drag freely" : "Unpinned · click to snap to top-center"}
+        active={pinned}
+        onClick={onTogglePin}
+      />
+
       {/* Brand label */}
       <span style={{
         fontFamily: mn, fontSize: 8.5, color: C.amber,
@@ -7639,13 +7621,7 @@ function FloatingLaunchToolbar({
 
       <span style={{ width: 1, height: 24, background: "rgba(255,255,255,0.08)", margin: "0 4px" }} />
 
-      {/* Right edge cluster — pin, settings, close */}
-      <FloatToolButton
-        Icon={pinned ? Pin : PinOff}
-        title={pinned ? "Pinned · click to unpin and drag freely" : "Unpinned · click to snap to top-center"}
-        active={pinned}
-        onClick={onTogglePin}
-      />
+      {/* Right edge cluster — settings + close (pin moved next to grip) */}
       <FloatToolButton
         Icon={Settings}
         title="Edit toolbar · add, remove, or reorder tools"
