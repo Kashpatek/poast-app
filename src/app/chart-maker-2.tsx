@@ -14,7 +14,7 @@ import {
   FileCode2, ArrowLeftRight, ArrowLeft, Square, Diamond, MinusSquare,
   ClipboardPaste, Sparkles, Type, Keyboard, X as XIcon,
   Palette, Lock, Unlock, Table, ChevronLeft, ChevronRight,
-  Maximize2, Minimize2, Settings, Image as ImageIcon, Columns2, Rows2,
+  Maximize2, Minimize2, Settings, Image as ImageIcon, Columns2, Rows2, Rocket,
   CornerUpLeft, Repeat, ArrowDownUp, MoveHorizontal, Upload, FileSpreadsheet,
   Volume2, VolumeX, Sun, Moon, HelpCircle, Pipette, Check,
 } from "lucide-react";
@@ -4730,7 +4730,7 @@ function PropertiesPanel({
               onMouseEnter={e => { e.currentTarget.style.background = "linear-gradient(135deg, " + C.amber + "44, " + C.amber + "22)"; e.currentTarget.style.boxShadow = "0 6px 20px " + C.amber + "44, 0 1px 0 rgba(255,255,255,0.06) inset"; e.currentTarget.style.transform = "translateY(-1px)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "linear-gradient(135deg, " + C.amber + "22, " + C.amber + "11)"; e.currentTarget.style.boxShadow = "0 1px 0 rgba(255,255,255,0.04) inset"; e.currentTarget.style.transform = "translateY(0)"; }}
             >
-              <Maximize2 size={12} strokeWidth={2.4} /> Open Expanded Mode
+              <Rocket size={13} strokeWidth={2.4} /> Launch Full Suite
             </button>
             <button onClick={onOpenDesign} style={{ padding: "9px 12px", borderRadius: 7, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", color: C.tx, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer", textTransform: "uppercase" }}>Open full design panel →</button>
           </div>
@@ -5565,10 +5565,11 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         <Tooltip label={locked ? "Unlock editing" : "Lock chart"} shortcut="⌘L" position="bottom">
           <span style={{ display: "inline-flex" }}><LockToggle locked={locked} onChange={setLocked} /></span>
         </Tooltip>
-        {/* Wave 12 · expanded mode toggle (Maximize2) */}
+        {/* Wave 14.1 · LAUNCH — colorful, eye-catching CTA that opens the
+            full expanded webapp suite. */}
         <span data-tour="expand" ref={expandAnchorRef}>
-          <Tooltip label="Open expanded webapp · 3-pane layout" shortcut="⌘⇧E" position="bottom">
-            <GlassButton
+          <Tooltip label="Launch the full chart-building suite" shortcut="⌘⇧E" position="bottom">
+            <button
               onClick={() => {
                 if (expandAnchorRef.current) {
                   const r = expandAnchorRef.current.getBoundingClientRect();
@@ -5576,9 +5577,69 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
                 }
                 setExpandedMode(true);
               }}
-              title="Open expanded webapp · chart + table + split + properties (⌘⇧E · Esc to exit)"
-              Icon={Maximize2}
-            >EXPAND</GlassButton>
+              title="Launch the full chart-building suite (⌘⇧E · Esc to exit)"
+              style={{
+                position: "relative",
+                display: "inline-flex", alignItems: "center", gap: 9,
+                padding: "10px 18px", borderRadius: 11,
+                background: "linear-gradient(135deg, #F7B041 0%, #E06347 38%, #905CCB 72%, #0B86D1 100%)",
+                backgroundSize: "200% 200%",
+                border: "1px solid rgba(255,255,255,0.32)",
+                color: "#0A0A0E",
+                fontFamily: gf, fontSize: 12, fontWeight: 900, letterSpacing: 0.4,
+                cursor: "pointer",
+                transition: "all 0.22s cubic-bezier(.2,.7,.2,1)",
+                boxShadow:
+                  "0 10px 28px rgba(247,176,65,0.45)" +
+                  ", 0 6px 18px rgba(224,99,71,0.32)" +
+                  ", 0 4px 14px rgba(144,92,203,0.28)" +
+                  ", 0 1px 0 rgba(255,255,255,0.42) inset" +
+                  ", 0 0 0 1px rgba(255,255,255,0.10)",
+                animation: "cm2LaunchPulse 4.2s ease-in-out infinite, cm2LaunchShimmer 7s ease-in-out infinite",
+                textTransform: "uppercase",
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = "translateY(-2px) scale(1.03)";
+                e.currentTarget.style.boxShadow =
+                  "0 16px 40px rgba(247,176,65,0.60)" +
+                  ", 0 10px 26px rgba(224,99,71,0.45)" +
+                  ", 0 6px 18px rgba(144,92,203,0.40)" +
+                  ", 0 0 32px rgba(247,176,65,0.30)" +
+                  ", 0 1px 0 rgba(255,255,255,0.50) inset";
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = "translateY(0) scale(1)";
+                e.currentTarget.style.boxShadow =
+                  "0 10px 28px rgba(247,176,65,0.45)" +
+                  ", 0 6px 18px rgba(224,99,71,0.32)" +
+                  ", 0 4px 14px rgba(144,92,203,0.28)" +
+                  ", 0 1px 0 rgba(255,255,255,0.42) inset" +
+                  ", 0 0 0 1px rgba(255,255,255,0.10)";
+              }}
+            >
+              <style>{`
+                @keyframes cm2LaunchPulse {
+                  0%,100% { filter: brightness(1) saturate(1.05); }
+                  50%     { filter: brightness(1.10) saturate(1.20); }
+                }
+                @keyframes cm2LaunchShimmer {
+                  0%,100% { background-position: 0% 50%; }
+                  50%     { background-position: 100% 50%; }
+                }
+                @keyframes cm2LaunchRocket {
+                  0%,100% { transform: translateY(0) rotate(-8deg); }
+                  50%     { transform: translateY(-2px) rotate(8deg); }
+                }
+              `}</style>
+              <Rocket size={14} strokeWidth={2.6} style={{ animation: "cm2LaunchRocket 2.4s ease-in-out infinite", transformOrigin: "center" }} />
+              LAUNCH
+              <span style={{
+                width: 5, height: 5, borderRadius: "50%",
+                background: "#FFFFFF",
+                boxShadow: "0 0 8px #FFFFFF, 0 0 14px #F7B041",
+                animation: "cm2LaunchPulse 1.6s ease-in-out infinite",
+              }} />
+            </button>
           </Tooltip>
         </span>
         {/* Wave 12 · radial-wheel settings */}
