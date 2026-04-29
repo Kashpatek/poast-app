@@ -4996,6 +4996,44 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   useEffect(() => {
     try { localStorage.setItem("cm2-floating-table-pos", JSON.stringify(floatingTablePos)); } catch {}
   }, [floatingTablePos]);
+  // Wave 15.4 · pop-out modes for the Launch CHART pane (parallel to the
+  // table). "docked" keeps it inside the split layout; "floating" detaches
+  // it into a draggable, resizable in-app window.
+  const [chartWindowMode, setChartWindowMode] = useState<"docked" | "floating">(() => {
+    if (typeof window === "undefined") return "docked";
+    try {
+      const raw = localStorage.getItem("cm2-chart-window-mode");
+      if (raw === "floating" || raw === "docked") return raw;
+    } catch {}
+    return "docked";
+  });
+  useEffect(() => {
+    try { localStorage.setItem("cm2-chart-window-mode", chartWindowMode); } catch {}
+  }, [chartWindowMode]);
+  const [floatingChartPos, setFloatingChartPos] = useState<{ x: number; y: number; w: number; h: number }>(() => {
+    if (typeof window === "undefined") return { x: 80, y: 80, w: 820, h: 560 };
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const fallback = { x: Math.max(40, Math.round(vw / 2 - 410)), y: 110, w: Math.min(820, vw - 80), h: Math.min(560, vh - 160) };
+    try {
+      const raw = localStorage.getItem("cm2-floating-chart-pos");
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (
+          typeof saved?.x === "number" && typeof saved?.y === "number" &&
+          typeof saved?.w === "number" && typeof saved?.h === "number" &&
+          saved.x >= -saved.w + 120 && saved.x <= vw - 120 &&
+          saved.y >= 40 && saved.y <= vh - 60 &&
+          saved.w >= 360 && saved.h >= 240
+        ) {
+          return saved;
+        }
+      }
+    } catch {}
+    return fallback;
+  });
+  useEffect(() => {
+    try { localStorage.setItem("cm2-floating-chart-pos", JSON.stringify(floatingChartPos)); } catch {}
+  }, [floatingChartPos]);
   // Wave 15.1 · floating Launch toolbar (movable, pinnable, customizable).
   // Persists tool list, position, pinned state, and visibility to
   // localStorage so it survives reloads.
@@ -5721,9 +5759,64 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     setFloatSoundOn(next);
   }, []);
 
+  // Wave 15.4 · light-theme global override. We inject CSS that recolors the
+  // most prominent hardcoded dark surfaces (toolbar, panels, modals, inputs)
+  // when appTheme === "light". The chart's own backdrop logic is untouched —
+  // appTheme only flips the surrounding chrome.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const prevBg = document.body.style.background;
+    const prevColor = document.body.style.color;
+    document.body.style.background = APP_TOKENS[appTheme].bg;
+    document.body.style.color = APP_TOKENS[appTheme].fg;
+    document.body.setAttribute("data-cm2-theme", appTheme);
+    return () => {
+      document.body.style.background = prevBg;
+      document.body.style.color = prevColor;
+      document.body.removeAttribute("data-cm2-theme");
+    };
+  }, [appTheme]);
+  // Wave 15.4 · light-theme overrides. We target the *common* hardcoded
+  // dark glass surfaces (the ones used in the toolbar, panels, top bar,
+  // dropdowns, and modals) by tagging surface containers with
+  // `data-cm2-surface` and flipping them to bright glass via CSS.
+  const themeStyles = appTheme === "light" ? `
+    body[data-cm2-theme="light"] { background: ${APP_TOKENS.light.bg} !important; color: ${APP_TOKENS.light.fg} !important; }
+    [data-cm2-theme="light"] [data-cm2-surface] {
+      background: rgba(255,255,255,0.92) !important;
+      border-color: rgba(0,0,0,0.10) !important;
+      color: ${APP_TOKENS.light.fg} !important;
+    }
+    [data-cm2-theme="light"] [data-cm2-surface-strong] {
+      background: #FFFFFF !important;
+      border-color: rgba(0,0,0,0.10) !important;
+      color: ${APP_TOKENS.light.fg} !important;
+    }
+    [data-cm2-theme="light"] [data-cm2-toolbar] {
+      background: rgba(255,255,255,0.85) !important;
+      border-color: rgba(0,0,0,0.08) !important;
+      color: ${APP_TOKENS.light.fg} !important;
+    }
+    [data-cm2-theme="light"] [data-cm2-shell] {
+      background: linear-gradient(180deg, ${APP_TOKENS.light.bg} 0%, #F2F2EE 100%) !important;
+      color: ${APP_TOKENS.light.fg} !important;
+    }
+    [data-cm2-theme="light"] [data-cm2-side-panel] {
+      background: rgba(255,255,255,0.78) !important;
+      border-color: rgba(0,0,0,0.08) !important;
+      color: ${APP_TOKENS.light.fg} !important;
+    }
+  ` : "";
   return (
-    <div style={{ padding: "32px 0 0", maxWidth: 1400, margin: "0 auto", position: "relative" }}>
-      <style>{`
+    <div data-cm2-theme={appTheme} style={{
+      padding: "32px 0 0", maxWidth: 1400, margin: "0 auto", position: "relative",
+      // Wave 15.4 · root paints the theme bg so the chart maker chrome
+      // visibly flips when the toggle switches.
+      background: tokens.bg,
+      color: tokens.fg,
+      transition: "background 0.22s, color 0.22s",
+    }}>
+      <style>{themeStyles}{`
         @keyframes cm2ChartSwap { 0% { opacity: 0; transform: translateY(6px) } 100% { opacity: 1; transform: translateY(0) } }
         @keyframes cmGlowDrift1 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(40px,-26px) } }
         @keyframes cmGlowDrift2 { 0%,100% { transform: translate(0,0) } 50% { transform: translate(-30px,18px) } }
@@ -5773,7 +5866,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       <AmbientParticles />
       <GrainOverlay />
       <div style={{ position: "relative", zIndex: 1 }}>
-      <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap", paddingTop: standalone ? 16 : 0 }}>
+      <div data-cm2-surface style={{ marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap", paddingTop: standalone ? 16 : 0 }}>
         {!standalone && (
           <div style={{ flex: "1 1 auto", minWidth: 280 }}>
             <div style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.5 }}>Chart Maker 2</div>
@@ -5875,8 +5968,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
 
         <span style={{ flex: 1 }} />
 
-        {/* RIGHT EDGE — Sound · Theme · Export download icon */}
-        <SoundToggle />
+        {/* RIGHT EDGE — Theme · Export download icon (Wave 15.4 · sound toggle removed) */}
         <AppThemeToggle theme={appTheme} onChange={setAppTheme} />
         <ExportDropdownIcon
           onPNG={() => { exportPNG(); playExportChime(); }}
@@ -6514,6 +6606,10 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           onChangeTableMode={setTableWindowMode}
           floatingTablePos={floatingTablePos}
           onChangeFloatingTablePos={setFloatingTablePos}
+          chartWindowMode={chartWindowMode}
+          onChangeChartWindowMode={setChartWindowMode}
+          floatingChartPos={floatingChartPos}
+          onChangeFloatingChartPos={setFloatingChartPos}
           topBarExtras={(
             // Wave 15 · Full toolbar inside Launch top bar — same FILE/EDIT/
             // INSERT/FORMAT controls the compact mode has, so Launch genuinely
@@ -6571,6 +6667,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
                 designOpen,
                 locked,
                 popOutActive: tableWindowMode === "floating",
+                popOutChartActive: chartWindowMode === "floating",
                 canUndo: past.current.length > 0,
                 canRedo: future.current.length > 0,
               }}
@@ -6610,6 +6707,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
                 exportPPTX: () => { exportPPTX(); playExportChime(); },
                 copyPNG: () => { copyPNG(); playExportChime(); },
                 popOutTable: () => setTableWindowMode(tableWindowMode === "floating" ? "docked" : "floating"),
+                popOutChart: () => setChartWindowMode(chartWindowMode === "floating" ? "docked" : "floating"),
                 fitChart: () => setChartZoom("fit"),
                 zoomIn: () => floatZoomBy(25),
                 zoomOut: () => floatZoomBy(-25),
@@ -6647,7 +6745,6 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           ) : null}
           topBarRightExtras={(
             <>
-              <SoundToggle />
               <AppThemeToggle theme={appTheme} onChange={setAppTheme} />
               <ExportDropdownIcon
                 onPNG={() => { exportPNG(); playExportChime(); }}
@@ -6662,6 +6759,8 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             // Wave 15 · ResizeObserver-driven chart sizing happens inside
             // ExpandedShell (it owns the pane DOM). We just hand it a render
             // function so the chart's W/H can adapt to the live pane size.
+            // Wave 15.4 · zoom/aspect controls now render INSIDE the pane
+            // as a hover-reveal overlay; they were previously in the top bar.
             <ChartPaneInner
               backdrop={backdrop}
               backdropMode={backdropMode}
@@ -6672,6 +6771,8 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               chartAspect={chartAspect}
               defaultW={W}
               defaultH={H}
+              onChangeChartZoom={setChartZoom}
+              onChangeChartAspect={setChartAspect}
             />
           )}
           dataSheet={(
@@ -7160,6 +7261,7 @@ function aspectRatio(a: ChartAspect): number | null {
 function ChartPaneInner({
   backdrop, backdropMode, renderChart, setSelected, selected,
   chartZoom, chartAspect, defaultW, defaultH,
+  onChangeChartZoom, onChangeChartAspect,
 }: {
   backdrop: BackdropKey;
   backdropMode: BackdropMode;
@@ -7170,6 +7272,11 @@ function ChartPaneInner({
   chartAspect: ChartAspect;
   defaultW: number;
   defaultH: number;
+  // Wave 15.4 · zoom/aspect controls now render INSIDE the pane as a
+  // hover-reveal overlay in the bottom-right corner. Optional so older
+  // call sites (compact mode) that don't surface zoom keep working.
+  onChangeChartZoom?: (z: "fit" | number) => void;
+  onChangeChartAspect?: (a: ChartAspect) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: defaultW, h: defaultH });
@@ -7244,6 +7351,160 @@ function ChartPaneInner({
           {renderChart()}
         </svg>
       </div>
+      {/* Wave 15.4 · zoom + aspect floating overlay (bottom-right). Lives
+          inside the chart pane so any container — docked, FloatingChartWindow,
+          or full-screen Launch — gets the same compact widget. Hidden until
+          hover to keep the chart canvas distraction-free. */}
+      {(onChangeChartZoom || onChangeChartAspect) && (
+        <ChartViewOverlay
+          zoom={chartZoom}
+          onChangeZoom={onChangeChartZoom}
+          aspect={chartAspect}
+          onChangeAspect={onChangeChartAspect}
+        />
+      )}
+    </div>
+  );
+}
+
+// Wave 15.4 · floating bottom-right view-controls overlay.
+// Auto-fades to 0.4 opacity until the user mouses over it.
+function ChartViewOverlay({
+  zoom, onChangeZoom, aspect, onChangeAspect,
+}: {
+  zoom: "fit" | number;
+  onChangeZoom?: (z: "fit" | number) => void;
+  aspect: ChartAspect;
+  onChangeAspect?: (a: ChartAspect) => void;
+}) {
+  const [hover, setHover] = useState(false);
+  const [aspectOpen, setAspectOpen] = useState(false);
+  useEffect(() => {
+    if (!aspectOpen) return;
+    const close = () => setAspectOpen(false);
+    setTimeout(() => document.addEventListener("click", close), 0);
+    return () => document.removeEventListener("click", close);
+  }, [aspectOpen]);
+  const pct = zoom === "fit" ? 100 : zoom;
+  const step = (delta: number) => {
+    if (!onChangeZoom) return;
+    const cur = zoom === "fit" ? 100 : zoom;
+    const next = Math.max(25, Math.min(400, Math.round((cur + delta) / 25) * 25));
+    onChangeZoom(next);
+  };
+  const aspectOpts: ChartAspect[] = ["fit", "16:9", "4:3", "1:1", "3:4", "9:16"];
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={e => e.stopPropagation()}
+      style={{
+        position: "absolute",
+        right: 12, bottom: 12,
+        zIndex: 5,
+        display: "inline-flex", alignItems: "center", gap: 6,
+        padding: 4,
+        background: "rgba(13,13,18,0.86)",
+        backdropFilter: "blur(14px) saturate(140%)",
+        WebkitBackdropFilter: "blur(14px) saturate(140%)",
+        border: "1px solid rgba(255,255,255,0.10)",
+        borderRadius: 10,
+        boxShadow: hover ? "0 12px 28px rgba(0,0,0,0.45)" : "0 4px 12px rgba(0,0,0,0.30)",
+        opacity: hover ? 1 : 0.4,
+        transition: "opacity 0.18s, box-shadow 0.18s",
+      }}
+    >
+      {onChangeZoom && (
+        <>
+          <button
+            onClick={() => step(-25)}
+            title="Zoom out · -25%"
+            style={{
+              width: 22, height: 22, borderRadius: 5,
+              background: "transparent", border: "1px solid rgba(255,255,255,0.10)",
+              color: C.txm, cursor: "pointer",
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+            }}
+          ><Minus size={11} strokeWidth={2.4} /></button>
+          <span style={{
+            minWidth: 38, textAlign: "center",
+            fontFamily: mn, fontSize: 9.5, fontWeight: 800, letterSpacing: 0.4,
+            color: zoom === "fit" ? C.amber : "#E8E4DD",
+          }}>{zoom === "fit" ? "Fit" : `${pct}%`}</span>
+          <button
+            onClick={() => step(25)}
+            title="Zoom in · +25%"
+            style={{
+              width: 22, height: 22, borderRadius: 5,
+              background: "transparent", border: "1px solid rgba(255,255,255,0.10)",
+              color: C.txm, cursor: "pointer",
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+            }}
+          ><Plus size={11} strokeWidth={2.4} /></button>
+          <button
+            onClick={() => onChangeZoom("fit")}
+            title="Fit chart to pane"
+            style={{
+              padding: "2px 8px", height: 22, borderRadius: 5,
+              background: zoom === "fit" ? C.amber + "22" : "transparent",
+              border: "1px solid " + (zoom === "fit" ? C.amber + "55" : "rgba(255,255,255,0.10)"),
+              color: zoom === "fit" ? C.amber : C.txm,
+              cursor: "pointer",
+              fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase",
+            }}
+          >Fit</button>
+        </>
+      )}
+      {onChangeZoom && onChangeAspect && (
+        <span style={{ width: 1, height: 18, background: "rgba(255,255,255,0.10)", margin: "0 2px" }} />
+      )}
+      {onChangeAspect && (
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setAspectOpen(v => !v)}
+            title="Aspect ratio"
+            style={{
+              padding: "2px 8px", height: 22, borderRadius: 5,
+              background: aspectOpen ? C.amber + "22" : (aspect !== "fit" ? "rgba(255,255,255,0.04)" : "transparent"),
+              border: "1px solid " + (aspectOpen ? C.amber + "55" : "rgba(255,255,255,0.10)"),
+              color: aspectOpen ? C.amber : (aspect !== "fit" ? "#E8E4DD" : C.txm),
+              cursor: "pointer",
+              fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase",
+              display: "inline-flex", alignItems: "center", gap: 4,
+            }}
+          >
+            {aspect === "fit" ? "Fit" : aspect}
+            <ChevronDown size={9} strokeWidth={2.6} style={{ transform: aspectOpen ? "rotate(180deg)" : "none", transition: "transform 0.16s" }} />
+          </button>
+          {aspectOpen && (
+            <div style={{
+              position: "absolute", right: 0, bottom: "calc(100% + 6px)",
+              background: "#0D0D14", border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 8, padding: 4, minWidth: 96, zIndex: 1100,
+              boxShadow: "0 18px 40px rgba(0,0,0,0.55)",
+            }}>
+              {aspectOpts.map(a => {
+                const on = aspect === a;
+                return (
+                  <div key={a}
+                    onClick={() => { onChangeAspect(a); setAspectOpen(false); }}
+                    style={{
+                      ...dropItem(),
+                      padding: "5px 9px",
+                      background: on ? C.amber + "18" : "transparent",
+                      color: on ? C.amber : "#E8E4DD",
+                      fontSize: 10,
+                    }}
+                  >
+                    <span style={{ flex: 1 }}>{a === "fit" ? "Fit" : a}</span>
+                    {on && <Check size={10} strokeWidth={2.4} />}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -7358,19 +7619,31 @@ function ZoomWidget({ zoom, onChange }: { zoom: "fit" | number; onChange: (z: "f
   );
 }
 
-// ─── Wave 15 · FloatingTableWindow · draggable in-app table window ───────
+// ─── Wave 15 · FloatingWindow shell · slim header w/ hover-triggered chrome ───
 // Glass-shell window with a drag header (move) + bottom-right resize
 // handle. Persisted position/size lives in localStorage so it survives
 // page reloads. Close button reverts to docked mode.
-function FloatingTableWindow({
-  pos, onChangePos, onClose, children,
+//
+// Wave 15.4 · slimmed to ~28px header, label/buttons fade in on hover.
+function FloatingWindow({
+  pos, onChangePos, onClose,
+  Icon, label,
+  minW = 360, minH = 240,
+  zIndex = 12000,
+  children,
 }: {
   pos: { x: number; y: number; w: number; h: number };
   onChangePos: (p: { x: number; y: number; w: number; h: number }) => void;
   onClose: () => void;
+  Icon: LucideIconCmp;
+  label: string;
+  minW?: number;
+  minH?: number;
+  zIndex?: number;
   children: React.ReactNode;
 }) {
   const dragRef = useRef<{ kind: "move" | "resize"; startX: number; startY: number; orig: typeof pos } | null>(null);
+  const [hoverHead, setHoverHead] = useState(false);
   const onHeaderDown = (e: React.PointerEvent) => {
     e.preventDefault();
     dragRef.current = { kind: "move", startX: e.clientX, startY: e.clientY, orig: pos };
@@ -7390,7 +7663,7 @@ function FloatingTableWindow({
     if (kind === "move") {
       onChangePos({ ...orig, x: Math.max(0, orig.x + dx), y: Math.max(0, orig.y + dy) });
     } else {
-      onChangePos({ ...orig, w: Math.max(360, orig.w + dx), h: Math.max(240, orig.h + dy) });
+      onChangePos({ ...orig, w: Math.max(minW, orig.w + dx), h: Math.max(minH, orig.h + dy) });
     }
   };
   const onUp = () => { dragRef.current = null; };
@@ -7408,7 +7681,7 @@ function FloatingTableWindow({
         border: "1px solid rgba(255,255,255,0.14)",
         borderRadius: 14,
         boxShadow: "0 24px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(247,176,65,0.10)",
-        zIndex: 12000,
+        zIndex,
         display: "flex", flexDirection: "column",
         overflow: "hidden",
         animation: "cm2ExpandPop 0.22s cubic-bezier(.2,.7,.2,1) both",
@@ -7416,53 +7689,58 @@ function FloatingTableWindow({
     >
       <div
         onPointerDown={onHeaderDown}
+        onMouseEnter={() => setHoverHead(true)}
+        onMouseLeave={() => setHoverHead(false)}
         style={{
-          padding: "10px 14px",
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
-          background: "rgba(13,13,18,0.78)",
-          display: "flex", alignItems: "center", gap: 10,
+          height: 28,
+          padding: "0 10px",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          background: hoverHead ? "rgba(13,13,18,0.86)" : "rgba(13,13,18,0.55)",
+          display: "flex", alignItems: "center", gap: 8,
           cursor: "move",
           flexShrink: 0,
           userSelect: "none",
+          opacity: hoverHead ? 1 : 0.4,
+          transition: "opacity 0.18s, background 0.18s",
         }}
       >
-        <Table size={13} strokeWidth={2.4} color={C.amber} />
-        <span style={{ fontFamily: mn, fontSize: 10, color: C.amber, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 800 }}>Data sheet · floating</span>
-        <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6 }}>· drag header · resize corner</span>
+        <Icon size={11} strokeWidth={2.4} color={C.amber} />
+        <span style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 800 }}>{label}</span>
         <span style={{ flex: 1 }} />
-        {/* Prominent DOCK button — the X alone was too easy to miss */}
-        <button
-          onClick={onClose}
-          title="Dock back into the split layout"
-          onPointerDown={e => e.stopPropagation()}
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
-            padding: "5px 10px", borderRadius: 6,
-            background: C.amber + "26",
-            border: "1px solid " + C.amber + "66",
-            color: C.amber,
-            fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
-            cursor: "pointer", textTransform: "uppercase",
-            transition: "all 0.16s",
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = C.amber + "40"; e.currentTarget.style.boxShadow = "0 4px 14px " + C.amber + "55"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = C.amber + "26"; e.currentTarget.style.boxShadow = "none"; }}
-        >
-          <ChevronDown size={11} strokeWidth={2.6} style={{ transform: "rotate(45deg)" }} />
-          Dock
-        </button>
-        <button
-          onClick={onClose}
-          title="Close · same as Dock"
-          onPointerDown={e => e.stopPropagation()}
-          style={{
-            width: 24, height: 24, borderRadius: 5,
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.10)",
-            color: C.txm,
-            cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
-          }}
-        ><XIcon size={12} /></button>
+        {hoverHead && (
+          <>
+            <button
+              onClick={onClose}
+              title="Dock back into the split layout"
+              onPointerDown={e => e.stopPropagation()}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 4,
+                padding: "2px 7px", borderRadius: 5,
+                background: C.amber + "26",
+                border: "1px solid " + C.amber + "66",
+                color: C.amber,
+                fontFamily: mn, fontSize: 8.5, fontWeight: 800, letterSpacing: 0.5,
+                cursor: "pointer", textTransform: "uppercase",
+                transition: "all 0.16s",
+                height: 18,
+              }}
+            >
+              Dock
+            </button>
+            <button
+              onClick={onClose}
+              title="Close · same as Dock"
+              onPointerDown={e => e.stopPropagation()}
+              style={{
+                width: 18, height: 18, borderRadius: 4,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.10)",
+                color: C.txm,
+                cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
+              }}
+            ><XIcon size={10} /></button>
+          </>
+        )}
       </div>
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>{children}</div>
       <div
@@ -7475,6 +7753,37 @@ function FloatingTableWindow({
         }}
       />
     </div>
+  );
+}
+
+// Wave 15.4 · thin wrappers preserve the named call sites — both
+// FloatingTableWindow and FloatingChartWindow share the FloatingWindow shell.
+function FloatingTableWindow({
+  pos, onChangePos, onClose, children,
+}: {
+  pos: { x: number; y: number; w: number; h: number };
+  onChangePos: (p: { x: number; y: number; w: number; h: number }) => void;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <FloatingWindow pos={pos} onChangePos={onChangePos} onClose={onClose} Icon={Table} label="Data" minW={360} minH={240} zIndex={12000}>
+      {children}
+    </FloatingWindow>
+  );
+}
+function FloatingChartWindow({
+  pos, onChangePos, onClose, children,
+}: {
+  pos: { x: number; y: number; w: number; h: number };
+  onChangePos: (p: { x: number; y: number; w: number; h: number }) => void;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <FloatingWindow pos={pos} onChangePos={onChangePos} onClose={onClose} Icon={BarChart3} label="Chart" minW={420} minH={280} zIndex={11900}>
+      {children}
+    </FloatingWindow>
   );
 }
 
@@ -7491,7 +7800,7 @@ type FloatToolId =
   | "typeWheel" | "numFmt" | "design" | "wheelSettings"
   | "undo" | "redo" | "lock"
   | "exportPNG" | "exportSVG" | "exportPPTX" | "copyPNG"
-  | "popOutTable" | "fitChart" | "zoomIn" | "zoomOut" | "fullScreen"
+  | "popOutTable" | "popOutChart" | "fitChart" | "zoomIn" | "zoomOut" | "fullScreen"
   | "tour" | "soundToggle" | "themeToggle"
   | "addRow" | "addCol" | "deleteSel"
   | "wheelOpen";
@@ -7517,6 +7826,7 @@ const FLOAT_TOOLS: Record<FloatToolId, FloatToolMeta> = {
   exportPPTX:    { label: "Export PPTX",     Icon: FileSpreadsheet, description: "Export as PowerPoint slide" },
   copyPNG:       { label: "Copy PNG",        Icon: ImageIcon,       description: "Copy chart PNG to clipboard (⌘⇧C)" },
   popOutTable:   { label: "Pop Out Table",   Icon: Maximize2,       description: "Detach the data sheet into a floating window" },
+  popOutChart:   { label: "Pop Out Chart",   Icon: Maximize2,       description: "Detach the chart into a floating window" },
   fitChart:      { label: "Fit Chart",       Icon: Minimize2,       description: "Fit chart to pane" },
   zoomIn:        { label: "Zoom In",         Icon: ZoomIn,          description: "Zoom chart in by 25%" },
   zoomOut:       { label: "Zoom Out",        Icon: ZoomOut,         description: "Zoom chart out by 25%" },
@@ -7530,11 +7840,14 @@ const FLOAT_TOOLS: Record<FloatToolId, FloatToolMeta> = {
   wheelOpen:     { label: "Element Wheel",   Icon: Disc,            description: "Open the radial wheel for the selected element" },
 };
 
+// Wave 15.4 · trimmed default — Templates / Paste / Import / Type Wheel /
+// Design / Undo / Redo / Lock all live in the Launch top bar already, so the
+// default toolbar focuses on actions that *aren't* duplicated above.
 const DEFAULT_FLOAT_TOOLS: FloatToolId[] = [
-  "templates", "paste", "importExcel",
-  "typeWheel", "design", "wheelSettings",
-  "undo", "redo", "lock",
-  "exportPNG", "popOutTable", "fitChart",
+  "popOutChart", "popOutTable",
+  "fitChart",
+  "addRow", "addCol",
+  "wheelOpen",
 ];
 
 // Validates a JSON-parsed value and returns a clean FloatToolId[] or null.
@@ -7564,6 +7877,7 @@ interface FloatToolbarActions {
   exportPPTX: () => void;
   copyPNG: () => void;
   popOutTable: () => void;
+  popOutChart: () => void;
   fitChart: () => void;
   zoomIn: () => void;
   zoomOut: () => void;
@@ -7581,6 +7895,7 @@ interface FloatToolbarStateFlags {
   designOpen?: boolean;
   locked?: boolean;
   popOutActive?: boolean;
+  popOutChartActive?: boolean;
   canUndo?: boolean;
   canRedo?: boolean;
 }
@@ -7603,7 +7918,15 @@ function FloatingLaunchToolbar({
   const onHandleDown = (e: React.PointerEvent) => {
     if (pinned) return; // pinned toolbars are not draggable
     e.preventDefault();
-    const orig = pos ?? { x: 0, y: 0 };
+    // If `pos` hasn't been set yet (toolbar is at the default top-center
+    // fallback), seed the drag origin from the actual rendered rect so the
+    // first drag picks up where the user sees it instead of jumping to (0,0).
+    let orig = pos;
+    if (!orig) {
+      const host = (e.currentTarget as HTMLElement)?.parentElement;
+      const rect = host?.getBoundingClientRect();
+      orig = rect ? { x: rect.left, y: rect.top } : { x: 0, y: 0 };
+    }
     dragRef.current = { startX: e.clientX, startY: e.clientY, orig };
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
   };
@@ -7625,13 +7948,12 @@ function FloatingLaunchToolbar({
   };
   const onPointerUp = () => { dragRef.current = null; };
 
-  // Pinned mode: top-center (transform translateX(-50%)).
-  // Unpinned mode: free-floating at user-set absolute coords.
-  const positionStyle: React.CSSProperties = pinned
-    ? { left: "50%", top: 24, transform: "translateX(-50%)" }
-    : pos
-      ? { left: pos.x, top: pos.y }
-      : { left: "50%", top: 24, transform: "translateX(-50%)" };
+  // Wave 15.4 · pin = movement lock, NOT a position snap. The toolbar stays
+  // wherever it is regardless of pin state. If `pos` was never set we fall
+  // back to top-center as the initial coordinates only.
+  const positionStyle: React.CSSProperties = pos
+    ? { left: pos.x, top: pos.y }
+    : { left: "50%", top: 24, transform: "translateX(-50%)" };
 
   const renderTool = (id: FloatToolId, idx: number) => {
     const meta = FLOAT_TOOLS[id];
@@ -7642,6 +7964,7 @@ function FloatingLaunchToolbar({
     if (id === "design") active = !!flags.designOpen;
     if (id === "lock") active = !!flags.locked;
     if (id === "popOutTable") active = !!flags.popOutActive;
+    if (id === "popOutChart") active = !!flags.popOutChartActive;
     if (id === "undo" && flags.canUndo === false) disabled = true;
     if (id === "redo" && flags.canRedo === false) disabled = true;
     const onClick = () => {
@@ -7681,7 +8004,6 @@ function FloatingLaunchToolbar({
         padding: "6px 8px",
         userSelect: "none",
         animation: "cm2ExpandPop 0.22s cubic-bezier(.2,.7,.2,1) both",
-        transition: pinned ? "left 0.28s cubic-bezier(.2,.7,.2,1), top 0.28s cubic-bezier(.2,.7,.2,1), transform 0.28s cubic-bezier(.2,.7,.2,1)" : "none",
       }}
     >
       {/* Drag handle (only enabled when unpinned) */}
@@ -7706,7 +8028,7 @@ function FloatingLaunchToolbar({
           "where does this toolbar live" interaction. */}
       <FloatToolButton
         Icon={pinned ? Pin : PinOff}
-        title={pinned ? "Pinned · click to unpin and drag freely" : "Unpinned · click to snap to top-center"}
+        title={pinned ? "Pinned · locked in place. Click to unlock and drag freely." : "Unpinned · drag freely. Click to lock at the current position."}
         active={pinned}
         onClick={onTogglePin}
       />
@@ -11118,6 +11440,8 @@ function ExpandedShell({
   chartAspect, onChangeChartAspect,
   tableMode, onChangeTableMode,
   floatingTablePos, onChangeFloatingTablePos,
+  chartWindowMode, onChangeChartWindowMode,
+  floatingChartPos, onChangeFloatingChartPos,
   floatToolbar, showToolbarBtn,
 }: {
   onClose: () => void;
@@ -11152,6 +11476,13 @@ function ExpandedShell({
   onChangeTableMode: (m: "docked" | "floating" | "window") => void;
   floatingTablePos: { x: number; y: number; w: number; h: number };
   onChangeFloatingTablePos: (p: { x: number; y: number; w: number; h: number }) => void;
+  // Wave 15.4 · chart pop-out (parallel to the table). Same docked/floating
+  // model — when floating, the chart escapes the split layout and the
+  // middle pane shows whatever's still docked.
+  chartWindowMode: "docked" | "floating";
+  onChangeChartWindowMode: (m: "docked" | "floating") => void;
+  floatingChartPos: { x: number; y: number; w: number; h: number };
+  onChangeFloatingChartPos: (p: { x: number; y: number; w: number; h: number }) => void;
   // Wave 15.1 · floating toolbar overlay rendered absolutely inside the
   // shell so it stays above the chart but inside the Launch portal.
   floatToolbar?: React.ReactNode;
@@ -11220,13 +11551,46 @@ function ExpandedShell({
   // Wave 15 · When the table is floating or in a separate browser window,
   // the docked split layout collapses to chart-only (the table is shown
   // elsewhere). Same for table-only paneMode + floating mode.
+  // Wave 15.4 · symmetric handling for the chart — when the chart is
+  // floating, the docked layout collapses to table-only.
   const tableIsDetached = tableMode === "floating" || tableMode === "window";
-  const effectivePaneMode: "chart" | "table" | "split" =
-    tableIsDetached && (paneMode === "split" || paneMode === "table") ? "chart" : paneMode;
+  const chartIsDetached = chartWindowMode === "floating";
+  let effectivePaneMode: "chart" | "table" | "split" | "empty" = paneMode;
+  if (tableIsDetached && chartIsDetached) {
+    effectivePaneMode = "empty";
+  } else if (tableIsDetached && (paneMode === "split" || paneMode === "table")) {
+    effectivePaneMode = "chart";
+  } else if (chartIsDetached && (paneMode === "split" || paneMode === "chart")) {
+    effectivePaneMode = "table";
+  }
 
   // Chart-only / table-only render the appropriate pane filling the middle.
   // Split renders both with a 5px draggable splitter between them.
   const middleContent = (() => {
+    if (effectivePaneMode === "empty") {
+      return (
+        <div style={{
+          flex: 1, minHeight: 0,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: "32px",
+        }}>
+          <div style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+            padding: "22px 28px",
+            border: "1px dashed rgba(255,255,255,0.18)",
+            borderRadius: 14,
+            background: "rgba(255,255,255,0.02)",
+            maxWidth: 460, textAlign: "center",
+          }}>
+            <Maximize2 size={18} strokeWidth={2.2} color={C.amber} />
+            <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 800 }}>Both panes floating</div>
+            <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, lineHeight: 1.5 }}>
+              Drag the chart and table windows to position them. Dock either window to bring it back into the layout.
+            </div>
+          </div>
+        </div>
+      );
+    }
     if (effectivePaneMode === "chart") {
       return (
         <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: "20px 22px", display: "flex" }}>
@@ -11289,6 +11653,7 @@ function ExpandedShell({
   const expandOrigin = transitionFrom ? `${transitionFrom.x}px ${transitionFrom.y}px` : "50% 50%";
   return (
     <div
+      data-cm2-shell
       style={{
         position: "fixed", inset: 0, zIndex: 11000,
         background: "linear-gradient(180deg, #06060C 0%, #0A0A12 100%)",
@@ -11318,7 +11683,7 @@ function ExpandedShell({
 
       {/* TOP BAR · Wave 15 · full toolbar lives here so Launch is the
           ultimate tool. Two-row tall (78px) to host the ToolGroup labels. */}
-      <div style={{
+      <div data-cm2-toolbar style={{
         position: "relative", zIndex: 2,
         minHeight: 78,
         display: "flex", alignItems: "center", gap: 10,
@@ -11350,7 +11715,8 @@ function ExpandedShell({
         {topBarExtras}
         <Sep />
 
-        {/* VIEW group · pane tabs + zoom widget */}
+        {/* VIEW group · pane tabs (Wave 15.4 · zoom + aspect moved to a
+            bottom-right floating overlay inside the chart pane). */}
         <ToolGroup label="View">
           <div style={{ display: "inline-flex", gap: 6 }}>
             <TabBtn active={paneMode === "chart"} onClick={() => onChangePaneMode("chart")} Icon={BarChart3} label="Chart" title="Chart only" />
@@ -11362,8 +11728,6 @@ function ExpandedShell({
               label={paneMode === "split" ? (splitOrientation === "vertical" ? "Split V" : "Split H") : "Split"}
               title={paneMode === "split" ? "Toggle vertical / horizontal split" : "Open split view"}
             />
-            <ZoomWidget zoom={chartZoom} onChange={onChangeChartZoom} />
-            <AspectPicker aspect={chartAspect} onChange={onChangeChartAspect} />
           </div>
         </ToolGroup>
 
@@ -11378,6 +11742,15 @@ function ExpandedShell({
         <ToolGroup label="Window">
           <div style={{ display: "inline-flex", gap: 6 }}>
             {showToolbarBtn}
+            {/* Wave 15.4 · chart pop-out lives next to the table pop-out so users
+                can detach either pane symmetrically. */}
+            <TabBtn
+              active={chartWindowMode === "floating"}
+              onClick={() => onChangeChartWindowMode(chartWindowMode === "floating" ? "docked" : "floating")}
+              Icon={BarChart3}
+              label={chartWindowMode === "floating" ? "Dock Chart" : "Pop Chart"}
+              title={chartWindowMode === "floating" ? "Dock the chart back into the layout" : "Pop the chart out into a draggable floating window"}
+            />
             {(paneMode === "table" || paneMode === "split") && (
               <>
                 <TabBtn
@@ -11422,7 +11795,7 @@ function ExpandedShell({
       {/* MAIN GRID · LEFT (sidebar) | MIDDLE (chart/table/split) | RIGHT (props) */}
       <div style={{ position: "relative", zIndex: 1, flex: 1, minHeight: 0, display: "flex" }}>
         {/* LEFT — chart-type sidebar (collapsible) */}
-        <div style={{
+        <div data-cm2-side-panel style={{
           width: leftCollapsed ? 44 : 240,
           flexShrink: 0,
           borderRight: "1px solid rgba(255,255,255,0.06)",
@@ -11465,7 +11838,7 @@ function ExpandedShell({
 
         {/* RIGHT — Properties panel (collapsible) */}
         {propsPanel && (
-          <div style={{
+          <div data-cm2-side-panel style={{
             width: rightCollapsed ? 36 : 320,
             flexShrink: 0,
             borderLeft: "1px solid rgba(255,255,255,0.06)",
@@ -11519,6 +11892,19 @@ function ExpandedShell({
         >
           {dataSheet}
         </FloatingTableWindow>
+      )}
+
+      {/* Wave 15.4 · Floating chart window — parallel to the table window. */}
+      {chartWindowMode === "floating" && (
+        <FloatingChartWindow
+          pos={floatingChartPos}
+          onChangePos={onChangeFloatingChartPos}
+          onClose={() => onChangeChartWindowMode("docked")}
+        >
+          <div style={{ flex: 1, minHeight: 0, padding: "12px 14px", display: "flex" }}>
+            <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>{chartCard}</div>
+          </div>
+        </FloatingChartWindow>
       )}
 
       {/* Wave 15 · "Open in new browser window" mode (5b) — coming-soon
