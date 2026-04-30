@@ -358,7 +358,7 @@ function SlideCanvas({ slide, theme, onUpdate, onRequestPicker }: { slide: Slide
         style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.92)", lineHeight: 1.55, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", overflow: "hidden", textAlign: "left" }}
       >{slide.bodyText || "Body text"}</div>
       {/* CTA text on closer (position 4) */}
-      {slide.position === 4 && slide.ctaText && <div style={{ position: "absolute", bottom: (16 - FULL_H * 0.08) * SCALE, left: slide.ctaPosition === "bottom-center" ? 0 : "auto", right: slide.ctaPosition === "bottom-center" ? 0 : (60 * SCALE), width: slide.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: slide.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * SCALE, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 10px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.4)", letterSpacing: "1px" }}>{slide.ctaText}</div>}
+      {slide.position === 4 && slide.ctaText && <div style={{ position: "absolute", bottom: 60 * SCALE, left: slide.ctaPosition === "bottom-center" ? 0 : "auto", right: slide.ctaPosition === "bottom-center" ? 0 : (60 * SCALE), width: slide.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: slide.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * SCALE, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 10px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.4)", letterSpacing: "1px" }}>{slide.ctaText}</div>}
     </div>}
 
     {/* ─── IMAGE + TEXT SLIDE ─── */}
@@ -1475,7 +1475,7 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.9)", lineHeight: 1.5, overflow: "hidden", whiteSpace: "pre-wrap" }}>{sl.bodyText || ""}</div>
-                {sl.position === 4 && sl.ctaText && <div style={{ position: "absolute", bottom: (16 - FULL_H * 0.08) * rScale, left: sl.ctaPosition === "bottom-center" ? 0 : "auto", right: sl.ctaPosition === "bottom-center" ? 0 : sidePad, width: sl.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: sl.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * rScale, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.5)", letterSpacing: "1px" }}>{sl.ctaText}</div>}
+                {sl.position === 4 && sl.ctaText && <div style={{ position: "absolute", bottom: 60 * rScale, left: sl.ctaPosition === "bottom-center" ? 0 : "auto", right: sl.ctaPosition === "bottom-center" ? 0 : sidePad, width: sl.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: sl.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * rScale, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.5)", letterSpacing: "1px" }}>{sl.ctaText}</div>}
               </div>}
               {sl.type === "image_text" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
                 {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 50) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
@@ -1526,8 +1526,12 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
           </div>
         </div>
       </div>
-      {!ctaText && <button onClick={function() { updateLastSlideCta("ctaText", "LINK IN BIO"); updateLastSlideCta("ctaPosition", "bottom-right"); }} style={{ padding: "6px 14px", background: C.teal + "12", color: C.teal, border: "1px solid " + C.teal + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Add Default CTA</button>}
-      {ctaText && <button onClick={function() { updateLastSlideCta("ctaText", ""); }} style={{ padding: "6px 14px", background: C.coral + "12", color: C.coral, border: "1px solid " + C.coral + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Remove CTA</button>}
+      {/* Wave C2 · Always-visible "Link in bio" preset alongside any extant CTA. */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button onClick={function() { updateLastSlideCta("ctaText", "Link in bio"); if (!ctaPosition) updateLastSlideCta("ctaPosition", "bottom-right"); }} style={{ padding: "6px 14px", background: C.amber + "16", color: C.amber, border: "1px solid " + C.amber + "55", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 700, cursor: "pointer", letterSpacing: 0.3 }}>↗ Link in bio</button>
+        {!ctaText && <button onClick={function() { updateLastSlideCta("ctaText", "LINK IN BIO"); updateLastSlideCta("ctaPosition", "bottom-right"); }} style={{ padding: "6px 14px", background: C.teal + "12", color: C.teal, border: "1px solid " + C.teal + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Add Default CTA</button>}
+        {ctaText && <button onClick={function() { updateLastSlideCta("ctaText", ""); }} style={{ padding: "6px 14px", background: C.coral + "12", color: C.coral, border: "1px solid " + C.coral + "30", borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Remove CTA</button>}
+      </div>
     </div>
 
     {/* Caption Generation */}
@@ -1864,7 +1868,7 @@ function renderSlideToCanvas(slide: Slide, bgUrl: string): Promise<Blob> {
           ctx.shadowBlur = 8;
           ctx.shadowOffsetX = 0;
           ctx.shadowOffsetY = 2;
-          var ctaY = FULL_H - ctaFontSize - 16;
+          var ctaY = FULL_H - ctaFontSize - 60;
           if (slide.ctaPosition === "bottom-center") {
             ctx.textAlign = "center";
             ctx.fillText(slide.ctaText, FULL_W / 2, ctaY);
