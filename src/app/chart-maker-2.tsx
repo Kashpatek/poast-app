@@ -5826,24 +5826,34 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     return true;
   });
   const [floatToolbarEditorOpen, setFloatToolbarEditorOpen] = useState(false);
-  // Wave 15.5 · home anchor for the floating toolbar. The Launch top bar
-  // renders an invisible chip in the WINDOW group at the position the
-  // toolbar should "live"; clicking the pin button on the toolbar snaps it
-  // back to right below this chip (with a smooth animated flight).
+  // Wave 17.2 · DOCK now means "inline the toolbar's tools INTO the Launch
+  // top bar as a TOOLS group". The floating glass-pill window only renders
+  // when undocked. The home-anchor + animated flight from Wave 15.5 are no
+  // longer used (kept as no-ops below for back-compat in the JSX layout).
   const floatToolbarHomeRef = useRef<HTMLDivElement | null>(null);
-  // Flag that briefly enables CSS transition on the toolbar's position so
-  // the flight back to the home anchor animates instead of teleporting.
   const [floatToolbarFlying, setFloatToolbarFlying] = useState(false);
-  // Snap the toolbar to the home anchor (under the SHOW TOOLBAR chip).
+  // Wave 17.2 · with docking now = inlining, "fly home" is a no-op. We keep
+  // the function name so existing call sites still type-check; toggling the
+  // pin alone is enough to dock/undock now.
   const flyFloatToolbarHome = useCallback(() => {
-    const rect = floatToolbarHomeRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setFloatToolbarFlying(true);
-    setFloatToolbarPos({ x: rect.left, y: rect.bottom + 6 });
-    // Clear the transition flag after the animation completes so subsequent
-    // drags don't lag behind the cursor.
-    window.setTimeout(() => setFloatToolbarFlying(false), 320);
+    // No-op in Wave 17.2 — docking inlines the tools into the top bar
+    // instead of flying the floating pill to a home anchor.
   }, []);
+  // Wave 17.2 · top-bar hide chevron — when true, the entire Launch top bar
+  // slides out of view (transform: translateY(-100%)) and a tiny persistent
+  // chevron-down at the very top of the viewport brings it back. Persists
+  // to localStorage so the choice survives reloads.
+  const [topBarHidden, setTopBarHidden] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const raw = localStorage.getItem("cm2-top-bar-hidden");
+      if (raw === "1") return true;
+    } catch {}
+    return false;
+  });
+  useEffect(() => {
+    try { localStorage.setItem("cm2-top-bar-hidden", topBarHidden ? "1" : "0"); } catch {}
+  }, [topBarHidden]);
   // Wave 15.1 · imperative open flag for the Templates modal — wired from
   // the float toolbar's "Templates" action so it can open the SAME modal the
   // FILE-group button opens (both render the headless instance via the
@@ -5864,16 +5874,11 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   useEffect(() => {
     try { localStorage.setItem("cm2-float-toolbar-visible", floatToolbarVisible ? "1" : "0"); } catch {}
   }, [floatToolbarVisible]);
-  // Wave 15.5 · when entering Launch with a pinned toolbar, snap it to home.
-  // Wrapped in a rAF so the home anchor has rendered and has a real rect.
+  // Wave 17.2 · effect is a no-op now (docking inlines tools instead of
+  // flying the pill home). Kept as an empty effect so the dependency array
+  // changes don't shake other state.
   useEffect(() => {
-    if (!expandedMode || !floatToolbarVisible || !floatToolbarPinned) return;
-    const id = requestAnimationFrame(() => {
-      const rect = floatToolbarHomeRef.current?.getBoundingClientRect();
-      if (rect) setFloatToolbarPos({ x: rect.left, y: rect.bottom + 6 });
-    });
-    return () => cancelAnimationFrame(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // intentionally empty — see Wave 17.2 dock-vs-undock model
   }, [expandedMode, floatToolbarVisible]);
   // Wave 15 · auto-fit zoom whenever the chart pane changes shape. Snapping
   // to "fit" on every layout flip keeps the chart filling its container —
@@ -7703,11 +7708,18 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
           onChangeChartWindowMode={setChartWindowMode}
           floatingChartPos={floatingChartPos}
           onChangeFloatingChartPos={setFloatingChartPos}
+          topBarHidden={topBarHidden}
+          onChangeTopBarHidden={setTopBarHidden}
           topBarExtras={(
             // Wave 15 · Full toolbar inside Launch top bar — same FILE/EDIT/
             // INSERT/FORMAT controls the compact mode has, so Launch genuinely
             // is the "ultimate tool". The pane mode tabs and zoom widget live
             // in ExpandedShell itself (they're shell-specific).
+            // Wave 17.2 · when the float toolbar is DOCKED, append its tools
+            // INLINE here as a TOOLS group + a hide-top-bar chevron + an
+            // unpin/undock button. The standalone glass-pill float toolbar
+            // disappears entirely while docked — only its tools survive,
+            // embedded in this top bar.
             <>
               <ToolGroup label="File">
                 <TemplatesButton
@@ -7745,9 +7757,78 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
                   >WHEEL</GlassButton>
                 </Tooltip>
               </ToolGroup>
+              {floatToolbarPinned && floatToolbarVisible && (
+                <>
+                  <Sep />
+                  <InlineFloatTools
+                    tools={floatToolbarTools}
+                    onUnpin={() => setFloatToolbarPinned(false)}
+                    onEditTools={() => setFloatToolbarEditorOpen(true)}
+                    onHideTopBar={() => setTopBarHidden(true)}
+                    flags={{
+                      designOpen,
+                      locked,
+                      popOutActive: tableWindowMode === "floating",
+                      popOutChartActive: chartWindowMode === "floating",
+                      canUndo: past.current.length > 0,
+                      canRedo: future.current.length > 0,
+                    }}
+                    actions={{
+                      templates: () => setFloatToolbarTemplatesOpen(true),
+                      paste: () => {
+                        try {
+                          if (typeof navigator !== "undefined" && navigator.clipboard?.readText) {
+                            navigator.clipboard.readText().then(raw => {
+                              const ds = parsePasteForCategorical(raw);
+                              if (ds) setSheets(p => ({ ...p, [type]: ds }));
+                              else showToast("Clipboard didn't look like TSV/CSV — use the FILE · Paste button");
+                            }).catch(() => showToast("Clipboard read denied — use the FILE · Paste button"));
+                          } else {
+                            showToast("Clipboard API unavailable — use the FILE · Paste button");
+                          }
+                        } catch { showToast("Use the FILE · Paste button to paste TSV/CSV"); }
+                      },
+                      importExcel: () => { showToast("Click the FILE · IMPORT button — file pickers can't be triggered without a direct user click"); },
+                      typeWheel: () => setWheelOpen(true),
+                      numFmt: () => {
+                        const order: NumberFormat[] = ["auto", "int", "dec1", "pct", "k", "m", "b"];
+                        const idx = order.indexOf(numFmt);
+                        setNumFmt(order[(idx + 1) % order.length]);
+                        showToast("Number format · " + order[(idx + 1) % order.length]);
+                      },
+                      design: () => setDesignOpen(v => !v),
+                      wheelSettings: () => setWheelSettingsOpen(true),
+                      undo: () => undo(),
+                      redo: () => redo(),
+                      lock: () => setLocked(v => !v),
+                      exportPNG: () => { exportPNG(); playExportChime(); },
+                      exportSVG: () => { exportSVG(); playExportChime(); },
+                      exportPPTX: () => { exportPPTX(); playExportChime(); },
+                      copyPNG: () => { copyPNG(); playExportChime(); },
+                      popOutTable: () => setTableWindowMode(tableWindowMode === "floating" ? "docked" : "floating"),
+                      popOutChart: () => setChartWindowMode(chartWindowMode === "floating" ? "docked" : "floating"),
+                      fitChart: () => setChartZoom("fit"),
+                      zoomIn: () => floatZoomBy(25),
+                      zoomOut: () => floatZoomBy(-25),
+                      fullScreen: floatFullScreen,
+                      tour: () => setTourOpen(true),
+                      soundToggle: floatToggleSound,
+                      themeToggle: () => setAppTheme(appTheme === "dark" ? "light" : "dark"),
+                      addRow: floatAddRow,
+                      addCol: floatAddCol,
+                      deleteSel: floatDeleteSel,
+                      wheelOpen: () => setWheelOpen(true),
+                    }}
+                  />
+                </>
+              )}
             </>
           )}
-          floatToolbar={floatToolbarVisible ? (
+          floatToolbar={floatToolbarVisible && !floatToolbarPinned ? (
+            // Wave 17.2 · the standalone glass-pill float toolbar only renders
+            // when UNDOCKED. When docked, the toolbar's tools live INLINE in
+            // the Launch top bar (see InlineFloatTools above) — no separate
+            // floating window.
             <FloatingLaunchToolbar
               tools={floatToolbarTools}
               pos={floatToolbarPos}
@@ -7755,15 +7836,11 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
               flying={floatToolbarFlying}
               onMove={p => { setFloatToolbarFlying(false); setFloatToolbarPos(p); }}
               onTogglePin={() => {
-                // Wave 15.5 · pin = fly back to the home anchor; unpin = stay
-                // wherever the toolbar currently is. The home anchor lives in
-                // the Launch top bar's WINDOW group right next to (or in
-                // place of) the SHOW TOOLBAR chip.
-                setFloatToolbarPinned(p => {
-                  const next = !p;
-                  if (next) flyFloatToolbarHome();
-                  return next;
-                });
+                // Wave 17.2 · the floating pill's pin button DOCKS the toolbar
+                // into the top bar (its tools become an inline TOOLS group).
+                // The pill disappears; from there the user can click PinOff
+                // in the inline group to undock back into a floating pill.
+                setFloatToolbarPinned(true);
               }}
               onClose={() => setFloatToolbarVisible(false)}
               onEditTools={() => setFloatToolbarEditorOpen(true)}
@@ -8774,6 +8851,8 @@ function FloatingWindow({
   Icon, label,
   minW = 360, minH = 240,
   zIndex = 12000,
+  lockAspect = null,
+  lockLabel,
   children,
 }: {
   pos: { x: number; y: number; w: number; h: number };
@@ -8784,6 +8863,13 @@ function FloatingWindow({
   minW?: number;
   minH?: number;
   zIndex?: number;
+  // Wave 17.2 · when set, corner-resize maintains this width/height ratio
+  // (computed from the chart's locked aspect). Both dimensions scale
+  // together. When null, resize is free (legacy behavior).
+  lockAspect?: number | null;
+  // Wave 17.2 · short label rendered next to a lock icon in the slim header
+  // (e.g. "16:9", "4:3"). Only shown when lockAspect !== null.
+  lockLabel?: string;
   children: React.ReactNode;
 }) {
   const dragRef = useRef<{ kind: "move" | "resize"; startX: number; startY: number; orig: typeof pos } | null>(null);
@@ -8806,6 +8892,32 @@ function FloatingWindow({
     const dy = e.clientY - startY;
     if (kind === "move") {
       onChangePos({ ...orig, x: Math.max(0, orig.x + dx), y: Math.max(0, orig.y + dy) });
+    } else if (lockAspect !== null && lockAspect > 0) {
+      // Wave 17.2 · ratio-locked resize. Pick whichever dimension the user
+      // is dragging more dominantly, then derive the other from the ratio
+      // so both scale together (window stretches along the locked aspect).
+      const wantW = orig.w + dx;
+      const wantH = orig.h + dy;
+      let newW: number;
+      let newH: number;
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        newW = Math.max(minW, wantW);
+        newH = Math.max(minH, Math.round(newW / lockAspect));
+        // If the ratio-derived height violated the min, recompute width from
+        // the clamped height so we stay AT the locked ratio (just larger).
+        if (newH < minH) {
+          newH = minH;
+          newW = Math.max(minW, Math.round(newH * lockAspect));
+        }
+      } else {
+        newH = Math.max(minH, wantH);
+        newW = Math.max(minW, Math.round(newH * lockAspect));
+        if (newW < minW) {
+          newW = minW;
+          newH = Math.max(minH, Math.round(newW / lockAspect));
+        }
+      }
+      onChangePos({ ...orig, w: newW, h: newH });
     } else {
       onChangePos({ ...orig, w: Math.max(minW, orig.w + dx), h: Math.max(minH, orig.h + dy) });
     }
@@ -8850,6 +8962,25 @@ function FloatingWindow({
       >
         <Icon size={11} strokeWidth={2.4} color={C.amber} />
         <span style={{ fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 800 }}>{label}</span>
+        {/* Wave 17.2 · aspect-locked indicator. Shows a small Lock icon and
+            the locked ratio label (e.g. "16:9", "4:3", "fit") so users can
+            see the popout's resize is constrained to the chart's aspect. */}
+        {lockAspect !== null && lockLabel && (
+          <span
+            title={"Aspect-locked to " + lockLabel + " · drag corner scales both dimensions together"}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 3,
+              padding: "1px 6px", borderRadius: 4,
+              background: C.amber + "1A",
+              border: "1px solid " + C.amber + "40",
+              color: C.amber,
+              fontFamily: mn, fontSize: 8.5, letterSpacing: 0.5, fontWeight: 800,
+            }}
+          >
+            <Lock size={9} strokeWidth={2.6} />
+            {lockLabel}
+          </span>
+        )}
         <span style={{ flex: 1 }} />
         {hoverHead && (
           <>
@@ -8917,15 +9048,52 @@ function FloatingTableWindow({
   );
 }
 function FloatingChartWindow({
-  pos, onChangePos, onClose, children,
+  pos, onChangePos, onClose, chartAspect, children,
 }: {
   pos: { x: number; y: number; w: number; h: number };
   onChangePos: (p: { x: number; y: number; w: number; h: number }) => void;
   onClose: () => void;
+  // Wave 17.2 · the chart's aspect ratio (16:9, 4:3, 1:1, 3:4, 9:16, fit).
+  // Used to LOCK the floating window's corner-resize so both dimensions
+  // scale together. When "fit", the resize is free.
+  chartAspect: ChartAspect;
   children: React.ReactNode;
 }) {
+  // Wave 17.2 · derive the locked ratio from the chart aspect. "fit" → free
+  // resize (lockAspect=null). Anything else → enforce ratio on resize.
+  const lockAspect = aspectRatio(chartAspect);
+  const lockLabel = chartAspect === "fit" ? undefined : chartAspect;
+  // Wave 17.2 · when chartAspect changes WHILE floating, snap the window's
+  // height to match the new ratio (preserve width). "fit" doesn't snap.
+  useEffect(() => {
+    if (lockAspect === null || lockAspect <= 0) return;
+    const desiredH = Math.max(240, Math.round(pos.w / lockAspect));
+    if (Math.abs(desiredH - pos.h) > 1) {
+      onChangePos({ ...pos, h: desiredH });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chartAspect]);
+  // Min size scales with ratio so portrait aspects don't insist on a square
+  // window — but the floor is the historical 360 × 240.
+  const minW = lockAspect && lockAspect < 1
+    ? Math.max(240, Math.round(240 * lockAspect))
+    : 360;
+  const minH = lockAspect && lockAspect > 1
+    ? Math.max(240, Math.round(360 / lockAspect))
+    : 240;
   return (
-    <FloatingWindow pos={pos} onChangePos={onChangePos} onClose={onClose} Icon={BarChart3} label="Chart" minW={420} minH={280} zIndex={11900}>
+    <FloatingWindow
+      pos={pos}
+      onChangePos={onChangePos}
+      onClose={onClose}
+      Icon={BarChart3}
+      label="Chart"
+      minW={minW}
+      minH={minH}
+      zIndex={11900}
+      lockAspect={lockAspect}
+      lockLabel={lockLabel}
+    >
       {children}
     </FloatingWindow>
   );
@@ -9177,13 +9345,14 @@ function FloatingLaunchToolbar({
       </div>
 
       {/* Pin lives right next to the grip — together they own the
-          "where does this toolbar live" interaction. Wave 15.5 · clicking
-          pin from the unpinned state flies the toolbar back to its home
-          anchor (right under the SHOW TOOLBAR chip in the Launch top bar). */}
+          "where does this toolbar live" interaction. Wave 17.2 · clicking
+          Pin DOCKS the toolbar by inlining its tools into the Launch top
+          bar's TOOLS group; the floating pill disappears entirely. The icon
+          shows the RESULT of the click (Pin → "click to dock"). */}
       <FloatToolButton
-        Icon={pinned ? Pin : PinOff}
-        title={pinned ? "Pinned · locked at home. Click to unlock and drag freely." : "Click to fly home and pin · re-locks the toolbar under the SHOW TOOLBAR chip."}
-        active={pinned}
+        Icon={Pin}
+        title="Dock toolbar · inline these tools into the Launch top bar's TOOLS group"
+        active={false}
         onClick={onTogglePin}
       />
 
@@ -9260,6 +9429,122 @@ function FloatToolButton({
       }}
     >
       <Icon size={18} strokeWidth={2.2} />
+    </button>
+  );
+}
+
+// ─── Wave 17.2 · Inline TOOLS group ── docked variant of the float toolbar ─
+// When `floatToolbarPinned === true && floatToolbarVisible === true`, the
+// standalone glass-pill float toolbar disappears and its tool buttons render
+// INLINE inside the Launch top bar — appended to the existing FILE/EDIT/
+// INSERT/FORMAT groups as a new "TOOLS" group. Smaller padding + no border
+// so the buttons match the surrounding toolbar groups visually. Adds an
+// "unpin" PinOff button to undock back into the floating pill, a hide
+// chevron `^` that slides the entire top bar out of view, and the same
+// settings (edit tools) gear from the floating variant.
+function InlineFloatTools({
+  tools, onUnpin, onEditTools, onHideTopBar, actions, flags,
+}: {
+  tools: FloatToolId[];
+  onUnpin: () => void;
+  onEditTools: () => void;
+  onHideTopBar: () => void;
+  actions: FloatToolbarActions;
+  flags: FloatToolbarStateFlags;
+}) {
+  const renderTool = (id: FloatToolId, idx: number) => {
+    const meta = FLOAT_TOOLS[id];
+    if (!meta) return null;
+    const { Icon, label, description } = meta;
+    let active = false;
+    let disabled = false;
+    if (id === "design") active = !!flags.designOpen;
+    if (id === "lock") active = !!flags.locked;
+    if (id === "popOutTable") active = !!flags.popOutActive;
+    if (id === "popOutChart") active = !!flags.popOutChartActive;
+    if (id === "undo" && flags.canUndo === false) disabled = true;
+    if (id === "redo" && flags.canRedo === false) disabled = true;
+    const onClick = () => {
+      if (disabled) return;
+      const fn = actions[id];
+      if (fn) fn();
+    };
+    return (
+      <InlineFloatToolButton
+        key={`${id}-${idx}`}
+        Icon={Icon}
+        title={label + " · " + description}
+        active={active}
+        disabled={disabled}
+        onClick={onClick}
+      />
+    );
+  };
+  return (
+    <ToolGroup label="Tools">
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        {/* PinOff = "click to undock" — icon shows the RESULT of clicking */}
+        <InlineFloatToolButton
+          Icon={PinOff}
+          title="Undock toolbar · pop these tools back out into a draggable floating pill"
+          active={true}
+          onClick={onUnpin}
+        />
+        {tools.map((id, i) => renderTool(id, i))}
+        {tools.length === 0 && (
+          <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, padding: "0 4px" }}>
+            No tools
+          </span>
+        )}
+        <InlineFloatToolButton
+          Icon={Settings}
+          title="Edit toolbar · add, remove, or reorder tools"
+          onClick={onEditTools}
+        />
+        <InlineFloatToolButton
+          Icon={ChevronUp}
+          title="Hide top bar · click the chevron at the top of the screen to bring it back"
+          onClick={onHideTopBar}
+        />
+      </div>
+    </ToolGroup>
+  );
+}
+function InlineFloatToolButton({
+  Icon, title, active, disabled, onClick,
+}: {
+  Icon: LucideIconCmp;
+  title: string;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      onClick={onClick}
+      title={title}
+      disabled={disabled}
+      style={{
+        // Inline variant — smaller (28×28) so it tucks in next to the
+        // surrounding GlassButton toolbar groups without overpowering them.
+        width: 28, height: 28, borderRadius: 6,
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        background: active
+          ? C.amber + "26"
+          : hov && !disabled ? "rgba(255,255,255,0.08)" : "transparent",
+        border: "1px solid " + (active
+          ? C.amber + "70"
+          : hov && !disabled ? "rgba(255,255,255,0.18)" : "transparent"),
+        color: active ? C.amber : (hov && !disabled ? "#E8E4DD" : C.txm),
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.40 : 1,
+        transition: "all 0.16s cubic-bezier(.2,.7,.2,1)",
+      }}
+    >
+      <Icon size={14} strokeWidth={2.2} />
     </button>
   );
 }
@@ -12782,6 +13067,7 @@ function ExpandedShell({
   floatingChartPos, onChangeFloatingChartPos,
   floatToolbar, showToolbarBtn,
   currentSheet, onChangeCurrentSheet,
+  topBarHidden, onChangeTopBarHidden,
 }: {
   onClose: () => void;
   paneMode: "chart" | "table" | "split";
@@ -12834,6 +13120,11 @@ function ExpandedShell({
   // the popped browser window's table inputs publish back through this
   // callback so the main window updates as the user edits remotely.
   onChangeCurrentSheet?: (next: DataSheet) => void;
+  // Wave 17.2 · top-bar hide chevron — when true, the entire Launch top
+  // bar slides off-screen and a tiny restore chevron at the very top of
+  // the viewport brings it back. Persisted by the parent.
+  topBarHidden?: boolean;
+  onChangeTopBarHidden?: (v: boolean) => void;
 }) {
   void themeName; void paletteColors;
   const [leftCollapsed, setLeftCollapsed] = useState(false);
@@ -13029,18 +13320,52 @@ function ExpandedShell({
           animation:"cmGlowDrift4 26s ease-in-out infinite" }} />
       </div>
 
+      {/* Wave 17.2 · persistent chevron-down at the very top of the viewport
+          so the user can RESTORE the hidden top bar from anywhere. Renders
+          only when topBarHidden is true. */}
+      {topBarHidden && (
+        <button
+          onClick={() => onChangeTopBarHidden?.(false)}
+          title="Show the top bar"
+          style={{
+            position: "fixed", top: 4, left: "50%", transform: "translateX(-50%)",
+            zIndex: 11600,
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            gap: 6,
+            padding: "4px 14px", borderRadius: 0, borderBottomLeftRadius: 10, borderBottomRightRadius: 10,
+            background: "rgba(13,13,18,0.92)",
+            border: "1px solid " + C.amber + "55",
+            borderTop: "none",
+            color: C.amber,
+            fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
+            cursor: "pointer", textTransform: "uppercase",
+            boxShadow: "0 6px 18px rgba(0,0,0,0.4)",
+          }}
+        >
+          <ChevronDown size={12} strokeWidth={2.4} />
+          Show Top Bar
+        </button>
+      )}
+
       {/* TOP BAR · Wave 15 · full toolbar lives here so Launch is the
-          ultimate tool. Two-row tall (78px) to host the ToolGroup labels. */}
+          ultimate tool. Two-row tall (78px) to host the ToolGroup labels.
+          Wave 17.2 · slides up out of view when topBarHidden is true. */}
       <div data-cm2-toolbar style={{
         position: "relative", zIndex: 2,
-        minHeight: 78,
+        minHeight: topBarHidden ? 0 : 78,
+        height: topBarHidden ? 0 : undefined,
         display: "flex", alignItems: "center", gap: 10,
-        padding: "8px 14px",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        padding: topBarHidden ? "0 14px" : "8px 14px",
+        borderBottom: topBarHidden ? "none" : "1px solid rgba(255,255,255,0.06)",
         background: "rgba(13,13,18,0.78)",
         backdropFilter: "blur(18px) saturate(140%)",
         WebkitBackdropFilter: "blur(18px) saturate(140%)",
         flexWrap: "wrap",
+        overflow: topBarHidden ? "hidden" : undefined,
+        transform: topBarHidden ? "translateY(-100%)" : undefined,
+        opacity: topBarHidden ? 0 : 1,
+        pointerEvents: topBarHidden ? "none" : "auto",
+        transition: "transform 0.28s cubic-bezier(.2,.7,.2,1), opacity 0.22s, min-height 0.28s, padding 0.28s, border-bottom-color 0.22s",
       }}>
         {/* POAST · CHART MAKER · LAUNCH brand block */}
         <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 2, paddingRight: 4 }}>
@@ -13242,12 +13567,15 @@ function ExpandedShell({
         </FloatingTableWindow>
       )}
 
-      {/* Wave 15.4 · Floating chart window — parallel to the table window. */}
+      {/* Wave 15.4 · Floating chart window — parallel to the table window.
+          Wave 17.2 · pass chartAspect so resize is ratio-locked (16:9, 4:3,
+          1:1, 3:4, 9:16, or "fit" for free resize). */}
       {chartWindowMode === "floating" && (
         <FloatingChartWindow
           pos={floatingChartPos}
           onChangePos={onChangeFloatingChartPos}
           onClose={() => onChangeChartWindowMode("docked")}
+          chartAspect={chartAspect}
         >
           <div style={{ flex: 1, minHeight: 0, padding: "12px 14px", display: "flex" }}>
             <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>{chartCard}</div>
