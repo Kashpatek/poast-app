@@ -537,11 +537,19 @@ function InputStep({ state, setState, onNext }: { state: CarouselState; setState
         <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: state.mode === "auto" ? C.amber : C.tx }}>Auto</div>
         <div style={{ fontFamily: ft, fontSize: 10, color: C.txm }}>AI decides</div>
       </div>
-      {[3, 4, 5, 6, 7, 8].map(function(n) {
-        var sel = state.mode === "manual" && state.pageCount === n;
-        return <div key={n} onClick={function() { setState(function(s) { return Object.assign({}, s, { mode: "manual", pageCount: n }); }); }} style={{ padding: "10px 16px", borderRadius: 8, cursor: "pointer", background: sel ? C.amber + "10" : C.card, border: "1px solid " + (sel ? C.amber : C.border), transition: "all 0.2s", minWidth: 48, textAlign: "center" }}>
-          <div style={{ fontFamily: mn, fontSize: 16, fontWeight: 700, color: sel ? C.amber : C.tx }}>{n}</div>
-          <div style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>slides</div>
+      {/* Curated slide counts. 1 = hero only · 2 = cover+closer ·
+          3/5/7 = minimal/standard/deep-dive narratives. */}
+      {([
+        { n: 1, sub: "hero" },
+        { n: 2, sub: "cover + closer" },
+        { n: 3, sub: "minimal" },
+        { n: 5, sub: "standard" },
+        { n: 7, sub: "deep dive" },
+      ] as const).map(function(opt) {
+        var sel = state.mode === "manual" && state.pageCount === opt.n;
+        return <div key={opt.n} onClick={function() { setState(function(s) { return Object.assign({}, s, { mode: "manual", pageCount: opt.n }); }); }} style={{ padding: "10px 14px", borderRadius: 8, cursor: "pointer", background: sel ? C.amber + "10" : C.card, border: "1px solid " + (sel ? C.amber : C.border), transition: "all 0.2s", minWidth: 64, textAlign: "center" }}>
+          <div style={{ fontFamily: mn, fontSize: 16, fontWeight: 700, color: sel ? C.amber : C.tx }}>{opt.n}</div>
+          <div style={{ fontFamily: mn, fontSize: 8.5, color: C.txd, letterSpacing: 0.4, textTransform: "uppercase", marginTop: 2 }}>{opt.sub}</div>
         </div>;
       })}
     </div>
@@ -832,6 +840,8 @@ function BRollPickerModal({ open, onSelect, onClose }: { open: boolean; onSelect
 function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: { slides: Slide[]; setSlides: (s: Slide[]) => void; theme: ThemeKey; onNext: () => void; onBack: () => void; articleImages?: string[] }) {
   var _currentIdx = useState(0), currentIdx = _currentIdx[0], setCurrentIdx = _currentIdx[1];
   var currentSlide = slides[currentIdx] || slides[0];
+  // Wave C2 · busy flag while title regen is in flight (disables button + shows ellipsis).
+  var _regenTitleBusy = useState(false), regenTitleBusy = _regenTitleBusy[0], setRegenTitleBusy = _regenTitleBusy[1];
 
   // Tracks which images are used across all slides + slide numbers
   var usedImages = useMemo(function() {
@@ -1227,7 +1237,31 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: {
         {/* Text editing panel */}
         <div style={{ marginTop: 20, fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Edit Text (fallback)</div>
         {currentSlide.type === "cover" && <div>
-          <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Title</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>Title</div>
+            {/* Wave C2 · Regenerate the cover title using existing rewrite API. */}
+            <button
+              disabled={regenTitleBusy}
+              onClick={function() {
+                var curr = currentSlide.title || "";
+                if (!curr.trim()) return;
+                setRegenTitleBusy(true);
+                fetch("/api/carousel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "rewrite", text: curr, direction: "regenerate-title", targetLength: "punchy" }) })
+                  .then(function(r) { return r.json(); })
+                  .then(function(d) { if (d.text) updateSlide(Object.assign({}, currentSlide, { title: d.text })); })
+                  .catch(function() {})
+                  .finally(function() { setRegenTitleBusy(false); });
+              }}
+              style={{
+                padding: "4px 10px", borderRadius: 5,
+                background: regenTitleBusy ? C.surface : C.amber + "16",
+                border: "1px solid " + (regenTitleBusy ? C.border : C.amber + "55"),
+                color: regenTitleBusy ? C.txd : C.amber,
+                fontFamily: mn, fontSize: 9, fontWeight: 700, letterSpacing: 0.5,
+                cursor: regenTitleBusy ? "default" : "pointer", textTransform: "uppercase",
+              }}
+            >{regenTitleBusy ? "…" : "↻ Regenerate"}</button>
+          </div>
           <textarea value={currentSlide.title || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { title: e.target.value })); }} rows={2} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 13, lineHeight: 1.4, resize: "none", outline: "none", boxSizing: "border-box", marginBottom: 8 }} onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.amber; }} onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.border; }} />
           <div style={{ marginBottom: 6 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>

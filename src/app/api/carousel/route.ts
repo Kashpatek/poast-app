@@ -130,14 +130,18 @@ export async function POST(req: NextRequest) {
         ? `Available images (${imageUrls.length} total):\n${imageUrls.map((u: string, i: number) => `${i}: ${u.slice(-80)}`).join("\n")}\n\nIMPORTANT IMAGE RULES:\n- Use the BEST image for the COVER slide (image_url field). Pick the most visually compelling one.\n- Only use BODY_IMAGE or BODY_LARGE_IMAGE slides if an image is a chart, graph, or diagram that directly supports the text on THAT specific slide.\n- Do NOT put images on every slide. Most body slides should be text-only (BODY_A / BODY_B).\n- A typical 5-slide carousel with images: COVER (with image), BODY_A (text), BODY_B (text), BODY_IMAGE (with relevant chart/data if available), BODY_FINAL (text).\n- Never use more than 2-3 images total across all slides.`
         : "No images provided. Omit image_url fields. Do not include BODY_IMAGE or BODY_LARGE_IMAGE slides. All body slides should be BODY_A or BODY_B (text only).";
 
-      const slideCountGuidance = manualCount
-        ? `The user has requested exactly ${manualCount} slides per variant. Respect this count.`
+      const slideCountGuidance = manualCount === 1
+        ? `The user has requested exactly 1 slide. Output a SINGLE COVER slide that lands the entire thesis on its own — strong title, supporting subtitle, no body slides, no closer. The cover MUST stand alone and make the user want to swipe. Use type "COVER".`
+        : manualCount === 2
+        ? `The user has requested exactly 2 slides. Output COVER + BODY_FINAL only (no body slides). The cover sets up the hook; the closer drives home the takeaway with a clear CTA. Make every word land. Skip exposition.`
+        : manualCount
+        ? `The user has requested exactly ${manualCount} slides per variant. Respect this count. Build a cover, ${Math.max(0, manualCount - 2)} body slide(s), and a closer.`
         : `Analyze the content and determine the best slide count for EACH variant independently. Consider:
-- How much substantive content is there? Short news = fewer slides, deep research = more.
+- How much substantive content is there? A single insight = 1-2 slides. A standard story = 3-5. Deep research = 5-7.
 - How many key data points, statistics, or claims deserve their own slide?
 - How many available images exist? (${hasImages ? imageUrls.length + " images" : "none"}) More images can justify more slides.
 - What slide count best serves THIS specific content?
-Don't pad with filler. Every slide must earn its place. Range: 3-8 slides.`;
+Don't pad with filler. Every slide must earn its place. Bias TOWARD 5 (a complete narrative) UNLESS the content genuinely demands fewer or more. Range: 1-7 slides. Do not default to 3 — 3 often feels thin.`;
 
       try {
         const variants = await generateJSON<Record<string, { slides: { type: string }[] }>>({
@@ -294,6 +298,19 @@ Style rules:
     if (action === "rewrite") {
       const { text: rewriteText, direction, targetLength } = body;
       if (!rewriteText) return NextResponse.json({ error: "No text provided" }, { status: 400 });
+
+      // Wave C2 · regenerate-title path: returns a fresh punchy cover title
+      // (max 8 words) for the same idea. Uses a tighter system prompt so
+      // it doesn't bleed into subtitle territory.
+      if (direction === "regenerate-title") {
+        const titleText = await generateWithClaude({
+          system: "You write SemiAnalysis carousel cover titles. Output ONLY the new title — no quotes, no preamble, no trailing punctuation. SA institutional, confident, technical tone. No em dashes, no emojis. Max 8 words. Punchy and concrete.",
+          maxTokens: 60,
+          prompt: `Rewrite this carousel cover title with a fresh angle, keeping the same core thesis. The new title should land harder than the original.\n\nOriginal: ${rewriteText}`,
+        });
+        return NextResponse.json({ text: titleText.trim().replace(/^["']|["']$/g, ""), ts: Date.now() });
+      }
+
       const dirPrompt = targetLength
         ? `Rewrite this subtitle to be exactly ${targetLength}. This must fit below a title on a 1080x1350 carousel slide. SA institutional, confident, technical tone. No em dashes, no emojis.`
         : direction === "shorten"
