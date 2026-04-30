@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 import { D as C, ft, mn, gf } from "./shared-constants";
 import { useUser } from "./user-context";
@@ -37,6 +37,10 @@ interface Slide {
   inverted?: boolean;
   subtitleLength?: number;
   _carouselTitle?: string;
+  // C1 additions
+  titleAnchor?: "top" | "center"; // default "top"
+  titleMarginTop?: number; // default 80 (px in 1080x1350 space)
+  bodyAnchor?: "top" | "center"; // default "top" for body slides; for position=4, "top"
 }
 
 interface GeneratedSlide {
@@ -218,27 +222,54 @@ function FontSizeControl({ value, onChange, label }: { value: number; onChange: 
 }
 
 // ═══ IMAGE FRAME (clickable area for image insertion with position control) ═══
-function ImageFrame({ imageUrl, onImageChange, onPositionChange, imagePosition, imageFit, style: frameStyle, slideId }: { imageUrl?: string; onImageChange: (url: string) => void; onPositionChange?: (pos: string) => void; imagePosition?: string; imageFit?: string; style?: React.CSSProperties; slideId: string }) {
+function ImageFrame({ imageUrl, onImageChange, onPositionChange, imagePosition, imageFit, style: frameStyle, slideId, onRequestPicker }: { imageUrl?: string; onImageChange: (url: string) => void; onPositionChange?: (pos: string) => void; imagePosition?: string; imageFit?: string; style?: React.CSSProperties; slideId: string; onRequestPicker?: () => void }) {
   var fileRef = useRef<HTMLInputElement>(null);
   var _hover = useState(false), hover = _hover[0], setHover = _hover[1];
+  var _dragOver = useState(false), dragOver = _dragOver[0], setDragOver = _dragOver[1];
   var pos = imagePosition || "center";
   var fit: "cover" | "contain" | "fill" = (imageFit as "cover" | "contain" | "fill") || "cover";
 
-  function handleClick(e: React.MouseEvent<HTMLDivElement>) {
+  function handleEmptyClick(e: React.MouseEvent<HTMLDivElement>) {
     if ((e.target as HTMLElement).tagName === "BUTTON" || (e.target as HTMLElement).closest("button")) return;
-    if (fileRef.current) fileRef.current.click();
+    // Empty state: prefer picker if available, else file dialog
+    if (onRequestPicker) onRequestPicker();
+    else if (fileRef.current) fileRef.current.click();
   }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     var file = e.target.files && e.target.files[0];
     if (!file) return;
+    if (!/^image\//.test(file.type)) { e.target.value = ""; return; }
     var reader = new FileReader();
     reader.onload = function(ev) { onImageChange(ev.target?.result as string); };
     reader.readAsDataURL(file);
     e.target.value = "";
   }
 
-  return <div onClick={handleClick} onMouseEnter={function() { setHover(true); }} onMouseLeave={function() { setHover(false); }} style={Object.assign({}, { borderRadius: 20 * SCALE, overflow: "hidden", cursor: "pointer", position: "relative", background: "rgba(255,255,255,0.04)", border: "1px dashed rgba(255,255,255,0.12)" }, frameStyle)}>
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    var file = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!file) return;
+    if (!/^image\//.test(file.type)) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) { onImageChange(ev.target?.result as string); };
+    reader.readAsDataURL(file);
+  }
+
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!dragOver) setDragOver(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragOver(false);
+  }
+
+  return <div onClick={imageUrl ? undefined : handleEmptyClick} onMouseEnter={function() { setHover(true); }} onMouseLeave={function() { setHover(false); }} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} style={Object.assign({}, { borderRadius: 20 * SCALE, overflow: "hidden", cursor: imageUrl ? "default" : "pointer", position: "relative", background: dragOver ? "rgba(247,176,65,0.10)" : "rgba(255,255,255,0.04)", border: dragOver ? "1px dashed " + C.amber : "1px dashed rgba(255,255,255,0.12)" }, frameStyle)}>
     {imageUrl ? <div style={{ width: "100%", height: "100%", position: "relative" }}>
       <img src={imageUrl} style={{ width: "100%", height: "100%", objectFit: fit, objectPosition: pos, display: "block", background: "#000" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.opacity = "0.3"; }} />
       {/* Position + fit controls (show on hover) */}
@@ -247,20 +278,24 @@ function ImageFrame({ imageUrl, onImageChange, onPositionChange, imagePosition, 
         <button onClick={function() { onPositionChange("center"); }} title="Center" style={{ padding: "3px 8px", borderRadius: 4, background: pos === "center" ? C.amber : "rgba(255,255,255,0.1)", border: "none", color: pos === "center" ? C.bg : "rgba(255,255,255,0.6)", fontSize: 9, cursor: "pointer", fontFamily: mn }}>Center</button>
         <button onClick={function() { onPositionChange("bottom"); }} title="Align bottom" style={{ padding: "3px 8px", borderRadius: 4, background: pos === "bottom" ? C.amber : "rgba(255,255,255,0.1)", border: "none", color: pos === "bottom" ? C.bg : "rgba(255,255,255,0.6)", fontSize: 9, cursor: "pointer", fontFamily: mn }}>Bottom</button>
       </div>}
+      {/* Replace button (top-left, show on hover) */}
+      {hover && <div style={{ position: "absolute", top: 6, left: 6 }} onClick={function(e) { e.stopPropagation(); }}>
+        <button onClick={function() { if (onRequestPicker) onRequestPicker(); else if (fileRef.current) fileRef.current.click(); }} title="Replace image" style={{ padding: "4px 9px", borderRadius: 6, background: "rgba(0,0,0,0.7)", border: "1px solid " + C.amber + "60", color: C.amber, fontFamily: mn, fontSize: 8, fontWeight: 700, cursor: "pointer", letterSpacing: "0.5px", backdropFilter: "blur(4px)" }}>REPLACE</button>
+      </div>}
       {/* Remove button (show on hover) */}
       {hover && <div style={{ position: "absolute", top: 6, right: 6 }} onClick={function(e) { e.stopPropagation(); }}>
         <button onClick={function() { onImageChange(""); }} style={{ width: 24, height: 24, borderRadius: "50%", background: "rgba(0,0,0,0.7)", border: "none", color: "#fff", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>{"\u00D7"}</button>
       </div>}
     </div> : <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
-      <div style={{ fontSize: 24, color: "rgba(255,255,255,0.15)" }}>+</div>
-      <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.2)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Click to add image</div>
+      <div style={{ fontSize: 24, color: dragOver ? C.amber : "rgba(255,255,255,0.15)" }}>+</div>
+      <div style={{ fontFamily: mn, fontSize: 9, color: dragOver ? C.amber : "rgba(255,255,255,0.2)", textTransform: "uppercase", letterSpacing: "0.5px" }}>{dragOver ? "Drop file here" : "Click to add image"}</div>
     </div>}
     <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFile} style={{ display: "none" }} />
   </div>;
 }
 
 // ═══ SLIDE CANVAS (the large visual editor canvas) ═══
-function SlideCanvas({ slide, theme, onUpdate }: { slide: Slide; theme: ThemeKey; onUpdate: (s: Slide) => void }) {
+function SlideCanvas({ slide, theme, onUpdate, onRequestPicker }: { slide: Slide; theme: ThemeKey; onUpdate: (s: Slide) => void; onRequestPicker?: (field: "imageUrl" | "imageUrl2") => void }) {
   var bgUrl = getBackdropUrl(theme, slide.position);
   var mx = MARGIN_X * SCALE; // ~32px
   var my = MARGIN_Y * SCALE; // ~40px
@@ -275,8 +310,8 @@ function SlideCanvas({ slide, theme, onUpdate }: { slide: Slide; theme: ThemeKey
   return <div style={{ width: DISPLAY_W, height: DISPLAY_H, position: "relative", borderRadius: 8, overflow: "hidden", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}>
 
     {/* ─── COVER SLIDE ─── */}
-    {slide.type === "cover" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + (60 * SCALE) + "px" }}>
-      {/* Image frame: top area, safely below SA logo (10% from top) */}
+    {slide.type === "cover" && <div style={{ position: "absolute", left: 0, right: 0, top: (slide.titleAnchor === "center" ? FULL_H * 0.10 : (slide.titleMarginTop ?? 80)) * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + (60 * SCALE) + "px" }}>
+      {/* Image frame: top area, safely below SA logo */}
       <ImageFrame
         imageUrl={slide.imageUrl}
         onImageChange={function(url) { updateField("imageUrl", url); }}
@@ -284,6 +319,7 @@ function SlideCanvas({ slide, theme, onUpdate }: { slide: Slide; theme: ThemeKey
         imagePosition={slide.imagePosition}
         imageFit={slide.imageFit}
         slideId={slide.id}
+        onRequestPicker={onRequestPicker ? function() { onRequestPicker("imageUrl"); } : undefined}
         style={{ width: "100%", height: (slide.imageHeight || 46) + "%", marginBottom: 12, borderRadius: 20 * SCALE, flexShrink: 0 }}
       />
       {/* Title */}
@@ -291,19 +327,19 @@ function SlideCanvas({ slide, theme, onUpdate }: { slide: Slide; theme: ThemeKey
         contentEditable
         suppressContentEditableWarning
         onBlur={function(e) { updateField("title", e.currentTarget.innerText); }}
-        style={{ fontFamily: gf, fontSize: slide.titleSize * SCALE, fontWeight: 800, color: "#ffffff", lineHeight: 1.15, textShadow: textShadow, outline: "none", cursor: "text", marginBottom: 6, wordBreak: "break-word" }}
+        style={{ fontFamily: gf, fontSize: slide.titleSize * SCALE, fontWeight: 800, color: "#ffffff", lineHeight: 1.15, textShadow: textShadow, outline: "none", cursor: "text", marginBottom: 6, wordBreak: "break-word", textAlign: "left" }}
       >{slide.title || "Title"}</div>
       {/* Subtitle */}
       <div
         contentEditable
         suppressContentEditableWarning
         onBlur={function(e) { updateField("subtitle", e.currentTarget.innerText); }}
-        style={{ fontFamily: gf, fontSize: slide.subtitleSize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.78)", lineHeight: 1.4, textShadow: textShadow, outline: "none", cursor: "text", wordBreak: "break-word" }}
+        style={{ fontFamily: gf, fontSize: slide.subtitleSize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.78)", lineHeight: 1.4, textShadow: textShadow, outline: "none", cursor: "text", wordBreak: "break-word", textAlign: "left" }}
       >{slide.subtitle || "Subtitle"}</div>
     </div>}
 
     {/* ─── BODY TEXT SLIDE (positions 2, 3, 4) ─── */}
-    {slide.type === "body" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: slide.inverted ? "column-reverse" : "column", justifyContent: slide.imageUrl ? "flex-start" : "center" }}>
+    {slide.type === "body" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: slide.inverted ? "column-reverse" : "column", justifyContent: slide.bodyAnchor === "top" ? "flex-start" : (slide.imageUrl ? "flex-start" : "center") }}>
       {/* Optional image on body slides */}
       {slide.imageUrl && <ImageFrame
         imageUrl={slide.imageUrl}
@@ -312,13 +348,14 @@ function SlideCanvas({ slide, theme, onUpdate }: { slide: Slide; theme: ThemeKey
         imagePosition={slide.imagePosition}
         imageFit={slide.imageFit}
         slideId={slide.id}
+        onRequestPicker={onRequestPicker ? function() { onRequestPicker("imageUrl"); } : undefined}
         style={{ width: "100%", height: (slide.imageHeight || 45) + "%", marginBottom: slide.inverted ? 0 : 12, marginTop: slide.inverted ? 12 : 0, borderRadius: 20 * SCALE, flexShrink: 0 }}
       />}
       <div
         contentEditable
         suppressContentEditableWarning
         onBlur={function(e) { updateField("bodyText", e.currentTarget.innerText); }}
-        style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.92)", lineHeight: 1.55, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", overflow: "hidden" }}
+        style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.92)", lineHeight: 1.55, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", overflow: "hidden", textAlign: "left" }}
       >{slide.bodyText || "Body text"}</div>
       {/* CTA text on closer (position 4) */}
       {slide.position === 4 && slide.ctaText && <div style={{ position: "absolute", bottom: (16 - FULL_H * 0.08) * SCALE, left: slide.ctaPosition === "bottom-center" ? 0 : "auto", right: slide.ctaPosition === "bottom-center" ? 0 : (60 * SCALE), width: slide.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: slide.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * SCALE, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 10px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.4)", letterSpacing: "1px" }}>{slide.ctaText}</div>}
@@ -333,6 +370,7 @@ function SlideCanvas({ slide, theme, onUpdate }: { slide: Slide; theme: ThemeKey
         imagePosition={slide.imagePosition}
         imageFit={slide.imageFit}
         slideId={slide.id}
+        onRequestPicker={onRequestPicker ? function() { onRequestPicker("imageUrl"); } : undefined}
         style={{ width: "100%", height: (slide.imageHeight || 50) + "%", marginBottom: 12, borderRadius: 20 * SCALE, flexShrink: 0 }}
       />
       <div
@@ -352,6 +390,7 @@ function SlideCanvas({ slide, theme, onUpdate }: { slide: Slide; theme: ThemeKey
         imagePosition={slide.imagePosition}
         imageFit={slide.imageFit}
         slideId={slide.id}
+        onRequestPicker={onRequestPicker ? function() { onRequestPicker("imageUrl"); } : undefined}
         style={{ width: "100%", height: (slide.imageHeight || 72) + "%", marginBottom: 10, borderRadius: 20 * SCALE, flexShrink: 0 }}
       />
       <div
@@ -373,6 +412,7 @@ function SlideCanvas({ slide, theme, onUpdate }: { slide: Slide; theme: ThemeKey
           imagePosition={slide.imagePosition}
           imageFit={slide.imageFit}
           slideId={slide.id + "-1"}
+          onRequestPicker={onRequestPicker ? function() { onRequestPicker("imageUrl"); } : undefined}
           style={{ width: "100%", flex: 1, borderRadius: 16 * SCALE, marginBottom: 4 }}
         />
         <div
@@ -391,6 +431,7 @@ function SlideCanvas({ slide, theme, onUpdate }: { slide: Slide; theme: ThemeKey
           imagePosition={slide.imagePosition2}
           imageFit={slide.imageFit}
           slideId={slide.id + "-2"}
+          onRequestPicker={onRequestPicker ? function() { onRequestPicker("imageUrl2"); } : undefined}
           style={{ width: "100%", flex: 1, borderRadius: 16 * SCALE, marginBottom: 4 }}
         />
         <div
@@ -696,10 +737,239 @@ function VariantSelectStep({ variants, theme, onSelect, onBack }: { variants: Re
 }
 
 
+// ═══ CONFIRM REUSE DIALOG (image already in use) ═══
+function ConfirmReuseDialog({ open, slideNums, onConfirm, onCancel }: { open: boolean; slideNums: number[]; onConfirm: () => void; onCancel: () => void }) {
+  if (!open) return null;
+  var label = slideNums.length === 1
+    ? "slide " + slideNums[0]
+    : "slides " + slideNums.join(", ");
+  return <div onClick={onCancel} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }}>
+    <div onClick={function(e) { e.stopPropagation(); }} style={{ background: "rgba(13,13,18,0.92)", backdropFilter: "blur(18px)", border: "1px solid " + C.amber + "40", borderRadius: 14, padding: "22px 26px", minWidth: 360, maxWidth: 460, boxShadow: "0 24px 80px rgba(0,0,0,0.6)" }}>
+      <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 8 }}>Image already in use</div>
+      <div style={{ fontFamily: ft, fontSize: 14, color: C.tx, lineHeight: 1.5, marginBottom: 18 }}>This image is already used on {label}. Use it again?</div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <button onClick={onCancel} style={{ padding: "8px 16px", background: "transparent", border: "1px solid " + C.border, borderRadius: 6, color: C.txm, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+        <button onClick={onConfirm} style={{ padding: "8px 18px", background: C.amber, border: "none", borderRadius: 6, color: C.bg, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Use Anyway</button>
+      </div>
+    </div>
+  </div>;
+}
+
+// ═══ TOP MARGIN SLIDER ═══
+function TopMarginSlider({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, minWidth: 60 }}>Top Margin</span>
+    <input type="range" min={20} max={200} value={value} onChange={function(e) { onChange(parseInt(e.target.value)); }} style={{ flex: 1, accentColor: C.amber }} />
+    <span style={{ fontFamily: mn, fontSize: 10, color: C.amber, minWidth: 40, textAlign: "right" }}>{value}px</span>
+  </div>;
+}
+
+// ═══ B-ROLL PICKER MODAL (full-modal version for inline canvas use) ═══
+function BRollPickerModal({ open, onSelect, onClose }: { open: boolean; onSelect: (url: string) => void; onClose: () => void }) {
+  var _assets = useState<BRollImageAsset[]>([]), assets = _assets[0], setAssets = _assets[1];
+  var _loadState = useState<string>("idle"), loadState = _loadState[0], setLoadState = _loadState[1];
+  var _search = useState(""), search = _search[0], setSearch = _search[1];
+  var _catFilter = useState("all"), catFilter = _catFilter[0], setCatFilter = _catFilter[1];
+
+  useEffect(function() {
+    if (!open || loadState !== "idle") return;
+    setLoadState("loading");
+    fetch("/api/db?table=projects").then(function(r) { return r.json(); }).then(function(res: { data?: Array<{ type: string; id: string; data?: { assets?: BRollImageAsset[] } }> }) {
+      if (res.data && res.data.length > 0) {
+        var row = res.data.find(function(r) { return r.type === "broll-asset" && r.id === "broll-master"; });
+        if (row && row.data && row.data.assets) {
+          setAssets(row.data.assets.filter(function(a) { return a.type === "image"; }));
+        }
+      }
+      setLoadState("loaded");
+    }).catch(function() { setLoadState("loaded"); });
+  }, [open]);
+
+  if (!open) return null;
+  var categories: string[] = [];
+  assets.forEach(function(a) { if (a.category && categories.indexOf(a.category) === -1) categories.push(a.category); });
+  var filtered = assets.filter(function(a) {
+    if (catFilter !== "all" && a.category !== catFilter) return false;
+    if (search) {
+      var q = search.toLowerCase();
+      return (a.filename || "").toLowerCase().indexOf(q) !== -1 ||
+        (a.description || "").toLowerCase().indexOf(q) !== -1 ||
+        (a.category || "").toLowerCase().indexOf(q) !== -1;
+    }
+    return true;
+  });
+
+  return <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }}>
+    <div onClick={function(e) { e.stopPropagation(); }} style={{ background: "rgba(13,13,18,0.92)", backdropFilter: "blur(18px)", border: "1px solid " + C.amber + "40", borderRadius: 14, padding: "20px 22px", width: 540, maxWidth: "90vw", maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 80px rgba(0,0,0,0.6)" }}>
+      <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>B-Roll Library</div>
+      <input value={search} onChange={function(e) { setSearch(e.target.value); }} placeholder="Search..." style={{ width: "100%", padding: "8px 12px", background: C.surface, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: ft, fontSize: 12, outline: "none", boxSizing: "border-box", marginBottom: 8 }} />
+      {categories.length > 0 && <div style={{ display: "flex", gap: 4, marginBottom: 10, flexWrap: "wrap" }}>
+        <span onClick={function() { setCatFilter("all"); }} style={{ fontFamily: mn, fontSize: 9, padding: "3px 8px", borderRadius: 4, cursor: "pointer", background: catFilter === "all" ? C.amber + "20" : "transparent", color: catFilter === "all" ? C.amber : C.txd, border: "1px solid " + (catFilter === "all" ? C.amber + "40" : C.border) }}>All</span>
+        {categories.map(function(cat) {
+          return <span key={cat} onClick={function() { setCatFilter(cat); }} style={{ fontFamily: mn, fontSize: 9, padding: "3px 8px", borderRadius: 4, cursor: "pointer", background: catFilter === cat ? C.amber + "20" : "transparent", color: catFilter === cat ? C.amber : C.txd, border: "1px solid " + (catFilter === cat ? C.amber + "40" : C.border) }}>{cat}</span>;
+        })}
+      </div>}
+      <div style={{ flex: 1, overflowY: "auto", padding: 4 }}>
+        {loadState === "loading" && <div style={{ textAlign: "center", padding: 30, fontFamily: ft, fontSize: 12, color: C.txm }}>Loading...</div>}
+        {loadState === "loaded" && filtered.length === 0 && <div style={{ textAlign: "center", padding: 30, fontFamily: ft, fontSize: 12, color: C.txd }}>No images found</div>}
+        {filtered.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
+          {filtered.map(function(asset) {
+            return <div key={asset.id} onClick={function() { onSelect(asset.url); }} title={asset.filename || asset.description || ""} style={{ width: "100%", aspectRatio: "1", borderRadius: 6, overflow: "hidden", cursor: "pointer", border: "1px solid " + C.border, background: C.surface, transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.amber; e.currentTarget.style.transform = "scale(1.05)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "scale(1)"; }}>
+              <img src={asset.thumbnail || asset.url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
+            </div>;
+          })}
+        </div>}
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+        <button onClick={onClose} style={{ padding: "8px 16px", background: "transparent", border: "1px solid " + C.border, borderRadius: 6, color: C.txm, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Close</button>
+      </div>
+    </div>
+  </div>;
+}
+
+
 // ═══ STEP 3: EDIT (Visual Slide Editor) ═══
 function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: { slides: Slide[]; setSlides: (s: Slide[]) => void; theme: ThemeKey; onNext: () => void; onBack: () => void; articleImages?: string[] }) {
   var _currentIdx = useState(0), currentIdx = _currentIdx[0], setCurrentIdx = _currentIdx[1];
   var currentSlide = slides[currentIdx] || slides[0];
+
+  // Tracks which images are used across all slides + slide numbers
+  var usedImages = useMemo(function() {
+    var s = new Set<string>();
+    slides.forEach(function(sl) {
+      if (sl.imageUrl) s.add(sl.imageUrl);
+      if (sl.imageUrl2) s.add(sl.imageUrl2);
+    });
+    return s;
+  }, [slides]);
+  var usedOnSlides = useMemo(function() {
+    var m = new Map<string, number[]>();
+    slides.forEach(function(sl, i) {
+      [sl.imageUrl, sl.imageUrl2].forEach(function(u) {
+        if (u) {
+          var arr = m.get(u) || [];
+          arr.push(i + 1);
+          m.set(u, arr);
+        }
+      });
+    });
+    return m;
+  }, [slides]);
+
+  // Reuse confirm dialog state
+  var _reuse = useState<{ open: boolean; url: string; field: "imageUrl" | "imageUrl2"; slideNums: number[] } | null>(null), reuseState = _reuse[0], setReuseState = _reuse[1];
+
+  // Tries to commit a picked image; if it's already in use elsewhere, opens the confirm dialog
+  function tryCommitImage(url: string, field: "imageUrl" | "imageUrl2") {
+    if (!url) return;
+    var currentVal = field === "imageUrl" ? currentSlide.imageUrl : currentSlide.imageUrl2;
+    if (url === currentVal) return; // no-op
+    if (usedImages.has(url) && url !== currentSlide.imageUrl && url !== currentSlide.imageUrl2) {
+      // find slide numbers (excluding the current slide's other field if it matches)
+      var nums = (usedOnSlides.get(url) || []).filter(function(n) { return n !== currentIdx + 1; });
+      setReuseState({ open: true, url: url, field: field, slideNums: nums });
+      return;
+    }
+    commitImage(url, field);
+  }
+
+  function commitImage(url: string, field: "imageUrl" | "imageUrl2") {
+    var update: Record<string, string> = { imageFit: "cover" };
+    update[field] = url;
+    if (field === "imageUrl") update.imagePosition = "center";
+    else update.imagePosition2 = "center";
+    updateSlide(Object.assign({}, currentSlide, update));
+  }
+
+  // In-canvas picker modal state
+  var _pickerForField = useState<"imageUrl" | "imageUrl2" | null>(null), pickerField = _pickerForField[0], setPickerField = _pickerForField[1];
+
+  // Body overflow detection
+  var bodyMeasureRef = useRef<HTMLDivElement>(null);
+  var _bodyOverflowing = useState(false), bodyOverflowing = _bodyOverflowing[0], setBodyOverflowing = _bodyOverflowing[1];
+  useLayoutEffect(function() {
+    var el = bodyMeasureRef.current;
+    if (!el) { setBodyOverflowing(false); return; }
+    setBodyOverflowing(el.scrollHeight > el.clientHeight + 1);
+  }, [currentSlide.bodyText, currentSlide.bodySize, currentSlide.imageUrl, currentSlide.imageHeight, currentSlide.type]);
+
+  // Push-to-next-slide modal state
+  var _showPushModal = useState(false), showPushModal = _showPushModal[0], setShowPushModal = _showPushModal[1];
+  var _pushChoice = useState<"merge" | "insert">("merge"), pushChoice = _pushChoice[0], setPushChoice = _pushChoice[1];
+
+  function computeSplit(text: string) {
+    // Find last sentence terminator within last 80% of text, OR last newline
+    if (!text) return { head: "", tail: "" };
+    var minPos = Math.floor(text.length * 0.5);
+    var nl = text.lastIndexOf("\n");
+    if (nl > minPos) return { head: text.slice(0, nl).trimEnd(), tail: text.slice(nl + 1) };
+    var bestIdx = -1;
+    for (var i = text.length - 1; i >= minPos; i--) {
+      var ch = text[i];
+      if (ch === "." || ch === "!" || ch === "?") { bestIdx = i; break; }
+    }
+    if (bestIdx > -1) {
+      return { head: text.slice(0, bestIdx + 1).trim(), tail: text.slice(bestIdx + 1).trim() };
+    }
+    // Fallback: split at 80% mark on word boundary
+    var split = Math.floor(text.length * 0.8);
+    var sp = text.lastIndexOf(" ", split);
+    if (sp < minPos) sp = split;
+    return { head: text.slice(0, sp).trim(), tail: text.slice(sp).trim() };
+  }
+
+  function nextHasRoom(tail: string) {
+    var next = slides[currentIdx + 1];
+    if (!next) return false;
+    if (next.type !== "body" && next.type !== "image_text") return false;
+    var combined = tail + "\n" + (next.bodyText || "");
+    return combined.length < 600;
+  }
+
+  function pushBodyToNext() {
+    var bodyText = currentSlide.bodyText || "";
+    var split = computeSplit(bodyText);
+    if (!split.tail) { setShowPushModal(false); return; }
+    var newSlides = slides.slice();
+    newSlides[currentIdx] = Object.assign({}, currentSlide, { bodyText: split.head });
+
+    var hasNextRoom = nextHasRoom(split.tail);
+    var doMerge = pushChoice === "merge" && hasNextRoom;
+
+    if (doMerge) {
+      var next = newSlides[currentIdx + 1];
+      newSlides[currentIdx + 1] = Object.assign({}, next, { bodyText: split.tail + "\n" + (next.bodyText || "") });
+    } else {
+      // Insert new slide before the closer at currentIdx+1
+      var insertIdx = currentIdx + 1;
+      var newSlide: Slide = {
+        id: "slide-" + Date.now(),
+        position: 2,
+        type: "body",
+        bodyText: split.tail,
+        bodySize: currentSlide.bodySize,
+        titleSize: currentSlide.titleSize,
+        subtitleSize: currentSlide.subtitleSize,
+        captionSize: currentSlide.captionSize,
+        imageFit: currentSlide.imageFit || "cover",
+        titleAnchor: "top",
+        titleMarginTop: 80,
+        bodyAnchor: "top",
+      };
+      newSlides.splice(insertIdx, 0, newSlide);
+      // Re-assign positions across all slides
+      var newPositions = getSlidePositions(newSlides.length);
+      newSlides = newSlides.map(function(sl, i) {
+        var pos = newPositions[i];
+        return Object.assign({}, sl, {
+          position: pos,
+          type: pos === 1 ? "cover" : (sl.type === "image_text" || sl.type === "large_image" || sl.type === "dual_image") ? sl.type : "body",
+        });
+      });
+    }
+    setSlides(newSlides);
+    setShowPushModal(false);
+  }
 
   function updateSlide(updated: Slide) {
     var newSlides = slides.slice();
@@ -768,13 +1038,15 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: {
     // Insert a new body slide before the closer
     var closerIdx = newSlides.length - 1;
     var newPos = positions[newSlides.length - 1]; // position for new slide before closer
-    var newSlide = {
+    var newSlide: Slide = {
       id: "slide-" + Date.now(),
       position: newPos,
       type: "body",
       title: "", subtitle: "", titleSize: 74, subtitleSize: 34,
       bodyText: "New slide content.", bodySize: 28,
       imageUrl: "", caption: "", captionSize: 18,
+      titleAnchor: "top", titleMarginTop: 80,
+      bodyAnchor: newPos === 4 ? "top" : "top",
     };
     newSlides.splice(closerIdx, 0, newSlide);
     // Reassign all positions
@@ -843,7 +1115,7 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: {
         {/* Left arrow */}
         <button onClick={function() { if (currentIdx > 0) setCurrentIdx(currentIdx - 1); }} disabled={currentIdx === 0} style={{ position: "absolute", left: -20, top: "50%", transform: "translateY(-50%)", width: 36, height: 36, borderRadius: "50%", background: currentIdx === 0 ? C.surface : C.card, border: "1px solid " + (currentIdx === 0 ? C.border : C.amber + "40"), color: currentIdx === 0 ? C.txd : C.amber, fontSize: 16, cursor: currentIdx === 0 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, transition: "all 0.2s" }}>{"\u2190"}</button>
 
-        <SlideCanvas slide={currentSlide} theme={theme} onUpdate={updateSlide} />
+        <SlideCanvas slide={currentSlide} theme={theme} onUpdate={updateSlide} onRequestPicker={function(field) { setPickerField(field); }} />
 
         {/* Right arrow */}
         <button onClick={function() { if (currentIdx < slides.length - 1) setCurrentIdx(currentIdx + 1); }} disabled={currentIdx === slides.length - 1} style={{ position: "absolute", right: -20, top: "50%", transform: "translateY(-50%)", width: 36, height: 36, borderRadius: "50%", background: currentIdx === slides.length - 1 ? C.surface : C.card, border: "1px solid " + (currentIdx === slides.length - 1 ? C.border : C.amber + "40"), color: currentIdx === slides.length - 1 ? C.txd : C.amber, fontSize: 16, cursor: currentIdx === slides.length - 1 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, transition: "all 0.2s" }}>{"\u2192"}</button>
@@ -882,13 +1154,14 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: {
           </div>}
           {(currentSlide.type === "body" || currentSlide.type === "image_text") && <FontSizeControl label="Body" value={currentSlide.bodySize} onChange={function(v) { updateSlide(Object.assign({}, currentSlide, { bodySize: v })); }} />}
           {(currentSlide.type === "large_image" || currentSlide.type === "dual_image") && <FontSizeControl label="Caption" value={currentSlide.captionSize || 18} onChange={function(v) { updateSlide(Object.assign({}, currentSlide, { captionSize: v })); }} />}
+          {currentSlide.type === "cover" && <TopMarginSlider value={currentSlide.titleMarginTop ?? 80} onChange={function(v) { updateSlide(Object.assign({}, currentSlide, { titleMarginTop: v, titleAnchor: "top" })); }} />}
         </div>
 
         {/* Image controls */}
         {<div style={{ marginBottom: 20 }}>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>{currentSlide.type === "dual_image" ? "Image 1" : "Image"}</div>
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-            <BRollPicker onSelect={function(url) { updateSlide(Object.assign({}, currentSlide, { imageUrl: url, imageFit: "cover", imagePosition: "center" })); }} />
+            <BRollPicker onSelect={function(url) { tryCommitImage(url, "imageUrl"); }} />
             {currentSlide.imageUrl && <button onClick={function() { updateSlide(Object.assign({}, currentSlide, { imageUrl: "" })); }} style={{ padding: "5px 10px", background: C.coral + "12", color: C.coral, border: "1px solid " + C.coral + "30", borderRadius: 6, fontFamily: ft, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Remove</button>}
           </div>
           {currentSlide.imageUrl && <div style={{ marginTop: 8 }}>
@@ -912,7 +1185,7 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: {
         {currentSlide.type === "dual_image" && <div style={{ marginBottom: 20 }}>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.blue, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Image 2</div>
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-            <BRollPicker onSelect={function(url) { updateSlide(Object.assign({}, currentSlide, { imageUrl2: url, imageFit: "cover", imagePosition2: "center" })); }} />
+            <BRollPicker onSelect={function(url) { tryCommitImage(url, "imageUrl2"); }} />
             {currentSlide.imageUrl2 && <button onClick={function() { updateSlide(Object.assign({}, currentSlide, { imageUrl2: "" })); }} style={{ padding: "5px 10px", background: C.coral + "12", color: C.coral, border: "1px solid " + C.coral + "30", borderRadius: 6, fontFamily: ft, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Remove</button>}
           </div>
         </div>}
@@ -925,20 +1198,18 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: {
               var firstUnused: string | null = null;
               articleImages.forEach(function(u) { if (!firstUnused && !slides.some(function(sl) { return sl.imageUrl === u || sl.imageUrl2 === u; })) firstUnused = u; });
               return articleImages.map(function(imgUrl, i) {
-                var isUsed = slides.some(function(sl) { return sl.imageUrl === imgUrl || sl.imageUrl2 === imgUrl; });
+                var slideNumsForUrl = (usedOnSlides.get(imgUrl) || []).filter(function(n) { return n !== currentIdx + 1; });
+                var isUsedElsewhere = slideNumsForUrl.length > 0;
                 var isSuggested = imgUrl === firstUnused && !currentSlide.imageUrl;
-                var targetField = currentSlide.type === "dual_image" && currentSlide.imageUrl && !currentSlide.imageUrl2 ? "imageUrl2" : "imageUrl";
+                var targetField: "imageUrl" | "imageUrl2" = currentSlide.type === "dual_image" && currentSlide.imageUrl && !currentSlide.imageUrl2 ? "imageUrl2" : "imageUrl";
                 return <div key={i} style={{ position: "relative" }}>
                   <div onClick={function() {
-                    if (isUsed) return;
-                    var update: Record<string, string> = { imageFit: "cover", imagePosition: "center" };
-                    update[targetField] = imgUrl;
-                    updateSlide(Object.assign({}, currentSlide, update));
-                  }} style={{ width: "100%", aspectRatio: "4/5", borderRadius: 6, overflow: "hidden", cursor: isUsed ? "default" : "pointer", border: "2px solid " + (isSuggested ? C.amber : isUsed ? C.teal + "50" : C.border), opacity: isUsed ? 0.45 : 1, transition: "all 0.15s", boxShadow: isSuggested ? "0 0 12px " + C.amber + "30" : "none" }} onMouseEnter={function(e) { if (!isUsed) { e.currentTarget.style.borderColor = C.violet; e.currentTarget.style.transform = "scale(1.04)"; } }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = isSuggested ? C.amber : isUsed ? C.teal + "50" : C.border; e.currentTarget.style.transform = "scale(1)"; }}>
+                    tryCommitImage(imgUrl, targetField);
+                  }} style={{ width: "100%", aspectRatio: "4/5", borderRadius: 6, overflow: "hidden", cursor: "pointer", border: "2px solid " + (isSuggested ? C.amber : C.border), transition: "all 0.15s", boxShadow: isSuggested ? "0 0 12px " + C.amber + "30" : "none" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.violet; e.currentTarget.style.transform = "scale(1.04)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = isSuggested ? C.amber : C.border; e.currentTarget.style.transform = "scale(1)"; }}>
                     <img src={imgUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { if (e.currentTarget.parentElement) e.currentTarget.parentElement.style.display = "none"; }} />
                   </div>
                   {isSuggested && <div style={{ position: "absolute", top: -6, left: "50%", transform: "translateX(-50%)", fontFamily: mn, fontSize: 7, color: C.bg, background: C.amber, padding: "1px 6px", borderRadius: 4, fontWeight: 700, whiteSpace: "nowrap" }}>Best match</div>}
-                  {isUsed && <div style={{ position: "absolute", top: 2, right: 2, fontFamily: mn, fontSize: 7, color: C.teal, background: "rgba(0,0,0,0.7)", padding: "1px 4px", borderRadius: 3 }}>In use</div>}
+                  {isUsedElsewhere && <div style={{ position: "absolute", top: 2, right: 2, fontFamily: mn, fontSize: 9, color: C.amber, background: "rgba(0,0,0,0.75)", padding: "2px 6px", borderRadius: 3, border: "1px solid " + C.amber + "40", fontWeight: 700, letterSpacing: "0.3px" }}>On slide {slideNumsForUrl.join(", ")}</div>}
                 </div>;
               });
             })()}
@@ -979,8 +1250,18 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: {
           <textarea value={currentSlide.subtitle || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { subtitle: e.target.value })); }} rows={4} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 12, lineHeight: 1.4, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.amber; }} onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.border; }} />
         </div>}
         {(currentSlide.type === "body" || currentSlide.type === "image_text") && <div>
-          <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Body Text</div>
-          <textarea value={currentSlide.bodyText || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { bodyText: e.target.value })); }} rows={6} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 12, lineHeight: 1.5, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.amber; }} onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.border; }} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>Body Text</div>
+          </div>
+          {bodyOverflowing && (function() {
+            var lines = Math.max(1, Math.round((bodyMeasureRef.current ? (bodyMeasureRef.current.scrollHeight - bodyMeasureRef.current.clientHeight) / (currentSlide.bodySize * SCALE * 1.55) : 1)));
+            return <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: C.amber + "12", border: "1px solid " + C.amber + "40", borderRadius: 6, marginBottom: 6 }}>
+              <span style={{ fontFamily: mn, fontSize: 9, color: C.amber, fontWeight: 700, letterSpacing: "0.3px" }}>Body overflows ~{lines} line{lines !== 1 ? "s" : ""}</span>
+              <span style={{ flex: 1 }} />
+              <button onClick={function() { setPushChoice(nextHasRoom(computeSplit(currentSlide.bodyText || "").tail) ? "merge" : "insert"); setShowPushModal(true); }} style={{ padding: "4px 10px", background: C.amber, color: C.bg, border: "none", borderRadius: 4, fontFamily: mn, fontSize: 9, fontWeight: 700, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.5px" }}>Push to next slide</button>
+            </div>;
+          })()}
+          <textarea value={currentSlide.bodyText || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { bodyText: e.target.value })); }} rows={6} style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + (bodyOverflowing ? C.amber + "60" : C.border), borderRadius: 6, color: C.tx, fontFamily: gf, fontSize: 12, lineHeight: 1.5, resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = C.amber; }} onBlur={function(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) { e.currentTarget.style.borderColor = bodyOverflowing ? C.amber + "60" : C.border; }} />
         </div>}
         {currentSlide.type === "large_image" && <div>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>Caption</div>
@@ -988,6 +1269,65 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: {
         </div>}
       </div>
     </div>
+
+    {/* Hidden body-overflow measurement element — matches canvas body dims at full scale */}
+    {(currentSlide.type === "body" || currentSlide.type === "image_text") && (function() {
+      var availH = FULL_H - FULL_H * 0.10 - FULL_H * 0.08;
+      var imgPctH = currentSlide.imageUrl ? availH * ((currentSlide.imageHeight || 45) / 100) + 12 : 0;
+      var bodyAvailH = availH - imgPctH;
+      var contentW = FULL_W - MARGIN_X * 2;
+      return <div style={{ position: "fixed", top: -99999, left: -99999, width: contentW, height: bodyAvailH, fontFamily: gf, fontSize: currentSlide.bodySize, fontWeight: 400, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word", overflow: "hidden", visibility: "hidden", pointerEvents: "none" }}>
+        <div ref={bodyMeasureRef} style={{ width: "100%", height: "100%", overflow: "hidden" }}>
+          <div style={{ width: "100%" }}>{currentSlide.bodyText || ""}</div>
+        </div>
+      </div>;
+    })()}
+
+    {/* Confirm reuse dialog */}
+    <ConfirmReuseDialog
+      open={!!(reuseState && reuseState.open)}
+      slideNums={reuseState ? reuseState.slideNums : []}
+      onConfirm={function() { if (reuseState) { commitImage(reuseState.url, reuseState.field); } setReuseState(null); }}
+      onCancel={function() { setReuseState(null); }}
+    />
+
+    {/* In-canvas picker modal */}
+    <BRollPickerModal
+      open={pickerField !== null}
+      onSelect={function(url) {
+        if (pickerField) tryCommitImage(url, pickerField);
+        setPickerField(null);
+      }}
+      onClose={function() { setPickerField(null); }}
+    />
+
+    {/* Push-to-next-slide modal */}
+    {showPushModal && (function() {
+      var split = computeSplit(currentSlide.bodyText || "");
+      var tailWords = split.tail.split(/\s+/).filter(Boolean).length;
+      var hasRoom = nextHasRoom(split.tail);
+      var nextSlideIdx = currentIdx + 2; // 1-based
+      return <div onClick={function() { setShowPushModal(false); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }}>
+        <div onClick={function(e) { e.stopPropagation(); }} style={{ background: "rgba(13,13,18,0.92)", backdropFilter: "blur(18px)", border: "1px solid " + C.amber + "40", borderRadius: 14, padding: "22px 26px", minWidth: 380, maxWidth: 480, boxShadow: "0 24px 80px rgba(0,0,0,0.6)" }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Push body overflow</div>
+          <div style={{ fontFamily: ft, fontSize: 14, color: C.tx, lineHeight: 1.5, marginBottom: 16 }}>Push ~{tailWords} word{tailWords !== 1 ? "s" : ""} to next slide?</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: hasRoom ? "pointer" : "not-allowed", opacity: hasRoom ? 1 : 0.5, padding: "8px 10px", background: pushChoice === "merge" ? C.amber + "10" : "transparent", border: "1px solid " + (pushChoice === "merge" ? C.amber + "40" : C.border), borderRadius: 6 }}>
+              <input type="radio" name="pushChoice" checked={pushChoice === "merge"} disabled={!hasRoom} onChange={function() { setPushChoice("merge"); }} style={{ accentColor: C.amber }} />
+              <span style={{ fontFamily: ft, fontSize: 12, color: C.tx }}>Append to slide {nextSlideIdx}{hasRoom ? "" : " (no room)"}</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "8px 10px", background: pushChoice === "insert" ? C.amber + "10" : "transparent", border: "1px solid " + (pushChoice === "insert" ? C.amber + "40" : C.border), borderRadius: 6 }}>
+              <input type="radio" name="pushChoice" checked={pushChoice === "insert"} onChange={function() { setPushChoice("insert"); }} style={{ accentColor: C.amber }} />
+              <span style={{ fontFamily: ft, fontSize: 12, color: C.tx }}>Insert new slide</span>
+            </label>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <button onClick={function() { setShowPushModal(false); }} style={{ padding: "8px 16px", background: "transparent", border: "1px solid " + C.border, borderRadius: 6, color: C.txm, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+            <button onClick={pushBodyToNext} style={{ padding: "8px 18px", background: C.amber, border: "none", borderRadius: 6, color: C.bg, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Push</button>
+          </div>
+        </div>
+      </div>;
+    })()}
 
     {/* Thumbnail strip */}
     <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>All Slides</div>
@@ -1113,6 +1453,7 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
         var rw = 280;
         var rh = 350;
         var rScale = rw / FULL_W;
+        var coverTopPad = (sl.titleAnchor === "center" ? FULL_H * 0.10 : (sl.titleMarginTop ?? 80)) * rScale;
         var topPad = FULL_H * 0.10 * rScale;
         var botPad = FULL_H * 0.08 * rScale;
         var sidePad = 60 * rScale;
@@ -1121,15 +1462,15 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
 
         return <div key={sl.id} style={{ flexShrink: 0 }}>
           <div style={{ width: rw, height: rh, borderRadius: 6, overflow: "hidden", position: "relative", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
-            <div style={{ position: "absolute", left: 0, right: 0, top: topPad, bottom: botPad, padding: "0 " + sidePad + "px" }}>
+            <div style={{ position: "absolute", left: 0, right: 0, top: sl.type === "cover" ? coverTopPad : topPad, bottom: botPad, padding: "0 " + sidePad + "px" }}>
               {sl.type === "cover" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
                 {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 46) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                 </div>}
-                <div style={{ fontFamily: gf, fontSize: sl.titleSize * rScale, fontWeight: 800, color: "#fff", lineHeight: 1.15, marginBottom: 4, overflow: "hidden" }}>{sl.title || ""}</div>
-                <div style={{ fontFamily: gf, fontSize: sl.subtitleSize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.75)", lineHeight: 1.35, overflow: "hidden" }}>{sl.subtitle || ""}</div>
+                <div style={{ fontFamily: gf, fontSize: sl.titleSize * rScale, fontWeight: 800, color: "#fff", lineHeight: 1.15, marginBottom: 4, overflow: "hidden", textAlign: "left" }}>{sl.title || ""}</div>
+                <div style={{ fontFamily: gf, fontSize: sl.subtitleSize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.75)", lineHeight: 1.35, overflow: "hidden", textAlign: "left" }}>{sl.subtitle || ""}</div>
               </div>}
-              {sl.type === "body" && <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: sl.imageUrl ? "flex-start" : "center", position: "relative" }}>
+              {sl.type === "body" && <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: sl.bodyAnchor === "top" ? "flex-start" : (sl.imageUrl ? "flex-start" : "center"), position: "relative" }}>
                 {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 45) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                 </div>}
@@ -1422,10 +1763,12 @@ function renderSlideToCanvas(slide: Slide, bgUrl: string): Promise<Blob> {
 
       var COVER_MX = 60;
       var TOP_Y = Math.round(FULL_H * 0.10); // 10% — matches editor exactly
+      var COVER_TOP_Y = slide.titleAnchor === "center" ? TOP_Y : (slide.titleMarginTop ?? 80);
       var BOTTOM_Y = Math.round(FULL_H * 0.08);
       var contentWidth = FULL_W - MARGIN_X * 2;
       var coverContentWidth = FULL_W - COVER_MX * 2;
       var availH = FULL_H - TOP_Y - BOTTOM_Y;
+      var coverAvailH = FULL_H - COVER_TOP_Y - BOTTOM_Y;
 
       async function drawContent() {
         // Date + title stamp at very top left (small, subtle)
@@ -1436,14 +1779,16 @@ function renderSlideToCanvas(slide: Slide, bgUrl: string): Promise<Blob> {
         // (skip — logo area is sacred, stamp goes nowhere visible on the slide itself)
 
         if (slide.type === "cover") {
+          ctx.textAlign = "left";
           var imgHPct = (slide.imageHeight || 46) / 100;
-          var imgH = Math.round(availH * imgHPct);
-          await drawImage(slide.imageUrl, COVER_MX, TOP_Y, coverContentWidth, imgH, 20);
-          var titleY = TOP_Y + imgH + 20;
+          var imgH = Math.round(coverAvailH * imgHPct);
+          await drawImage(slide.imageUrl, COVER_MX, COVER_TOP_Y, coverContentWidth, imgH, 20);
+          var titleY = COVER_TOP_Y + imgH + 20;
           var afterTitle = drawText(slide.title || "", COVER_MX, titleY, coverContentWidth, slide.titleSize, "800", "#ffffff", 1.15);
           drawText(slide.subtitle || "", COVER_MX, afterTitle + 8, coverContentWidth, slide.subtitleSize, "400", "rgba(255,255,255,0.78)", 1.4);
 
         } else if (slide.type === "body") {
+          ctx.textAlign = "left";
           if (slide.imageUrl && !slide.inverted) {
             // Image on top, text below
             var bImgH = Math.round(availH * ((slide.imageHeight || 45) / 100));
@@ -1454,8 +1799,11 @@ function renderSlideToCanvas(slide: Slide, bgUrl: string): Promise<Blob> {
             var bImgH2 = Math.round(availH * ((slide.imageHeight || 45) / 100));
             var textEndY = drawText(slide.bodyText || "", MARGIN_X, TOP_Y, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.55);
             await drawImage(slide.imageUrl, MARGIN_X, textEndY + 16, contentWidth, bImgH2, 20);
+          } else if (slide.bodyAnchor === "top") {
+            // Text only, top-anchored
+            drawText(slide.bodyText || "", MARGIN_X, TOP_Y, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.55);
           } else {
-            // Text only — vertically center
+            // Text only — vertically center (legacy)
             // Measure text height accounting for paragraph breaks
             ctx.font = "400 " + slide.bodySize + "px Grift, Outfit, sans-serif";
             var lh = slide.bodySize * 1.55;
@@ -1914,7 +2262,10 @@ function apiSlidesToEditorSlides(apiSlides: GeneratedSlide[], slideCount: number
       imageFit: "cover",
       caption: apiSl.subtext || "",
       captionSize: 18,
-    };
+      titleAnchor: "top",
+      titleMarginTop: 80,
+      bodyAnchor: "top",
+    } as Slide;
   });
 }
 
