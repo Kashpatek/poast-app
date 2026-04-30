@@ -717,6 +717,187 @@ function computeSheet(sheet: DataSheet, names?: NamedRangeMap): DataSheet {
   return { schema: sheet.schema, rows };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FORMULA CATALOG · Wave 17.1 · Excel-style autocomplete dropdown source
+// Each entry has a name, full signature (shown as the suggestion title),
+// short human description (subtitle / tooltip body), and a category.
+// Sorted by name client-side via prefix-match filter against the last
+// token of the formula input.
+// ═══════════════════════════════════════════════════════════════════════════
+const FORMULA_CATALOG: Array<{ name: string; signature: string; desc: string; category: "math" | "lookup" | "logical" | "text" | "date" | "agg" }> = [
+  { name: "SUM", signature: "SUM(range)", desc: "Sum of values", category: "agg" },
+  { name: "AVG", signature: "AVG(range)", desc: "Average", category: "agg" },
+  { name: "AVERAGE", signature: "AVERAGE(range)", desc: "Average (alias)", category: "agg" },
+  { name: "MIN", signature: "MIN(range)", desc: "Minimum", category: "agg" },
+  { name: "MAX", signature: "MAX(range)", desc: "Maximum", category: "agg" },
+  { name: "COUNT", signature: "COUNT(range)", desc: "Count of values", category: "agg" },
+  { name: "PRODUCT", signature: "PRODUCT(args)", desc: "Multiply all", category: "math" },
+  { name: "ABS", signature: "ABS(value)", desc: "Absolute value", category: "math" },
+  { name: "ROUND", signature: "ROUND(value, places)", desc: "Round to places", category: "math" },
+  { name: "SQRT", signature: "SQRT(value)", desc: "Square root", category: "math" },
+  { name: "POW", signature: "POW(base, exp)", desc: "Power", category: "math" },
+  { name: "IF", signature: "IF(cond, then, else)", desc: "Conditional", category: "logical" },
+  { name: "IFERROR", signature: "IFERROR(value, fallback)", desc: "Catch errors", category: "logical" },
+  { name: "VLOOKUP", signature: "VLOOKUP(val, range, col, [exact])", desc: "Vertical lookup", category: "lookup" },
+  { name: "HLOOKUP", signature: "HLOOKUP(val, range, row, [exact])", desc: "Horizontal lookup", category: "lookup" },
+  { name: "INDEX", signature: "INDEX(range, row, col)", desc: "Cell at position", category: "lookup" },
+  { name: "MATCH", signature: "MATCH(val, range, [type])", desc: "Position of value", category: "lookup" },
+  { name: "SUMIF", signature: "SUMIF(range, criteria, [sum_range])", desc: "Conditional sum", category: "agg" },
+  { name: "SUMIFS", signature: "SUMIFS(sum_range, range1, crit1, ...)", desc: "Multi-criteria sum", category: "agg" },
+  { name: "COUNTIF", signature: "COUNTIF(range, criteria)", desc: "Conditional count", category: "agg" },
+  { name: "CONCAT", signature: "CONCAT(args)", desc: "Join strings", category: "text" },
+  { name: "CONCATENATE", signature: "CONCATENATE(args)", desc: "Join strings (alias)", category: "text" },
+  { name: "LEN", signature: "LEN(text)", desc: "String length", category: "text" },
+  { name: "LEFT", signature: "LEFT(text, n)", desc: "Left n chars", category: "text" },
+  { name: "RIGHT", signature: "RIGHT(text, n)", desc: "Right n chars", category: "text" },
+  { name: "MID", signature: "MID(text, start, n)", desc: "Substring", category: "text" },
+  { name: "TODAY", signature: "TODAY()", desc: "Today's date", category: "date" },
+  { name: "YEAR", signature: "YEAR(date)", desc: "Year of date", category: "date" },
+  { name: "MONTH", signature: "MONTH(date)", desc: "Month of date", category: "date" },
+  { name: "DAY", signature: "DAY(date)", desc: "Day of date", category: "date" },
+];
+
+// Wave 17.1 · Grid style theme (DARK = legacy glass; EXCEL = white-paper
+// to match the Univer Excel Suite). Persists via localStorage cm2-grid-style.
+type GridStyle = "dark" | "excel";
+type GridTheme = {
+  containerBg: string;
+  containerBorder: string;
+  containerShadow: string;
+  formulaBarBg: string;
+  formulaBarBorder: string;
+  addrBg: string;
+  addrBorder: string;
+  fxLabel: string;
+  inputBg: string;
+  inputBorder: string;
+  inputFg: string;
+  cellBg: string;
+  cellAltBg: string;
+  cellFg: string;
+  cellBorder: string;
+  cellFontFamily: string;
+  cellFontSize: number;
+  headerBg: string;
+  headerFg: string;
+  headerBorder: string;
+  headerFontFamily: string;
+  headerFontSize: number;
+  rowHeaderBg: string;
+  rowHeaderFg: string;
+  rowHeaderHoverBg: string;
+  selBg: string;
+  selBorder: string;
+  selRowTint: string;
+  selRowHoverTint: string;
+  hoverTint: string;
+  footerBg: string;
+  footerBorder: string;
+  footerFg: string;
+  buttonBg: string;
+  buttonBorder: string;
+  buttonFg: string;
+  formulaFg: string;
+  toggleActiveBg: string;
+  toggleActiveBorder: string;
+  toggleActiveFg: string;
+  toggleIdleBg: string;
+  toggleIdleBorder: string;
+  toggleIdleFg: string;
+};
+const GRID_THEME: Record<GridStyle, GridTheme> = {
+  dark: {
+    containerBg: "rgba(13,13,18,0.72)",
+    containerBorder: "1px solid rgba(255,255,255,0.07)",
+    containerShadow: "0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 32px rgba(0,0,0,0.30)",
+    formulaBarBg: "rgba(255,255,255,0.02)",
+    formulaBarBorder: "1px solid rgba(255,255,255,0.06)",
+    addrBg: "rgba(255,255,255,0.04)",
+    addrBorder: "1px solid rgba(255,255,255,0.08)",
+    fxLabel: C.txd,
+    inputBg: "rgba(255,255,255,0.025)",
+    inputBorder: "1px solid rgba(255,255,255,0.08)",
+    inputFg: C.tx,
+    cellBg: "transparent",
+    cellAltBg: "rgba(255,255,255,0.015)",
+    cellFg: C.tx,
+    cellBorder: "rgba(255,255,255,0.04)",
+    cellFontFamily: ft,
+    cellFontSize: 12,
+    headerBg: "#0D0D14",
+    headerFg: C.txm,
+    headerBorder: "rgba(255,255,255,0.10)",
+    headerFontFamily: mn,
+    headerFontSize: 9,
+    rowHeaderBg: "rgba(255,255,255,0.02)",
+    rowHeaderFg: C.txd,
+    rowHeaderHoverBg: "rgba(247,176,65,0.06)",
+    selBg: C.amber + "12",
+    selBorder: C.amber + "60",
+    selRowTint: "rgba(247,176,65,0.10)",
+    selRowHoverTint: "rgba(247,176,65,0.14)",
+    hoverTint: "rgba(247,176,65,0.06)",
+    footerBg: "transparent",
+    footerBorder: "rgba(255,255,255,0.06)",
+    footerFg: C.txd,
+    buttonBg: "rgba(255,255,255,0.025)",
+    buttonBorder: "rgba(255,255,255,0.10)",
+    buttonFg: C.txm,
+    formulaFg: C.amber,
+    toggleActiveBg: C.amber + "26",
+    toggleActiveBorder: C.amber + "70",
+    toggleActiveFg: C.amber,
+    toggleIdleBg: "rgba(255,255,255,0.04)",
+    toggleIdleBorder: "rgba(255,255,255,0.10)",
+    toggleIdleFg: C.txm,
+  },
+  excel: {
+    containerBg: "#FFFFFF",
+    containerBorder: "1px solid #D9D9D9",
+    containerShadow: "0 1px 0 rgba(255,255,255,0.6) inset, 0 8px 22px rgba(20,20,40,0.10)",
+    formulaBarBg: "#FAFAF7",
+    formulaBarBorder: "1px solid #E5E5E5",
+    addrBg: "#FFFFFF",
+    addrBorder: "1px solid #D9D9D9",
+    fxLabel: "#5C5A57",
+    inputBg: "#FFFFFF",
+    inputBorder: "1px solid #D9D9D9",
+    inputFg: "#0A0A0E",
+    cellBg: "#FFFFFF",
+    cellAltBg: "#F8F8F4",
+    cellFg: "#0A0A0E",
+    cellBorder: "#E5E5E5",
+    cellFontFamily: "'Calibri','Outfit',sans-serif",
+    cellFontSize: 12,
+    headerBg: "#4472C4",
+    headerFg: "#FFFFFF",
+    headerBorder: "#365A9C",
+    headerFontFamily: "'Calibri','Outfit',sans-serif",
+    headerFontSize: 11,
+    rowHeaderBg: "#F5F5F0",
+    rowHeaderFg: "#5C5A57",
+    rowHeaderHoverBg: "#EFEFE8",
+    selBg: "#4472C422",
+    selBorder: "#4472C4",
+    selRowTint: "#FFE99622",
+    selRowHoverTint: "#FFE99644",
+    hoverTint: "#4472C411",
+    footerBg: "#FAFAF7",
+    footerBorder: "#E5E5E5",
+    footerFg: "#5C5A57",
+    buttonBg: "#FFFFFF",
+    buttonBorder: "#D9D9D9",
+    buttonFg: "#0A0A0E",
+    formulaFg: "#0F6FFF",
+    toggleActiveBg: "#4472C4",
+    toggleActiveBorder: "#4472C4",
+    toggleActiveFg: "#FFFFFF",
+    toggleIdleBg: "#FFFFFF",
+    toggleIdleBorder: "#D9D9D9",
+    toggleIdleFg: "#5C5A57",
+  },
+};
+
 function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode, selectedRowIdxs, onChangeSelectedRowIdxs, chartedRowsActive, onToggleChartedRows, onClearChartedRows }: {
   sheet: DataSheet;
   onChange: (s: DataSheet) => void;
@@ -732,6 +913,28 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode, select
   onClearChartedRows?: () => void;
 }) {
   const [active, setActive] = useState<{ row: number; col: number } | null>(null);
+  // Wave 17.1 · grid style toggle (DARK = legacy glass; EXCEL = white-paper
+  // matching the Univer Excel Suite). Persists in localStorage so the user's
+  // pick survives reloads. Defaults to "excel" per the design ask.
+  const [gridStyle, setGridStyle] = useState<GridStyle>("excel");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const v = window.localStorage.getItem("cm2-grid-style");
+      if (v === "dark" || v === "excel") setGridStyle(v);
+    } catch { /* noop */ }
+  }, []);
+  const setGridStylePersist = (next: GridStyle) => {
+    setGridStyle(next);
+    try { if (typeof window !== "undefined") window.localStorage.setItem("cm2-grid-style", next); } catch { /* noop */ }
+  };
+  const T = GRID_THEME[gridStyle];
+  // Wave 17.1 · formula autocomplete dropdown state. Surfaces below the
+  // formula bar when the active raw value starts with `=` and the user is
+  // typing a function name (vs. inside arg parens).
+  const [formulaSuggestionsOpen, setFormulaSuggestionsOpen] = useState(false);
+  const [formulaSuggestionIdx, setFormulaSuggestionIdx] = useState(0);
+  const formulaInputRef = useRef<HTMLInputElement | null>(null);
   // Wave 13 · row selection — internal fallback when not lifted.
   const [internalSelected, setInternalSelected] = useState<Set<number>>(new Set());
   const sel = selectedRowIdxs ?? internalSelected;
@@ -822,8 +1025,8 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode, select
     return { min: Math.floor(lo - span * 0.2), max: Math.ceil(hi + span * 0.2) };
   };
 
-  const cellInput: React.CSSProperties = { width: "100%", padding: "7px 9px", border: "1px solid transparent", background: "transparent", color: C.tx, fontFamily: ft, fontSize: 12, outline: "none", boxSizing: "border-box" };
-  const headerInput: React.CSSProperties = { ...cellInput, fontFamily: mn, fontSize: 10, fontWeight: 700, color: C.amber, letterSpacing: 0.6, textTransform: "uppercase" };
+  const cellInput: React.CSSProperties = { width: "100%", padding: gridStyle === "excel" ? "4px 6px" : "7px 9px", border: "1px solid transparent", background: "transparent", color: T.cellFg, fontFamily: T.cellFontFamily, fontSize: T.cellFontSize, outline: "none", boxSizing: "border-box" };
+  const headerInput: React.CSSProperties = { ...cellInput, fontFamily: T.headerFontFamily, fontSize: T.headerFontSize, fontWeight: 700, color: T.headerFg, letterSpacing: 0.4, textTransform: "uppercase" };
 
   // Active cell address + raw value (for the formula bar)
   const activeAddr = active ? colLetter(active.col) + (active.row + 1) : "";
@@ -834,20 +1037,203 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode, select
     setCell(active.row, activeKey, v);
   };
 
+  // ── Wave 17.1 · Formula autocomplete helpers ──────────────────────────
+  // Extract the last "token" the user is typing — text after the most recent
+  // `=`, `,`, `(`, `)`, or space. If the previous boundary was `(`, we treat
+  // the user as inside an arg list and suppress the dropdown.
+  const formulaToken = useMemo(() => {
+    if (!active || !activeRaw.startsWith("=")) return null;
+    // Walk from cursor end (we use full-string end as a proxy since we don't
+    // track cursor pos for a simple prefix match — typing always appends).
+    const s = activeRaw;
+    // Find last index of any boundary char
+    let lastBoundary = -1;
+    let boundaryChar = "";
+    for (let i = s.length - 1; i >= 0; i--) {
+      const ch = s[i];
+      if (ch === "=" || ch === "," || ch === "(" || ch === ")" || ch === " " || ch === "+" || ch === "-" || ch === "*" || ch === "/") {
+        lastBoundary = i;
+        boundaryChar = ch;
+        break;
+      }
+    }
+    // If the last boundary is `(`, the user is filling args — close dropdown.
+    if (boundaryChar === "(") return null;
+    const token = s.slice(lastBoundary + 1);
+    return { token, start: lastBoundary + 1 };
+  }, [active, activeRaw]);
+  const filteredFormulas = useMemo(() => {
+    if (!formulaToken) return [];
+    const q = formulaToken.token.trim().toUpperCase();
+    if (!q) return FORMULA_CATALOG;
+    return FORMULA_CATALOG.filter(f => f.name.startsWith(q));
+  }, [formulaToken]);
+  // Auto-clamp the highlighted index when the filter changes.
+  useEffect(() => {
+    setFormulaSuggestionIdx(i => Math.max(0, Math.min(i, Math.max(0, filteredFormulas.length - 1))));
+  }, [filteredFormulas.length]);
+  // Open / close the dropdown based on whether the active raw is a formula
+  // and we have a token to complete.
+  useEffect(() => {
+    if (!active) { setFormulaSuggestionsOpen(false); return; }
+    if (!activeRaw.startsWith("=")) { setFormulaSuggestionsOpen(false); return; }
+    if (!formulaToken) { setFormulaSuggestionsOpen(false); return; }
+    if (filteredFormulas.length === 0) { setFormulaSuggestionsOpen(false); return; }
+    setFormulaSuggestionsOpen(true);
+  }, [active, activeRaw, formulaToken, filteredFormulas.length]);
+  const insertFormulaSuggestion = (name: string) => {
+    if (!active || !activeKey || !formulaToken) return;
+    // Replace the in-progress token with NAME(
+    const before = activeRaw.slice(0, formulaToken.start);
+    const next = before + name + "(";
+    setActiveValue(next);
+    setFormulaSuggestionsOpen(false);
+    // Refocus the input + place caret at end on next tick.
+    requestAnimationFrame(() => {
+      const el = formulaInputRef.current;
+      if (el) {
+        el.focus();
+        try { el.setSelectionRange(next.length, next.length); } catch { /* noop */ }
+      }
+    });
+  };
+
   return (
-    <div style={{ background: "rgba(13,13,18,0.72)", backdropFilter: "blur(14px) saturate(140%)", WebkitBackdropFilter: "blur(14px) saturate(140%)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 32px rgba(0,0,0,0.30)" }}>
+    <div style={{ background: T.containerBg, backdropFilter: gridStyle === "dark" ? "blur(14px) saturate(140%)" : undefined, WebkitBackdropFilter: gridStyle === "dark" ? "blur(14px) saturate(140%)" : undefined, border: T.containerBorder, borderRadius: 12, overflow: "hidden", boxShadow: T.containerShadow }}>
       {/* Formula bar · LibreOffice / Excel style */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)" }}>
-        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 60, padding: "5px 10px", borderRadius: 5, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", fontFamily: mn, fontSize: 11, fontWeight: 800, color: active ? C.amber : C.txm, letterSpacing: 0.5 }}>{activeAddr || "—"}</span>
-        <span style={{ fontFamily: mn, fontSize: 11, color: C.txd, fontWeight: 700 }}>fx</span>
-        <input
-          value={activeRaw}
-          onChange={e => setActiveValue(e.target.value)}
-          placeholder={active ? "Type a value or =FORMULA" : "Click a cell to edit"}
-          disabled={!active}
-          style={{ flex: 1, padding: "6px 10px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 5, color: C.tx, fontFamily: mn, fontSize: 12, outline: "none" }}
-          onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-        />
+      <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: T.formulaBarBorder, background: T.formulaBarBg }}>
+        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 60, padding: "5px 10px", borderRadius: 5, background: T.addrBg, border: T.addrBorder, fontFamily: mn, fontSize: 11, fontWeight: 800, color: active ? (gridStyle === "excel" ? "#0F6FFF" : C.amber) : T.fxLabel, letterSpacing: 0.5 }}>{activeAddr || "—"}</span>
+        <span style={{ fontFamily: mn, fontSize: 11, color: T.fxLabel, fontWeight: 700, fontStyle: "italic" }}>fx</span>
+        <div style={{ position: "relative", flex: 1 }}>
+          <input
+            ref={formulaInputRef}
+            value={activeRaw}
+            onChange={e => setActiveValue(e.target.value)}
+            placeholder={active ? "Type a value or =FORMULA" : "Click a cell to edit"}
+            disabled={!active}
+            style={{ width: "100%", padding: "6px 10px", background: T.inputBg, border: T.inputBorder, borderRadius: 5, color: T.inputFg, fontFamily: mn, fontSize: 12, outline: "none", boxSizing: "border-box" }}
+            onKeyDown={e => {
+              // ── Formula autocomplete keyboard handling ────────────────────
+              if (formulaSuggestionsOpen && filteredFormulas.length > 0) {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setFormulaSuggestionIdx(i => Math.min(filteredFormulas.length - 1, i + 1));
+                  return;
+                }
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setFormulaSuggestionIdx(i => Math.max(0, i - 1));
+                  return;
+                }
+                if (e.key === "Enter" || e.key === "Tab") {
+                  e.preventDefault();
+                  const pick = filteredFormulas[formulaSuggestionIdx];
+                  if (pick) insertFormulaSuggestion(pick.name);
+                  return;
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setFormulaSuggestionsOpen(false);
+                  return;
+                }
+              }
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            }}
+          />
+          {/* Wave 17.1 · Formula autocomplete dropdown */}
+          {formulaSuggestionsOpen && filteredFormulas.length > 0 && (
+            <div
+              role="listbox"
+              style={{
+                position: "absolute",
+                top: "calc(100% + 6px)",
+                left: 0,
+                right: 0,
+                zIndex: 90,
+                background: "rgba(13,13,18,0.96)",
+                backdropFilter: "blur(18px) saturate(150%)",
+                WebkitBackdropFilter: "blur(18px) saturate(150%)",
+                border: "1px solid " + C.amber + "55",
+                borderRadius: 8,
+                boxShadow: "0 12px 32px rgba(0,0,0,0.50)",
+                maxHeight: 8 * 38,
+                overflowY: "auto",
+                padding: 4,
+              }}
+            >
+              {filteredFormulas.map((f, i) => {
+                const selected = i === formulaSuggestionIdx;
+                return (
+                  <div
+                    key={f.name}
+                    role="option"
+                    aria-selected={selected}
+                    title={f.desc}
+                    onMouseDown={e => { e.preventDefault(); insertFormulaSuggestion(f.name); }}
+                    onMouseEnter={() => setFormulaSuggestionIdx(i)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      padding: "7px 10px",
+                      borderRadius: 5,
+                      cursor: "pointer",
+                      background: selected ? C.amber + "22" : "transparent",
+                      border: selected ? "1px solid " + C.amber + "55" : "1px solid transparent",
+                    }}
+                  >
+                    <span style={{ fontFamily: mn, fontSize: 11, fontWeight: 700, color: C.amber, letterSpacing: 0.3 }}>
+                      ={f.signature}
+                    </span>
+                    <span style={{ fontFamily: mn, fontSize: 10, color: C.txm, letterSpacing: 0.2 }}>
+                      {f.desc}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        {/* Wave 17.1 · Grid style toggle (DARK / EXCEL) */}
+        <div
+          role="group"
+          aria-label="Grid style"
+          title="Switch the data grid between dark glass and Excel-style white paper"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            padding: 2,
+            borderRadius: 999,
+            background: gridStyle === "excel" ? "#F0F0EA" : "rgba(255,255,255,0.04)",
+            border: "1px solid " + (gridStyle === "excel" ? "#D9D9D9" : "rgba(255,255,255,0.10)"),
+          }}
+        >
+          {(["dark", "excel"] as GridStyle[]).map(s => {
+            const on = gridStyle === s;
+            return (
+              <button
+                key={s}
+                onClick={() => setGridStylePersist(s)}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  border: "none",
+                  background: on ? (s === "excel" ? "#4472C4" : C.amber + "33") : "transparent",
+                  color: on ? (s === "excel" ? "#FFFFFF" : C.amber) : (gridStyle === "excel" ? "#5C5A57" : C.txm),
+                  fontFamily: mn,
+                  fontSize: 9,
+                  fontWeight: 800,
+                  letterSpacing: 0.6,
+                  textTransform: "uppercase",
+                  cursor: "pointer",
+                }}
+              >
+                {s}
+              </button>
+            );
+          })}
+        </div>
         <Toggle on={sliderMode} onChange={onToggleSliderMode} label="Slider" title="Toggle slider mode for number cells" />
       </div>
 
@@ -855,15 +1241,15 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode, select
       {sel.size > 0 && (
         <div style={{
           display: "flex", alignItems: "center", gap: 8,
-          padding: "7px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)",
-          background: `linear-gradient(180deg, ${C.amber}10, transparent)`,
+          padding: "7px 12px", borderBottom: "1px solid " + T.footerBorder,
+          background: gridStyle === "excel" ? "#FFE99622" : `linear-gradient(180deg, ${C.amber}10, transparent)`,
         }}>
           <span style={{
             display: "inline-flex", alignItems: "center", gap: 6,
             padding: "4px 9px", borderRadius: 999,
-            background: C.amber + "1A",
-            border: "1px solid " + C.amber + "55",
-            color: C.amber,
+            background: gridStyle === "excel" ? T.selBorder + "22" : C.amber + "1A",
+            border: "1px solid " + (gridStyle === "excel" ? T.selBorder + "AA" : C.amber + "55"),
+            color: gridStyle === "excel" ? T.selBorder : C.amber,
             fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
             textTransform: "uppercase",
           }}>
@@ -875,9 +1261,9 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode, select
               title="Toggle: chart only the selected rows vs. all rows"
               style={{
                 padding: "5px 10px", borderRadius: 6,
-                background: chartedRowsActive ? C.amber + "26" : "rgba(255,255,255,0.04)",
-                border: "1px solid " + (chartedRowsActive ? C.amber + "70" : "rgba(255,255,255,0.10)"),
-                color: chartedRowsActive ? C.amber : C.txm,
+                background: chartedRowsActive ? T.toggleActiveBg : T.toggleIdleBg,
+                border: "1px solid " + (chartedRowsActive ? T.toggleActiveBorder : T.toggleIdleBorder),
+                color: chartedRowsActive ? T.toggleActiveFg : T.toggleIdleFg,
                 fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
                 cursor: "pointer", textTransform: "uppercase",
                 display: "inline-flex", alignItems: "center", gap: 5,
@@ -892,9 +1278,9 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode, select
             title="Clear row selection"
             style={{
               padding: "5px 10px", borderRadius: 6,
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.10)",
-              color: C.txm,
+              background: T.toggleIdleBg,
+              border: "1px solid " + T.toggleIdleBorder,
+              color: T.toggleIdleFg,
               fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
               cursor: "pointer", textTransform: "uppercase",
               display: "inline-flex", alignItems: "center", gap: 5,
@@ -913,29 +1299,29 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode, select
           <thead>
             {/* Column letters (A, B, C…) */}
             <tr>
-              <th style={{ position: "sticky", top: 0, zIndex: 20, background: "#0D0D14", borderBottom: "1px solid rgba(255,255,255,0.10)", padding: "4px 0", fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 0.4 }} />
+              <th style={{ position: "sticky", top: 0, zIndex: 20, background: T.headerBg, borderBottom: "1px solid " + T.headerBorder, padding: "4px 0", fontFamily: T.headerFontFamily, fontSize: T.headerFontSize, color: T.headerFg, letterSpacing: 0.4 }} />
               {sheet.schema.map((col, i) => (
-                <th key={col.key} style={{ position: "sticky", top: 0, zIndex: 20, background: "#0D0D14", borderBottom: "1px solid rgba(255,255,255,0.10)", borderLeft: "1px solid rgba(255,255,255,0.04)", padding: "4px 0", fontFamily: mn, fontSize: 9, fontWeight: 800, color: active && active.col === i ? C.amber : C.txm, letterSpacing: 0.6, textAlign: "center" }}>
+                <th key={col.key} style={{ position: "sticky", top: 0, zIndex: 20, background: T.headerBg, borderBottom: "1px solid " + T.headerBorder, borderLeft: "1px solid " + (gridStyle === "excel" ? "#5C81C9" : "rgba(255,255,255,0.04)"), padding: "4px 0", fontFamily: T.headerFontFamily, fontSize: T.headerFontSize, fontWeight: 800, color: active && active.col === i ? (gridStyle === "excel" ? "#FFE996" : C.amber) : T.headerFg, letterSpacing: 0.6, textAlign: "center" }}>
                   {colLetter(i)}
                 </th>
               ))}
-              <th style={{ position: "sticky", top: 0, zIndex: 20, background: "#0D0D14", borderBottom: "1px solid rgba(255,255,255,0.10)", padding: 0 }} />
+              <th style={{ position: "sticky", top: 0, zIndex: 20, background: T.headerBg, borderBottom: "1px solid " + T.headerBorder, padding: 0 }} />
             </tr>
             {/* Editable column labels */}
             <tr>
-              <th style={{ position: "sticky", top: 24, zIndex: 19, background: "#0D0D12", borderBottom: "1px solid rgba(255,255,255,0.10)", padding: 0 }} />
+              <th style={{ position: "sticky", top: 24, zIndex: 19, background: gridStyle === "excel" ? "#3C66B6" : "#0D0D12", borderBottom: "1px solid " + T.headerBorder, padding: 0 }} />
               {sheet.schema.map((col, i) => (
-                <th key={col.key} style={{ position: "sticky", top: 24, zIndex: 19, background: "#0D0D12", borderBottom: "1px solid rgba(255,255,255,0.10)", borderLeft: "1px solid rgba(255,255,255,0.04)", padding: 0 }}>
+                <th key={col.key} style={{ position: "sticky", top: 24, zIndex: 19, background: gridStyle === "excel" ? "#3C66B6" : "#0D0D12", borderBottom: "1px solid " + T.headerBorder, borderLeft: "1px solid " + (gridStyle === "excel" ? "#5C81C9" : "rgba(255,255,255,0.04)"), padding: 0 }}>
                   <CellInput value={col.label} onCommit={v => renameCol(col.key, v || col.label)} style={headerInput} />
                   {sheet.schema.length > 2 && (
-                    <span onClick={() => removeCol(col.key)} title="Remove column" style={{ position: "absolute", top: 4, right: 4, cursor: "pointer", color: C.txd, padding: 2, lineHeight: 0 }}>
+                    <span onClick={() => removeCol(col.key)} title="Remove column" style={{ position: "absolute", top: 4, right: 4, cursor: "pointer", color: gridStyle === "excel" ? "#FFFFFFAA" : C.txd, padding: 2, lineHeight: 0 }}>
                       <X size={10} />
                     </span>
                   )}
                 </th>
               ))}
-              <th style={{ position: "sticky", top: 24, zIndex: 19, background: "#0D0D12", borderBottom: "1px solid rgba(255,255,255,0.10)", padding: 0 }}>
-                <span onClick={addCol} title="Add column" style={{ display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.txm, padding: "8px 0" }}>
+              <th style={{ position: "sticky", top: 24, zIndex: 19, background: gridStyle === "excel" ? "#3C66B6" : "#0D0D12", borderBottom: "1px solid " + T.headerBorder, padding: 0 }}>
+                <span onClick={addCol} title="Add column" style={{ display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: gridStyle === "excel" ? "#FFFFFF" : C.txm, padding: "8px 0" }}>
                   <Plus size={12} strokeWidth={2.2} />
                 </span>
               </th>
@@ -944,13 +1330,13 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode, select
           <tbody>
             {sheet.rows.map((row, r) => {
               const isRowSel = sel.has(r);
-              const rowBgBase = r % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)";
-              const rowBg = isRowSel ? "rgba(247,176,65,0.10)" : rowBgBase;
+              const rowBgBase = r % 2 === 0 ? T.cellBg : T.cellAltBg;
+              const rowBg = isRowSel ? T.selRowTint : rowBgBase;
               return (
               <tr
                 key={r}
                 style={{ background: rowBg, transition: "background 0.16s cubic-bezier(.2,.7,.2,1)" }}
-                onMouseEnter={e => { if (!isRowSel) (e.currentTarget as HTMLElement).style.background = "rgba(247,176,65,0.06)"; }}
+                onMouseEnter={e => { if (!isRowSel) (e.currentTarget as HTMLElement).style.background = T.hoverTint; }}
                 onMouseLeave={e => { if (!isRowSel) (e.currentTarget as HTMLElement).style.background = rowBgBase; }}
               >
                 <td
@@ -958,17 +1344,17 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode, select
                   title="Click to toggle row selection · Shift-click for range · Ctrl/Cmd-click for additive"
                   style={{
                     width: 44, textAlign: "center",
-                    borderTop: "1px solid rgba(255,255,255,0.04)",
-                    borderLeft: isRowSel ? `3px solid ${C.amber}` : "3px solid transparent",
-                    color: isRowSel ? C.amber : (active && active.row === r ? C.amber : C.txd),
+                    borderTop: "1px solid " + T.cellBorder,
+                    borderLeft: isRowSel ? `3px solid ${gridStyle === "excel" ? T.selBorder : C.amber}` : "3px solid transparent",
+                    color: isRowSel ? (gridStyle === "excel" ? T.selBorder : C.amber) : (active && active.row === r ? (gridStyle === "excel" ? T.selBorder : C.amber) : T.rowHeaderFg),
                     fontFamily: mn, fontSize: 10, fontWeight: 700, position: "relative",
-                    background: isRowSel ? "rgba(247,176,65,0.14)" : "rgba(255,255,255,0.02)",
+                    background: isRowSel ? T.selRowHoverTint : T.rowHeaderBg,
                     cursor: "pointer",
                     userSelect: "none",
                   }}
                 >
                   <span style={{ display: "inline-block", padding: "6px 4px" }}>{r + 1}</span>
-                  <span onClick={(e) => { e.stopPropagation(); removeRow(r); }} title="Remove row" style={{ position: "absolute", top: "50%", right: 4, transform: "translateY(-50%)", cursor: "pointer", padding: 2, color: C.txd, lineHeight: 0, display: "inline-flex", opacity: 0.5 }} onMouseEnter={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.color = "#E06347"; }} onMouseLeave={e => { e.currentTarget.style.opacity = "0.5"; e.currentTarget.style.color = C.txd; }}>
+                  <span onClick={(e) => { e.stopPropagation(); removeRow(r); }} title="Remove row" style={{ position: "absolute", top: "50%", right: 4, transform: "translateY(-50%)", cursor: "pointer", padding: 2, color: T.rowHeaderFg, lineHeight: 0, display: "inline-flex", opacity: 0.5 }} onMouseEnter={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.color = "#E06347"; }} onMouseLeave={e => { e.currentTarget.style.opacity = "0.5"; e.currentTarget.style.color = T.rowHeaderFg; }}>
                     <X size={10} />
                   </span>
                 </td>
@@ -984,12 +1370,12 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode, select
                       onClick={() => setActive({ row: r, col: ci })}
                       onContextMenu={e => onRowContextMenu(e, r)}
                       style={{
-                        borderTop: "1px solid rgba(255,255,255,0.04)",
-                        borderLeft: "1px solid rgba(255,255,255,0.03)",
+                        borderTop: "1px solid " + T.cellBorder,
+                        borderLeft: "1px solid " + T.cellBorder,
                         padding: 0,
                         position: "relative",
-                        background: isActive ? C.amber + "12" : "transparent",
-                        boxShadow: isActive ? "inset 0 0 0 2px " + C.amber + "60" : "none",
+                        background: isActive ? T.selBg : "transparent",
+                        boxShadow: isActive ? "inset 0 0 0 2px " + T.selBorder : "none",
                       }}
                     >
                       {sliderMode && (col.type === "number" || col.type === "percent") && !isFormula ? (
@@ -1000,26 +1386,26 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode, select
                             max={sliderRange(col.key).max}
                             value={Number(raw) || 0}
                             onChange={e => setCell(r, col.key, e.target.value)}
-                            style={{ flex: 1, accentColor: C.amber, cursor: "ew-resize" }}
+                            style={{ flex: 1, accentColor: gridStyle === "excel" ? T.selBorder : C.amber, cursor: "ew-resize" }}
                           />
-                          <span style={{ fontFamily: mn, fontSize: 11, fontWeight: 700, color: isActive ? C.amber : C.tx, minWidth: 44, textAlign: "right" }}>{niceRound(Number(raw) || 0)}</span>
+                          <span style={{ fontFamily: mn, fontSize: 11, fontWeight: 700, color: isActive ? (gridStyle === "excel" ? T.selBorder : C.amber) : T.cellFg, minWidth: 44, textAlign: "right" }}>{niceRound(Number(raw) || 0)}</span>
                         </div>
                       ) : (
                         <CellInput
                           value={isFormula ? raw : (isFormula === false && typeof display === "string" ? display : String(display))}
                           onCommit={v => setCell(r, col.key, v)}
-                          style={{ ...cellInput, color: isFormula ? C.amber : C.tx, fontFamily: isFormula ? mn : ft }}
+                          style={{ ...cellInput, color: isFormula ? T.formulaFg : T.cellFg, fontFamily: isFormula ? mn : T.cellFontFamily }}
                           type={col.type === "date" ? "date" : col.type}
                           onScrub={col.type === "number" || col.type === "percent" ? () => {} : undefined}
                         />
                       )}
                       {isFormula && (
-                        <span title={"Formula: " + raw} style={{ position: "absolute", top: 2, right: 4, fontFamily: mn, fontSize: 8, fontWeight: 800, color: C.amber, opacity: 0.65, pointerEvents: "none", letterSpacing: 0.5 }}>fx</span>
+                        <span title={"Formula: " + raw} style={{ position: "absolute", top: 2, right: 4, fontFamily: mn, fontSize: 8, fontWeight: 800, color: T.formulaFg, opacity: 0.65, pointerEvents: "none", letterSpacing: 0.5 }}>fx</span>
                       )}
                     </td>
                   );
                 })}
-                <td style={{ width: 36, borderTop: "1px solid rgba(255,255,255,0.04)" }} />
+                <td style={{ width: 36, borderTop: "1px solid " + T.cellBorder, background: T.cellBg }} />
               </tr>
               );
             })}
@@ -1027,15 +1413,15 @@ function DataSheetGrid({ sheet, onChange, sliderMode, onToggleSliderMode, select
         </table>
       </div>
 
-      <div style={{ padding: "8px 12px", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", gap: 8, alignItems: "center" }}>
-        <button onClick={addRow} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.025)", color: C.txm, fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.5, cursor: "pointer" }}>
+      <div style={{ padding: "8px 12px", borderTop: "1px solid " + T.footerBorder, background: T.footerBg, display: "flex", gap: 8, alignItems: "center" }}>
+        <button onClick={addRow} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 6, border: "1px solid " + T.buttonBorder, background: T.buttonBg, color: T.buttonFg, fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.5, cursor: "pointer" }}>
           <Plus size={11} strokeWidth={2.2} /> ROW
         </button>
-        <button onClick={addCol} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.025)", color: C.txm, fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.5, cursor: "pointer" }}>
+        <button onClick={addCol} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 6, border: "1px solid " + T.buttonBorder, background: T.buttonBg, color: T.buttonFg, fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.5, cursor: "pointer" }}>
           <Plus size={11} strokeWidth={2.2} /> COLUMN
         </button>
         <span style={{ flex: 1 }} />
-        <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 0.5 }}>FORMULAS · =SUM(A1:A5) · =AVG · =MIN · =MAX · =A1+B1</span>
+        <span style={{ fontFamily: mn, fontSize: 9, color: T.footerFg, letterSpacing: 0.5 }}>FORMULAS · =SUM(A1:A5) · =AVG · =MIN · =MAX · =A1+B1</span>
       </div>
       {/* Cell right-click context menu */}
       {dsMenu && (
