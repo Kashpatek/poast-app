@@ -55,3 +55,7 @@ export function useUser(): UserContextValue {
 export function isAnalyst(user: User | null): boolean {
   return user?.role === "Analyst";
 }
+
+export function canUseDocuDesign(user: User | null): boolean {
+  return user?.role === "Marketing" || user?.role === "Director";
+}

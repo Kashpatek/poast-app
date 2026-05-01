@@ -19,10 +19,10 @@ import PoastSettings from "./poast-settings";
 import { BugButton } from "./bug-report";
 import { trackEvent } from "../lib/poast-track";
 
-import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings } from "lucide-react";
+import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings, Wand } from "lucide-react";
 type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>;
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
-import { useUser, isAnalyst } from "./user-context";
+import { useUser, isAnalyst, canUseDocuDesign } from "./user-context";
 import { showToast } from "./toast-context";
 
 // ═══ INTERFACES ═══
@@ -438,6 +438,7 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "p2p",      l: "Press to Premier", Icon: Clapperboard },
     { id: "broll",    l: "B-Roll Library",   Icon: Film },
     { id: "chart",    l: "Chart Maker",      Icon: GanttChart, href: "/charts", badge: "NEW" },
+    { id: "docu",     l: "DocuDesign",       Icon: Wand,       href: "/docu-design", badge: "NEW" },
     { id: "assets",   l: "Asset Library",    Icon: Library },
   ]},
   podcast: { label: "PODCAST", color: C.coral, glow: "rgba(224,99,71,", items: [
@@ -462,6 +463,7 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
 function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: string) => void; onAskPoast: () => void }) {
   var userCtx = useUser();
   var analyst = isAnalyst(userCtx.user);
+  var canDocu = canUseDocuDesign(userCtx.user);
   // Analysts only see PRODUCE
   var visibleCats = analyst ? ["produce"] : Object.keys(SIDEBAR_CATS);
   // Determine active category
@@ -499,7 +501,7 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
             <span style={{ fontFamily: ft, fontSize: 10, fontWeight: 800, color: isCatActive ? cat.color : "rgba(255,255,255,0.3)", letterSpacing: 2, textTransform: "uppercase", transition: "all 0.25s", textShadow: isCatActive ? "0 0 16px " + cat.glow + "0.4), 0 0 30px " + cat.glow + "0.12)" : "none" }}>{cat.label}</span>
           </div>
           {/* Items */}
-          {cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).map(function(item) {
+          {cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).filter(function(it) { return it.id !== "docu" || canDocu; }).map(function(item) {
             var isActive = active === item.id;
             return <div key={item.id} onClick={function() { if (item.href) { window.open(item.href, "_blank"); } else { onNav(item.id); } }} title={item.href ? "Open " + item.l + " in a new tab" : undefined} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 12px 7px 28px", borderRadius: 6, marginBottom: 1, cursor: "pointer", background: isActive ? cat.color + "0C" : "transparent", borderLeft: isActive ? "3px solid " + cat.color : "3px solid transparent", transition: "all 0.2s", position: "relative" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
               {isActive && <div style={{ position: "absolute", left: 0, top: "10%", width: 3, height: "80%", background: cat.color, borderRadius: 2, boxShadow: "0 0 12px " + cat.color + "70, 0 0 24px " + cat.color + "25" }} />}
