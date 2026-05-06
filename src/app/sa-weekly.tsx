@@ -23,8 +23,13 @@ interface ThumbnailConcept {
   mood: string;
 }
 
+interface TitleOption {
+  topic: string;
+  category: string;
+}
+
 interface GeneratedOptions {
-  titles: string[];
+  titles: TitleOption[];
   descriptions: string[];
   thumbnails: (string | ThumbnailConcept)[];
 }
@@ -128,7 +133,7 @@ var ACC = D.coral; // accent color for this flow
 
 var PL = { x: "#1DA1F2", li: "#0A66C2", fb: "#1877F2", ig: "#E4405F", yt: "#FF0000", tt: "#00F2EA" };
 
-var SYS_EP = "You are a content strategist for SemiAnalysis, a semiconductor and AI infrastructure research firm. Rules: Never use em dashes, use commas or periods. No emojis. Be direct, not clickbait. When mentioning guests in descriptions, include their social handle in parentheses on first mention, e.g. Jordan Nanos (@JordanNanos). RESPOND ONLY IN VALID JSON. No markdown fences. No preamble.";
+var SYS_EP = "You are a content strategist for SemiAnalysis Weekly, a podcast on semiconductors and AI infrastructure.\n\nTITLE FORMAT (mandatory). Episode titles always render as `Ep. {number} - {Topic} ({Category})`. You return ONLY the topic and category fields. The client builds the full string and appends guest names for Spotify. Do not include `Ep.`, the number, or guest names in your output.\n\n- Topic: the episode's hook in 5-12 words. A concrete claim, sharp question, or specific framing. Reference a real thing happening (a number, a company, a tradeoff, a controversy). Avoid 'Why X matters', 'Everything you need to know', 'A deep dive into...', 'The future of...', 'Understanding X'.\n- Category: a 1-4 word topic tag in title case. Examples: 'AI Cloud TCO', 'Memory, Tokenomics, Macro', 'AI Supply Chain & Fabs', 'Datacenter, Energy', 'Core Research', 'Technical Staff', 'AI Supply Chain', 'ChipBook'.\n\nLENGTH BUDGET. The full assembled string `Ep. {number} - {Topic} ({Category})` must fit ≤ 100 characters total (YouTube limit). Plan your topic length around the episode number and category that will be appended. If it doesn't fit, shorten the topic — never the format.\n\nGOOD title examples (full strings, for calibration):\n- Ep. 010 - How Much Do GPUs Really Cost, and Where Does the Value Go? (AI Cloud TCO)\n- Ep. 008 - Claude Code Psychosis: How SemiAnalysis Is Token Mogging Meta\n- Ep. 007 - The 3 Choke Points Killing the AI Boom (Core Research)\n- Ep. 005 - Measuring AI's Impact On The Market (Memory, Tokenomics, Macro)\n\nBAD title examples (do not write like these):\n- 'Why Memory Is the Next Bottleneck' (vague, opinion-ish)\n- 'Everything You Need To Know About HBM' (clickbait scaffold)\n- 'A Deep Dive Into Vera Rubin' (deep dive cliche)\n- 'The AI Revolution Is Here' (hype + zero specifics)\n\nVOICE.\n- Never use em dashes. Use commas, periods, or colons.\n- No emojis.\n- Direct, specific, technical. Never clickbait.\n- No hype words: 'revolutionary', 'unleashed', 'game-changing', 'next-gen', 'bleeding-edge', 'transform', 'dive into', 'unlock', 'seamless'.\n- No rhetorical openers: avoid starting with 'Why', 'How', or a question unless the question is the actual hook of the episode.\n- Plain declarative sentences. Lead with the most concrete fact.\n\nDESCRIPTIONS. When mentioning guests, include their social handle in parentheses on first mention, e.g. Jordan Nanos (@JordanNanos). Open with a concrete hook or stat from the episode, never with 'In this episode'.\n\nRESPOND ONLY IN VALID JSON. No markdown fences. No preamble.";
 
 var SYS_SOC = "You are a social media strategist for SemiAnalysis Weekly. HARD RULES (absolute): X/Twitter NEVER hashtags, not one, ever. TikTok NEVER overlay text or on-screen text, caption only. Style rules: Never use em dashes. No emojis. YT Shorts titles under 40 chars. Instagram: caption + Save this for later CTA + 5-8 hashtags + location San Francisco CA, point to youtube.com/@SemianalysisWeekly. TikTok: all lowercase caption only, NO hashtags, NO overlay text. LinkedIn/Facebook: link in first comment, end Link in comments. X: Hook tweet no link + reply-to-self with link, NO hashtags. Mention all guests with handles on every platform. RESPOND ONLY IN VALID JSON. No markdown fences. No preamble.";
 
@@ -158,6 +163,41 @@ function copyText(str: string): boolean {
 }
 
 function gStr(guests: Guest[]): string { return guests.filter(function(g: Guest) { return g.name; }).map(function(g: Guest) { return g.handle ? g.name + " (" + g.handle + ")" : g.name; }).join(", ") || "TBD"; }
+
+// Render `Ep. NNN - Topic (Category)`. Pads ep number to 3 digits.
+// Category is optional — falls back to no parens when missing.
+function buildYoutubeTitle(epNum: string, topic: string, category: string): string {
+  var num = String(epNum || "").trim();
+  if (num && /^\d+$/.test(num)) num = num.padStart(3, "0");
+  var t = (topic || "").trim();
+  var c = (category || "").trim();
+  return "Ep. " + (num || "?") + " - " + t + (c ? " (" + c + ")" : "");
+}
+
+// Append `| Name, Name, Name` until it fits in 200 chars. Drops trailing names
+// whole rather than mid-name truncation. Falls back to YouTube title alone if
+// even one guest can't fit.
+function buildSpotifyTitle(yt: string, guests: Guest[]): string {
+  var names = guests.filter(function(g: Guest) { return g.name; }).map(function(g: Guest) { return g.name; });
+  if (!names.length) return yt;
+  var active = names.slice();
+  var candidate = yt + " | " + active.join(", ");
+  while (candidate.length > 200 && active.length > 0) {
+    active.pop();
+    candidate = active.length ? yt + " | " + active.join(", ") : yt;
+  }
+  return candidate;
+}
+
+// Coerce a title slot from the model into a TitleOption. Tolerates legacy
+// rows that may still be plain strings (saved log entries pre-format).
+function asTitleOption(t: unknown): TitleOption {
+  if (t && typeof t === "object" && "topic" in (t as Record<string, unknown>)) {
+    var o = t as Record<string, unknown>;
+    return { topic: String(o.topic || ""), category: String(o.category || "") };
+  }
+  return { topic: typeof t === "string" ? t : "", category: "" };
+}
 function thTxt(th: string | ThumbnailConcept | null): string { if (!th) return ""; if (typeof th === "string") return th; return th.concept + '\nText: "' + th.text_overlay + '"\nMood: ' + th.mood; }
 
 function exportDoc(title: string, sections: DocSection[]): void {
@@ -194,6 +234,37 @@ function Pick({ text, picked, onPick, onRedo, rLoading }: { text: string; picked
       <div style={{ flex: 1, fontFamily: ft, fontSize: 14, color: picked ? D.tx : D.txb, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{text}</div>
       <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
         <CopyBtn text={text} />
+        {onRedo && <span onClick={function(e: React.MouseEvent) { e.stopPropagation(); if (!rLoading) onRedo(); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: rLoading ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + D.border, opacity: rLoading ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>&#x21bb;</span>}
+      </div>
+    </div>
+  </div>);
+}
+
+function TitlePick({ option, epNum, guests, picked, onPick, onRedo, rLoading }: { option: TitleOption; epNum: string; guests: Guest[]; picked: boolean; onPick: () => void; onRedo?: () => void; rLoading?: boolean }) {
+  var yt = buildYoutubeTitle(epNum, option.topic, option.category);
+  var sp = buildSpotifyTitle(yt, guests);
+  var ytLen = yt.length;
+  var spLen = sp.length;
+  var ytOver = ytLen > 100;
+  var spOver = spLen > 200;
+  var copyVal = "YouTube:\n" + yt + "\n\nSpotify:\n" + sp;
+  return (<div onClick={onPick} style={{ background: picked ? "linear-gradient(135deg, " + ACC + "0A 0%, " + ACC + "05 100%)" : D.elevated, border: "1px solid " + (picked ? ACC + "60" : D.border), borderRadius: 12, padding: "16px 20px", marginBottom: 8, cursor: "pointer", boxShadow: picked ? "0 0 24px rgba(224,99,71,0.06)" : "none", transition: "all 0.2s ease" }}>
+    <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+      <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, marginTop: 2, border: "2px solid " + (picked ? ACC : D.borderHover), background: picked ? ACC : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s ease" }}>{picked && <div style={{ width: 8, height: 8, borderRadius: "50%", background: D.bg }} />}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 2 }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: PL.yt, letterSpacing: "1.5px", fontWeight: 700 }}>YOUTUBE</div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: ytOver ? D.coral : D.txl, fontWeight: ytOver ? 700 : 400 }}>{ytLen}/100{ytOver ? " over" : ""}</div>
+        </div>
+        <div style={{ fontFamily: ft, fontSize: 14, color: picked ? D.tx : D.txb, lineHeight: 1.55, marginBottom: 10, wordBreak: "break-word" }}>{yt}</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 2 }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: "#1DB954", letterSpacing: "1.5px", fontWeight: 700 }}>SPOTIFY</div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: spOver ? D.coral : D.txl, fontWeight: spOver ? 700 : 400 }}>{spLen}/200{spOver ? " over" : ""}</div>
+        </div>
+        <div style={{ fontFamily: ft, fontSize: 13, color: picked ? D.txb : D.txl, lineHeight: 1.55, wordBreak: "break-word" }}>{sp}</div>
+      </div>
+      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+        <CopyBtn text={copyVal} />
         {onRedo && <span onClick={function(e: React.MouseEvent) { e.stopPropagation(); if (!rLoading) onRedo(); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: rLoading ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + D.border, opacity: rLoading ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>&#x21bb;</span>}
       </div>
     </div>
@@ -433,26 +504,74 @@ function StepGenerate({ ep, guests, opts, setOpts, sel, setSel, fin, setFin, des
     if (!ep.transcript) return;
     setLoading(true); setOpts(null); setSel({ title: 0, desc: 0, thumb: 0 }); setFin(null);
     var gs = gStr(guests); var tx = ep.transcript.slice(0, 8000);
-    var p = buildPrompt(["Generate content for SemiAnalysis Weekly Episode #" + ep.number + ".", "Guests with handles: " + gs, ep.extra ? "Additional context: " + ep.extra : "", ep.timestamps ? "Timestamps to include at end of descriptions:\n" + ep.timestamps : "", "Transcript (first 8000 chars): " + tx, descInstr(), 'Return JSON: {"titles":["t1","t2","t3"],"descriptions":["d1","d2","d3"],"thumbnails":[{"concept":"c1","text_overlay":"to1","mood":"m1"},{"concept":"c2","text_overlay":"to2","mood":"m2"},{"concept":"c3","text_overlay":"to3","mood":"m3"}]}']);
+    var p = buildPrompt([
+      "Generate content for SemiAnalysis Weekly Episode #" + ep.number + ".",
+      "Guests with handles: " + gs,
+      ep.extra ? "Additional context: " + ep.extra : "",
+      ep.timestamps ? "Timestamps to include at end of descriptions:\n" + ep.timestamps : "",
+      "Transcript (first 8000 chars): " + tx,
+      descInstr(),
+      "Generate 3 STRUCTURALLY DIFFERENT title options. Each option is {topic, category} per the title format rules. The 3 options should explore different angles, not three rewordings of the same hook.",
+      'Return JSON: {"titles":[{"topic":"...","category":"..."},{"topic":"...","category":"..."},{"topic":"...","category":"..."}],"descriptions":["d1","d2","d3"],"thumbnails":[{"concept":"c1","text_overlay":"to1","mood":"m1"},{"concept":"c2","text_overlay":"to2","mood":"m2"},{"concept":"c3","text_overlay":"to3","mood":"m3"}]}',
+    ]);
     var data = await ask(SYS_EP, p);
-    if (data) { setOpts(data as unknown as GeneratedOptions); onDone(); }
+    if (data) {
+      var d = data as unknown as Record<string, unknown>;
+      var normalized: GeneratedOptions = {
+        titles: ((d.titles as unknown[]) || []).map(asTitleOption),
+        descriptions: ((d.descriptions as string[]) || []),
+        thumbnails: ((d.thumbnails as (string | ThumbnailConcept)[]) || []),
+      };
+      setOpts(normalized); onDone();
+    }
     setLoading(false);
   };
 
   var suggestKW = async function(keywords: string) {
     setKwL(true);
-    var existing = (opts && opts.titles || []).join(" | ");
-    var data = await ask(SYS_EP, buildPrompt(["Generate 3 NEW titles for SemiAnalysis Weekly Ep #" + ep.number + ".", "Keywords: " + keywords, "Guests: " + gStr(guests), "Different from: " + existing, "Transcript: " + (ep.transcript || "").slice(0, 4000), 'Return JSON: {"titles":["t1","t2","t3"]}']));
-    if (data && data.titles) { setOpts(function(prev: GeneratedOptions | null) { return Object.assign({}, prev, { titles: data!.titles }) as GeneratedOptions; }); setSel(function(prev: SelectionState) { return Object.assign({}, prev, { title: 0 }); }); }
+    var existing = (opts && opts.titles || []).map(function(t) { return t.topic; }).join(" | ");
+    var data = await ask(SYS_EP, buildPrompt([
+      "Generate 3 NEW title options for SemiAnalysis Weekly Ep #" + ep.number + ".",
+      "Keywords to anchor on: " + keywords,
+      "Guests: " + gStr(guests),
+      "Avoid these existing topics: " + existing,
+      "Transcript: " + (ep.transcript || "").slice(0, 4000),
+      'Return JSON: {"titles":[{"topic":"...","category":"..."},{"topic":"...","category":"..."},{"topic":"...","category":"..."}]}',
+    ]));
+    if (data && data.titles) {
+      var newTitles = (data.titles as unknown[]).map(asTitleOption);
+      setOpts(function(prev: GeneratedOptions | null) { return Object.assign({}, prev, { titles: newTitles }) as GeneratedOptions; });
+      setSel(function(prev: SelectionState) { return Object.assign({}, prev, { title: 0 }); });
+    }
     setKwL(false);
   };
 
   var redoOne = async function(cat: string, idx: number) {
     var k = cat + "-" + idx; setRL(function(p: Record<string, boolean>) { var o = Object.assign({}, p); o[k] = true; return o; });
-    var curItem = (opts as unknown as Record<string, unknown[]>)[cat][idx]; var curStr = typeof curItem === "string" ? curItem : (curItem as ThumbnailConcept).concept;
+    var curItem = (opts as unknown as Record<string, unknown[]>)[cat][idx];
+    var curStr: string;
+    if (cat === "thumbnails") curStr = (curItem as ThumbnailConcept).concept;
+    else if (cat === "titles") curStr = (curItem as TitleOption).topic;
+    else curStr = curItem as string;
     var gs = gStr(guests); var tx = (ep.transcript || "").slice(0, 3000); var p2: string; var parse: (d: Record<string, unknown>) => unknown;
-    if (cat === "thumbnails") { p2 = buildPrompt(["ONE new thumbnail for SA Weekly Ep #" + ep.number + ". Different from: " + curStr, "Guests: " + gs, "Transcript: " + tx, 'Return JSON: {"concept":"...","text_overlay":"...","mood":"..."}']); parse = function(d: Record<string, unknown>) { return d; };
-    } else { var dn = cat === "descriptions" ? " " + descInstr() : ""; var en = cat === "descriptions" && ep.extra ? " Context: " + ep.extra : ""; var tsn = cat === "descriptions" && ep.timestamps ? " Timestamps:\n" + ep.timestamps : ""; p2 = buildPrompt(["ONE new " + (cat === "titles" ? "title" : "description") + " for SA Weekly Ep #" + ep.number + ". Different from: " + curStr + "." + dn, "Guests: " + gs + en + tsn, "Transcript: " + tx, 'Return JSON: {"result":"..."}']); parse = function(d: Record<string, unknown>) { return d.result; }; }
+    if (cat === "thumbnails") {
+      p2 = buildPrompt(["ONE new thumbnail for SA Weekly Ep #" + ep.number + ". Different from: " + curStr, "Guests: " + gs, "Transcript: " + tx, 'Return JSON: {"concept":"...","text_overlay":"...","mood":"..."}']);
+      parse = function(d: Record<string, unknown>) { return d; };
+    } else if (cat === "titles") {
+      p2 = buildPrompt([
+        "ONE new title option for SA Weekly Ep #" + ep.number + ". Different topic angle from: " + curStr,
+        "Guests: " + gs,
+        "Transcript: " + tx,
+        'Return JSON: {"topic":"...","category":"..."}',
+      ]);
+      parse = function(d: Record<string, unknown>) { return asTitleOption(d); };
+    } else {
+      var dn = " " + descInstr();
+      var en = ep.extra ? " Context: " + ep.extra : "";
+      var tsn = ep.timestamps ? " Timestamps:\n" + ep.timestamps : "";
+      p2 = buildPrompt(["ONE new description for SA Weekly Ep #" + ep.number + ". Different from: " + curStr + "." + dn, "Guests: " + gs + en + tsn, "Transcript: " + tx, 'Return JSON: {"result":"..."}']);
+      parse = function(d: Record<string, unknown>) { return d.result; };
+    }
     var data = await ask(SYS_EP, p2);
     if (data) { setOpts(function(prev: GeneratedOptions | null) { var c2 = Object.assign({}, prev) as unknown as Record<string, unknown>; c2[cat] = ((prev as unknown as Record<string, unknown[]>)[cat] || []).slice(); (c2[cat] as unknown[])[idx] = parse(data!); return c2 as unknown as GeneratedOptions; }); }
     setRL(function(p: Record<string, boolean>) { var o = Object.assign({}, p); o[k] = false; return o; });
@@ -461,10 +580,29 @@ function StepGenerate({ ep, guests, opts, setOpts, sel, setSel, fin, setFin, des
   var redoCat = async function(cat: string) {
     var k = "all-" + cat; setRL(function(p: Record<string, boolean>) { var o = Object.assign({}, p); o[k] = true; return o; });
     var gs = gStr(guests); var tx = (ep.transcript || "").slice(0, 4000); var p2;
-    if (cat === "thumbnails") { p2 = buildPrompt(["3 NEW thumbnails for SA Weekly Ep #" + ep.number, "Guests: " + gs, "Transcript: " + tx, 'Return JSON: {"thumbnails":[{"concept":"c","text_overlay":"t","mood":"m"},{"concept":"c","text_overlay":"t","mood":"m"},{"concept":"c","text_overlay":"t","mood":"m"}]}']);
-    } else { var dn = cat === "descriptions" ? ". " + descInstr() : ""; var en = cat === "descriptions" && ep.extra ? ". Context: " + ep.extra : ""; var tsn = cat === "descriptions" && ep.timestamps ? ". Timestamps:\n" + ep.timestamps : ""; p2 = buildPrompt(["3 NEW " + cat + " for SA Weekly Ep #" + ep.number + dn, "Guests: " + gs + en + tsn, "Transcript: " + tx, 'Return JSON: {"' + cat + '":["a","b","c"]}']); }
+    if (cat === "thumbnails") {
+      p2 = buildPrompt(["3 NEW thumbnails for SA Weekly Ep #" + ep.number, "Guests: " + gs, "Transcript: " + tx, 'Return JSON: {"thumbnails":[{"concept":"c","text_overlay":"t","mood":"m"},{"concept":"c","text_overlay":"t","mood":"m"},{"concept":"c","text_overlay":"t","mood":"m"}]}']);
+    } else if (cat === "titles") {
+      p2 = buildPrompt([
+        "3 NEW title options for SA Weekly Ep #" + ep.number + ". Each option must be a different angle, not three rewordings.",
+        "Guests: " + gs,
+        "Transcript: " + tx,
+        'Return JSON: {"titles":[{"topic":"...","category":"..."},{"topic":"...","category":"..."},{"topic":"...","category":"..."}]}',
+      ]);
+    } else {
+      var dn = ". " + descInstr();
+      var en = ep.extra ? ". Context: " + ep.extra : "";
+      var tsn = ep.timestamps ? ". Timestamps:\n" + ep.timestamps : "";
+      p2 = buildPrompt(["3 NEW " + cat + " for SA Weekly Ep #" + ep.number + dn, "Guests: " + gs + en + tsn, "Transcript: " + tx, 'Return JSON: {"' + cat + '":["a","b","c"]}']);
+    }
     var data = await ask(SYS_EP, p2);
-    if (data && data[cat]) { setOpts(function(prev: GeneratedOptions | null) { return Object.assign({}, prev, (function() { var o: Record<string, unknown> = {}; o[cat] = data![cat]; return o; })()) as GeneratedOptions; }); var sk = cat === "titles" ? "title" : cat === "descriptions" ? "desc" : "thumb"; setSel(function(prev: SelectionState) { var o = Object.assign({}, prev) as unknown as Record<string, number>; o[sk] = 0; return o as unknown as SelectionState; }); }
+    if (data && data[cat]) {
+      var payload = data[cat];
+      if (cat === "titles") payload = (payload as unknown[]).map(asTitleOption);
+      setOpts(function(prev: GeneratedOptions | null) { return Object.assign({}, prev, (function() { var o: Record<string, unknown> = {}; o[cat] = payload; return o; })()) as GeneratedOptions; });
+      var sk = cat === "titles" ? "title" : cat === "descriptions" ? "desc" : "thumb";
+      setSel(function(prev: SelectionState) { var o = Object.assign({}, prev) as unknown as Record<string, number>; o[sk] = 0; return o as unknown as SelectionState; });
+    }
     setRL(function(p: Record<string, boolean>) { var o = Object.assign({}, p); o[k] = false; return o; });
   };
 
@@ -489,7 +627,7 @@ function StepGenerate({ ep, guests, opts, setOpts, sel, setSel, fin, setFin, des
 
     {opts && <div style={{ marginTop: 32 }}>
       <SecHead label="Titles" onRedoAll={function() { redoCat("titles"); }} rL={rL["all-titles"]} />
-      {(opts.titles || []).map(function(t, i) { return <Pick key={"t" + i} text={t} picked={sel.title === i} onPick={function() { setSel(Object.assign({}, sel, { title: i })); }} onRedo={function() { redoOne("titles", i); }} rLoading={rL["titles-" + i]} />; })}
+      {(opts.titles || []).map(function(t, i) { return <TitlePick key={"t" + i} option={t} epNum={ep.number} guests={guests} picked={sel.title === i} onPick={function() { setSel(Object.assign({}, sel, { title: i })); }} onRedo={function() { redoOne("titles", i); }} rLoading={rL["titles-" + i]} />; })}
       <KeywordBar onSuggest={suggestKW} loading={kwL} />
       <Divider />
       <SecHead label="Descriptions" onRedoAll={function() { redoCat("descriptions"); }} rL={rL["all-descriptions"]} />
@@ -502,7 +640,7 @@ function StepGenerate({ ep, guests, opts, setOpts, sel, setSel, fin, setFin, des
 }
 
 // ═══ STEP 3: REVIEW ═══
-function StepReview({ opts, sel, fin, setFin, thumb, setThumb, onDone }: { opts: GeneratedOptions | null; sel: SelectionState; fin: FinalizedState | null; setFin: React.Dispatch<React.SetStateAction<FinalizedState | null>>; thumb: string | null; setThumb: React.Dispatch<React.SetStateAction<string | null>>; onDone: () => void }) {
+function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDone }: { ep: EpState; guests: Guest[]; opts: GeneratedOptions | null; sel: SelectionState; fin: FinalizedState | null; setFin: React.Dispatch<React.SetStateAction<FinalizedState | null>>; thumb: string | null; setThumb: React.Dispatch<React.SetStateAction<string | null>>; onDone: () => void }) {
   var _cl = useState<boolean>(false), checkL = _cl[0], setCheckL = _cl[1];
   var _cr = useState<CheckResult | null>(null), checkR = _cr[0], setCheckR = _cr[1];
   var _al = useState<boolean>(false), abL = _al[0], setAbL = _al[1];
@@ -511,7 +649,10 @@ function StepReview({ opts, sel, fin, setFin, thumb, setThumb, onDone }: { opts:
 
   if (!opts) return <div style={{ textAlign: "center", padding: 80, color: D.txb, fontFamily: ft }}>Generate options first.</div>;
 
-  var curFin = fin || { title: opts.titles[sel.title], description: opts.descriptions[sel.desc], thumbnail: opts.thumbnails[sel.thumb] };
+  var selectedTitle = opts.titles[sel.title];
+  var ytTitle = selectedTitle ? buildYoutubeTitle(ep.number, selectedTitle.topic, selectedTitle.category) : "";
+  var curFin = fin || { title: ytTitle, description: opts.descriptions[sel.desc], thumbnail: opts.thumbnails[sel.thumb] };
+  var spTitle = buildSpotifyTitle(curFin.title, guests);
   var thS = thTxt(curFin.thumbnail);
 
   var doubleCheck = async function() {
@@ -567,7 +708,9 @@ function StepReview({ opts, sel, fin, setFin, thumb, setThumb, onDone }: { opts:
   };
 
   var saveFin = function() {
-    setFin({ title: opts.titles[sel.title], description: opts.descriptions[sel.desc], thumbnail: opts.thumbnails[sel.thumb] });
+    var picked = opts.titles[sel.title];
+    var yt = picked ? buildYoutubeTitle(ep.number, picked.topic, picked.category) : "";
+    setFin({ title: yt, description: opts.descriptions[sel.desc], thumbnail: opts.thumbnails[sel.thumb] });
   };
 
   return (<div>
@@ -577,7 +720,18 @@ function StepReview({ opts, sel, fin, setFin, thumb, setThumb, onDone }: { opts:
     {/* Selections summary */}
     <div style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 24, boxShadow: "0 0 24px rgba(224,99,71,0.06)" }}>
       <div style={{ fontFamily: mn, fontSize: 11, color: ACC, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 18, fontWeight: 700 }}>Your Selections</div>
-      <div style={{ marginBottom: 16 }}><div style={{ fontFamily: mn, fontSize: 9, color: D.txb, marginBottom: 4, letterSpacing: "1.5px" }}>TITLE</div><div style={{ fontFamily: ft, fontSize: 16, color: D.tx, fontWeight: 700 }}>{curFin.title}</div></div>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: PL.yt, letterSpacing: "1.5px", fontWeight: 700 }}>YOUTUBE TITLE</div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: curFin.title.length > 100 ? D.coral : D.txl, fontWeight: curFin.title.length > 100 ? 700 : 400 }}>{curFin.title.length}/100{curFin.title.length > 100 ? " over" : ""}</div>
+        </div>
+        <div style={{ fontFamily: ft, fontSize: 16, color: D.tx, fontWeight: 700, marginBottom: 12 }}>{curFin.title}</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: "#1DB954", letterSpacing: "1.5px", fontWeight: 700 }}>SPOTIFY TITLE</div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: spTitle.length > 200 ? D.coral : D.txl, fontWeight: spTitle.length > 200 ? 700 : 400 }}>{spTitle.length}/200{spTitle.length > 200 ? " over" : ""}</div>
+        </div>
+        <div style={{ fontFamily: ft, fontSize: 14, color: D.txb, fontWeight: 500 }}>{spTitle}</div>
+      </div>
       <div style={{ marginBottom: 16 }}><div style={{ fontFamily: mn, fontSize: 9, color: D.txb, marginBottom: 4, letterSpacing: "1.5px" }}>DESCRIPTION</div><div style={{ fontFamily: ft, fontSize: 14, color: D.txb, lineHeight: 1.7, whiteSpace: "pre-wrap", maxHeight: 150, overflow: "auto" }}>{curFin.description}</div></div>
       <div><div style={{ fontFamily: mn, fontSize: 9, color: D.txb, marginBottom: 4, letterSpacing: "1.5px" }}>THUMBNAIL CONCEPT</div><div style={{ fontFamily: ft, fontSize: 14, color: D.txb, lineHeight: 1.7 }}>{thS}</div></div>
       {!fin && <div style={{ marginTop: 16 }}><Btn onClick={saveFin} sm>Lock Selections</Btn></div>}
@@ -740,9 +894,11 @@ function StepExport({ ep, guests, fin, socialRes, onComplete }: { ep: EpState; g
 
   var doExport = function() {
     if (!socialRes) return;
+    var spotifyTitle = buildSpotifyTitle(fin.title, guests);
     var sections = [
       { heading: "Episode Info", items: [
-        { label: "Title", content: fin.title },
+        { label: "YouTube Title", content: fin.title + "  (" + fin.title.length + "/100)" },
+        { label: "Spotify Title", content: spotifyTitle + "  (" + spotifyTitle.length + "/200)" },
         { label: "Description", content: fin.description || "" },
         { label: "Guests", content: gs },
       ]},
@@ -1041,7 +1197,7 @@ export default function SAWeekly() {
     <div style={{ paddingBottom: 60 }}>
       {step === 0 && <StepSetup ep={ep} setEp={setEp} guests={guests} setGuests={setGuests} />}
       {step === 1 && <StepGenerate ep={ep} guests={guests} opts={opts} setOpts={setOpts} sel={sel} setSel={setSel} fin={fin} setFin={setFin} descLen={descLen} setDescLen={setDescLen} onDone={function() {}} />}
-      {step === 2 && <StepReview opts={opts} sel={sel} fin={fin} setFin={setFin} thumb={thumb} setThumb={setThumb} onDone={function() { setStep(3); }} />}
+      {step === 2 && <StepReview ep={ep} guests={guests} opts={opts} sel={sel} fin={fin} setFin={setFin} thumb={thumb} setThumb={setThumb} onDone={function() { setStep(3); }} />}
       {step === 3 && <StepSocial ep={ep} guests={guests} fin={fin} socialRes={socialRes} setSocialRes={setSocialRes} />}
       {step === 4 && <StepClips />}
       {step === 5 && <StepExport ep={ep} guests={guests} fin={fin} socialRes={socialRes} onComplete={handleComplete} />}
