@@ -4,118 +4,52 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>POAST · Design System</title>
-<meta name="description" content="The portable design system behind POAST — colors, typography, gradients, components, states, and voice rules. Both dark and light themes. Built for SemiAnalysis, shareable to any dashboard or marketing site that wants the same DNA.">
+<meta name="description" content="POAST design system — colors, typography, components, states, voice, and a full live playground. Both dark and light themes. Download the brand kit.">
 <meta property="og:title" content="POAST · Design System">
-<meta property="og:description" content="The complete POAST aesthetic — dark + light, every component in every state, plus an AI-pairing prompt block.">
+<meta property="og:description" content="Live components, real interactions, downloadable brand kit. The bible for building like POAST.">
+<link rel="icon" type="image/svg+xml" href="/sa-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 
 <style>
-/* ============================================================
-   POAST DESIGN TOKENS · theme-aware via [data-theme]
-   Default = dark. [data-theme="light"] swaps surfaces and shadows.
-   Accents stay constant across themes.
-   ============================================================ */
-:root,
-[data-theme="dark"] {
-  /* Surfaces */
-  --bg:           #06060C;
-  --surface:      #0D0D12;
-  --card:         #09090D;
-  --hover:        #11111A;
-  --border:       rgba(255,255,255,0.06);
-  --border-hover: rgba(255,255,255,0.12);
-  --border-strong: rgba(255,255,255,0.18);
-
-  /* Text */
-  --tx:           #E8E4DD;
-  --tx-muted:     #8A8690;
-  --tx-dim:       #4E4B56;
-
-  /* Semantic surfaces */
-  --on-cta:       #060608;     /* text on amber/CTA */
-  --code-bg:      #050509;
-  --selection-bg: rgba(247,176,65,0.25);
-  --scrollbar:    rgba(255,255,255,0.08);
-  --scrollbar-h:  rgba(247,176,65,0.35);
-
-  /* Shadows */
-  --shadow-card:  0 2px 12px rgba(0,0,0,0.4);
+/* ================================ TOKENS ================================ */
+:root, [data-theme="dark"] {
+  --bg: #06060C; --surface: #0D0D12; --card: #09090D; --hover: #11111A;
+  --border: rgba(255,255,255,0.06); --border-hover: rgba(255,255,255,0.12);
+  --tx: #E8E4DD; --tx-muted: #8A8690; --tx-dim: #4E4B56;
+  --on-cta: #060608; --code-bg: #050509; --selection-bg: rgba(247,176,65,0.25);
+  --scrollbar: rgba(255,255,255,0.08); --scrollbar-h: rgba(247,176,65,0.35);
+  --shadow-card: 0 2px 12px rgba(0,0,0,0.4);
   --shadow-hover: 0 8px 30px rgba(0,0,0,0.5), 0 0 20px rgba(247,176,65,0.08);
-  --shadow-glow:  0 0 24px rgba(247,176,65,0.10);
+  --shadow-glow: 0 0 24px rgba(247,176,65,0.12);
   --shadow-modal: 0 32px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(247,176,65,0.05);
   --shadow-focus: 0 0 0 3px rgba(247,176,65,0.20), 0 0 16px rgba(247,176,65,0.08);
-
-  /* Orbs (background ambience) */
-  --orb-amber:    rgba(247,176,65,0.08);
-  --orb-blue:     rgba(11,134,209,0.06);
-  --orb-violet:   rgba(144,92,203,0.04);
+  --orb-amber: rgba(247,176,65,0.08); --orb-blue: rgba(11,134,209,0.06); --orb-violet: rgba(144,92,203,0.04);
 }
-
 [data-theme="light"] {
-  --bg:           #FAFAF6;
-  --surface:      #F2F1EC;
-  --card:         #FFFFFF;
-  --hover:        #F6F5F0;
-  --border:       rgba(0,0,0,0.08);
-  --border-hover: rgba(0,0,0,0.16);
-  --border-strong: rgba(0,0,0,0.24);
-
-  --tx:           #1C1A18;
-  --tx-muted:     #6A6770;
-  --tx-dim:       #A29DA8;
-
-  --on-cta:       #060608;
-  --code-bg:      #F8F7F2;
-  --selection-bg: rgba(247,176,65,0.30);
-  --scrollbar:    rgba(0,0,0,0.10);
-  --scrollbar-h:  rgba(247,176,65,0.55);
-
-  --shadow-card:  0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04);
+  --bg: #FAFAF6; --surface: #F2F1EC; --card: #FFFFFF; --hover: #F6F5F0;
+  --border: rgba(0,0,0,0.08); --border-hover: rgba(0,0,0,0.16);
+  --tx: #1C1A18; --tx-muted: #6A6770; --tx-dim: #A29DA8;
+  --on-cta: #060608; --code-bg: #F8F7F2; --selection-bg: rgba(247,176,65,0.30);
+  --scrollbar: rgba(0,0,0,0.10); --scrollbar-h: rgba(247,176,65,0.55);
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04);
   --shadow-hover: 0 6px 20px rgba(0,0,0,0.08), 0 0 20px rgba(247,176,65,0.18);
-  --shadow-glow:  0 0 0 1px rgba(247,176,65,0.40), 0 4px 16px rgba(247,176,65,0.18);
+  --shadow-glow: 0 0 0 1px rgba(247,176,65,0.40), 0 4px 16px rgba(247,176,65,0.18);
   --shadow-modal: 0 24px 64px rgba(0,0,0,0.16), 0 0 0 1px rgba(247,176,65,0.15);
   --shadow-focus: 0 0 0 3px rgba(247,176,65,0.20), 0 0 12px rgba(247,176,65,0.18);
-
-  --orb-amber:    rgba(247,176,65,0.10);
-  --orb-blue:     rgba(11,134,209,0.06);
-  --orb-violet:   rgba(144,92,203,0.06);
+  --orb-amber: rgba(247,176,65,0.10); --orb-blue: rgba(11,134,209,0.06); --orb-violet: rgba(144,92,203,0.06);
 }
-
-/* Accents — same across themes. Brand stays brand. */
 :root {
-  --amber:    #F7B041;
-  --blue:     #0B86D1;
-  --teal:     #2EAD8E;
-  --coral:    #E06347;
-  --violet:   #905CCB;
-  --cyan:     #26C9D8;
-  --crimson:  #D1334A;
-
-  --x:         #1DA1F2;
-  --linkedin:  #0A66C2;
-  --facebook:  #1877F2;
-  --instagram: #E4405F;
-  --youtube:   #FF0000;
-  --tiktok:    #00F2EA;
-  --spotify:   #1DB954;
-
-  --tier-s: #F7B041;
-  --tier-a: #0B86D1;
-  --tier-b: #2EAD8E;
-  --tier-c: #8A8690;
-
-  --ft-display:  'Grift', 'Outfit', sans-serif;
-  --ft-body:     'Outfit', sans-serif;
-  --ft-mono:     'JetBrains Mono', monospace;
-
-  --grad-card:    linear-gradient(135deg, var(--card) 0%, var(--surface) 100%);
-  --grad-surface: linear-gradient(135deg, var(--surface) 0%, var(--card) 100%);
-  --grad-cta:     linear-gradient(135deg, #F7B041, #26C9D8);
+  --amber:#F7B041; --blue:#0B86D1; --teal:#2EAD8E; --coral:#E06347; --violet:#905CCB; --cyan:#26C9D8; --crimson:#D1334A;
+  --x:#1DA1F2; --linkedin:#0A66C2; --facebook:#1877F2; --instagram:#E4405F; --youtube:#FF0000; --tiktok:#00F2EA; --spotify:#1DB954;
+  --ft-display: 'Grift', 'Outfit', sans-serif;
+  --ft-body: 'Outfit', sans-serif;
+  --ft-mono: 'JetBrains Mono', monospace;
+  --grad-card: linear-gradient(135deg, var(--card) 0%, var(--surface) 100%);
+  --grad-cta: linear-gradient(135deg, #F7B041, #26C9D8);
 }
 
-/* Local Grift — works on the deployed domain; degrades to Outfit when opened locally. */
 @font-face { font-family: 'Grift'; src: url('/fonts/Grift-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Grift'; src: url('/fonts/Grift-Medium.woff2') format('woff2'); font-weight: 500; font-display: swap; }
 @font-face { font-family: 'Grift'; src: url('/fonts/Grift-SemiBold.woff2') format('woff2'); font-weight: 600; font-display: swap; }
@@ -123,20 +57,13 @@
 @font-face { font-family: 'Grift'; src: url('/fonts/Grift-ExtraBold.woff2') format('woff2'); font-weight: 800; font-display: swap; }
 @font-face { font-family: 'Grift'; src: url('/fonts/Grift-Black.woff2') format('woff2'); font-weight: 900; font-display: swap; }
 
-/* ============================================================
-   BASE
-   ============================================================ */
+/* ================================ BASE ================================ */
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; scroll-padding-top: 96px; }
 body {
-  background: var(--bg);
-  color: var(--tx);
-  font-family: var(--ft-body);
-  font-weight: 500;
-  font-size: 14px;
-  line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  background: var(--bg); color: var(--tx);
+  font-family: var(--ft-body); font-weight: 500; font-size: 14px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
   transition: background 0.4s ease, color 0.4s ease;
 }
 ::selection { background: var(--selection-bg); color: var(--amber); }
@@ -145,28 +72,24 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-h); }
 a { color: var(--amber); text-decoration: none; }
 a:hover { text-decoration: underline; text-underline-offset: 3px; }
+button { font-family: inherit; }
 
-/* ============================================================
-   AMBIENT BACKGROUND ORBS
-   ============================================================ */
+/* ============================ AMBIENT ORBS ============================ */
 @keyframes drift1 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(30px,-20px); } }
 @keyframes drift2 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-25px,15px); } }
-@keyframes pulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
-.orb-layer { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; transition: opacity 0.4s ease; }
+@keyframes pulse  { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+.orb-layer { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
 .orb { position: absolute; border-radius: 50%; filter: blur(100px); }
 .orb-a { width: 50vw; height: 50vw; top: -10%; right: -5%; background: radial-gradient(circle, var(--orb-amber) 0%, transparent 60%); animation: drift1 22s ease-in-out infinite; }
 .orb-b { width: 60vw; height: 60vw; bottom: -15%; left: 0; background: radial-gradient(circle, var(--orb-blue) 0%, transparent 60%); animation: drift2 28s ease-in-out infinite; }
 .orb-v { width: 35vw; height: 35vw; top: 35%; left: -10%; background: radial-gradient(circle, var(--orb-violet) 0%, transparent 60%); animation: pulse 8s ease-in-out infinite; }
 
-/* ============================================================
-   THEME TOGGLE — fixed top-right, always reachable
-   ============================================================ */
+/* ============================ THEME TOGGLE ============================ */
 .theme-toggle {
   position: fixed; top: 18px; right: 18px; z-index: 1000;
-  display: inline-flex; align-items: center; gap: 0;
+  display: inline-flex; gap: 0;
   background: var(--card); border: 1px solid var(--border); border-radius: 999px;
   padding: 4px; box-shadow: var(--shadow-card);
-  transition: all 0.2s ease;
 }
 .theme-toggle button {
   background: transparent; border: none; cursor: pointer;
@@ -182,240 +105,144 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
   box-shadow: 0 0 12px rgba(247,176,65,0.25);
 }
 
-/* ============================================================
-   PAGE LAYOUT
-   ============================================================ */
-.shell { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 64px 32px 96px; }
-.hero { padding: 32px 0 64px; border-bottom: 1px solid var(--border); margin-bottom: 64px; }
+/* ============================ STICKY TABS ============================ */
+.tabs {
+  position: sticky; top: 0; z-index: 800;
+  background: var(--bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 32px; display: flex; gap: 4px; flex-wrap: wrap;
+  align-items: center; justify-content: center;
+  transition: background 0.4s ease, border-color 0.4s ease;
+}
+.tabs a {
+  font-family: var(--ft-mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  padding: 6px 12px; border-radius: 6px; color: var(--tx-muted);
+  border: 1px solid transparent; transition: all 0.2s ease;
+  text-decoration: none;
+}
+.tabs a:hover { color: var(--tx); background: var(--hover); border-color: var(--border); text-decoration: none; }
+.tabs a.active { color: var(--amber); background: rgba(247,176,65,0.06); border-color: rgba(247,176,65,0.30); }
+.tabs .cmd-hint {
+  font-family: var(--ft-mono); font-size: 10px; color: var(--tx-dim);
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
+  margin-left: 8px; cursor: pointer; transition: all 0.2s ease;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.tabs .cmd-hint:hover { color: var(--amber); border-color: rgba(247,176,65,0.30); background: var(--hover); }
+.tabs .cmd-hint kbd {
+  font-family: var(--ft-mono); font-size: 10px;
+  padding: 1px 5px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 3px; color: var(--tx-muted);
+}
+
+/* ============================ PAGE LAYOUT ============================ */
+.shell { position: relative; z-index: 1; max-width: 1240px; margin: 0 auto; padding: 64px 32px 96px; }
+.hero { padding: 32px 0 48px; border-bottom: 1px solid var(--border); margin-bottom: 32px; }
 .eyebrow {
   font-family: var(--ft-mono); font-size: 11px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase; color: var(--amber);
   margin-bottom: 12px;
 }
-.h1 {
-  font-family: var(--ft-display); font-weight: 900; font-size: clamp(40px, 7vw, 72px);
-  line-height: 1.05; letter-spacing: -2px; margin-bottom: 16px;
-}
+.h1 { font-family: var(--ft-display); font-weight: 900; font-size: clamp(40px, 7vw, 72px); line-height: 1.05; letter-spacing: -2px; margin-bottom: 16px; }
 .h1 .accent { background: var(--grad-cta); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .lede { font-size: 17px; color: var(--tx-muted); max-width: 720px; line-height: 1.6; }
 .h2 { font-family: var(--ft-display); font-weight: 800; font-size: 28px; letter-spacing: -0.5px; }
 .h3 { font-family: var(--ft-display); font-weight: 800; font-size: 18px; margin-bottom: 14px; }
-.section { margin-bottom: 80px; }
+.section { margin-bottom: 80px; scroll-margin-top: 96px; }
 .section-head {
   display: flex; align-items: baseline; justify-content: space-between;
   margin-bottom: 24px; padding-bottom: 12px; border-bottom: 1px solid var(--border);
   gap: 16px; flex-wrap: wrap;
 }
-.section-num {
-  font-family: var(--ft-mono); font-size: 11px; font-weight: 700;
-  color: var(--tx-dim); letter-spacing: 2px;
-}
-.label {
-  font-family: var(--ft-mono); font-size: 11px; font-weight: 700;
-  letter-spacing: 1.5px; text-transform: uppercase; color: var(--tx-muted);
-  margin-bottom: 12px;
-}
+.section-num { font-family: var(--ft-mono); font-size: 11px; font-weight: 700; color: var(--tx-dim); letter-spacing: 2px; }
+.label { font-family: var(--ft-mono); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--tx-muted); margin-bottom: 12px; }
 .muted { color: var(--tx-muted); }
 .dim { color: var(--tx-dim); }
 
-/* ============================================================
-   COMPONENTS — CARDS
-   ============================================================ */
-.card {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 12px; padding: 18px 20px;
-  box-shadow: var(--shadow-card); transition: all 0.2s ease;
+/* ============================ DOWNLOAD CTA ============================ */
+.dl-bar {
+  background: linear-gradient(135deg, rgba(247,176,65,0.10), rgba(38,201,216,0.06));
+  border: 1px solid rgba(247,176,65,0.30);
+  border-radius: 14px; padding: 20px 24px;
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  margin-top: 24px;
 }
-.card:hover, .card.is-hover {
-  border-color: rgba(247,176,65,0.4);
-  box-shadow: var(--shadow-hover);
-  transform: translateY(-2px);
+.dl-bar .dl-info { flex: 1; min-width: 260px; }
+.dl-bar .dl-title { font-family: var(--ft-display); font-weight: 800; font-size: 18px; color: var(--tx); margin-bottom: 4px; }
+.dl-bar .dl-sub   { font-family: var(--ft-mono); font-size: 10px; color: var(--tx-muted); letter-spacing: 0.5px; line-height: 1.5; }
+.dl-bar .dl-cta {
+  background: var(--grad-cta); color: var(--on-cta); border: none;
+  padding: 12px 20px; border-radius: 10px;
+  font-family: var(--ft-body); font-size: 14px; font-weight: 800; letter-spacing: 0.3px;
+  cursor: pointer; transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(247,176,65,0.25), 0 0 20px rgba(247,176,65,0.10);
+  display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+  text-decoration: none;
 }
-.card.is-selected {
-  background: linear-gradient(135deg, rgba(247,176,65,0.08), rgba(247,176,65,0.02));
-  border-color: rgba(247,176,65,0.5);
-  box-shadow: var(--shadow-glow);
-}
-.tile {
-  background: var(--card); border: 1px solid var(--border);
-  border-left: 3px solid var(--amber); border-radius: 12px;
-  padding: 18px 20px; cursor: pointer; transition: all 0.2s ease;
-}
+.dl-bar .dl-cta:hover { box-shadow: 0 6px 24px rgba(247,176,65,0.40), 0 0 40px rgba(247,176,65,0.15); transform: translateY(-1px); text-decoration: none; }
+
+/* ============================ COMPONENTS ============================ */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; box-shadow: var(--shadow-card); transition: all 0.2s ease; }
+.card:hover, .card.is-hover { border-color: rgba(247,176,65,0.4); box-shadow: var(--shadow-hover); transform: translateY(-2px); }
+.card.is-selected { background: linear-gradient(135deg, rgba(247,176,65,0.08), rgba(247,176,65,0.02)); border-color: rgba(247,176,65,0.5); box-shadow: var(--shadow-glow); }
+.tile { background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--amber); border-radius: 12px; padding: 18px 20px; cursor: pointer; transition: all 0.2s ease; }
 .tile:hover, .tile.is-hover { border-color: rgba(247,176,65,0.4); transform: translateY(-1px); box-shadow: var(--shadow-hover); }
 
-/* ============================================================
-   COMPONENTS — BUTTONS
-   ============================================================ */
-.btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 8px 14px; border-radius: 8px;
-  font-family: var(--ft-body); font-size: 13px; font-weight: 700;
-  cursor: pointer; border: none; transition: all 0.15s ease;
-  letter-spacing: 0.2px;
-}
+.btn { display: inline-flex; align-items: center; justify-content: center; padding: 8px 14px; border-radius: 8px; font-family: var(--ft-body); font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all 0.15s ease; letter-spacing: 0.2px; }
 .btn:active:not(:disabled) { transform: scale(0.97); }
 .btn:disabled, .btn.is-disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
-
 .btn-primary { background: var(--amber); color: var(--on-cta); }
 .btn-primary:hover:not(:disabled), .btn-primary.is-hover { box-shadow: 0 0 20px rgba(247,176,65,0.35); }
-
 .btn-secondary { background: transparent; color: var(--tx); border: 1px solid var(--border); }
 .btn-secondary:hover:not(:disabled), .btn-secondary.is-hover { border-color: rgba(247,176,65,0.5); color: var(--amber); background: rgba(247,176,65,0.04); }
-
-.btn-danger {
-  background: transparent; color: var(--coral);
-  border: 1px solid var(--border);
-  padding: 4px 10px; border-radius: 6px;
-  font-family: var(--ft-mono); font-size: 11px; font-weight: 700;
-}
+.btn-danger { background: transparent; color: var(--coral); border: 1px solid var(--border); padding: 4px 10px; border-radius: 6px; font-family: var(--ft-mono); font-size: 11px; font-weight: 700; }
 .btn-danger:hover:not(:disabled), .btn-danger.is-hover { border-color: var(--coral); background: rgba(224,99,71,0.08); }
-
-.btn-glow {
-  background: var(--grad-cta); color: var(--on-cta); font-weight: 800;
-  box-shadow: 0 4px 14px rgba(247,176,65,0.25), 0 0 20px rgba(247,176,65,0.10);
-}
+.btn-glow { background: var(--grad-cta); color: var(--on-cta); font-weight: 800; box-shadow: 0 4px 14px rgba(247,176,65,0.25), 0 0 20px rgba(247,176,65,0.10); }
 .btn-glow:hover:not(:disabled), .btn-glow.is-hover { box-shadow: 0 6px 24px rgba(247,176,65,0.40), 0 0 40px rgba(247,176,65,0.15); transform: translateY(-1px); }
-
-.btn-mini {
-  width: 28px; height: 28px; padding: 0;
-  border: 1px solid var(--border); background: transparent; color: var(--tx-muted);
-  border-radius: 6px; font-family: var(--ft-mono); font-size: 13px; cursor: pointer;
-  transition: all 0.15s ease;
-}
+.btn-mini { width: 28px; height: 28px; padding: 0; border: 1px solid var(--border); background: transparent; color: var(--tx-muted); border-radius: 6px; font-family: var(--ft-mono); font-size: 13px; cursor: pointer; transition: all 0.15s ease; }
 .btn-mini:hover:not(:disabled), .btn-mini.is-hover { color: var(--amber); border-color: rgba(247,176,65,0.4); }
 
-/* ============================================================
-   COMPONENTS — PILLS
-   ============================================================ */
-.pill {
-  display: inline-block;
-  font-family: var(--ft-mono); font-size: 10px; font-weight: 700;
-  letter-spacing: 0.6px; text-transform: uppercase;
-  padding: 2px 6px; border-radius: 4px;
-  color: var(--amber); background: rgba(247,176,65,0.12);
-  border: 1px solid var(--amber);
-}
+.pill { display: inline-block; font-family: var(--ft-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; color: var(--amber); background: rgba(247,176,65,0.12); border: 1px solid var(--amber); }
 .pill-blue { color: var(--blue); background: rgba(11,134,209,0.12); border-color: var(--blue); }
 .pill-teal { color: var(--teal); background: rgba(46,173,142,0.12); border-color: var(--teal); }
 .pill-coral { color: var(--coral); background: rgba(224,99,71,0.12); border-color: var(--coral); }
 .pill-violet { color: var(--violet); background: rgba(144,92,203,0.12); border-color: var(--violet); }
 .pill-muted { color: var(--tx-muted); background: var(--surface); border: 1px solid var(--border); }
 
-/* ============================================================
-   COMPONENTS — INPUTS
-   ============================================================ */
-.input, .textarea, .select {
-  width: 100%; background: var(--bg);
-  border: 1px solid var(--border); border-radius: 8px;
-  color: var(--tx); padding: 10px 12px;
-  font-family: var(--ft-mono); font-size: 12px; outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-.input:focus, .textarea:focus, .select:focus,
-.input.is-focus, .textarea.is-focus {
-  border-color: var(--amber);
-  box-shadow: var(--shadow-focus);
-}
+.input, .textarea, .select { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--tx); padding: 10px 12px; font-family: var(--ft-mono); font-size: 12px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+.input:focus, .textarea:focus, .select:focus, .input.is-focus, .textarea.is-focus { border-color: var(--amber); box-shadow: var(--shadow-focus); }
 .input:disabled, .input.is-disabled { opacity: 0.4; cursor: not-allowed; }
 .input::placeholder { color: var(--tx-dim); }
 .textarea { font-family: var(--ft-body); line-height: 1.5; resize: vertical; min-height: 88px; }
+.dropzone { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 28px; background: var(--surface); border: 2px dashed var(--border); border-radius: 12px; text-align: center; cursor: pointer; transition: all 0.2s; }
+.dropzone:hover, .dropzone.is-hover, .dropzone.is-drag { border-color: rgba(247,176,65,0.5); background: rgba(247,176,65,0.04); }
+.dropzone.is-drag { border-style: solid; transform: scale(1.01); }
 
-.dropzone {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 28px; background: var(--surface);
-  border: 2px dashed var(--border); border-radius: 12px;
-  text-align: center; cursor: pointer; transition: all 0.2s;
-}
-.dropzone:hover, .dropzone.is-hover { border-color: rgba(247,176,65,0.5); background: rgba(247,176,65,0.04); }
+.sidebar-demo { width: 240px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 10px; flex-shrink: 0; }
+.sidebar-cat { font-family: var(--ft-body); font-size: 10px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--amber); padding: 6px 12px; display: flex; align-items: center; gap: 10px; text-shadow: 0 0 16px rgba(247,176,65,0.35); }
+.sidebar-cat::before { content: ''; width: 3px; height: 14px; border-radius: 2px; background: var(--amber); box-shadow: 0 0 10px var(--amber); }
+.sidebar-item { display: flex; align-items: center; gap: 9px; padding: 7px 12px 7px 28px; border-radius: 6px; margin-bottom: 1px; cursor: pointer; font-family: var(--ft-body); font-size: 13px; color: var(--tx-muted); transition: all 0.2s; }
+.sidebar-item:hover { background: var(--hover); color: var(--tx); }
+.sidebar-item.active { background: rgba(247,176,65,0.05); border-left: 3px solid var(--amber); padding-left: 25px; color: var(--amber); font-weight: 800; text-shadow: 0 0 20px rgba(247,176,65,0.4); }
 
-/* ============================================================
-   COMPONENTS — SIDEBAR DEMO
-   ============================================================ */
-.sidebar-demo {
-  width: 240px; background: var(--card);
-  border: 1px solid var(--border); border-radius: 12px;
-  padding: 14px 10px; flex-shrink: 0;
-}
-.sidebar-cat {
-  font-family: var(--ft-body); font-size: 10px; font-weight: 800;
-  letter-spacing: 2px; text-transform: uppercase;
-  color: var(--amber); padding: 6px 12px; display: flex; align-items: center; gap: 10px;
-  text-shadow: 0 0 16px rgba(247,176,65,0.35);
-}
-.sidebar-cat::before {
-  content: ''; width: 3px; height: 14px; border-radius: 2px;
-  background: var(--amber); box-shadow: 0 0 10px var(--amber), 0 0 20px rgba(247,176,65,0.2);
-}
-.sidebar-item {
-  display: flex; align-items: center; gap: 9px;
-  padding: 7px 12px 7px 28px; border-radius: 6px;
-  margin-bottom: 1px; cursor: pointer; position: relative;
-  font-family: var(--ft-body); font-size: 13px; color: var(--tx-muted);
-  transition: all 0.2s;
-}
-.sidebar-item:hover, .sidebar-item.is-hover { background: var(--hover); color: var(--tx); }
-.sidebar-item.active {
-  background: rgba(247,176,65,0.05); border-left: 3px solid var(--amber);
-  padding-left: 25px; color: var(--amber); font-weight: 800;
-  text-shadow: 0 0 20px rgba(247,176,65,0.4);
-}
-
-/* ============================================================
-   COMPONENTS — DIALOG / TOAST
-   ============================================================ */
-@keyframes dlgPop {
-  0% { opacity: 0; transform: translateY(8px) scale(0.98); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-.dialog-demo {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 14px; padding: 22px 22px 18px;
-  box-shadow: var(--shadow-modal); width: min(420px, 100%);
-  margin: 0 auto;
-}
-.dialog-title {
-  font-family: var(--ft-body); font-size: 16px; font-weight: 800;
-  color: var(--tx); margin-bottom: 8px; letter-spacing: -0.2px;
-}
+@keyframes dlgPop { 0% { opacity: 0; transform: translateY(8px) scale(0.98); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+.dialog-demo { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 22px 22px 18px; box-shadow: var(--shadow-modal); width: min(420px, 100%); }
+.dialog-title { font-family: var(--ft-body); font-size: 16px; font-weight: 800; color: var(--tx); margin-bottom: 8px; letter-spacing: -0.2px; }
 .dialog-body { font-size: 13px; color: var(--tx-muted); line-height: 1.5; margin-bottom: 18px; }
 .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.toast-demo { max-width: 420px; padding: 14px 20px; background: rgba(224,99,71,0.13); border: 1px solid var(--coral); border-radius: 8px; font-family: var(--ft-mono); font-size: 11px; color: var(--coral); box-shadow: 0 0 20px rgba(224,99,71,0.2); cursor: pointer; line-height: 1.5; }
 
-.toast-demo {
-  max-width: 420px; padding: 14px 20px;
-  background: rgba(224,99,71,0.13); border: 1px solid var(--coral);
-  border-radius: 8px; font-family: var(--ft-mono); font-size: 11px;
-  color: var(--coral);
-  box-shadow: 0 0 20px rgba(224,99,71,0.2);
-  cursor: pointer; line-height: 1.5;
-}
-
-/* ============================================================
-   PICKER (radio-card)
-   ============================================================ */
-.pick {
-  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-  padding: 14px 18px; cursor: pointer; display: flex; align-items: flex-start; gap: 12px;
-  transition: all 0.2s ease;
-}
+.pick { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; cursor: pointer; display: flex; align-items: flex-start; gap: 12px; transition: all 0.2s ease; }
 .pick:hover, .pick.is-hover { border-color: rgba(247,176,65,0.4); }
-.pick.picked {
-  background: linear-gradient(135deg, rgba(247,176,65,0.08), rgba(247,176,65,0.02));
-  border-color: rgba(247,176,65,0.5);
-  box-shadow: var(--shadow-glow);
-}
-.pick-radio {
-  width: 22px; height: 22px; border-radius: 50%;
-  border: 2px solid var(--border-hover); flex-shrink: 0; margin-top: 2px;
-  display: flex; align-items: center; justify-content: center;
-  transition: all 0.2s; background: transparent;
-}
+.pick.picked { background: linear-gradient(135deg, rgba(247,176,65,0.08), rgba(247,176,65,0.02)); border-color: rgba(247,176,65,0.5); box-shadow: var(--shadow-glow); }
+.pick-radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border-hover); flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; background: transparent; }
 .pick.picked .pick-radio { border-color: var(--amber); background: var(--amber); }
 .pick.picked .pick-radio::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--card); }
 
-/* ============================================================
-   GRIDS / UTILITIES
-   ============================================================ */
+/* ============================ GRIDS / UTILITIES ============================ */
 .grid { display: grid; gap: 12px; }
+.grid-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 .grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .grid-4 { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 .grid-6 { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
@@ -423,115 +250,190 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .col { display: flex; flex-direction: column; gap: 12px; }
 .spacer { height: 16px; }
 
-/* Color swatches */
-.swatch {
-  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-  padding: 14px; transition: all 0.2s; cursor: pointer;
-}
+.swatch { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; transition: all 0.2s; cursor: pointer; }
 .swatch:hover { border-color: rgba(247,176,65,0.3); transform: translateY(-2px); }
-.swatch-chip {
-  width: 100%; aspect-ratio: 4/3; border-radius: 8px; margin-bottom: 10px;
-  border: 1px solid rgba(0,0,0,0.04); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
-}
+.swatch-chip { width: 100%; aspect-ratio: 4/3; border-radius: 8px; margin-bottom: 10px; border: 1px solid rgba(0,0,0,0.04); }
 .swatch-name { font-family: var(--ft-body); font-size: 13px; font-weight: 700; color: var(--tx); }
 .swatch-hex  { font-family: var(--ft-mono); font-size: 11px; color: var(--tx-muted); margin-top: 2px; }
 .swatch-use  { font-family: var(--ft-body); font-size: 11px; color: var(--tx-dim); margin-top: 6px; line-height: 1.4; }
 
-/* Code blocks */
-pre.code {
-  background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
-  padding: 16px 18px; overflow-x: auto;
-  font-family: var(--ft-mono); font-size: 12px; line-height: 1.6;
-  color: var(--tx); position: relative;
-}
-.code-copy {
-  position: absolute; top: 10px; right: 10px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
-  color: var(--tx-muted); padding: 4px 9px; cursor: pointer;
-  font-family: var(--ft-mono); font-size: 10px; letter-spacing: 0.3px;
-  transition: all 0.15s;
-}
+pre.code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; overflow-x: auto; font-family: var(--ft-mono); font-size: 12px; line-height: 1.6; color: var(--tx); position: relative; }
+.code-copy { position: absolute; top: 10px; right: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--tx-muted); padding: 4px 9px; cursor: pointer; font-family: var(--ft-mono); font-size: 10px; transition: all 0.15s; }
 .code-copy:hover { color: var(--amber); border-color: rgba(247,176,65,0.4); }
 
-/* Type sample card */
-.type-card {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 12px; padding: 24px;
-}
-.type-meta {
-  font-family: var(--ft-mono); font-size: 10px; letter-spacing: 1.5px;
-  text-transform: uppercase; color: var(--tx-muted); margin-bottom: 12px;
-}
-.type-sample {
-  font-family: var(--ft-display); font-weight: 800; font-size: 44px;
-  letter-spacing: -1.5px; line-height: 1.1; color: var(--tx);
-  margin-bottom: 6px;
-}
+.type-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+.type-meta { font-family: var(--ft-mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--tx-muted); margin-bottom: 12px; }
+.type-sample { font-family: var(--ft-display); font-weight: 800; font-size: 44px; letter-spacing: -1.5px; line-height: 1.1; color: var(--tx); margin-bottom: 6px; }
 .type-info { font-family: var(--ft-mono); font-size: 11px; color: var(--tx-dim); }
 .weights { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); }
 .weight-line { font-size: 16px; color: var(--tx); }
 .weight-line .w { font-family: var(--ft-mono); font-size: 9px; color: var(--tx-dim); margin-right: 8px; letter-spacing: 1px; }
 
-/* Spacing scale */
 .spacing-row { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
 .spacing-bar { background: var(--amber); height: 14px; border-radius: 3px; }
 .spacing-label { font-family: var(--ft-mono); font-size: 11px; color: var(--tx-muted); width: 50px; }
+.radius-tile { background: linear-gradient(135deg, rgba(247,176,65,0.18), rgba(11,134,209,0.12)); width: 80px; height: 80px; border: 1px solid rgba(247,176,65,0.3); display: flex; align-items: center; justify-content: center; font-family: var(--ft-mono); font-size: 11px; font-weight: 700; color: var(--amber); }
+.shadow-tile { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 32px 18px; text-align: center; }
+.shadow-tile .shadow-name { font-family: var(--ft-mono); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--tx-muted); margin-bottom: 10px; }
 
-/* Radius scale */
-.radius-tile {
-  background: linear-gradient(135deg, rgba(247,176,65,0.18), rgba(11,134,209,0.12));
-  width: 80px; height: 80px;
-  border: 1px solid rgba(247,176,65,0.3);
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--ft-mono); font-size: 11px; font-weight: 700; color: var(--amber);
-}
-
-/* Shadow demo cards */
-.shadow-tile {
-  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-  padding: 32px 18px; text-align: center;
-}
-.shadow-tile .shadow-name {
-  font-family: var(--ft-mono); font-size: 11px; font-weight: 700;
-  letter-spacing: 1.5px; text-transform: uppercase;
-  color: var(--tx-muted); margin-bottom: 10px;
-}
-
-/* States gallery */
-.states-row {
-  display: grid; grid-template-columns: 110px repeat(5, 1fr); gap: 12px;
-  align-items: center; padding: 18px 0; border-bottom: 1px dashed var(--border);
-}
+.states-row { display: grid; grid-template-columns: 110px repeat(5, 1fr); gap: 12px; align-items: center; padding: 18px 0; border-bottom: 1px dashed var(--border); }
 .states-row:last-child { border-bottom: none; }
 .states-name { font-family: var(--ft-mono); font-size: 11px; font-weight: 700; color: var(--tx); letter-spacing: 0.5px; }
 .states-cell { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .states-cell-label { font-family: var(--ft-mono); font-size: 9px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--tx-dim); }
 .states-cell .preview { display: flex; align-items: center; justify-content: center; min-height: 50px; width: 100%; }
 
-/* Voice do/don't */
-.voice-pair {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 0;
-  border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
-  background: var(--card);
-}
+.voice-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--card); }
 .voice-side { padding: 18px 20px; }
 .voice-side.bad { background: rgba(224,99,71,0.04); border-right: 1px solid var(--border); }
-.voice-tag {
-  font-family: var(--ft-mono); font-size: 10px; font-weight: 700;
-  letter-spacing: 1.5px; margin-bottom: 8px;
-}
+.voice-tag { font-family: var(--ft-mono); font-size: 10px; font-weight: 700; letter-spacing: 1.5px; margin-bottom: 8px; }
 .voice-tag.bad { color: var(--coral); }
 .voice-tag.good { color: var(--teal); }
 .voice-text { font-family: var(--ft-body); font-size: 14px; line-height: 1.5; color: var(--tx); margin-bottom: 6px; }
 .voice-note { font-family: var(--ft-mono); font-size: 10px; color: var(--tx-dim); letter-spacing: 0.4px; }
 
-/* Brand-ribbon footer */
-.ribbon {
-  margin-top: 96px; padding-top: 32px; border-top: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 16px; flex-wrap: wrap;
-  font-family: var(--ft-mono); font-size: 10px; color: var(--tx-dim); letter-spacing: 2px;
+/* ============================ NEW · NAVIGATION AIDS ============================ */
+.nav-row { display: grid; grid-template-columns: 320px 1fr; gap: 24px; align-items: stretch; }
+@media (max-width: 880px) { .nav-row { grid-template-columns: 1fr; } }
+.wheel-host {
+  background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+  display: flex; align-items: center; justify-content: center; padding: 28px;
+  position: relative; overflow: hidden;
 }
+.wheel { position: relative; width: 260px; height: 260px; }
+.wheel-svg { width: 100%; height: 100%; cursor: pointer; }
+.wheel-slice { fill: var(--card); stroke: var(--border); stroke-width: 1; transition: fill 0.18s ease, stroke 0.18s ease; cursor: pointer; }
+.wheel-slice:hover { fill: rgba(247,176,65,0.10); stroke: var(--amber); }
+.wheel-label { font-family: var(--ft-mono); font-size: 9px; font-weight: 700; letter-spacing: 1px; fill: var(--tx-muted); pointer-events: none; text-transform: uppercase; }
+.wheel-slice:hover + .wheel-label, .wheel-label:hover { fill: var(--amber); }
+.wheel-hub { fill: var(--bg); stroke: var(--amber); stroke-width: 1.5; }
+.wheel-hub-text { font-family: var(--ft-display); font-weight: 900; font-size: 14px; fill: var(--amber); pointer-events: none; }
+
+.scroll-snap { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 12px; -webkit-overflow-scrolling: touch; }
+.scroll-snap > * { scroll-snap-align: start; flex: 0 0 220px; }
+.scroll-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; transition: all 0.2s; text-decoration: none; color: var(--tx); cursor: pointer; }
+.scroll-card:hover { border-color: rgba(247,176,65,0.4); transform: translateY(-2px); box-shadow: var(--shadow-hover); text-decoration: none; }
+.scroll-card .num { font-family: var(--ft-mono); font-size: 10px; color: var(--tx-dim); letter-spacing: 1.5px; }
+.scroll-card .ttl { font-family: var(--ft-display); font-weight: 800; font-size: 16px; margin: 8px 0 4px; }
+.scroll-card .sub { font-family: var(--ft-body); font-size: 12px; color: var(--tx-muted); }
+
+/* ============================ CMD-K PALETTE ============================ */
+.kbar-overlay {
+  position: fixed; inset: 0; z-index: 12000;
+  background: rgba(6,6,12,0.72); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  display: none; align-items: flex-start; justify-content: center;
+  padding: 96px 16px 16px;
+}
+.kbar-overlay.open { display: flex; animation: kbarFade 0.18s ease forwards; }
+@keyframes kbarFade { from { opacity: 0; } to { opacity: 1; } }
+.kbar {
+  width: min(560px, 100%);
+  background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: var(--shadow-modal); overflow: hidden;
+  animation: dlgPop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.kbar input {
+  width: 100%; padding: 16px 18px; background: transparent;
+  border: none; outline: none; color: var(--tx);
+  font-family: var(--ft-body); font-size: 16px; font-weight: 500;
+  border-bottom: 1px solid var(--border);
+}
+.kbar-list { max-height: 420px; overflow-y: auto; padding: 6px 0; }
+.kbar-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 18px; cursor: pointer; transition: all 0.15s;
+}
+.kbar-item:hover, .kbar-item.kbar-active { background: var(--hover); }
+.kbar-item .kbar-icon { width: 24px; height: 24px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--amber); }
+.kbar-item .kbar-text { flex: 1; }
+.kbar-item .kbar-title { font-family: var(--ft-body); font-size: 13px; font-weight: 600; color: var(--tx); }
+.kbar-item .kbar-desc { font-family: var(--ft-mono); font-size: 10px; color: var(--tx-muted); margin-top: 2px; }
+.kbar-item .kbar-shortcut { font-family: var(--ft-mono); font-size: 10px; color: var(--tx-dim); padding: 2px 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; }
+.kbar-foot {
+  padding: 8px 18px; border-top: 1px solid var(--border);
+  font-family: var(--ft-mono); font-size: 10px; color: var(--tx-dim);
+  display: flex; gap: 16px;
+}
+
+/* ============================ LIVE TOASTS ============================ */
+.toast-host { position: fixed; bottom: 24px; right: 24px; z-index: 11500; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.live-toast { padding: 14px 20px; border-radius: 8px; font-family: var(--ft-mono); font-size: 11px; box-shadow: var(--shadow-modal); animation: tslide 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; pointer-events: auto; cursor: pointer; max-width: 380px; line-height: 1.5; }
+.live-toast.t-success { background: rgba(46,173,142,0.13); border: 1px solid var(--teal); color: var(--teal); }
+.live-toast.t-info    { background: rgba(11,134,209,0.13); border: 1px solid var(--blue);  color: var(--blue); }
+.live-toast.t-error   { background: rgba(224,99,71,0.13); border: 1px solid var(--coral); color: var(--coral); }
+@keyframes tslide { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+.live-toast.fading { animation: tfade 0.3s ease forwards; }
+@keyframes tfade { to { opacity: 0; transform: translateX(20px); } }
+
+/* ============================ COACH MARK ============================ */
+@keyframes coachPop { from { opacity: 0; transform: translateY(12px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.coach-host { position: fixed; right: 24px; bottom: 24px; z-index: 11000; }
+.coach-card {
+  width: min(380px, calc(100vw - 48px));
+  background: var(--card); border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 14px; padding: 16px 18px 14px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(247,176,65,0.08), 0 0 24px rgba(247,176,65,0.06);
+  animation: coachPop 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.coach-card .coach-tag { font-family: var(--ft-mono); font-size: 9px; letter-spacing: 2px; font-weight: 700; color: var(--amber); background: rgba(247,176,65,0.12); border: 1px solid var(--amber); padding: 2px 7px; border-radius: 4px; display: inline-block; }
+.coach-card h4 { font-family: var(--ft-display); font-size: 18px; font-weight: 800; color: var(--tx); margin: 8px 0 6px; }
+.coach-card p { font-family: var(--ft-body); font-size: 13px; color: var(--tx-muted); line-height: 1.55; margin-bottom: 12px; }
+.coach-card .coach-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ============================ PROGRESS ============================ */
+.progress-track { width: 100%; height: 4px; background: var(--surface); border-radius: 2px; overflow: hidden; position: relative; }
+.progress-bar   { height: 100%; background: linear-gradient(90deg, var(--amber), var(--cyan)); border-radius: 2px; transition: width 0.3s ease; }
+.progress-bar.indet { width: 40% !important; animation: pind 1.4s ease-in-out infinite; }
+@keyframes pind { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+
+/* ============================ AUTO-SAVE ============================ */
+.save-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px;
+  font-family: var(--ft-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--tx-muted);
+  transition: all 0.3s ease;
+}
+.save-pill.saving { color: var(--amber); border-color: rgba(247,176,65,0.40); background: rgba(247,176,65,0.06); }
+.save-pill.saved  { color: var(--teal);  border-color: rgba(46,173,142,0.40); background: rgba(46,173,142,0.06); }
+.save-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.save-pill.saving .save-dot { animation: pulse 0.8s ease-in-out infinite; }
+
+/* ============================ PLAYGROUND CONTROLS ============================ */
+.pg-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; }
+.pg-grid { display: grid; gap: 18px; }
+.pg-control { display: grid; grid-template-columns: 100px 1fr 60px; gap: 12px; align-items: center; }
+.pg-control label { font-family: var(--ft-mono); font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--tx-muted); }
+.pg-control input[type="range"] { width: 100%; -webkit-appearance: none; height: 4px; background: var(--surface); border-radius: 2px; outline: none; }
+.pg-control input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--amber); cursor: pointer; box-shadow: 0 0 8px rgba(247,176,65,0.5); }
+.pg-control input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--amber); cursor: pointer; border: none; box-shadow: 0 0 8px rgba(247,176,65,0.5); }
+.pg-val { font-family: var(--ft-mono); font-size: 12px; color: var(--amber); text-align: right; font-weight: 700; }
+.pg-preview { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 32px; display: flex; align-items: center; justify-content: center; min-height: 180px; }
+.pg-out { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-family: var(--ft-mono); font-size: 11px; color: var(--tx); margin-top: 12px; word-break: break-all; }
+
+.contrast-result { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 8px; font-family: var(--ft-mono); font-size: 12px; font-weight: 700; }
+.contrast-pass { color: var(--teal); background: rgba(46,173,142,0.12); border: 1px solid var(--teal); }
+.contrast-fail { color: var(--coral); background: rgba(224,99,71,0.12); border: 1px solid var(--coral); }
+
+.color-picker { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.color-pick { aspect-ratio: 1; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.15s; position: relative; }
+.color-pick:hover { transform: scale(1.05); }
+.color-pick.selected { border-color: var(--amber); box-shadow: 0 0 0 2px rgba(247,176,65,0.30); }
+
+/* ============================ DOWNLOAD SECTION ============================ */
+.dl-card {
+  background: linear-gradient(135deg, rgba(247,176,65,0.06), rgba(38,201,216,0.04));
+  border: 1px solid rgba(247,176,65,0.20); border-radius: 16px; padding: 32px;
+  display: grid; gap: 20px;
+}
+.dl-card h3 { font-family: var(--ft-display); font-weight: 900; font-size: 32px; letter-spacing: -1px; }
+.dl-files { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.dl-file { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.dl-file .dl-file-ttl { font-family: var(--ft-mono); font-size: 11px; font-weight: 700; color: var(--amber); margin-bottom: 4px; }
+.dl-file .dl-file-sub { font-family: var(--ft-body); font-size: 12px; color: var(--tx-muted); line-height: 1.4; }
+
+/* ============================ FOOTER ============================ */
+.ribbon { margin-top: 96px; padding-top: 32px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-family: var(--ft-mono); font-size: 10px; color: var(--tx-dim); letter-spacing: 2px; }
 .ribbon a { color: var(--tx-muted); }
 
 @media (max-width: 720px) {
@@ -541,6 +443,8 @@ pre.code {
   .states-row { grid-template-columns: 1fr; }
   .voice-pair { grid-template-columns: 1fr; }
   .voice-side.bad { border-right: none; border-bottom: 1px solid var(--border); }
+  .pg-control { grid-template-columns: 1fr; }
+  .pg-control label { font-size: 9px; }
 }
 </style>
 </head>
@@ -555,71 +459,63 @@ pre.code {
 
 <!-- THEME TOGGLE -->
 <div class="theme-toggle" role="tablist" aria-label="Theme">
-  <button id="theme-dark" class="active" aria-pressed="true" title="Dark theme">☾ Dark</button>
-  <button id="theme-light" aria-pressed="false" title="Light theme">☼ Light</button>
+  <button id="theme-dark" class="active" aria-pressed="true">☾ Dark</button>
+  <button id="theme-light" aria-pressed="false">☼ Light</button>
 </div>
+
+<!-- STICKY TABS -->
+<nav class="tabs" id="tabs">
+  <a href="#tokens" data-tab="tokens">Tokens</a>
+  <a href="#colors" data-tab="colors">Colors</a>
+  <a href="#type" data-tab="type">Type</a>
+  <a href="#components" data-tab="components">Components</a>
+  <a href="#states" data-tab="states">States</a>
+  <a href="#playground" data-tab="playground">Playground</a>
+  <a href="#voice" data-tab="voice">Voice</a>
+  <a href="#download" data-tab="download">Download</a>
+  <span class="cmd-hint" id="cmdk-trigger" title="Open palette"><kbd>⌘K</kbd> palette</span>
+</nav>
 
 <main class="shell">
 
   <!-- ═══ HERO ═══ -->
   <section class="hero">
-    <div class="eyebrow">POAST · DESIGN SYSTEM · v2</div>
+    <div class="eyebrow">POAST · DESIGN SYSTEM · v3</div>
     <h1 class="h1">The bible for <span class="accent">building like POAST.</span></h1>
     <p class="lede">
-      Every color, font, gradient, shadow, and component in one file. Both dark and light themes — toggle top-right. Each interactive element is shown in every state (rest, hover, focus, selected, disabled). Voice rules at the end include do/don't rewrites. Drop the URL into any teammate's Slack and they have the whole system.
+      Every color, font, gradient, shadow, and component in one file. Both dark and light themes — toggle top-right. Live demos for every interaction. A playground to experiment. Press <kbd style="font-family:var(--ft-mono);font-size:11px;padding:2px 6px;background:var(--surface);border:1px solid var(--border);border-radius:4px;">⌘K</kbd> to jump anywhere.
     </p>
-    <div class="row" style="margin-top: 24px;">
-      <a class="btn btn-primary" href="#tokens">Tokens</a>
-      <a class="btn btn-secondary" href="#components">Components</a>
-      <a class="btn btn-secondary" href="#states">States</a>
-      <a class="btn btn-secondary" href="#voice">Voice</a>
-      <a class="btn btn-secondary" href="#ai-pairing">AI pairing</a>
+    <div class="dl-bar">
+      <img src="/sa-box-lettermark.svg" alt="" style="width: 44px; height: 44px; flex-shrink: 0;" onerror="this.style.display='none'">
+      <div class="dl-info">
+        <div class="dl-title">POAST Brand Kit</div>
+        <div class="dl-sub">Fonts · Logos · Tokens · Palettes · Offline reference · ~3 MB</div>
+      </div>
+      <a class="dl-cta" href="/api/brand-kit" download="poast-brand-kit.zip">↓ Download brand kit</a>
     </div>
   </section>
 
   <!-- ═══ TOKENS ═══ -->
   <section class="section" id="tokens">
-    <div class="section-head">
-      <h2 class="h2">CSS Tokens</h2>
-      <span class="section-num">SECTION 01</span>
-    </div>
-    <p class="lede" style="margin-bottom: 28px;">
-      Drop this block at the top of any stylesheet. Both themes share token names — only values swap. Toggle to see them shift.
-    </p>
+    <div class="section-head"><h2 class="h2">CSS Tokens</h2><span class="section-num">SECTION 01</span></div>
+    <p class="lede" style="margin-bottom: 28px;">Drop this block at the top of any stylesheet. Both themes share token names — only values swap.</p>
     <pre class="code"><button class="code-copy" data-copy="tokens">Copy</button><code id="tokens-code">/* Default = dark. [data-theme="light"] swaps surfaces and shadows. */
 :root, [data-theme="dark"] {
-  --bg:           #06060C;
-  --surface:      #0D0D12;
-  --card:         #09090D;
-  --hover:        #11111A;
-  --border:       rgba(255,255,255,0.06);
-  --tx:           #E8E4DD;
-  --tx-muted:     #8A8690;
-  --tx-dim:       #4E4B56;
-  --shadow-card:  0 2px 12px rgba(0,0,0,0.4);
+  --bg: #06060C;  --card: #09090D;  --surface: #0D0D12;
+  --border: rgba(255,255,255,0.06);
+  --tx: #E8E4DD;  --tx-muted: #8A8690;  --tx-dim: #4E4B56;
+  --shadow-card: 0 2px 12px rgba(0,0,0,0.4);
   --shadow-hover: 0 8px 30px rgba(0,0,0,0.5),
                   0 0 20px rgba(247,176,65,0.08);
-  --shadow-focus: 0 0 0 3px rgba(247,176,65,0.20),
-                  0 0 16px rgba(247,176,65,0.08);
 }
-
 [data-theme="light"] {
-  --bg:           #FAFAF6;
-  --surface:      #F2F1EC;
-  --card:         #FFFFFF;
-  --hover:        #F6F5F0;
-  --border:       rgba(0,0,0,0.08);
-  --tx:           #1C1A18;
-  --tx-muted:     #6A6770;
-  --tx-dim:       #A29DA8;
-  --shadow-card:  0 1px 3px rgba(0,0,0,0.05);
+  --bg: #FAFAF6;  --card: #FFFFFF;  --surface: #F2F1EC;
+  --border: rgba(0,0,0,0.08);
+  --tx: #1C1A18;  --tx-muted: #6A6770;  --tx-dim: #A29DA8;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.05);
   --shadow-hover: 0 6px 20px rgba(0,0,0,0.08),
                   0 0 20px rgba(247,176,65,0.18);
-  --shadow-focus: 0 0 0 3px rgba(247,176,65,0.20),
-                  0 0 12px rgba(247,176,65,0.18);
 }
-
-/* Accents — same in both themes. Brand stays brand. */
 :root {
   --amber: #F7B041;  --blue: #0B86D1;  --teal: #2EAD8E;
   --coral: #E06347;  --violet: #905CCB;
@@ -631,13 +527,35 @@ pre.code {
 }</code></pre>
   </section>
 
+  <!-- ═══ NAVIGATION AIDS ═══ -->
+  <section class="section">
+    <div class="section-head"><h2 class="h2">Navigate</h2><span class="section-num">SECTION 02</span></div>
+    <p class="lede" style="margin-bottom: 28px;">Three ways to get around: the sticky tabs above, the radial wheel, or the scroll strip. The wheel is the same pattern Chart Maker 2 uses for chart-type selection.</p>
+
+    <div class="nav-row">
+      <div class="wheel-host">
+        <div class="wheel">
+          <svg class="wheel-svg" viewBox="0 0 260 260" id="nav-wheel"></svg>
+        </div>
+      </div>
+      <div class="scroll-snap">
+        <a href="#tokens" class="scroll-card"><div class="num">SECTION 01</div><div class="ttl">Tokens</div><div class="sub">CSS variables, copy-pasteable.</div></a>
+        <a href="#colors" class="scroll-card"><div class="num">SECTION 03</div><div class="ttl">Colors</div><div class="sub">Surfaces, text, accents, platform.</div></a>
+        <a href="#type" class="scroll-card"><div class="num">SECTION 04</div><div class="ttl">Type</div><div class="sub">Grift, Outfit, JetBrains Mono.</div></a>
+        <a href="#scale" class="scroll-card"><div class="num">SECTION 05</div><div class="ttl">Scale</div><div class="sub">Spacing &amp; radius.</div></a>
+        <a href="#shadows" class="scroll-card"><div class="num">SECTION 06</div><div class="ttl">Shadows</div><div class="sub">Three shadows, three gradients.</div></a>
+        <a href="#states" class="scroll-card"><div class="num">SECTION 07</div><div class="ttl">States</div><div class="sub">Rest, hover, focus, selected.</div></a>
+        <a href="#components" class="scroll-card"><div class="num">SECTION 08</div><div class="ttl">Components</div><div class="sub">Live, interactive.</div></a>
+        <a href="#playground" class="scroll-card"><div class="num">SECTION 09</div><div class="ttl">Playground</div><div class="sub">Sliders, contrast, type.</div></a>
+        <a href="#voice" class="scroll-card"><div class="num">SECTION 10</div><div class="ttl">Voice</div><div class="sub">Do / don't pairs.</div></a>
+        <a href="#download" class="scroll-card"><div class="num">SECTION 11</div><div class="ttl">Download</div><div class="sub">Brand kit zip.</div></a>
+      </div>
+    </div>
+  </section>
+
   <!-- ═══ COLORS ═══ -->
   <section class="section" id="colors">
-    <div class="section-head">
-      <h2 class="h2">Colors</h2>
-      <span class="section-num">SECTION 02</span>
-    </div>
-
+    <div class="section-head"><h2 class="h2">Colors</h2><span class="section-num">SECTION 03</span></div>
     <div class="label">Surfaces (theme-aware)</div>
     <div class="grid grid-4" style="margin-bottom: 32px;">
       <div class="swatch"><div class="swatch-chip" style="background: var(--bg);"></div><div class="swatch-name">Background</div><div class="swatch-hex">--bg</div><div class="swatch-use">Page background. Deepest plane.</div></div>
@@ -645,27 +563,24 @@ pre.code {
       <div class="swatch"><div class="swatch-chip" style="background: var(--surface);"></div><div class="swatch-name">Surface</div><div class="swatch-hex">--surface</div><div class="swatch-use">Inputs, elevated panels, drop-zones.</div></div>
       <div class="swatch"><div class="swatch-chip" style="background: var(--hover);"></div><div class="swatch-name">Hover</div><div class="swatch-hex">--hover</div><div class="swatch-use">Row + tile hover background.</div></div>
     </div>
-
     <div class="label">Text (theme-aware)</div>
     <div class="grid grid-3" style="margin-bottom: 32px;">
-      <div class="swatch"><div class="swatch-chip" style="background: var(--tx);"></div><div class="swatch-name">Primary</div><div class="swatch-hex">--tx</div><div class="swatch-use">Body copy, headings. Warm — never pure white or black.</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: var(--tx);"></div><div class="swatch-name">Primary</div><div class="swatch-hex">--tx</div><div class="swatch-use">Body, headings. Warm — never pure white or black.</div></div>
       <div class="swatch"><div class="swatch-chip" style="background: var(--tx-muted);"></div><div class="swatch-name">Muted</div><div class="swatch-hex">--tx-muted</div><div class="swatch-use">Secondary text, labels.</div></div>
       <div class="swatch"><div class="swatch-chip" style="background: var(--tx-dim);"></div><div class="swatch-name">Dim</div><div class="swatch-hex">--tx-dim</div><div class="swatch-use">Timestamps, char counts, footnotes.</div></div>
     </div>
-
     <div class="label">Accents (constant across themes)</div>
     <div class="grid grid-4" style="margin-bottom: 32px;">
       <div class="swatch"><div class="swatch-chip" style="background: #F7B041;"></div><div class="swatch-name">Amber</div><div class="swatch-hex">#F7B041 · --amber</div><div class="swatch-use">Primary CTA, brand accent.</div></div>
       <div class="swatch"><div class="swatch-chip" style="background: #0B86D1;"></div><div class="swatch-name">Blue</div><div class="swatch-hex">#0B86D1 · --blue</div><div class="swatch-use">Information, secondary CTA.</div></div>
       <div class="swatch"><div class="swatch-chip" style="background: #2EAD8E;"></div><div class="swatch-name">Teal</div><div class="swatch-hex">#2EAD8E · --teal</div><div class="swatch-use">Confirmation, success.</div></div>
-      <div class="swatch"><div class="swatch-chip" style="background: #E06347;"></div><div class="swatch-name">Coral</div><div class="swatch-hex">#E06347 · --coral</div><div class="swatch-use">Danger, destructive, error toasts.</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #E06347;"></div><div class="swatch-name">Coral</div><div class="swatch-hex">#E06347 · --coral</div><div class="swatch-use">Danger, destructive.</div></div>
       <div class="swatch"><div class="swatch-chip" style="background: #905CCB;"></div><div class="swatch-name">Violet</div><div class="swatch-hex">#905CCB · --violet</div><div class="swatch-use">Admin / studio modes.</div></div>
-      <div class="swatch"><div class="swatch-chip" style="background: #26C9D8;"></div><div class="swatch-name">Cyan</div><div class="swatch-hex">#26C9D8 · --cyan</div><div class="swatch-use">Highlight in CTA gradient.</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #26C9D8;"></div><div class="swatch-name">Cyan</div><div class="swatch-hex">#26C9D8 · --cyan</div><div class="swatch-use">CTA gradient companion.</div></div>
       <div class="swatch"><div class="swatch-chip" style="background: #D1334A;"></div><div class="swatch-name">Crimson</div><div class="swatch-hex">#D1334A · --crimson</div><div class="swatch-use">Hard alerts only.</div></div>
     </div>
-
     <div class="label">Platform Brand Colors</div>
-    <div class="grid grid-6" style="margin-bottom: 32px;">
+    <div class="grid grid-6">
       <div class="swatch"><div class="swatch-chip" style="background: #1DA1F2;"></div><div class="swatch-name">X</div><div class="swatch-hex">#1DA1F2</div></div>
       <div class="swatch"><div class="swatch-chip" style="background: #0A66C2;"></div><div class="swatch-name">LinkedIn</div><div class="swatch-hex">#0A66C2</div></div>
       <div class="swatch"><div class="swatch-chip" style="background: #1877F2;"></div><div class="swatch-name">Facebook</div><div class="swatch-hex">#1877F2</div></div>
@@ -674,29 +589,15 @@ pre.code {
       <div class="swatch"><div class="swatch-chip" style="background: #00F2EA;"></div><div class="swatch-name">TikTok</div><div class="swatch-hex">#00F2EA</div></div>
       <div class="swatch"><div class="swatch-chip" style="background: #1DB954;"></div><div class="swatch-name">Spotify</div><div class="swatch-hex">#1DB954</div></div>
     </div>
-
-    <div class="label">The Alpha-Tint Pattern</div>
-    <div class="card" style="margin-bottom: 16px;">
-      <p style="color: var(--tx-muted); margin-bottom: 14px; line-height: 1.6;">POAST rarely uses solid accent backgrounds. Pattern: <strong style="color: var(--tx);">accent + alpha-suffix-hex</strong>. Common suffixes:</p>
-      <div class="row">
-        <div style="background: rgba(247,176,65,0.05); border: 1px solid rgba(247,176,65,0.2); border-radius: 6px; padding: 8px 14px; font-family: var(--ft-mono); font-size: 11px;"><span style="color: var(--amber); font-weight: 700;">+ 08</span><span style="color: var(--tx-muted);"> · 3% — barely-visible row tint</span></div>
-        <div style="background: rgba(247,176,65,0.12); border: 1px solid rgba(247,176,65,0.3); border-radius: 6px; padding: 8px 14px; font-family: var(--ft-mono); font-size: 11px;"><span style="color: var(--amber); font-weight: 700;">+ 12</span><span style="color: var(--tx-muted);"> · 7% — chip background</span></div>
-        <div style="background: rgba(247,176,65,0.25); border: 1px solid rgba(247,176,65,0.5); border-radius: 6px; padding: 8px 14px; font-family: var(--ft-mono); font-size: 11px;"><span style="color: var(--amber); font-weight: 700;">+ 40</span><span style="color: var(--tx-muted);"> · 25% — focused border</span></div>
-        <div style="background: rgba(247,176,65,0.35); border: 1px solid rgba(247,176,65,0.6); border-radius: 6px; padding: 8px 14px; font-family: var(--ft-mono); font-size: 11px;"><span style="color: var(--amber); font-weight: 700;">+ 60</span><span style="color: var(--tx-muted);"> · 38% — selected border</span></div>
-      </div>
-    </div>
   </section>
 
   <!-- ═══ TYPOGRAPHY ═══ -->
   <section class="section" id="type">
-    <div class="section-head">
-      <h2 class="h2">Typography</h2>
-      <span class="section-num">SECTION 03</span>
-    </div>
+    <div class="section-head"><h2 class="h2">Typography</h2><span class="section-num">SECTION 04</span></div>
     <div class="grid" style="grid-template-columns: 1fr; gap: 14px;">
       <div class="type-card">
         <div class="type-meta">DISPLAY · GRIFT · --ft-display</div>
-        <div class="type-sample" style="font-family: var(--ft-display);">Page titles. Big numbers. Marquee.</div>
+        <div class="type-sample" style="font-family: var(--ft-display);">Page titles. Big numbers.</div>
         <div class="type-info">For h1/h2 and any moment where the page introduces itself. 500 → 900 weights.</div>
         <div class="weights">
           <div class="weight-line" style="font-family: var(--ft-display); font-weight: 500;"><span class="w">500</span>The future of inference</div>
@@ -705,51 +606,28 @@ pre.code {
           <div class="weight-line" style="font-family: var(--ft-display); font-weight: 900;"><span class="w">900</span>The future of inference</div>
         </div>
       </div>
-
       <div class="type-card">
         <div class="type-meta">BODY · OUTFIT · --ft-body</div>
         <div class="type-sample" style="font-family: var(--ft-body); font-weight: 800; font-size: 32px;">Direct, technical, institutional.</div>
         <div class="type-info">Buttons, body, inputs. Default body weight is 500 (never 400).</div>
         <div class="weights">
-          <div class="weight-line" style="font-weight: 400;"><span class="w">400</span>SemiAnalysis covers semiconductors, AI infrastructure, data centers.</div>
-          <div class="weight-line" style="font-weight: 500;"><span class="w">500</span>SemiAnalysis covers semiconductors, AI infrastructure, data centers.</div>
-          <div class="weight-line" style="font-weight: 700;"><span class="w">700</span>SemiAnalysis covers semiconductors, AI infrastructure, data centers.</div>
-          <div class="weight-line" style="font-weight: 800;"><span class="w">800</span>SemiAnalysis covers semiconductors, AI infrastructure, data centers.</div>
+          <div class="weight-line" style="font-weight: 400;"><span class="w">400</span>SemiAnalysis covers semiconductors and AI infrastructure.</div>
+          <div class="weight-line" style="font-weight: 500;"><span class="w">500</span>SemiAnalysis covers semiconductors and AI infrastructure.</div>
+          <div class="weight-line" style="font-weight: 700;"><span class="w">700</span>SemiAnalysis covers semiconductors and AI infrastructure.</div>
+          <div class="weight-line" style="font-weight: 800;"><span class="w">800</span>SemiAnalysis covers semiconductors and AI infrastructure.</div>
         </div>
       </div>
-
       <div class="type-card">
         <div class="type-meta">MONO · JETBRAINS MONO · --ft-mono</div>
         <div class="type-sample" style="font-family: var(--ft-mono); font-weight: 700; font-size: 28px;">labels · counts · ids</div>
-        <div class="type-info">Caps labels above sections, char counts, timestamps, hash IDs. Replaces h3/h4.</div>
-        <div class="weights">
-          <div class="weight-line" style="font-family: var(--ft-mono); font-weight: 400;"><span class="w">400</span>Updated 2 hours ago · 6f2a91 · 184/200</div>
-          <div class="weight-line" style="font-family: var(--ft-mono); font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;"><span class="w">700</span>YOUR SELECTIONS</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="spacer"></div>
-
-    <div class="card">
-      <div class="label">Type Scale</div>
-      <div class="grid grid-3" style="margin-top: 6px;">
-        <div><div style="font-family: var(--ft-display); font-weight: 900; font-size: 42px; letter-spacing: -2px; line-height: 1;">42px / 900</div><div class="type-info" style="margin-top: 6px;">Page H1</div></div>
-        <div><div style="font-family: var(--ft-display); font-weight: 800; font-size: 28px; letter-spacing: -0.5px;">28px / 800</div><div class="type-info" style="margin-top: 6px;">Section H2</div></div>
-        <div><div style="font-family: var(--ft-body); font-size: 16px; font-weight: 800;">16px / 800</div><div class="type-info" style="margin-top: 6px;">Card title</div></div>
-        <div><div style="font-family: var(--ft-body); font-size: 13px; font-weight: 500;">13px / 500</div><div class="type-info" style="margin-top: 6px;">Body</div></div>
-        <div><div style="font-family: var(--ft-mono); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--tx-muted);">11px / MONO 700</div><div class="type-info" style="margin-top: 6px;">Caps label</div></div>
-        <div><div style="font-family: var(--ft-mono); font-size: 9px; letter-spacing: 1px; color: var(--tx-dim);">9px / MONO 400</div><div class="type-info" style="margin-top: 6px;">Caption</div></div>
+        <div class="type-info">Caps labels above sections, char counts, timestamps, hash IDs.</div>
       </div>
     </div>
   </section>
 
   <!-- ═══ SPACING & RADIUS ═══ -->
-  <section class="section">
-    <div class="section-head">
-      <h2 class="h2">Spacing & Radius</h2>
-      <span class="section-num">SECTION 04</span>
-    </div>
+  <section class="section" id="scale">
+    <div class="section-head"><h2 class="h2">Spacing & Radius</h2><span class="section-num">SECTION 05</span></div>
     <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 24px;">
       <div class="card">
         <div class="label">Spacing — 4-multiple scale</div>
@@ -764,7 +642,6 @@ pre.code {
           <div class="spacing-row"><span class="spacing-label">48</span><div class="spacing-bar" style="width: 48px;"></div></div>
           <div class="spacing-row"><span class="spacing-label">64</span><div class="spacing-bar" style="width: 64px;"></div></div>
         </div>
-        <p style="color: var(--tx-muted); font-size: 12px; margin-top: 14px; line-height: 1.55;">Avoid arbitrary numbers. Stick to multiples of 4.</p>
       </div>
       <div class="card">
         <div class="label">Border-radius scale</div>
@@ -777,124 +654,60 @@ pre.code {
           <div class="radius-tile" style="border-radius: 14px;">14</div>
           <div class="radius-tile" style="border-radius: 50%;">50%</div>
         </div>
-        <p style="color: var(--tx-muted); font-size: 12px; margin-top: 16px; line-height: 1.55;">2 micro · 4 chips · 6 pills · 8 buttons + inputs · 12 cards · 14 modals · 50% avatars + dots.</p>
       </div>
     </div>
   </section>
 
   <!-- ═══ SHADOWS & GRADIENTS ═══ -->
-  <section class="section">
-    <div class="section-head">
-      <h2 class="h2">Shadows & Glows</h2>
-      <span class="section-num">SECTION 05</span>
+  <section class="section" id="shadows">
+    <div class="section-head"><h2 class="h2">Shadows & Gradients</h2><span class="section-num">SECTION 06</span></div>
+    <div class="grid grid-3" style="margin-bottom: 24px;">
+      <div class="shadow-tile" style="box-shadow: var(--shadow-card);"><div class="shadow-name">--shadow-card</div><div class="dim" style="font-family:var(--ft-mono);font-size:11px;">Resting</div></div>
+      <div class="shadow-tile" style="box-shadow: var(--shadow-hover);"><div class="shadow-name">--shadow-hover</div><div class="dim" style="font-family:var(--ft-mono);font-size:11px;">Lift + amber bloom</div></div>
+      <div class="shadow-tile" style="box-shadow: var(--shadow-glow);"><div class="shadow-name">--shadow-glow</div><div class="dim" style="font-family:var(--ft-mono);font-size:11px;">Selected · no lift</div></div>
     </div>
-    <p class="lede" style="margin-bottom: 28px;">Three shadows do most of the work. Rule: the colored part of the glow is <strong style="color: var(--amber);">never above 10–18% alpha</strong> (slightly higher in light mode so the bloom registers against white). Atmosphere, not highlighting.</p>
-    <div class="grid grid-3">
-      <div class="shadow-tile" style="box-shadow: var(--shadow-card);">
-        <div class="shadow-name">--shadow-card</div>
-        <div style="font-family: var(--ft-mono); font-size: 11px; color: var(--tx-dim);">Resting</div>
-      </div>
-      <div class="shadow-tile" style="box-shadow: var(--shadow-hover);">
-        <div class="shadow-name">--shadow-hover</div>
-        <div style="font-family: var(--ft-mono); font-size: 11px; color: var(--tx-dim);">Slight lift + amber bloom</div>
-      </div>
-      <div class="shadow-tile" style="box-shadow: var(--shadow-glow);">
-        <div class="shadow-name">--shadow-glow</div>
-        <div style="font-family: var(--ft-mono); font-size: 11px; color: var(--tx-dim);">Selected · no lift</div>
-      </div>
-    </div>
-
-    <div class="spacer"></div>
-    <div class="label" style="margin-top: 32px;">Gradients (only three blessed)</div>
     <div class="grid grid-3">
       <div class="card" style="padding: 0; overflow: hidden;">
-        <div style="height: 120px; background: var(--grad-card);"></div>
-        <div style="padding: 14px 18px;">
-          <div class="swatch-name">Card</div>
-          <div class="swatch-hex">linear-gradient(135deg, var(--card), var(--surface))</div>
-          <div class="swatch-use">Subtle internal depth on cards.</div>
-        </div>
+        <div style="height: 110px; background: linear-gradient(135deg, var(--card) 0%, var(--surface) 100%);"></div>
+        <div style="padding: 14px 18px;"><div class="swatch-name">Card grad</div><div class="swatch-hex">--grad-card</div></div>
       </div>
       <div class="card" style="padding: 0; overflow: hidden;">
-        <div style="height: 120px; background: var(--grad-surface);"></div>
-        <div style="padding: 14px 18px;">
-          <div class="swatch-name">Surface (reverse)</div>
-          <div class="swatch-hex">linear-gradient(135deg, var(--surface), var(--card))</div>
-          <div class="swatch-use">Same colors flipped — for nested elevation.</div>
-        </div>
+        <div style="height: 110px; background: linear-gradient(135deg, var(--surface) 0%, var(--card) 100%);"></div>
+        <div style="padding: 14px 18px;"><div class="swatch-name">Surface grad</div><div class="swatch-hex">linear-gradient(135deg,--surface,--card)</div></div>
       </div>
       <div class="card" style="padding: 0; overflow: hidden;">
-        <div style="height: 120px; background: var(--grad-cta); display: flex; align-items: center; justify-content: center; color: var(--on-cta); font-family: var(--ft-display); font-weight: 900; font-size: 22px; letter-spacing: -0.5px;">Highest energy</div>
-        <div style="padding: 14px 18px;">
-          <div class="swatch-name">CTA · amber → cyan</div>
-          <div class="swatch-hex">linear-gradient(135deg, #F7B041, #26C9D8)</div>
-          <div class="swatch-use">Black 800-weight text. Only multicolor gradient.</div>
-        </div>
+        <div style="height: 110px; background: var(--grad-cta); display: flex; align-items: center; justify-content: center; color: var(--on-cta); font-family: var(--ft-display); font-weight: 900; font-size: 22px; letter-spacing: -0.5px;">CTA</div>
+        <div style="padding: 14px 18px;"><div class="swatch-name">CTA · amber → cyan</div><div class="swatch-hex">--grad-cta</div></div>
       </div>
     </div>
   </section>
 
-  <!-- ═══ STATES GALLERY ═══ -->
+  <!-- ═══ STATES ═══ -->
   <section class="section" id="states">
-    <div class="section-head">
-      <h2 class="h2">States Gallery</h2>
-      <span class="section-num">SECTION 06</span>
-    </div>
-    <p class="lede" style="margin-bottom: 28px;">Every interactive component, side-by-side, in every state. Pay close attention to the transitions. The hover treatment is the most identifiable part of the POAST feel — subtle lift, amber-tint border, low-alpha colored bloom.</p>
-
+    <div class="section-head"><h2 class="h2">States Gallery</h2><span class="section-num">SECTION 07</span></div>
+    <p class="lede" style="margin-bottom: 28px;">Every interactive component side-by-side, in every state. Hover lifts. Focus halos. Selected washes (no lift).</p>
     <div class="card" style="padding: 0; overflow: hidden;">
       <div style="padding: 18px 24px; border-bottom: 1px solid var(--border); background: var(--surface); display: grid; grid-template-columns: 110px repeat(5, 1fr); gap: 12px;">
         <div class="states-name">Component</div>
-        <div class="states-cell-label">Rest</div>
-        <div class="states-cell-label">Hover</div>
-        <div class="states-cell-label">Focus</div>
-        <div class="states-cell-label">Selected</div>
-        <div class="states-cell-label">Disabled</div>
+        <div class="states-cell-label">Rest</div><div class="states-cell-label">Hover</div><div class="states-cell-label">Focus</div><div class="states-cell-label">Selected</div><div class="states-cell-label">Disabled</div>
       </div>
-
       <div style="padding: 0 24px;">
-
-        <!-- Primary Button -->
         <div class="states-row">
-          <div class="states-name">Primary<br><span style="font-weight: 400; color: var(--tx-muted);">btn-primary</span></div>
+          <div class="states-name">Primary<br><span class="muted" style="font-weight:400;">btn-primary</span></div>
           <div class="states-cell"><div class="preview"><button class="btn btn-primary">Save</button></div></div>
           <div class="states-cell"><div class="preview"><button class="btn btn-primary is-hover">Save</button></div></div>
           <div class="states-cell"><div class="preview"><button class="btn btn-primary" style="box-shadow: var(--shadow-focus);">Save</button></div></div>
           <div class="states-cell"><div class="preview"><button class="btn btn-primary" style="box-shadow: var(--shadow-glow), 0 0 20px rgba(247,176,65,0.35);">Save ✓</button></div></div>
           <div class="states-cell"><div class="preview"><button class="btn btn-primary is-disabled" disabled>Save</button></div></div>
         </div>
-
-        <!-- Secondary Button -->
         <div class="states-row">
-          <div class="states-name">Secondary<br><span style="font-weight: 400; color: var(--tx-muted);">btn-secondary</span></div>
+          <div class="states-name">Secondary<br><span class="muted" style="font-weight:400;">btn-secondary</span></div>
           <div class="states-cell"><div class="preview"><button class="btn btn-secondary">Cancel</button></div></div>
           <div class="states-cell"><div class="preview"><button class="btn btn-secondary is-hover">Cancel</button></div></div>
           <div class="states-cell"><div class="preview"><button class="btn btn-secondary" style="box-shadow: var(--shadow-focus); border-color: var(--amber);">Cancel</button></div></div>
           <div class="states-cell"><div class="preview"><span class="dim" style="font-family: var(--ft-mono); font-size: 10px;">N/A</span></div></div>
           <div class="states-cell"><div class="preview"><button class="btn btn-secondary is-disabled" disabled>Cancel</button></div></div>
         </div>
-
-        <!-- Danger Button -->
-        <div class="states-row">
-          <div class="states-name">Danger<br><span style="font-weight: 400; color: var(--tx-muted);">btn-danger</span></div>
-          <div class="states-cell"><div class="preview"><button class="btn btn-danger">Delete</button></div></div>
-          <div class="states-cell"><div class="preview"><button class="btn btn-danger is-hover">Delete</button></div></div>
-          <div class="states-cell"><div class="preview"><button class="btn btn-danger" style="box-shadow: 0 0 0 3px rgba(224,99,71,0.20); border-color: var(--coral);">Delete</button></div></div>
-          <div class="states-cell"><div class="preview"><span class="dim" style="font-family: var(--ft-mono); font-size: 10px;">N/A</span></div></div>
-          <div class="states-cell"><div class="preview"><button class="btn btn-danger is-disabled" disabled>Delete</button></div></div>
-        </div>
-
-        <!-- Glow Button -->
-        <div class="states-row">
-          <div class="states-name">Glow CTA<br><span style="font-weight: 400; color: var(--tx-muted);">btn-glow</span></div>
-          <div class="states-cell"><div class="preview"><button class="btn btn-glow">Generate</button></div></div>
-          <div class="states-cell"><div class="preview"><button class="btn btn-glow is-hover">Generate</button></div></div>
-          <div class="states-cell"><div class="preview"><button class="btn btn-glow" style="box-shadow: var(--shadow-focus), 0 4px 14px rgba(247,176,65,0.25);">Generate</button></div></div>
-          <div class="states-cell"><div class="preview"><span class="dim" style="font-family: var(--ft-mono); font-size: 10px;">N/A</span></div></div>
-          <div class="states-cell"><div class="preview"><button class="btn btn-glow is-disabled" disabled>Generate</button></div></div>
-        </div>
-
-        <!-- Card -->
         <div class="states-row">
           <div class="states-name">Card</div>
           <div class="states-cell"><div class="preview"><div class="card" style="padding: 10px 14px; font-size: 12px;"><span class="pill">DOC</span><div style="margin-top:6px;font-weight:800;">Project</div></div></div></div>
@@ -903,87 +716,86 @@ pre.code {
           <div class="states-cell"><div class="preview"><div class="card is-selected" style="padding: 10px 14px; font-size: 12px;"><span class="pill">DOC</span><div style="margin-top:6px;font-weight:800;">Project</div></div></div></div>
           <div class="states-cell"><div class="preview"><span class="dim" style="font-family: var(--ft-mono); font-size: 10px;">—</span></div></div>
         </div>
-
-        <!-- Picker -->
         <div class="states-row">
-          <div class="states-name">Picker<br><span style="font-weight: 400; color: var(--tx-muted);">radio-card</span></div>
+          <div class="states-name">Picker<br><span class="muted" style="font-weight:400;">radio-card</span></div>
           <div class="states-cell"><div class="preview"><div class="pick" style="padding: 8px 12px; font-size: 12px;"><div class="pick-radio"></div><div>Option A</div></div></div></div>
           <div class="states-cell"><div class="preview"><div class="pick is-hover" style="padding: 8px 12px; font-size: 12px;"><div class="pick-radio"></div><div>Option A</div></div></div></div>
           <div class="states-cell"><div class="preview"><div class="pick" style="padding: 8px 12px; font-size: 12px; box-shadow: var(--shadow-focus); border-color: var(--amber);"><div class="pick-radio"></div><div>Option A</div></div></div></div>
           <div class="states-cell"><div class="preview"><div class="pick picked" style="padding: 8px 12px; font-size: 12px;"><div class="pick-radio"></div><div>Option A</div></div></div></div>
           <div class="states-cell"><div class="preview"><span class="dim" style="font-family: var(--ft-mono); font-size: 10px;">—</span></div></div>
         </div>
-
-        <!-- Input -->
         <div class="states-row">
-          <div class="states-name">Input<br><span style="font-weight: 400; color: var(--tx-muted);">.input</span></div>
+          <div class="states-name">Input</div>
           <div class="states-cell"><div class="preview" style="padding: 0 8px;"><input class="input" placeholder="Type…" style="font-size: 11px; padding: 6px 10px;"></div></div>
           <div class="states-cell"><div class="preview" style="padding: 0 8px;"><input class="input" placeholder="Type…" style="font-size: 11px; padding: 6px 10px; border-color: var(--border-hover);"></div></div>
           <div class="states-cell"><div class="preview" style="padding: 0 8px;"><input class="input is-focus" value="Hello" style="font-size: 11px; padding: 6px 10px;"></div></div>
           <div class="states-cell"><div class="preview" style="padding: 0 8px;"><input class="input" value="Locked in" style="font-size: 11px; padding: 6px 10px; border-color: var(--amber); background: rgba(247,176,65,0.04);"></div></div>
           <div class="states-cell"><div class="preview" style="padding: 0 8px;"><input class="input is-disabled" value="—" disabled style="font-size: 11px; padding: 6px 10px;"></div></div>
         </div>
-
-        <!-- Tile -->
-        <div class="states-row">
-          <div class="states-name">Tile<br><span style="font-weight: 400; color: var(--tx-muted);">.tile</span></div>
-          <div class="states-cell"><div class="preview"><div class="tile" style="padding: 10px 14px; font-size: 12px;">Carousel</div></div></div>
-          <div class="states-cell"><div class="preview"><div class="tile is-hover" style="padding: 10px 14px; font-size: 12px;">Carousel</div></div></div>
-          <div class="states-cell"><div class="preview"><div class="tile" style="padding: 10px 14px; font-size: 12px; box-shadow: var(--shadow-focus); border-color: var(--amber);">Carousel</div></div></div>
-          <div class="states-cell"><div class="preview"><div class="tile is-selected" style="padding: 10px 14px; font-size: 12px;">Carousel</div></div></div>
-          <div class="states-cell"><div class="preview"><span class="dim" style="font-family: var(--ft-mono); font-size: 10px;">—</span></div></div>
-        </div>
-
       </div>
-    </div>
-
-    <p class="lede" style="margin-top: 28px;">Notes on the transitions:</p>
-    <div class="grid grid-3">
-      <div class="card"><div class="h3">Hover</div><div class="muted" style="font-size: 13px; line-height: 1.6;">Border tints amber (~40% alpha), shadow lifts with a low-alpha amber bloom, the element rises 1–2px. Duration 200ms ease.</div></div>
-      <div class="card"><div class="h3">Focus</div><div class="muted" style="font-size: 13px; line-height: 1.6;">3px amber halo at 20% alpha + a 12–16px outer glow. Border goes solid amber. Visible without color (works in high-contrast mode).</div></div>
-      <div class="card"><div class="h3">Selected</div><div class="muted" style="font-size: 13px; line-height: 1.6;">Background gets a 5–8% amber wash. Border solid amber at ~50% alpha. Outer glow but no lift — selection isn't motion.</div></div>
     </div>
   </section>
 
-  <!-- ═══ COMPONENTS ═══ -->
+  <!-- ═══ COMPONENTS · LIVE ═══ -->
   <section class="section" id="components">
-    <div class="section-head">
-      <h2 class="h2">Components</h2>
-      <span class="section-num">SECTION 07</span>
-    </div>
+    <div class="section-head"><h2 class="h2">Components · Live</h2><span class="section-num">SECTION 08</span></div>
+    <p class="lede" style="margin-bottom: 28px;">Click the buttons. These are the actual POAST patterns wired up.</p>
 
-    <div class="label">Buttons (live — hover them)</div>
-    <div class="row" style="margin-bottom: 32px;">
-      <button class="btn btn-primary">+ New project</button>
-      <button class="btn btn-secondary">Cancel</button>
-      <button class="btn btn-glow">Highest-energy CTA</button>
-      <button class="btn btn-danger">Delete</button>
-      <button class="btn-mini">×</button>
-    </div>
+    <div class="grid grid-2" style="margin-bottom: 24px;">
+      <div class="card">
+        <div class="label">Toast</div>
+        <p class="muted" style="font-size: 13px; line-height: 1.6; margin-bottom: 14px;">Bottom-right, mono font, click-to-dismiss, 6s auto-fade.</p>
+        <div class="row">
+          <button class="btn btn-secondary" data-toast="success">Success</button>
+          <button class="btn btn-secondary" data-toast="info">Info</button>
+          <button class="btn btn-secondary" data-toast="error">Error</button>
+        </div>
+      </div>
 
-    <div class="label">Pills · Badges · Tags</div>
-    <div class="row" style="margin-bottom: 32px;">
-      <span class="pill">DOC</span>
-      <span class="pill pill-blue">INFO</span>
-      <span class="pill pill-teal">SAVED</span>
-      <span class="pill pill-coral">ERROR</span>
-      <span class="pill pill-violet">ADMIN</span>
-      <span class="pill pill-muted">DRAFT</span>
-    </div>
+      <div class="card">
+        <div class="label">Dialog</div>
+        <p class="muted" style="font-size: 13px; line-height: 1.6; margin-bottom: 14px;">Backdrop blur, panel pop-in (220ms), ESC to close.</p>
+        <div class="row">
+          <button class="btn btn-secondary" id="open-dialog">Open dialog</button>
+        </div>
+      </div>
 
-    <div class="label">Inputs (focus the title to see the focus ring)</div>
-    <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-      <input class="input" placeholder="Episode title">
-      <select class="select">
-        <option>Select a category…</option>
-        <option>AI Cloud TCO</option>
-        <option>Memory, Tokenomics, Macro</option>
-      </select>
-    </div>
-    <textarea class="textarea" placeholder="Paste article text here…" style="margin-bottom: 16px;"></textarea>
-    <div class="dropzone" style="margin-bottom: 32px;">
-      <div style="font-family: var(--ft-body); font-size: 13px; color: var(--tx);">Drop files here or click to upload</div>
-      <div style="font-family: var(--ft-mono); font-size: 11px; color: var(--tx-dim); margin-top: 4px;">PNG, SVG, JPG, WOFF2</div>
+      <div class="card">
+        <div class="label">Coach mark</div>
+        <p class="muted" style="font-size: 13px; line-height: 1.6; margin-bottom: 14px;">Bottom-right card, fires on first-visit to a tool.</p>
+        <div class="row">
+          <button class="btn btn-secondary" id="open-coach">Show coach mark</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="label">Progress</div>
+        <p class="muted" style="font-size: 13px; line-height: 1.6; margin-bottom: 14px;">Determinate or indeterminate. Amber→cyan gradient.</p>
+        <div class="progress-track" style="margin-bottom: 12px;"><div class="progress-bar" id="progress-det" style="width: 0%;"></div></div>
+        <div class="progress-track" style="margin-bottom: 12px;"><div class="progress-bar indet"></div></div>
+        <div class="row">
+          <button class="btn btn-secondary" id="run-progress">Animate</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="label">Auto-save indicator</div>
+        <p class="muted" style="font-size: 13px; line-height: 1.6; margin-bottom: 14px;">Pill that cycles: idle → saving → saved → fade.</p>
+        <div class="row">
+          <span class="save-pill" id="save-pill"><span class="save-dot"></span><span id="save-label">Idle</span></span>
+          <button class="btn btn-secondary" id="trigger-save">Trigger save</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="label">Drag &amp; drop</div>
+        <p class="muted" style="font-size: 13px; line-height: 1.6; margin-bottom: 14px;">Real drop zone. Drop files to see names — nothing uploads.</p>
+        <div class="dropzone" id="dropzone" style="margin-bottom: 12px;">
+          <div style="font-size: 13px; color: var(--tx);">Drop files here</div>
+          <div class="dim" style="font-family: var(--ft-mono); font-size: 11px; margin-top: 4px;">PNG, SVG, JPG, anything</div>
+        </div>
+        <div id="drop-results" style="font-family: var(--ft-mono); font-size: 11px; color: var(--tx-muted); display: none;"></div>
+      </div>
     </div>
 
     <div class="label">Sidebar Navigation</div>
@@ -994,72 +806,128 @@ pre.code {
         <div class="sidebar-item active">Carousel</div>
         <div class="sidebar-item">Capper</div>
         <div class="sidebar-item">Chart Maker</div>
-        <div style="height: 14px;"></div>
-        <div class="sidebar-cat" style="color: var(--blue); text-shadow: 0 0 16px rgba(11,134,209,0.4);">PREPARE</div>
-        <div class="sidebar-item">Trends</div>
-        <div class="sidebar-item">News Flow</div>
       </div>
       <div style="flex: 1; max-width: 480px;">
         <div class="card">
           <div class="label">Pattern</div>
-          <p style="color: var(--tx-muted); font-size: 13px; line-height: 1.6;">3px-wide colored stripe at the left edge for active items. Background tinted at ~5% accent alpha. Active label gets a text-shadow glow.</p>
-          <p style="color: var(--tx-muted); font-size: 13px; line-height: 1.6; margin-top: 10px;">Categories carry different accents: PRODUCE → amber. PREPARE → blue. PODCAST → coral. PREMIER → teal. ADMIN → violet.</p>
+          <p class="muted" style="font-size: 13px; line-height: 1.6;">3px-wide colored stripe at the left edge for active items. Background tinted at ~5% accent alpha. Active label gets a text-shadow glow.</p>
         </div>
       </div>
     </div>
 
     <div class="label">Pickers</div>
     <div class="col" style="margin-bottom: 32px;">
-      <div class="pick">
-        <div class="pick-radio"></div>
-        <div>Ep. 010 - How Much Do GPUs Really Cost? (AI Cloud TCO)</div>
-      </div>
-      <div class="pick picked">
-        <div class="pick-radio"></div>
-        <div>
-          Ep. 008 - Claude Code Psychosis: How SemiAnalysis Is Token Mogging Meta
-          <div style="font-family: var(--ft-mono); font-size: 10px; color: var(--tx-dim); margin-top: 6px; letter-spacing: 0.5px;">YOUTUBE 78/100 · SPOTIFY 142/200</div>
-        </div>
-      </div>
-      <div class="pick">
-        <div class="pick-radio"></div>
-        <div>Ep. 007 - The 3 Choke Points Killing the AI Boom (Core Research)</div>
-      </div>
+      <div class="pick"><div class="pick-radio"></div><div>Ep. 010 - How Much Do GPUs Really Cost? (AI Cloud TCO)</div></div>
+      <div class="pick picked"><div class="pick-radio"></div><div>Ep. 008 - Claude Code Psychosis: How SemiAnalysis Is Token Mogging Meta<div class="dim" style="font-family: var(--ft-mono); font-size: 10px; margin-top: 6px;">YOUTUBE 78/100 · SPOTIFY 142/200</div></div></div>
+      <div class="pick"><div class="pick-radio"></div><div>Ep. 007 - The 3 Choke Points Killing the AI Boom (Core Research)</div></div>
     </div>
 
-    <div class="label">Dialog</div>
-    <div style="background: var(--surface); border: 1px dashed var(--border); border-radius: 14px; padding: 32px; margin-bottom: 32px;">
-      <div class="dialog-demo" style="animation: dlgPop 0.3s ease;">
-        <div class="dialog-title">Delete project?</div>
-        <div class="dialog-body">"Blackwell GPU yields one-pager" will be removed permanently.</div>
-        <div class="dialog-actions">
-          <button class="btn btn-secondary">Cancel</button>
-          <button class="btn" style="background: var(--coral); color: #fff;">Delete</button>
+    <div class="label">Pills</div>
+    <div class="row" style="margin-bottom: 32px;">
+      <span class="pill">DOC</span>
+      <span class="pill pill-blue">INFO</span>
+      <span class="pill pill-teal">SAVED</span>
+      <span class="pill pill-coral">ERROR</span>
+      <span class="pill pill-violet">ADMIN</span>
+      <span class="pill pill-muted">DRAFT</span>
+    </div>
+  </section>
+
+  <!-- ═══ PLAYGROUND ═══ -->
+  <section class="section" id="playground">
+    <div class="section-head"><h2 class="h2">Playground</h2><span class="section-num">SECTION 09</span></div>
+    <p class="lede" style="margin-bottom: 28px;">Drag the sliders. The card on the right updates live and the CSS spits out below — paste straight into your code.</p>
+
+    <div class="grid grid-2" style="margin-bottom: 24px;">
+
+      <div class="pg-card">
+        <div class="label">Radius scale</div>
+        <div class="pg-grid">
+          <div class="pg-control">
+            <label for="pg-radius">Radius</label>
+            <input type="range" id="pg-radius" min="0" max="32" value="12" step="1">
+            <div class="pg-val" id="pg-radius-val">12px</div>
+          </div>
+          <div class="pg-preview"><div id="pg-radius-card" class="card" style="width: 200px; height: 100px; padding: 0; display: flex; align-items: center; justify-content: center; font-family: var(--ft-mono); font-size: 11px; color: var(--tx-muted);">card example</div></div>
+          <div class="pg-out" id="pg-radius-out">border-radius: 12px;</div>
         </div>
       </div>
-    </div>
 
-    <div class="label">Toast</div>
-    <div style="margin-bottom: 32px;">
-      <div class="toast-demo">Saved.</div>
+      <div class="pg-card">
+        <div class="label">Shadow lab</div>
+        <div class="pg-grid">
+          <div class="pg-control">
+            <label for="pg-y">Y offset</label>
+            <input type="range" id="pg-y" min="0" max="40" value="2" step="1">
+            <div class="pg-val" id="pg-y-val">2</div>
+          </div>
+          <div class="pg-control">
+            <label for="pg-blur">Blur</label>
+            <input type="range" id="pg-blur" min="0" max="80" value="12" step="1">
+            <div class="pg-val" id="pg-blur-val">12</div>
+          </div>
+          <div class="pg-control">
+            <label for="pg-darkAlpha">Dark α</label>
+            <input type="range" id="pg-darkAlpha" min="0" max="100" value="40" step="1">
+            <div class="pg-val" id="pg-darkAlpha-val">0.40</div>
+          </div>
+          <div class="pg-control">
+            <label for="pg-amberAlpha">Amber α</label>
+            <input type="range" id="pg-amberAlpha" min="0" max="50" value="0" step="1">
+            <div class="pg-val" id="pg-amberAlpha-val">0.00</div>
+          </div>
+          <div class="pg-preview"><div id="pg-shadow-card" class="card" style="width: 200px; height: 100px; padding: 0; display: flex; align-items: center; justify-content: center; font-family: var(--ft-mono); font-size: 11px; color: var(--tx-muted);">card example</div></div>
+          <div class="pg-out" id="pg-shadow-out">box-shadow: 0 2px 12px rgba(0,0,0,0.40);</div>
+        </div>
+      </div>
+
+      <div class="pg-card">
+        <div class="label">Type-scale preview</div>
+        <div class="pg-grid">
+          <input class="input" id="pg-type-input" value="The future of inference" style="font-family: var(--ft-body); font-size: 14px; padding: 10px 14px;">
+          <div class="pg-preview" style="flex-direction: column; align-items: stretch; gap: 12px; padding: 24px;">
+            <div id="pg-type-h1" style="font-family: var(--ft-display); font-weight: 900; font-size: 42px; letter-spacing: -2px; line-height: 1;">The future of inference</div>
+            <div id="pg-type-h2" style="font-family: var(--ft-display); font-weight: 800; font-size: 28px; letter-spacing: -0.5px;">The future of inference</div>
+            <div id="pg-type-card" style="font-family: var(--ft-body); font-size: 16px; font-weight: 800;">The future of inference</div>
+            <div id="pg-type-body" style="font-family: var(--ft-body); font-size: 13px; font-weight: 500;">The future of inference</div>
+            <div id="pg-type-mono" style="font-family: var(--ft-mono); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--tx-muted);">THE FUTURE OF INFERENCE</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pg-card">
+        <div class="label">Color contrast checker</div>
+        <p class="muted" style="font-size: 12px; line-height: 1.6; margin-bottom: 12px;">Pick a foreground + background. WCAG AA / AAA badge updates live.</p>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div>
+            <div class="label" style="margin-bottom: 6px;">Foreground</div>
+            <div class="color-picker" id="pg-fg-picker"></div>
+          </div>
+          <div>
+            <div class="label" style="margin-bottom: 6px;">Background</div>
+            <div class="color-picker" id="pg-bg-picker"></div>
+          </div>
+        </div>
+        <div class="pg-preview" id="pg-contrast-preview" style="background: var(--bg); color: var(--amber); flex-direction: column; gap: 6px;">
+          <div style="font-family: var(--ft-display); font-weight: 800; font-size: 24px;">SemiAnalysis</div>
+          <div style="font-family: var(--ft-body); font-size: 13px;">Direct, technical, institutional.</div>
+        </div>
+        <div style="margin-top: 12px;" id="pg-contrast-result"></div>
+      </div>
+
     </div>
   </section>
 
   <!-- ═══ MOTION ═══ -->
   <section class="section">
-    <div class="section-head">
-      <h2 class="h2">Motion</h2>
-      <span class="section-num">SECTION 08</span>
-    </div>
+    <div class="section-head"><h2 class="h2">Motion</h2><span class="section-num">SECTION 10</span></div>
     <div class="card">
       <table style="width: 100%; border-collapse: collapse;">
-        <thead>
-          <tr style="border-bottom: 1px solid var(--border);">
-            <th style="text-align: left; padding: 10px 0; font-family: var(--ft-mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--tx-muted); font-weight: 700;">When</th>
-            <th style="text-align: left; padding: 10px 0; font-family: var(--ft-mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--tx-muted); font-weight: 700;">Duration</th>
-            <th style="text-align: left; padding: 10px 0; font-family: var(--ft-mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--tx-muted); font-weight: 700;">Easing</th>
-          </tr>
-        </thead>
+        <thead><tr style="border-bottom: 1px solid var(--border);">
+          <th style="text-align: left; padding: 10px 0;" class="label">When</th>
+          <th style="text-align: left; padding: 10px 0;" class="label">Duration</th>
+          <th style="text-align: left; padding: 10px 0;" class="label">Easing</th>
+        </tr></thead>
         <tbody style="font-size: 13px;">
           <tr><td style="padding: 10px 0;">Hover state changes (border/shadow)</td><td style="font-family: var(--ft-mono); color: var(--amber);">200ms</td><td style="font-family: var(--ft-mono); color: var(--tx-muted);">ease</td></tr>
           <tr><td style="padding: 10px 0;">Active press (scale 0.97)</td><td style="font-family: var(--ft-mono); color: var(--amber);">150ms</td><td style="font-family: var(--ft-mono); color: var(--tx-muted);">ease</td></tr>
@@ -1073,14 +941,9 @@ pre.code {
 
   <!-- ═══ VOICE ═══ -->
   <section class="section" id="voice">
-    <div class="section-head">
-      <h2 class="h2">Voice & Copy</h2>
-      <span class="section-num">SECTION 09</span>
-    </div>
+    <div class="section-head"><h2 class="h2">Voice & Copy</h2><span class="section-num">SECTION 11</span></div>
     <p class="lede" style="margin-bottom: 28px;">Visual style is half the brand. Copy discipline is the other half. Side-by-side: what AI tends to write vs. how POAST should sound.</p>
-
     <div class="grid" style="grid-template-columns: 1fr; gap: 16px; margin-bottom: 32px;">
-
       <div class="voice-pair">
         <div class="voice-side bad">
           <div class="voice-tag bad">DON'T · BOOMER / AI</div>
@@ -1090,10 +953,9 @@ pre.code {
         <div class="voice-side good">
           <div class="voice-tag good">DO · DIRECT, SPECIFIC</div>
           <div class="voice-text">"Doug and Jordan walk through Blackwell yields, why HBM3E is the bottleneck, and what TSMC's CoWoS roadmap means for inference cost in 2026."</div>
-          <div class="voice-note">Names, numbers, specific stakes. No connective tissue, no scaffolding.</div>
+          <div class="voice-note">Names, numbers, specific stakes. No connective tissue.</div>
         </div>
       </div>
-
       <div class="voice-pair">
         <div class="voice-side bad">
           <div class="voice-tag bad">DON'T · CLICKBAIT</div>
@@ -1106,25 +968,11 @@ pre.code {
           <div class="voice-note">Concrete claim up top. The reader knows what they're getting.</div>
         </div>
       </div>
-
-      <div class="voice-pair">
-        <div class="voice-side bad">
-          <div class="voice-tag bad">DON'T · CTA SLOP</div>
-          <div class="voice-text">"Don't miss out — unleash the full potential of POAST today! 🚀"</div>
-          <div class="voice-note">"Don't miss out", "unleash", emoji. Three tells, four if you count the rocket.</div>
-        </div>
-        <div class="voice-side good">
-          <div class="voice-tag good">DO · NEUTRAL CTA</div>
-          <div class="voice-text">"Open POAST and pick a tool. Slop Top is the fastest if you have a link."</div>
-          <div class="voice-note">Tells the user exactly what to do. Recommends a path. No urgency theatre.</div>
-        </div>
-      </div>
-
       <div class="voice-pair">
         <div class="voice-side bad">
           <div class="voice-tag bad">DON'T · TITLE SCAFFOLD</div>
           <div class="voice-text">"A Deep Dive Into Vera Rubin: Everything You Need To Know"</div>
-          <div class="voice-note">"Deep dive" + "everything you need to know". The two most-flagged AI-coded title scaffolds.</div>
+          <div class="voice-note">"Deep dive" + "everything you need to know". Two most-flagged AI-coded title scaffolds.</div>
         </div>
         <div class="voice-side good">
           <div class="voice-tag good">DO · CLAIM AS TITLE</div>
@@ -1132,9 +980,7 @@ pre.code {
           <div class="voice-note">A claim that could only have come from someone who knows the chip.</div>
         </div>
       </div>
-
     </div>
-
     <div class="label">The hard rules</div>
     <div class="grid grid-3">
       <div class="card"><div class="h3">No em dashes</div><div class="muted" style="font-size: 13px; line-height: 1.6;">Use commas, periods, or colons.</div></div>
@@ -1146,119 +992,128 @@ pre.code {
     </div>
   </section>
 
-  <!-- ═══ AI PAIRING ═══ -->
-  <section class="section" id="ai-pairing">
-    <div class="section-head">
-      <h2 class="h2">AI Pairing — paste this</h2>
-      <span class="section-num">SECTION 10</span>
+  <!-- ═══ DOWNLOAD ═══ -->
+  <section class="section" id="download">
+    <div class="section-head"><h2 class="h2">Download</h2><span class="section-num">SECTION 12</span></div>
+    <div class="dl-card">
+      <div class="row">
+        <img src="/sa-box-lettermark.svg" alt="SemiAnalysis" style="width: 56px; height: 56px;" onerror="this.style.display='none'">
+        <div style="flex: 1; min-width: 200px;">
+          <h3>POAST Brand Kit</h3>
+          <div class="muted" style="font-family: var(--ft-mono); font-size: 11px; margin-top: 4px;">~3 MB · regenerated on every download</div>
+        </div>
+        <a class="dl-cta" href="/api/brand-kit" download="poast-brand-kit.zip">↓ Download ZIP</a>
+      </div>
+      <div class="dl-files">
+        <div class="dl-file"><div class="dl-file-ttl">fonts/</div><div class="dl-file-sub">Grift (6 woff2 weights), pointers to Outfit + JetBrains Mono on Google Fonts.</div></div>
+        <div class="dl-file"><div class="dl-file-ttl">logos/</div><div class="dl-file-sub">SA box, box+text, box+lettermark, full lockup. PNG + SVG.</div></div>
+        <div class="dl-file"><div class="dl-file-ttl">tokens/</div><div class="dl-file-sub">tokens.css, tokens.scss, tokens.json. Drop into any project.</div></div>
+        <div class="dl-file"><div class="dl-file-ttl">palette/</div><div class="dl-file-sub">poast-palette.gpl (GIMP, Inkscape) and palette.json.</div></div>
+        <div class="dl-file"><div class="dl-file-ttl">style-guide.html</div><div class="dl-file-sub">Offline copy of this page.</div></div>
+        <div class="dl-file"><div class="dl-file-ttl">README.md</div><div class="dl-file-sub">Quick-start + the hard rules.</div></div>
+      </div>
+      <div class="row" style="border-top: 1px solid var(--border); padding-top: 16px;">
+        <div class="muted" style="font-size: 12px; line-height: 1.6;">Internal SemiAnalysis use. Don't redistribute outside the company.</div>
+      </div>
     </div>
-    <p class="lede" style="margin-bottom: 28px;">If you're applying this style with an AI coding assistant, paste the block below as a system prompt or rule set. It encodes the rules in a form models follow well.</p>
-    <pre class="code"><button class="code-copy" data-copy="ai">Copy</button><code id="ai-code"># POAST visual style — apply to any web UI you build.
-
-THEMES. Default dark, optional light. Both share the same token names — only
-surface and shadow values swap.
-
-DARK SURFACES: bg #06060C, card #09090D, surface #0D0D12, hover #11111A,
-border rgba(255,255,255,0.06).
-LIGHT SURFACES: bg #FAFAF6, card #FFFFFF, surface #F2F1EC, hover #F6F5F0,
-border rgba(0,0,0,0.08).
-TEXT (dark): #E8E4DD primary (warm — never #FFFFFF), #8A8690 muted, #4E4B56 dim.
-TEXT (light): #1C1A18 primary (warm — never #000000), #6A6770 muted, #A29DA8 dim.
-
-ACCENTS (constant in both themes): amber #F7B041 primary, blue #0B86D1,
-teal #2EAD8E success, coral #E06347 danger, violet #905CCB, cyan #26C9D8.
-TINTS: accent + low alpha (`#F7B04112` for backgrounds, accent + 25-40%
-alpha for borders).
-
-TYPE. 'Outfit' for body (500 weight default, 800 for emphasis).
-'Grift' for display headings.
-'JetBrains Mono' for tiny caps labels, char counts, IDs.
-Body 13-14px. Headings 700+. Caps labels 9-11px mono, uppercase, 1.5-2px
-letter-spacing.
-
-RADIUS. 4 chips, 6 pills, 8 buttons + inputs, 10-12 cards, 14 modals,
-50% avatars + dots.
-
-SHADOWS (dark). Cards `0 2px 12px rgba(0,0,0,0.4)`. Hover adds a 0 0 20px
-amber bloom at 8% alpha — never higher. Modals get a subtle 0 0 0 1px
-amber ring at 5% alpha.
-SHADOWS (light). Cards `0 1px 3px rgba(0,0,0,0.05)`. Hover bloom 18% alpha
-(slightly higher so it registers against white). Modal ring 15% alpha.
-
-GRADIENTS (only three allowed):
-- Card: linear-gradient(135deg, var(--card), var(--surface))
-- Surface (reverse): linear-gradient(135deg, var(--surface), var(--card))
-- High-energy CTA: linear-gradient(135deg, #F7B041, #26C9D8) with #060608
-  800-weight text on top.
-
-STATES.
-- Hover: border tints amber ~40% alpha, shadow lifts 1-2px with low-alpha
-  amber bloom. 200ms ease.
-- Focus: 3px amber halo at 20% alpha + 12-16px outer glow. Border solid
-  amber. Visible without color.
-- Selected: 5-8% amber wash background, solid amber border at 50% alpha,
-  outer glow but no lift.
-- Disabled: 40% opacity, no shadow, no transform, cursor not-allowed.
-
-VOICE. No em dashes (commas/periods/colons). No emojis. No hype words:
-revolutionary, unleash, game-changing, next-gen, transform, dive into,
-unlock, seamless. No "Why X matters" or "Everything you need to know"
-openers. Direct, specific, technical sentences. Sentence case for body,
-Title Case for proper nouns.
-
-ICONS. lucide-react, stroke 1.8 at rest, 2.2 active. Never filled.
-
-WHEN IN DOUBT. Dark surfaces, single warm accent, low-alpha colored
-shadows, off-white type. Restraint over decoration.</code></pre>
   </section>
 
-  <!-- ═══ FOOTER ═══ -->
+  <!-- ═══ AI PAIRING ═══ -->
+  <section class="section" id="ai-pairing">
+    <div class="section-head"><h2 class="h2">AI Pairing</h2><span class="section-num">SECTION 13</span></div>
+    <p class="lede" style="margin-bottom: 28px;">Paste this as a system prompt for any AI assistant working on a sibling project.</p>
+    <pre class="code"><button class="code-copy" data-copy="ai">Copy</button><code id="ai-code"># POAST visual style — apply to any web UI you build.
+
+THEMES. Default dark, optional light. Same token names; surfaces and shadows swap.
+DARK: bg #06060C, card #09090D, surface #0D0D12, border rgba(255,255,255,0.06).
+LIGHT: bg #FAFAF6, card #FFFFFF, surface #F2F1EC, border rgba(0,0,0,0.08).
+TEXT: warm — never #FFFFFF or #000000. Dark: #E8E4DD/#8A8690/#4E4B56. Light: #1C1A18/#6A6770/#A29DA8.
+ACCENTS (constant): amber #F7B041 primary, blue #0B86D1, teal #2EAD8E success, coral #E06347 danger,
+violet #905CCB, cyan #26C9D8.
+TINTS: accent + low alpha (#F7B04112 for backgrounds, accent + 25-40% alpha for borders).
+
+TYPE. Outfit body (500 default, 800 emphasis). Grift display headings.
+JetBrains Mono for tiny caps labels, char counts, IDs.
+Body 13-14px. Headings 700+. Caps 9-11px mono uppercase, 1.5-2px letter-spacing.
+
+RADIUS. 4 chips, 6 pills, 8 buttons + inputs, 10-12 cards, 14 modals, 50% avatars + dots.
+
+SHADOWS. Dark cards `0 2px 12px rgba(0,0,0,0.4)` + 8% amber bloom on hover.
+Light cards `0 1px 3px rgba(0,0,0,0.05)` + 18% amber bloom on hover.
+Modal ring 5% (dark) or 15% (light) amber.
+
+GRADIENTS (only 3): card, surface, CTA `linear-gradient(135deg, #F7B041, #26C9D8)` with #060608 800-weight text.
+
+STATES. Hover: amber border ~40%, lift 1-2px, low-alpha bloom (200ms ease).
+Focus: 3px amber halo at 20% + 12-16px outer glow. Selected: 5-8% amber wash, solid amber border, glow no lift.
+Disabled: 40% opacity, no shadow, no transform.
+
+VOICE. No em dashes, no emojis, no hype (revolutionary/unleash/next-gen/transform/dive into/unlock/seamless).
+No "Why X matters" / "Everything you need to know" / "Deep dive" openers. Direct, specific, technical.
+Sentence case body, Title Case proper nouns.
+
+ICONS. lucide-react, stroke 1.8 rest, 2.2 active. Never filled.
+
+WHEN IN DOUBT. Dark surfaces, single warm accent, low-alpha colored shadows, off-white type. Restraint over decoration.</code></pre>
+  </section>
+
   <div class="ribbon">
-    <div>POAST · DESIGN SYSTEM · v2</div>
+    <div>POAST · DESIGN SYSTEM · v3</div>
     <div>SEMIANALYSIS // CONTENT COMMAND CENTER</div>
     <div><a href="https://poast-app.vercel.app">poast-app.vercel.app</a></div>
   </div>
 
 </main>
 
+<!-- ═══ HOSTS ═══ -->
+<div class="toast-host" id="toast-host"></div>
+<div class="coach-host" id="coach-host"></div>
+
+<!-- ═══ DIALOG (singleton) ═══ -->
+<div id="dialog-overlay" style="display: none; position: fixed; inset: 0; z-index: 11000; background: rgba(6,6,12,0.72); backdrop-filter: blur(6px); align-items: center; justify-content: center;">
+  <div class="dialog-demo" style="animation: dlgPop 0.22s cubic-bezier(0.16, 1, 0.3, 1);">
+    <div class="dialog-title">Save changes?</div>
+    <div class="dialog-body">Your edits to "Carousel · Variant A" will be saved to drafts. You can recover them from Settings → Drafts.</div>
+    <div class="dialog-actions">
+      <button class="btn btn-secondary" id="dialog-cancel">Cancel</button>
+      <button class="btn btn-primary" id="dialog-confirm">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CMD-K PALETTE ═══ -->
+<div class="kbar-overlay" id="kbar-overlay" role="dialog" aria-label="Command palette">
+  <div class="kbar">
+    <input id="kbar-input" type="text" placeholder="Jump to a section, copy tokens, download kit…" autocomplete="off" spellcheck="false">
+    <div class="kbar-list" id="kbar-list"></div>
+    <div class="kbar-foot"><span><kbd>↑↓</kbd> nav</span><span><kbd>↵</kbd> select</span><span><kbd>esc</kbd> close</span></div>
+  </div>
+</div>
+
 <script>
-// ============================================================
-// THEME TOGGLE — persists choice in localStorage
-// ============================================================
+/* ============================================================
+   THEME TOGGLE
+   ============================================================ */
 (function () {
   var KEY = 'poast-style-guide-theme';
   var html = document.documentElement;
   var btnDark = document.getElementById('theme-dark');
   var btnLight = document.getElementById('theme-light');
-
   function apply(theme) {
     html.setAttribute('data-theme', theme);
-    if (theme === 'light') {
-      btnLight.classList.add('active');
-      btnLight.setAttribute('aria-pressed', 'true');
-      btnDark.classList.remove('active');
-      btnDark.setAttribute('aria-pressed', 'false');
-    } else {
-      btnDark.classList.add('active');
-      btnDark.setAttribute('aria-pressed', 'true');
-      btnLight.classList.remove('active');
-      btnLight.setAttribute('aria-pressed', 'false');
-    }
+    if (theme === 'light') { btnLight.classList.add('active'); btnDark.classList.remove('active'); }
+    else { btnDark.classList.add('active'); btnLight.classList.remove('active'); }
     try { localStorage.setItem(KEY, theme); } catch (e) {}
   }
-
-  // Restore saved preference (default: dark).
-  var saved;
-  try { saved = localStorage.getItem(KEY); } catch (e) {}
+  var saved; try { saved = localStorage.getItem(KEY); } catch (e) {}
   apply(saved === 'light' ? 'light' : 'dark');
-
   btnDark.addEventListener('click', function () { apply('dark'); });
   btnLight.addEventListener('click', function () { apply('light'); });
 })();
 
-// ============================================================
-// COPY-TO-CLIPBOARD on code blocks
-// ============================================================
+/* ============================================================
+   COPY-TO-CLIPBOARD
+   ============================================================ */
 document.querySelectorAll('.code-copy').forEach(function (btn) {
   btn.addEventListener('click', function () {
     var key = btn.getAttribute('data-copy');
@@ -1266,22 +1121,455 @@ document.querySelectorAll('.code-copy').forEach(function (btn) {
     var src = document.getElementById(srcId);
     if (!src) return;
     var text = src.textContent || '';
-    var done = function () {
-      var prev = btn.textContent;
-      btn.textContent = 'Copied';
-      setTimeout(function () { btn.textContent = prev; }, 1400);
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done);
-    } else {
-      var ta = document.createElement('textarea');
-      ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
-      document.body.appendChild(ta); ta.select();
-      try { document.execCommand('copy'); done(); } catch (e) {}
-      document.body.removeChild(ta);
-    }
+    var done = function () { var prev = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = prev; }, 1400); };
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(done);
+    else { var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (e) {} document.body.removeChild(ta); }
   });
 });
+
+/* ============================================================
+   STICKY-TAB ACTIVE STATE on scroll
+   ============================================================ */
+(function () {
+  var tabs = document.querySelectorAll('#tabs a[data-tab]');
+  var sections = Array.prototype.map.call(tabs, function (a) {
+    var id = a.getAttribute('href').slice(1);
+    return { tab: a, el: document.getElementById(id) };
+  }).filter(function (s) { return s.el; });
+  function activate() {
+    var y = window.scrollY + 130;
+    var hit = sections[0];
+    sections.forEach(function (s) { if (s.el.offsetTop <= y) hit = s; });
+    sections.forEach(function (s) { s.tab.classList.toggle('active', s === hit); });
+  }
+  window.addEventListener('scroll', activate, { passive: true });
+  activate();
+})();
+
+/* ============================================================
+   RADIAL NAVIGATION WHEEL
+   ============================================================ */
+(function () {
+  var slices = [
+    { id: 'tokens',     label: 'TOKENS' },
+    { id: 'colors',     label: 'COLORS' },
+    { id: 'type',       label: 'TYPE' },
+    { id: 'scale',      label: 'SCALE' },
+    { id: 'shadows',    label: 'SHADOW' },
+    { id: 'states',     label: 'STATES' },
+    { id: 'components', label: 'COMPNTS' },
+    { id: 'playground', label: 'PLYGND' },
+    { id: 'voice',      label: 'VOICE' },
+    { id: 'download',   label: 'GET KIT' },
+  ];
+  var svg = document.getElementById('nav-wheel');
+  if (!svg) return;
+  var cx = 130, cy = 130, rOuter = 120, rInner = 38;
+  var n = slices.length;
+  var sweep = (Math.PI * 2) / n;
+  var ns = 'http://www.w3.org/2000/svg';
+
+  slices.forEach(function (s, i) {
+    var a0 = -Math.PI / 2 + i * sweep;
+    var a1 = a0 + sweep;
+    var x0o = cx + rOuter * Math.cos(a0), y0o = cy + rOuter * Math.sin(a0);
+    var x1o = cx + rOuter * Math.cos(a1), y1o = cy + rOuter * Math.sin(a1);
+    var x0i = cx + rInner * Math.cos(a0), y0i = cy + rInner * Math.sin(a0);
+    var x1i = cx + rInner * Math.cos(a1), y1i = cy + rInner * Math.sin(a1);
+    var d = ['M', x0o, y0o, 'A', rOuter, rOuter, 0, 0, 1, x1o, y1o, 'L', x1i, y1i, 'A', rInner, rInner, 0, 0, 0, x0i, y0i, 'Z'].join(' ');
+    var path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('class', 'wheel-slice');
+    path.addEventListener('click', function () {
+      var el = document.getElementById(s.id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    svg.appendChild(path);
+
+    var aMid = a0 + sweep / 2;
+    var rLabel = rInner + (rOuter - rInner) * 0.62;
+    var lx = cx + rLabel * Math.cos(aMid), ly = cy + rLabel * Math.sin(aMid);
+    var t = document.createElementNS(ns, 'text');
+    t.setAttribute('x', lx); t.setAttribute('y', ly);
+    t.setAttribute('class', 'wheel-label');
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('dominant-baseline', 'middle');
+    t.textContent = s.label;
+    svg.appendChild(t);
+  });
+
+  var hub = document.createElementNS(ns, 'circle');
+  hub.setAttribute('cx', cx); hub.setAttribute('cy', cy); hub.setAttribute('r', rInner - 2);
+  hub.setAttribute('class', 'wheel-hub');
+  svg.appendChild(hub);
+  var hubText = document.createElementNS(ns, 'text');
+  hubText.setAttribute('x', cx); hubText.setAttribute('y', cy);
+  hubText.setAttribute('class', 'wheel-hub-text');
+  hubText.setAttribute('text-anchor', 'middle');
+  hubText.setAttribute('dominant-baseline', 'middle');
+  hubText.textContent = 'POAST';
+  svg.appendChild(hubText);
+})();
+
+/* ============================================================
+   CMD-K PALETTE
+   ============================================================ */
+(function () {
+  var commands = [
+    { id: 'go-tokens',     title: 'Tokens',         desc: 'CSS variables block', kind: 'go', target: '#tokens' },
+    { id: 'go-colors',     title: 'Colors',         desc: 'All swatches', kind: 'go', target: '#colors' },
+    { id: 'go-type',       title: 'Typography',     desc: 'Grift / Outfit / Mono', kind: 'go', target: '#type' },
+    { id: 'go-scale',      title: 'Spacing & Radius', desc: 'Visual scales', kind: 'go', target: '#scale' },
+    { id: 'go-shadows',    title: 'Shadows & Gradients', desc: 'Three of each', kind: 'go', target: '#shadows' },
+    { id: 'go-states',     title: 'States Gallery', desc: 'Rest, hover, focus, selected, disabled', kind: 'go', target: '#states' },
+    { id: 'go-components', title: 'Components',     desc: 'Live demos', kind: 'go', target: '#components' },
+    { id: 'go-playground', title: 'Playground',     desc: 'Sliders, contrast, type', kind: 'go', target: '#playground' },
+    { id: 'go-voice',      title: 'Voice & copy',   desc: 'Do / don’t pairs', kind: 'go', target: '#voice' },
+    { id: 'go-download',   title: 'Download',       desc: 'Brand kit ZIP', kind: 'go', target: '#download' },
+    { id: 'go-ai',         title: 'AI pairing',     desc: 'System-prompt block', kind: 'go', target: '#ai-pairing' },
+    { id: 'theme-dark',    title: 'Switch to dark theme',  desc: 'Apply dark tokens',  kind: 'theme', target: 'dark' },
+    { id: 'theme-light',   title: 'Switch to light theme', desc: 'Apply light tokens', kind: 'theme', target: 'light' },
+    { id: 'copy-tokens',   title: 'Copy tokens CSS',  desc: 'The :root block', kind: 'copy', target: 'tokens-code' },
+    { id: 'copy-ai',       title: 'Copy AI prompt block', desc: 'For Claude / Cursor / Copilot', kind: 'copy', target: 'ai-code' },
+    { id: 'dl-kit',        title: 'Download brand kit', desc: 'fonts + logos + tokens + palette', kind: 'dl', target: '/api/brand-kit' },
+  ];
+
+  var overlay = document.getElementById('kbar-overlay');
+  var input = document.getElementById('kbar-input');
+  var list = document.getElementById('kbar-list');
+  var trig = document.getElementById('cmdk-trigger');
+  var open = false;
+  var active = 0;
+  var filtered = commands.slice();
+
+  function render() {
+    list.innerHTML = '';
+    filtered.forEach(function (c, i) {
+      var item = document.createElement('div');
+      item.className = 'kbar-item' + (i === active ? ' kbar-active' : '');
+      item.setAttribute('data-id', c.id);
+      var icon = c.kind === 'theme' ? '☼' : c.kind === 'copy' ? '⎘' : c.kind === 'dl' ? '↓' : '→';
+      item.innerHTML =
+        '<div class="kbar-icon">' + icon + '</div>' +
+        '<div class="kbar-text"><div class="kbar-title">' + c.title + '</div><div class="kbar-desc">' + c.desc + '</div></div>' +
+        '<div class="kbar-shortcut">' + c.kind + '</div>';
+      item.addEventListener('mouseenter', function () { active = i; render(); });
+      item.addEventListener('click', function () { exec(c); });
+      list.appendChild(item);
+    });
+  }
+
+  function filter(q) {
+    var t = (q || '').toLowerCase().trim();
+    if (!t) { filtered = commands.slice(); }
+    else {
+      filtered = commands.filter(function (c) {
+        return c.title.toLowerCase().indexOf(t) !== -1 || c.desc.toLowerCase().indexOf(t) !== -1 || c.kind.indexOf(t) !== -1;
+      });
+    }
+    if (active >= filtered.length) active = 0;
+    render();
+  }
+
+  function exec(c) {
+    if (!c) return;
+    if (c.kind === 'go') {
+      var el = document.querySelector(c.target);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (c.kind === 'theme') {
+      document.documentElement.setAttribute('data-theme', c.target);
+      try { localStorage.setItem('poast-style-guide-theme', c.target); } catch (e) {}
+      var d = document.getElementById('theme-dark'), l = document.getElementById('theme-light');
+      if (c.target === 'light') { l.classList.add('active'); d.classList.remove('active'); }
+      else { d.classList.add('active'); l.classList.remove('active'); }
+    } else if (c.kind === 'copy') {
+      var src = document.getElementById(c.target);
+      if (src && navigator.clipboard) navigator.clipboard.writeText(src.textContent || '');
+      window.toast && window.toast('Copied to clipboard', 'success');
+    } else if (c.kind === 'dl') {
+      window.location.href = c.target;
+    }
+    close();
+  }
+
+  function show() {
+    open = true;
+    overlay.classList.add('open');
+    setTimeout(function () { input.focus(); input.value = ''; filter(''); }, 0);
+  }
+  function close() {
+    open = false;
+    overlay.classList.remove('open');
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      open ? close() : show();
+      return;
+    }
+    if (!open) return;
+    if (e.key === 'Escape') { close(); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(filtered.length - 1, active + 1); render(); return; }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); active = Math.max(0, active - 1); render(); return; }
+    if (e.key === 'Enter')     { e.preventDefault(); exec(filtered[active]); return; }
+  });
+  trig.addEventListener('click', show);
+  overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+  input.addEventListener('input', function () { filter(input.value); });
+  filter('');
+})();
+
+/* ============================================================
+   LIVE TOAST
+   ============================================================ */
+window.toast = (function () {
+  var host = document.getElementById('toast-host');
+  return function (msg, kind) {
+    kind = kind || 'success';
+    var el = document.createElement('div');
+    el.className = 'live-toast t-' + kind;
+    el.textContent = msg;
+    host.appendChild(el);
+    var dismiss = function () { el.classList.add('fading'); setTimeout(function () { el.remove(); }, 300); };
+    el.addEventListener('click', dismiss);
+    setTimeout(dismiss, 4500);
+  };
+})();
+document.querySelectorAll('[data-toast]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var k = b.getAttribute('data-toast');
+    var msg = k === 'error' ? 'Save failed. Check connection.' : k === 'info' ? 'Auto-saved 2 minutes ago.' : 'Carousel exported to /downloads.';
+    window.toast(msg, k);
+  });
+});
+
+/* ============================================================
+   LIVE DIALOG
+   ============================================================ */
+(function () {
+  var overlay = document.getElementById('dialog-overlay');
+  var open = document.getElementById('open-dialog');
+  var cancel = document.getElementById('dialog-cancel');
+  var confirm = document.getElementById('dialog-confirm');
+  function show() { overlay.style.display = 'flex'; }
+  function hide() { overlay.style.display = 'none'; }
+  open.addEventListener('click', show);
+  cancel.addEventListener('click', hide);
+  confirm.addEventListener('click', function () { hide(); window.toast('Saved.', 'success'); });
+  overlay.addEventListener('click', function (e) { if (e.target === overlay) hide(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && overlay.style.display === 'flex') hide(); });
+})();
+
+/* ============================================================
+   COACH MARK
+   ============================================================ */
+(function () {
+  var open = document.getElementById('open-coach');
+  open.addEventListener('click', function () {
+    var host = document.getElementById('coach-host');
+    host.innerHTML = '<div class="coach-card"><span class="coach-tag">QUICK NOTE</span><h4>This is a coach mark</h4><p>Same pattern POAST uses to introduce new tools on first visit. Bottom-right, dismissible, doesn’t block the work area.</p><div class="coach-actions"><button class="btn btn-secondary">Don’t show again</button><button class="btn btn-primary" id="coach-got">Got it</button></div></div>';
+    var got = document.getElementById('coach-got');
+    var dismiss = function () { host.innerHTML = ''; };
+    got.addEventListener('click', dismiss);
+    host.querySelectorAll('button')[0].addEventListener('click', dismiss);
+    setTimeout(dismiss, 6000);
+  });
+})();
+
+/* ============================================================
+   PROGRESS
+   ============================================================ */
+(function () {
+  var bar = document.getElementById('progress-det');
+  var btn = document.getElementById('run-progress');
+  btn.addEventListener('click', function () {
+    bar.style.width = '0%';
+    var pct = 0;
+    var iv = setInterval(function () {
+      pct = Math.min(100, pct + 5 + Math.random() * 8);
+      bar.style.width = pct + '%';
+      if (pct >= 100) { clearInterval(iv); setTimeout(function () { bar.style.width = '0%'; }, 600); }
+    }, 80);
+  });
+})();
+
+/* ============================================================
+   AUTO-SAVE INDICATOR
+   ============================================================ */
+(function () {
+  var pill = document.getElementById('save-pill');
+  var label = document.getElementById('save-label');
+  var btn = document.getElementById('trigger-save');
+  btn.addEventListener('click', function () {
+    pill.classList.remove('saved'); pill.classList.add('saving'); label.textContent = 'Saving';
+    setTimeout(function () {
+      pill.classList.remove('saving'); pill.classList.add('saved'); label.textContent = 'Saved';
+      setTimeout(function () {
+        pill.classList.remove('saved'); label.textContent = 'Idle';
+      }, 2000);
+    }, 900);
+  });
+})();
+
+/* ============================================================
+   DRAG & DROP
+   ============================================================ */
+(function () {
+  var dz = document.getElementById('dropzone');
+  var out = document.getElementById('drop-results');
+  ['dragover', 'dragenter'].forEach(function (e) {
+    dz.addEventListener(e, function (ev) { ev.preventDefault(); dz.classList.add('is-drag'); });
+  });
+  ['dragleave', 'drop'].forEach(function (e) {
+    dz.addEventListener(e, function (ev) { ev.preventDefault(); dz.classList.remove('is-drag'); });
+  });
+  dz.addEventListener('drop', function (ev) {
+    var files = Array.prototype.slice.call(ev.dataTransfer.files);
+    if (!files.length) return;
+    out.style.display = 'block';
+    out.innerHTML = files.map(function (f) {
+      return '<div>' + f.name + ' <span class="dim">' + (f.size / 1024).toFixed(1) + ' KB</span></div>';
+    }).join('');
+    window.toast('Dropped ' + files.length + ' file' + (files.length === 1 ? '' : 's') + ' (not uploaded — demo only).', 'info');
+  });
+})();
+
+/* ============================================================
+   PLAYGROUND · RADIUS
+   ============================================================ */
+(function () {
+  var slider = document.getElementById('pg-radius');
+  var card = document.getElementById('pg-radius-card');
+  var val = document.getElementById('pg-radius-val');
+  var out = document.getElementById('pg-radius-out');
+  function apply() {
+    var v = slider.value;
+    card.style.borderRadius = v + 'px';
+    val.textContent = v + 'px';
+    out.textContent = 'border-radius: ' + v + 'px;';
+  }
+  slider.addEventListener('input', apply);
+  apply();
+})();
+
+/* ============================================================
+   PLAYGROUND · SHADOW
+   ============================================================ */
+(function () {
+  var ids = ['y', 'blur', 'darkAlpha', 'amberAlpha'];
+  var sliders = {}, vals = {};
+  ids.forEach(function (id) {
+    sliders[id] = document.getElementById('pg-' + id);
+    vals[id] = document.getElementById('pg-' + id + '-val');
+  });
+  var card = document.getElementById('pg-shadow-card');
+  var out = document.getElementById('pg-shadow-out');
+  function apply() {
+    var y = sliders.y.value;
+    var blur = sliders.blur.value;
+    var dA = (sliders.darkAlpha.value / 100).toFixed(2);
+    var aA = (sliders.amberAlpha.value / 100).toFixed(2);
+    var css = '0 ' + y + 'px ' + blur + 'px rgba(0,0,0,' + dA + ')';
+    if (parseFloat(aA) > 0) css += ', 0 0 20px rgba(247,176,65,' + aA + ')';
+    card.style.boxShadow = css;
+    vals.y.textContent = y;
+    vals.blur.textContent = blur;
+    vals.darkAlpha.textContent = dA;
+    vals.amberAlpha.textContent = aA;
+    out.textContent = 'box-shadow: ' + css + ';';
+  }
+  ids.forEach(function (id) { sliders[id].addEventListener('input', apply); });
+  apply();
+})();
+
+/* ============================================================
+   PLAYGROUND · TYPE
+   ============================================================ */
+(function () {
+  var input = document.getElementById('pg-type-input');
+  var ids = ['pg-type-h1', 'pg-type-h2', 'pg-type-card', 'pg-type-body', 'pg-type-mono'];
+  function apply() {
+    var v = input.value || ' ';
+    ids.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (id === 'pg-type-mono') el.textContent = v.toUpperCase();
+      else el.textContent = v;
+    });
+  }
+  input.addEventListener('input', apply);
+})();
+
+/* ============================================================
+   PLAYGROUND · COLOR CONTRAST
+   ============================================================ */
+(function () {
+  var palette = [
+    { name: 'amber', hex: '#F7B041' },
+    { name: 'blue', hex: '#0B86D1' },
+    { name: 'teal', hex: '#2EAD8E' },
+    { name: 'coral', hex: '#E06347' },
+    { name: 'violet', hex: '#905CCB' },
+    { name: 'cyan', hex: '#26C9D8' },
+    { name: 'tx', hex: '#E8E4DD' },
+    { name: 'tx-light', hex: '#1C1A18' },
+    { name: 'bg-dark', hex: '#06060C' },
+    { name: 'card-dark', hex: '#09090D' },
+    { name: 'bg-light', hex: '#FAFAF6' },
+    { name: 'card-light', hex: '#FFFFFF' },
+    { name: 'tx-muted', hex: '#8A8690' },
+    { name: 'tx-dim', hex: '#4E4B56' },
+    { name: 'crimson', hex: '#D1334A' },
+    { name: 'tx-muted-l', hex: '#6A6770' },
+  ];
+  var fgEl = document.getElementById('pg-fg-picker');
+  var bgEl = document.getElementById('pg-bg-picker');
+  var preview = document.getElementById('pg-contrast-preview');
+  var resultEl = document.getElementById('pg-contrast-result');
+  var fg = '#F7B041', bg = '#06060C';
+
+  function lum(hex) {
+    var r = parseInt(hex.slice(1, 3), 16) / 255;
+    var g = parseInt(hex.slice(3, 5), 16) / 255;
+    var b = parseInt(hex.slice(5, 7), 16) / 255;
+    var t = function (c) { return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    return 0.2126 * t(r) + 0.7152 * t(g) + 0.0722 * t(b);
+  }
+  function contrast(a, b) {
+    var L1 = lum(a), L2 = lum(b);
+    var bright = Math.max(L1, L2), dim = Math.min(L1, L2);
+    return (bright + 0.05) / (dim + 0.05);
+  }
+  function update() {
+    preview.style.background = bg;
+    preview.style.color = fg;
+    var ratio = contrast(fg, bg);
+    var pass4 = ratio >= 4.5, pass7 = ratio >= 7;
+    var rstr = ratio.toFixed(2) + ' : 1';
+    resultEl.innerHTML =
+      '<span class="contrast-result ' + (pass4 ? 'contrast-pass' : 'contrast-fail') + '">AA · ' + rstr + (pass4 ? ' · pass' : ' · fail') + '</span>' +
+      ' <span class="contrast-result ' + (pass7 ? 'contrast-pass' : 'contrast-fail') + '" style="margin-left: 8px;">AAA · ' + (pass7 ? 'pass' : 'fail') + '</span>';
+  }
+  function makePicker(host, target) {
+    palette.forEach(function (p) {
+      var el = document.createElement('div');
+      el.className = 'color-pick';
+      el.style.background = p.hex;
+      el.title = p.name + ' · ' + p.hex;
+      if ((target === 'fg' && p.hex === fg) || (target === 'bg' && p.hex === bg)) el.classList.add('selected');
+      el.addEventListener('click', function () {
+        host.querySelectorAll('.color-pick').forEach(function (n) { n.classList.remove('selected'); });
+        el.classList.add('selected');
+        if (target === 'fg') fg = p.hex; else bg = p.hex;
+        update();
+      });
+      host.appendChild(el);
+    });
+  }
+  makePicker(fgEl, 'fg');
+  makePicker(bgEl, 'bg');
+  update();
+})();
 </script>
 
 </body>

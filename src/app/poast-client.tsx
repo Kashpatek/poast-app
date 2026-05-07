@@ -27,6 +27,7 @@ import { OnboardingHost } from "./onboarding/onboarding-host";
 import { ChartTourTrigger } from "./onboarding/chart-tour-trigger";
 import { useOnboarding } from "./onboarding-context";
 import { useRouter, usePathname } from "next/navigation";
+import { StyleGuidePromo } from "./style-promo";
 import { showToast } from "./toast-context";
 
 // ═══ INTERFACES ═══
@@ -1815,6 +1816,7 @@ export default function App() {
       </div>
     </div>
     <OnboardingHost sec={sec} />
+    <StyleGuidePromo />
     <div style={{ position: "fixed", bottom: 8, right: 12, zIndex: 2, fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.12)", letterSpacing: 1, pointerEvents: "none" }}>v2.8</div>
     {/* Mobile warning */}
     <style dangerouslySetInnerHTML={{ __html: "@media(min-width:769px){.mobile-warn{display:none!important}}" }} />
