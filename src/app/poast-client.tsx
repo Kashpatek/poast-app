@@ -26,6 +26,7 @@ import { useUser, isAnalyst, canUseDocuDesign } from "./user-context";
 import { OnboardingHost } from "./onboarding/onboarding-host";
 import { ChartTourTrigger } from "./onboarding/chart-tour-trigger";
 import { useOnboarding } from "./onboarding-context";
+import { useRouter, usePathname } from "next/navigation";
 import { showToast } from "./toast-context";
 
 // ═══ INTERFACES ═══
@@ -467,6 +468,16 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
   var userCtx = useUser();
   var analyst = isAnalyst(userCtx.user);
   var canDocu = canUseDocuDesign(userCtx.user);
+  var router = useRouter();
+  var pathname = usePathname();
+  var goHome = function() {
+    onNav("home");
+    // For analysts inside their app, keep /analyst in the URL so back/forward
+    // and bookmarks stay coherent. Non-analysts stay at whatever path they're on.
+    if (analyst && pathname !== "/analyst") {
+      try { router.replace("/analyst"); } catch (e) {}
+    }
+  };
   // Analysts only see PRODUCE
   var visibleCats = analyst ? ["produce"] : Object.keys(SIDEBAR_CATS);
   // Determine active category
@@ -476,7 +487,7 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
   return (<div style={{ width: 240, height: "100vh", background: "linear-gradient(180deg, #08080F 0%, #0A0A14 100%)", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
     {/* Logo — click to go home (splash) without re-auth */}
     <div
-      onClick={function() { onNav("home"); }}
+      onClick={goHome}
       title="Home"
       style={{ padding: "18px 18px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", transition: "background 0.15s" }}
       onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(247,176,65,0.04)"; }}
@@ -1285,7 +1296,7 @@ function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
   var _hovC = useState<string | null>(null), hovC = _hovC[0], setHovC = _hovC[1];
   var activeColor = hovC || VIOLET;
 
-  return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, overflow: "hidden" }}>
+  return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "safe center", zIndex: 9999, overflowY: "auto", overflowX: "hidden", padding: "32px 16px" }}>
     <style dangerouslySetInnerHTML={{ __html: `
       @keyframes asFade{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}
       @keyframes asTile{0%{opacity:0;transform:translateY(20px) scale(0.94)}100%{opacity:1;transform:translateY(0) scale(1)}}
@@ -1441,12 +1452,14 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
   var _user = useState<string | null>(null), user = _user[0], setUser = _user[1];
   var _glitch = useState(false), glitch = _glitch[0], setGlitch = _glitch[1];
   var userCtx = useUser();
+  var router = useRouter();
 
   var handleUserSelect = function(name: string) {
     setUser(name);
     userCtx.setUser(name);
-    // Analysts skip boot/glitch entirely — straight to their tile grid
-    if (name === "Analyst") { setPhase("splash"); return; }
+    // Analysts skip boot/glitch entirely — straight to their tile grid.
+    // Push the URL so /analyst is the bookmarkable entry to the analyst app.
+    if (name === "Analyst") { router.replace("/analyst"); setPhase("splash"); return; }
     setPhase("boot");
     try { var audio = new Audio("/splash-sound.mp3"); audio.volume = 0.7; audio.play().catch(function() {}); } catch (e) {}
   };
