@@ -492,7 +492,46 @@ function SlideThumbnail({ slide, theme, isActive, onClick, index }: { slide: Sli
 function InputStep({ state, setState, onNext }: { state: CarouselState; setState: React.Dispatch<React.SetStateAction<CarouselState>>; onNext: () => void }) {
   var _dragging = useState(false), dragging = _dragging[0], setDragging = _dragging[1];
   var _inputMode = useState<string | null>(state.url ? "link" : state.text ? "context" : null), inputMode = _inputMode[0], setInputMode = _inputMode[1];
+  var _genImgL = useState(false), genImgL = _genImgL[0], setGenImgL = _genImgL[1];
   var themeKeys = Object.keys(THEMES) as ThemeKey[];
+
+  // Grok image generation for carousel slides. Uses whatever context the
+  // user has provided so far (URL, pasted text, theme/category) — no
+  // separate prompt-input field, just one click. Generated images land
+  // in articleImages alongside fetched/uploaded ones so the existing
+  // picker UI handles them naturally.
+  async function generateAIImages() {
+    if (genImgL) return;
+    setGenImgL(true);
+    try {
+      var titleHint = (state.url || "").trim() ? "Article: " + state.url : "";
+      var slideText = (state.text || "").slice(0, 500);
+      var r = await fetch("/api/carousel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "generateImage",
+          title: titleHint || "SemiAnalysis carousel cover",
+          slideText: slideText,
+          category: state.category,
+          slideType: "COVER",
+        }),
+      });
+      var d = await r.json();
+      if (!r.ok) { showToast(d.error || "Generation failed"); return; }
+      var newImages = (d.images || []) as string[];
+      if (!newImages.length) { showToast("Grok returned no images. Try again."); return; }
+      setState(function(s) {
+        var existing = s.articleImages || [];
+        return Object.assign({}, s, { articleImages: existing.concat(newImages) });
+      });
+      showToast("Added " + newImages.length + " generated image" + (newImages.length === 1 ? "" : "s") + ".");
+    } catch (e) {
+      showToast("Network error: " + String(e));
+    } finally {
+      setGenImgL(false);
+    }
+  }
 
   function handleFile(file: File | null | undefined) {
     if (!file) return;
@@ -597,9 +636,11 @@ function InputStep({ state, setState, onNext }: { state: CarouselState; setState
 
     {/* Images section — always visible */}
     <div style={{ marginBottom: 24 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
         <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px" }}>Images</div>
-        <label style={{ padding: "5px 12px", borderRadius: 6, background: C.violet + "12", border: "1px solid " + C.violet + "30", color: C.violet, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <button type="button" onClick={generateAIImages} disabled={genImgL} style={{ padding: "5px 12px", borderRadius: 6, background: genImgL ? "rgba(247,176,65,0.06)" : C.amber + "12", border: "1px solid " + C.amber + "40", color: C.amber, fontFamily: ft, fontSize: 11, fontWeight: 700, cursor: genImgL ? "wait" : "pointer", opacity: genImgL ? 0.7 : 1, letterSpacing: 0.3 }}>{genImgL ? "Generating…" : "✨ Generate with AI"}</button>
+          <label style={{ padding: "5px 12px", borderRadius: 6, background: C.violet + "12", border: "1px solid " + C.violet + "30", color: C.violet, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
           Upload Images
           <input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={function(e) {
             var files = Array.prototype.slice.call(e.target.files || []) as File[];
@@ -616,6 +657,7 @@ function InputStep({ state, setState, onNext }: { state: CarouselState; setState
             e.target.value = "";
           }} style={{ display: "none" }} />
         </label>
+        </div>
       </div>
       {state.articleImages && state.articleImages.length > 0 ? <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8 }}>
         {state.articleImages.map(function(imgUrl, i) {

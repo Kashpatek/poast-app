@@ -1,38 +1,70 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  generateGrokImages,
+  GrokImageError,
+  SA_BRAND_CUES,
+  STYLE_PRESETS,
+} from "@/lib/grok-image";
+
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
-  const xaiKey = process.env.XAI_API_KEY;
-  if (!xaiKey) return NextResponse.json({ error: "XAI_API_KEY not configured" }, { status: 500 });
-
-  const body = await req.json();
-  const { concept, style } = body;
-
-  const styleMap: Record<string, string> = {
-    cinematic: "Cinematic still frame, dramatic film lighting, deep blacks, sharp focus, photorealistic",
-    photorealistic: "Ultra-realistic photograph, studio lighting, professional tech media",
-    abstract: "Abstract data visualization, flowing particle systems, neon accents on dark background",
-    dataviz: "Clean data visualization infographic, dark background, amber and teal accents, sharp typography",
+  let body: {
+    concept?: string;
+    style?: string;
+    textOverlay?: string;
+    mood?: string;
+    title?: string;
+    referenceImageUrl?: string;
+    count?: number;
   };
+  try {
+    body = await req.json();
+  } catch (err) {
+    return NextResponse.json({ error: "Invalid JSON body", detail: String(err) }, { status: 400 });
+  }
 
-  const stylePrompt = styleMap[style] || styleMap.cinematic;
-  const fullPrompt = `${stylePrompt}. ${concept}. Professional tech media aesthetic, 16:9 composition, no text overlays, no watermarks.`;
+  const { concept, style, textOverlay, mood, title, referenceImageUrl, count } = body;
+  if (!concept || typeof concept !== "string") {
+    return NextResponse.json({ error: "Missing concept" }, { status: 400 });
+  }
+
+  const stylePrompt = (style && STYLE_PRESETS[style]) || STYLE_PRESETS.cinematic;
+  const moodLine = mood ? ` Mood: ${mood}.` : "";
+  const titleLine = title ? ` For a podcast episode titled: "${title}".` : "";
+  // The text-overlay description goes into the prompt as a layout hint
+  // (don't render the text — leave room for it). The actual letterforms
+  // are added later in a separate compositor step if needed.
+  const overlayLine = textOverlay
+    ? ` Reserve a clear region with strong negative space where headline text could be placed (do not render text in the image): "${textOverlay}".`
+    : " No text overlays in the image.";
+
+  const fullPrompt = [
+    stylePrompt,
+    concept,
+    titleLine,
+    moodLine,
+    overlayLine,
+    SA_BRAND_CUES,
+    "16:9 composition, no watermarks, no captions baked into the image.",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   try {
-    const images: string[] = [];
-    for (let i = 0; i < 3; i++) {
-      const r = await fetch("https://api.x.ai/v1/images/generations", {
-        method: "POST",
-        headers: { "Authorization": "Bearer " + xaiKey, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "grok-imagine-image", prompt: fullPrompt + (i > 0 ? " variation " + (i + 1) : ""), n: 1 }),
-      });
-      const data = await r.json();
-      if (data.data && data.data[0]) {
-        images.push(data.data[0].url || ("data:image/png;base64," + data.data[0].b64_json));
-      }
+    const images = await generateGrokImages({
+      prompt: fullPrompt,
+      count: typeof count === "number" && count > 0 && count <= 4 ? count : 3,
+      referenceImageUrl,
+    });
+    if (!images.length) {
+      return NextResponse.json({ error: "No images generated" }, { status: 502 });
     }
-    if (images.length > 0) return NextResponse.json({ images, ts: Date.now() });
-    return NextResponse.json({ error: "No images generated" }, { status: 500 });
-  } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json({ images, ts: Date.now() });
+  } catch (err) {
+    if (err instanceof GrokImageError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

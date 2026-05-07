@@ -646,6 +646,11 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
   var _al = useState<boolean>(false), abL = _al[0], setAbL = _al[1];
   var _ar = useState<ABResult | null>(null), abR = _ar[0], setAbR = _ar[1];
   var _am = useState<string>("both"), abM = _am[0], setAbM = _am[1];
+  // Grok thumbnail generation state. variants is null while no run has
+  // finished; [] after a run that produced nothing; populated array on success.
+  var _tgl = useState<boolean>(false), thumbGenL = _tgl[0], setThumbGenL = _tgl[1];
+  var _tgv = useState<string[] | null>(null), thumbVariants = _tgv[0], setThumbVariants = _tgv[1];
+  var _tgu = useState<number | null>(null), uploadingIdx = _tgu[0], setUploadingIdx = _tgu[1];
 
   if (!opts) return <div style={{ textAlign: "center", padding: 80, color: D.txb, fontFamily: ft }}>Generate options first.</div>;
 
@@ -713,6 +718,91 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
     setFin({ title: yt, description: opts.descriptions[sel.desc], thumbnail: opts.thumbnails[sel.thumb] });
   };
 
+  // Grok-powered thumbnail generation. Pulls the currently selected
+  // thumbnail concept (text-only) and renders 3 image variants. The user
+  // picks one to commit; we Blob-upload it for permanence so the export
+  // still works after Grok's URL expires.
+  var generateThumbImages = async function() {
+    if (thumbGenL || !opts) return;
+    var picked = opts.thumbnails[sel.thumb];
+    var concept = typeof picked === "string" ? picked : (picked && picked.concept) || "";
+    if (!concept) { showToast("Pick or generate a thumbnail concept first."); return; }
+    var textOverlay = typeof picked === "string" ? "" : (picked && picked.text_overlay) || "";
+    var mood = typeof picked === "string" ? "" : (picked && picked.mood) || "";
+    setThumbGenL(true);
+    setThumbVariants(null);
+    try {
+      var r = await fetch("/api/generate-thumbnail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          concept: concept,
+          textOverlay: textOverlay,
+          mood: mood,
+          title: curFin.title,
+          style: "cinematic",
+          count: 3,
+        }),
+      });
+      var d = await r.json();
+      if (!r.ok) { showToast(d.error || "Image generation failed"); return; }
+      setThumbVariants((d.images as string[]) || []);
+    } catch (e) {
+      showToast("Network error: " + String(e));
+    } finally {
+      setThumbGenL(false);
+    }
+  };
+
+  // Use a generated variant as the thumbnail. Persists to Vercel Blob so
+  // the asset survives Grok URL expiry; falls back to data URL if the
+  // upload fails (the user can still export DOCX in the same session).
+  var useGeneratedThumb = async function(imgUrl: string, idx: number) {
+    if (uploadingIdx !== null) return;
+    setUploadingIdx(idx);
+    try {
+      var dataUrl = imgUrl;
+      if (!imgUrl.startsWith("data:")) {
+        try {
+          var fres = await fetch(imgUrl);
+          var blob = await fres.blob();
+          dataUrl = await new Promise<string>(function(resolve, reject) {
+            var fr = new FileReader();
+            fr.onload = function() { resolve(fr.result as string); };
+            fr.onerror = function() { reject(fr.error); };
+            fr.readAsDataURL(blob);
+          });
+        } catch (e) {
+          // CORS or transient network error — use the URL as-is.
+          setThumb(imgUrl);
+          showToast("Thumbnail set (couldn't persist — Grok URL only).");
+          return;
+        }
+      }
+      try {
+        var up = await fetch("/api/upload-asset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            data: dataUrl,
+            filename: "sa-weekly-ep" + (ep.number || "x") + "-thumb-" + Date.now() + ".png",
+            contentType: "image/png",
+          }),
+        });
+        var upJ = await up.json();
+        if (up.ok && upJ.url) {
+          setThumb(upJ.url as string);
+          showToast("Thumbnail saved.");
+          return;
+        }
+      } catch (e) { /* fall through to local fallback */ }
+      setThumb(dataUrl);
+      showToast("Thumbnail set (local only — Blob upload failed).");
+    } finally {
+      setUploadingIdx(null);
+    }
+  };
+
   return (<div>
     <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Review</div>
     <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 32 }}>Preview, double check, A/B test, then finalize your selections.</div>
@@ -744,11 +834,38 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
     </div>
 
     {/* Thumbnail upload */}
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 28 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
       <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, background: D.surface, border: "2px dashed " + D.border, borderRadius: 12, cursor: "pointer", transition: "border-color 0.2s ease" }}><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: ACC, marginBottom: 4 }}>Upload Thumbnail</div><div style={{ fontFamily: mn, fontSize: 10, color: D.txl }}>PNG, JPG, 1280x720</div><input type="file" accept="image/*" style={{ display: "none" }} onChange={function(e) { var f = e.target.files && e.target.files[0]; if (!f) return; var r = new FileReader(); r.onload = function(ev: ProgressEvent<FileReader>) { setThumb(ev.target?.result as string); }; r.readAsDataURL(f); e.target.value = ""; }} /></label>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, background: D.surface, border: "2px dashed " + D.border, borderRadius: 12, opacity: 0.35 }}><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: D.txb, marginBottom: 4 }}>Get One Prompted</div><div style={{ fontFamily: mn, fontSize: 10, color: D.txl }}>Coming Soon</div></div>
+      <div onClick={generateThumbImages} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, background: thumbGenL ? "rgba(247,176,65,0.06)" : D.surface, border: "2px dashed " + (thumbGenL ? D.amber : D.border), borderRadius: 12, cursor: thumbGenL ? "wait" : "pointer", transition: "all 0.2s ease", opacity: thumbGenL ? 0.85 : 1 }}>
+        <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: D.amber, marginBottom: 4 }}>{thumbGenL ? "Generating with Grok…" : "Get One Prompted"}</div>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.txl, textAlign: "center" }}>{thumbGenL ? "About 10–20 seconds" : "AI generates 3 thumbnail options"}</div>
+      </div>
     </div>
-    {thumb && <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 20 }}><span style={{ fontFamily: mn, fontSize: 10, color: D.teal }}>Thumbnail uploaded</span><span onClick={function() { setThumb(null); }} style={{ fontFamily: mn, fontSize: 9, color: D.txl, cursor: "pointer" }}>Remove</span></div>}
+
+    {thumbGenL && <ProgressBar label="Generating thumbnail variants" />}
+
+    {thumbVariants && thumbVariants.length > 0 && <div style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 16, marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontFamily: mn, fontSize: 11, color: D.amber, textTransform: "uppercase", letterSpacing: "2px", fontWeight: 700 }}>Generated · pick one</div>
+        <span onClick={generateThumbImages} style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: D.txl, padding: "4px 10px", borderRadius: 8, border: "1px solid " + D.border, cursor: thumbGenL ? "wait" : "pointer", letterSpacing: 1 }}>↻ Re-roll all</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+        {thumbVariants.map(function(url, i) {
+          var picked = thumb === url;
+          var uploading = uploadingIdx === i;
+          return <div key={i} style={{ background: D.surface, border: "1px solid " + (picked ? D.amber : D.border), borderRadius: 10, overflow: "hidden", position: "relative" }}>
+            { /* eslint-disable-next-line @next/next/no-img-element */ }
+            <img src={url} alt={"variant " + (i + 1)} style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", display: "block" }} />
+            <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontFamily: mn, fontSize: 9, color: D.txl, letterSpacing: 1 }}>{"Var. " + (i + 1)}</span>
+              <button type="button" disabled={uploading} onClick={function() { useGeneratedThumb(url, i); }} style={{ marginLeft: "auto", padding: "5px 12px", background: picked ? D.teal + "15" : D.amber, color: picked ? D.teal : "#060608", border: picked ? "1px solid " + D.teal + "60" : "none", borderRadius: 6, fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: uploading ? "wait" : "pointer", letterSpacing: 0.5 }}>{uploading ? "Saving…" : picked ? "✓ In use" : "Use this"}</button>
+            </div>
+          </div>;
+        })}
+      </div>
+    </div>}
+
+    {thumb && <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 20 }}><span style={{ fontFamily: mn, fontSize: 10, color: D.teal }}>Thumbnail set</span><span onClick={function() { setThumb(null); }} style={{ fontFamily: mn, fontSize: 9, color: D.txl, cursor: "pointer" }}>Remove</span></div>}
 
     <Divider />
 

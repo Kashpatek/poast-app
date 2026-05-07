@@ -3,6 +3,7 @@ import { z } from "zod";
 import { generateWithClaude, generateJSON, AnthropicError } from "@/lib/anthropic";
 import { stripHTML, extractImages } from "@/lib/html";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { generateGrokImages, GrokImageError, SA_BRAND_CUES, STYLE_PRESETS } from "@/lib/grok-image";
 
 // SA Carousel Schema v1.0
 const TEMPLATE_IDS: Record<string, string> = {
@@ -43,7 +44,7 @@ const THEMES_MAP: Record<string, string> = {
 };
 
 const CarouselSchema = z.object({
-  action: z.enum(["generate", "fetchImages", "caption", "rewrite"]),
+  action: z.enum(["generate", "fetchImages", "caption", "rewrite", "generateImage"]),
   text: z.string().optional(),
   url: z.string().optional(),
   category: z.string().optional(),
@@ -323,6 +324,62 @@ Style rules:
         prompt: `${dirPrompt}\n\nOriginal: ${rewriteText}`,
       });
       return NextResponse.json({ text: rawText.trim(), ts: Date.now() });
+    }
+
+    if (action === "generateImage") {
+      // Grok image generation for carousel slides. Inputs the slide's
+      // text content + slide type so we can bias the prompt toward
+      // either a strong-focal cover composition or a tighter supporting
+      // illustration for body slides.
+      const {
+        title: imgTitle,
+        subtitle: imgSubtitle,
+        slideType,
+        slideText,
+        category: imgCategory,
+        style: imgStyle,
+      } = body as {
+        title?: string;
+        subtitle?: string;
+        slideType?: string;
+        slideText?: string;
+        category?: string;
+        style?: string;
+      };
+
+      const stylePrompt =
+        (typeof imgStyle === "string" && STYLE_PRESETS[imgStyle]) || STYLE_PRESETS.editorial;
+
+      const isCover = slideType === "COVER" || (!slideType && imgTitle);
+      const compositionHint = isCover
+        ? "Single clean focal subject, generous negative space at the top for a headline overlay (do not render text in the image)."
+        : "Tight supporting illustration, simple subject, balanced composition. Do not render text.";
+
+      const subject = [imgTitle, imgSubtitle, slideText].filter(Boolean).join(" — ");
+
+      const fullPrompt = [
+        stylePrompt,
+        subject || "Editorial cover image for an Instagram carousel about technology and AI infrastructure.",
+        imgCategory ? `Category: ${imgCategory}.` : "",
+        compositionHint,
+        SA_BRAND_CUES,
+        "Square 1:1 composition, premium tech-media polish, no watermarks.",
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      try {
+        const images = await generateGrokImages({ prompt: fullPrompt, count: 3 });
+        if (!images.length) {
+          return NextResponse.json({ error: "No images generated" }, { status: 502 });
+        }
+        return NextResponse.json({ images, ts: Date.now() });
+      } catch (e) {
+        if (e instanceof GrokImageError) {
+          return NextResponse.json({ error: e.message }, { status: e.status });
+        }
+        throw e;
+      }
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
