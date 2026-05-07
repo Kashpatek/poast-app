@@ -3,9 +3,10 @@
 // awaits (callers don't need to know whether the event landed).
 
 const ROLES: Record<string, string> = {
-  Akash: "Director",
+  Akash: "Brand and Creative Director",
+  Michelle: "Chief of Staff",
   Vansh: "Social Media Manager",
-  Michelle: "Marketing",
+  Daksh: "Intern",
   Analyst: "Analyst",
 };
 

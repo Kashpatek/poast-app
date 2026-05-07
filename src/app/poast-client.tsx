@@ -955,9 +955,10 @@ function ClipCaptions() {
 var GATE_PASSWORD = "marketing";
 interface InternalUserInfo { name: string; role: string; color: string; glow: string }
 var INTERNAL_USERS: InternalUserInfo[] = [
-  { name: "Akash",    role: "Director",             color: "#0B86D1", glow: "rgba(11,134,209,"  },
-  { name: "Vansh",    role: "Social Media Manager", color: "#2EAD8E", glow: "rgba(46,173,142,"  },
-  { name: "Michelle", role: "Marketing",            color: "#F7B041", glow: "rgba(247,176,65,"  },
+  { name: "Akash",    role: "Brand and Creative Director", color: "#0B86D1", glow: "rgba(11,134,209,"  },
+  { name: "Michelle", role: "Chief of Staff",              color: "#F7B041", glow: "rgba(247,176,65,"  },
+  { name: "Vansh",    role: "Social Media Manager",        color: "#2EAD8E", glow: "rgba(46,173,142,"  },
+  { name: "Daksh",    role: "Intern",                      color: "#905CCB", glow: "rgba(144,92,203,"  },
 ];
 function UserSelect({ onSelect }: { onSelect: (name: string) => void }) {
   // Stage flow: "choose" (Analyst vs Lock tile) → "password" (if Lock) → "team" (Akash/Vansh/Michelle)
@@ -1045,7 +1046,7 @@ function UserSelect({ onSelect }: { onSelect: (name: string) => void }) {
     )}
 
     {stage === "team" && (
-      <div style={{ display: "flex", gap: 20 }}>
+      <div style={{ display: "flex", gap: 20, flexWrap: "wrap", justifyContent: "center", maxWidth: "min(720px, 92vw)" }}>
         {INTERNAL_USERS.map(function(user, i) {
           var on = hov === user.name;
           var uc = user.color;

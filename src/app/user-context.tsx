@@ -1,7 +1,12 @@
 "use client";
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 
-export type UserRole = "Director" | "Social Media Manager" | "Marketing" | "Analyst";
+export type UserRole =
+  | "Brand and Creative Director"
+  | "Chief of Staff"
+  | "Social Media Manager"
+  | "Intern"
+  | "Analyst";
 
 export interface User {
   name: string;
@@ -9,9 +14,10 @@ export interface User {
 }
 
 const USERS: Record<string, User> = {
-  Akash: { name: "Akash", role: "Director" },
+  Akash: { name: "Akash", role: "Brand and Creative Director" },
+  Michelle: { name: "Michelle", role: "Chief of Staff" },
   Vansh: { name: "Vansh", role: "Social Media Manager" },
-  Michelle: { name: "Michelle", role: "Marketing" },
+  Daksh: { name: "Daksh", role: "Intern" },
   Analyst: { name: "Analyst", role: "Analyst" },
 };
 
@@ -56,6 +62,14 @@ export function isAnalyst(user: User | null): boolean {
   return user?.role === "Analyst";
 }
 
+// The whole marketing team gets DocuDesign — Brand and Creative Director,
+// Chief of Staff, Social Media Manager, and Intern. Analyst is excluded.
 export function canUseDocuDesign(user: User | null): boolean {
-  return user?.role === "Marketing" || user?.role === "Director";
+  if (!user) return false;
+  return (
+    user.role === "Brand and Creative Director" ||
+    user.role === "Chief of Staff" ||
+    user.role === "Social Media Manager" ||
+    user.role === "Intern"
+  );
 }
