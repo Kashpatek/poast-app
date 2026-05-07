@@ -980,90 +980,141 @@ function UserSelect({ onSelect }: { onSelect: (name: string) => void }) {
     }
   };
 
-  return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, overflow: "hidden" }}>
-    <style dangerouslySetInnerHTML={{ __html: "@keyframes ufi{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}@keyframes orbPulse{0%,100%{transform:scale(1);opacity:0.5}50%{transform:scale(1.1);opacity:0.8}}@keyframes pwShake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}" }} />
+  return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "safe center", zIndex: 9999, overflowY: "auto", overflowX: "hidden", padding: "48px 20px" }}>
+    <style dangerouslySetInnerHTML={{ __html: [
+      "@keyframes wfade{0%{opacity:0;transform:translateY(18px)}100%{opacity:1;transform:translateY(0)}}",
+      "@keyframes wpop{0%{opacity:0;transform:translateY(20px) scale(0.94)}100%{opacity:1;transform:translateY(0) scale(1)}}",
+      "@keyframes worbA{0%,100%{transform:translate(0,0) scale(1);opacity:0.55}50%{transform:translate(40px,-30px) scale(1.15);opacity:0.85}}",
+      "@keyframes worbB{0%,100%{transform:translate(0,0) scale(1);opacity:0.45}50%{transform:translate(-50px,40px) scale(1.18);opacity:0.75}}",
+      "@keyframes worbC{0%,100%{transform:translate(0,0) scale(1);opacity:0.4}50%{transform:translate(30px,30px) scale(1.1);opacity:0.7}}",
+      "@keyframes wshim{0%{background-position:0% 50%}100%{background-position:200% 50%}}",
+      "@keyframes pwShake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}",
+      ".w-headline{background:linear-gradient(120deg,#F7B041 0%,#26C9D8 45%,#F7B041 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:wfade 0.7s cubic-bezier(0.16,1,0.3,1) 0.35s forwards,wshim 8s ease-in-out infinite;opacity:0}",
+    ].join("") }} />
 
-    {/* Ambient orb — tints to whichever tile is hovered */}
-    <div style={{ position: "absolute", width: "60vw", height: "60vw", borderRadius: "50%", background: "radial-gradient(circle, " + (hov === "Analyst" ? "rgba(144,92,203,0.10)" : hov === "Lock" ? "rgba(247,176,65,0.08)" : "rgba(144,92,203,0.04)") + ", transparent 55%)", transition: "background 0.5s ease", animation: "orbPulse 3s ease-in-out infinite", pointerEvents: "none" }} />
+    {/* Ambient orbs — three drifting blooms behind everything */}
+    <div style={{ position: "absolute", width: "70vw", height: "70vw", maxWidth: 900, maxHeight: 900, top: "-15%", right: "-10%", borderRadius: "50%", background: "radial-gradient(circle, " + (hov === "Analyst" ? "rgba(144,92,203,0.18)" : hov === "Lock" ? "rgba(247,176,65,0.15)" : "rgba(247,176,65,0.10)") + " 0%, transparent 60%)", filter: "blur(60px)", transition: "background 0.6s ease", animation: "worbA 18s ease-in-out infinite", pointerEvents: "none" }} />
+    <div style={{ position: "absolute", width: "60vw", height: "60vw", maxWidth: 800, maxHeight: 800, bottom: "-15%", left: "-10%", borderRadius: "50%", background: "radial-gradient(circle, " + (hov === "Analyst" ? "rgba(144,92,203,0.10)" : "rgba(11,134,209,0.08)") + " 0%, transparent 60%)", filter: "blur(80px)", transition: "background 0.6s ease", animation: "worbB 22s ease-in-out infinite", pointerEvents: "none" }} />
+    <div style={{ position: "absolute", width: "40vw", height: "40vw", maxWidth: 600, maxHeight: 600, top: "30%", left: "20%", borderRadius: "50%", background: "radial-gradient(circle, rgba(144,92,203,0.06) 0%, transparent 60%)", filter: "blur(70px)", animation: "worbC 16s ease-in-out infinite", pointerEvents: "none" }} />
 
-    <img src="/poast-logo.png" style={{ width: 48, height: 48, borderRadius: 12, marginBottom: 8, animation: "ufi 0.4s ease forwards", opacity: 0 }} />
-    <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 900, color: C.amber, letterSpacing: 4, marginBottom: 6, animation: "ufi 0.4s ease 0.05s forwards", opacity: 0 }}>POAST</div>
-    <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.25)", letterSpacing: 2, marginBottom: 40, animation: "ufi 0.4s ease 0.1s forwards", opacity: 0 }}>
-      {stage === "choose" ? "SELECT ENTRY" : stage === "password" ? "ENTER PASSWORD" : "WELCOME BACK"}
-    </div>
+    <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", maxWidth: 720, width: "100%" }}>
 
-    {stage === "choose" && (
-      <div style={{ display: "flex", gap: 20 }}>
-        {/* Analyst — direct entry */}
-        <div
-          key="Analyst"
-          onClick={function() { onSelect("Analyst"); }}
-          onMouseEnter={function() { setHov("Analyst"); }}
-          onMouseLeave={function() { setHov(null); }}
-          style={{ width: 200, padding: "34px 22px", borderRadius: 16, cursor: "pointer", background: hov === "Analyst" ? VIOLET + "12" : "#0A0A14", border: "1px solid " + (hov === "Analyst" ? VIOLET + "60" : "rgba(255,255,255,0.08)"), textAlign: "center", transition: "all 0.22s cubic-bezier(0.16, 1, 0.3, 1)", boxShadow: hov === "Analyst" ? "0 0 40px " + VIOLET + "25, 0 20px 50px -10px " + VIOLET + "30" : "none", animation: "ufi 0.45s ease 0.2s forwards", opacity: 0, transform: hov === "Analyst" ? "translateY(-4px)" : "translateY(0)" }}
-        >
-          <div style={{ width: 60, height: 60, borderRadius: 14, background: hov === "Analyst" ? VIOLET + "22" : "#111118", border: "1px solid " + (hov === "Analyst" ? VIOLET + "50" : "rgba(255,255,255,0.08)"), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", transition: "all 0.22s", fontFamily: ft, fontSize: 24, fontWeight: 900, color: hov === "Analyst" ? VIOLET : "rgba(255,255,255,0.55)", boxShadow: hov === "Analyst" ? "0 0 24px " + VIOLET + "35" : "none" }}>
-            A
-          </div>
-          <div style={{ fontFamily: ft, fontSize: 17, fontWeight: 800, color: hov === "Analyst" ? VIOLET : "#E8E4DD", letterSpacing: -0.2, marginBottom: 4, transition: "color 0.2s" }}>Analyst</div>
-          <div style={{ fontFamily: mn, fontSize: 9, color: hov === "Analyst" ? VIOLET + "AA" : "rgba(255,255,255,0.35)", letterSpacing: 1.5, textTransform: "uppercase", transition: "color 0.2s" }}>Open studio</div>
+      {stage === "choose" && (<>
+        {/* Tiny eyebrow + logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, animation: "wfade 0.6s ease 0.15s forwards", opacity: 0 }}>
+          <img src="/poast-logo.png" style={{ width: 32, height: 32, borderRadius: 8 }} />
+          <div style={{ fontFamily: mn, fontSize: 11, fontWeight: 700, color: C.amber, letterSpacing: 4, textTransform: "uppercase" }}>POAST</div>
         </div>
-        {/* Lock — password-gated team entry */}
-        <div
-          key="Lock"
-          onClick={function() { setStage("password"); setTimeout(function() { var el = document.getElementById("gate-pw"); el && el.focus(); }, 30); }}
-          onMouseEnter={function() { setHov("Lock"); }}
-          onMouseLeave={function() { setHov(null); }}
-          style={{ width: 200, padding: "34px 22px", borderRadius: 16, cursor: "pointer", background: hov === "Lock" ? C.amber + "12" : "#0A0A14", border: "1px solid " + (hov === "Lock" ? C.amber + "60" : "rgba(255,255,255,0.08)"), textAlign: "center", transition: "all 0.22s cubic-bezier(0.16, 1, 0.3, 1)", boxShadow: hov === "Lock" ? "0 0 40px rgba(247,176,65,0.25), 0 20px 50px -10px rgba(247,176,65,0.3)" : "none", animation: "ufi 0.45s ease 0.28s forwards", opacity: 0, transform: hov === "Lock" ? "translateY(-4px)" : "translateY(0)" }}
-        >
-          <div style={{ width: 60, height: 60, borderRadius: 14, background: hov === "Lock" ? C.amber + "22" : "#111118", border: "1px solid " + (hov === "Lock" ? C.amber + "50" : "rgba(255,255,255,0.08)"), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", transition: "all 0.22s", boxShadow: hov === "Lock" ? "0 0 24px rgba(247,176,65,0.35)" : "none" }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={hov === "Lock" ? C.amber : "rgba(255,255,255,0.55)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: "stroke 0.2s" }}>
+
+        {/* Big gradient headline */}
+        <h1 className="w-headline" style={{ fontFamily: gf, fontSize: "clamp(56px, 11vw, 112px)", fontWeight: 900, lineHeight: 0.98, letterSpacing: -3, margin: 0, marginBottom: 16 }}>
+          Welcome.
+        </h1>
+
+        {/* Subtitle */}
+        <div style={{ fontFamily: ft, fontSize: "clamp(15px, 2vw, 18px)", fontWeight: 500, color: "rgba(232,228,221,0.6)", lineHeight: 1.55, maxWidth: 540, marginBottom: 48, animation: "wfade 0.7s ease 0.55s forwards", opacity: 0 }}>
+          The content production suite for SemiAnalysis. Pick how you're entering.
+        </div>
+
+        {/* Tiles */}
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap", justifyContent: "center" }}>
+          {/* Analyst */}
+          <div
+            key="Analyst"
+            onClick={function() { onSelect("Analyst"); }}
+            onMouseEnter={function() { setHov("Analyst"); }}
+            onMouseLeave={function() { setHov(null); }}
+            style={{ width: 240, padding: "40px 24px", borderRadius: 18, cursor: "pointer", background: hov === "Analyst" ? VIOLET + "0F" : "#0A0A14", border: "1px solid " + (hov === "Analyst" ? VIOLET + "70" : "rgba(255,255,255,0.08)"), textAlign: "center", transition: "all 0.28s cubic-bezier(0.16, 1, 0.3, 1)", boxShadow: hov === "Analyst" ? "0 0 50px " + VIOLET + "30, 0 24px 60px -12px " + VIOLET + "40" : "0 4px 20px rgba(0,0,0,0.3)", animation: "wpop 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.85s forwards", opacity: 0, transform: hov === "Analyst" ? "translateY(-6px)" : "translateY(0)" }}
+          >
+            <div style={{ width: 72, height: 72, borderRadius: 18, background: hov === "Analyst" ? VIOLET + "26" : "#0F0F1A", border: "1px solid " + (hov === "Analyst" ? VIOLET + "60" : "rgba(255,255,255,0.08)"), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", transition: "all 0.28s", fontFamily: gf, fontSize: 30, fontWeight: 900, color: hov === "Analyst" ? VIOLET : "rgba(255,255,255,0.6)", boxShadow: hov === "Analyst" ? "0 0 32px " + VIOLET + "45, inset 0 0 20px " + VIOLET + "10" : "none" }}>
+              A
+            </div>
+            <div style={{ fontFamily: gf, fontSize: 22, fontWeight: 800, color: hov === "Analyst" ? VIOLET : "#E8E4DD", letterSpacing: -0.4, marginBottom: 6, transition: "color 0.28s" }}>Analyst</div>
+            <div style={{ fontFamily: mn, fontSize: 10, color: hov === "Analyst" ? VIOLET + "BB" : "rgba(255,255,255,0.4)", letterSpacing: 1.5, textTransform: "uppercase", transition: "color 0.28s" }}>Open studio</div>
+          </div>
+          {/* Team — password-gated */}
+          <div
+            key="Lock"
+            onClick={function() { setStage("password"); setTimeout(function() { var el = document.getElementById("gate-pw"); el && el.focus(); }, 30); }}
+            onMouseEnter={function() { setHov("Lock"); }}
+            onMouseLeave={function() { setHov(null); }}
+            style={{ width: 240, padding: "40px 24px", borderRadius: 18, cursor: "pointer", background: hov === "Lock" ? C.amber + "0F" : "#0A0A14", border: "1px solid " + (hov === "Lock" ? C.amber + "70" : "rgba(255,255,255,0.08)"), textAlign: "center", transition: "all 0.28s cubic-bezier(0.16, 1, 0.3, 1)", boxShadow: hov === "Lock" ? "0 0 50px rgba(247,176,65,0.30), 0 24px 60px -12px rgba(247,176,65,0.4)" : "0 4px 20px rgba(0,0,0,0.3)", animation: "wpop 0.7s cubic-bezier(0.16, 1, 0.3, 1) 1s forwards", opacity: 0, transform: hov === "Lock" ? "translateY(-6px)" : "translateY(0)" }}
+          >
+            <div style={{ width: 72, height: 72, borderRadius: 18, background: hov === "Lock" ? C.amber + "26" : "#0F0F1A", border: "1px solid " + (hov === "Lock" ? C.amber + "60" : "rgba(255,255,255,0.08)"), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", transition: "all 0.28s", boxShadow: hov === "Lock" ? "0 0 32px rgba(247,176,65,0.45), inset 0 0 20px rgba(247,176,65,0.10)" : "none" }}>
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke={hov === "Lock" ? C.amber : "rgba(255,255,255,0.6)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: "stroke 0.28s" }}>
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11 V7 a5 5 0 0 1 10 0 v4" />
+              </svg>
+            </div>
+            <div style={{ fontFamily: gf, fontSize: 22, fontWeight: 800, color: hov === "Lock" ? C.amber : "#E8E4DD", letterSpacing: -0.4, marginBottom: 6, transition: "color 0.28s" }}>Marketing Team</div>
+            <div style={{ fontFamily: mn, fontSize: 10, color: hov === "Lock" ? C.amber + "BB" : "rgba(255,255,255,0.4)", letterSpacing: 1.5, textTransform: "uppercase", transition: "color 0.28s" }}>Password required</div>
+          </div>
+        </div>
+
+        {/* Bottom accent */}
+        <div style={{ marginTop: 56, fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", letterSpacing: 3, animation: "wfade 0.7s ease 1.3s forwards", opacity: 0 }}>
+          SEMIANALYSIS // CONTENT COMMAND CENTER
+        </div>
+      </>)}
+
+      {stage === "password" && (<>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, animation: "wfade 0.5s ease forwards", opacity: 0 }}>
+          <img src="/poast-logo.png" style={{ width: 32, height: 32, borderRadius: 8 }} />
+          <div style={{ fontFamily: mn, fontSize: 11, fontWeight: 700, color: C.amber, letterSpacing: 4, textTransform: "uppercase" }}>POAST</div>
+        </div>
+        <h1 className="w-headline" style={{ fontFamily: gf, fontSize: "clamp(48px, 8vw, 80px)", fontWeight: 900, lineHeight: 0.98, letterSpacing: -2, margin: 0, marginBottom: 12 }}>
+          Marketing.
+        </h1>
+        <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: "rgba(232,228,221,0.55)", lineHeight: 1.55, marginBottom: 36, animation: "wfade 0.6s ease 0.5s forwards", opacity: 0 }}>
+          Enter the team password.
+        </div>
+        <div style={{ width: 320, maxWidth: "92vw", animation: "wpop 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.7s forwards", opacity: 0 }}>
+          <div style={{ width: 64, height: 64, borderRadius: 16, background: err ? "rgba(224,99,71,0.20)" : C.amber + "22", border: "1px solid " + (err ? "rgba(224,99,71,0.5)" : C.amber + "50"), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", transition: "background 0.22s, border-color 0.22s", boxShadow: "0 0 24px " + (err ? "rgba(224,99,71,0.3)" : "rgba(247,176,65,0.35)"), animation: err ? "pwShake 0.45s" : undefined }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={err ? "#E06347" : C.amber} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11 V7 a5 5 0 0 1 10 0 v4" />
             </svg>
           </div>
-          <div style={{ fontFamily: ft, fontSize: 17, fontWeight: 800, color: hov === "Lock" ? C.amber : "#E8E4DD", letterSpacing: -0.2, marginBottom: 4, transition: "color 0.2s" }}>Team</div>
-          <div style={{ fontFamily: mn, fontSize: 9, color: hov === "Lock" ? C.amber + "AA" : "rgba(255,255,255,0.35)", letterSpacing: 1.5, textTransform: "uppercase", transition: "color 0.2s" }}>Password required</div>
+          <input id="gate-pw" type="password" value={pw} onChange={function(e) { setPw(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") submitPw(); if (e.key === "Escape") { setStage("choose"); setPw(""); setErr(false); } }} placeholder="Password" autoFocus style={{ width: "100%", padding: "14px 16px", background: "#0A0A14", border: "1px solid " + (err ? "rgba(224,99,71,0.6)" : "rgba(255,255,255,0.1)"), borderRadius: 10, color: "#E8E4DD", fontFamily: mn, fontSize: 14, letterSpacing: 3, textAlign: "center", outline: "none", boxSizing: "border-box", transition: "border-color 0.2s" }} />
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button onClick={function() { setStage("choose"); setPw(""); setErr(false); }} style={{ flex: 1, padding: "10px 12px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.5)", fontFamily: mn, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", fontWeight: 700 }}>Back</button>
+            <button onClick={submitPw} style={{ flex: 2, padding: "10px 12px", background: C.amber, border: "none", borderRadius: 8, color: "#060608", fontFamily: mn, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", fontWeight: 800 }}>Unlock →</button>
+          </div>
+          {err && <div style={{ fontFamily: mn, fontSize: 10, color: "#E06347", marginTop: 12, textAlign: "center", letterSpacing: 1 }}>Incorrect password</div>}
         </div>
-      </div>
-    )}
+      </>)}
 
-    {stage === "password" && (
-      <div style={{ width: 320, animation: "ufi 0.35s ease forwards", opacity: 0 }}>
-        <div style={{ width: 64, height: 64, borderRadius: 16, background: err ? "rgba(224,99,71,0.20)" : C.amber + "22", border: "1px solid " + (err ? "rgba(224,99,71,0.5)" : C.amber + "50"), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", transition: "all 0.22s", boxShadow: "0 0 24px " + (err ? "rgba(224,99,71,0.3)" : "rgba(247,176,65,0.35)"), animation: err ? "pwShake 0.45s" : undefined }}>
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={err ? "#E06347" : C.amber} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-            <path d="M7 11 V7 a5 5 0 0 1 10 0 v4" />
-          </svg>
+      {stage === "team" && (<>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, animation: "wfade 0.5s ease forwards", opacity: 0 }}>
+          <img src="/poast-logo.png" style={{ width: 32, height: 32, borderRadius: 8 }} />
+          <div style={{ fontFamily: mn, fontSize: 11, fontWeight: 700, color: C.amber, letterSpacing: 4, textTransform: "uppercase" }}>POAST</div>
         </div>
-        <input id="gate-pw" type="password" value={pw} onChange={function(e) { setPw(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") submitPw(); if (e.key === "Escape") { setStage("choose"); setPw(""); setErr(false); } }} placeholder="Password" autoFocus style={{ width: "100%", padding: "14px 16px", background: "#0A0A14", border: "1px solid " + (err ? "rgba(224,99,71,0.6)" : "rgba(255,255,255,0.1)"), borderRadius: 10, color: "#E8E4DD", fontFamily: mn, fontSize: 14, letterSpacing: 3, textAlign: "center", outline: "none", boxSizing: "border-box", transition: "border-color 0.2s" }} />
-        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button onClick={function() { setStage("choose"); setPw(""); setErr(false); }} style={{ flex: 1, padding: "10px 12px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.5)", fontFamily: mn, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", fontWeight: 700 }}>Back</button>
-          <button onClick={submitPw} style={{ flex: 2, padding: "10px 12px", background: C.amber, border: "none", borderRadius: 8, color: "#060608", fontFamily: mn, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", fontWeight: 800 }}>Unlock →</button>
+        <h1 className="w-headline" style={{ fontFamily: gf, fontSize: "clamp(48px, 8vw, 80px)", fontWeight: 900, lineHeight: 0.98, letterSpacing: -2, margin: 0, marginBottom: 12 }}>
+          Welcome back.
+        </h1>
+        <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: "rgba(232,228,221,0.55)", lineHeight: 1.55, marginBottom: 40, animation: "wfade 0.6s ease 0.5s forwards", opacity: 0 }}>
+          Pick yourself.
         </div>
-        {err && <div style={{ fontFamily: mn, fontSize: 10, color: "#E06347", marginTop: 12, textAlign: "center", letterSpacing: 1 }}>Incorrect password</div>}
-      </div>
-    )}
+        <div style={{ display: "flex", gap: 18, flexWrap: "wrap", justifyContent: "center", maxWidth: "min(820px, 92vw)" }}>
+          {INTERNAL_USERS.map(function(user, i) {
+            var on = hov === user.name;
+            var uc = user.color;
+            return <div
+              key={user.name}
+              onClick={function() { onSelect(user.name); }}
+              onMouseEnter={function() { setHov(user.name); }}
+              onMouseLeave={function() { setHov(null); }}
+              style={{ width: 170, padding: "30px 20px", borderRadius: 14, cursor: "pointer", background: on ? uc + "0F" : "#0A0A14", border: "1px solid " + (on ? uc + "60" : "rgba(255,255,255,0.06)"), textAlign: "center", transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)", boxShadow: on ? "0 0 36px " + uc + "26, 0 16px 40px -10px " + uc + "30" : "0 4px 16px rgba(0,0,0,0.25)", animation: "wpop 0.55s cubic-bezier(0.16, 1, 0.3, 1) " + (0.7 + i * 0.08) + "s forwards", opacity: 0, transform: on ? "translateY(-4px)" : "translateY(0)" }}
+            >
+              <div style={{ width: 52, height: 52, borderRadius: 14, background: on ? uc + "26" : "#0F0F1A", border: "1px solid " + (on ? uc + "55" : "rgba(255,255,255,0.06)"), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontFamily: gf, fontSize: 22, fontWeight: 900, color: on ? uc : "rgba(255,255,255,0.5)", transition: "all 0.25s", boxShadow: on ? "0 0 20px " + uc + "35" : "none" }}>{user.name[0]}</div>
+              <div style={{ fontFamily: gf, fontSize: 17, fontWeight: 800, color: on ? uc : "#E8E4DD", letterSpacing: -0.3, transition: "color 0.25s", textShadow: on ? "0 0 16px " + user.glow + "0.35)" : "none" }}>{user.name}</div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: on ? uc + "AA" : "rgba(255,255,255,0.35)", marginTop: 6, letterSpacing: 0.5, transition: "color 0.25s" }}>{user.role}</div>
+            </div>;
+          })}
+        </div>
+      </>)}
 
-    {stage === "team" && (
-      <div style={{ display: "flex", gap: 20, flexWrap: "wrap", justifyContent: "center", maxWidth: "min(720px, 92vw)" }}>
-        {INTERNAL_USERS.map(function(user, i) {
-          var on = hov === user.name;
-          var uc = user.color;
-          return <div
-            key={user.name}
-            onClick={function() { onSelect(user.name); }}
-            onMouseEnter={function() { setHov(user.name); }}
-            onMouseLeave={function() { setHov(null); }}
-            style={{ width: 160, padding: "28px 20px", borderRadius: 12, cursor: "pointer", background: on ? uc + "08" : "#0A0A14", border: on ? "1px solid " + uc + "50" : "1px solid rgba(255,255,255,0.06)", textAlign: "center", transition: "all 0.2s", boxShadow: on ? "0 0 30px " + uc + "18, 0 0 60px " + uc + "06" : "none", animation: "ufi 0.4s ease " + (0.1 + i * 0.08) + "s forwards", opacity: 0 }}
-          >
-            <div style={{ width: 48, height: 48, borderRadius: 12, background: on ? uc + "20" : "#111118", border: "1px solid " + (on ? uc + "40" : "rgba(255,255,255,0.06)"), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontFamily: ft, fontSize: 20, fontWeight: 900, color: on ? uc : "rgba(255,255,255,0.4)", transition: "all 0.2s", boxShadow: on ? "0 0 16px " + uc + "25" : "none" }}>{user.name[0]}</div>
-            <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: on ? uc : "#E8E4DD", transition: "color 0.2s", textShadow: on ? "0 0 20px " + user.glow + "0.4)" : "none" }}>{user.name}</div>
-            <div style={{ fontFamily: ft, fontSize: 9, color: on ? uc + "80" : "rgba(255,255,255,0.2)", marginTop: 4, transition: "color 0.2s" }}>{user.role}</div>
-          </div>;
-        })}
-      </div>
-    )}
+    </div>
   </div>;
 }
 
@@ -1587,7 +1638,17 @@ function AssetLibraryEmbed() {
 }
 
 export default function App() {
-  var _sp = useState(true), showIntro = _sp[0], setShowIntro = _sp[1];
+  // Three-state intro gate so we can wait for localStorage hydration before
+  // deciding. Without this, navigating to /analyst (router.replace from the
+  // user picker) re-mounts App and re-shows the picker because showIntro
+  // defaults to true. By starting in "loading" and resolving on mount, a
+  // returning user with a saved session skips the picker entirely.
+  var _sp = useState<"loading" | "show" | "skip">("loading"), introState = _sp[0], setIntroState = _sp[1];
+  var showIntro = introState === "show";
+  useEffect(function() {
+    var hasUser = typeof window !== "undefined" && !!localStorage.getItem("poast-current-user");
+    setIntroState(hasUser ? "skip" : "show");
+  }, []);
   var _askPoast = useState(false), askPoastOpen = _askPoast[0], setAskPoastOpen = _askPoast[1];
   var _s = useState("weekly"), sec = _s[0], setSec = _s[1];
   var userCtx = useUser();
@@ -1620,7 +1681,10 @@ export default function App() {
     trackEvent("view", {}, sec);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sec, userCtx.user]);
-  if (showIntro) return <><Intro onDone={function(id) { if (id) setSec(id); setShowIntro(false); }} /></>;
+  // Brief blank during localStorage hydration so the picker doesn't flash
+  // for returning users. introState becomes "show" or "skip" right after mount.
+  if (introState === "loading") return <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: 9999 }} />;
+  if (showIntro) return <><Intro onDone={function(id) { if (id) setSec(id); setIntroState("skip"); }} /></>;
 
   return (<div style={{ background: C.bg, minHeight: "100vh", position: "relative" }}>
     {/* Analyst mode accent bar — subtle violet stripe + small label so the user knows they're in the restricted view. */}
