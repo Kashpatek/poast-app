@@ -1,7 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Bug, BarChart3, RefreshCw, CheckCircle, Circle } from "lucide-react";
+import { Bug, BarChart3, RefreshCw, CheckCircle, Circle, HelpCircle } from "lucide-react";
 import { D as C, ft, mn, gf } from "./shared-constants";
+import { useOnboarding } from "./onboarding-context";
+import { showToast } from "./toast-context";
+import { STEP_WELCOME, STEP_CHART2_DEEP } from "./onboarding/tours";
 
 interface PoastEvent {
   event: string;
@@ -28,19 +31,20 @@ type AnalyticsFilter = "all" | "today" | "7d" | "analyst";
 // POAST Settings page · Director / Marketing / Social Media Manager.
 // Two tabs: Analytics (usage metrics) and Bugs (analyst submissions).
 export default function PoastSettings() {
-  var _t = useState<"analytics" | "bugs">("analytics"), tab = _t[0], setTab = _t[1];
+  var _t = useState<"analytics" | "bugs" | "onboarding">("analytics"), tab = _t[0], setTab = _t[1];
 
   return (
     <div style={{ padding: "32px 0 0", maxWidth: 1200, margin: "0 auto" }}>
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.5 }}>POAST Settings</div>
-        <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 4, letterSpacing: 1 }}>USAGE ANALYTICS // BUG REPORTS</div>
+        <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 4, letterSpacing: 1 }}>USAGE ANALYTICS // BUG REPORTS // ONBOARDING</div>
       </div>
 
       <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "1px solid " + C.border }}>
         {([
           { id: "analytics" as const, l: "Analytics", Icon: BarChart3 },
           { id: "bugs" as const, l: "Bugs", Icon: Bug },
+          { id: "onboarding" as const, l: "Onboarding", Icon: HelpCircle },
         ]).map(function(t) {
           var on = tab === t.id;
           return <div key={t.id} onClick={function() { setTab(t.id); }} style={{
@@ -57,7 +61,75 @@ export default function PoastSettings() {
 
       {tab === "analytics" && <AnalyticsTab />}
       {tab === "bugs" && <BugsTab />}
+      {tab === "onboarding" && <OnboardingTab />}
     </div>
+  );
+}
+
+function OnboardingTab() {
+  const { reset, setActiveStep } = useOnboarding();
+
+  function replayWelcome() {
+    setActiveStep(STEP_WELCOME);
+    showToast("Welcome tour started.");
+  }
+
+  function replayChart() {
+    setActiveStep(STEP_CHART2_DEEP);
+    showToast("Open Chart Maker 2 to see the tour.");
+  }
+
+  function resetAll() {
+    reset();
+    showToast("Onboarding flags cleared. New tools will introduce themselves again.");
+  }
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16 }}>
+      <Card title="Replay welcome tour" body="Reopen the four-step welcome modal that new analysts see on first login. Useful for demos or onboarding new teammates one screen at a time.">
+        <ActionButton onClick={replayWelcome}>Replay welcome</ActionButton>
+      </Card>
+      <Card title="Replay Chart Maker 2 tour" body="Walk through the spreadsheet, chart types, annotations, themes, and export flow inside Chart Maker 2.">
+        <ActionButton onClick={replayChart}>Replay chart tour</ActionButton>
+      </Card>
+      <Card title="Reset all onboarding flags" body="Clears the &lsquo;seen&rsquo; markers for every tour and coach mark on this device. Next visit to each tool re-introduces itself.">
+        <ActionButton onClick={resetAll} variant="danger">Reset all flags</ActionButton>
+      </Card>
+    </div>
+  );
+}
+
+function Card({ title, body, children }: { title: string; body: string; children?: React.ReactNode }) {
+  return (
+    <div style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 12, padding: 18, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
+      <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: C.tx, marginBottom: 6 }}>{title}</div>
+      <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, lineHeight: 1.55, marginBottom: 14 }}>{body}</div>
+      {children}
+    </div>
+  );
+}
+
+function ActionButton({ onClick, children, variant }: { onClick: () => void; children: React.ReactNode; variant?: "danger" }) {
+  const isDanger = variant === "danger";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        background: isDanger ? "transparent" : C.amber,
+        color: isDanger ? C.coral : "#060608",
+        border: isDanger ? "1px solid " + C.border : "none",
+        padding: "8px 14px",
+        borderRadius: 8,
+        fontFamily: ft,
+        fontSize: 13,
+        fontWeight: isDanger ? 600 : 800,
+        cursor: "pointer",
+        letterSpacing: 0.2,
+      }}
+    >
+      {children}
+    </button>
   );
 }
 

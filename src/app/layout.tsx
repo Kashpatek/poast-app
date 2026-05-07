@@ -5,6 +5,7 @@ import ErrorBoundary from "./error-boundary";
 import { ToastProvider } from "./toast-context";
 import { UserProvider } from "./user-context";
 import { DialogProvider } from "./dialog-context";
+import { OnboardingProvider } from "./onboarding-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,7 +37,9 @@ export default function RootLayout({
         <ErrorBoundary>
           <UserProvider>
             <ToastProvider>
-              <DialogProvider>{children}</DialogProvider>
+              <DialogProvider>
+                <OnboardingProvider>{children}</OnboardingProvider>
+              </DialogProvider>
             </ToastProvider>
           </UserProvider>
         </ErrorBoundary>

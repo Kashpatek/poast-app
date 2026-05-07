@@ -23,6 +23,9 @@ import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, H
 type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>;
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
 import { useUser, isAnalyst, canUseDocuDesign } from "./user-context";
+import { OnboardingHost } from "./onboarding/onboarding-host";
+import { ChartTourTrigger } from "./onboarding/chart-tour-trigger";
+import { useOnboarding } from "./onboarding-context";
 import { showToast } from "./toast-context";
 
 // ═══ INTERFACES ═══
@@ -1267,6 +1270,7 @@ function TiltTile({ tool, index, onNavigate, onHoverColor }: { tool: TiltToolSpe
 }
 
 function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
+  var ob = useOnboarding();
   var VIOLET = "#905CCB";
   // Launch-scope analyst rail: 4 tools only. Slop Top opens on Brief
   // Generator (Meme Maker + FACTORY are hidden for analyst inside Slop Top).
@@ -1356,7 +1360,8 @@ function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
       />
     </div>
 
-    <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.18)", letterSpacing: 3, marginTop: 36, animation: "asFade 0.5s ease 0.7s forwards", opacity: 0 }}>SEMIANALYSIS // ANALYST STUDIO</div>
+    <div onClick={function() { ob.setActiveStep("welcome"); }} style={{ fontFamily: mn, fontSize: 10, color: "rgba(255,255,255,0.45)", letterSpacing: 1.5, marginTop: 32, animation: "asFade 0.5s ease 0.65s forwards", opacity: 0, cursor: "pointer", padding: "6px 14px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", transition: "all 0.2s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.color = C.amber; e.currentTarget.style.borderColor = C.amber + "40"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.color = "rgba(255,255,255,0.45)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; }}>↻ Replay welcome tour</div>
+    <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.18)", letterSpacing: 3, marginTop: 18, animation: "asFade 0.5s ease 0.7s forwards", opacity: 0 }}>SEMIANALYSIS // ANALYST STUDIO</div>
   </div>;
 }
 
@@ -1718,6 +1723,7 @@ export default function App() {
         {sec === "broll" && <BRollLibrary />}
         {sec === "chart" && <ChartMaker />}
         {sec === "chart2" && <ChartMaker2 />}
+        {sec === "chart2" && <ChartTourTrigger />}
         {sec === "fk" && <FabricatedKnowledge />}
         {sec === "outreach" && <Outreach />}
         {sec === "trends" && <Trends />}
@@ -1730,6 +1736,7 @@ export default function App() {
         </div>
       </div>
     </div>
+    <OnboardingHost sec={sec} />
     <div style={{ position: "fixed", bottom: 8, right: 12, zIndex: 2, fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.12)", letterSpacing: 1, pointerEvents: "none" }}>v2.8</div>
     {/* Mobile warning */}
     <style dangerouslySetInnerHTML={{ __html: "@media(min-width:769px){.mobile-warn{display:none!important}}" }} />
