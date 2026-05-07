@@ -1,0 +1,986 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POAST · Design System</title>
+<meta name="description" content="The portable design system behind POAST — colors, typography, gradients, components, and voice rules. Built for SemiAnalysis, shareable to any dashboard or marketing site that wants the same aesthetic.">
+<meta property="og:title" content="POAST · Design System">
+<meta property="og:description" content="The complete POAST aesthetic in one page — tokens, components, and an AI-pairing prompt block any team can use.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+   POAST DESIGN TOKENS · single source of truth
+   ============================================================ */
+:root {
+  /* Surfaces */
+  --bg: #06060C;
+  --surface: #0D0D12;
+  --card: #09090D;
+  --hover: #0D0D12;
+  --border: rgba(255,255,255,0.06);
+  --border-hover: rgba(255,255,255,0.12);
+
+  /* Text */
+  --tx: #E8E4DD;
+  --tx-muted: #8A8690;
+  --tx-dim: #4E4B56;
+
+  /* Accents */
+  --amber: #F7B041;
+  --blue: #0B86D1;
+  --teal: #2EAD8E;
+  --coral: #E06347;
+  --violet: #905CCB;
+  --cyan: #26C9D8;
+  --crimson: #D1334A;
+
+  /* Platforms */
+  --x: #1DA1F2;
+  --linkedin: #0A66C2;
+  --facebook: #1877F2;
+  --instagram: #E4405F;
+  --youtube: #FF0000;
+  --tiktok: #00F2EA;
+  --spotify: #1DB954;
+
+  /* Tier (S/A/B/C) */
+  --tier-s: #F7B041;
+  --tier-a: #0B86D1;
+  --tier-b: #2EAD8E;
+  --tier-c: #8A8690;
+
+  /* Type */
+  --ft-display: 'Grift', 'Outfit', sans-serif;
+  --ft-body: 'Outfit', sans-serif;
+  --ft-mono: 'JetBrains Mono', monospace;
+
+  /* Shadows */
+  --shadow-card:   0 2px 12px rgba(0,0,0,0.4);
+  --shadow-hover:  0 8px 30px rgba(0,0,0,0.5), 0 0 20px rgba(247,176,65,0.08);
+  --shadow-glow:   0 0 24px rgba(247,176,65,0.06);
+  --shadow-modal:  0 32px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(247,176,65,0.05);
+
+  /* Gradients */
+  --grad-card:    linear-gradient(135deg, #09090D 0%, #0D0D12 100%);
+  --grad-surface: linear-gradient(135deg, #0D0D12 0%, #09090D 100%);
+  --grad-cta:     linear-gradient(135deg, #F7B041, #26C9D8);
+}
+
+/* ============================================================
+   LOCAL DISPLAY FONT (Grift) — works on poast-app.vercel.app;
+   degrades gracefully to Outfit when this file is opened locally.
+   ============================================================ */
+@font-face { font-family: 'Grift'; src: url('/fonts/Grift-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Grift'; src: url('/fonts/Grift-Medium.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'Grift'; src: url('/fonts/Grift-SemiBold.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+@font-face { font-family: 'Grift'; src: url('/fonts/Grift-Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Grift'; src: url('/fonts/Grift-ExtraBold.woff2') format('woff2'); font-weight: 800; font-display: swap; }
+@font-face { font-family: 'Grift'; src: url('/fonts/Grift-Black.woff2') format('woff2'); font-weight: 900; font-display: swap; }
+
+/* ============================================================
+   BASE
+   ============================================================ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--tx);
+  font-family: var(--ft-body);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+::selection { background: rgba(247,176,65,0.25); color: var(--amber); }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(247,176,65,0.35); }
+a { color: var(--amber); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ============================================================
+   AMBIENT BACKGROUND ORBS (lifted from poast-client)
+   ============================================================ */
+@keyframes drift1 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(30px,-20px); } }
+@keyframes drift2 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-25px,15px); } }
+@keyframes pulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+
+.orb-layer { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.orb { position: absolute; border-radius: 50%; filter: blur(100px); }
+.orb-amber { width: 50vw; height: 50vw; top: -10%; right: -5%;
+  background: radial-gradient(circle, rgba(247,176,65,0.08) 0%, transparent 60%);
+  animation: drift1 22s ease-in-out infinite; }
+.orb-blue { width: 60vw; height: 60vw; bottom: -15%; left: 0;
+  background: radial-gradient(circle, rgba(11,134,209,0.06) 0%, transparent 60%);
+  animation: drift2 28s ease-in-out infinite; }
+.orb-violet { width: 35vw; height: 35vw; top: 35%; left: -10%;
+  background: radial-gradient(circle, rgba(144,92,203,0.04) 0%, transparent 60%);
+  animation: pulse 8s ease-in-out infinite; }
+
+/* ============================================================
+   PAGE LAYOUT
+   ============================================================ */
+.shell { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 64px 32px 96px; }
+.hero { padding: 32px 0 64px; border-bottom: 1px solid var(--border); margin-bottom: 64px; }
+.eyebrow {
+  font-family: var(--ft-mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--amber);
+  margin-bottom: 12px;
+}
+.h1 {
+  font-family: var(--ft-display); font-weight: 900; font-size: clamp(40px, 7vw, 72px);
+  line-height: 1.05; letter-spacing: -2px; margin-bottom: 16px;
+}
+.h1 .accent { background: var(--grad-cta); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lede {
+  font-size: 17px; color: var(--tx-muted); max-width: 720px; line-height: 1.6;
+}
+.h2 {
+  font-family: var(--ft-display); font-weight: 800; font-size: 28px;
+  letter-spacing: -0.5px; margin-top: 0;
+}
+.section { margin-bottom: 80px; }
+.section-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 24px; padding-bottom: 12px; border-bottom: 1px solid var(--border);
+  gap: 16px; flex-wrap: wrap;
+}
+.section-num {
+  font-family: var(--ft-mono); font-size: 11px; font-weight: 700;
+  color: var(--tx-dim); letter-spacing: 2px;
+}
+.label {
+  font-family: var(--ft-mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--tx-muted);
+  margin-bottom: 12px;
+}
+
+/* ============================================================
+   COMPONENTS — CARDS
+   ============================================================ */
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 20px;
+  box-shadow: var(--shadow-card); transition: all 0.2s ease;
+}
+.card:hover {
+  border-color: rgba(247,176,65,0.3);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
+}
+.card-selected {
+  background: linear-gradient(135deg, rgba(247,176,65,0.06), rgba(247,176,65,0.02));
+  border-color: rgba(247,176,65,0.5);
+  box-shadow: var(--shadow-glow);
+}
+.tile {
+  background: var(--card); border: 1px solid var(--border);
+  border-left: 3px solid var(--amber); border-radius: 12px;
+  padding: 18px 20px; cursor: pointer; transition: all 0.2s ease;
+}
+.tile:hover { border-color: rgba(247,176,65,0.3); transform: translateY(-1px); }
+
+/* ============================================================
+   COMPONENTS — BUTTONS
+   ============================================================ */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 8px 14px; border-radius: 8px;
+  font-family: var(--ft-body); font-size: 13px; font-weight: 700;
+  cursor: pointer; border: none; transition: all 0.15s ease;
+  letter-spacing: 0.2px;
+}
+.btn-primary { background: var(--amber); color: #060608; }
+.btn-primary:hover { box-shadow: 0 0 20px rgba(247,176,65,0.3); }
+.btn-secondary {
+  background: transparent; color: var(--tx);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover { border-color: rgba(247,176,65,0.4); color: var(--amber); }
+.btn-danger {
+  background: transparent; color: var(--coral);
+  border: 1px solid var(--border);
+  padding: 4px 10px; border-radius: 6px;
+  font-family: var(--ft-mono); font-size: 11px; font-weight: 700;
+}
+.btn-glow {
+  background: var(--grad-cta); color: #060608; font-weight: 800;
+  box-shadow: 0 4px 14px rgba(247,176,65,0.25), 0 0 20px rgba(247,176,65,0.1);
+}
+.btn-glow:hover { box-shadow: 0 6px 24px rgba(247,176,65,0.4), 0 0 40px rgba(247,176,65,0.15); transform: translateY(-1px); }
+.btn-mini {
+  width: 28px; height: 28px; padding: 0;
+  border: 1px solid var(--border); background: transparent; color: var(--tx-muted);
+  border-radius: 6px; font-family: var(--ft-mono); font-size: 13px;
+}
+
+/* ============================================================
+   COMPONENTS — PILLS / BADGES / TAGS
+   ============================================================ */
+.pill {
+  display: inline-block;
+  font-family: var(--ft-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.6px; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 4px;
+  color: var(--amber); background: rgba(247,176,65,0.12);
+  border: 1px solid var(--amber);
+}
+.pill-blue { color: var(--blue); background: rgba(11,134,209,0.12); border-color: var(--blue); }
+.pill-teal { color: var(--teal); background: rgba(46,173,142,0.12); border-color: var(--teal); }
+.pill-coral { color: var(--coral); background: rgba(224,99,71,0.12); border-color: var(--coral); }
+.pill-violet { color: var(--violet); background: rgba(144,92,203,0.12); border-color: var(--violet); }
+.pill-muted { color: var(--tx-muted); background: var(--surface); border: 1px solid var(--border); }
+
+/* ============================================================
+   COMPONENTS — INPUTS
+   ============================================================ */
+.input, .textarea, .select {
+  width: 100%; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 8px;
+  color: var(--tx); padding: 10px 12px;
+  font-family: var(--ft-mono); font-size: 12px; outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input:focus, .textarea:focus, .select:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(247,176,65,0.1), 0 0 16px rgba(247,176,65,0.06);
+}
+.input::placeholder { color: #4A4858; }
+.textarea { font-family: var(--ft-body); line-height: 1.5; resize: vertical; min-height: 88px; }
+.dropzone {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 28px; background: var(--surface);
+  border: 2px dashed var(--border); border-radius: 12px;
+  text-align: center; cursor: pointer; transition: border-color 0.2s;
+}
+.dropzone:hover { border-color: rgba(247,176,65,0.4); }
+
+/* ============================================================
+   COMPONENTS — SIDEBAR EXAMPLE (visual only)
+   ============================================================ */
+.sidebar-demo {
+  width: 240px; background: linear-gradient(180deg, #08080F 0%, #0A0A14 100%);
+  border-right: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 10px; flex-shrink: 0;
+}
+.sidebar-cat {
+  font-family: var(--ft-body); font-size: 10px; font-weight: 800;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--amber); padding: 6px 12px; display: flex; align-items: center; gap: 10px;
+  text-shadow: 0 0 16px rgba(247,176,65,0.4), 0 0 30px rgba(247,176,65,0.12);
+}
+.sidebar-cat::before {
+  content: ''; width: 3px; height: 14px; border-radius: 2px;
+  background: var(--amber); box-shadow: 0 0 10px var(--amber), 0 0 20px rgba(247,176,65,0.2);
+}
+.sidebar-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 12px 7px 28px; border-radius: 6px;
+  margin-bottom: 1px; cursor: pointer; position: relative;
+  font-family: var(--ft-body); font-size: 13px; color: rgba(255,255,255,0.5);
+  transition: all 0.2s;
+}
+.sidebar-item:hover { background: rgba(255,255,255,0.03); }
+.sidebar-item.active {
+  background: rgba(247,176,65,0.05); border-left: 3px solid var(--amber);
+  padding-left: 25px; color: var(--amber); font-weight: 800;
+  text-shadow: 0 0 20px rgba(247,176,65,0.5), 0 0 40px rgba(247,176,65,0.12);
+}
+
+/* ============================================================
+   COMPONENTS — DIALOG / TOAST (visual only — not functional)
+   ============================================================ */
+@keyframes dlgPop {
+  0% { opacity: 0; transform: translateY(8px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.dialog-demo {
+  background: #0A0A14; border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px; padding: 22px 22px 18px;
+  box-shadow: var(--shadow-modal); width: min(420px, 100%);
+  margin: 0 auto;
+}
+.dialog-title {
+  font-family: var(--ft-body); font-size: 16px; font-weight: 800;
+  color: var(--tx); margin-bottom: 8px; letter-spacing: -0.2px;
+}
+.dialog-body {
+  font-size: 13px; color: rgba(232,228,221,0.75); line-height: 1.5; margin-bottom: 18px;
+}
+.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.toast-demo {
+  max-width: 420px; padding: 14px 20px;
+  background: rgba(224,99,71,0.13); border: 1px solid var(--coral);
+  border-radius: 8px; font-family: var(--ft-mono); font-size: 11px;
+  color: var(--coral);
+  box-shadow: 0 0 20px rgba(224,99,71,0.2);
+  cursor: pointer; line-height: 1.5;
+}
+
+/* ============================================================
+   GRIDS / UTILITIES
+   ============================================================ */
+.grid { display: grid; gap: 12px; }
+.grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.grid-4 { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.grid-6 { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.col { display: flex; flex-direction: column; gap: 12px; }
+.spacer { height: 16px; }
+
+/* Color swatches */
+.swatch {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px; transition: all 0.2s; cursor: pointer;
+}
+.swatch:hover { border-color: rgba(247,176,65,0.3); transform: translateY(-2px); }
+.swatch-chip {
+  width: 100%; aspect-ratio: 4/3; border-radius: 8px; margin-bottom: 10px;
+  border: 1px solid rgba(255,255,255,0.04);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+}
+.swatch-name {
+  font-family: var(--ft-body); font-size: 13px; font-weight: 700; color: var(--tx);
+}
+.swatch-hex {
+  font-family: var(--ft-mono); font-size: 11px; color: var(--tx-muted); margin-top: 2px;
+}
+.swatch-use {
+  font-family: var(--ft-body); font-size: 11px; color: var(--tx-dim); margin-top: 6px;
+  line-height: 1.4;
+}
+
+/* Code blocks */
+pre.code {
+  background: #050509; border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px 18px; overflow-x: auto;
+  font-family: var(--ft-mono); font-size: 12px; line-height: 1.6;
+  color: rgba(232,228,221,0.85);
+  position: relative;
+}
+pre.code .k { color: var(--amber); }
+pre.code .s { color: var(--teal); }
+pre.code .c { color: var(--tx-dim); }
+.code-copy {
+  position: absolute; top: 10px; right: 10px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--tx-muted); padding: 4px 9px; cursor: pointer;
+  font-family: var(--ft-mono); font-size: 10px; letter-spacing: 0.3px;
+  transition: all 0.15s;
+}
+.code-copy:hover { color: var(--amber); border-color: rgba(247,176,65,0.4); }
+
+/* Type sample card */
+.type-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 24px;
+}
+.type-meta {
+  font-family: var(--ft-mono); font-size: 10px; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--tx-muted); margin-bottom: 12px;
+}
+.type-sample {
+  font-family: var(--ft-display); font-weight: 800; font-size: 44px;
+  letter-spacing: -1.5px; line-height: 1.1; color: var(--tx);
+  margin-bottom: 6px;
+}
+.type-info {
+  font-family: var(--ft-mono); font-size: 11px; color: var(--tx-dim);
+}
+.weights { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); }
+.weight-line { font-family: inherit; font-size: 16px; color: var(--tx); }
+.weight-line .w { font-family: var(--ft-mono); font-size: 9px; color: var(--tx-dim); margin-right: 8px; letter-spacing: 1px; }
+
+/* Spacing scale */
+.spacing-row { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.spacing-bar { background: var(--amber); height: 14px; border-radius: 3px; }
+.spacing-label { font-family: var(--ft-mono); font-size: 11px; color: var(--tx-muted); width: 50px; }
+
+/* Radius scale */
+.radius-tile {
+  background: linear-gradient(135deg, rgba(247,176,65,0.18), rgba(11,134,209,0.12));
+  width: 80px; height: 80px;
+  border: 1px solid rgba(247,176,65,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--ft-mono); font-size: 11px; font-weight: 700; color: var(--amber);
+}
+
+/* Shadow demo cards */
+.shadow-tile {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 32px 18px; text-align: center;
+}
+.shadow-tile .shadow-name {
+  font-family: var(--ft-mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--tx-muted); margin-bottom: 10px;
+}
+
+/* Picker (radio-card) */
+.pick {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 18px; cursor: pointer; display: flex; align-items: flex-start; gap: 12px;
+  transition: all 0.2s ease;
+}
+.pick:hover { border-color: rgba(247,176,65,0.3); }
+.pick.picked {
+  background: linear-gradient(135deg, rgba(247,176,65,0.06), rgba(247,176,65,0.02));
+  border-color: rgba(247,176,65,0.5);
+  box-shadow: var(--shadow-glow);
+}
+.pick-radio {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.12); flex-shrink: 0; margin-top: 2px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.pick.picked .pick-radio { border-color: var(--amber); background: var(--amber); }
+.pick.picked .pick-radio::after {
+  content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--bg);
+}
+
+/* Brand-ribbon footer */
+.ribbon {
+  margin-top: 96px; padding-top: 32px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+  font-family: var(--ft-mono); font-size: 10px; color: var(--tx-dim); letter-spacing: 2px;
+}
+.ribbon a { color: var(--tx-muted); }
+
+@media (max-width: 720px) {
+  .shell { padding: 32px 18px 64px; }
+  .h1 { font-size: 38px; }
+  .lede { font-size: 14px; }
+}
+</style>
+</head>
+
+<body>
+
+<div class="orb-layer">
+  <div class="orb orb-amber"></div>
+  <div class="orb orb-blue"></div>
+  <div class="orb orb-violet"></div>
+</div>
+
+<main class="shell">
+
+  <!-- ═══ HERO ═══ -->
+  <section class="hero">
+    <div class="eyebrow">POAST · DESIGN SYSTEM · v1</div>
+    <h1 class="h1">The aesthetic, <span class="accent">made portable.</span></h1>
+    <p class="lede">
+      This page is the complete look-and-feel of POAST in a single file. Every color, font, gradient, shadow, and component you see in the app lives here, with copy-pastable code so any sibling site or dashboard can carry the same DNA. Designed to be shared as a URL or downloaded as a self-contained HTML.
+    </p>
+    <div class="row" style="margin-top: 24px;">
+      <a class="btn btn-primary" href="#tokens">Jump to tokens</a>
+      <a class="btn btn-secondary" href="#components">See components</a>
+      <a class="btn btn-secondary" href="#ai-pairing">AI pairing block</a>
+    </div>
+  </section>
+
+  <!-- ═══ TOKENS ═══ -->
+  <section class="section" id="tokens">
+    <div class="section-head">
+      <h2 class="h2">CSS Tokens</h2>
+      <span class="section-num">SECTION 01</span>
+    </div>
+    <p class="lede" style="margin-bottom: 28px;">
+      Drop this block at the top of any stylesheet to inherit the entire POAST look. Every example below uses these custom properties — change one here, the whole system updates.
+    </p>
+    <pre class="code"><button class="code-copy" data-copy="tokens">Copy</button><code id="tokens-code">:root {
+  /* Surfaces */
+  --bg:          #06060C;
+  --surface:     #0D0D12;
+  --card:        #09090D;
+  --border:      rgba(255,255,255,0.06);
+  --border-hover: rgba(255,255,255,0.12);
+
+  /* Text */
+  --tx:          #E8E4DD;
+  --tx-muted:    #8A8690;
+  --tx-dim:      #4E4B56;
+
+  /* Accents */
+  --amber:       #F7B041;   /* primary CTA */
+  --blue:        #0B86D1;
+  --teal:        #2EAD8E;   /* success */
+  --coral:       #E06347;   /* danger */
+  --violet:      #905CCB;
+  --cyan:        #26C9D8;
+
+  /* Type */
+  --ft-display:  'Grift', 'Outfit', sans-serif;
+  --ft-body:     'Outfit', sans-serif;
+  --ft-mono:     'JetBrains Mono', monospace;
+
+  /* Shadows */
+  --shadow-card:  0 2px 12px rgba(0,0,0,0.4);
+  --shadow-hover: 0 8px 30px rgba(0,0,0,0.5),
+                  0 0 20px rgba(247,176,65,0.08);
+  --shadow-glow:  0 0 24px rgba(247,176,65,0.06);
+
+  /* Gradients */
+  --grad-card:    linear-gradient(135deg, #09090D 0%, #0D0D12 100%);
+  --grad-cta:     linear-gradient(135deg, #F7B041, #26C9D8);
+}</code></pre>
+  </section>
+
+  <!-- ═══ COLORS ═══ -->
+  <section class="section" id="colors">
+    <div class="section-head">
+      <h2 class="h2">Colors</h2>
+      <span class="section-num">SECTION 02</span>
+    </div>
+
+    <div class="label">Surfaces</div>
+    <div class="grid grid-4" style="margin-bottom: 32px;">
+      <div class="swatch"><div class="swatch-chip" style="background: #06060C;"></div><div class="swatch-name">Background</div><div class="swatch-hex">#06060C · --bg</div><div class="swatch-use">Page background — the deepest plane.</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #09090D;"></div><div class="swatch-name">Card</div><div class="swatch-hex">#09090D · --card</div><div class="swatch-use">Default card background.</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #0D0D12;"></div><div class="swatch-name">Surface</div><div class="swatch-hex">#0D0D12 · --surface</div><div class="swatch-use">Inputs, elevated panels, drop-zones.</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.06);"></div><div class="swatch-name">Border</div><div class="swatch-hex">rgba(255,255,255,0.06)</div><div class="swatch-use">All resting borders.</div></div>
+    </div>
+
+    <div class="label">Text</div>
+    <div class="grid grid-3" style="margin-bottom: 32px;">
+      <div class="swatch"><div class="swatch-chip" style="background: #E8E4DD;"></div><div class="swatch-name">Primary</div><div class="swatch-hex">#E8E4DD · --tx</div><div class="swatch-use">Body copy, headings. Warm off-white — never use #FFFFFF.</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #8A8690;"></div><div class="swatch-name">Muted</div><div class="swatch-hex">#8A8690 · --tx-muted</div><div class="swatch-use">Secondary text, labels.</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #4E4B56;"></div><div class="swatch-name">Dim</div><div class="swatch-hex">#4E4B56 · --tx-dim</div><div class="swatch-use">Timestamps, char counts, footnotes.</div></div>
+    </div>
+
+    <div class="label">Accents</div>
+    <div class="grid grid-4" style="margin-bottom: 32px;">
+      <div class="swatch"><div class="swatch-chip" style="background: #F7B041;"></div><div class="swatch-name">Amber</div><div class="swatch-hex">#F7B041 · --amber</div><div class="swatch-use">Primary CTA, brand accent. The defining color of POAST.</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #0B86D1;"></div><div class="swatch-name">Blue</div><div class="swatch-hex">#0B86D1 · --blue</div><div class="swatch-use">Information, secondary CTA.</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #2EAD8E;"></div><div class="swatch-name">Teal</div><div class="swatch-hex">#2EAD8E · --teal</div><div class="swatch-use">Confirmation, success, "saved".</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #E06347;"></div><div class="swatch-name">Coral</div><div class="swatch-hex">#E06347 · --coral</div><div class="swatch-use">Danger, destructive, toast errors.</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #905CCB;"></div><div class="swatch-name">Violet</div><div class="swatch-hex">#905CCB · --violet</div><div class="swatch-use">Admin / studio modes, novelty.</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #26C9D8;"></div><div class="swatch-name">Cyan</div><div class="swatch-hex">#26C9D8 · --cyan</div><div class="swatch-use">Highlight in the amber→cyan CTA gradient.</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #D1334A;"></div><div class="swatch-name">Crimson</div><div class="swatch-hex">#D1334A · --crimson</div><div class="swatch-use">Hard alerts only — use sparingly.</div></div>
+    </div>
+
+    <div class="label">Platform Brands</div>
+    <div class="grid grid-6" style="margin-bottom: 32px;">
+      <div class="swatch"><div class="swatch-chip" style="background: #1DA1F2;"></div><div class="swatch-name">X</div><div class="swatch-hex">#1DA1F2</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #0A66C2;"></div><div class="swatch-name">LinkedIn</div><div class="swatch-hex">#0A66C2</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #1877F2;"></div><div class="swatch-name">Facebook</div><div class="swatch-hex">#1877F2</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #E4405F;"></div><div class="swatch-name">Instagram</div><div class="swatch-hex">#E4405F</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #FF0000;"></div><div class="swatch-name">YouTube</div><div class="swatch-hex">#FF0000</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #00F2EA;"></div><div class="swatch-name">TikTok</div><div class="swatch-hex">#00F2EA</div></div>
+      <div class="swatch"><div class="swatch-chip" style="background: #1DB954;"></div><div class="swatch-name">Spotify</div><div class="swatch-hex">#1DB954</div></div>
+    </div>
+
+    <div class="label">The Alpha-Tint Pattern</div>
+    <div class="card" style="margin-bottom: 16px;">
+      <p style="color: var(--tx-muted); margin-bottom: 14px; line-height: 1.6;">POAST rarely uses solid accent backgrounds. The pattern: <strong style="color: var(--tx);">accent + alpha-suffix-hex</strong> on the existing accent. Common suffixes:</p>
+      <div class="row">
+        <div style="background: rgba(247,176,65,0.05); border: 1px solid rgba(247,176,65,0.2); border-radius: 6px; padding: 8px 14px; font-family: var(--ft-mono); font-size: 11px;"><span style="color: var(--amber); font-weight: 700;">+ 08</span><span style="color: var(--tx-muted);"> · 3% — barely-visible row tint</span></div>
+        <div style="background: rgba(247,176,65,0.12); border: 1px solid rgba(247,176,65,0.3); border-radius: 6px; padding: 8px 14px; font-family: var(--ft-mono); font-size: 11px;"><span style="color: var(--amber); font-weight: 700;">+ 12</span><span style="color: var(--tx-muted);"> · 7% — chip background</span></div>
+        <div style="background: rgba(247,176,65,0.25); border: 1px solid rgba(247,176,65,0.5); border-radius: 6px; padding: 8px 14px; font-family: var(--ft-mono); font-size: 11px;"><span style="color: var(--amber); font-weight: 700;">+ 40</span><span style="color: var(--tx-muted);"> · 25% — focused border</span></div>
+        <div style="background: rgba(247,176,65,0.35); border: 1px solid rgba(247,176,65,0.6); border-radius: 6px; padding: 8px 14px; font-family: var(--ft-mono); font-size: 11px;"><span style="color: var(--amber); font-weight: 700;">+ 60</span><span style="color: var(--tx-muted);"> · 38% — selected border</span></div>
+      </div>
+      <p style="color: var(--tx-muted); margin-top: 14px; font-size: 12px; line-height: 1.6;">Reads as: "amber-tint card with a stronger amber border."</p>
+    </div>
+  </section>
+
+  <!-- ═══ TYPOGRAPHY ═══ -->
+  <section class="section" id="type">
+    <div class="section-head">
+      <h2 class="h2">Typography</h2>
+      <span class="section-num">SECTION 03</span>
+    </div>
+
+    <div class="grid" style="grid-template-columns: 1fr; gap: 14px;">
+
+      <div class="type-card">
+        <div class="type-meta">DISPLAY · GRIFT · --ft-display</div>
+        <div class="type-sample" style="font-family: var(--ft-display);">Page titles. Marquee labels. Big numbers.</div>
+        <div class="type-info">For h1/h2 and any moment where the page introduces itself. 500 → 900 weights.</div>
+        <div class="weights">
+          <div class="weight-line" style="font-family: var(--ft-display);"><span class="w">500</span>The future of inference</div>
+          <div class="weight-line" style="font-family: var(--ft-display); font-weight: 700;"><span class="w">700</span>The future of inference</div>
+          <div class="weight-line" style="font-family: var(--ft-display); font-weight: 800;"><span class="w">800</span>The future of inference</div>
+          <div class="weight-line" style="font-family: var(--ft-display); font-weight: 900;"><span class="w">900</span>The future of inference</div>
+        </div>
+      </div>
+
+      <div class="type-card">
+        <div class="type-meta">BODY · OUTFIT · --ft-body</div>
+        <div class="type-sample" style="font-family: var(--ft-body); font-weight: 800; font-size: 32px;">Direct, technical, institutional.</div>
+        <div class="type-info">Buttons, body, inputs. Default body weight is 500 (never 400). 400 / 500 / 700 / 800 used in the app.</div>
+        <div class="weights">
+          <div class="weight-line"><span class="w">400</span>SemiAnalysis covers semiconductors, AI infrastructure, data centers.</div>
+          <div class="weight-line" style="font-weight: 500;"><span class="w">500</span>SemiAnalysis covers semiconductors, AI infrastructure, data centers.</div>
+          <div class="weight-line" style="font-weight: 700;"><span class="w">700</span>SemiAnalysis covers semiconductors, AI infrastructure, data centers.</div>
+          <div class="weight-line" style="font-weight: 800;"><span class="w">800</span>SemiAnalysis covers semiconductors, AI infrastructure, data centers.</div>
+        </div>
+      </div>
+
+      <div class="type-card">
+        <div class="type-meta">MONO · JETBRAINS MONO · --ft-mono</div>
+        <div class="type-sample" style="font-family: var(--ft-mono); font-weight: 700; font-size: 28px;">labels · counts · ids</div>
+        <div class="type-info">Tiny caps labels above sections, char counts, timestamps, hash IDs. Replaces h3/h4 in this system.</div>
+        <div class="weights">
+          <div class="weight-line" style="font-family: var(--ft-mono);"><span class="w">400</span>Updated 2 hours ago · 6f2a91 · 184/200</div>
+          <div class="weight-line" style="font-family: var(--ft-mono); font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;"><span class="w">700</span>YOUR SELECTIONS</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="card">
+      <div class="label">Type Scale (used in the app)</div>
+      <div class="grid grid-3" style="margin-top: 6px;">
+        <div><div style="font-family: var(--ft-display); font-weight: 900; font-size: 42px; letter-spacing: -2px; line-height: 1;">42px / 900</div><div class="type-info" style="margin-top: 6px;">Page H1</div></div>
+        <div><div style="font-family: var(--ft-display); font-weight: 800; font-size: 28px; letter-spacing: -0.5px;">28px / 800</div><div class="type-info" style="margin-top: 6px;">Section H2</div></div>
+        <div><div style="font-family: var(--ft-body); font-size: 16px; font-weight: 800;">16px / 800</div><div class="type-info" style="margin-top: 6px;">Card title</div></div>
+        <div><div style="font-family: var(--ft-body); font-size: 13px; font-weight: 500;">13px / 500</div><div class="type-info" style="margin-top: 6px;">Body</div></div>
+        <div><div style="font-family: var(--ft-mono); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--tx-muted);">11px / MONO 700</div><div class="type-info" style="margin-top: 6px;">Caps label</div></div>
+        <div><div style="font-family: var(--ft-mono); font-size: 9px; letter-spacing: 1px; color: var(--tx-dim);">9px / MONO 400</div><div class="type-info" style="margin-top: 6px;">Caption</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ SPACING & RADIUS ═══ -->
+  <section class="section">
+    <div class="section-head">
+      <h2 class="h2">Spacing & Radius</h2>
+      <span class="section-num">SECTION 04</span>
+    </div>
+    <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 24px;">
+      <div class="card">
+        <div class="label">Spacing — 4-multiple scale</div>
+        <div style="margin-top: 8px;">
+          <div class="spacing-row"><span class="spacing-label">4</span><div class="spacing-bar" style="width: 4px;"></div></div>
+          <div class="spacing-row"><span class="spacing-label">8</span><div class="spacing-bar" style="width: 8px;"></div></div>
+          <div class="spacing-row"><span class="spacing-label">12</span><div class="spacing-bar" style="width: 12px;"></div></div>
+          <div class="spacing-row"><span class="spacing-label">16</span><div class="spacing-bar" style="width: 16px;"></div></div>
+          <div class="spacing-row"><span class="spacing-label">20</span><div class="spacing-bar" style="width: 20px;"></div></div>
+          <div class="spacing-row"><span class="spacing-label">24</span><div class="spacing-bar" style="width: 24px;"></div></div>
+          <div class="spacing-row"><span class="spacing-label">32</span><div class="spacing-bar" style="width: 32px;"></div></div>
+          <div class="spacing-row"><span class="spacing-label">48</span><div class="spacing-bar" style="width: 48px;"></div></div>
+          <div class="spacing-row"><span class="spacing-label">64</span><div class="spacing-bar" style="width: 64px;"></div></div>
+        </div>
+        <p style="color: var(--tx-muted); font-size: 12px; margin-top: 14px; line-height: 1.55;">Avoid arbitrary numbers. Stick to multiples of 4.</p>
+      </div>
+      <div class="card">
+        <div class="label">Border-radius scale</div>
+        <div class="row" style="margin-top: 12px; gap: 14px;">
+          <div class="radius-tile" style="border-radius: 2px;">2</div>
+          <div class="radius-tile" style="border-radius: 4px;">4</div>
+          <div class="radius-tile" style="border-radius: 6px;">6</div>
+          <div class="radius-tile" style="border-radius: 8px;">8</div>
+          <div class="radius-tile" style="border-radius: 12px;">12</div>
+          <div class="radius-tile" style="border-radius: 14px;">14</div>
+          <div class="radius-tile" style="border-radius: 50%;">50%</div>
+        </div>
+        <p style="color: var(--tx-muted); font-size: 12px; margin-top: 16px; line-height: 1.55;">2 micro · 4 chips · 6 pills · 8 buttons + inputs · 12 cards · 14 modals · 50% avatars + dots.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ SHADOWS ═══ -->
+  <section class="section">
+    <div class="section-head">
+      <h2 class="h2">Shadows & Glows</h2>
+      <span class="section-num">SECTION 05</span>
+    </div>
+    <p class="lede" style="margin-bottom: 28px;">Three shadows do most of the work. Rule: the colored part of the glow is <strong style="color: var(--amber);">never above 10% alpha</strong>. Atmosphere, not highlighting.</p>
+    <div class="grid grid-3">
+      <div class="shadow-tile" style="box-shadow: 0 2px 12px rgba(0,0,0,0.4);">
+        <div class="shadow-name">--shadow-card</div>
+        <div style="font-family: var(--ft-mono); font-size: 11px; color: var(--tx-dim);">Resting</div>
+      </div>
+      <div class="shadow-tile" style="box-shadow: 0 8px 30px rgba(0,0,0,0.5), 0 0 20px rgba(247,176,65,0.08);">
+        <div class="shadow-name">--shadow-hover</div>
+        <div style="font-family: var(--ft-mono); font-size: 11px; color: var(--tx-dim);">Slight lift + amber bloom</div>
+      </div>
+      <div class="shadow-tile" style="box-shadow: 0 0 24px rgba(247,176,65,0.12);">
+        <div class="shadow-name">--shadow-glow</div>
+        <div style="font-family: var(--ft-mono); font-size: 11px; color: var(--tx-dim);">Selected · no lift</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ GRADIENTS ═══ -->
+  <section class="section">
+    <div class="section-head">
+      <h2 class="h2">Gradients</h2>
+      <span class="section-num">SECTION 06</span>
+    </div>
+    <p class="lede" style="margin-bottom: 28px;">Only three are blessed. Don't invent new ones.</p>
+    <div class="grid grid-3">
+      <div class="card" style="padding: 0; overflow: hidden;">
+        <div style="height: 120px; background: linear-gradient(135deg, #09090D 0%, #0D0D12 100%);"></div>
+        <div style="padding: 14px 18px;">
+          <div class="swatch-name">Card</div>
+          <div class="swatch-hex">linear-gradient(135deg, #09090D, #0D0D12)</div>
+          <div class="swatch-use">Subtle internal depth on cards.</div>
+        </div>
+      </div>
+      <div class="card" style="padding: 0; overflow: hidden;">
+        <div style="height: 120px; background: linear-gradient(135deg, #0D0D12 0%, #09090D 100%);"></div>
+        <div style="padding: 14px 18px;">
+          <div class="swatch-name">Surface (reverse)</div>
+          <div class="swatch-hex">linear-gradient(135deg, #0D0D12, #09090D)</div>
+          <div class="swatch-use">Same colors flipped — for nested elevation.</div>
+        </div>
+      </div>
+      <div class="card" style="padding: 0; overflow: hidden;">
+        <div style="height: 120px; background: linear-gradient(135deg, #F7B041, #26C9D8); display: flex; align-items: center; justify-content: center; color: #060608; font-family: var(--ft-display); font-weight: 900; font-size: 22px; letter-spacing: -0.5px;">Highest energy</div>
+        <div style="padding: 14px 18px;">
+          <div class="swatch-name">CTA · amber → cyan</div>
+          <div class="swatch-hex">linear-gradient(135deg, #F7B041, #26C9D8)</div>
+          <div class="swatch-use">Black text at 800 weight on top. The only place we use a multicolor gradient.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ COMPONENTS ═══ -->
+  <section class="section" id="components">
+    <div class="section-head">
+      <h2 class="h2">Components</h2>
+      <span class="section-num">SECTION 07</span>
+    </div>
+
+    <div class="label">Cards</div>
+    <div class="grid grid-3" style="margin-bottom: 32px;">
+      <div class="card">
+        <div class="row" style="margin-bottom: 10px;"><span class="pill">DEFAULT</span></div>
+        <div style="font-family: var(--ft-display); font-weight: 800; font-size: 16px;">Resting card</div>
+        <div style="color: var(--tx-muted); font-size: 13px; margin-top: 4px;">Default state. Hover lifts and adds an amber bloom.</div>
+      </div>
+      <div class="card card-selected">
+        <div class="row" style="margin-bottom: 10px;"><span class="pill">SELECTED</span></div>
+        <div style="font-family: var(--ft-display); font-weight: 800; font-size: 16px;">Selected card</div>
+        <div style="color: var(--tx-muted); font-size: 13px; margin-top: 4px;">Tinted background, amber border, glow shadow.</div>
+      </div>
+      <div class="tile">
+        <div class="row" style="margin-bottom: 10px;"><span class="pill">TILE</span></div>
+        <div style="font-family: var(--ft-display); font-weight: 800; font-size: 16px;">Tile with side accent</div>
+        <div style="color: var(--tx-muted); font-size: 13px; margin-top: 4px;">3px colored left border for category coding.</div>
+      </div>
+    </div>
+
+    <div class="label">Buttons</div>
+    <div class="row" style="margin-bottom: 32px;">
+      <button class="btn btn-primary">+ New project</button>
+      <button class="btn btn-secondary">Cancel</button>
+      <button class="btn btn-glow">Highest-energy CTA</button>
+      <button class="btn btn-danger">Delete</button>
+      <button class="btn-mini">×</button>
+    </div>
+
+    <div class="label">Pills · Badges · Tags</div>
+    <div class="row" style="margin-bottom: 32px;">
+      <span class="pill">DOC</span>
+      <span class="pill pill-blue">INFO</span>
+      <span class="pill pill-teal">SAVED</span>
+      <span class="pill pill-coral">ERROR</span>
+      <span class="pill pill-violet">ADMIN</span>
+      <span class="pill pill-muted">DRAFT</span>
+    </div>
+
+    <div class="label">Inputs</div>
+    <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+      <input class="input" placeholder="Episode title">
+      <select class="select">
+        <option>Select a category…</option>
+        <option>AI Cloud TCO</option>
+        <option>Memory, Tokenomics, Macro</option>
+      </select>
+    </div>
+    <textarea class="textarea" placeholder="Paste article text here…" style="margin-bottom: 16px;"></textarea>
+    <div class="dropzone" style="margin-bottom: 32px;">
+      <div style="font-family: var(--ft-body); font-size: 13px; color: var(--tx);">Drop files here or click to upload</div>
+      <div style="font-family: var(--ft-mono); font-size: 11px; color: var(--tx-dim); margin-top: 4px;">PNG, SVG, JPG, WOFF2</div>
+    </div>
+
+    <div class="label">Sidebar Navigation</div>
+    <div class="row" style="align-items: flex-start; margin-bottom: 32px;">
+      <div class="sidebar-demo">
+        <div class="sidebar-cat">PRODUCE</div>
+        <div class="sidebar-item">Slop Top</div>
+        <div class="sidebar-item active">Carousel</div>
+        <div class="sidebar-item">Capper</div>
+        <div class="sidebar-item">Chart Maker</div>
+        <div style="height: 14px;"></div>
+        <div class="sidebar-cat" style="color: var(--blue); text-shadow: 0 0 16px rgba(11,134,209,0.4); ">PREPARE</div>
+        <div class="sidebar-item" style="--cat: var(--blue);">Trends</div>
+        <div class="sidebar-item">News Flow</div>
+      </div>
+      <div style="flex: 1; max-width: 480px;">
+        <div class="card">
+          <div class="label">Pattern</div>
+          <p style="color: var(--tx-muted); font-size: 13px; line-height: 1.6;">3px-wide colored stripe at the left edge for active items. Tint background at 5% accent alpha. Active label gets a text-shadow glow.</p>
+          <p style="color: var(--tx-muted); font-size: 13px; line-height: 1.6; margin-top: 10px;">Categories use different accents. PRODUCE → amber. PREPARE → blue. PODCAST → coral. PREMIER → teal. ADMIN → violet.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="label">Pickers (radio cards)</div>
+    <div class="col" style="margin-bottom: 32px;">
+      <div class="pick">
+        <div class="pick-radio"></div>
+        <div>Ep. 010 - How Much Do GPUs Really Cost? (AI Cloud TCO)</div>
+      </div>
+      <div class="pick picked">
+        <div class="pick-radio"></div>
+        <div>
+          Ep. 008 - Claude Code Psychosis: How SemiAnalysis Is Token Mogging Meta
+          <div style="font-family: var(--ft-mono); font-size: 10px; color: var(--tx-dim); margin-top: 6px; letter-spacing: 0.5px;">YOUTUBE 78/100 · SPOTIFY 142/200</div>
+        </div>
+      </div>
+      <div class="pick">
+        <div class="pick-radio"></div>
+        <div>Ep. 007 - The 3 Choke Points Killing the AI Boom (Core Research)</div>
+      </div>
+    </div>
+
+    <div class="label">Dialog (modal)</div>
+    <div style="background: rgba(6,6,12,0.4); border: 1px dashed var(--border); border-radius: 14px; padding: 32px; margin-bottom: 32px;">
+      <div class="dialog-demo" style="animation: dlgPop 0.3s ease;">
+        <div class="dialog-title">Delete project?</div>
+        <div class="dialog-body">"Blackwell GPU yields one-pager" will be removed permanently.</div>
+        <div class="dialog-actions">
+          <button class="btn btn-secondary">Cancel</button>
+          <button class="btn" style="background: var(--coral); color: #fff;">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="label">Toast</div>
+    <div style="margin-bottom: 32px;">
+      <div class="toast-demo">Saved.</div>
+    </div>
+  </section>
+
+  <!-- ═══ MOTION ═══ -->
+  <section class="section">
+    <div class="section-head">
+      <h2 class="h2">Motion</h2>
+      <span class="section-num">SECTION 08</span>
+    </div>
+    <div class="card">
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="border-bottom: 1px solid var(--border);">
+            <th style="text-align: left; padding: 10px 0; font-family: var(--ft-mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--tx-muted); font-weight: 700;">When</th>
+            <th style="text-align: left; padding: 10px 0; font-family: var(--ft-mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--tx-muted); font-weight: 700;">Duration</th>
+            <th style="text-align: left; padding: 10px 0; font-family: var(--ft-mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--tx-muted); font-weight: 700;">Easing</th>
+          </tr>
+        </thead>
+        <tbody style="font-size: 13px;">
+          <tr><td style="padding: 10px 0;">Hover state changes</td><td style="font-family: var(--ft-mono); color: var(--amber);">200ms</td><td style="font-family: var(--ft-mono); color: var(--tx-muted);">ease</td></tr>
+          <tr><td style="padding: 10px 0;">Tab / route swap</td><td style="font-family: var(--ft-mono); color: var(--amber);">250ms</td><td style="font-family: var(--ft-mono); color: var(--tx-muted);">ease-in-out</td></tr>
+          <tr><td style="padding: 10px 0;">Modal / popover open</td><td style="font-family: var(--ft-mono); color: var(--amber);">220ms</td><td style="font-family: var(--ft-mono); color: var(--tx-muted);">cubic-bezier(0.16, 1, 0.3, 1)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══ VOICE ═══ -->
+  <section class="section">
+    <div class="section-head">
+      <h2 class="h2">Voice & Copy</h2>
+      <span class="section-num">SECTION 09</span>
+    </div>
+    <p class="lede" style="margin-bottom: 28px;">The visual style is one half. Copy discipline is the other. These rules ride along with the look.</p>
+    <div class="grid grid-3">
+      <div class="card"><div style="font-family: var(--ft-display); font-weight: 800; font-size: 16px; margin-bottom: 8px;">No em dashes</div><div style="color: var(--tx-muted); font-size: 13px; line-height: 1.6;">Use commas, periods, or colons. Em dashes feel breathless and AI-coded.</div></div>
+      <div class="card"><div style="font-family: var(--ft-display); font-weight: 800; font-size: 16px; margin-bottom: 8px;">No emojis</div><div style="color: var(--tx-muted); font-size: 13px; line-height: 1.6;">Product copy stays clean. Use icons (lucide-react) when you need symbolic emphasis.</div></div>
+      <div class="card"><div style="font-family: var(--ft-display); font-weight: 800; font-size: 16px; margin-bottom: 8px;">No hype words</div><div style="color: var(--tx-muted); font-size: 13px; line-height: 1.6;">Banned: revolutionary, unleashed, game-changing, next-gen, transform, dive into, unlock, seamless.</div></div>
+      <div class="card"><div style="font-family: var(--ft-display); font-weight: 800; font-size: 16px; margin-bottom: 8px;">Direct &amp; specific</div><div style="color: var(--tx-muted); font-size: 13px; line-height: 1.6;">Plain declarative sentences. Lead with a concrete fact, never a rhetorical question.</div></div>
+      <div class="card"><div style="font-family: var(--ft-display); font-weight: 800; font-size: 16px; margin-bottom: 8px;">Sentence case</div><div style="color: var(--tx-muted); font-size: 13px; line-height: 1.6;">Body uses sentence case. Title Case only for proper nouns and tile labels.</div></div>
+      <div class="card"><div style="font-family: var(--ft-display); font-weight: 800; font-size: 16px; margin-bottom: 8px;">Caps labels are mono</div><div style="color: var(--tx-muted); font-size: 13px; line-height: 1.6;">Tiny caps labels above sections use JetBrains Mono, 700 weight, 1.5–2px letter-spacing.</div></div>
+    </div>
+  </section>
+
+  <!-- ═══ AI PAIRING ═══ -->
+  <section class="section" id="ai-pairing">
+    <div class="section-head">
+      <h2 class="h2">AI Pairing — paste this</h2>
+      <span class="section-num">SECTION 10</span>
+    </div>
+    <p class="lede" style="margin-bottom: 28px;">If you're applying this style with an AI coding assistant (Claude, Cursor, Copilot, etc.), paste the block below as a system prompt or rule set. It encodes the rules in a form models follow well.</p>
+    <pre class="code"><button class="code-copy" data-copy="ai">Copy</button><code id="ai-code"># POAST visual style — apply to any web UI you build.
+
+Surfaces: page background #06060C; cards #09090D; inputs/elevated surfaces #0D0D12.
+Borders: rgba(255,255,255,0.06) at rest, rgba(255,255,255,0.12) on hover. No solid lines.
+Text: primary #E8E4DD (warm off-white, never #FFFFFF), secondary #8A8690, dim #4E4B56.
+Accents: amber #F7B041 is primary; teal #2EAD8E for success; coral #E06347 for danger.
+Tints: use accent + low alpha (`#F7B04112`) for backgrounds, accent + ~25-40% alpha for borders.
+
+Type: 'Outfit' for body (500 weight default, 800 for emphasis); 'Grift' for display headings;
+'JetBrains Mono' for tiny caps labels, char counts, IDs. Body copy is 13-14px.
+Headings are 700+. Caps labels are 9-11px mono, uppercase, 1.5-2px letter-spacing.
+
+Radius: 4 chips, 6 pills, 8 buttons/inputs, 10-12 cards, 14 modals, 50% avatars/dots.
+
+Shadows: cards `0 2px 12px rgba(0,0,0,0.4)`. Hover adds a 0 0 20px colored bloom at <=10% alpha
+— never higher. Modals get a subtle 0 0 0 1px accent ring.
+
+Gradients (only three allowed):
+- Card: linear-gradient(135deg, #09090D 0%, #0D0D12 100%)
+- Surface: linear-gradient(135deg, #0D0D12 0%, #09090D 100%)
+- High-energy CTA: linear-gradient(135deg, #F7B041, #26C9D8) with black 800-weight text
+
+Motion: 200ms ease for hover, 220ms cubic-bezier(0.16, 1, 0.3, 1) for modal pop.
+Reserve motion for state changes.
+
+Voice: no em dashes, no emojis, no hype words, no "dive into" / "Why X matters" / "deep dive".
+Direct, specific, technical sentences. Sentence case for body, Title Case for proper nouns.
+
+Icons: lucide-react, stroke 1.8 at rest, 2.2 active. Never filled.
+
+When in doubt: dark surfaces, single warm accent, low-alpha colored shadows,
+off-white type. Restraint over decoration.</code></pre>
+  </section>
+
+  <!-- ═══ FOOTER ═══ -->
+  <div class="ribbon">
+    <div>POAST · DESIGN SYSTEM · v1</div>
+    <div>SEMIANALYSIS // CONTENT COMMAND CENTER</div>
+    <div><a href="https://poast-app.vercel.app">poast-app.vercel.app</a></div>
+  </div>
+
+</main>
+
+<script>
+// Copy-to-clipboard for the code blocks. Plain DOM, no deps.
+document.querySelectorAll('.code-copy').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var key = btn.getAttribute('data-copy');
+    var srcId = key === 'tokens' ? 'tokens-code' : 'ai-code';
+    var src = document.getElementById(srcId);
+    if (!src) return;
+    var text = src.textContent || '';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        var prev = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = prev; }, 1400);
+      });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1400); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+  });
+});
+</script>
+
+</body>
+</html>
