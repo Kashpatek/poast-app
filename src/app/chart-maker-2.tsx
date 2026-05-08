@@ -5898,6 +5898,35 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const [vignette, setVignette] = useState(true);
   // Wave 14 · branded export footer toggle (default off)
   const [exportBranding, setExportBranding] = useState(false);
+  // Wave 18 · Watermark logo as a base64 data URL. The Watermark component
+  // renders <image href="/box-logo.png">. When that SVG is exported (PNG/JPG/
+  // SVG/PPTX/copy-as-image) the relative path doesn't resolve outside the
+  // poast-app origin, so the logo disappeared from the file. Fix: load the
+  // PNG once on mount, keep it as a data URL, and rewrite the href in every
+  // exported XML before serialization. Self-contained file → logo always
+  // ships with the chart.
+  const [logoDataUrl, setLogoDataUrl] = useState<string>("");
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/box-logo.png")
+      .then((r) => r.blob())
+      .then((blob) => new Promise<string>((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result as string);
+        fr.onerror = () => reject(fr.error);
+        fr.readAsDataURL(blob);
+      }))
+      .then((dataUrl) => { if (!cancelled) setLogoDataUrl(dataUrl); })
+      .catch(() => { /* fall back to relative path if fetch fails */ });
+    return () => { cancelled = true; };
+  }, []);
+  // Replace all references to /box-logo.png with the inlined data URL so
+  // the exported SVG/PNG renders the watermark correctly outside POAST.
+  // Safe no-op if the data URL hasn't loaded yet (rare race; user re-export).
+  const inlineLogoInXml = (xml: string): string => {
+    if (!logoDataUrl) return xml;
+    return xml.split("/box-logo.png").join(logoDataUrl);
+  };
   // Wave 12 · radial wheel customization (which icons appear per kind).
   // Loaded from localStorage so user prefs persist across sessions.
   const [wheelConfig, setWheelConfig] = useState<Record<string, string[] | "all">>({});
@@ -6213,7 +6242,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const bakeChartCanvas = (cb: (cv: HTMLCanvasElement, w: number, h: number) => void) => {
     if (!svgRef.current) return;
     const svg = svgRef.current;
-    const xml = new XMLSerializer().serializeToString(svg);
+    const xml = inlineLogoInXml(new XMLSerializer().serializeToString(svg));
     const w = svg.clientWidth || W;
     const h = svg.clientHeight || H;
     const img = new Image();
@@ -6356,7 +6385,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       t.textContent = "Built with POAST Chart Maker · poast.app/charts";
       svg.appendChild(t);
     }
-    const xml = new XMLSerializer().serializeToString(svg);
+    const xml = inlineLogoInXml(new XMLSerializer().serializeToString(svg));
     const blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n', xml], { type: "image/svg+xml;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -6373,7 +6402,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const copyPNG = useCallback(async () => {
     const svg = svgRef.current;
     if (!svg) return;
-    const xml = new XMLSerializer().serializeToString(svg);
+    const xml = inlineLogoInXml(new XMLSerializer().serializeToString(svg));
     const blob = new Blob([xml], { type: "image/svg+xml" });
     const url = URL.createObjectURL(blob);
     const img = new window.Image();
@@ -6394,7 +6423,11 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       }, "image/png");
     };
     img.src = url;
-  }, []);
+    // Re-bind whenever the inlined logo changes so the captured closure has
+    // the latest data URL. Without this, copyPNG fired before the logo
+    // loaded would keep emitting the stale relative path.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logoDataUrl]);
 
   // Wave 14 · ⌘⇧C copy-PNG keyboard binding (separate effect since copyPNG must be in scope)
   // Wave 17 · ⌘⇧N opens the Name Manager modal.
