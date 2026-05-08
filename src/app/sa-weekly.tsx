@@ -60,6 +60,37 @@ interface SocialResult {
   [key: string]: string | undefined;
 }
 
+interface ClipCaptions {
+  x_hook?: string;
+  x_reply?: string;
+  linkedin_post?: string;
+  linkedin_comment?: string;
+  facebook_post?: string;
+  facebook_comment?: string;
+  instagram_caption?: string;
+  yt_shorts_title?: string;
+  yt_shorts_desc?: string;
+  tiktok_caption?: string;
+  [key: string]: string | undefined;
+}
+
+// Inputs are all optional — the more the user provides, the better the
+// captions. We send whatever's filled in; the prompt instructs Claude to
+// reference the specific clip moment, not the full episode.
+interface ClipInputs {
+  topic: string;
+  firstLines: string;
+  lastLines: string;
+  transcript: string;
+  context: string;
+}
+
+interface ClipResult {
+  inputs: ClipInputs;
+  captions: ClipCaptions | null;
+  generatedAt?: number;
+}
+
 interface LogEntry {
   episode: string;
   title: string;
@@ -67,6 +98,11 @@ interface LogEntry {
   guests: string;
   date: string;
   social: SocialResult | null;
+  // The two new fields are optional so older log entries continue to work
+  // unchanged. id is generated at launch time and used to match the entry
+  // when the user clicks "Develop Clips" on a past episode.
+  id?: string;
+  clips?: ClipResult[];
 }
 
 interface ConfettiPiece {
@@ -128,6 +164,7 @@ var D = {
   tx: "#ffffff", txb: "rgba(255,255,255,0.55)", txl: "rgba(255,255,255,0.4)", txh: "rgba(255,255,255,0.12)",
 };
 var ft = "'Outfit',sans-serif";
+var gf = "'Grift','Outfit',sans-serif";
 var mn = "'JetBrains Mono',monospace";
 var ACC = D.coral; // accent color for this flow
 
@@ -980,16 +1017,223 @@ function StepSocial({ ep, guests, fin, socialRes, setSocialRes }: { ep: EpState;
 }
 
 // ═══ STEP 5: CLIPS ═══
-function StepClips() {
+// ─────────────────────────────────────────────────────────────────────
+// CLIP CAPTION PROMPT
+// SA Weekly does roughly 3 clips per podcast. The clips are usually
+// edited later, so the analyst writes captions ahead of time using
+// whatever info they have: a topic, the first/last lines spoken, a
+// transcript snippet, or just context. The more inputs, the tighter
+// the captions. We send only what's filled in.
+// ─────────────────────────────────────────────────────────────────────
+function buildClipPrompt(args: {
+  ep: EpState;
+  guests: Guest[];
+  fin: FinalizedState | null;
+  link: string;
+  clipNumber: number;
+  inputs: ClipInputs;
+}): string {
+  var parts: string[] = [];
+  parts.push("Generate platform-specific captions for ONE short-form clip from SemiAnalysis Weekly Episode #" + args.ep.number + ".");
+  parts.push("Episode title: " + (args.fin ? args.fin.title : "(not yet finalized)"));
+  parts.push("Guests with handles: " + gStr(args.guests));
+  parts.push("Episode link: " + args.link);
+  parts.push("This is Clip " + args.clipNumber + " of the episode.");
+
+  var clipBits: string[] = [];
+  if (args.inputs.topic.trim()) clipBits.push("Topic / hook of this clip: " + args.inputs.topic.trim());
+  if (args.inputs.firstLines.trim()) clipBits.push("First spoken lines of the clip:\n" + args.inputs.firstLines.trim());
+  if (args.inputs.lastLines.trim()) clipBits.push("Last spoken lines of the clip:\n" + args.inputs.lastLines.trim());
+  if (args.inputs.transcript.trim()) clipBits.push("Transcript snippet of the clip:\n" + args.inputs.transcript.trim().slice(0, 4000));
+  if (args.inputs.context.trim()) clipBits.push("Additional context from the analyst: " + args.inputs.context.trim());
+
+  if (clipBits.length === 0) {
+    parts.push("Clip details: (none provided — write captions that work as a generic teaser for this episode topic, but flag that the analyst should add specifics later)");
+  } else {
+    parts.push("Clip details:\n\n" + clipBits.join("\n\n"));
+  }
+
+  parts.push("Captions should reference the SPECIFIC clip moment, not the full episode. Each platform follows the SA Weekly social rules baked into your system prompt.");
+  parts.push('Return JSON with EXACT keys: {"x_hook":"hook tweet, no link, no hashtags","x_reply":"reply with link " + ' + JSON.stringify(args.link) + ' + " and brief context, no hashtags","linkedin_post":"3-5 sentence post ending with \\"Link in comments.\\"","linkedin_comment":"comment text starting with the link","facebook_post":"similar to linkedin, ends with \\"Link in comments.\\"","facebook_comment":"comment with link","instagram_caption":"Reels caption + Save this for later CTA + 5-8 hashtags + location San Francisco CA + ' + JSON.stringify(args.link) + '","yt_shorts_title":"under 40 chars","yt_shorts_desc":"with #shorts","tiktok_caption":"all lowercase, no hashtags, no overlay text"}');
+  return parts.join("\n\n");
+}
+
+function emptyClipInputs(): ClipInputs {
+  return { topic: "", firstLines: "", lastLines: "", transcript: "", context: "" };
+}
+
+interface StepClipsProps {
+  ep: EpState;
+  guests: Guest[];
+  fin: FinalizedState | null;
+  clips: ClipResult[];
+  setClips: React.Dispatch<React.SetStateAction<ClipResult[]>>;
+  editingLogId: string | null;
+  onSavedToLog: () => void;
+}
+
+function StepClips({ ep, guests, fin, clips, setClips, editingLogId, onSavedToLog }: StepClipsProps) {
+  // Default to 3 empty clip slots — that's the typical podcast cadence.
+  // Triggers only when clips is empty (first arrival to the step).
+  useEffect(function() {
+    if (clips.length === 0) {
+      setClips([
+        { inputs: emptyClipInputs(), captions: null },
+        { inputs: emptyClipInputs(), captions: null },
+        { inputs: emptyClipInputs(), captions: null },
+      ]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  var _busy = useState<Record<number, boolean>>({}), busy = _busy[0], setBusy = _busy[1];
+  var link = ep.link || "https://youtube.com/@SemianalysisWeekly";
+
+  var updateInputs = function(i: number, patch: Partial<ClipInputs>) {
+    setClips(function(prev) {
+      return prev.map(function(c, idx) {
+        if (idx !== i) return c;
+        return Object.assign({}, c, { inputs: Object.assign({}, c.inputs, patch) });
+      });
+    });
+  };
+
+  var addClip = function() {
+    setClips(function(prev) { return prev.concat([{ inputs: emptyClipInputs(), captions: null }]); });
+  };
+
+  var removeClip = function(i: number) {
+    setClips(function(prev) { return prev.filter(function(_, idx) { return idx !== i; }); });
+  };
+
+  var generateClip = async function(i: number) {
+    setBusy(function(p) { var n = Object.assign({}, p); n[i] = true; return n; });
+    try {
+      var prompt = buildClipPrompt({ ep: ep, guests: guests, fin: fin, link: link, clipNumber: i + 1, inputs: clips[i].inputs });
+      var data = await ask(SYS_SOC, prompt);
+      if (data) {
+        setClips(function(prev) {
+          return prev.map(function(c, idx) {
+            if (idx !== i) return c;
+            return Object.assign({}, c, { captions: data as unknown as ClipCaptions, generatedAt: Date.now() });
+          });
+        });
+      }
+    } finally {
+      setBusy(function(p) { var n = Object.assign({}, p); n[i] = false; return n; });
+    }
+  };
+
+  var generateAll = async function() {
+    for (var i = 0; i < clips.length; i++) {
+      // Skip clips with no inputs at all so we don't waste calls on blanks.
+      var anyInput = Object.values(clips[i].inputs).some(function(v) { return v && v.trim(); });
+      if (!anyInput) continue;
+      await generateClip(i);
+    }
+  };
+
+  var anyClipGenerated = clips.some(function(c) { return c.captions; });
+
+  var FIELDS: { key: keyof ClipCaptions; label: string; color: string }[] = [
+    { key: "x_hook", label: "X // Hook Tweet", color: PL.x },
+    { key: "x_reply", label: "X // Reply-to-self", color: PL.x },
+    { key: "linkedin_post", label: "LinkedIn // Post", color: PL.li },
+    { key: "linkedin_comment", label: "LinkedIn // Comment", color: PL.li },
+    { key: "facebook_post", label: "Facebook // Post", color: PL.fb },
+    { key: "facebook_comment", label: "Facebook // Comment", color: PL.fb },
+    { key: "instagram_caption", label: "Instagram Reels", color: PL.ig },
+    { key: "yt_shorts_title", label: "YouTube Shorts // Title", color: PL.yt },
+    { key: "yt_shorts_desc", label: "YouTube Shorts // Description", color: PL.yt },
+    { key: "tiktok_caption", label: "TikTok", color: PL.tt },
+  ];
+
   return <div>
     <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Clips</div>
-    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 32 }}>Manage episode clip highlights.</div>
-    <div style={{ textAlign: "center", padding: 80, color: D.txl, fontFamily: ft }}><div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8, color: D.txb }}>Clip Manager</div><div style={{ fontFamily: mn, fontSize: 11, letterSpacing: "1px" }}>Coming next.</div></div>
+    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 24 }}>Generate platform-ready captions for the clips you'll cut from this episode. Fill in whatever you have — topic, first/last lines, a snippet — and the captions will land tighter the more context you provide.</div>
+
+    {editingLogId && <div style={{ marginBottom: 20, padding: "10px 14px", borderRadius: 10, background: D.teal + "0A", border: "1px solid " + D.teal + "30", fontFamily: mn, fontSize: 11, color: D.teal, letterSpacing: 0.5 }}>Editing clips for a previously launched episode. Changes save back to the Activity Log automatically.</div>}
+
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
+      <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: D.tx }}>{clips.length} clip{clips.length !== 1 ? "s" : ""}</div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <span onClick={addClip} style={{ fontFamily: mn, fontSize: 10, color: D.txl, cursor: "pointer", padding: "6px 12px", borderRadius: 8, border: "1px solid " + D.border, transition: "all 0.2s ease" }}>+ Add clip</span>
+        <Btn onClick={generateAll} sec sm>Generate all with input</Btn>
+        {editingLogId && anyClipGenerated && <Btn onClick={onSavedToLog} sm>Done · Back to log</Btn>}
+      </div>
+    </div>
+
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {clips.map(function(clip, i) {
+        var loading = !!busy[i];
+        var hasInput = Object.values(clip.inputs).some(function(v) { return v && v.trim(); });
+        return <div key={i} style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: ACC + "15", border: "1px solid " + ACC + "40", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: gf, fontSize: 16, fontWeight: 900, color: ACC, flexShrink: 0 }}>{i + 1}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: gf, fontSize: 18, fontWeight: 800, color: D.tx, letterSpacing: -0.3 }}>Clip {i + 1}</div>
+              <div style={{ fontFamily: mn, fontSize: 10, color: D.txl, marginTop: 2 }}>{clip.captions ? "Captions generated" : hasInput ? "Inputs ready · click Generate" : "Add any context to start"}</div>
+            </div>
+            {clips.length > 1 && <span onClick={function() { removeClip(i); }} style={{ fontFamily: mn, fontSize: 9, color: D.txl, cursor: "pointer", padding: "4px 10px", borderRadius: 6, border: "1px solid " + D.border }}>Remove</span>}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div style={{ gridColumn: "1 / 3" }}>
+              <div style={{ fontFamily: mn, fontSize: 10, color: D.txb, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 6 }}>Topic / hook of the clip</div>
+              <input value={clip.inputs.topic} onChange={function(e) { updateInputs(i, { topic: e.target.value }); }} placeholder="e.g. Why HBM3E is the bottleneck" style={inputStyle()} />
+            </div>
+            <div>
+              <div style={{ fontFamily: mn, fontSize: 10, color: D.txb, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 6 }}>First few lines spoken</div>
+              <textarea rows={3} value={clip.inputs.firstLines} onChange={function(e) { updateInputs(i, { firstLines: e.target.value }); }} placeholder='"You know what nobody wants to talk about with Blackwell..."' style={taStyle()} />
+            </div>
+            <div>
+              <div style={{ fontFamily: mn, fontSize: 10, color: D.txb, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 6 }}>Last few lines spoken</div>
+              <textarea rows={3} value={clip.inputs.lastLines} onChange={function(e) { updateInputs(i, { lastLines: e.target.value }); }} placeholder="Closing line that lands the punch." style={taStyle()} />
+            </div>
+            <div style={{ gridColumn: "1 / 3" }}>
+              <div style={{ fontFamily: mn, fontSize: 10, color: D.txb, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 6 }}>Transcript snippet (optional)</div>
+              <textarea rows={4} value={clip.inputs.transcript} onChange={function(e) { updateInputs(i, { transcript: e.target.value }); }} placeholder="Paste the section of the episode this clip covers. Top 4000 characters used." style={taStyle()} />
+            </div>
+            <div style={{ gridColumn: "1 / 3" }}>
+              <div style={{ fontFamily: mn, fontSize: 10, color: D.txb, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 6 }}>Additional context for the captions</div>
+              <textarea rows={2} value={clip.inputs.context} onChange={function(e) { updateInputs(i, { context: e.target.value }); }} placeholder="e.g. Make it punchy, lean on the supply chain angle, mention TSMC capex" style={taStyle()} />
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <Btn onClick={function() { generateClip(i); }} loading={loading} sm>{clip.captions ? "Regenerate captions" : "Generate captions"}</Btn>
+            {loading && <span style={{ fontFamily: mn, fontSize: 10, color: D.txl }}>Writing platform captions…</span>}
+          </div>
+
+          {clip.captions && <div style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid " + D.border }}>
+            <div style={{ fontFamily: mn, fontSize: 10, color: ACC, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>Captions for Clip {i + 1}</div>
+            {FIELDS.map(function(f) {
+              var val = clip.captions ? clip.captions[f.key] : undefined;
+              if (!val) return null;
+              return <div key={String(f.key)} style={{ background: D.surface, borderLeft: "3px solid " + f.color, border: "1px solid " + D.border, borderLeftWidth: 3, borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <div style={{ fontFamily: mn, fontSize: 10, color: f.color, textTransform: "uppercase", letterSpacing: 1.5 }}>{f.label}</div>
+                  <span onClick={function() { copyText(val as string); showToast("Copied " + f.label); }} style={{ fontFamily: mn, fontSize: 9, color: D.txl, cursor: "pointer", padding: "2px 8px", borderRadius: 4, border: "1px solid " + D.border }}>Copy</span>
+                </div>
+                <div style={{ fontFamily: ft, fontSize: 13, color: D.tx, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{val}</div>
+              </div>;
+            })}
+          </div>}
+        </div>;
+      })}
+    </div>
   </div>;
 }
 
+function inputStyle(): React.CSSProperties {
+  return { width: "100%", padding: "10px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 8, color: D.tx, fontFamily: ft, fontSize: 13, outline: "none", boxSizing: "border-box" };
+}
+function taStyle(): React.CSSProperties {
+  return Object.assign({}, inputStyle(), { fontFamily: ft, lineHeight: 1.5, resize: "vertical" as const, minHeight: 60 });
+}
+
 // ═══ STEP 6: EXPORT ═══
-function StepExport({ ep, guests, fin, socialRes, onComplete }: { ep: EpState; guests: Guest[]; fin: FinalizedState | null; socialRes: SocialResult | null; onComplete?: (data: { title: string; description: string; social: SocialResult | null }) => void }) {
+function StepExport({ ep, guests, fin, socialRes, clips, onComplete }: { ep: EpState; guests: Guest[]; fin: FinalizedState | null; socialRes: SocialResult | null; clips?: ClipResult[]; onComplete?: (data: { title: string; description: string; social: SocialResult | null }) => void }) {
   var _done = useState<boolean>(false), done = _done[0], setDone = _done[1];
   var _show = useState<boolean>(false), showModal = _show[0], setShowModal = _show[1];
 
@@ -1022,6 +1266,18 @@ function StepExport({ ep, guests, fin, socialRes, onComplete }: { ep: EpState; g
       { heading: "Horizontal (X, LinkedIn, Facebook)", items: FIELDS.slice(0, 6).map(function(f) { return { label: f.label, content: socialRes[f.key] || "" }; }) },
       { heading: "Vertical (Shorts, Reels, TikTok)", items: FIELDS.slice(6).map(function(f) { return { label: f.label, content: socialRes[f.key] || "" }; }) },
     ];
+    // Include any generated clip captions in the same launch DOCX so the
+    // entire kit ships in one file. Each clip gets its own labeled section.
+    if (clips && clips.length) {
+      clips.forEach(function(clip, i) {
+        if (!clip.captions) return;
+        var caps = clip.captions;
+        sections.push({
+          heading: "Clip " + (i + 1) + (clip.inputs.topic ? " // " + clip.inputs.topic : ""),
+          items: FIELDS.map(function(f) { return { label: f.label, content: caps[f.key] || "" }; }).filter(function(item) { return item.content; }),
+        });
+      });
+    }
     exportDoc("Ep #" + ep.number + " Launch Rollout", sections);
   };
 
@@ -1086,9 +1342,10 @@ function StepExport({ ep, guests, fin, socialRes, onComplete }: { ep: EpState; g
 }
 
 // ═══ STEP 7: LOG ═══
-function StepLog({ logData, setLogData }: { logData: LogEntry[]; setLogData: React.Dispatch<React.SetStateAction<LogEntry[]>> }) {
+function StepLog({ logData, setLogData, onDevelopClips }: { logData: LogEntry[]; setLogData: React.Dispatch<React.SetStateAction<LogEntry[]>>; onDevelopClips: (entry: LogEntry) => void }) {
   var _ed = useState<boolean>(false), editing = _ed[0], setEditing = _ed[1];
   var _view = useState<number | null>(null), viewIdx = _view[0], setViewIdx = _view[1];
+  var _viewClips = useState<number | null>(null), viewClipsIdx = _viewClips[0], setViewClipsIdx = _viewClips[1];
 
   var removeEntry = function(idx: number) { setLogData(function(prev: LogEntry[]) { return prev.filter(function(_: LogEntry, j: number) { return j !== idx; }); }); };
 
@@ -1106,6 +1363,16 @@ function StepLog({ logData, setLogData }: { logData: LogEntry[]; setLogData: Rea
       sections.push({ heading: "Horizontal (X, LinkedIn, Facebook)", items: ["x_hook", "x_reply", "linkedin_post", "linkedin_comment", "facebook_post", "facebook_comment"].filter(function(k: string) { return social[k]; }).map(function(k: string) { return { label: k.replace(/_/g, " ").replace(/\b\w/g, function(c: string) { return c.toUpperCase(); }), content: social[k] || "" }; }) });
       sections.push({ heading: "Vertical (Shorts, Reels, TikTok)", items: ["instagram_caption", "yt_shorts_title", "yt_shorts_desc", "tiktok_caption"].filter(function(k: string) { return social[k]; }).map(function(k: string) { return { label: k.replace(/_/g, " ").replace(/\b\w/g, function(c: string) { return c.toUpperCase(); }), content: social[k] || "" }; }) });
     }
+    if (e.clips && e.clips.length) {
+      e.clips.forEach(function(clip, i) {
+        if (!clip.captions) return;
+        var caps = clip.captions;
+        sections.push({
+          heading: "Clip " + (i + 1) + (clip.inputs.topic ? " // " + clip.inputs.topic : ""),
+          items: Object.keys(caps).filter(function(k) { return caps[k]; }).map(function(k) { return { label: k.replace(/_/g, " ").replace(/\b\w/g, function(c) { return c.toUpperCase(); }), content: caps[k] || "" }; }),
+        });
+      });
+    }
     exportDoc("Ep #" + e.episode + " Launch Kit", sections);
   };
 
@@ -1117,6 +1384,40 @@ function StepLog({ logData, setLogData }: { logData: LogEntry[]; setLogData: Rea
     ];
     exportDoc("Ep #" + e.episode + " Social Kit", sections);
   };
+
+  // Clip Kit · per-episode DOCX of just the clip captions, with each clip
+  // clearly labeled "Clip 1 // <topic>" so there's never confusion about
+  // which set of captions belongs to which cut.
+  var downloadClipKit = function(e: LogEntry) {
+    if (!e.clips || !e.clips.length) return;
+    var sections: DocSection[] = [
+      { heading: "Episode Info", items: [
+        { label: "Episode", content: "#" + e.episode + " — " + e.title },
+        { label: "Guests", content: e.guests },
+        { label: "Date", content: e.date },
+      ]},
+    ];
+    e.clips.forEach(function(clip, i) {
+      var inputItems: { label: string; content: string }[] = [];
+      if (clip.inputs.topic) inputItems.push({ label: "Topic", content: clip.inputs.topic });
+      if (clip.inputs.firstLines) inputItems.push({ label: "First lines", content: clip.inputs.firstLines });
+      if (clip.inputs.lastLines) inputItems.push({ label: "Last lines", content: clip.inputs.lastLines });
+      if (clip.inputs.context) inputItems.push({ label: "Context", content: clip.inputs.context });
+      if (inputItems.length) {
+        sections.push({ heading: "Clip " + (i + 1) + " · Inputs", items: inputItems });
+      }
+      if (clip.captions) {
+        var caps = clip.captions;
+        sections.push({
+          heading: "Clip " + (i + 1) + " · Captions" + (clip.inputs.topic ? " · " + clip.inputs.topic : ""),
+          items: Object.keys(caps).filter(function(k) { return caps[k]; }).map(function(k) { return { label: k.replace(/_/g, " ").replace(/\b\w/g, function(c) { return c.toUpperCase(); }), content: caps[k] || "" }; }),
+        });
+      }
+    });
+    exportDoc("Ep #" + e.episode + " Clip Kit", sections);
+  };
+
+  var hasClips = function(e: LogEntry) { return !!(e.clips && e.clips.some(function(c) { return c.captions; })); };
 
   var viewEntry = viewIdx !== null && logData[viewIdx] ? logData[viewIdx] : null;
 
@@ -1140,6 +1441,12 @@ function StepLog({ logData, setLogData }: { logData: LogEntry[]; setLogData: Rea
           <span onClick={function() { setViewIdx(i); }} style={{ fontFamily: mn, fontSize: 9, color: D.teal, padding: "4px 12px", background: D.teal + "0A", borderRadius: 6, cursor: "pointer", border: "1px solid " + D.teal + "30" }}>View Launch Kit</span>
           <span onClick={function() { downloadLaunchKit(e); }} style={{ fontFamily: mn, fontSize: 9, color: ACC, cursor: "pointer", padding: "4px 12px", background: ACC + "0A", borderRadius: 6, border: "1px solid " + ACC + "30" }}>Download Launch Kit</span>
           {e.social && <span onClick={function() { downloadSocialKit(e); }} style={{ fontFamily: mn, fontSize: 9, color: D.blue, cursor: "pointer", padding: "4px 12px", background: D.blue + "0A", borderRadius: 6, border: "1px solid " + D.blue + "30" }}>Download Social Kit</span>}
+          {/* Clip Kit affordances · "Develop Clips" until clips exist; then "View" + "Download". */}
+          {hasClips(e) ? <>
+            <span onClick={function() { setViewClipsIdx(i); }} style={{ fontFamily: mn, fontSize: 9, color: D.violet, padding: "4px 12px", background: D.violet + "0A", borderRadius: 6, cursor: "pointer", border: "1px solid " + D.violet + "40" }}>View Clip Kit</span>
+            <span onClick={function() { downloadClipKit(e); }} style={{ fontFamily: mn, fontSize: 9, color: D.violet, padding: "4px 12px", background: D.violet + "0A", borderRadius: 6, cursor: "pointer", border: "1px solid " + D.violet + "40" }}>Download Clip Kit</span>
+            <span onClick={function() { onDevelopClips(e); }} style={{ fontFamily: mn, fontSize: 9, color: D.txl, padding: "4px 12px", borderRadius: 6, cursor: "pointer", border: "1px solid " + D.border }}>Edit Clips</span>
+          </> : <span onClick={function() { onDevelopClips(e); }} style={{ fontFamily: mn, fontSize: 9, color: D.violet, padding: "4px 12px", background: "linear-gradient(135deg, " + D.violet + "12, " + D.violet + "04)", borderRadius: 6, cursor: "pointer", border: "1px solid " + D.violet + "55", fontWeight: 700 }}>+ Develop Clips</span>}
         </div>
       </div>); })}
 
@@ -1163,9 +1470,43 @@ function StepLog({ logData, setLogData }: { logData: LogEntry[]; setLogData: Rea
         <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
           <Btn onClick={function() { downloadLaunchKit(viewEntry!); }} sm sec>Download Launch Kit</Btn>
           {viewEntry.social && <Btn onClick={function() { downloadSocialKit(viewEntry!); }} sm sec>Download Social Kit</Btn>}
+          {hasClips(viewEntry) && <Btn onClick={function() { downloadClipKit(viewEntry!); }} sm sec>Download Clip Kit</Btn>}
         </div>
       </div>
     </div>}
+
+    {/* View Clip Kit Modal */}
+    {viewClipsIdx !== null && logData[viewClipsIdx] && (function() {
+      var clipEntry = logData[viewClipsIdx];
+      var clipsArr = clipEntry.clips || [];
+      return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }} onClick={function() { setViewClipsIdx(null); }}>
+        <div onClick={function(e) { e.stopPropagation(); }} style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 32, maxWidth: 720, width: "92%", maxHeight: "85vh", overflow: "auto", boxShadow: "0 4px 40px rgba(0,0,0,0.6)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+            <div style={{ fontFamily: mn, fontSize: 11, color: D.violet, textTransform: "uppercase", letterSpacing: "2px" }}>{"Episode #" + clipEntry.episode + " // Clip Kit"}</div>
+            <span onClick={function() { setViewClipsIdx(null); }} style={{ fontFamily: mn, fontSize: 11, color: D.txl, cursor: "pointer", padding: "4px 8px" }}>x</span>
+          </div>
+          <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 900, color: D.tx, marginBottom: 4, letterSpacing: -0.5 }}>{clipEntry.title}</div>
+          <div style={{ fontFamily: ft, fontSize: 13, color: D.txb, marginBottom: 24 }}>{clipEntry.guests} // {clipEntry.date} // {clipsArr.length} clip{clipsArr.length !== 1 ? "s" : ""}</div>
+          {clipsArr.map(function(clip, ci) {
+            var caps = clip.captions || {};
+            return <div key={ci} style={{ marginBottom: 22, padding: "16px 18px", background: D.surface, borderRadius: 12, border: "1px solid " + D.border }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: D.violet + "20", border: "1px solid " + D.violet + "50", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: gf, fontSize: 14, fontWeight: 900, color: D.violet }}>{ci + 1}</div>
+                <div style={{ fontFamily: gf, fontSize: 16, fontWeight: 800, color: D.tx, letterSpacing: -0.3 }}>Clip {ci + 1}{clip.inputs.topic ? " · " + clip.inputs.topic : ""}</div>
+              </div>
+              {!clip.captions ? <div style={{ fontFamily: mn, fontSize: 10, color: D.txl, padding: "8px 0" }}>No captions generated yet.</div> : Object.keys(caps).filter(function(k) { return caps[k]; }).map(function(k) { return <div key={k} style={{ marginBottom: 8, padding: "10px 12px", background: D.elevated, borderRadius: 8, border: "1px solid " + D.border }}>
+                <div style={{ fontFamily: mn, fontSize: 9, color: ACC, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 5 }}>{k.replace(/_/g, " ")}</div>
+                <div style={{ fontFamily: ft, fontSize: 13, color: D.txb, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{caps[k]}</div>
+              </div>; })}
+            </div>;
+          })}
+          <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+            <Btn onClick={function() { downloadClipKit(clipEntry); }} sm sec>Download Clip Kit</Btn>
+            <Btn onClick={function() { setViewClipsIdx(null); onDevelopClips(clipEntry); }} sm>Edit Clips</Btn>
+          </div>
+        </div>
+      </div>;
+    })()}
   </div>);
 }
 
@@ -1184,6 +1525,11 @@ export default function SAWeekly() {
   var _th = useState<string | null>(null), thumb = _th[0], setThumb = _th[1];
   var _dl = useState<string>("medium"), descLen = _dl[0], setDescLen = _dl[1];
   var _sr = useState<SocialResult | null>(null), socialRes = _sr[0], setSocialRes = _sr[1];
+  var _cl = useState<ClipResult[]>([]), clips = _cl[0], setClips = _cl[1];
+  // When the user clicked "Develop Clips" on a past Activity Log entry,
+  // editingLogId tracks which entry the clips should be written back into.
+  // null when working on the current in-flight episode.
+  var _eli = useState<string | null>(null), editingLogId = _eli[0], setEditingLogId = _eli[1];
   var _lch = useState<boolean>(false), launched = _lch[0], setLaunched = _lch[1];
   var _log = useState<LogEntry[]>([]), logData = _log[0], setLogData = _log[1];
   var _loaded = useState<boolean>(false), loaded = _loaded[0], setLoaded = _loaded[1];
@@ -1245,6 +1591,7 @@ export default function SAWeekly() {
     if (s.launched) setLaunched(s.launched as boolean);
     if (s.descLen) setDescLen(s.descLen as string);
     if (s.socialRes) setSocialRes(s.socialRes as SocialResult);
+    if (s.clips) setClips(s.clips as ClipResult[]);
     // Restore step based on how far user got
     if (s.launched) setStep(6);
     else if (s.socialRes) setStep(5);
@@ -1256,12 +1603,49 @@ export default function SAWeekly() {
     setInteracted(true);
   };
 
+  // "Develop Clips" entry from the Activity Log. Loads a past episode's
+  // metadata into the working state, sets editingLogId so writes flow back
+  // to the right log entry, and jumps straight to the Clips step.
+  var openClipsForLogEntry = function(entry: LogEntry) {
+    if (!entry.id) {
+      // Backfill an id for legacy entries so future writes can match.
+      var newId = "log-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+      var withId = Object.assign({}, entry, { id: newId });
+      setLogData(function(prev) { return prev.map(function(e) { return e === entry ? withId : e; }); });
+      entry = withId;
+    }
+    setEp(Object.assign({}, ep, { number: entry.episode, transcript: ep.transcript || "" }));
+    var fakeFin: FinalizedState = { title: entry.title, description: entry.description, thumbnail: "" };
+    setFin(fakeFin);
+    setSocialRes(entry.social);
+    setClips(entry.clips || []);
+    setEditingLogId(entry.id || null);
+    setStep(4);
+    setInteracted(true);
+  };
+
   // Auto-save
   useEffect(function() {
     if (!loaded || !interacted) return;
     // TODO(akash): SA Weekly state is shared (id: "weekly-master") so createdBy reflects the most recent editor; if a draft is loaded from the archive and re-saved, the original author is overwritten.
-    saveState({ ep: ep, guests: guests, opts: opts, sel: sel, fin: fin, thumb: null, launched: launched, descLen: descLen, socialRes: socialRes, createdBy: userCtx.user ? userCtx.user.name : "Unknown", createdByRole: userCtx.user ? userCtx.user.role : "" }, logData);
-  }, [ep, guests, opts, sel, fin, thumb, launched, descLen, socialRes, logData, loaded, interacted]);
+    saveState({ ep: ep, guests: guests, opts: opts, sel: sel, fin: fin, thumb: null, launched: launched, descLen: descLen, socialRes: socialRes, clips: clips, createdBy: userCtx.user ? userCtx.user.name : "Unknown", createdByRole: userCtx.user ? userCtx.user.role : "" }, logData);
+  }, [ep, guests, opts, sel, fin, thumb, launched, descLen, socialRes, clips, logData, loaded, interacted]);
+
+  // When clips change while editing a past log entry, mirror the change
+  // back into the log entry so "View Clip Kit" / "Download Clip Kit" stay
+  // accurate. Idempotent — only updates when something actually differs.
+  useEffect(function() {
+    if (!editingLogId) return;
+    setLogData(function(prev) {
+      var next = prev.map(function(e) {
+        if (e.id !== editingLogId) return e;
+        if (JSON.stringify(e.clips || []) === JSON.stringify(clips)) return e;
+        return Object.assign({}, e, { clips: clips });
+      });
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clips, editingLogId]);
 
   // Mark as interacted
   useEffect(function() {
@@ -1273,8 +1657,19 @@ export default function SAWeekly() {
 
   var handleComplete = function(data: { title: string; description: string; social: SocialResult | null }) {
     setLaunched(true);
-    var entry = { episode: ep.number, title: data.title, description: data.description, guests: gn, date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), social: data.social };
+    var newId = "log-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+    var entry: LogEntry = {
+      id: newId,
+      episode: ep.number,
+      title: data.title,
+      description: data.description,
+      guests: gn,
+      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      social: data.social,
+      clips: clips.length ? clips : undefined,
+    };
     setLogData(function(prev) { return [entry].concat(prev); });
+    setEditingLogId(newId); // any subsequent clip work flows back here
     setStep(6); // go to log
   };
 
@@ -1316,9 +1711,9 @@ export default function SAWeekly() {
       {step === 1 && <StepGenerate ep={ep} guests={guests} opts={opts} setOpts={setOpts} sel={sel} setSel={setSel} fin={fin} setFin={setFin} descLen={descLen} setDescLen={setDescLen} onDone={function() {}} />}
       {step === 2 && <StepReview ep={ep} guests={guests} opts={opts} sel={sel} fin={fin} setFin={setFin} thumb={thumb} setThumb={setThumb} onDone={function() { setStep(3); }} />}
       {step === 3 && <StepSocial ep={ep} guests={guests} fin={fin} socialRes={socialRes} setSocialRes={setSocialRes} />}
-      {step === 4 && <StepClips />}
-      {step === 5 && <StepExport ep={ep} guests={guests} fin={fin} socialRes={socialRes} onComplete={handleComplete} />}
-      {step === 6 && <StepLog logData={logData} setLogData={setLogData} />}
+      {step === 4 && <StepClips ep={ep} guests={guests} fin={fin} clips={clips} setClips={setClips} editingLogId={editingLogId} onSavedToLog={function() { setStep(6); }} />}
+      {step === 5 && <StepExport ep={ep} guests={guests} fin={fin} socialRes={socialRes} clips={clips} onComplete={handleComplete} />}
+      {step === 6 && <StepLog logData={logData} setLogData={setLogData} onDevelopClips={openClipsForLogEntry} />}
     </div>
 
     {/* Step navigation buttons */}
