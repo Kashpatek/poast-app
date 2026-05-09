@@ -1184,74 +1184,127 @@ function GlitchTransition({ onDone }: { onDone: () => void }) {
   </div>;
 }
 
+// Director / Marketing home. Clean grid of every tool grouped by section.
+// Replaces the half-finished hover-to-expand design that was hidden behind
+// the old useState("weekly") default — it never got real user testing
+// because nobody actually landed here. Built to match the polish of
+// AnalystSplash with category coloring, hover lift, and a calm hero.
 function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
-  var _h = useState<number | null>(null), h = _h[0], sh = _h[1];
   var userCtx = useUser();
-  var analyst = isAnalyst(userCtx.user);
-  var sections: Record<string, SplashItem[]> = {
-    PRODUCE: [
-      { l: "Slop Top",          Icon: Zap,          id: "sloptop" },
-      { l: "Carousel",          Icon: LayoutGrid,   id: "carousel" },
-      { l: "Capper",            Icon: Captions,     id: "captions" },
-      { l: "P2P",               Icon: Clapperboard, id: "p2p" },
-      { l: "B-Roll",            Icon: Film,         id: "broll" },
-      { l: "Chart Maker",       Icon: BarChart3,    id: "chart" },
-    ],
-    PODCAST: [
-      { l: "Fab Knowledge",     Icon: Headphones,   id: "fk" },
-      { l: "SA Weekly",         Icon: Radio,        id: "weekly" },
-      { l: "Outreach",          Icon: Send,         id: "outreach" },
-    ],
-    PREPARE: [
-      { l: "Trends",            Icon: Flame,        id: "trends" },
-      { l: "IdeationNation",    Icon: Lightbulb,    id: "ideation" },
-      { l: "News Flow",         Icon: Newspaper,    id: "news" },
-      { l: "GTC Flow",          Icon: Activity,     id: "gtc" },
-    ],
-    PREMIER: [
-      { l: "Schedule",          Icon: Calendar,     id: "schedule" },
-    ],
-  };
-  var allWords = ["PRODUCE", "PODCAST", "PREPARE", "PREMIER"];
-  var allColors = [C.amber, C.coral, C.blue, C.teal];
-  var words = analyst ? ["PRODUCE"] : allWords;
-  var colors = analyst ? [C.amber] : allColors;
-  var appNames: Record<string, string> = { PRODUCE: "Slop Top, Carousel, Capper, P2P, B-Roll, Chart Maker", PODCAST: "Fab Knowledge, SA Weekly, Outreach", PREPARE: "Trends, IdeationNation, News Flow, GTC Flow", PREMIER: "Schedule" };
+  var canDocu = canUseDocuDesign(userCtx.user);
+  // Each section uses its own accent so the page reads at a glance:
+  // amber=produce, coral=podcast, blue=prepare, teal=premier, violet=admin.
+  var sections: Array<{ key: string; label: string; sub: string; color: string; tiles: { id: string; label: string; sub: string; Icon: LucideIcon; href?: string }[] }> = [
+    { key: "produce", label: "Produce", sub: "Make the content", color: C.amber, tiles: [
+      { id: "sloptop",  label: "Slop Top",      sub: "Brief gen + arxiv.lol",   Icon: Zap },
+      { id: "carousel", label: "Carousel",      sub: "Instagram carousels",     Icon: LayoutGrid },
+      { id: "captions", label: "Capper",        sub: "Captions per platform",   Icon: Captions },
+      { id: "p2p",      label: "Press to Premier", sub: "Video production briefs", Icon: Clapperboard },
+      { id: "broll",    label: "B-Roll",        sub: "Generated b-roll library", Icon: Film },
+      { id: "chart",    label: "Chart Maker",   sub: "Quick charts",            Icon: BarChart3 },
+      { id: "chart2",   label: "Chart Maker 2", sub: "Think-cell, drag, export", Icon: GanttChart, href: "/charts" },
+    ] },
+    { key: "podcast", label: "Podcast", sub: "SA Weekly + FK", color: C.coral, tiles: [
+      { id: "fk",       label: "Fab Knowledge", sub: "Doug's interview prep",   Icon: Headphones },
+      { id: "weekly",   label: "SA Weekly",     sub: "Episode → launch kit",    Icon: Radio },
+      { id: "outreach", label: "Outreach",      sub: "Guest cold emails",       Icon: Send },
+    ] },
+    { key: "prepare", label: "Prepare", sub: "Find the angle", color: C.blue, tiles: [
+      { id: "trends",   label: "Trends",        sub: "What's lit right now",    Icon: Flame },
+      { id: "ideation", label: "IdeationNation", sub: "Spark sessions",         Icon: Lightbulb },
+      { id: "news",     label: "News Flow",     sub: "Drafts from headlines",   Icon: Newspaper },
+      { id: "gtc",      label: "GTC Flow",      sub: "Conference desk",         Icon: Activity },
+    ] },
+    { key: "premier", label: "Premier", sub: "Schedule + ship", color: C.teal, tiles: [
+      { id: "schedule", label: "Schedule",      sub: "Buffer queue",            Icon: Calendar },
+      { id: "assets",   label: "Asset Library", sub: "Logos, fonts, brand kit", Icon: Library },
+    ] },
+    { key: "admin",   label: "Admin",   sub: "Tune the studio", color: C.violet, tiles: [
+      { id: "settings", label: "POAST Settings", sub: "Analytics + onboarding", Icon: Settings },
+    ] },
+  ];
 
-  return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "0 8vw" }}>
-    <style dangerouslySetInnerHTML={{ __html: "@keyframes bIn{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:translateY(0)}}@keyframes bLine{0%{transform:scaleX(0)}100%{transform:scaleX(1)}}@keyframes itemReveal{0%{opacity:0;transform:translateY(-8px) scale(0.95)}100%{opacity:1;transform:translateY(0) scale(1)}}" }} />
-    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 50, animation: "bIn 0.5s ease forwards", opacity: 0 }}>
-      <img src="/poast-logo.png" style={{ width: 36, height: 36, borderRadius: 8 }} />
-      <span style={{ fontFamily: gf, fontSize: 16, fontWeight: 900, color: C.amber, letterSpacing: 5 }}>POAST</span>
+  // DocuDesign sits with Produce when the role can use it. Hides for any
+  // role that fails canUseDocuDesign (Analyst).
+  if (canDocu) sections[0].tiles.push({ id: "docu", label: "DocuDesign", sub: "Chat-driven SVG docs", Icon: Wand, href: "/docu-design" });
+
+  return <div style={{ minHeight: "100%", padding: "48px 0 64px", position: "relative" }}>
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes ssRise{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}@keyframes ssShim{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}.ss-headline{background:linear-gradient(120deg,#F7B041 0%,#26C9D8 50%,#F7B041 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:ssShim 8s ease-in-out infinite}" }} />
+
+    {/* Hero */}
+    <div style={{ animation: "ssRise 0.5s ease forwards", opacity: 0, marginBottom: 48 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <img src="/poast-logo.png" alt="" style={{ width: 32, height: 32, borderRadius: 8 }} />
+        <div style={{ fontFamily: mn, fontSize: 11, fontWeight: 700, color: C.amber, letterSpacing: 4, textTransform: "uppercase" }}>POAST</div>
+      </div>
+      <h1 className="ss-headline" style={{ fontFamily: gf, fontSize: "clamp(48px, 8vw, 96px)", fontWeight: 900, lineHeight: 0.98, letterSpacing: -2.5, margin: 0, marginBottom: 14 }}>
+        Welcome back{userCtx.user ? ", " + userCtx.user.name : ""}.
+      </h1>
+      <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 500, color: "rgba(232,228,221,0.55)", maxWidth: 640, lineHeight: 1.55 }}>
+        Pick where you're working today. Your sidebar has every tool — this grid is the same set, grouped by what they're for.
+      </div>
     </div>
-    <div style={{ width: "100%", textAlign: "center" }}>
-      {words.map(function(w, i) {
-        var isH = h === i; var items = sections[w];
-        return <div key={i} onMouseEnter={function() { sh(i); }} onMouseLeave={function() { sh(null); }} style={{ animation: "bIn 0.6s ease " + (0.1 + i * 0.15) + "s forwards", opacity: 0, marginBottom: isH ? 8 : 0, transition: "margin 0.25s ease" }}>
-          <div style={{ fontFamily: ft, fontSize: "min(12vw, 140px)", fontWeight: 900, color: isH ? colors[i] : "#E8E4DD", letterSpacing: "-0.03em", lineHeight: 0.95, position: "relative", display: "inline-block", cursor: "pointer", transition: "color 0.2s" }}>
-            {w}
-            <span style={{ position: "absolute", left: -20, top: "50%", transform: "translateY(-50%)", width: 4, height: isH ? "80%" : "60%", background: colors[i], borderRadius: 2, transition: "all 0.2s", boxShadow: isH ? "0 0 12px " + colors[i] + "40" : "none" }} />
-          </div>
-          <div style={{ fontFamily: ft, fontSize: 9, color: "rgba(255,255,255,0.18)", letterSpacing: 2, marginTop: 4 }}>{appNames[w]}</div>
-          <div style={{ overflow: "hidden", maxHeight: isH ? 60 : 0, opacity: isH ? 1 : 0, transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)", marginTop: isH ? 6 : 0 }}>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center", padding: "4px 0" }}>
-              {items.map(function(item, ii) {
-                return <div key={ii} onClick={function() { onNavigate(item.id); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 6, background: "#0A0A14", border: "1px solid " + colors[i] + "25", cursor: "pointer", transition: "all 0.15s", animation: "itemReveal 0.25s ease " + (ii * 0.06) + "s forwards", opacity: 0 }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "#111120"; e.currentTarget.style.borderColor = colors[i] + "50"; e.currentTarget.style.boxShadow = "0 0 12px " + colors[i] + "15"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "#0A0A14"; e.currentTarget.style.borderColor = colors[i] + "25"; e.currentTarget.style.boxShadow = "none"; }}>
-                  <span style={{ display: "inline-flex", alignItems: "center" }}>
-                    <item.Icon size={13} strokeWidth={2} color={colors[i]} />
-                  </span>
-                  <span style={{ fontFamily: ft, fontSize: 12, color: "#E8E4DD", fontWeight: 500 }}>{item.l}</span>
-                  <span style={{ fontFamily: ft, fontSize: 8, color: colors[i], marginLeft: 2 }}>&rarr;</span>
-                </div>;
-              })}
-            </div>
-          </div>
-        </div>;
-      })}
+
+    {/* Sections */}
+    {sections.map(function(section, sIdx) {
+      return <div key={section.key} style={{ marginBottom: 44, animation: "ssRise 0.5s ease " + (0.15 + sIdx * 0.08) + "s forwards", opacity: 0 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginBottom: 16, paddingLeft: 4 }}>
+          <span style={{ width: 4, height: 18, borderRadius: 2, background: section.color, boxShadow: "0 0 12px " + section.color + "55, 0 0 24px " + section.color + "20", display: "inline-block", alignSelf: "center" }} />
+          <div style={{ fontFamily: gf, fontSize: 22, fontWeight: 800, color: section.color, letterSpacing: -0.4, textShadow: "0 0 20px " + section.color + "40" }}>{section.label}</div>
+          <div style={{ fontFamily: mn, fontSize: 10, color: "rgba(255,255,255,0.30)", letterSpacing: 1.5, textTransform: "uppercase" }}>{section.sub}</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
+          {section.tiles.map(function(tile) {
+            return <SplashTile key={tile.id} tile={tile} color={section.color} onNavigate={onNavigate} />;
+          })}
+        </div>
+      </div>;
+    })}
+
+    {/* Footer */}
+    <div style={{ marginTop: 56, textAlign: "center", fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.18)", letterSpacing: 3, animation: "ssRise 0.5s ease 0.6s forwards", opacity: 0 }}>
+      SEMIANALYSIS // CONTENT COMMAND CENTER
     </div>
-    <div style={{ width: 60, height: 1, background: "linear-gradient(90deg, transparent, " + C.amber + ", transparent)", margin: "40px auto", animation: "bLine 0.6s ease 0.7s forwards", transform: "scaleX(0)", transformOrigin: "center" }} />
-    <div style={{ fontFamily: ft, fontSize: 12, color: "rgba(255,255,255,0.2)", letterSpacing: 3, animation: "bIn 0.4s ease 0.9s forwards", opacity: 0 }}>SEMIANALYSIS // CONTENT COMMAND CENTER</div>
   </div>;
+}
+
+// One tile in the director home grid. Hover lifts + glows in the section's
+// accent. External tools (href) open in a new tab; everything else is an
+// in-app sec navigation.
+function SplashTile({ tile, color, onNavigate }: { tile: { id: string; label: string; sub: string; Icon: LucideIcon; href?: string }; color: string; onNavigate: (id: string) => void }) {
+  var _hov = useState(false), hov = _hov[0], setHov = _hov[1];
+  var click = function() { if (tile.href) window.open(tile.href, "_blank"); else onNavigate(tile.id); };
+  return <button
+    onClick={click}
+    onMouseEnter={function() { setHov(true); }}
+    onMouseLeave={function() { setHov(false); }}
+    style={{
+      width: "100%", textAlign: "left", cursor: "pointer",
+      background: hov ? "linear-gradient(135deg, " + color + "12, " + color + "04)" : "#0A0A0F",
+      border: "1px solid " + (hov ? color + "60" : "rgba(255,255,255,0.06)"),
+      borderRadius: 14, padding: "20px 18px",
+      display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 14,
+      transition: "all 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
+      transform: hov ? "translateY(-3px)" : "translateY(0)",
+      boxShadow: hov ? "0 16px 36px -10px " + color + "30, 0 0 24px " + color + "12" : "0 2px 12px rgba(0,0,0,0.3)",
+      fontFamily: ft,
+    }}
+  >
+    <div style={{
+      width: 44, height: 44, borderRadius: 11,
+      background: hov ? color + "1F" : "#0F0F1A",
+      border: "1px solid " + (hov ? color + "55" : "rgba(255,255,255,0.06)"),
+      display: "flex", alignItems: "center", justifyContent: "center",
+      transition: "all 0.22s",
+      boxShadow: hov ? "0 0 16px " + color + "30, inset 0 0 12px " + color + "08" : "none",
+    }}>
+      <tile.Icon size={20} strokeWidth={hov ? 2.1 : 1.8} color={color} />
+    </div>
+    <div style={{ flex: 1 }}>
+      <div style={{ fontFamily: gf, fontSize: 17, fontWeight: 800, color: "#E8E4DD", letterSpacing: -0.3, marginBottom: 3 }}>{tile.label}</div>
+      <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 500, color: hov ? color : "rgba(255,255,255,0.40)", transition: "color 0.22s", lineHeight: 1.45 }}>{tile.sub}</div>
+    </div>
+  </button>;
 }
 
 // ═══ ANALYST SPLASH — iPhone-home-screen-style tile grid ═══
