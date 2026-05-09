@@ -1651,12 +1651,18 @@ export default function App() {
     setIntroState(hasUser ? "skip" : "show");
   }, []);
   var _askPoast = useState(false), askPoastOpen = _askPoast[0], setAskPoastOpen = _askPoast[1];
-  var _s = useState("weekly"), sec = _s[0], setSec = _s[1];
+  // Default landing is the home splash, not a tool. Previously defaulted
+  // to "weekly" which dumped every user — including analysts — straight
+  // into SA Weekly on app load and bypassed the home screen entirely.
+  var _s = useState("home"), sec = _s[0], setSec = _s[1];
   var userCtx = useUser();
   var analyst = isAnalyst(userCtx.user);
   // Analysts: gate navigation to allowed sections only, default to carousel
   useEffect(function() {
-    if (analyst && !ANALYST_ALLOWED.includes(sec)) setSec("carousel");
+    // If an analyst somehow lands on a section they can't access, send
+    // them to home (their splash with the 4 tile icons) — not directly
+    // into a tool. They pick from there.
+    if (analyst && !ANALYST_ALLOWED.includes(sec)) setSec("home");
   }, [analyst, sec]);
   // Listen for nav events from other components (e.g. News Flow Draft -> P2P)
   useEffect(function() {
