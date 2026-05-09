@@ -1696,14 +1696,19 @@ function AssetLibraryEmbed() {
 }
 
 export default function App() {
-  // Three-state intro gate so we can wait for localStorage hydration before
-  // deciding. Without this, navigating to /analyst (router.replace from the
-  // user picker) re-mounts App and re-shows the picker because showIntro
-  // defaults to true. By starting in "loading" and resolving on mount, a
-  // returning user with a saved session skips the picker entirely.
+  // Three-state intro gate. Loading briefly until we resolve on mount.
+  // Rule: the root URL ('/') ALWAYS shows the cinematic welcome, even if
+  // the user has a saved session — that's the explicit role-pick entry
+  // point Akash specified. Other paths (e.g. /analyst, /docu-design,
+  // /charts) trust the saved session so users don't get bounced back to
+  // the login mid-session. Once introState transitions to "skip" via the
+  // pick handler, it stays "skip" for the rest of this mount — no
+  // re-pick on subsequent re-renders.
   var _sp = useState<"loading" | "show" | "skip">("loading"), introState = _sp[0], setIntroState = _sp[1];
   var showIntro = introState === "show";
   useEffect(function() {
+    var pathname = typeof window !== "undefined" ? window.location.pathname : "";
+    if (pathname === "/") { setIntroState("show"); return; }
     var hasUser = typeof window !== "undefined" && !!localStorage.getItem("poast-current-user");
     setIntroState(hasUser ? "skip" : "show");
   }, []);

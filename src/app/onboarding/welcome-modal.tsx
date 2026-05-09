@@ -94,8 +94,12 @@ const overlay: React.CSSProperties = {
   WebkitBackdropFilter: "blur(8px)",
   zIndex: 12000,
   display: "flex",
-  alignItems: "center",
+  // safe center falls back to flex-start when content overflows the
+  // viewport — fixes the "blank center, can't scroll up" bug where the
+  // modal panel rendered above the visible window on short screens.
+  alignItems: "safe center",
   justifyContent: "center",
+  overflowY: "auto",
   padding: 24,
 };
 
@@ -106,6 +110,11 @@ const panel: React.CSSProperties = {
   borderRadius: 14,
   padding: "28px 28px 22px",
   boxShadow: "0 32px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(247,176,65,0.05)",
+  // Cap height so the panel itself scrolls if content overflows, rather
+  // than the panel being clipped by the viewport.
+  maxHeight: "calc(100vh - 48px)",
+  overflowY: "auto",
+  flexShrink: 0,
 };
 
 const badgeRow: React.CSSProperties = {
