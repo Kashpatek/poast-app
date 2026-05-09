@@ -2,18 +2,22 @@
 
 import React, { useEffect, useState } from "react";
 import { D, ft, gf, mn } from "../shared-constants";
-import { WELCOME_STEPS } from "./tours";
+import type { WelcomeStep } from "./tours";
 
 interface WelcomeModalProps {
   onClose: () => void;
   onComplete: () => void;
+  // Role-aware content. Each role's tour ships its own step list; the
+  // host picks which to pass in. Falls back to nothing if empty.
+  steps: WelcomeStep[];
 }
 
-export function WelcomeModal({ onClose, onComplete }: WelcomeModalProps) {
+export function WelcomeModal({ onClose, onComplete, steps }: WelcomeModalProps) {
   const [idx, setIdx] = useState(0);
-  const total = WELCOME_STEPS.length;
-  const step = WELCOME_STEPS[idx];
+  const total = steps.length;
+  const step = steps[idx];
   const isLast = idx === total - 1;
+  if (!step) return null;
 
   useEffect(() => {
     var onKey = function (e: KeyboardEvent) {
@@ -51,7 +55,7 @@ export function WelcomeModal({ onClose, onComplete }: WelcomeModalProps) {
         ) : null}
 
         <div style={dotRow}>
-          {WELCOME_STEPS.map(function (_, i) {
+          {steps.map(function (_, i) {
             return <span key={i} style={i === idx ? dotActive : dot} onClick={function () { setIdx(i); }} />;
           })}
         </div>

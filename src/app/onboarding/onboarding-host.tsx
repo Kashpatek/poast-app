@@ -1,31 +1,23 @@
 "use client";
 
 import React from "react";
-import { useUser } from "../user-context";
+import { useUser, isAnalyst } from "../user-context";
 import { useOnboarding } from "../onboarding-context";
 import { WelcomeModal } from "./welcome-modal";
 import { CoachMark } from "./coach-mark";
 import { ChartMakerTour } from "./chart-maker-tour";
 import {
   STEP_WELCOME,
-  STEP_TOOL_SLOPTOP,
-  STEP_TOOL_CAROUSEL,
-  STEP_TOOL_CAPTIONS,
   STEP_TOOL_CHART2,
   STEP_CHART2_DEEP,
   TOOL_COACH,
+  WELCOME_STEPS_ANALYST,
+  WELCOME_STEPS_MARKETING,
 } from "./tours";
 
 interface OnboardingHostProps {
   sec: string;
 }
-
-const SEC_TO_STEP: Record<string, string> = {
-  sloptop: STEP_TOOL_SLOPTOP,
-  carousel: STEP_TOOL_CAROUSEL,
-  captions: STEP_TOOL_CAPTIONS,
-  chart2: STEP_TOOL_CHART2,
-};
 
 // Singleton overlay that decides what onboarding surface, if any, to render
 // for the current user + section. Mounted once at the top level of poast-client.
@@ -33,7 +25,11 @@ export function OnboardingHost({ sec }: OnboardingHostProps) {
   const { user } = useUser();
   const { hasSeen, markSeen, activeStep, setActiveStep } = useOnboarding();
 
-  const isAnalyst = user?.role === "Analyst";
+  const analyst = isAnalyst(user);
+  // Welcome is content-tailored per role. Analyst sees the four-tool intro;
+  // marketing sees the suite-wide intro. We fire it for both roles on first
+  // arrival now (was analyst-only — user wanted both).
+  const welcomeSteps = analyst ? WELCOME_STEPS_ANALYST : WELCOME_STEPS_MARKETING;
 
   // Tiny global stylesheet for the coach-card pop animation. Defined here so
   // every onboarding surface can use it without duplicating <style> blocks.
@@ -53,14 +49,9 @@ export function OnboardingHost({ sec }: OnboardingHostProps) {
       <>
         {styleTag}
         <WelcomeModal
-          onClose={() => {
-            markSeen(STEP_WELCOME);
-            setActiveStep(null);
-          }}
-          onComplete={() => {
-            markSeen(STEP_WELCOME);
-            setActiveStep(null);
-          }}
+          steps={welcomeSteps}
+          onClose={() => { markSeen(STEP_WELCOME); setActiveStep(null); }}
+          onComplete={() => { markSeen(STEP_WELCOME); setActiveStep(null); }}
         />
       </>
     );
@@ -71,14 +62,8 @@ export function OnboardingHost({ sec }: OnboardingHostProps) {
       <>
         {styleTag}
         <ChartMakerTour
-          onClose={() => {
-            markSeen(STEP_CHART2_DEEP);
-            setActiveStep(null);
-          }}
-          onComplete={() => {
-            markSeen(STEP_CHART2_DEEP);
-            setActiveStep(null);
-          }}
+          onClose={() => { markSeen(STEP_CHART2_DEEP); setActiveStep(null); }}
+          onComplete={() => { markSeen(STEP_CHART2_DEEP); setActiveStep(null); }}
         />
       </>
     );
@@ -102,17 +87,18 @@ export function OnboardingHost({ sec }: OnboardingHostProps) {
     }
   }
 
-  // 2. Auto-detection. Only Analysts get the auto-show; other roles can replay
-  // from Settings if they want a refresher.
-  if (!user || !isAnalyst) return null;
+  // 2. Auto-detection. Need a user before anything fires.
+  if (!user) return null;
 
-  // Welcome takes priority over per-tool coach marks. New analysts see this
-  // first regardless of which section they land on.
+  // Welcome takes priority over per-tool coach marks. New users see this
+  // first regardless of which section they land on. Independent of role
+  // since both analyst + marketing have suite-tailored welcome content.
   if (!hasSeen(STEP_WELCOME)) {
     return (
       <>
         {styleTag}
         <WelcomeModal
+          steps={welcomeSteps}
           onClose={() => markSeen(STEP_WELCOME)}
           onComplete={() => markSeen(STEP_WELCOME)}
         />
@@ -120,34 +106,35 @@ export function OnboardingHost({ sec }: OnboardingHostProps) {
     );
   }
 
-  // Per-tool coach mark on first visit. Includes a primary action linking to
-  // the deep tour for Chart Maker 2.
-  const stepId = SEC_TO_STEP[sec];
-  if (stepId && !hasSeen(stepId)) {
-    const content = TOOL_COACH[sec];
-    if (content) {
-      const primaryAction =
-        sec === "chart2"
-          ? {
-              label: "Take the tour",
-              onClick: () => {
-                markSeen(STEP_TOOL_CHART2);
-                setActiveStep(STEP_CHART2_DEEP);
-              },
-            }
-          : undefined;
-      return (
-        <>
-          {styleTag}
-          <CoachMark
-            content={content}
-            onDismiss={() => markSeen(stepId)}
-            onHidePermanent={() => markSeen(stepId)}
-            primaryAction={primaryAction}
-          />
-        </>
-      );
-    }
+  // Per-tool coach mark on first visit. Step ID derives from the current
+  // sec — every entry in TOOL_COACH gets a one-paragraph intro on first
+  // arrival, with a "Don't show again" affordance baked into the card.
+  // Special case: Chart Maker 2's coach mark surfaces a "Take the tour"
+  // button that launches the deep tour overlay.
+  const toolStepId = "tool-" + sec;
+  const toolContent = TOOL_COACH[sec];
+  if (toolContent && !hasSeen(toolStepId)) {
+    const primaryAction =
+      sec === "chart2"
+        ? {
+            label: "Take the tour",
+            onClick: () => {
+              markSeen(STEP_TOOL_CHART2);
+              setActiveStep(STEP_CHART2_DEEP);
+            },
+          }
+        : undefined;
+    return (
+      <>
+        {styleTag}
+        <CoachMark
+          content={toolContent}
+          onDismiss={() => markSeen(toolStepId)}
+          onHidePermanent={() => markSeen(toolStepId)}
+          primaryAction={primaryAction}
+        />
+      </>
+    );
   }
 
   return null;

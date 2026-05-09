@@ -1879,7 +1879,9 @@ export default function App() {
       </div>
     </div>
     <OnboardingHost sec={sec} />
-    <StyleGuidePromo />
+    {/* Promo ribbon scoped to the Asset Library only — was previously
+        rendered at App root and floated over every screen, which was wrong. */}
+    {sec === "assets" && <StyleGuidePromo />}
     <div style={{ position: "fixed", bottom: 8, right: 12, zIndex: 2, fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.12)", letterSpacing: 1, pointerEvents: "none" }}>v2.8</div>
     {/* Mobile warning */}
     <style dangerouslySetInnerHTML={{ __html: "@media(min-width:769px){.mobile-warn{display:none!important}}" }} />
