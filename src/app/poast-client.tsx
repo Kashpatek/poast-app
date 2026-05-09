@@ -1510,22 +1510,26 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
   var handleUserSelect = function(name: string) {
     setUser(name);
     userCtx.setUser(name);
-    // Analysts skip boot/glitch entirely — straight to their tile grid.
-    // Push the URL so /analyst is the bookmarkable entry to the analyst app.
-    if (name === "Analyst") { router.replace("/analyst"); setPhase("splash"); return; }
+    // Analysts: drop straight into the main app. The main app renders the
+    // analyst splash when sec === "home" (default), and the OnboardingHost
+    // fires the welcome modal automatically for first-time analysts.
+    // Don't render an in-Intro splash on top — that was the duplicate
+    // "home is gone" UX bug.
+    if (name === "Analyst") { router.replace("/analyst"); onDone(); return; }
     setPhase("boot");
     try { var audio = new Audio("/splash-sound.mp3"); audio.volume = 0.7; audio.play().catch(function() {}); } catch (e) {}
   };
-  var handleBootDone = function() { setGlitch(true); setTimeout(function() { setGlitch(false); setPhase("splash"); }, 350); };
-  var handleNavigate = function(id: string) { onDone(id); };
+  // Marketing path: keep the boot+glitch flourish for vibe, then drop into
+  // the main app on home. No in-Intro splash phase.
+  var handleBootDone = function() {
+    setGlitch(true);
+    setTimeout(function() { setGlitch(false); onDone(); }, 350);
+  };
 
   return <div>
     {phase === "select" && <UserSelect onSelect={handleUserSelect} />}
     {phase === "boot" && <TerminalBoot user={user} onDone={handleBootDone} />}
     {glitch && <GlitchTransition onDone={function() {}} />}
-    {phase === "splash" && (user === "Analyst"
-      ? <AnalystSplash onNavigate={handleNavigate} />
-      : <SplashScreen onNavigate={handleNavigate} />)}
   </div>;
 }
 
