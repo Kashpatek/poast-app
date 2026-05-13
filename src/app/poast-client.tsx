@@ -434,6 +434,105 @@ function ChippySidebar({ onAsk }: { onAsk: () => void }) {
   </div>;
 }
 
+// Floating bottom-right Chippy. Replaces the bulky ChippySidebar block.
+// Tracks mouse position globally and ramps opacity based on distance to
+// the widget — dim and unobtrusive when you're working, lights up when
+// you bring your cursor near. Hidden entirely for analysts (Ask POAST
+// queries data they shouldn't see).
+function FloatingChippy({ onAsk }: { onAsk: () => void }) {
+  var userCtx = useUser();
+  var analyst = isAnalyst(userCtx.user);
+  var _opacity = useState<number>(0.35), opacity = _opacity[0], setOpacity = _opacity[1];
+  var _face = useState<number>(0), face = _face[0], setFace = _face[1];
+  var _clicks = useState<number>(0), clicks = _clicks[0], setClicks = _clicks[1];
+  var _bounce = useState<boolean>(false), bounce = _bounce[0], setBounce = _bounce[1];
+  var ref = useRef<HTMLButtonElement | null>(null);
+  var rafRef = useRef<number | null>(null);
+
+  // Idle face shuffle — keeps the widget feeling alive even when ignored.
+  useEffect(function() {
+    if (analyst) return;
+    var iv = setInterval(function() { setFace(function(f) { return (f + 1) % CHIP_FACES.length; }); }, 4500);
+    return function() { clearInterval(iv); };
+  }, [analyst]);
+
+  // Proximity tracker. Calculates Cartesian distance from cursor to the
+  // widget's center and maps that to opacity. 200px is the soft falloff
+  // radius — past that, we sit at the dim floor (0.25). Within ~30px we
+  // saturate to 1.0. rAF-throttled so mousemove doesn't thrash the render.
+  useEffect(function() {
+    if (analyst) return;
+    var onMove = function(e: MouseEvent) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      var mx = e.clientX, my = e.clientY;
+      rafRef.current = requestAnimationFrame(function() {
+        var el = ref.current;
+        if (!el) return;
+        var r = el.getBoundingClientRect();
+        var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        var dx = mx - cx, dy = my - cy;
+        var d = Math.sqrt(dx * dx + dy * dy);
+        var near = Math.max(0.25, Math.min(1, 1 - (d - 30) / 200));
+        setOpacity(near);
+      });
+    };
+    window.addEventListener("mousemove", onMove);
+    return function() {
+      window.removeEventListener("mousemove", onMove);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [analyst]);
+
+  if (analyst) return null;
+
+  var handleClick = function() {
+    setBounce(true);
+    setFace(Math.floor(Math.random() * CHIP_FACES.length));
+    setClicks(function(c) { return c + 1; });
+    setTimeout(function() { setBounce(false); }, 500);
+    onAsk();
+  };
+
+  return (
+    <button
+      ref={ref}
+      onClick={handleClick}
+      title={"Ask Chippy · " + clicks + " clicks"}
+      style={{
+        position: "fixed",
+        bottom: 22,
+        right: 22,
+        zIndex: 9500,
+        width: 58,
+        height: 58,
+        borderRadius: 16,
+        background: "linear-gradient(145deg, #2A2A4A, #1A1A30)",
+        border: "1px solid " + C.amber + "55",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.4), 0 0 24px rgba(247,176,65,0.18), 0 0 48px rgba(38,201,216,0.10)",
+        cursor: "pointer",
+        opacity: opacity,
+        transition: "opacity 0.18s ease, transform 0.16s ease",
+        transform: bounce ? "translateY(-8px) scale(1.08)" : (opacity > 0.6 ? "translateY(-2px) scale(1.04)" : "translateY(0) scale(1)"),
+        padding: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontFamily: mn,
+        fontSize: 17,
+        color: C.amber,
+        textShadow: "0 0 10px " + C.amber + "70",
+        userSelect: "none",
+      }}
+    >
+      <style dangerouslySetInnerHTML={{ __html: "@keyframes fcPulse{0%,100%{box-shadow:0 8px 24px rgba(0,0,0,0.4), 0 0 0 0 rgba(247,176,65,0.18)}50%{box-shadow:0 8px 24px rgba(0,0,0,0.4), 0 0 24px 4px rgba(247,176,65,0.10)}}" }} />
+      {/* Pin marks — keep the chip motif */}
+      {[0, 1, 2].map(function(p) { return <span key={"fb" + p} style={{ position: "absolute", bottom: -4, left: 10 + p * 16, width: 4, height: 5, background: C.amber + "55", borderRadius: "0 0 1px 1px" }} />; })}
+      {[0, 1, 2].map(function(p) { return <span key={"ft" + p} style={{ position: "absolute", top: -4, left: 10 + p * 16, width: 4, height: 5, background: C.amber + "55", borderRadius: "1px 1px 0 0" }} />; })}
+      <span style={{ display: "inline-block" }}>{CHIP_FACES[face]}</span>
+    </button>
+  );
+}
+
 // ═══ SIDEBAR ═══
 var SIDEBAR_CATS: Record<string, SidebarCat> = {
   produce: { label: "PRODUCE", color: C.amber, glow: "rgba(247,176,65,", items: [
@@ -501,8 +600,9 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
       </div>
     </div>
 
-    {/* Chippy */}
-    <ChippySidebar onAsk={onAskPoast} />
+    {/* Chippy moved to a floating widget at the bottom-right of the page
+        (mounted at App root). The sidebar real estate it used to consume
+        was making the rail feel crowded. */}
 
     {/* Categories */}
     <div style={{ padding: "8px 10px", flex: 1, overflow: "auto" }}>
@@ -1884,6 +1984,10 @@ export default function App() {
       </div>
     </div>
     <OnboardingHost sec={sec} />
+    {/* Floating Chippy — replaces the bulky sidebar widget. Bottom-right,
+        proximity-aware opacity, dim by default, lights up near cursor.
+        Hidden for analysts (Ask POAST is data-gated). */}
+    <FloatingChippy onAsk={function() { if (!analyst) setAskPoastOpen(true); }} />
     {/* Promo ribbon scoped to the Asset Library only — was previously
         rendered at App root and floated over every screen, which was wrong. */}
     {sec === "assets" && <StyleGuidePromo />}
