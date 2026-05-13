@@ -485,8 +485,45 @@ function saveState(state: Record<string, unknown>, log: LogEntry[]): void {
   }, 1000);
 }
 
+// Chapters extractor. One Claude call that turns a transcript into a
+// YouTube-format chapter list. Detects embedded timestamps if present;
+// estimates from topic shifts if not. Output replaces the timestamps
+// field whole so the user can edit it after.
+var SYS_CHAPTERS = "You extract YouTube chapters from podcast transcripts. Output ONLY the chapter list (one chapter per line), nothing else — no preamble, no JSON, no markdown fences. Each line is exactly `(MM:SS) Chapter title` or `(HH:MM:SS) Chapter title` for episodes over an hour. Chapter titles are 3-7 words, specific (name what was discussed, not 'Discussion of X'). 5-10 chapters total. (00:00) must always be the first chapter (YouTube requires it). Times in ascending order. If the transcript has embedded timestamps, use them. If not, estimate from topic-shift positions; do NOT prefix anything. SA voice: no em dashes, no emojis, no hype words.";
+
 // ═══ STEP 1: SETUP ═══
 function StepSetup({ ep, setEp, guests, setGuests }: { ep: EpState; setEp: (ep: EpState) => void; guests: Guest[]; setGuests: (g: Guest[]) => void }) {
+  var _chL = useState<boolean>(false), chL = _chL[0], setChL = _chL[1];
+
+  var generateChapters = async function() {
+    if (!ep.transcript || chL) return;
+    setChL(true);
+    try {
+      var r = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system: SYS_CHAPTERS,
+          prompt: "Episode #" + ep.number + ". Transcript (first 20000 chars):\n\n" + ep.transcript.slice(0, 20000) + "\n\nReturn 5-10 chapters, one per line.",
+        }),
+      });
+      var d = await r.json();
+      if (d.error) { showToast("Couldn't generate chapters: " + (d.error.message || d.error)); return; }
+      var raw = (d.content || []).map(function(c: { text?: string }) { return c.text || ""; }).join("");
+      var cleaned = raw.replace(/```[a-z]*|```/g, "").trim();
+      // Keep only lines that look like (MM:SS) Title or (HH:MM:SS) Title so
+      // any stray prose from the model gets filtered out.
+      var lines = cleaned.split("\n").map(function(l: string) { return l.trim(); }).filter(function(l: string) { return /^\(\d{1,2}:\d{2}(?::\d{2})?\)\s+\S/.test(l); });
+      if (!lines.length) { showToast("Model returned no chapters. Try again."); return; }
+      setEp(Object.assign({}, ep, { timestamps: lines.join("\n") }));
+      showToast("Generated " + lines.length + " chapters from the transcript.");
+    } catch (e) {
+      showToast("Network error generating chapters.");
+    } finally {
+      setChL(false);
+    }
+  };
+
   return (<div>
     <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Episode Setup</div>
     <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 32 }}>Fill in episode details, guests, and transcript.</div>
@@ -512,7 +549,10 @@ function StepSetup({ ep, setEp, guests, setGuests }: { ep: EpState; setEp: (ep: 
 
     {/* Timestamps */}
     <div style={{ marginBottom: 20 }}>
-      <Label>Timestamps (optional)</Label>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <Label>Timestamps (optional)</Label>
+        <button type="button" onClick={generateChapters} disabled={!ep.transcript || chL} title={!ep.transcript ? "Paste a transcript first" : "Auto-generate YouTube chapters from the transcript"} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 8, cursor: !ep.transcript || chL ? "not-allowed" : "pointer", background: "transparent", border: "1px solid " + D.border, fontFamily: mn, fontSize: 10, color: !ep.transcript || chL ? D.txl : ACC, opacity: !ep.transcript || chL ? 0.6 : 1, transition: "all 0.2s ease" }}>{chL ? "Generating…" : "Auto-generate from transcript"}</button>
+      </div>
       <textarea value={ep.timestamps || ""} onChange={function(e) { setEp(Object.assign({}, ep, { timestamps: e.target.value })); }} rows={4} placeholder={"(00:00) Cold open\n(02:06) Introduction\n(05:10) Supply chain choke points"} style={{ width: "100%", padding: "12px 14px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, color: D.tx, fontFamily: mn, fontSize: 12, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.7, transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; e.target.style.boxShadow = "0 0 24px rgba(224,99,71,0.06)"; }} onBlur={function(e) { e.target.style.borderColor = D.border; e.target.style.boxShadow = "none"; }} />
       <div style={{ fontFamily: mn, fontSize: 9, color: D.txl, marginTop: 6 }}>Added to end of generated descriptions.</div>
     </div>
