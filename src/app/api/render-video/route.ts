@@ -9,34 +9,58 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const renderId = "r" + Date.now().toString(36);
+    const familyId = "f" + Date.now().toString(36);
 
-    // Trigger repository_dispatch event
-    const r = await fetch("https://api.github.com/repos/Kashpatek/poast-app/dispatches", {
-      method: "POST",
-      headers: {
-        "Authorization": "token " + pat,
-        "Accept": "application/vnd.github.v3+json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        event_type: "render-video",
-        client_payload: {
-          renderId: renderId,
-          props: body,
+    // Multi-size mode: caller passes `multiSize: ["16:9","9:16","1:1"]` and we
+    // dispatch one GH Actions job per aspect under a single "render family"
+    // id. Each child render gets its own renderId so the GET poller still
+    // works one-at-a-time.
+    interface MultiPayload { multiSize?: Array<"16:9" | "9:16" | "1:1">; aspectRatio?: string }
+    const mp = body as MultiPayload;
+    const aspects: Array<"16:9" | "9:16" | "1:1"> = Array.isArray(mp.multiSize) && mp.multiSize.length
+      ? mp.multiSize
+      : [(mp.aspectRatio as "16:9" | "9:16" | "1:1") || "16:9"];
+
+    const dispatched: Array<{ renderId: string; aspectRatio: string }> = [];
+    for (let i = 0; i < aspects.length; i++) {
+      const aspectRatio = aspects[i];
+      const renderId = familyId + "-" + aspectRatio.replace(":", "x");
+      const propsForAspect = { ...body, aspectRatio };
+
+      const r = await fetch("https://api.github.com/repos/Kashpatek/poast-app/dispatches", {
+        method: "POST",
+        headers: {
+          "Authorization": "token " + pat,
+          "Accept": "application/vnd.github.v3+json",
+          "Content-Type": "application/json",
         },
-      }),
-    });
+        body: JSON.stringify({
+          event_type: "render-video",
+          client_payload: {
+            renderId,
+            familyId,
+            aspectRatio,
+            props: propsForAspect,
+          },
+        }),
+      });
 
-    if (!r.ok) {
-      const err = await r.text();
-      return NextResponse.json({ error: "GitHub dispatch failed: " + err }, { status: r.status });
+      if (!r.ok) {
+        const err = await r.text();
+        return NextResponse.json({ error: "GitHub dispatch failed: " + err }, { status: r.status });
+      }
+      dispatched.push({ renderId, aspectRatio });
     }
 
     return NextResponse.json({
-      renderId: renderId,
+      familyId,
+      renderId: dispatched[0]?.renderId,
+      dispatched,
       status: "dispatched",
-      message: "Render job submitted to GitHub Actions. Check progress at github.com/Kashpatek/poast-app/actions",
+      message:
+        dispatched.length === 1
+          ? "Render job submitted to GitHub Actions."
+          : `Multi-size render submitted (${dispatched.length} aspects).`,
       checkUrl: "https://github.com/Kashpatek/poast-app/actions",
       ts: Date.now(),
     });

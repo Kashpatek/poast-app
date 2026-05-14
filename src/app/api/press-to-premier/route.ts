@@ -12,7 +12,30 @@ const PressToPermierSchema = z.object({
   format: z.string().optional(),
   duration: z.union([z.string(), z.number()]).optional(),
   tone: z.string().optional(),
+  aspectRatio: z.enum(["16:9", "9:16", "1:1"]).optional(),
 }).passthrough();
+
+// Aspect-aware production guidance baked into the Claude prompt so script
+// pacing, b-roll composition, and caption length match the target platform.
+const ASPECT_GUIDANCE: Record<string, string> = {
+  "16:9": `LANDSCAPE 16:9 — cinematic editorial pace. 4-6 b-roll shots with longer hold times (8-12s each). Hook can run up to 12 words. Captions can be one full sentence per cue. Compose b-roll with wide framing, subject can be off-center, leave room in lower third for graphics/lower-thirds. Think YouTube long-form, LinkedIn video.`,
+  "9:16": `VERTICAL 9:16 — short-form social pace. 6-9 quick b-roll cuts (4-7s each). Hook MUST be ≤7 punchy words. Each caption cue ≤6 words. Compose b-roll with subject in UPPER-CENTER, leave the lower third clear for captions (they live there). NEVER use horizontal data tables — stack data vertically. Think TikTok, Reels, Shorts.`,
+  "1:1": `SQUARE 1:1 — feed-native pace. 4-7 b-roll shots medium hold (6-9s). Hook ≤10 words. Captions ≤8 words per cue. Compose b-roll with balanced central subjects, no extreme letterboxing required. Think IG feed posts, LinkedIn square video.`,
+};
+
+function aspectGuidance(aspectRatio?: string): string {
+  return ASPECT_GUIDANCE[aspectRatio || "16:9"] || ASPECT_GUIDANCE["16:9"];
+}
+
+function aspectBrollSuffix(aspectRatio?: string): string {
+  if (aspectRatio === "9:16") {
+    return " VERTICAL 9:16 composition, portrait framing, subject in upper-center, leave the lower third deliberately uncluttered so captions can sit there. No wide horizontal sweeps. Tight on the subject.";
+  }
+  if (aspectRatio === "1:1") {
+    return " SQUARE 1:1 composition, balanced central subject, no extreme letterboxing, equal weight top and bottom.";
+  }
+  return " Cinematic 16:9 composition, wider framing, subject can be off-center, leave space in the lower third for graphic overlays.";
+}
 
 const CLAUDE_SYS = `You are a video production strategist for SemiAnalysis, a semiconductor and AI infrastructure research firm. You convert research articles into structured video production briefs.
 
@@ -49,7 +72,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { mode, url, text, format, duration, tone } = body;
+    const { mode, url, text, format, duration, tone, aspectRatio } = body;
+    const aspect = (aspectRatio || "16:9") as "16:9" | "9:16" | "1:1";
 
     let articleText = text || "";
 
@@ -88,7 +112,13 @@ export async function POST(req: NextRequest) {
     const userPrompt = `Convert this article into a video production brief.
 Format: ${format || "Standard"} (${duration || "45-60"} seconds)
 Tone: ${tone || "Data-driven"}
-Aspect ratio: 16:9
+Aspect ratio: ${aspect}
+
+ASPECT-SPECIFIC PRODUCTION RULES (you MUST follow these):
+${aspectGuidance(aspect)}
+
+When you write each b-roll "prompt", APPEND this composition directive verbatim to the end:
+"${aspectBrollSuffix(aspect).trim()}"
 
 Article:
 ${articleText.slice(0, 12000)}
@@ -138,7 +168,7 @@ Return this exact JSON structure:
   },
   "duration": ${duration || 60},
   "format": "${format || "Standard"}",
-  "aspectRatio": "16:9"
+  "aspectRatio": "${aspect}"
 }`;
 
     try {

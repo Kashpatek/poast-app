@@ -94,122 +94,59 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid input", details: parsed.error.issues }, { status: 400 });
     }
     const input = parsed.data;
-    // Phase 2 fields go in `phase2Fields` so we can drop them if the schema
-    // cache hasn't picked them up yet. When that happens we embed the data
-    // into the messages array as a single system-prefixed entry so the
-    // canvas can still recover it on load.
-    const baseRow: Record<string, unknown> = {
+
+    // META-first strategy: we DO NOT write any Phase 2 columns directly.
+    // Everything (brief, size_preset, category, etc.) goes into the messages
+    // JSONB array under a __META__ envelope, which is guaranteed to exist.
+    // This means we never touch a column PostgREST's schema cache might not
+    // know about — bulletproof against stale-cache errors.
+    //
+    // The canvas / route loaders read META back out via project-loader.ts.
+    const phase2Meta: Record<string, unknown> = {};
+    if (input.size_preset !== undefined)  phase2Meta.size_preset = input.size_preset;
+    if (input.purpose !== undefined)      phase2Meta.purpose = input.purpose;
+    if (input.category !== undefined)     phase2Meta.category = input.category;
+    if (input.brief !== undefined)        phase2Meta.brief = input.brief;
+    if (input.format !== undefined)       phase2Meta.format = input.format;
+    if (input.output_files !== undefined) phase2Meta.output_files = input.output_files;
+    if (input.editor_doc !== undefined)   phase2Meta.editor_doc = input.editor_doc;
+    // Original type goes into META in case the DB's CHECK constraint hasn't
+    // been updated to accept the new types (graphic, image, motion, etc.).
+    phase2Meta.__originalType = input.type;
+
+    // Coerce type to a value the original CHECK constraint definitely accepts.
+    const safeType = input.type === "document" ? "document" : "other";
+
+    // Build the messages array. Strip any pre-existing __META__ entry from
+    // the input messages so we don't double-stash; then prepend the fresh
+    // META blob.
+    const inputMessages = Array.isArray(input.messages) ? input.messages : [];
+    const cleanMessages = inputMessages.filter(
+      (m) => typeof m?.content !== "string" || !m.content.startsWith("__META__")
+    );
+    const messagesWithMeta = [
+      { role: "assistant" as const, content: "__META__" + JSON.stringify(phase2Meta), ts: Date.now() },
+      ...cleanMessages,
+    ];
+
+    const row: Record<string, unknown> = {
       ...(input.id ? { id: input.id } : {}),
       name: input.name,
-      type: input.type,
+      type: safeType,
       fidelity: input.fidelity ?? "high",
       design_system_id: input.design_system_id ?? null,
       artboards: input.artboards ?? [],
-      messages: input.messages ?? [],
+      messages: messagesWithMeta,
       uploads: input.uploads ?? [],
       updated_at: new Date().toISOString(),
     };
-    const phase2Fields: Record<string, unknown> = {};
-    if (input.size_preset !== undefined) phase2Fields.size_preset = input.size_preset;
-    if (input.purpose !== undefined)     phase2Fields.purpose = input.purpose;
-    if (input.category !== undefined)    phase2Fields.category = input.category;
-    if (input.brief !== undefined)       phase2Fields.brief = input.brief;
-    if (input.format !== undefined)      phase2Fields.format = input.format;
-    if (input.output_files !== undefined) phase2Fields.output_files = input.output_files;
-    if (input.editor_doc !== undefined)  phase2Fields.editor_doc = input.editor_doc;
 
-    const fullRow = { ...baseRow, ...phase2Fields };
-
-    const isSchemaCacheError = (msg: string) =>
-      /Could not find the .* column|schema cache/i.test(msg);
-    const isTypeConstraintError = (msg: string) =>
-      /docu_projects_type_check|violates check constraint/i.test(msg);
-
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from(TABLE)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .upsert(fullRow as any, { onConflict: "id" })
+      .upsert(row as any, { onConflict: "id" })
       .select()
       .single();
-
-    // First fallback: schema cache hasn't picked up Phase 2 columns yet.
-    // Strip them and stash into messages under __META__.
-    if (error && isSchemaCacheError(error.message) && Object.keys(phase2Fields).length) {
-      const messages = Array.isArray(baseRow.messages) ? [...(baseRow.messages as unknown[])] : [];
-      messages.unshift({
-        role: "assistant",
-        content: "__META__" + JSON.stringify(phase2Fields),
-        ts: Date.now(),
-      });
-      const fallbackRow = { ...baseRow, messages };
-      const retry = await supabase
-        .from(TABLE)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .upsert(fallbackRow as any, { onConflict: "id" })
-        .select()
-        .single();
-      data = retry.data;
-      error = retry.error;
-    }
-
-    // Second fallback: the project type itself was rejected by the table's
-    // CHECK constraint (database hasn't run the updated migration). Coerce
-    // type to "other" and stash the original type in __META__ so the
-    // canvas / routes can still recover the intent.
-    if (error && isTypeConstraintError(error.message)) {
-      const originalType = input.type;
-      const safeType = originalType === "document" ? "document" : "other";
-      const meta = { ...phase2Fields, __originalType: originalType };
-      const messages = Array.isArray(baseRow.messages) ? [...(baseRow.messages as unknown[])] : [];
-      messages.unshift({
-        role: "assistant",
-        content: "__META__" + JSON.stringify(meta),
-        ts: Date.now(),
-      });
-      const fallbackRow = { ...baseRow, type: safeType, messages };
-      const retry = await supabase
-        .from(TABLE)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .upsert(fallbackRow as any, { onConflict: "id" })
-        .select()
-        .single();
-      data = retry.data;
-      error = retry.error;
-    }
-
-    // Third fallback: schema cache AND type constraint both fail. Drop
-    // Phase 2 fields AND coerce type. Last-ditch insert so the wizard at
-    // least produces a row the user can iterate on.
-    if (error && (isSchemaCacheError(error.message) || isTypeConstraintError(error.message))) {
-      const originalType = input.type;
-      const safeType = originalType === "document" ? "document" : "other";
-      const meta = { ...phase2Fields, __originalType: originalType };
-      const messages = Array.isArray(baseRow.messages) ? [...(baseRow.messages as unknown[])] : [];
-      messages.unshift({
-        role: "assistant",
-        content: "__META__" + JSON.stringify(meta),
-        ts: Date.now(),
-      });
-      const minimalRow = {
-        ...(input.id ? { id: input.id } : {}),
-        name: input.name,
-        type: safeType,
-        fidelity: input.fidelity ?? "high",
-        design_system_id: input.design_system_id ?? null,
-        artboards: input.artboards ?? [],
-        messages,
-        uploads: input.uploads ?? [],
-        updated_at: new Date().toISOString(),
-      };
-      const retry = await supabase
-        .from(TABLE)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .upsert(minimalRow as any, { onConflict: "id" })
-        .select()
-        .single();
-      data = retry.data;
-      error = retry.error;
-    }
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ data });
