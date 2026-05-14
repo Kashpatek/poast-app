@@ -73,3 +73,9 @@ export function canUseDocuDesign(user: User | null): boolean {
     user.role === "Intern"
   );
 }
+
+// Akash's personal task board. Single-user gate by name; everyone else
+// who tries to load the route gets bounced to the home grid.
+export function isAkash(user: User | null): boolean {
+  return user?.name === "Akash" && user?.role === "Brand and Creative Director";
+}

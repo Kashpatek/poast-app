@@ -22,13 +22,14 @@ import SavedPromptsLibrary from "./saved-prompts";
 import PerformanceFeedback from "./performance-feedback";
 import ApprovalQueue from "./approval-queue";
 import DistributionPack from "./distribution-pack";
+import AkashTodo from "./akash-todo";
 import { BugButton } from "./bug-report";
 import { trackEvent } from "../lib/poast-track";
 
-import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings, Wand, ShieldCheck, Sparkles, BookmarkCheck, ClipboardCheck, TrendingUp, Layers } from "lucide-react";
+import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings, Wand, ShieldCheck, Sparkles, BookmarkCheck, ClipboardCheck, TrendingUp, Layers, CheckSquare } from "lucide-react";
 type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>;
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
-import { useUser, isAnalyst, canUseDocuDesign } from "./user-context";
+import { useUser, isAnalyst, canUseDocuDesign, isAkash } from "./user-context";
 import { OnboardingHost } from "./onboarding/onboarding-host";
 import { ChartTourTrigger } from "./onboarding/chart-tour-trigger";
 import { useOnboarding } from "./onboarding-context";
@@ -571,6 +572,7 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "perf",     l: "Performance",      Icon: TrendingUp,      badge: "NEW" },
   ]},
   admin:   { label: "ADMIN",   color: C.violet, glow: "rgba(144,92,203,", items: [
+    { id: "tasks",    l: "Task Board",       Icon: CheckSquare,    badge: "AKASH" },
     { id: "prompts",  l: "Saved Prompts",    Icon: BookmarkCheck,  badge: "NEW" },
     { id: "settings", l: "POAST Settings",   Icon: Settings },
   ]},
@@ -580,6 +582,7 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
   var userCtx = useUser();
   var analyst = isAnalyst(userCtx.user);
   var canDocu = canUseDocuDesign(userCtx.user);
+  var akash = isAkash(userCtx.user);
   var router = useRouter();
   var pathname = usePathname();
   var goHome = function() {
@@ -628,7 +631,7 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
             <span style={{ fontFamily: ft, fontSize: 10, fontWeight: 800, color: isCatActive ? cat.color : "rgba(255,255,255,0.3)", letterSpacing: 2, textTransform: "uppercase", transition: "all 0.25s", textShadow: isCatActive ? "0 0 16px " + cat.glow + "0.4), 0 0 30px " + cat.glow + "0.12)" : "none" }}>{cat.label}</span>
           </div>
           {/* Items */}
-          {cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).filter(function(it) { return it.id !== "docu" || canDocu; }).map(function(item) {
+          {cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).filter(function(it) { return it.id !== "docu" || canDocu; }).filter(function(it) { return it.id !== "tasks" || akash; }).map(function(item) {
             var isActive = active === item.id;
             return <div key={item.id} onClick={function() { if (item.href) { window.open(item.href, "_blank"); } else { onNav(item.id); } }} title={item.href ? "Open " + item.l + " in a new tab" : undefined} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 12px 7px 28px", borderRadius: 6, marginBottom: 1, cursor: "pointer", background: isActive ? cat.color + "0C" : "transparent", borderLeft: isActive ? "3px solid " + cat.color : "3px solid transparent", transition: "all 0.2s", position: "relative" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
               {isActive && <div style={{ position: "absolute", left: 0, top: "10%", width: 3, height: "80%", background: cat.color, borderRadius: 2, boxShadow: "0 0 12px " + cat.color + "70, 0 0 24px " + cat.color + "25" }} />}
@@ -1998,6 +2001,7 @@ export default function App() {
         {sec === "perf"     && <PerformanceFeedback />}
         {sec === "approval" && <ApprovalQueue />}
         {sec === "prompts"  && <SavedPromptsLibrary />}
+        {sec === "tasks"    && <AkashTodo />}
         </div>
       </div>
     </div>
