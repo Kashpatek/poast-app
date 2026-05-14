@@ -309,6 +309,11 @@ export function ProjectClient({ projectId }: { projectId: string }) {
     );
   }
 
+  // Image projects get a dedicated gallery instead of the chat+canvas layout.
+  if (project.type === "image") {
+    return <ImageGalleryView project={project} setProject={setProject} persistProject={persistProject} />;
+  }
+
   const selected = project.artboards.find((a) => a.id === selectedArtboardId) || project.artboards[0] || null;
 
   return (
@@ -471,6 +476,214 @@ function applyChunkOps(
   }
   return { artboards: applyOps(artboards, drawingOps), prose: proseAcc };
 }
+
+// Image projects render a dedicated gallery view — favorite hero, variants
+// strip, re-prompt + regenerate, save to Asset Library. No chat / canvas.
+function ImageGalleryView({
+  project,
+  setProject,
+  persistProject,
+}: {
+  project: ProjectRow;
+  setProject: (p: ProjectRow) => void;
+  persistProject: (p: ProjectRow) => Promise<void>;
+}) {
+  const { showToast } = useToast();
+  const [regenerating, setRegenerating] = useState(false);
+  const [reprompt, setReprompt] = useState("");
+
+  // `output_files` is JSONB array of {url, is_cover, name, format, created_at}.
+  type OutputFile = { url: string; is_cover?: boolean; name?: string; format?: string; created_at?: string };
+  const files: OutputFile[] = ((project as unknown as { output_files?: OutputFile[] }).output_files || []) as OutputFile[];
+  const cover = files.find((f) => f.is_cover) || files[0];
+  const initialPrompt = project.brief?.context || "";
+
+  async function setCover(idx: number) {
+    const nextFiles = files.map((f, i) => ({ ...f, is_cover: i === idx }));
+    const nextProject = { ...project, output_files: nextFiles } as ProjectRow & { output_files: OutputFile[] };
+    setProject(nextProject);
+    await persistProject(nextProject);
+  }
+
+  async function regenerate() {
+    if (regenerating) return;
+    const prompt = (reprompt.trim() || initialPrompt).trim();
+    if (!prompt) {
+      showToast("Add a prompt before regenerating.");
+      return;
+    }
+    setRegenerating(true);
+    try {
+      const res = await fetch("/api/generate-thumbnail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          concept: prompt,
+          style: project.brief?.tone || "cinematic",
+          count: 3,
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        showToast(j.error || "Regenerate failed");
+        return;
+      }
+      const fresh: OutputFile[] = ((j.images as string[]) || []).map((url, i) => ({
+        url,
+        name: `Variant ${files.length + i + 1}`,
+        format: "image",
+        is_cover: false,
+        created_at: new Date().toISOString(),
+      }));
+      const nextFiles = [...files, ...fresh];
+      const nextProject = { ...project, output_files: nextFiles } as ProjectRow & { output_files: OutputFile[] };
+      setProject(nextProject);
+      await persistProject(nextProject);
+      setReprompt("");
+    } catch (e) {
+      showToast(String(e));
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
+  async function downloadCover() {
+    if (!cover) return;
+    try {
+      const a = document.createElement("a");
+      a.href = cover.url;
+      a.download = (project.name || "image") + ".png";
+      a.target = "_blank";
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (e) {
+      showToast(String(e));
+    }
+  }
+
+  return (
+    <DocuShell title={project.name}>
+      <div style={{ padding: 28, maxWidth: 1180, margin: "0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 18, flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <div style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.amber, textTransform: "uppercase" }}>Image Studio</div>
+            <div style={{ fontFamily: ft, fontSize: 13, color: D.txm, marginTop: 4 }}>
+              {files.length} variant{files.length === 1 ? "" : "s"} · {project.size_preset || "no size"} · {project.brief?.tone || "—"}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {cover ? (
+              <button type="button" onClick={downloadCover} style={ghostBtn}>
+                Download cover
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Hero */}
+        {cover ? (
+          <div style={{ background: D.card, border: `1px solid ${D.border}`, borderRadius: 14, padding: 16, marginBottom: 18 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={cover.url}
+              alt="Cover variant"
+              style={{ display: "block", width: "100%", maxHeight: 540, objectFit: "contain", background: "#06060C", borderRadius: 10 }}
+            />
+          </div>
+        ) : (
+          <div style={{ padding: 32, border: `1px dashed ${D.border}`, borderRadius: 12, textAlign: "center", color: D.txm, fontFamily: ft }}>
+            No images yet — generate below.
+          </div>
+        )}
+
+        {/* Variants strip */}
+        {files.length > 0 ? (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.txd, textTransform: "uppercase", marginBottom: 8 }}>
+              All variants — click to set as cover
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
+              {files.map((f, i) => (
+                <button
+                  type="button"
+                  key={i}
+                  onClick={() => setCover(i)}
+                  style={{
+                    padding: 0,
+                    border: `2px solid ${f.is_cover ? D.amber : "transparent"}`,
+                    borderRadius: 10,
+                    background: D.card,
+                    cursor: "pointer",
+                    overflow: "hidden",
+                    aspectRatio: "1 / 1",
+                    position: "relative",
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={f.url} alt={f.name || `Variant ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  <div style={{ position: "absolute", bottom: 4, left: 6, fontFamily: mn, fontSize: 9, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
+                    {f.name || `V${i + 1}`}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Re-prompt + Regenerate */}
+        <div style={{ background: D.card, border: `1px solid ${D.border}`, borderRadius: 12, padding: 16 }}>
+          <div style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.txd, textTransform: "uppercase", marginBottom: 8 }}>
+            Generate more variants
+          </div>
+          <textarea
+            value={reprompt}
+            onChange={(e) => setReprompt(e.target.value)}
+            placeholder={initialPrompt ? `Leave blank to reuse: "${initialPrompt.slice(0, 80)}${initialPrompt.length > 80 ? "…" : ""}"` : "Describe a new variation"}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              background: "rgba(255,255,255,0.03)",
+              border: `1px solid ${D.border}`,
+              borderRadius: 8,
+              color: D.tx,
+              fontFamily: ft,
+              fontSize: 13,
+              outline: "none",
+              boxSizing: "border-box",
+              minHeight: 80,
+              resize: "vertical",
+              marginBottom: 10,
+            }}
+          />
+          <button
+            type="button"
+            onClick={regenerate}
+            disabled={regenerating}
+            style={{ ...primaryBtn, opacity: regenerating ? 0.6 : 1, cursor: regenerating ? "wait" : "pointer" }}
+          >
+            {regenerating ? "Generating…" : "Generate 3 more"}
+          </button>
+          <div style={{ marginTop: 12, fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.4 }}>
+            Inline editing (crop, filters, annotations) ships in Phase 4.
+          </div>
+        </div>
+      </div>
+    </DocuShell>
+  );
+}
+
+const ghostBtn: React.CSSProperties = {
+  background: "transparent",
+  color: D.tx,
+  border: `1px solid ${D.border}`,
+  padding: "8px 14px",
+  borderRadius: 8,
+  fontFamily: ft,
+  fontSize: 13,
+  cursor: "pointer",
+};
 
 // Pinned card shown when the canvas opens with a wizard brief and no
 // messages yet. Surfaces the brief so the user can see what context the
