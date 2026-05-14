@@ -16,10 +16,16 @@ import ChartMaker from "./chart-maker";
 import ChartMaker2 from "./chart-maker-2";
 import BrandLaunchTile from "./brand-launch-tile";
 import PoastSettings from "./poast-settings";
+import VoiceScorer from "./voice-scorer";
+import HeadlineDoctor from "./headline-doctor";
+import SavedPromptsLibrary from "./saved-prompts";
+import PerformanceFeedback from "./performance-feedback";
+import ApprovalQueue from "./approval-queue";
+import DistributionPack from "./distribution-pack";
 import { BugButton } from "./bug-report";
 import { trackEvent } from "../lib/poast-track";
 
-import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings, Wand } from "lucide-react";
+import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings, Wand, ShieldCheck, Sparkles, BookmarkCheck, ClipboardCheck, TrendingUp, Layers } from "lucide-react";
 type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>;
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
 import { useUser, isAnalyst, canUseDocuDesign } from "./user-context";
@@ -543,6 +549,9 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "broll",    l: "B-Roll Library",   Icon: Film },
     { id: "chart",    l: "Chart Maker",      Icon: GanttChart, href: "/charts", badge: "NEW" },
     { id: "docu",     l: "DesignStudio",     Icon: Wand,       href: "/design-studio", badge: "NEW" },
+    { id: "distpack", l: "Distribution Pack",Icon: Layers,     badge: "NEW" },
+    { id: "voice",    l: "Voice Scorer",     Icon: ShieldCheck,badge: "NEW" },
+    { id: "headline", l: "Headline Doctor",  Icon: Sparkles,   badge: "NEW" },
     { id: "assets",   l: "Asset Library",    Icon: Library },
   ]},
   podcast: { label: "PODCAST", color: C.coral, glow: "rgba(224,99,71,", items: [
@@ -558,8 +567,11 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
   ]},
   premier: { label: "PREMIER", color: C.teal, glow: "rgba(46,173,142,", items: [
     { id: "schedule", l: "Schedule",         Icon: Calendar },
+    { id: "approval", l: "Approval Queue",   Icon: ClipboardCheck, badge: "NEW" },
+    { id: "perf",     l: "Performance",      Icon: TrendingUp,      badge: "NEW" },
   ]},
   admin:   { label: "ADMIN",   color: C.violet, glow: "rgba(144,92,203,", items: [
+    { id: "prompts",  l: "Saved Prompts",    Icon: BookmarkCheck,  badge: "NEW" },
     { id: "settings", l: "POAST Settings",   Icon: Settings },
   ]},
 };
@@ -1980,6 +1992,12 @@ export default function App() {
         {/* P2P stays mounted but hidden so production doesn't stop */}
         <div style={{ display: sec === "p2p" ? "block" : "none" }}><PressToPremi /></div>
         {sec === "schedule" && <BufferSchedule />}
+        {sec === "voice"    && <VoiceScorer />}
+        {sec === "headline" && <HeadlineDoctor />}
+        {sec === "distpack" && <DistributionPack />}
+        {sec === "perf"     && <PerformanceFeedback />}
+        {sec === "approval" && <ApprovalQueue />}
+        {sec === "prompts"  && <SavedPromptsLibrary />}
         </div>
       </div>
     </div>

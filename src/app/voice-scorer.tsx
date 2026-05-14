@@ -1,0 +1,235 @@
+"use client";
+
+// Voice Scorer — paste any draft, get a 0-10 SA-on-brand score with a
+// breakdown, list of violations, and concrete rewrite suggestions. The
+// fastest way to catch boomer/AI captions before they ship.
+
+import React, { useState } from "react";
+import { D, ft, gf, mn } from "./shared-constants";
+
+interface ScoreResult {
+  score: number;
+  breakdown?: { voice?: number; specificity?: number; directness?: number; platformFit?: number };
+  violations?: string[];
+  suggestions?: string[];
+  topLine?: string;
+}
+
+const PLATFORMS = [
+  { id: "any",       label: "Any" },
+  { id: "x",         label: "X / Twitter" },
+  { id: "linkedin",  label: "LinkedIn" },
+  { id: "instagram", label: "Instagram" },
+  { id: "tiktok",    label: "TikTok" },
+  { id: "youtube",   label: "YouTube" },
+  { id: "blog",      label: "Blog / Article" },
+];
+
+export default function VoiceScorer() {
+  const [text, setText] = useState("");
+  const [platform, setPlatform] = useState("any");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<ScoreResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function score() {
+    if (!text.trim()) return;
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await fetch("/api/voice-scorer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text.trim(), platform }),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        setError(j.error || "Score failed");
+        return;
+      }
+      setResult(j as ScoreResult);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const scoreColor = !result ? D.txm
+    : result.score >= 8 ? D.teal
+    : result.score >= 5 ? D.amber
+    : D.coral;
+
+  return (
+    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 32px" }}>
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "4px 10px", borderRadius: 999, background: "rgba(247,176,65,0.10)", border: `1px solid ${D.amber}55`, marginBottom: 14 }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: D.amber, boxShadow: `0 0 8px ${D.amber}` }} />
+        <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.amber, textTransform: "uppercase" }}>Brand voice</span>
+      </div>
+      <h1 style={{ fontFamily: gf, fontSize: 38, fontWeight: 900, letterSpacing: -1, margin: 0, marginBottom: 8, color: D.tx }}>Voice Scorer</h1>
+      <div style={{ fontFamily: ft, fontSize: 15, color: D.txm, maxWidth: 720, lineHeight: 1.5, marginBottom: 28 }}>
+        Paste any draft. Get a 0-10 SA-on-brand score, what broke voice, and a concrete rewrite of the worst lines.
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 18 }}>
+        {/* Input */}
+        <div>
+          <div style={lbl}>Platform context</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+            {PLATFORMS.map((p) => {
+              const active = platform === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPlatform(p.id)}
+                  style={{
+                    padding: "6px 12px",
+                    background: active ? "rgba(247,176,65,0.10)" : "transparent",
+                    border: `1px solid ${active ? D.amber : D.border}`,
+                    borderRadius: 6,
+                    color: D.tx,
+                    cursor: "pointer",
+                    fontFamily: mn,
+                    fontSize: 11,
+                    letterSpacing: 0.4,
+                  }}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={lbl}>Draft</div>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Paste a caption, headline, paragraph, or full post…"
+            style={{
+              width: "100%",
+              minHeight: 260,
+              padding: "14px 16px",
+              background: D.surface,
+              border: `1px solid ${D.border}`,
+              borderRadius: 12,
+              color: D.tx,
+              fontFamily: ft,
+              fontSize: 14,
+              outline: "none",
+              boxSizing: "border-box",
+              resize: "vertical",
+              lineHeight: 1.6,
+            }}
+          />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+            <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.4 }}>
+              {text.length.toLocaleString()} chars
+            </div>
+            <button
+              type="button"
+              onClick={score}
+              disabled={loading || !text.trim()}
+              style={{
+                background: D.amber,
+                color: "#060608",
+                border: "none",
+                padding: "10px 22px",
+                borderRadius: 8,
+                fontFamily: ft,
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: loading || !text.trim() ? "not-allowed" : "pointer",
+                opacity: loading || !text.trim() ? 0.5 : 1,
+              }}
+            >
+              {loading ? "Scoring…" : "Score it"}
+            </button>
+          </div>
+          {error ? <div style={{ marginTop: 12, fontFamily: mn, fontSize: 11, color: D.coral }}>{error}</div> : null}
+        </div>
+
+        {/* Result */}
+        <div style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 14, padding: 20, alignSelf: "start" }}>
+          <div style={lbl}>SA voice score</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 14 }}>
+            <div style={{ fontFamily: gf, fontSize: 64, fontWeight: 900, color: scoreColor, letterSpacing: -2, lineHeight: 1 }}>
+              {result ? result.score : "—"}
+            </div>
+            <div style={{ fontFamily: mn, fontSize: 16, color: D.txm }}>/ 10</div>
+          </div>
+
+          {result?.topLine ? (
+            <div style={{ fontFamily: ft, fontSize: 13, color: D.tx, lineHeight: 1.5, marginBottom: 18, padding: "10px 12px", background: scoreColor + "1c", border: `1px solid ${scoreColor}55`, borderRadius: 8 }}>
+              {result.topLine}
+            </div>
+          ) : null}
+
+          {result?.breakdown ? (
+            <div style={{ marginBottom: 18 }}>
+              <div style={lbl}>Breakdown</div>
+              <Bar label="Voice" value={result.breakdown.voice || 0} max={3} />
+              <Bar label="Specificity" value={result.breakdown.specificity || 0} max={3} />
+              <Bar label="Directness" value={result.breakdown.directness || 0} max={2} />
+              <Bar label="Platform fit" value={result.breakdown.platformFit || 0} max={2} />
+            </div>
+          ) : null}
+
+          {result?.violations && result.violations.length > 0 ? (
+            <div style={{ marginBottom: 16 }}>
+              <div style={lbl}>What broke voice</div>
+              {result.violations.map((v, i) => (
+                <div key={i} style={{ fontFamily: ft, fontSize: 12.5, color: D.tx, padding: "6px 10px", background: D.coral + "10", border: `1px solid ${D.coral}40`, borderRadius: 6, marginBottom: 4, lineHeight: 1.5 }}>
+                  {v}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {result?.suggestions && result.suggestions.length > 0 ? (
+            <div>
+              <div style={lbl}>Rewrite suggestions</div>
+              {result.suggestions.map((s, i) => (
+                <div key={i} style={{ fontFamily: ft, fontSize: 12.5, color: D.tx, padding: "8px 10px", background: D.teal + "10", border: `1px solid ${D.teal}40`, borderRadius: 6, marginBottom: 4, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                  {s}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {!result && !loading ? (
+            <div style={{ fontFamily: ft, fontSize: 12, color: D.txd, lineHeight: 1.5 }}>
+              Score appears here. Try a recent caption you're unsure about.
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Bar({ label, value, max }: { label: string; value: number; max: number }) {
+  const pct = (value / max) * 100;
+  const color = pct >= 80 ? D.teal : pct >= 50 ? D.amber : D.coral;
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+        <span style={{ fontFamily: ft, fontSize: 11, color: D.tx }}>{label}</span>
+        <span style={{ fontFamily: mn, fontSize: 11, color: D.txm }}>{value} / {max}</span>
+      </div>
+      <div style={{ height: 4, background: D.border, borderRadius: 2, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: pct + "%", background: color, transition: "width 0.3s ease" }} />
+      </div>
+    </div>
+  );
+}
+
+const lbl: React.CSSProperties = {
+  fontFamily: mn,
+  fontSize: 10,
+  letterSpacing: 1.4,
+  textTransform: "uppercase",
+  color: D.txd,
+  marginBottom: 8,
+};
