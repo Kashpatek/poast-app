@@ -22,6 +22,9 @@ import { DocumentWizard } from "./wizards/document-wizard";
 import { ImageWizard } from "./wizards/image-wizard";
 import { QuoteWizard } from "./wizards/quote-wizard";
 import { EventWizard } from "./wizards/event-wizard";
+import { GraphicWizard } from "./wizards/graphic-wizard";
+import { MotionWizard } from "./wizards/motion-wizard";
+import { ProgrammaticWizard } from "./wizards/programmatic-wizard";
 
 interface ProjectSummary {
   id: string;
@@ -51,10 +54,10 @@ interface StudioTile {
 
 const TILES: StudioTile[] = [
   { id: "docu",        label: "DocuDesign",     sub: "Docs, flyers, briefs, decks",   Icon: FileText,     accent: D.blue,    status: "live", action: "doc" },
-  { id: "graphics",    label: "Graphics",       sub: "Canva-style WYSIWYG editor",    Icon: LayoutGrid,   accent: D.amber,   status: "soon", action: "graphic" },
+  { id: "graphics",    label: "Graphics",       sub: "Canva-style WYSIWYG editor",    Icon: LayoutGrid,   accent: D.amber,   status: "live", action: "graphic" },
   { id: "image",       label: "Image Studio",   sub: "AI gen + inline editor",        Icon: Sparkles,     accent: D.violet,  status: "live", action: "image" },
-  { id: "motion",      label: "Motion",         sub: "Animated graphics & loops",     Icon: Play,         accent: D.teal,    status: "soon", action: "motion" },
-  { id: "programmatic",label: "Programmatic",   sub: "Code-driven video templates",   Icon: Code,         accent: D.cyan,    status: "soon", action: "programmatic" },
+  { id: "motion",      label: "Motion",         sub: "Animated graphics & loops",     Icon: Play,         accent: D.teal,    status: "live", action: "motion" },
+  { id: "programmatic",label: "Programmatic",   sub: "Code-driven video templates",   Icon: Code,         accent: D.cyan,    status: "live", action: "programmatic" },
   { id: "quote",       label: "Quote card",     sub: "Preset SA-styled cards",        Icon: Quote,        accent: D.coral,   status: "live", action: "quote" },
   { id: "event",       label: "Event one-pager",sub: "Conference & sponsor handouts", Icon: CalendarDays, accent: D.crimson, status: "live", action: "event" },
   { id: "custom",      label: "Custom canvas",  sub: "Free chat-driven artboard",     Icon: PenTool,      accent: D.txm,     status: "live", action: "custom" },
@@ -72,6 +75,9 @@ export default function DesignStudioHubPage() {
   const [imageWizardOpen, setImageWizardOpen] = useState(false);
   const [quoteWizardOpen, setQuoteWizardOpen] = useState(false);
   const [eventWizardOpen, setEventWizardOpen] = useState(false);
+  const [graphicWizardOpen, setGraphicWizardOpen] = useState(false);
+  const [motionWizardOpen, setMotionWizardOpen] = useState(false);
+  const [programmaticWizardOpen, setProgrammaticWizardOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -128,7 +134,10 @@ export default function DesignStudioHubPage() {
       return;
     }
     if (t.action === "doc") setDocWizardOpen(true);
+    else if (t.action === "graphic") setGraphicWizardOpen(true);
     else if (t.action === "image") setImageWizardOpen(true);
+    else if (t.action === "motion") setMotionWizardOpen(true);
+    else if (t.action === "programmatic") setProgrammaticWizardOpen(true);
     else if (t.action === "quote") setQuoteWizardOpen(true);
     else if (t.action === "event") setEventWizardOpen(true);
     else if (t.action === "custom") createProject("other");
@@ -312,7 +321,10 @@ export default function DesignStudioHubPage() {
       </div>
 
       <DocumentWizard open={docWizardOpen} onClose={() => setDocWizardOpen(false)} />
+      <GraphicWizard open={graphicWizardOpen} onClose={() => setGraphicWizardOpen(false)} />
       <ImageWizard open={imageWizardOpen} onClose={() => setImageWizardOpen(false)} />
+      <MotionWizard open={motionWizardOpen} onClose={() => setMotionWizardOpen(false)} />
+      <ProgrammaticWizard open={programmaticWizardOpen} onClose={() => setProgrammaticWizardOpen(false)} />
       <QuoteWizard open={quoteWizardOpen} onClose={() => setQuoteWizardOpen(false)} />
       <EventWizard open={eventWizardOpen} onClose={() => setEventWizardOpen(false)} />
     </DocuShell>

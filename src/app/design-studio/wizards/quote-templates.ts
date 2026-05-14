@@ -78,7 +78,7 @@ function amberOnDark({ quote, attribution, source, w, h }: QuoteTemplateInput): 
     Math.round(w / 14)
   );
   const yStart = Math.round((h - lines.length * fontSize * 1.12) / 2 - fontSize * 0.2);
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet" style="max-width:100%;max-height:100%;height:auto;display:block;">
   <rect x="0" y="0" width="${w}" height="${h}" fill="#06060C"/>
   <rect x="${padding}" y="${padding}" width="${Math.round(fontSize * 0.4)}" height="${h - padding * 2}" fill="#F7B041"/>
   <g font-family="Outfit, 'Helvetica Neue', sans-serif" fill="#E8E4DD">
@@ -146,7 +146,7 @@ function lettermarkStamp({ quote, attribution, source, w, h }: QuoteTemplateInpu
     Math.round(w / 14)
   );
   const yStart = Math.round((h - lines.length * fontSize * 1.12) / 2 + stampSize * 0.5);
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet" style="max-width:100%;max-height:100%;height:auto;display:block;">
   <rect x="0" y="0" width="${w}" height="${h}" fill="#06060C"/>
   <g transform="translate(${padding}, ${padding})">
     ${SA_LOGO_LETTERMARK_SVG(stampSize)}

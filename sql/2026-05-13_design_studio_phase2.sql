@@ -31,3 +31,9 @@ create table if not exists public.docu_templates (
 -- 4. Quick lookup index for project sort by recency (already exists in most
 -- Supabase setups via the primary key + updated_at index, but cheap to ensure).
 create index if not exists idx_docu_projects_updated_at on public.docu_projects (updated_at desc);
+
+-- 5. Force PostgREST to reload its schema cache so the new columns are
+-- immediately reachable via the REST API. Without this you can get
+-- "Could not find the 'brief' column of 'docu_projects' in the schema cache"
+-- for ~30-60s after the ALTER.
+notify pgrst, 'reload schema';

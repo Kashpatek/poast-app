@@ -1,0 +1,26 @@
+# Replace office.poast.app with the actual hostname pointing at this VM.
+# Caddy auto-issues a Let's Encrypt cert.
+
+office.poast.app {
+    # LibreOffice headless conversion API.
+    handle /convert {
+        reverse_proxy libreoffice:3000
+    }
+
+    # ONLYOFFICE Document Server (strip the /onlyoffice prefix).
+    handle_path /onlyoffice/* {
+        reverse_proxy onlyoffice:80
+    }
+
+    # Health
+    handle /health {
+        respond "ok" 200
+    }
+
+    # Fall-through: ONLYOFFICE serves its UI at the root too.
+    handle {
+        reverse_proxy onlyoffice:80
+    }
+
+    encode gzip
+}

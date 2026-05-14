@@ -11,6 +11,7 @@ import { OpStreamParser, applyOps, type Artboard, type Op } from "../../artboard
 import { findPreset } from "../../wizards/size-presets";
 import { findCategory } from "../../wizards/categories";
 import type { ProjectBrief, ProjectType } from "../../design-context";
+import { ImageEditorModal } from "./image-editor";
 
 type Fidelity = "wireframe" | "high";
 
@@ -90,6 +91,22 @@ export function ProjectClient({ projectId }: { projectId: string }) {
         return;
       }
       const r = j.data as Record<string, unknown>;
+      // Pull Phase 2 metadata out of the messages array if the API had to
+      // fall back (schema cache miss). __META__ marker is created in the
+      // POST handler; strip it from the visible messages.
+      let messages = (r.messages as Message[]) || [];
+      let extractedMeta: Record<string, unknown> = {};
+      const metaIdx = messages.findIndex(
+        (m) => typeof m.content === "string" && m.content.startsWith("__META__")
+      );
+      if (metaIdx !== -1) {
+        try {
+          extractedMeta = JSON.parse(messages[metaIdx].content.slice("__META__".length));
+        } catch { /* ignore */ }
+        messages = messages.filter((_, i) => i !== metaIdx);
+      }
+      const merge = <T,>(key: string, fallback: T): T =>
+        (r[key] as T) ?? (extractedMeta[key] as T) ?? fallback;
       const project: ProjectRow = {
         id: r.id as string,
         name: r.name as string,
@@ -97,12 +114,16 @@ export function ProjectClient({ projectId }: { projectId: string }) {
         fidelity: (r.fidelity as Fidelity) || "high",
         design_system_id: (r.design_system_id as string | null) ?? null,
         artboards: (r.artboards as Artboard[]) || [],
-        messages: (r.messages as Message[]) || [],
+        messages,
         uploads: (r.uploads as MessageUpload[]) || [],
-        size_preset: (r.size_preset as string | null) ?? null,
-        category: (r.category as string | null) ?? null,
-        brief: (r.brief as ProjectBrief) || {},
+        size_preset: merge<string | null>("size_preset", null),
+        category: merge<string | null>("category", null),
+        brief: merge<ProjectBrief>("brief", {}),
       };
+      // Image-type projects also carry output_files. The merge helper sets
+      // them onto the project via a typed cast in the gallery view.
+      (project as unknown as { output_files?: unknown }).output_files =
+        merge<unknown[]>("output_files", []);
       setProject(project);
       if (project.artboards.length && !selectedArtboardId) {
         setSelectedArtboardId(project.artboards[0].id);
@@ -354,14 +375,36 @@ export function ProjectClient({ projectId }: { projectId: string }) {
                 >
                   SVG
                 </button>
-                <button type="button" style={menuItemDisabled} disabled title="Coming next">
-                  PNG (next)
+                <button
+                  type="button"
+                  style={menuItem}
+                  onClick={() => {
+                    setExportOpen(false);
+                    exportArtboardPng(project.artboards, project.name, showToast);
+                  }}
+                >
+                  PNG (artboard)
                 </button>
-                <button type="button" style={menuItemDisabled} disabled title="Later">
-                  PDF (later)
+                <button
+                  type="button"
+                  style={menuItem}
+                  onClick={() => { setExportOpen(false); exportViaOffice(project.id, "pdf", showToast); }}
+                >
+                  PDF
                 </button>
-                <button type="button" style={menuItemDisabled} disabled title="Later">
-                  .ai (later)
+                <button
+                  type="button"
+                  style={menuItem}
+                  onClick={() => { setExportOpen(false); exportViaOffice(project.id, "docx", showToast); }}
+                >
+                  DOCX
+                </button>
+                <button
+                  type="button"
+                  style={menuItem}
+                  onClick={() => { setExportOpen(false); exportViaOffice(project.id, "pptx", showToast); }}
+                >
+                  PPTX
                 </button>
               </div>
             ) : null}
@@ -478,7 +521,8 @@ function applyChunkOps(
 }
 
 // Image projects render a dedicated gallery view — favorite hero, variants
-// strip, re-prompt + regenerate, save to Asset Library. No chat / canvas.
+// strip, re-prompt + regenerate, inline editor via Filerobot. No chat /
+// canvas.
 function ImageGalleryView({
   project,
   setProject,
@@ -491,6 +535,7 @@ function ImageGalleryView({
   const { showToast } = useToast();
   const [regenerating, setRegenerating] = useState(false);
   const [reprompt, setReprompt] = useState("");
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
   // `output_files` is JSONB array of {url, is_cover, name, format, created_at}.
   type OutputFile = { url: string; is_cover?: boolean; name?: string; format?: string; created_at?: string };
@@ -547,6 +592,41 @@ function ImageGalleryView({
     }
   }
 
+  async function saveEdited(idx: number, dataUrl: string) {
+    // Upload to Vercel Blob so the edited image survives reload (Grok URLs
+    // expire; data URIs are huge in JSONB). Falls back to inline data URI
+    // if the upload fails so the edit isn't lost.
+    let finalUrl = dataUrl;
+    try {
+      const res = await fetch("/api/upload-asset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          data: dataUrl,
+          filename: `edit-${Date.now()}.png`,
+          contentType: "image/png",
+        }),
+      });
+      const j = await res.json();
+      if (res.ok && j.url) finalUrl = j.url;
+    } catch {
+      /* keep data URI */
+    }
+    const original = files[idx];
+    const newFile: OutputFile = {
+      url: finalUrl,
+      name: (original?.name || `Variant ${idx + 1}`) + " (edited)",
+      format: "image",
+      is_cover: false,
+      created_at: new Date().toISOString(),
+    };
+    const nextFiles = [...files, newFile];
+    const nextProject = { ...project, output_files: nextFiles } as ProjectRow & { output_files: OutputFile[] };
+    setProject(nextProject);
+    await persistProject(nextProject);
+    showToast("Edit saved as new variant.");
+  }
+
   async function downloadCover() {
     if (!cover) return;
     try {
@@ -575,9 +655,21 @@ function ImageGalleryView({
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             {cover ? (
-              <button type="button" onClick={downloadCover} style={ghostBtn}>
-                Download cover
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const i = files.findIndex((f) => f.is_cover);
+                    setEditingIdx(i !== -1 ? i : 0);
+                  }}
+                  style={ghostBtn}
+                >
+                  Edit cover
+                </button>
+                <button type="button" onClick={downloadCover} style={ghostBtn}>
+                  Download
+                </button>
+              </>
             ) : null}
           </div>
         </div>
@@ -606,27 +698,50 @@ function ImageGalleryView({
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
               {files.map((f, i) => (
-                <button
-                  type="button"
-                  key={i}
-                  onClick={() => setCover(i)}
-                  style={{
-                    padding: 0,
-                    border: `2px solid ${f.is_cover ? D.amber : "transparent"}`,
-                    borderRadius: 10,
-                    background: D.card,
-                    cursor: "pointer",
-                    overflow: "hidden",
-                    aspectRatio: "1 / 1",
-                    position: "relative",
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={f.url} alt={f.name || `Variant ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                  <div style={{ position: "absolute", bottom: 4, left: 6, fontFamily: mn, fontSize: 9, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
-                    {f.name || `V${i + 1}`}
-                  </div>
-                </button>
+                <div key={i} style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    onClick={() => setCover(i)}
+                    style={{
+                      width: "100%",
+                      padding: 0,
+                      border: `2px solid ${f.is_cover ? D.amber : "transparent"}`,
+                      borderRadius: 10,
+                      background: D.card,
+                      cursor: "pointer",
+                      overflow: "hidden",
+                      aspectRatio: "1 / 1",
+                      position: "relative",
+                      display: "block",
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={f.url} alt={f.name || `Variant ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    <div style={{ position: "absolute", bottom: 4, left: 6, fontFamily: mn, fontSize: 9, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
+                      {f.name || `V${i + 1}`}
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setEditingIdx(i); }}
+                    style={{
+                      position: "absolute",
+                      top: 6,
+                      right: 6,
+                      padding: "4px 8px",
+                      borderRadius: 6,
+                      background: "rgba(6,6,12,0.85)",
+                      color: D.amber,
+                      border: `1px solid ${D.amber}55`,
+                      fontFamily: mn,
+                      fontSize: 9,
+                      letterSpacing: 0.6,
+                      cursor: "pointer",
+                    }}
+                  >
+                    EDIT
+                  </button>
+                </div>
               ))}
             </div>
           </div>
@@ -666,12 +781,93 @@ function ImageGalleryView({
             {regenerating ? "Generating…" : "Generate 3 more"}
           </button>
           <div style={{ marginTop: 12, fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.4 }}>
-            Inline editing (crop, filters, annotations) ships in Phase 4.
+            Click EDIT on any variant for crop, filters, and annotations.
           </div>
         </div>
       </div>
+
+      <ImageEditorModal
+        open={editingIdx !== null}
+        source={editingIdx !== null && files[editingIdx] ? files[editingIdx].url : ""}
+        onClose={() => setEditingIdx(null)}
+        onSave={async (dataUrl) => {
+          if (editingIdx === null) return;
+          await saveEdited(editingIdx, dataUrl);
+        }}
+      />
     </DocuShell>
   );
+}
+
+// Client-side PNG snapshot of an artboard SVG. Rasterizes via a canvas
+// from a data: URI — no Chromium needed.
+async function exportArtboardPng(
+  artboards: Artboard[],
+  name: string,
+  toast: (msg: string) => void
+) {
+  if (!artboards.length) { toast("No artboards to export."); return; }
+  const ab = artboards[0];
+  try {
+    const svgBlob = new Blob([ab.svg], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("SVG load failed"));
+      img.src = url;
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = ab.w;
+    canvas.height = ab.h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas 2D unavailable");
+    ctx.drawImage(img, 0, 0, ab.w, ab.h);
+    URL.revokeObjectURL(url);
+    const dataUrl = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = `${name || "artboard"}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch (e) {
+    toast("PNG export failed: " + String(e));
+  }
+}
+
+// Hit /api/design-studio/generate-file which runs the project's brief
+// through Claude + LibreOffice and returns a Blob URL.
+async function exportViaOffice(
+  projectId: string,
+  format: "pdf" | "docx" | "pptx",
+  toast: (msg: string) => void
+) {
+  toast(`Rendering ${format.toUpperCase()}… (Office host takes ~15-30s)`);
+  try {
+    const res = await fetch("/api/design-studio/generate-file", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId, format }),
+    });
+    const j = await res.json();
+    if (!res.ok || !j.url) {
+      toast(j.error || `${format.toUpperCase()} export failed`);
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = j.url;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.download = j.name || `${projectId}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast(`${format.toUpperCase()} ready — opening download.`);
+  } catch (e) {
+    toast("Export failed: " + String(e));
+  }
 }
 
 const ghostBtn: React.CSSProperties = {

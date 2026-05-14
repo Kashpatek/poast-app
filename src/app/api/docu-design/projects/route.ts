@@ -94,7 +94,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid input", details: parsed.error.issues }, { status: 400 });
     }
     const input = parsed.data;
-    const row: Record<string, unknown> = {
+    // Phase 2 fields go in `phase2Fields` so we can drop them if the schema
+    // cache hasn't picked them up yet. When that happens we embed the data
+    // into the messages array as a single system-prefixed entry so the
+    // canvas can still recover it on load.
+    const baseRow: Record<string, unknown> = {
       ...(input.id ? { id: input.id } : {}),
       name: input.name,
       type: input.type,
@@ -105,21 +109,46 @@ export async function POST(req: NextRequest) {
       uploads: input.uploads ?? [],
       updated_at: new Date().toISOString(),
     };
-    // Phase 2 fields — only set when provided so older clients keep working.
-    if (input.size_preset !== undefined) row.size_preset = input.size_preset;
-    if (input.purpose !== undefined)     row.purpose = input.purpose;
-    if (input.category !== undefined)    row.category = input.category;
-    if (input.brief !== undefined)       row.brief = input.brief;
-    if (input.format !== undefined)      row.format = input.format;
-    if (input.output_files !== undefined) row.output_files = input.output_files;
-    if (input.editor_doc !== undefined)  row.editor_doc = input.editor_doc;
+    const phase2Fields: Record<string, unknown> = {};
+    if (input.size_preset !== undefined) phase2Fields.size_preset = input.size_preset;
+    if (input.purpose !== undefined)     phase2Fields.purpose = input.purpose;
+    if (input.category !== undefined)    phase2Fields.category = input.category;
+    if (input.brief !== undefined)       phase2Fields.brief = input.brief;
+    if (input.format !== undefined)      phase2Fields.format = input.format;
+    if (input.output_files !== undefined) phase2Fields.output_files = input.output_files;
+    if (input.editor_doc !== undefined)  phase2Fields.editor_doc = input.editor_doc;
 
-    const { data, error } = await supabase
+    const fullRow = { ...baseRow, ...phase2Fields };
+
+    let { data, error } = await supabase
       .from(TABLE)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .upsert(row as any, { onConflict: "id" })
+      .upsert(fullRow as any, { onConflict: "id" })
       .select()
       .single();
+
+    // Fallback: if PostgREST's schema cache hasn't picked up the Phase 2
+    // columns yet, retry without them and stash the metadata into the
+    // messages array (prefixed __META__) so nothing is lost. The canvas
+    // strips this on load.
+    if (error && /Could not find the .* column|schema cache/i.test(error.message) && Object.keys(phase2Fields).length) {
+      const messages = Array.isArray(baseRow.messages) ? [...(baseRow.messages as unknown[])] : [];
+      messages.unshift({
+        role: "assistant",
+        content: "__META__" + JSON.stringify(phase2Fields),
+        ts: Date.now(),
+      });
+      const fallbackRow = { ...baseRow, messages };
+      const retry = await supabase
+        .from(TABLE)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .upsert(fallbackRow as any, { onConflict: "id" })
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
+
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ data });
   } catch (err) {

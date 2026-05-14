@@ -1,0 +1,68 @@
+# DesignStudio Office Host
+#
+# Two services on one host:
+#   - onlyoffice: ONLYOFFICE Document Server (Community Edition, AGPL).
+#                 Provides the in-app WYSIWYG editor for DOCX/PPTX/XLSX/PDF.
+#   - libreoffice: tiny Node.js wrapper around `libreoffice --headless`
+#                  used by /api/design-studio/generate-file for HTML→PDF/DOCX/PPTX.
+#
+# Deploy this on any Docker host (Fly.io, Hetzner, Railway). Expose under
+# a stable hostname like https://office.poast.app and set OFFICE_HOST_URL
+# in Vercel to that URL.
+#
+# Required env (set on the Docker host AND on Vercel):
+#   ONLYOFFICE_JWT_SECRET   — long random string, shared with Vercel.
+#
+# Routing (Caddy / Nginx in front of this):
+#   /convert               → libreoffice:3000/convert
+#   /onlyoffice/           → onlyoffice:80/    (strip the /onlyoffice prefix)
+#
+# Sample Caddyfile included in this folder.
+
+version: "3.8"
+
+services:
+  onlyoffice:
+    image: onlyoffice/documentserver:latest
+    restart: unless-stopped
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: "${ONLYOFFICE_JWT_SECRET}"
+      JWT_HEADER: "Authorization"
+      JWT_IN_BODY: "true"
+      # ONLYOFFICE binds to port 80 inside the container.
+    expose:
+      - "80"
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_log:/var/log/onlyoffice
+      - onlyoffice_cache:/var/lib/onlyoffice
+      - onlyoffice_db:/var/lib/postgresql
+
+  libreoffice:
+    build:
+      context: ./libreoffice
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      NODE_ENV: production
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  onlyoffice_data:
+  onlyoffice_log:
+  onlyoffice_cache:
+  onlyoffice_db:
+  caddy_data:
+  caddy_config:
