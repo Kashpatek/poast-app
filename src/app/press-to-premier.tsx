@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useUser } from "./user-context";
+import { TileDispatcher } from "./p2p-tiles";
 
 // ═══ TYPES ═══
 interface ToastEntry {
@@ -1724,7 +1725,7 @@ function p2pDbSync(projects: Project[], createdBy?: string, createdByRole?: stri
 // Premier Suite tile inventory — surfaces above the legacy article-to-video
 // wizard when the user enters Press to Premier. Tiles open their own
 // experience; "article" preserves the existing 9-step flow.
-type SuiteView = "hub" | "article" | "highlights" | "data-story" | "clipper" | "stock" | "queue";
+type SuiteView = "hub" | "article" | "highlights" | "data-story" | "clipper" | "stock" | "queue" | "editor";
 
 interface SuiteTile {
   id: SuiteView;
@@ -1736,6 +1737,7 @@ interface SuiteTile {
 
 const SUITE_TILES: SuiteTile[] = [
   { id: "article",    label: "Article to Video", sub: "Paste article → cinematic short. The flagship.", accent: "#F7B041", status: "live" },
+  { id: "editor",     label: "Premier Editor",   sub: "Open any project → edit captions live → re-render.", accent: "#F4D35E", status: "live" },
   { id: "highlights", label: "Episode Highlights", sub: "SA Weekly transcript → 30-60s reel.",          accent: "#2EAD8E", status: "live" },
   { id: "data-story", label: "Data Story",       sub: "One stat → animated explainer.",                accent: "#0B86D1", status: "live" },
   { id: "clipper",    label: "Content Clipper",  sub: "Long video → multiple shorts.",                 accent: "#E06347", status: "live" },
@@ -1868,12 +1870,7 @@ export default function PressToPremi() {
         <SuiteHub
           projects={projects}
           onOpenTile={function(id) {
-            if (id === "article") {
-              setView("article");
-              // Don't auto-start a new project — go to the project list.
-            } else {
-              setView(id);
-            }
+            setView(id);
           }}
           onOpenProject={function(id) {
             var p = projects.find(function(x) { return x.id === id; });
@@ -1884,12 +1881,12 @@ export default function PressToPremi() {
     );
   }
 
-  // Sub-tile views — Episode Highlights, Data Story, Clipper, Stock, Queue.
+  // Sub-tile views — Editor, Episode Highlights, Data Story, Clipper, Stock, Queue.
   if (view !== "article") {
     return (
       <div style={{ maxWidth: 1180, margin: "0 auto", padding: "40px 32px" }}>
         <Toasts />
-        <SuiteSubView view={view} onBack={function() { setView("hub"); }} projects={projects} />
+        <TileDispatcher view={view as ("stock" | "editor" | "highlights" | "data-story" | "clipper" | "queue")} onBack={function() { setView("hub"); }} />
       </div>
     );
   }
