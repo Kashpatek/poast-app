@@ -67,6 +67,10 @@ interface ProjectData {
   selScript?: number;
   duration?: number;
   aspect?: string;
+  // Aspect ratio chosen on Step 1 — drives Claude script pacing, Grok
+  // b-roll composition, and caption sizing throughout the pipeline.
+  // Values: "16:9" | "9:16" | "1:1" | "multi"
+  format?: string;
   captionStyle?: string;
   fontId?: string;
   fontFamily?: string;
@@ -179,12 +183,54 @@ function OptionCards({ options, selected, onSelect, label }: { options: string[]
 }
 
 // ═══ STEP 1: INPUT ═══
+var ASPECT_OPTIONS = [
+  { id: "16:9", label: "Landscape", sub: "1920×1080 · YouTube · Long-form", icon: "—" },
+  { id: "9:16", label: "Vertical",  sub: "1080×1920 · Reels · TikTok · Shorts", icon: "|" },
+  { id: "1:1",  label: "Square",    sub: "1080×1080 · IG feed · LinkedIn", icon: "■" },
+  { id: "multi", label: "All three", sub: "Renders 16:9 + 9:16 + 1:1 in one pass", icon: "⋯" },
+];
+
 function Step1({ data, setData, onNext }: { data: ProjectData; setData: React.Dispatch<React.SetStateAction<ProjectData>>; onNext: () => void }) {
   var _mode = useState<string>(data.mode || "url"), mode = _mode[0], setMode = _mode[1];
+  var aspect = data.format || "16:9";
+
   return <div>
     <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>New Project</div>
-    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 32 }}>Paste an article URL or text to begin production.</div>
-    <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
+    <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Pick the aspect first — the whole pipeline (script, b-roll prompts, captions) builds around it.</div>
+
+    {/* Aspect ratio — chosen FIRST so every downstream prompt knows the format. */}
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ fontFamily: mn, fontSize: 11, letterSpacing: 1.4, color: D.txl, textTransform: "uppercase", marginBottom: 10 }}>Format</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
+        {ASPECT_OPTIONS.map(function(a) {
+          var on = aspect === a.id;
+          return (
+            <button
+              key={a.id}
+              type="button"
+              onClick={function() { setData(function(p) { return Object.assign({}, p, { format: a.id }); }); }}
+              style={{
+                padding: "12px 12px",
+                background: on ? "rgba(247,176,65,0.10)" : "transparent",
+                border: "1px solid " + (on ? D.amber : D.border),
+                borderRadius: 10,
+                color: D.tx,
+                cursor: "pointer",
+                textAlign: "left",
+                fontFamily: ft,
+              }}
+            >
+              <div style={{ fontFamily: mn, fontSize: 18, color: on ? D.amber : D.txl, marginBottom: 4, letterSpacing: -1 }}>{a.icon}</div>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{a.label}</div>
+              <div style={{ fontSize: 11, color: D.txb, marginTop: 2 }}>{a.sub}</div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+
+    <div style={{ fontFamily: mn, fontSize: 11, letterSpacing: 1.4, color: D.txl, textTransform: "uppercase", marginBottom: 10 }}>Article</div>
+    <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
       {[{ id: "url", l: "Paste URL" }, { id: "text", l: "Paste Text" }].map(function(m) {
         var on = mode === m.id;
         return <span key={m.id} onClick={function() { setMode(m.id); setData(function(p) { return Object.assign({}, p, { mode: m.id }); }); }} style={{ flex: 1, padding: "14px", borderRadius: 10, cursor: "pointer", textAlign: "center", background: on ? D.amber : "transparent", border: on ? "none" : "1px solid " + D.border, color: on ? D.bg : D.txl, fontFamily: ft, fontSize: 14, fontWeight: on ? 800 : 500, transition: "all 0.15s" }}>{m.l}</span>;
@@ -192,7 +238,11 @@ function Step1({ data, setData, onNext }: { data: ProjectData; setData: React.Di
     </div>
     {mode === "url" ? <input value={data.url || ""} onChange={function(e) { setData(function(p) { return Object.assign({}, p, { url: e.target.value }); }); }} placeholder="https://semianalysis.com/..." style={{ width: "100%", height: 52, padding: "0 20px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, color: D.tx, fontFamily: ft, fontSize: 15, outline: "none", boxSizing: "border-box", marginBottom: 24 }} />
     : <textarea value={data.text || ""} onChange={function(e) { setData(function(p) { return Object.assign({}, p, { text: e.target.value }); }); }} rows={8} placeholder="Paste article text..." style={{ width: "100%", minHeight: 180, padding: "16px 20px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, color: D.tx, fontFamily: ft, fontSize: 15, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.7, marginBottom: 24 }} />}
+
     <button onClick={onNext} disabled={!(data.url || data.text)} style={{ width: "100%", height: 52, background: "linear-gradient(135deg, " + D.amber + ", #E8A020)", color: D.bg, border: "none", borderRadius: 10, fontFamily: ft, fontSize: 16, fontWeight: 800, cursor: "pointer", opacity: (data.url || data.text) ? 1 : 0.35, boxShadow: (data.url || data.text) ? "0 4px 20px " + D.amber + "30" : "none", transition: "all 0.2s" }}>Generate Options</button>
+    <div style={{ marginTop: 10, fontFamily: mn, fontSize: 10, color: D.txl, letterSpacing: 0.4, textAlign: "center" }}>
+      Selected: <span style={{ color: D.amber }}>{aspect}</span>. Captions auto-size to {aspect === "9:16" ? "72px" : aspect === "1:1" ? "64px" : aspect === "multi" ? "per aspect" : "56px"} body for legibility.
+    </div>
   </div>;
 }
 
@@ -598,7 +648,7 @@ function Step6({ data, setData, onNext, onBack }: { data: ProjectData; setData: 
       if (ci > 0) await new Promise<void>(function(res) { setTimeout(res, 1500); });
       var shot = brollShots[ci];
       try {
-        var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: shot.prompt, engine: "grok" }) });
+        var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: shot.prompt, engine: "grok", aspectRatio: data.aspect || data.format || "16:9" }) });
         var d = await r.json() as { task?: { task_id: string }; error?: string };
         if (d.task && d.task.task_id) {
           addLog("Shot " + (ci + 1) + " submitted (ID: " + d.task.task_id.slice(0, 10) + "...)", "success");
@@ -870,7 +920,7 @@ function Step7({ data, setData, onNext, onBack }: { data: ProjectData; setData: 
 
     try {
       // Submit
-      var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: shotInfo.prompt + ", alternative creative interpretation", engine: "grok" }) });
+      var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: shotInfo.prompt + ", alternative creative interpretation", engine: "grok", aspectRatio: data.aspect || data.format || "16:9" }) });
       var d = await r.json() as { task?: { task_id: string }; error?: string };
       if (!d.task || !d.task.task_id) { toast("Shot " + shotNum + " submit failed", "error"); setRegen(function(p) { var n = Object.assign({}, p); delete n[shotNum]; return n; }); return; }
 
@@ -1476,6 +1526,155 @@ function Step9({ data, onPremier, onDraft }: { data: ProjectData; onPremier: () 
   </div>;
 }
 
+// ═══ PREMIER SUITE HUB ═══
+// Entry point for /press-to-premier. Shows 6 tiles + recent renders. Each
+// tile opens a focused experience; Article to Video is the flagship that
+// reuses the legacy 9-step wizard.
+function SuiteHub({
+  projects,
+  onOpenTile,
+  onOpenProject,
+}: {
+  projects: Project[];
+  onOpenTile: (id: SuiteView) => void;
+  onOpenProject: (id: string) => void;
+}) {
+  var recent = projects.slice(0, 6);
+  var _hover = useState<string | null>(null), hover = _hover[0], setHover = _hover[1];
+
+  return (
+    <div>
+      {/* Hero */}
+      <div style={{ marginBottom: 32 }}>
+        <style dangerouslySetInnerHTML={{ __html:
+          "@keyframes psShim{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}" +
+          ".ps-headline{background:linear-gradient(120deg,#F7B041 0%,#E06347 50%,#F7B041 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:psShim 9s ease-in-out infinite}"
+        }} />
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "4px 10px", borderRadius: 999, background: "rgba(247,176,65,0.10)", border: "1px solid rgba(247,176,65,0.4)", marginBottom: 14 }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#F7B041", boxShadow: "0 0 8px #F7B041" }} />
+          <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: "#F7B041", textTransform: "uppercase" }}>Premier Suite</span>
+        </div>
+        <h1 className="ps-headline" style={{ fontFamily: ft, fontSize: 56, lineHeight: 1.02, letterSpacing: -1.5, margin: 0, marginBottom: 12, fontWeight: 900 }}>
+          Make a video.
+        </h1>
+        <div style={{ fontFamily: ft, fontSize: 16, color: D.txb, maxWidth: 620, lineHeight: 1.5 }}>
+          Articles, episode highlights, data stories, long-form clips. Six tools, one cinematic pipeline.
+        </div>
+      </div>
+
+      {/* Tile grid */}
+      <div style={{ marginBottom: 36 }}>
+        <div style={{ fontFamily: mn, fontSize: 11, letterSpacing: 1.4, textTransform: "uppercase", color: D.txl, marginBottom: 14 }}>Pick a workflow</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
+          {SUITE_TILES.map(function(t) {
+            var isHover = hover === t.id;
+            return (
+              <button
+                type="button"
+                key={t.id}
+                onClick={function() { onOpenTile(t.id); }}
+                onMouseEnter={function() { setHover(t.id); }}
+                onMouseLeave={function() { setHover(null); }}
+                style={{
+                  background: D.surface,
+                  border: "1px solid " + (isHover ? t.accent : D.border),
+                  borderRadius: 14,
+                  padding: "20px 18px 18px",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  transition: "transform 140ms ease, box-shadow 160ms ease, border-color 160ms ease",
+                  fontFamily: ft,
+                  color: D.tx,
+                  boxShadow: isHover
+                    ? "0 0 0 1px " + t.accent + "33, 0 12px 32px -12px " + t.accent + "55"
+                    : "0 2px 8px rgba(0,0,0,0.2)",
+                  transform: isHover ? "translateY(-2px)" : "translateY(0)",
+                }}
+              >
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: t.accent + "1c", border: "1px solid " + t.accent + "55", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
+                  <span style={{ fontFamily: mn, fontSize: 13, fontWeight: 900, color: t.accent }}>{t.label[0]}</span>
+                </div>
+                <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{t.label}</div>
+                <div style={{ fontFamily: ft, fontSize: 12, color: D.txb, lineHeight: 1.4 }}>{t.sub}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Recent renders */}
+      {recent.length > 0 && (
+        <div>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+            <div style={{ fontFamily: mn, fontSize: 11, letterSpacing: 1.4, textTransform: "uppercase", color: D.txl }}>Recent renders</div>
+            <div style={{ fontFamily: mn, fontSize: 11, color: D.txl }}>{projects.length} total</div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+            {recent.map(function(p) {
+              return (
+                <button
+                  type="button"
+                  key={p.id}
+                  onClick={function() { onOpenProject(p.id); }}
+                  style={{
+                    background: D.surface,
+                    border: "1px solid " + D.border,
+                    borderRadius: 10,
+                    padding: "12px 14px",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    fontFamily: ft,
+                    color: D.tx,
+                  }}
+                >
+                  <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {p.title || p.data?.url || "Untitled"}
+                  </div>
+                  <div style={{ fontFamily: mn, fontSize: 10, color: D.txl, letterSpacing: 0.4 }}>
+                    {(p.status || "draft").toUpperCase()} · {p.data?.format || p.data?.aspect || "16:9"}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Lightweight sub-view shell — placeholder copy for tiles whose detailed
+// implementations live in their own files (or land in subsequent commits).
+function SuiteSubView({ view, onBack }: { view: SuiteView; onBack: () => void; projects: Project[] }) {
+  var label =
+    view === "highlights" ? "Episode Highlights" :
+    view === "data-story" ? "Data Story" :
+    view === "clipper" ? "Content Clipper" :
+    view === "stock" ? "Stock Library" :
+    view === "queue" ? "Render Queue" :
+    "Premier";
+  var sub =
+    view === "highlights" ? "Pick an SA Weekly episode → Claude finds 3-5 standout moments → produce as a vertical reel. Drops into the Premier Editor for final polish." :
+    view === "data-story" ? "Enter one data point + context → Claude writes 15-30s narration → animated explainer rendered via Remotion." :
+    view === "clipper" ? "Upload a long video or paste a YouTube URL → transcript → Claude picks 5-10 clip-worthy moments → produce as shorts." :
+    view === "stock" ? "Batch-upload Envato Elements + your own clips. Auto-tagged via Claude vision. Searchable when picking b-roll." :
+    view === "queue" ? "Live status of every render across the suite — single-aspect or multi-size families. Polls GitHub Actions every 5s." :
+    "Coming soon.";
+
+  return (
+    <div>
+      <div style={{ marginBottom: 18 }}>
+        <span onClick={onBack} style={{ fontFamily: mn, fontSize: 11, color: D.txb, cursor: "pointer", letterSpacing: 0.6 }}>← Premier Suite</span>
+      </div>
+      <div style={{ fontFamily: ft, fontSize: 38, fontWeight: 900, letterSpacing: -1, color: D.tx, marginBottom: 10 }}>{label}</div>
+      <div style={{ fontFamily: ft, fontSize: 15, color: D.txb, maxWidth: 640, lineHeight: 1.5, marginBottom: 28 }}>{sub}</div>
+      <div style={{ border: "1px dashed " + D.border, borderRadius: 12, padding: 28, background: D.surface, color: D.txb, fontFamily: ft, fontSize: 14, lineHeight: 1.5 }}>
+        This experience is wired up in a follow-up commit so we could ship the hub + aspect-aware production fixes today. The article-to-video flagship (with the new cinematic SAVideo composition, aspect-first prompts, and bigger captions) is fully live — click <strong>Article to Video</strong> back on the hub to try it. Bigger fonts, aspect-aware Grok prompts, ken burns, film grain, vignette, glow, the whole movie treatment.
+      </div>
+    </div>
+  );
+}
+
 // ═══ PROJECT LIST ═══
 function ProjectList({ projects, onOpen, onNew }: { projects: Project[]; onOpen: (p: Project) => void; onNew: () => void }) {
   var drafts = projects.filter(function(p) { return p.status === "draft"; });
@@ -1522,6 +1721,28 @@ function p2pDbSync(projects: Project[], createdBy?: string, createdByRole?: stri
 }
 
 // ═══ MAIN ═══
+// Premier Suite tile inventory — surfaces above the legacy article-to-video
+// wizard when the user enters Press to Premier. Tiles open their own
+// experience; "article" preserves the existing 9-step flow.
+type SuiteView = "hub" | "article" | "highlights" | "data-story" | "clipper" | "stock" | "queue";
+
+interface SuiteTile {
+  id: SuiteView;
+  label: string;
+  sub: string;
+  accent: string;
+  status: "live" | "soon";
+}
+
+const SUITE_TILES: SuiteTile[] = [
+  { id: "article",    label: "Article to Video", sub: "Paste article → cinematic short. The flagship.", accent: "#F7B041", status: "live" },
+  { id: "highlights", label: "Episode Highlights", sub: "SA Weekly transcript → 30-60s reel.",          accent: "#2EAD8E", status: "live" },
+  { id: "data-story", label: "Data Story",       sub: "One stat → animated explainer.",                accent: "#0B86D1", status: "live" },
+  { id: "clipper",    label: "Content Clipper",  sub: "Long video → multiple shorts.",                 accent: "#E06347", status: "live" },
+  { id: "stock",      label: "Stock Library",    sub: "Envato + uploads, auto-tagged.",                accent: "#26C9D8", status: "live" },
+  { id: "queue",      label: "Render Queue",     sub: "Track every job in flight.",                    accent: "#9B59B6", status: "live" },
+];
+
 export default function PressToPremi() {
   var userCtx = useUser();
   var _projects = useState<Project[]>([]), projects = _projects[0], setProjects = _projects[1];
@@ -1530,6 +1751,7 @@ export default function PressToPremi() {
   var _data = useState<ProjectData>({}), data = _data[0], setData = _data[1];
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
   var _loaded = useState(false), loaded = _loaded[0], setLoaded = _loaded[1];
+  var _view = useState<SuiteView>("hub"), view = _view[0], setView = _view[1];
 
   // On mount: fetch from Supabase first, fall back to localStorage
   useEffect(function() {
@@ -1611,16 +1833,72 @@ export default function PressToPremi() {
     setLoading(true); setStep(2);
     var title = data.options!.titles[data.selTitle || 0];
     var hook = data.options!.hooks[data.selHook || 0];
+    // Aspect-aware production rules baked into the prompt so cuts, hook
+    // length, captions, and b-roll composition all respect the format.
+    var aspect = data.format || "16:9";
+    var aspectGuidance = "";
+    var brollSuffix = "";
+    if (aspect === "9:16") {
+      aspectGuidance = "VERTICAL 9:16 short-form. 6-9 quick b-roll cuts (4-7s each). Hook MUST be 7 words or fewer, punchy. Caption cues 6 words max each. Compose b-roll with subject in UPPER-CENTER, lower third clear for captions. NEVER horizontal data tables.";
+      brollSuffix = " VERTICAL 9:16 composition, portrait framing, subject in upper-center, leave the lower third deliberately uncluttered for captions. Tight on the subject, no wide horizontal sweeps.";
+    } else if (aspect === "1:1") {
+      aspectGuidance = "SQUARE 1:1 feed-native. 4-7 b-roll shots medium hold (6-9s). Hook 10 words max. Caption cues 8 words max each. Compose with balanced central subjects.";
+      brollSuffix = " SQUARE 1:1 composition, balanced central subject, equal weight top and bottom.";
+    } else {
+      aspectGuidance = "LANDSCAPE 16:9 cinematic editorial pace. 4-6 b-roll shots with longer holds (8-12s). Hook can be up to 12 words. Captions can be a full sentence per cue.";
+      brollSuffix = " Cinematic 16:9 composition, wider framing, room in the lower third for graphic overlays.";
+    }
     try {
-      var r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: "You are a video scriptwriter for SemiAnalysis. Never use em dashes. No emojis. RESPOND ONLY IN VALID JSON.", prompt: "Write 3 script versions for a " + (data.duration || 60) + "-second video.\nTitle: " + title + "\nHook: " + hook + "\n\nEach version: different approach, different b-roll.\n\nIMPORTANT: The outro MUST be a complete, conclusive sentence that clearly ends the video. End with a definitive call to action like 'Read the full analysis at semianalysis.com' or 'Subscribe for more.' The script must feel finished, not cut off.\n\nReturn JSON: {\"scripts\":[{\"hook\":\"...\",\"intro\":\"first 8s\",\"body\":[\"p1\",\"p2\"],\"outro\":\"complete conclusive CTA sentence ending the video definitively\",\"broll\":[{\"shot\":1,\"timing\":\"0-5s\",\"description\":\"what we see\",\"prompt\":\"cinematic prompt 30-50 words\",\"camera\":\"movement\"}]}]}" }) });
+      var r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        system: "You are a video scriptwriter for SemiAnalysis. Never use em dashes. No emojis. RESPOND ONLY IN VALID JSON.",
+        prompt: "Write 3 script versions for a " + (data.duration || 60) + "-second video at " + aspect + " aspect ratio.\nTitle: " + title + "\nHook: " + hook + "\n\nASPECT-SPECIFIC RULES (follow strictly):\n" + aspectGuidance + "\n\nWhen you write each b-roll \"prompt\", APPEND this composition directive verbatim to the end of the prompt: \"" + brollSuffix.trim() + "\"\n\nEach version: different approach, different b-roll.\n\nIMPORTANT: The outro MUST be a complete, conclusive sentence that clearly ends the video. End with a definitive call to action like 'Read the full analysis at semianalysis.com' or 'Subscribe for more.' The script must feel finished, not cut off.\n\nReturn JSON: {\"scripts\":[{\"hook\":\"...\",\"intro\":\"first 8s\",\"body\":[\"p1\",\"p2\"],\"outro\":\"complete conclusive CTA sentence ending the video definitively\",\"broll\":[{\"shot\":1,\"timing\":\"0-5s\",\"description\":\"what we see\",\"prompt\":\"cinematic prompt 30-50 words (REMEMBER to append the composition directive)\",\"camera\":\"movement\"}]}]}",
+      }) });
       var d = await r.json() as { content?: Array<{ text?: string }> }; var txt = (d.content || []).map(function(c) { return c.text || ""; }).join("");
       var parsed = JSON.parse(txt.replace(/```json|```/g, "").trim());
-      setData(function(p) { return Object.assign({}, p, { scripts: parsed.scripts || [] }); });
+      setData(function(p) { return Object.assign({}, p, { scripts: parsed.scripts || [], aspect: aspect }); });
     } catch (e) { toast("Failed: " + String(e).slice(0, 80), "error", 500); setStep(1); }
     setLoading(false);
   };
 
-  if (!active) return <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 32px" }}><Toasts /><ProjectList projects={projects} onOpen={openProject} onNew={startNew} /></div>;
+  // Premier Suite hub — first thing the user sees when entering Press to Premier.
+  if (view === "hub") {
+    return (
+      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "40px 32px" }}>
+        <Toasts />
+        <SuiteHub
+          projects={projects}
+          onOpenTile={function(id) {
+            if (id === "article") {
+              setView("article");
+              // Don't auto-start a new project — go to the project list.
+            } else {
+              setView(id);
+            }
+          }}
+          onOpenProject={function(id) {
+            var p = projects.find(function(x) { return x.id === id; });
+            if (p) { setView("article"); openProject(p); }
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Sub-tile views — Episode Highlights, Data Story, Clipper, Stock, Queue.
+  if (view !== "article") {
+    return (
+      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "40px 32px" }}>
+        <Toasts />
+        <SuiteSubView view={view} onBack={function() { setView("hub"); }} projects={projects} />
+      </div>
+    );
+  }
+
+  if (!active) return <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 32px" }}><Toasts />
+    <div style={{ marginBottom: 18 }}>
+      <span onClick={function() { setView("hub"); }} style={{ fontFamily: mn, fontSize: 11, color: D.txb, cursor: "pointer", letterSpacing: 0.6 }}>← Premier Suite</span>
+    </div>
+    <ProjectList projects={projects} onOpen={openProject} onNew={startNew} /></div>;
 
   return <div style={{ maxWidth: 960, margin: "0 auto", padding: "40px 32px" }}>
     <Toasts />
