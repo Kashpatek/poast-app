@@ -12,10 +12,13 @@ export interface Category {
   sub: string;
   // Which DesignStudio tool this category lives in.
   tool: StudioTool;
-  // Which size groups should appear in the size step for this category.
+  // Which size groups should appear when the user opens "Show all sizes."
   sizeGroups: SizeGroup[];
   // Default size preset id (must exist in size-presets.ts).
   defaultPreset?: string;
+  // Curated "you probably want one of these" set — shown first as a tight
+  // grid before the full size catalog. 3-5 preset ids typically.
+  recommendedPresets?: string[];
   // Used by wizard step 2 to pre-fill copy fields.
   hints?: {
     audience?: string;
@@ -33,6 +36,7 @@ export const DOC_CATEGORIES: Category[] = [
     tool: "doc",
     sizeGroups: ["print", "presentation"],
     defaultPreset: "us-letter-screen",
+    recommendedPresets: ["us-letter-screen", "a4", "slide-16-9"],
     hints: { suggestedSections: ["Headline", "Context", "Key data", "Implications", "Next step"] },
   },
   {
@@ -42,6 +46,7 @@ export const DOC_CATEGORIES: Category[] = [
     tool: "doc",
     sizeGroups: ["print"],
     defaultPreset: "us-letter",
+    recommendedPresets: ["us-letter", "a4"],
     hints: { tone: "institutional", suggestedSections: ["Executive summary", "Findings", "Methodology", "Appendix"] },
   },
   {
@@ -51,6 +56,7 @@ export const DOC_CATEGORIES: Category[] = [
     tool: "doc",
     sizeGroups: ["print"],
     defaultPreset: "us-letter",
+    recommendedPresets: ["us-letter", "a4"],
     hints: { audience: "Internal", tone: "direct" },
   },
   {
@@ -60,6 +66,7 @@ export const DOC_CATEGORIES: Category[] = [
     tool: "doc",
     sizeGroups: ["presentation"],
     defaultPreset: "slide-16-9",
+    recommendedPresets: ["slide-16-9", "slide-16-9-4k", "slide-square"],
     hints: { suggestedSections: ["Cover", "Problem", "Solution", "Why SA", "Ask"] },
   },
   {
@@ -69,6 +76,7 @@ export const DOC_CATEGORIES: Category[] = [
     tool: "doc",
     sizeGroups: ["print", "event"],
     defaultPreset: "a4",
+    recommendedPresets: ["a4", "us-letter", "event-flyer-letter"],
   },
   {
     id: "flyer",
@@ -77,6 +85,7 @@ export const DOC_CATEGORIES: Category[] = [
     tool: "doc",
     sizeGroups: ["print", "event", "story-vertical"],
     defaultPreset: "flyer-letter",
+    recommendedPresets: ["flyer-letter", "event-flyer-a4", "event-flyer-vert", "ig-story"],
   },
   {
     id: "brochure",
@@ -85,6 +94,7 @@ export const DOC_CATEGORIES: Category[] = [
     tool: "doc",
     sizeGroups: ["print"],
     defaultPreset: "brochure-trifold",
+    recommendedPresets: ["brochure-trifold"],
   },
   {
     id: "booklet",
@@ -93,6 +103,7 @@ export const DOC_CATEGORIES: Category[] = [
     tool: "doc",
     sizeGroups: ["print"],
     defaultPreset: "booklet-half",
+    recommendedPresets: ["booklet-half", "a5"],
   },
   {
     id: "newsletter",
@@ -101,6 +112,7 @@ export const DOC_CATEGORIES: Category[] = [
     tool: "doc",
     sizeGroups: ["email", "web"],
     defaultPreset: "email-newsletter",
+    recommendedPresets: ["email-newsletter", "email-header"],
   },
   {
     id: "resume-bio",
@@ -109,6 +121,7 @@ export const DOC_CATEGORIES: Category[] = [
     tool: "doc",
     sizeGroups: ["print"],
     defaultPreset: "us-letter",
+    recommendedPresets: ["us-letter", "a4"],
   },
   {
     id: "wireframe",
@@ -117,6 +130,7 @@ export const DOC_CATEGORIES: Category[] = [
     tool: "doc",
     sizeGroups: ["presentation", "web"],
     defaultPreset: "slide-16-9",
+    recommendedPresets: ["slide-16-9", "web-hero"],
     hints: { tone: "neutral" },
   },
 ];

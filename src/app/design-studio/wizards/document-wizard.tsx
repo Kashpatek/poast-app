@@ -56,10 +56,6 @@ export function DocumentWizard({ open, onClose }: DocumentWizardProps) {
 
   const category: Category | undefined = useMemo(() => findCategory(categoryId), [categoryId]);
   const visibleGroups: SizeGroup[] = useMemo(() => category?.sizeGroups ?? [], [category]);
-  const visiblePresets: SizePreset[] = useMemo(() => {
-    const set = new Set(visibleGroups);
-    return SIZE_PRESETS.filter((p) => set.has(p.group));
-  }, [visibleGroups]);
 
   function reset() {
     setStep(0);
@@ -174,9 +170,10 @@ export function DocumentWizard({ open, onClose }: DocumentWizardProps) {
         />
       ) : null}
 
-      {step === 1 ? (
+      {step === 1 && category ? (
         <SizeStep
-          presets={visiblePresets}
+          category={category}
+          allPresets={SIZE_PRESETS}
           groups={visibleGroups}
           value={presetId}
           onChange={setPresetId}
@@ -256,69 +253,92 @@ function CategoryStep({ value, onChange }: { value: string; onChange: (id: strin
 }
 
 // ─── Step 1 — Size ──────────────────────────────────────────────────
+// Curated UX: show a tight grid of category-recommended sizes first,
+// with a "Show all sizes" toggle that reveals the full catalog grouped
+// by platform. Custom dimensions live at the bottom either way.
 function SizeStep({
-  presets,
+  category,
+  allPresets,
   groups,
   value,
   onChange,
   custom,
   onCustomChange,
 }: {
-  presets: SizePreset[];
+  category: Category;
+  allPresets: SizePreset[];
   groups: SizeGroup[];
   value: string;
   onChange: (id: string) => void;
   custom: { w: string; h: string };
   onCustomChange: (c: { w: string; h: string }) => void;
 }) {
-  // Visible groups in the canonical order.
+  const [showAll, setShowAll] = useState(false);
+
+  const recommended: SizePreset[] = (category.recommendedPresets ?? [])
+    .map((id) => findPreset(id))
+    .filter((p): p is SizePreset => !!p);
+
   const orderedGroups = GROUP_ORDER.filter((g) => groups.includes(g.group));
 
   return (
     <div>
       <div style={{ fontFamily: ft, fontSize: 14, color: D.txm, marginBottom: 14, lineHeight: 1.5 }}>
-        Pick a platform or print size — or define a custom canvas at the bottom.
+        Pick a size for your {category.label.toLowerCase()}. We picked the most common ones —
+        hit{" "}
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: D.amber,
+            fontFamily: ft,
+            fontSize: 14,
+            cursor: "pointer",
+            padding: 0,
+            textDecoration: "underline",
+          }}
+        >
+          {showAll ? "show fewer" : "show all sizes"}
+        </button>{" "}
+        for the full list.
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 18, maxHeight: 360, overflowY: "auto", paddingRight: 4 }}>
-        {orderedGroups.map((g) => {
-          const items = presets.filter((p) => p.group === g.group);
-          if (!items.length) return null;
-          return (
-            <div key={g.group}>
-              <div style={wizardLabel}>{g.label}</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8 }}>
-                {items.map((p) => {
-                  const active = value === p.id;
-                  return (
-                    <button
-                      type="button"
-                      key={p.id}
-                      onClick={() => onChange(p.id)}
-                      style={{
-                        textAlign: "left",
-                        padding: "8px 10px",
-                        background: active ? "rgba(247,176,65,0.10)" : "rgba(255,255,255,0.02)",
-                        border: `1px solid ${active ? D.amber : D.border}`,
-                        borderRadius: 8,
-                        color: D.tx,
-                        cursor: "pointer",
-                        fontFamily: ft,
-                      }}
-                    >
-                      <div style={{ fontSize: 12.5, lineHeight: 1.3 }}>{p.label}</div>
-                      <div style={{ fontSize: 10, fontFamily: mn, color: D.txd, marginTop: 2, letterSpacing: 0.4 }}>
-                        {p.w} × {p.h} {p.units}{p.dpi ? ` · ${p.dpi}dpi` : ""}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16, maxHeight: 380, overflowY: "auto", paddingRight: 4 }}>
+        {/* Recommended row — always visible */}
+        {recommended.length ? (
+          <div>
+            <div style={wizardLabel}>Recommended</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8 }}>
+              {recommended.map((p) => (
+                <PresetTile key={p.id} p={p} active={value === p.id} onClick={() => onChange(p.id)} />
+              ))}
             </div>
-          );
-        })}
+          </div>
+        ) : null}
 
-        {/* Custom */}
+        {/* Full catalog — collapsed by default */}
+        {showAll
+          ? orderedGroups.map((g) => {
+              const items = allPresets.filter(
+                (p) => p.group === g.group && !(category.recommendedPresets ?? []).includes(p.id)
+              );
+              if (!items.length) return null;
+              return (
+                <div key={g.group}>
+                  <div style={wizardLabel}>{g.label}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8 }}>
+                    {items.map((p) => (
+                      <PresetTile key={p.id} p={p} active={value === p.id} onClick={() => onChange(p.id)} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })
+          : null}
+
+        {/* Custom — always visible at the bottom */}
         <div>
           <div style={wizardLabel}>Custom</div>
           <button
@@ -362,6 +382,31 @@ function SizeStep({
         </div>
       </div>
     </div>
+  );
+}
+
+function PresetTile({ p, active, onClick }: { p: SizePreset; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        textAlign: "left",
+        padding: "10px 12px",
+        background: active ? "rgba(247,176,65,0.10)" : "rgba(255,255,255,0.02)",
+        border: `1px solid ${active ? D.amber : D.border}`,
+        borderRadius: 8,
+        color: D.tx,
+        cursor: "pointer",
+        fontFamily: ft,
+        transition: "background 0.15s ease, border-color 0.15s ease",
+      }}
+    >
+      <div style={{ fontSize: 12.5, lineHeight: 1.3 }}>{p.label}</div>
+      <div style={{ fontSize: 10, fontFamily: mn, color: D.txd, marginTop: 3, letterSpacing: 0.4 }}>
+        {p.w} × {p.h} {p.units}{p.dpi ? ` · ${p.dpi}dpi` : ""}
+      </div>
+    </button>
   );
 }
 
