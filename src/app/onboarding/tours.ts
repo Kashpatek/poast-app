@@ -60,7 +60,7 @@ export const WELCOME_STEPS_MARKETING: WelcomeStep[] = [
     title: "What's in here, briefly",
     body: "Your sidebar has every tool. Quick orientation by group:",
     bullets: [
-      { label: "Produce", text: "Slop Top, Carousel, Capper, Press to Premier, B-Roll, Chart Maker, DocuDesign — make the content." },
+      { label: "Produce", text: "Slop Top, Carousel, Capper, Press to Premier, B-Roll, Chart Maker, DesignStudio — make the content." },
       { label: "Podcast", text: "SA Weekly, Fab Knowledge, Outreach — full launch kit, prep, guest comms." },
       { label: "Prepare", text: "Trends, IdeationNation, News Flow, GTC Flow — find the angle." },
       { label: "Premier", text: "Schedule, Asset Library — ship it, find the assets." },
@@ -124,8 +124,8 @@ export const TOOL_COACH: Record<string, CoachContent> = {
     tip: "Click 'Take the tour' in the top-right of the chart workspace any time.",
   },
   docu: {
-    title: "DocuDesign",
-    body: "Chat-driven document and graphic builder. Describe what you need, Claude generates SVG, you iterate. Exports to SVG (Illustrator-editable) with PNG and PDF coming next.",
+    title: "DesignStudio",
+    body: "Your creative suite — DocuDesign for docs and flyers, Graphics for Canva-style design, Image Studio for AI-generated visuals, plus motion and programmatic video. All powered by your SA design system.",
     tip: "Tip: set up your Design System first (logos + brand assets) so every project ships on-brand.",
   },
   // ─── Podcast ──────────────────────────────────────────────────────

@@ -13,13 +13,13 @@ interface DocuShellProps {
 }
 
 const NAV: Array<{ href: string; label: string; match: (p: string) => boolean }> = [
-  { href: "/docu-design", label: "Designs", match: (p) => p === "/docu-design" || p.startsWith("/docu-design/p/") },
-  { href: "/docu-design/system", label: "Design systems", match: (p) => p.startsWith("/docu-design/system") },
-  { href: "/docu-design/examples", label: "Examples", match: (p) => p.startsWith("/docu-design/examples") },
+  { href: "/design-studio", label: "Studio", match: (p) => p === "/design-studio" || p.startsWith("/design-studio/p/") },
+  { href: "/design-studio/system", label: "Design systems", match: (p) => p.startsWith("/design-studio/system") },
+  { href: "/design-studio/examples", label: "Examples", match: (p) => p.startsWith("/design-studio/examples") },
 ];
 
 export function DocuShell({ children, title, rightSlot }: DocuShellProps) {
-  const pathname = usePathname() || "/docu-design";
+  const pathname = usePathname() || "/design-studio";
   const router = useRouter();
   const { user } = useUser();
   const allowed = canUseDocuDesign(user);
@@ -46,7 +46,7 @@ export function DocuShell({ children, title, rightSlot }: DocuShellProps) {
         }}
       >
         <div>
-          <div style={{ fontFamily: gf, fontSize: 22, marginBottom: 8 }}>DocuDesign is in early access</div>
+          <div style={{ fontFamily: gf, fontSize: 22, marginBottom: 8 }}>DesignStudio is in early access</div>
           <div style={{ color: D.txm, fontSize: 13, fontFamily: ft, lineHeight: 1.5 }}>
             Currently rolled out to Marketing only. Returning you to POAST…
           </div>
@@ -86,7 +86,7 @@ export function DocuShell({ children, title, rightSlot }: DocuShellProps) {
           ← POAST
         </Link>
         <div style={{ width: 1, height: 20, background: D.border }} />
-        <div style={{ fontFamily: gf, fontSize: 18, letterSpacing: 0.4, color: D.tx }}>DocuDesign</div>
+        <div style={{ fontFamily: gf, fontSize: 18, letterSpacing: 0.4, color: D.tx }}>DesignStudio</div>
         {title ? (
           <>
             <div style={{ color: D.txd, fontFamily: mn, fontSize: 12 }}>/</div>

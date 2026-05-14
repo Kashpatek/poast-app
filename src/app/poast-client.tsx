@@ -542,7 +542,7 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "p2p",      l: "Press to Premier", Icon: Clapperboard },
     { id: "broll",    l: "B-Roll Library",   Icon: Film },
     { id: "chart",    l: "Chart Maker",      Icon: GanttChart, href: "/charts", badge: "NEW" },
-    { id: "docu",     l: "DocuDesign",       Icon: Wand,       href: "/docu-design", badge: "NEW" },
+    { id: "docu",     l: "DesignStudio",     Icon: Wand,       href: "/design-studio", badge: "NEW" },
     { id: "assets",   l: "Asset Library",    Icon: Library },
   ]},
   podcast: { label: "PODCAST", color: C.coral, glow: "rgba(224,99,71,", items: [
@@ -1324,9 +1324,9 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
     ] },
   ];
 
-  // DocuDesign sits with Produce when the role can use it. Hides for any
+  // DesignStudio sits with Produce when the role can use it. Hides for any
   // role that fails canUseDocuDesign (Analyst).
-  if (canDocu) sections[0].tiles.push({ id: "docu", label: "DocuDesign", sub: "Chat-driven SVG docs", Icon: Wand, href: "/docu-design" });
+  if (canDocu) sections[0].tiles.push({ id: "docu", label: "DesignStudio", sub: "Docs · graphics · images · motion", Icon: Wand, href: "/design-studio" });
 
   return <div style={{ minHeight: "100%", padding: "48px 0 64px", position: "relative" }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes ssRise{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}@keyframes ssShim{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}.ss-headline{background:linear-gradient(120deg,#F7B041 0%,#26C9D8 50%,#F7B041 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:ssShim 8s ease-in-out infinite}" }} />

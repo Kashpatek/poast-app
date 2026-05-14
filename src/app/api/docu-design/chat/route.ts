@@ -3,8 +3,8 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { streamClaude, transformAnthropicSSE, StreamMessage } from "@/lib/anthropic-stream";
-import { buildSystemPrompt, DesignSystem, ProjectMeta } from "@/app/docu-design/design-context";
-import type { Artboard } from "@/app/docu-design/artboard-ops";
+import { buildSystemPrompt, DesignSystem, ProjectMeta } from "@/app/design-studio/design-context";
+import type { Artboard } from "@/app/design-studio/artboard-ops";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";

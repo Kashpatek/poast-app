@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { generateJSON, AnthropicError } from "@/lib/anthropic";
 import { checkRateLimit } from "@/lib/ratelimit";
-import { buildAnalyzeBrandPrompt } from "@/app/docu-design/design-context";
+import { buildAnalyzeBrandPrompt } from "@/app/design-studio/design-context";
 
 export const maxDuration = 60;
 
