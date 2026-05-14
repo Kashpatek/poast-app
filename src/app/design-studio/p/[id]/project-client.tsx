@@ -107,10 +107,13 @@ export function ProjectClient({ projectId }: { projectId: string }) {
       }
       const merge = <T,>(key: string, fallback: T): T =>
         (r[key] as T) ?? (extractedMeta[key] as T) ?? fallback;
+      // Recover the original project type when the DB CHECK constraint
+      // forced us to fall back to "other" / "document".
+      const originalType = (extractedMeta.__originalType as ProjectType | undefined) ?? (r.type as ProjectType);
       const project: ProjectRow = {
         id: r.id as string,
         name: r.name as string,
-        type: r.type as ProjectType,
+        type: originalType,
         fidelity: (r.fidelity as Fidelity) || "high",
         design_system_id: (r.design_system_id as string | null) ?? null,
         artboards: (r.artboards as Artboard[]) || [],

@@ -13,6 +13,7 @@ import { useToast } from "../../../toast-context";
 import { QuoteCard } from "../../../../remotion/QuoteCard";
 import { Audiogram } from "../../../../remotion/Audiogram";
 import { EpisodeTrailer } from "../../../../remotion/EpisodeTrailer";
+import { loadProject } from "../../project-loader";
 
 // Player is heavy + uses DOM; load lazily, no SSR.
 const Player = dynamic(
@@ -70,30 +71,27 @@ export default function ProgrammaticPage({ params }: PageProps) {
 
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      try {
-        const res = await fetch(`/api/docu-design/projects?id=${encodeURIComponent(id)}`);
-        const j = await res.json();
-        if (!res.ok) {
-          setError(j.error || "Failed to load");
-          return;
-        }
+    loadProject(id)
+      .then((p) => {
         if (cancelled) return;
-        const p = j.data as ProjectRow;
-        setProject(p);
-        if (p.brief?.title) {
-          setQuote(p.brief.title);
-          setTrailerTitle(p.brief.title);
-          setAudiogramTitle(p.brief.title);
+        const adapted: ProjectRow = {
+          id: p.id,
+          name: p.name,
+          type: p.type,
+          brief: p.brief as ProjectRow["brief"],
+        };
+        setProject(adapted);
+        const brief = (p.brief || {}) as ProjectRow["brief"];
+        if (brief?.title) {
+          setQuote(brief.title);
+          setTrailerTitle(brief.title);
+          setAudiogramTitle(brief.title);
         }
-        if (p.brief?.subtitle) setAttribution(p.brief.subtitle);
-        if (p.brief?.context) setSource(p.brief.context);
-        if (p.brief?.keyPoints?.length) setHooks(p.brief.keyPoints.join("\n"));
-      } catch (e) {
-        if (!cancelled) setError(String(e));
-      }
-    }
-    load();
+        if (brief?.subtitle) setAttribution(brief.subtitle);
+        if (brief?.context) setSource(brief.context);
+        if (brief?.keyPoints?.length) setHooks(brief.keyPoints.join("\n"));
+      })
+      .catch((e) => { if (!cancelled) setError(String(e)); });
     return () => { cancelled = true; };
   }, [id]);
 

@@ -7,14 +7,11 @@
 import React, { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { D, ft, gf, mn } from "../../../shared-constants";
+import { loadProject, type DecodedProject } from "../../project-loader";
 
 const MOTIONITY_URL = "https://motionity.app/";
 
-interface ProjectRow {
-  id: string;
-  name: string;
-  type: string;
-}
+type ProjectRow = DecodedProject;
 
 interface PageProps { params: Promise<{ id: string }> }
 
@@ -25,14 +22,9 @@ export default function MotionPage({ params }: PageProps) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/docu-design/projects?id=${encodeURIComponent(id)}`)
-      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
-      .then(({ ok, j }) => {
-        if (cancelled) return;
-        if (!ok) setError(j.error || "Failed to load");
-        else setProject(j.data as ProjectRow);
-      })
-      .catch((e) => !cancelled && setError(String(e)));
+    loadProject(id)
+      .then((p) => { if (!cancelled) setProject(p); })
+      .catch((e) => { if (!cancelled) setError(String(e)); });
     return () => { cancelled = true; };
   }, [id]);
 

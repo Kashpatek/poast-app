@@ -23,6 +23,7 @@ import { ZoomButtons } from "polotno/toolbar/zoom-buttons";
 import { SidePanel } from "polotno/side-panel";
 import { useToast } from "../../../toast-context";
 import { D, ft, gf, mn } from "../../../shared-constants";
+import { loadProject } from "../../project-loader";
 
 interface GraphicProject {
   id: string;
@@ -77,39 +78,31 @@ export function PolotnoShell({ projectId }: { projectId: string }) {
   // Load the project once mounted.
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      try {
-        const res = await fetch(`/api/docu-design/projects?id=${encodeURIComponent(projectId)}`);
-        const j = await res.json();
-        if (!res.ok) {
-          setLoadingError(j.error || "Failed to load graphic project");
-          return;
-        }
+    loadProject(projectId)
+      .then((p) => {
         if (cancelled) return;
-        const p = j.data as GraphicProject;
-        setProject(p);
-        // Hydrate Polotno from editor_doc if we have one, otherwise from
-        // the project's size_preset or artboards.
+        const adapted: GraphicProject = {
+          id: p.id,
+          name: p.name,
+          size_preset: p.size_preset,
+          editor_doc: p.editor_doc,
+          artboards: p.artboards as GraphicProject["artboards"],
+        };
+        setProject(adapted);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const s: any = storeRef.current;
-        const doc = p.editor_doc as Record<string, unknown> | undefined;
+        const doc = p.editor_doc;
         if (doc && Object.keys(doc).length) {
           try { s.loadJSON?.(doc); } catch { /* ignore */ }
         } else {
-          // No prior canvas — start blank with a single page sized from preset.
-          const preset = inferPresetSize(p);
+          const preset = inferPresetSize(adapted);
           try {
             s.setSize?.(preset.w, preset.h);
             if (!s.pages?.length) s.addPage?.();
-          } catch {
-            /* ignore */
-          }
+          } catch { /* ignore */ }
         }
-      } catch (e) {
-        if (!cancelled) setLoadingError(String(e));
-      }
-    }
-    load();
+      })
+      .catch((e) => { if (!cancelled) setLoadingError(String(e)); });
     return () => { cancelled = true; };
   }, [projectId]);
 

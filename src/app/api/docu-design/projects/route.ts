@@ -120,6 +120,11 @@ export async function POST(req: NextRequest) {
 
     const fullRow = { ...baseRow, ...phase2Fields };
 
+    const isSchemaCacheError = (msg: string) =>
+      /Could not find the .* column|schema cache/i.test(msg);
+    const isTypeConstraintError = (msg: string) =>
+      /docu_projects_type_check|violates check constraint/i.test(msg);
+
     let { data, error } = await supabase
       .from(TABLE)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -127,11 +132,9 @@ export async function POST(req: NextRequest) {
       .select()
       .single();
 
-    // Fallback: if PostgREST's schema cache hasn't picked up the Phase 2
-    // columns yet, retry without them and stash the metadata into the
-    // messages array (prefixed __META__) so nothing is lost. The canvas
-    // strips this on load.
-    if (error && /Could not find the .* column|schema cache/i.test(error.message) && Object.keys(phase2Fields).length) {
+    // First fallback: schema cache hasn't picked up Phase 2 columns yet.
+    // Strip them and stash into messages under __META__.
+    if (error && isSchemaCacheError(error.message) && Object.keys(phase2Fields).length) {
       const messages = Array.isArray(baseRow.messages) ? [...(baseRow.messages as unknown[])] : [];
       messages.unshift({
         role: "assistant",
@@ -143,6 +146,65 @@ export async function POST(req: NextRequest) {
         .from(TABLE)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .upsert(fallbackRow as any, { onConflict: "id" })
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
+
+    // Second fallback: the project type itself was rejected by the table's
+    // CHECK constraint (database hasn't run the updated migration). Coerce
+    // type to "other" and stash the original type in __META__ so the
+    // canvas / routes can still recover the intent.
+    if (error && isTypeConstraintError(error.message)) {
+      const originalType = input.type;
+      const safeType = originalType === "document" ? "document" : "other";
+      const meta = { ...phase2Fields, __originalType: originalType };
+      const messages = Array.isArray(baseRow.messages) ? [...(baseRow.messages as unknown[])] : [];
+      messages.unshift({
+        role: "assistant",
+        content: "__META__" + JSON.stringify(meta),
+        ts: Date.now(),
+      });
+      const fallbackRow = { ...baseRow, type: safeType, messages };
+      const retry = await supabase
+        .from(TABLE)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .upsert(fallbackRow as any, { onConflict: "id" })
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
+
+    // Third fallback: schema cache AND type constraint both fail. Drop
+    // Phase 2 fields AND coerce type. Last-ditch insert so the wizard at
+    // least produces a row the user can iterate on.
+    if (error && (isSchemaCacheError(error.message) || isTypeConstraintError(error.message))) {
+      const originalType = input.type;
+      const safeType = originalType === "document" ? "document" : "other";
+      const meta = { ...phase2Fields, __originalType: originalType };
+      const messages = Array.isArray(baseRow.messages) ? [...(baseRow.messages as unknown[])] : [];
+      messages.unshift({
+        role: "assistant",
+        content: "__META__" + JSON.stringify(meta),
+        ts: Date.now(),
+      });
+      const minimalRow = {
+        ...(input.id ? { id: input.id } : {}),
+        name: input.name,
+        type: safeType,
+        fidelity: input.fidelity ?? "high",
+        design_system_id: input.design_system_id ?? null,
+        artboards: input.artboards ?? [],
+        messages,
+        uploads: input.uploads ?? [],
+        updated_at: new Date().toISOString(),
+      };
+      const retry = await supabase
+        .from(TABLE)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .upsert(minimalRow as any, { onConflict: "id" })
         .select()
         .single();
       data = retry.data;
