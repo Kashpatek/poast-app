@@ -1,11 +1,40 @@
 "use client";
 
-// Distribution Pack — paste one article, get every platform variant in
-// one shot. Each section has a copy button. The whole pack persists as
-// a single draft so you can come back to it later.
+// Distribution Pack — POAST's article-launch hub.
+//
+// New flow (matches the actual SA distribution format from the team):
+//   1. Latest articles are auto-fetched from the SemiAnalysis Substack RSS
+//      and shown as clickable cards at the top.
+//   2. Click an article → pre-fills the unified launch post in SA's exact
+//      template: title + subtitle + "READ NOW: <url>".
+//   3. Same post copy goes to X / FB / Threads / LinkedIn. User can tweak
+//      the text inline and pick which Buffer channels to push to.
+//   4. "Send to Buffer" creates a Buffer draft per selected channel via
+//      the existing /api/buffer createPost mutation.
+//
+// Legacy flow (paste an arbitrary article and get full multi-platform
+// variants) is preserved under "Advanced pack" expander.
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { D, ft, gf, mn } from "./shared-constants";
+
+interface Article {
+  title: string;
+  subtitle?: string;
+  url: string;
+  pubDate: string;
+  authors?: string[];
+  coverImage?: string;
+  isPaid?: boolean;
+}
+
+interface BufferChannel {
+  id: string;
+  name: string;
+  service: string;     // "twitter" | "linkedin" | "facebook" | "threads" | "instagram"
+  avatar?: string;
+  isDisconnected?: boolean;
+}
 
 interface Pack {
   summary?: { hook?: string; keyClaim?: string; audienceTakeaway?: string };
@@ -20,40 +49,168 @@ interface Pack {
   newsletter?: { tldr?: string; body?: string };
 }
 
+// The launch-post services SA fires on every article publish.
+const LAUNCH_SERVICES = ["twitter", "linkedin", "facebook", "threads"];
+
 export default function DistributionPack() {
-  const [mode, setMode] = useState<"url" | "text">("text");
-  const [url, setUrl] = useState("");
-  const [text, setText] = useState("");
-  const [title, setTitle] = useState("");
-  const [loading, setLoading] = useState(false);
+  // ── Article list ────────────────────────────────────────────────────
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [articlesLoading, setArticlesLoading] = useState(true);
+  const [articlesError, setArticlesError] = useState<string | null>(null);
+
+  // ── Composed post ───────────────────────────────────────────────────
+  const [activeArticle, setActiveArticle] = useState<Article | null>(null);
+  const [postText, setPostText] = useState("");
+
+  // ── Buffer ──────────────────────────────────────────────────────────
+  const [channels, setChannels] = useState<BufferChannel[]>([]);
+  const [channelsLoading, setChannelsLoading] = useState(true);
+  const [channelsError, setChannelsError] = useState<string | null>(null);
+  const [selectedChannels, setSelectedChannels] = useState<Record<string, boolean>>({});
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ ok: number; failed: Array<{ name: string; error: string }> } | null>(null);
+
+  // ── Advanced pack (legacy) ──────────────────────────────────────────
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [advancedMode, setAdvancedMode] = useState<"text" | "url">("text");
+  const [advancedUrl, setAdvancedUrl] = useState("");
+  const [advancedText, setAdvancedText] = useState("");
+  const [advancedTitle, setAdvancedTitle] = useState("");
+  const [advancedLoading, setAdvancedLoading] = useState(false);
   const [pack, setPack] = useState<Pack | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [advancedError, setAdvancedError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
-  async function generate() {
-    setLoading(true);
-    setError(null);
+  const loadArticles = useCallback(async () => {
+    setArticlesLoading(true);
+    try {
+      const res = await fetch("/api/sa-articles?limit=10");
+      const j = await res.json();
+      if (!res.ok) {
+        setArticlesError(j.error || "Couldn't load articles");
+      } else {
+        setArticles(j.articles || []);
+        setArticlesError(null);
+      }
+    } catch (e) {
+      setArticlesError(String(e));
+    } finally {
+      setArticlesLoading(false);
+    }
+  }, []);
+
+  const loadChannels = useCallback(async () => {
+    setChannelsLoading(true);
+    try {
+      const res = await fetch("/api/buffer?type=channels");
+      const j = await res.json();
+      if (!res.ok) {
+        setChannelsError(j.error || "Couldn't load Buffer channels");
+      } else {
+        const chans: BufferChannel[] = (j.channels || []).filter((c: BufferChannel) => !c.isDisconnected);
+        setChannels(chans);
+        // Pre-select the four launch services if available.
+        const preselect: Record<string, boolean> = {};
+        chans.forEach((c) => {
+          if (LAUNCH_SERVICES.includes((c.service || "").toLowerCase())) preselect[c.id] = true;
+        });
+        setSelectedChannels(preselect);
+        setChannelsError(null);
+      }
+    } catch (e) {
+      setChannelsError(String(e));
+    } finally {
+      setChannelsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadArticles(); loadChannels(); }, [loadArticles, loadChannels]);
+
+  // ── Compose: turn an article into SA's launch-post template ─────────
+  function pickArticle(a: Article) {
+    setActiveArticle(a);
+    setPostText(composeLaunchPost(a));
+    setSendResult(null);
+  }
+
+  const charCounts = useMemo(() => {
+    return {
+      x: postText.length,
+      linkedin: postText.length,
+      facebook: postText.length,
+      threads: postText.length,
+    };
+  }, [postText]);
+
+  // ── Send to Buffer ──────────────────────────────────────────────────
+  async function sendToBuffer() {
+    if (!postText.trim() || sending) return;
+    const channelIds = Object.entries(selectedChannels).filter(([, v]) => v).map(([k]) => k);
+    if (!channelIds.length) return;
+
+    setSending(true);
+    setSendResult(null);
+    let ok = 0;
+    const failed: Array<{ name: string; error: string }> = [];
+
+    // Buffer's createPost accepts channelIds as an array but per-channel
+    // text customization needs separate calls. We fire one per channel so
+    // each draft is independently editable in Buffer.
+    for (const channelId of channelIds) {
+      const chan = channels.find((c) => c.id === channelId);
+      try {
+        const res = await fetch("/api/buffer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "createPost",
+            input: {
+              channelIds: [channelId],
+              text: postText.trim(),
+              status: "draft",
+              media: activeArticle?.coverImage ? { url: activeArticle.coverImage } : undefined,
+            },
+          }),
+        });
+        const j = await res.json();
+        if (res.ok && (j.post || !j.error)) {
+          ok++;
+        } else {
+          failed.push({ name: chan?.name || channelId, error: j.error || ("HTTP " + res.status) });
+        }
+      } catch (e) {
+        failed.push({ name: chan?.name || channelId, error: String(e) });
+      }
+    }
+    setSendResult({ ok, failed });
+    setSending(false);
+  }
+
+  // ── Advanced pack: legacy multi-platform variant generator ──────────
+  async function generateAdvancedPack() {
+    setAdvancedLoading(true);
+    setAdvancedError(null);
     setPack(null);
     try {
       const res = await fetch("/api/distribution-pack", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          url: mode === "url" ? url.trim() : undefined,
-          text: mode === "text" ? text.trim() : undefined,
-          title: title.trim() || undefined,
+          url: advancedMode === "url" ? advancedUrl.trim() : (activeArticle?.url || undefined),
+          text: advancedMode === "text" ? advancedText.trim() : undefined,
+          title: advancedTitle.trim() || activeArticle?.title,
         }),
       });
       const j = await res.json();
       if (!res.ok) {
-        setError(j.error || "Generation failed");
+        setAdvancedError(j.error || "Generation failed");
         return;
       }
       setPack(j.pack as Pack);
     } catch (e) {
-      setError(String(e));
+      setAdvancedError(String(e));
     } finally {
-      setLoading(false);
+      setAdvancedLoading(false);
     }
   }
 
@@ -65,230 +222,361 @@ export default function DistributionPack() {
     } catch { /* ignore */ }
   }
 
+  const channelCount = Object.values(selectedChannels).filter(Boolean).length;
+
   return (
     <div style={{ maxWidth: 1180, margin: "0 auto", padding: "40px 32px" }}>
       <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "4px 10px", borderRadius: 999, background: "rgba(247,176,65,0.10)", border: `1px solid ${D.amber}55`, marginBottom: 14 }}>
         <span style={{ width: 6, height: 6, borderRadius: "50%", background: D.amber, boxShadow: `0 0 8px ${D.amber}` }} />
-        <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.amber, textTransform: "uppercase" }}>Orchestrator</span>
+        <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.amber, textTransform: "uppercase" }}>Launch hub</span>
       </div>
       <h1 style={{ fontFamily: gf, fontSize: 38, fontWeight: 900, letterSpacing: -1, margin: 0, marginBottom: 8, color: D.tx }}>Distribution Pack</h1>
-      <div style={{ fontFamily: ft, fontSize: 15, color: D.txm, maxWidth: 720, lineHeight: 1.5, marginBottom: 28 }}>
-        One article in. SA Weekly script, LinkedIn article, X thread, IG carousel, quote card, newsletter, and per-platform captions out. Copy each section as-is.
+      <div style={{ fontFamily: ft, fontSize: 15, color: D.txm, maxWidth: 720, lineHeight: 1.5, marginBottom: 24 }}>
+        Pick a freshly-published SA article. Same launch post for X, Facebook, Threads, and LinkedIn. Push straight to Buffer as drafts.
       </div>
 
-      {!pack ? (
-        <div style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 14, padding: 22 }}>
-          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-            {(["text", "url"] as const).map((m) => {
-              const active = mode === m;
-              return (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMode(m)}
-                  style={{
-                    padding: "8px 16px",
-                    background: active ? D.amber : "transparent",
-                    color: active ? "#060608" : D.tx,
-                    border: `1px solid ${active ? D.amber : D.border}`,
-                    borderRadius: 8,
-                    fontFamily: ft,
-                    fontSize: 13,
-                    fontWeight: active ? 800 : 500,
-                    cursor: "pointer",
-                  }}
-                >
-                  {m === "text" ? "Paste article" : "Paste URL"}
-                </button>
-              );
-            })}
-          </div>
-
-          <div style={{ marginBottom: 14 }}>
-            <div style={lbl}>Title (optional, helps with naming)</div>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Source article title"
-              style={inputStyle}
-            />
-          </div>
-
-          {mode === "url" ? (
-            <div>
-              <div style={lbl}>Article URL</div>
-              <input
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://semianalysis.com/..."
-                style={inputStyle}
-              />
-            </div>
-          ) : (
-            <div>
-              <div style={lbl}>Article text</div>
-              <textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="Paste the full article body…"
-                style={{ ...inputStyle, minHeight: 260, resize: "vertical" }}
-              />
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={generate}
-            disabled={loading || (mode === "url" ? !url.trim() : text.trim().length < 200)}
-            style={{
-              marginTop: 16,
-              width: "100%",
-              background: D.amber,
-              color: "#060608",
-              border: "none",
-              padding: "14px 22px",
-              borderRadius: 10,
-              fontFamily: ft,
-              fontSize: 14,
-              fontWeight: 800,
-              cursor: loading ? "wait" : "pointer",
-              opacity: loading ? 0.6 : 1,
-            }}
-          >
-            {loading ? "Drafting the full pack…" : "Generate distribution pack"}
+      {/* Article list */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+          <div style={lbl}>Latest articles</div>
+          <button type="button" onClick={loadArticles} style={{ background: "transparent", border: "none", color: D.amber, fontFamily: mn, fontSize: 11, cursor: "pointer", textDecoration: "underline", letterSpacing: 0.4 }}>
+            {articlesLoading ? "Loading…" : "Refresh"}
           </button>
-          {error ? <div style={{ marginTop: 10, fontFamily: mn, fontSize: 11, color: D.coral }}>{error}</div> : null}
         </div>
-      ) : (
-        <div>
-          <div style={{ marginBottom: 14 }}>
-            <button
-              type="button"
-              onClick={() => setPack(null)}
-              style={{ background: "transparent", border: `1px solid ${D.border}`, color: D.tx, padding: "8px 14px", borderRadius: 6, fontFamily: mn, fontSize: 11, cursor: "pointer" }}
-            >
-              ← Start over
-            </button>
-          </div>
+        {articlesError ? <div style={{ fontFamily: mn, fontSize: 11, color: D.coral, marginBottom: 10 }}>{articlesError}</div> : null}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
+          {articles.map((a) => {
+            const active = activeArticle?.url === a.url;
+            return (
+              <button
+                type="button"
+                key={a.url}
+                onClick={() => pickArticle(a)}
+                style={{
+                  background: active ? "rgba(247,176,65,0.10)" : D.surface,
+                  border: `1px solid ${active ? D.amber : D.border}`,
+                  borderRadius: 10,
+                  padding: 0,
+                  cursor: "pointer",
+                  fontFamily: ft,
+                  color: D.tx,
+                  textAlign: "left",
+                  display: "flex",
+                  flexDirection: "column",
+                  overflow: "hidden",
+                }}
+              >
+                {a.coverImage ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={a.coverImage} alt="" style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", display: "block" }} />
+                ) : null}
+                <div style={{ padding: "10px 12px" }}>
+                  <div style={{ fontFamily: gf, fontSize: 13.5, fontWeight: 700, color: D.tx, letterSpacing: -0.3, lineHeight: 1.3, marginBottom: 4 }}>
+                    {a.title}
+                  </div>
+                  {a.subtitle ? (
+                    <div style={{ fontFamily: ft, fontSize: 11.5, color: D.txm, lineHeight: 1.4, marginBottom: 6, maxHeight: 50, overflow: "hidden" }}>
+                      {a.subtitle.length > 140 ? a.subtitle.slice(0, 140) + "…" : a.subtitle}
+                    </div>
+                  ) : null}
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.4 }}>
+                    <span>{a.pubDate ? new Date(a.pubDate).toLocaleDateString() : ""}</span>
+                    {a.isPaid ? <span style={{ padding: "1px 5px", border: `1px solid ${D.amber}55`, color: D.amber, borderRadius: 3 }}>PAID</span> : null}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+          {articlesLoading && articles.length === 0 ? <div style={{ fontFamily: mn, fontSize: 11, color: D.txd, gridColumn: "1 / -1", padding: 20 }}>Loading…</div> : null}
+        </div>
+      </div>
 
-          {/* Summary band */}
-          {pack.summary ? (
-            <div style={{ background: D.amber + "12", border: `1px solid ${D.amber}44`, borderRadius: 12, padding: "16px 18px", marginBottom: 18 }}>
-              {pack.summary.hook ? <div style={{ fontFamily: gf, fontSize: 22, fontWeight: 800, color: D.tx, letterSpacing: -0.6, marginBottom: 8, lineHeight: 1.25 }}>{pack.summary.hook}</div> : null}
-              <div style={{ display: "flex", gap: 18, flexWrap: "wrap", fontFamily: ft, fontSize: 12, color: D.txm }}>
-                {pack.summary.keyClaim ? <span><strong style={{ color: D.amber, fontFamily: mn, letterSpacing: 1, marginRight: 6 }}>CLAIM</strong>{pack.summary.keyClaim}</span> : null}
-                {pack.summary.audienceTakeaway ? <span><strong style={{ color: D.amber, fontFamily: mn, letterSpacing: 1, marginRight: 6 }}>SO WHAT</strong>{pack.summary.audienceTakeaway}</span> : null}
+      {/* Composer */}
+      {activeArticle ? (
+        <div style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 14, padding: 22, marginBottom: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+            <div>
+              <div style={lbl}>Launch post · same copy across all 4 platforms</div>
+              <div style={{ fontFamily: gf, fontSize: 18, fontWeight: 800, color: D.tx, letterSpacing: -0.5, marginTop: 4 }}>
+                {activeArticle.title}
               </div>
             </div>
-          ) : null}
+            <button
+              type="button"
+              onClick={() => setPostText(composeLaunchPost(activeArticle))}
+              style={{ background: "transparent", border: `1px solid ${D.border}`, color: D.tx, padding: "6px 12px", borderRadius: 6, fontFamily: mn, fontSize: 11, cursor: "pointer", letterSpacing: 0.4 }}
+            >
+              Reset to template
+            </button>
+          </div>
+          <textarea
+            value={postText}
+            onChange={(e) => setPostText(e.target.value)}
+            style={{
+              width: "100%",
+              minHeight: 200,
+              padding: "14px 16px",
+              background: D.bg,
+              border: `1px solid ${D.border}`,
+              borderRadius: 10,
+              color: D.tx,
+              fontFamily: ft,
+              fontSize: 14,
+              outline: "none",
+              boxSizing: "border-box",
+              resize: "vertical",
+              lineHeight: 1.6,
+            }}
+          />
+          <div style={{ display: "flex", gap: 14, marginTop: 8, fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.4, flexWrap: "wrap" }}>
+            <span>X: <strong style={{ color: charCounts.x > 280 ? D.coral : D.tx }}>{charCounts.x}</strong>/280</span>
+            <span>LinkedIn: <strong style={{ color: charCounts.linkedin > 3000 ? D.coral : D.tx }}>{charCounts.linkedin}</strong>/3000</span>
+            <span>FB: <strong style={{ color: D.tx }}>{charCounts.facebook}</strong></span>
+            <span>Threads: <strong style={{ color: charCounts.threads > 500 ? D.coral : D.tx }}>{charCounts.threads}</strong>/500</span>
+            <span style={{ marginLeft: "auto" }}>
+              <button type="button" onClick={() => copy("post", postText)} style={{ background: copied === "post" ? D.teal : "transparent", color: copied === "post" ? "#060608" : D.amber, border: `1px solid ${copied === "post" ? D.teal : D.amber}`, padding: "3px 10px", borderRadius: 4, fontFamily: mn, fontSize: 9, fontWeight: 700, letterSpacing: 0.6, cursor: "pointer" }}>
+                {copied === "post" ? "COPIED" : "COPY POST"}
+              </button>
+            </span>
+          </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            {pack.saWeekly ? (
-              <PackCard title="SA Weekly" copyKey="sa-weekly" pack={pack.saWeekly.title + "\n\n" + (pack.saWeekly.description || "") + "\n\nTalking points:\n" + (pack.saWeekly.talkingPoints || []).map((p) => "- " + p).join("\n")} copied={copied} onCopy={copy}>
-                <div style={{ fontFamily: gf, fontSize: 14, fontWeight: 700, color: D.tx, marginBottom: 6 }}>{pack.saWeekly.title}</div>
-                <div style={{ fontFamily: ft, fontSize: 12, color: D.txm, lineHeight: 1.5, marginBottom: 8, whiteSpace: "pre-wrap" }}>{pack.saWeekly.description}</div>
-                {pack.saWeekly.talkingPoints ? (
-                  <ul style={{ paddingLeft: 18, margin: 0 }}>
-                    {pack.saWeekly.talkingPoints.map((p, i) => <li key={i} style={{ fontFamily: ft, fontSize: 12, color: D.tx, marginBottom: 4 }}>{p}</li>)}
-                  </ul>
+          {/* Buffer channels + Send */}
+          <div style={{ marginTop: 20, borderTop: `1px solid ${D.border}`, paddingTop: 16 }}>
+            <div style={lbl}>Buffer channels</div>
+            {channelsLoading ? (
+              <div style={{ fontFamily: mn, fontSize: 11, color: D.txd }}>Loading channels…</div>
+            ) : channelsError ? (
+              <div style={{ fontFamily: mn, fontSize: 11, color: D.coral }}>{channelsError}. Configure BUFFER_API_KEY to enable direct send.</div>
+            ) : channels.length === 0 ? (
+              <div style={{ fontFamily: mn, fontSize: 11, color: D.txd }}>No connected channels.</div>
+            ) : (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+                {channels.map((c) => {
+                  const on = !!selectedChannels[c.id];
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setSelectedChannels((p) => ({ ...p, [c.id]: !p[c.id] }))}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "6px 12px",
+                        background: on ? "rgba(247,176,65,0.10)" : "transparent",
+                        border: `1px solid ${on ? D.amber : D.border}`,
+                        borderRadius: 6,
+                        color: D.tx,
+                        cursor: "pointer",
+                        fontFamily: ft,
+                        fontSize: 12,
+                      }}
+                    >
+                      <span style={{ fontFamily: mn, fontSize: 9, color: on ? D.amber : D.txd, letterSpacing: 0.6, textTransform: "uppercase" }}>{c.service}</span>
+                      {c.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={sendToBuffer}
+              disabled={sending || !postText.trim() || channelCount === 0}
+              style={{
+                background: D.amber,
+                color: "#060608",
+                border: "none",
+                padding: "12px 22px",
+                borderRadius: 10,
+                fontFamily: ft,
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: sending || !postText.trim() || channelCount === 0 ? "not-allowed" : "pointer",
+                opacity: sending || !postText.trim() || channelCount === 0 ? 0.5 : 1,
+              }}
+            >
+              {sending ? "Sending to Buffer…" : channelCount === 0 ? "Pick at least one channel" : `Send to Buffer as drafts (${channelCount})`}
+            </button>
+
+            {sendResult ? (
+              <div style={{ marginTop: 14, padding: "10px 14px", background: D.bg, borderRadius: 8, border: `1px solid ${D.border}` }}>
+                <div style={{ fontFamily: mn, fontSize: 11, color: D.teal, letterSpacing: 0.4, marginBottom: 4 }}>
+                  {sendResult.ok} draft{sendResult.ok === 1 ? "" : "s"} created in Buffer.
+                </div>
+                {sendResult.failed.length > 0 ? (
+                  <div style={{ fontFamily: mn, fontSize: 10, color: D.coral }}>
+                    {sendResult.failed.length} failed: {sendResult.failed.map((f) => `${f.name} (${f.error.slice(0, 60)})`).join(" · ")}
+                  </div>
                 ) : null}
-              </PackCard>
-            ) : null}
-
-            {pack.linkedinArticle ? (
-              <PackCard title="LinkedIn Article" copyKey="li-article" pack={[pack.linkedinArticle.headline, pack.linkedinArticle.subhead, "", pack.linkedinArticle.body].filter(Boolean).join("\n\n")} copied={copied} onCopy={copy}>
-                <div style={{ fontFamily: gf, fontSize: 14, fontWeight: 700, color: D.tx, marginBottom: 4 }}>{pack.linkedinArticle.headline}</div>
-                {pack.linkedinArticle.subhead ? <div style={{ fontFamily: ft, fontSize: 11, color: D.txm, fontStyle: "italic", marginBottom: 8 }}>{pack.linkedinArticle.subhead}</div> : null}
-                <div style={{ fontFamily: ft, fontSize: 12, color: D.txm, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{pack.linkedinArticle.body}</div>
-              </PackCard>
-            ) : null}
-
-            {pack.xThread ? (
-              <PackCard title="X Thread" copyKey="x-thread" pack={pack.xThread.map((t, i) => (i + 1) + "/ " + t).join("\n\n")} copied={copied} onCopy={copy}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {pack.xThread.map((t, i) => (
-                    <div key={i} style={{ fontFamily: ft, fontSize: 12, color: D.tx, padding: "6px 10px", background: "rgba(255,255,255,0.02)", borderRadius: 6, lineHeight: 1.5 }}>
-                      <span style={{ fontFamily: mn, fontSize: 10, color: D.amber, marginRight: 6 }}>{i + 1}/</span>
-                      {t}
-                    </div>
-                  ))}
-                </div>
-              </PackCard>
-            ) : null}
-
-            {pack.linkedinPost ? (
-              <PackCard title="LinkedIn Post" copyKey="li-post" pack={pack.linkedinPost} copied={copied} onCopy={copy}>
-                <div style={{ fontFamily: ft, fontSize: 12, color: D.tx, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{pack.linkedinPost}</div>
-              </PackCard>
-            ) : null}
-
-            {pack.igCarousel ? (
-              <PackCard title="IG Carousel" copyKey="ig-carousel" pack={(pack.igCarousel.slides || []).map((s, i) => `Slide ${i + 1}: ${s.headline}\n${s.body}`).join("\n\n") + "\n\n--- Caption ---\n" + (pack.igCarousel.caption || "")} copied={copied} onCopy={copy}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
-                  {(pack.igCarousel.slides || []).map((s, i) => (
-                    <div key={i} style={{ fontFamily: ft, fontSize: 11, color: D.tx, padding: "4px 8px", background: "rgba(255,255,255,0.02)", borderRadius: 4, borderLeft: `2px solid ${D.amber}` }}>
-                      <strong style={{ marginRight: 6, color: D.amber, fontFamily: mn, fontSize: 9 }}>{i + 1}</strong>
-                      {s.headline}
-                      {s.body ? <div style={{ color: D.txm, fontSize: 10, marginTop: 2 }}>{s.body}</div> : null}
-                    </div>
-                  ))}
-                </div>
-                {pack.igCarousel.caption ? <div style={{ fontFamily: ft, fontSize: 11, color: D.txm, lineHeight: 1.5, padding: "6px 8px", background: "rgba(255,255,255,0.02)", borderRadius: 4 }}>{pack.igCarousel.caption}</div> : null}
-              </PackCard>
-            ) : null}
-
-            {pack.tiktok ? (
-              <PackCard title="TikTok" copyKey="tiktok" pack={pack.tiktok} copied={copied} onCopy={copy}>
-                <div style={{ fontFamily: ft, fontSize: 12, color: D.tx, lineHeight: 1.6 }}>{pack.tiktok}</div>
-              </PackCard>
-            ) : null}
-
-            {pack.igStory ? (
-              <PackCard title="IG Story" copyKey="ig-story" pack={pack.igStory} copied={copied} onCopy={copy}>
-                <div style={{ fontFamily: gf, fontSize: 14, color: D.tx, fontWeight: 700 }}>{pack.igStory}</div>
-              </PackCard>
-            ) : null}
-
-            {pack.quoteCard ? (
-              <PackCard title="Quote Card" copyKey="quote" pack={`"${pack.quoteCard.quote}"\n— ${pack.quoteCard.attribution} (${pack.quoteCard.source})`} copied={copied} onCopy={copy}>
-                <div style={{ fontFamily: gf, fontSize: 13, fontStyle: "italic", color: D.tx, lineHeight: 1.5, marginBottom: 6 }}>&quot;{pack.quoteCard.quote}&quot;</div>
-                <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 0.6, textTransform: "uppercase" }}>— {pack.quoteCard.attribution} · {pack.quoteCard.source}</div>
-              </PackCard>
-            ) : null}
-
-            {pack.newsletter ? (
-              <PackCard title="Newsletter" copyKey="newsletter" pack={(pack.newsletter.tldr ? "TL;DR: " + pack.newsletter.tldr + "\n\n" : "") + (pack.newsletter.body || "")} copied={copied} onCopy={copy}>
-                {pack.newsletter.tldr ? <div style={{ fontFamily: ft, fontSize: 12, color: D.amber, fontWeight: 700, marginBottom: 8 }}><strong>TL;DR:</strong> {pack.newsletter.tldr}</div> : null}
-                <div style={{ fontFamily: ft, fontSize: 12, color: D.tx, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{pack.newsletter.body}</div>
-              </PackCard>
+                <a href="https://publish.buffer.com" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 10, color: D.amber, textDecoration: "underline", letterSpacing: 0.4 }}>Open Buffer →</a>
+              </div>
             ) : null}
           </div>
         </div>
+      ) : (
+        <div style={{ ...emptyBox, marginBottom: 24 }}>
+          Pick an article above to compose the launch post. The template fills in title, subtitle, and the READ NOW link automatically.
+        </div>
       )}
+
+      {/* Advanced (legacy) */}
+      <div style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, marginBottom: 24 }}>
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen((v) => !v)}
+          style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", background: "transparent", border: "none", color: D.tx, fontFamily: ft, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+        >
+          <span>Advanced pack · multi-platform variants from any article</span>
+          <span style={{ fontFamily: mn, fontSize: 11, color: D.txm }}>{advancedOpen ? "−" : "+"}</span>
+        </button>
+
+        {advancedOpen ? (
+          <div style={{ padding: "0 18px 18px", borderTop: `1px solid ${D.border}` }}>
+            <div style={{ display: "flex", gap: 8, marginTop: 14, marginBottom: 14 }}>
+              {(["text", "url"] as const).map((m) => {
+                const active = advancedMode === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setAdvancedMode(m)}
+                    style={{ padding: "6px 14px", background: active ? D.amber : "transparent", color: active ? "#060608" : D.tx, border: `1px solid ${active ? D.amber : D.border}`, borderRadius: 6, fontFamily: mn, fontSize: 11, cursor: "pointer", letterSpacing: 0.4 }}
+                  >
+                    {m === "text" ? "Paste article" : "Paste URL"}
+                  </button>
+                );
+              })}
+            </div>
+
+            <input
+              value={advancedTitle}
+              onChange={(e) => setAdvancedTitle(e.target.value)}
+              placeholder="Article title (optional — auto-filled from picked article)"
+              style={{ ...inputStyle, marginBottom: 10 }}
+            />
+
+            {advancedMode === "url" ? (
+              <input
+                value={advancedUrl}
+                onChange={(e) => setAdvancedUrl(e.target.value)}
+                placeholder="https://newsletter.semianalysis.com/p/..."
+                style={inputStyle}
+              />
+            ) : (
+              <textarea
+                value={advancedText}
+                onChange={(e) => setAdvancedText(e.target.value)}
+                placeholder="Paste full article text…"
+                style={{ ...inputStyle, minHeight: 180, resize: "vertical" }}
+              />
+            )}
+
+            <button
+              type="button"
+              onClick={generateAdvancedPack}
+              disabled={advancedLoading || (advancedMode === "url" ? !advancedUrl.trim() && !activeArticle : advancedText.trim().length < 200)}
+              style={{ marginTop: 12, background: D.amber, color: "#060608", border: "none", padding: "10px 20px", borderRadius: 8, fontFamily: ft, fontSize: 13, fontWeight: 800, cursor: advancedLoading ? "wait" : "pointer", opacity: advancedLoading ? 0.6 : 1 }}
+            >
+              {advancedLoading ? "Drafting multi-platform pack…" : "Generate full pack"}
+            </button>
+            {advancedError ? <div style={{ marginTop: 10, fontFamily: mn, fontSize: 11, color: D.coral }}>{advancedError}</div> : null}
+
+            {pack ? <AdvancedPackView pack={pack} copied={copied} onCopy={copy} /> : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
 
-function PackCard({ title, copyKey, pack, copied, onCopy, children }: { title: string; copyKey: string; pack: string; copied: string | null; onCopy: (key: string, text: string) => void; children: React.ReactNode }) {
+// SA's exact launch post template (matches the screenshots from the team).
+//   Line 1: title
+//   Line 2: subtitle (full)
+//   blank
+//   "READ NOW: <url>"
+// X is 280 chars — most SA subtitles fit. Long ones get truncated by
+// the user with the inline counter as a guide.
+function composeLaunchPost(a: Article): string {
+  const lines: string[] = [];
+  lines.push(a.title);
+  if (a.subtitle) lines.push(a.subtitle);
+  lines.push("");
+  lines.push("READ NOW: " + a.url);
+  return lines.join("\n");
+}
+
+function AdvancedPackView({ pack, copied, onCopy }: { pack: Pack; copied: string | null; onCopy: (key: string, text: string) => void }) {
   return (
-    <div style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, padding: "14px 16px", display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+    <div style={{ marginTop: 18 }}>
+      {pack.summary ? (
+        <div style={{ background: D.amber + "10", border: `1px solid ${D.amber}40`, borderRadius: 10, padding: "12px 16px", marginBottom: 14 }}>
+          {pack.summary.hook ? <div style={{ fontFamily: gf, fontSize: 18, fontWeight: 800, color: D.tx, marginBottom: 6 }}>{pack.summary.hook}</div> : null}
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontFamily: ft, fontSize: 12, color: D.txm }}>
+            {pack.summary.keyClaim ? <span><strong style={{ color: D.amber, fontFamily: mn, fontSize: 9, marginRight: 6 }}>CLAIM</strong>{pack.summary.keyClaim}</span> : null}
+            {pack.summary.audienceTakeaway ? <span><strong style={{ color: D.amber, fontFamily: mn, fontSize: 9, marginRight: 6 }}>SO WHAT</strong>{pack.summary.audienceTakeaway}</span> : null}
+          </div>
+        </div>
+      ) : null}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {pack.xThread ? (
+          <PackCard title="X Thread" copyKey="x-thread" text={pack.xThread.map((t, i) => (i + 1) + "/ " + t).join("\n\n")} copied={copied} onCopy={onCopy}>
+            {pack.xThread.map((t, i) => (
+              <div key={i} style={{ fontFamily: ft, fontSize: 12, color: D.tx, padding: "6px 10px", background: "rgba(255,255,255,0.02)", borderRadius: 6, marginBottom: 4, lineHeight: 1.5 }}>
+                <span style={{ fontFamily: mn, fontSize: 10, color: D.amber, marginRight: 6 }}>{i + 1}/</span>{t}
+              </div>
+            ))}
+          </PackCard>
+        ) : null}
+        {pack.linkedinArticle ? (
+          <PackCard title="LinkedIn Article" copyKey="li-article" text={[pack.linkedinArticle.headline, pack.linkedinArticle.subhead, "", pack.linkedinArticle.body].filter(Boolean).join("\n\n")} copied={copied} onCopy={onCopy}>
+            <div style={{ fontFamily: gf, fontSize: 14, fontWeight: 700, color: D.tx, marginBottom: 4 }}>{pack.linkedinArticle.headline}</div>
+            <div style={{ fontFamily: ft, fontSize: 12, color: D.txm, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{pack.linkedinArticle.body}</div>
+          </PackCard>
+        ) : null}
+        {pack.igCarousel ? (
+          <PackCard title="IG Carousel" copyKey="ig-carousel" text={(pack.igCarousel.slides || []).map((s, i) => `Slide ${i + 1}: ${s.headline}\n${s.body}`).join("\n\n") + "\n\n" + (pack.igCarousel.caption || "")} copied={copied} onCopy={onCopy}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {(pack.igCarousel.slides || []).map((s, i) => (
+                <div key={i} style={{ fontFamily: ft, fontSize: 11, color: D.tx, padding: "4px 8px", background: "rgba(255,255,255,0.02)", borderRadius: 4, borderLeft: `2px solid ${D.amber}` }}>
+                  <strong style={{ color: D.amber, fontFamily: mn, fontSize: 9, marginRight: 6 }}>{i + 1}</strong>{s.headline}
+                </div>
+              ))}
+            </div>
+          </PackCard>
+        ) : null}
+        {pack.tiktok ? (
+          <PackCard title="TikTok" copyKey="tiktok" text={pack.tiktok} copied={copied} onCopy={onCopy}>
+            <div style={{ fontFamily: ft, fontSize: 12, color: D.tx, lineHeight: 1.6 }}>{pack.tiktok}</div>
+          </PackCard>
+        ) : null}
+        {pack.quoteCard ? (
+          <PackCard title="Quote Card" copyKey="quote" text={`"${pack.quoteCard.quote}"\n— ${pack.quoteCard.attribution} (${pack.quoteCard.source})`} copied={copied} onCopy={onCopy}>
+            <div style={{ fontFamily: gf, fontSize: 13, fontStyle: "italic", color: D.tx, lineHeight: 1.5 }}>&quot;{pack.quoteCard.quote}&quot;</div>
+            <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, marginTop: 4 }}>— {pack.quoteCard.attribution} · {pack.quoteCard.source}</div>
+          </PackCard>
+        ) : null}
+        {pack.newsletter ? (
+          <PackCard title="Newsletter" copyKey="newsletter" text={(pack.newsletter.tldr ? "TL;DR: " + pack.newsletter.tldr + "\n\n" : "") + (pack.newsletter.body || "")} copied={copied} onCopy={onCopy}>
+            {pack.newsletter.tldr ? <div style={{ fontFamily: ft, fontSize: 12, color: D.amber, fontWeight: 700, marginBottom: 6 }}>TL;DR: {pack.newsletter.tldr}</div> : null}
+            <div style={{ fontFamily: ft, fontSize: 12, color: D.tx, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{pack.newsletter.body}</div>
+          </PackCard>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function PackCard({ title, copyKey, text, copied, onCopy, children }: { title: string; copyKey: string; text: string; copied: string | null; onCopy: (k: string, t: string) => void; children: React.ReactNode }) {
+  return (
+    <div style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${D.border}`, borderRadius: 10, padding: "12px 14px", display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
         <div style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.amber, textTransform: "uppercase" }}>{title}</div>
         <button
           type="button"
-          onClick={() => onCopy(copyKey, pack)}
-          style={{
-            padding: "4px 10px",
-            background: copied === copyKey ? D.teal : "transparent",
-            color: copied === copyKey ? "#060608" : D.tx,
-            border: `1px solid ${copied === copyKey ? D.teal : D.border}`,
-            borderRadius: 4,
-            fontFamily: mn,
-            fontSize: 9,
-            fontWeight: 700,
-            letterSpacing: 0.8,
-            cursor: "pointer",
-          }}
+          onClick={() => onCopy(copyKey, text)}
+          style={{ padding: "3px 10px", background: copied === copyKey ? D.teal : "transparent", color: copied === copyKey ? "#060608" : D.tx, border: `1px solid ${copied === copyKey ? D.teal : D.border}`, borderRadius: 4, fontFamily: mn, fontSize: 9, fontWeight: 700, letterSpacing: 0.8, cursor: "pointer" }}
         >
           {copied === copyKey ? "COPIED" : "COPY"}
         </button>
@@ -298,5 +586,6 @@ function PackCard({ title, copyKey, pack, copied, onCopy, children }: { title: s
   );
 }
 
-const lbl: React.CSSProperties = { fontFamily: mn, fontSize: 10, letterSpacing: 1.2, textTransform: "uppercase", color: D.txd, marginBottom: 4 };
+const lbl: React.CSSProperties = { fontFamily: mn, fontSize: 10, letterSpacing: 1.4, textTransform: "uppercase", color: D.txd, marginBottom: 6 };
 const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", background: D.bg, border: `1px solid ${D.border}`, borderRadius: 6, color: D.tx, fontFamily: ft, fontSize: 13, outline: "none", boxSizing: "border-box" };
+const emptyBox: React.CSSProperties = { border: `1px dashed ${D.border}`, borderRadius: 12, padding: 28, background: D.surface, color: D.txm, fontFamily: ft, fontSize: 14, lineHeight: 1.5 };
