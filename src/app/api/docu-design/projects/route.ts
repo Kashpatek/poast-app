@@ -31,15 +31,34 @@ const MessageSchema = z.object({
   uploads: z.array(z.object({ url: z.string(), name: z.string().optional(), kind: z.string().optional() })).optional(),
 });
 
+const BriefSchema = z
+  .object({
+    title: z.string().optional(),
+    subtitle: z.string().optional(),
+    audience: z.string().optional(),
+    tone: z.string().optional(),
+    keyPoints: z.array(z.string()).optional(),
+    context: z.string().optional(),
+    designSystemOverrideId: z.string().uuid().nullable().optional(),
+  })
+  .passthrough();
+
 const ProjectSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1).max(160),
-  type: z.enum(["document", "other"]),
+  type: z.enum(["document", "other", "graphic", "image", "motion", "programmatic", "quote", "event"]),
   fidelity: z.enum(["wireframe", "high"]).optional(),
   design_system_id: z.string().uuid().nullable().optional(),
   artboards: z.array(ArtboardSchema).optional(),
   messages: z.array(MessageSchema).optional(),
   uploads: z.array(z.object({ url: z.string(), name: z.string().optional(), kind: z.string().optional() })).optional(),
+  size_preset: z.string().nullable().optional(),
+  purpose: z.string().nullable().optional(),
+  category: z.string().nullable().optional(),
+  brief: BriefSchema.optional(),
+  format: z.string().optional(),
+  output_files: z.array(z.unknown()).optional(),
+  editor_doc: z.unknown().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -86,6 +105,14 @@ export async function POST(req: NextRequest) {
       uploads: input.uploads ?? [],
       updated_at: new Date().toISOString(),
     };
+    // Phase 2 fields — only set when provided so older clients keep working.
+    if (input.size_preset !== undefined) row.size_preset = input.size_preset;
+    if (input.purpose !== undefined)     row.purpose = input.purpose;
+    if (input.category !== undefined)    row.category = input.category;
+    if (input.brief !== undefined)       row.brief = input.brief;
+    if (input.format !== undefined)      row.format = input.format;
+    if (input.output_files !== undefined) row.output_files = input.output_files;
+    if (input.editor_doc !== undefined)  row.editor_doc = input.editor_doc;
 
     const { data, error } = await supabase
       .from(TABLE)

@@ -2,7 +2,28 @@ import { D, ft, gf, mn } from "../shared-constants";
 import type { Artboard } from "./artboard-ops";
 
 export type Fidelity = "wireframe" | "high";
-export type ProjectType = "document" | "other";
+export type ProjectType =
+  | "document"
+  | "other"
+  | "graphic"
+  | "image"
+  | "motion"
+  | "programmatic"
+  | "quote"
+  | "event";
+
+// Captured wizard inputs persisted on the project row. All fields optional —
+// older projects from before Phase 2 will have an empty brief and the canvas
+// boots normally.
+export type ProjectBrief = {
+  title?: string;
+  subtitle?: string;
+  audience?: string;
+  tone?: string;
+  keyPoints?: string[];
+  context?: string;
+  designSystemOverrideId?: string | null;
+};
 
 export type DesignSystem = {
   id: string;
@@ -24,6 +45,11 @@ export type ProjectMeta = {
   name: string;
   type: ProjectType;
   fidelity: Fidelity;
+  sizePreset?: string | null;
+  purpose?: string | null;
+  category?: string | null;
+  brief?: ProjectBrief;
+  format?: string | null;
 };
 
 interface BuildOptions {

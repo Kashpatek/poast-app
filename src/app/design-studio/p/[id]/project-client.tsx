@@ -8,9 +8,11 @@ import { useDialog } from "../../../dialog-context";
 import { Preview } from "../../preview";
 import { exportSVG } from "../../export";
 import { OpStreamParser, applyOps, type Artboard, type Op } from "../../artboard-ops";
+import { findPreset } from "../../wizards/size-presets";
+import { findCategory } from "../../wizards/categories";
+import type { ProjectBrief, ProjectType } from "../../design-context";
 
 type Fidelity = "wireframe" | "high";
-type ProjectType = "document" | "other";
 
 interface MessageUpload {
   url: string;
@@ -34,6 +36,35 @@ interface ProjectRow {
   artboards: Artboard[];
   messages: Message[];
   uploads?: MessageUpload[];
+  size_preset?: string | null;
+  category?: string | null;
+  brief?: ProjectBrief;
+}
+
+// Compose a structured first prompt from the wizard brief. User can edit
+// before sending. Goal: enough context that Claude generates a real first
+// artboard on the very first send.
+function composeFirstPrompt(p: ProjectRow): string {
+  const b = p.brief ?? {};
+  const preset = findPreset(p.size_preset || "");
+  const cat = findCategory(p.category || "");
+  const lines: string[] = [];
+  lines.push(
+    `Create the first artboard for a ${cat?.label ?? "document"}${
+      preset ? ` sized ${preset.w}×${preset.h}px (${preset.label})` : ""
+    }.`
+  );
+  if (b.title) lines.push(`Title: ${b.title}`);
+  if (b.subtitle) lines.push(`Subtitle: ${b.subtitle}`);
+  if (b.audience) lines.push(`Audience: ${b.audience}`);
+  if (b.tone) lines.push(`Tone: ${b.tone}`);
+  if (b.keyPoints && b.keyPoints.length) {
+    lines.push("Key points:");
+    for (const kp of b.keyPoints) lines.push(`- ${kp}`);
+  }
+  if (b.context) lines.push(`\nContext / source material:\n${b.context}`);
+  lines.push("\nUse the SA design system. Lay out the cover / first page with clear hierarchy.");
+  return lines.join("\n");
 }
 
 export function ProjectClient({ projectId }: { projectId: string }) {
@@ -68,10 +99,24 @@ export function ProjectClient({ projectId }: { projectId: string }) {
         artboards: (r.artboards as Artboard[]) || [],
         messages: (r.messages as Message[]) || [],
         uploads: (r.uploads as MessageUpload[]) || [],
+        size_preset: (r.size_preset as string | null) ?? null,
+        category: (r.category as string | null) ?? null,
+        brief: (r.brief as ProjectBrief) || {},
       };
       setProject(project);
       if (project.artboards.length && !selectedArtboardId) {
         setSelectedArtboardId(project.artboards[0].id);
+      }
+      // Brief pre-shape: if the wizard captured a brief and the canvas is
+      // still empty, pre-fill the chat draft with a structured first prompt.
+      // User can edit before sending.
+      if (
+        project.messages.length === 0 &&
+        project.artboards.length === 0 &&
+        project.brief &&
+        Object.keys(project.brief).length > 0
+      ) {
+        setDraft((cur) => (cur ? cur : composeFirstPrompt(project)));
       }
     } catch (e) {
       setError(String(e));
@@ -324,11 +369,17 @@ export function ProjectClient({ projectId }: { projectId: string }) {
           <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
             {project.messages.length === 0 && !streamingAssistant ? (
               <div style={{ color: D.txm, fontFamily: ft, fontSize: 13, lineHeight: 1.5 }}>
-                Describe what you want. Try:
-                <ul style={{ paddingLeft: 18, marginTop: 8, color: D.txd }}>
-                  <li>“3-page one-pager on Blackwell GPU yields, SA brand.”</li>
-                  <li>“Square poster: TSMC capex hits $44B, big number, sparkline.”</li>
-                </ul>
+                {project.brief && Object.keys(project.brief).length ? (
+                  <BriefCard project={project} />
+                ) : (
+                  <>
+                    Describe what you want. Try:
+                    <ul style={{ paddingLeft: 18, marginTop: 8, color: D.txd }}>
+                      <li>“3-page one-pager on Blackwell GPU yields, SA brand.”</li>
+                      <li>“Square poster: TSMC capex hits $44B, big number, sparkline.”</li>
+                    </ul>
+                  </>
+                )}
               </div>
             ) : null}
             {project.messages.map((m, i) => (
@@ -419,6 +470,51 @@ function applyChunkOps(
     else drawingOps.push(op);
   }
   return { artboards: applyOps(artboards, drawingOps), prose: proseAcc };
+}
+
+// Pinned card shown when the canvas opens with a wizard brief and no
+// messages yet. Surfaces the brief so the user can see what context the
+// chat will start from.
+function BriefCard({ project }: { project: ProjectRow }) {
+  const b = project.brief ?? {};
+  const preset = findPreset(project.size_preset || "");
+  const cat = findCategory(project.category || "");
+  const rows: Array<[string, string]> = [];
+  if (cat) rows.push(["Type", cat.label]);
+  if (preset) rows.push(["Size", `${preset.label} · ${preset.w}×${preset.h}px`]);
+  if (b.title) rows.push(["Title", b.title]);
+  if (b.subtitle) rows.push(["Subtitle", b.subtitle]);
+  if (b.audience) rows.push(["Audience", b.audience]);
+  if (b.tone) rows.push(["Tone", b.tone]);
+  if (b.keyPoints && b.keyPoints.length) rows.push(["Key points", b.keyPoints.map((k) => `• ${k}`).join("\n")]);
+  if (b.context) rows.push(["Context", b.context]);
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${D.amber}55`,
+        background: "rgba(247,176,65,0.06)",
+        borderRadius: 10,
+        padding: "12px 14px",
+        marginBottom: 14,
+      }}
+    >
+      <div style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.amber, marginBottom: 8, textTransform: "uppercase" }}>
+        Project brief
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {rows.map(([k, v]) => (
+          <div key={k} style={{ display: "grid", gridTemplateColumns: "82px 1fr", gap: 8, alignItems: "baseline" }}>
+            <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.4, textTransform: "uppercase" }}>{k}</div>
+            <div style={{ fontFamily: ft, fontSize: 12.5, color: D.tx, whiteSpace: "pre-wrap", lineHeight: 1.45 }}>{v}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 10, fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.3 }}>
+        Edit the message below if you want to tweak the first prompt. Press send to generate the first artboard.
+      </div>
+    </div>
+  );
 }
 
 function ChatBubble({ message, streaming }: { message: Message; streaming?: boolean }) {

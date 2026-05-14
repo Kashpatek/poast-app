@@ -18,6 +18,7 @@ import { DocuShell } from "./docu-shell";
 import { D, ft, gf, mn } from "../shared-constants";
 import { useToast } from "../toast-context";
 import { useDialog } from "../dialog-context";
+import { DocumentWizard } from "./wizards/document-wizard";
 
 interface ProjectSummary {
   id: string;
@@ -64,6 +65,7 @@ export default function DesignStudioHubPage() {
   const [loading, setLoading] = useState(true);
   const [tablesMissing, setTablesMissing] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
+  const [docWizardOpen, setDocWizardOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -119,7 +121,7 @@ export default function DesignStudioHubPage() {
       toast(`${t.label} ships in the next phase. Stay tuned.`);
       return;
     }
-    if (t.action === "doc") createProject("document");
+    if (t.action === "doc") setDocWizardOpen(true);
     else if (t.action === "custom") createProject("other");
   }
 
@@ -299,6 +301,8 @@ export default function DesignStudioHubPage() {
           </div>
         </div>
       </div>
+
+      <DocumentWizard open={docWizardOpen} onClose={() => setDocWizardOpen(false)} />
     </DocuShell>
   );
 }
