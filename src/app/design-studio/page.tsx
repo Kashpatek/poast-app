@@ -143,23 +143,34 @@ export default function DesignStudioHubPage() {
 
   return (
     <DocuShell
+      hideNav
       rightSlot={
         <Link href="/design-studio/system" style={ghostLink}>
           ⚙ Design system
         </Link>
       }
     >
-      <div style={{ padding: 32, maxWidth: 1280, margin: "0 auto" }}>
+      <div style={{ padding: "40px 32px 64px", maxWidth: 1280, margin: "0 auto", position: "relative", zIndex: 2 }}>
         {/* Hero */}
-        <div style={{ marginBottom: 28 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-            <Wand size={20} color={D.amber} strokeWidth={1.8} />
-            <h1 style={{ fontFamily: gf, fontSize: 30, letterSpacing: 0.2, margin: 0, color: D.tx }}>
-              DesignStudio
-            </h1>
+        <div style={{ marginBottom: 36 }}>
+          <style
+            dangerouslySetInnerHTML={{
+              __html:
+                "@keyframes dsShim{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}.ds-headline{background:linear-gradient(120deg,#F7B041 0%,#26C9D8 50%,#F7B041 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:dsShim 9s ease-in-out infinite}",
+            }}
+          />
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "4px 10px", borderRadius: 999, background: "rgba(247,176,65,0.10)", border: `1px solid ${D.amber}55`, marginBottom: 14 }}>
+            <Wand size={13} color={D.amber} strokeWidth={2} />
+            <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.amber, textTransform: "uppercase" }}>The studio</span>
           </div>
-          <div style={{ fontFamily: ft, fontSize: 14, color: D.txm }}>
-            Your creative suite. Docs, graphics, AI images, motion — all powered by your SA design system.
+          <h1
+            className="ds-headline"
+            style={{ fontFamily: gf, fontSize: 56, lineHeight: 1.02, letterSpacing: -1.5, margin: 0, marginBottom: 12, fontWeight: 900 }}
+          >
+            Design anything.
+          </h1>
+          <div style={{ fontFamily: ft, fontSize: 16, color: D.txm, maxWidth: 620, lineHeight: 1.5 }}>
+            Docs, graphics, AI images, motion, programmatic video — eight tools, one design system, zero context-switching.
           </div>
         </div>
 
