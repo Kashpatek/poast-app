@@ -493,12 +493,15 @@ function AddTaskModal({ mode, onCancel, onAdd, onSwitchMode }: { mode: AddMode; 
   }
 
   // Image and prompt modes can produce a lot of preview rows; give them a
-  // wider panel so the parsed list doesn't get squashed under a tiny image
-  // preview at the top of an 680px column.
+  // wider AND taller panel so the parsed list doesn't get squashed and so
+  // the modal doesn't end half-way down the screen on big monitors.
   const wide = mode === "image" || mode === "prompt";
   const panelStyle: React.CSSProperties = {
     ...panel,
     width: wide ? "min(1080px, 96vw)" : panel.width,
+    minHeight: wide ? "min(720px, calc(100vh - 48px))" : undefined,
+    display: wide ? "flex" : undefined,
+    flexDirection: wide ? "column" : undefined,
   };
 
   return (
