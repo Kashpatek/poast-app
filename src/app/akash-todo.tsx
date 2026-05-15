@@ -492,9 +492,18 @@ function AddTaskModal({ mode, onCancel, onAdd, onSwitchMode }: { mode: AddMode; 
     }]);
   }
 
+  // Image and prompt modes can produce a lot of preview rows; give them a
+  // wider panel so the parsed list doesn't get squashed under a tiny image
+  // preview at the top of an 680px column.
+  const wide = mode === "image" || mode === "prompt";
+  const panelStyle: React.CSSProperties = {
+    ...panel,
+    width: wide ? "min(1080px, 96vw)" : panel.width,
+  };
+
   return (
     <div style={overlay} onClick={onCancel}>
-      <div style={panel} onClick={(e) => e.stopPropagation()}>
+      <div style={panelStyle} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
           {(["manual", "prompt", "image"] as const).map((m) => {
             const active = mode === m;
@@ -574,53 +583,77 @@ function AddTaskModal({ mode, onCancel, onAdd, onSwitchMode }: { mode: AddMode; 
         ) : null}
 
         {mode === "image" ? (
-          <div>
-            <div style={lbl}>Drop a screenshot, PDF page, or whiteboard photo</div>
-            <label
-              onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = D.amber; }}
-              onDragLeave={(e) => { e.currentTarget.style.borderColor = D.border; }}
-              onDrop={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = D.border; const f = e.dataTransfer.files?.[0]; if (f) handleImage(f); }}
-              style={{
-                display: "block",
-                border: `1px dashed ${D.border}`,
-                borderRadius: 10,
-                padding: imagePreview ? 0 : 32,
-                background: D.surface,
-                textAlign: "center",
-                cursor: "pointer",
-                marginBottom: 12,
-                overflow: "hidden",
-              }}
-            >
-              {imagePreview ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={imagePreview} alt="preview" style={{ width: "100%", maxHeight: 320, objectFit: "contain", display: "block" }} />
-              ) : (
-                <div style={{ fontFamily: ft, fontSize: 13, color: D.txm, lineHeight: 1.5 }}>
-                  Drop image here · or click to choose
-                </div>
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImage(f); }}
-                style={{ display: "none" }}
-              />
-            </label>
-            {imageFile ? (
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <span style={{ fontFamily: mn, fontSize: 10, color: D.txm }}>{imageFile.name}</span>
-                <button type="button" onClick={() => { setImageFile(null); setImagePreview(""); }} style={{ background: "transparent", border: "none", color: D.coral, fontFamily: mn, fontSize: 10, cursor: "pointer" }}>Remove</button>
+          parsedTasks.length > 0 ? (
+            // Two-column layout once we have parsed tasks: image stays
+            // small on the left so the task list has the whole right
+            // side to breathe.
+            <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 16 }}>
+              <div>
+                <div style={lbl}>Source image</div>
+                {imagePreview ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={imagePreview} alt="preview" style={{ width: "100%", maxHeight: 280, objectFit: "contain", display: "block", border: `1px solid ${D.border}`, borderRadius: 8, marginBottom: 10 }} />
+                ) : null}
+                {imageFile ? (
+                  <div style={{ fontFamily: mn, fontSize: 10, color: D.txm, marginBottom: 8, wordBreak: "break-all" }}>{imageFile.name}</div>
+                ) : null}
+                <button type="button" onClick={parsePrompt} disabled={parsing} style={{ ...primaryBtn, opacity: parsing ? 0.5 : 1, width: "100%" }}>
+                  {parsing ? "Re-reading…" : "Re-extract"}
+                </button>
+                <button type="button" onClick={() => { setImageFile(null); setImagePreview(""); setParsedTasks([]); }} style={{ ...ghostBtn, width: "100%", marginTop: 8 }}>
+                  Different image
+                </button>
               </div>
-            ) : null}
-            <button type="button" onClick={parsePrompt} disabled={parsing || !imageFile} style={{ ...primaryBtn, opacity: parsing || !imageFile ? 0.5 : 1, width: "100%" }}>
-              {parsing ? "Reading image with Claude…" : "Extract tasks from image"}
-            </button>
-            {error ? <div style={{ marginTop: 10, fontFamily: mn, fontSize: 11, color: D.coral }}>{error}</div> : null}
-            {parsedTasks.length > 0 ? (
-              <ParsedPreview tasks={parsedTasks} onConfirm={() => onAdd(parsedTasks)} onEdit={setParsedTasks} onCancel={() => setParsedTasks([])} />
-            ) : null}
-          </div>
+              <div style={{ minWidth: 0 }}>
+                <ParsedPreview tasks={parsedTasks} onConfirm={() => onAdd(parsedTasks)} onEdit={setParsedTasks} onCancel={() => setParsedTasks([])} />
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div style={lbl}>Drop a screenshot, PDF page, or whiteboard photo</div>
+              <label
+                onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = D.amber; }}
+                onDragLeave={(e) => { e.currentTarget.style.borderColor = D.border; }}
+                onDrop={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = D.border; const f = e.dataTransfer.files?.[0]; if (f) handleImage(f); }}
+                style={{
+                  display: "block",
+                  border: `1px dashed ${D.border}`,
+                  borderRadius: 10,
+                  padding: imagePreview ? 0 : 32,
+                  background: D.surface,
+                  textAlign: "center",
+                  cursor: "pointer",
+                  marginBottom: 12,
+                  overflow: "hidden",
+                }}
+              >
+                {imagePreview ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={imagePreview} alt="preview" style={{ width: "100%", maxHeight: 240, objectFit: "contain", display: "block" }} />
+                ) : (
+                  <div style={{ fontFamily: ft, fontSize: 13, color: D.txm, lineHeight: 1.5 }}>
+                    Drop image here · or click to choose
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImage(f); }}
+                  style={{ display: "none" }}
+                />
+              </label>
+              {imageFile ? (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <span style={{ fontFamily: mn, fontSize: 10, color: D.txm }}>{imageFile.name}</span>
+                  <button type="button" onClick={() => { setImageFile(null); setImagePreview(""); }} style={{ background: "transparent", border: "none", color: D.coral, fontFamily: mn, fontSize: 10, cursor: "pointer" }}>Remove</button>
+                </div>
+              ) : null}
+              <button type="button" onClick={parsePrompt} disabled={parsing || !imageFile} style={{ ...primaryBtn, opacity: parsing || !imageFile ? 0.5 : 1, width: "100%" }}>
+                {parsing ? "Reading image with Claude…" : "Extract tasks from image"}
+              </button>
+              {error ? <div style={{ marginTop: 10, fontFamily: mn, fontSize: 11, color: D.coral }}>{error}</div> : null}
+            </div>
+          )
         ) : null}
       </div>
     </div>
@@ -631,7 +664,7 @@ function ParsedPreview({ tasks, onConfirm, onEdit, onCancel }: { tasks: Omit<Tas
   return (
     <div style={{ marginTop: 16 }}>
       <div style={lbl}>Found {tasks.length} task{tasks.length === 1 ? "" : "s"} — review before adding</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 280, overflowY: "auto", marginBottom: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "60vh", overflowY: "auto", marginBottom: 12, paddingRight: 4 }}>
         {tasks.map((t, i) => {
           const cColor = CATEGORY_COLORS[t.category] || D.txm;
           return (
