@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { generateJSON, AnthropicError } from "@/lib/anthropic";
+import { callLLM, llmTextOf, LLMError, type LLMProvider } from "@/lib/llm-provider";
 import { stripHTML } from "@/lib/html";
 import { checkRateLimit } from "@/lib/ratelimit";
 
@@ -12,7 +13,24 @@ const SlobTopSchema = z.object({
   vibe: z.string().optional(),
   trendRef: z.string().optional(),
   host: z.string().optional(),
+  provider: z.enum(["claude", "gemini", "grok"]).optional(),
 }).passthrough();
+
+// Opus-class model for meme idea generation per the May sprint list —
+// the default Claude model is too generic for spicy meme-text output.
+const OPUS_MEME_MODEL = process.env.OPUS_MODEL || "claude-opus-4-20250514";
+
+// Run a generation call through the multi-provider abstraction when a
+// provider override is set; otherwise stay on the existing Claude path.
+// Returns parsed JSON.
+async function generateRouted<T>(opts: { system: string; prompt: string; provider?: LLMProvider; model?: string; maxTokens?: number }): Promise<T> {
+  if (!opts.provider || opts.provider === "claude") {
+    return generateJSON<T>({ system: opts.system, prompt: opts.prompt, maxTokens: opts.maxTokens, model: opts.model });
+  }
+  const r = await callLLM({ provider: opts.provider, system: opts.system, prompt: opts.prompt, maxTokens: opts.maxTokens });
+  const raw = llmTextOf(r).replace(/```json|```/g, "").trim();
+  return JSON.parse(raw) as T;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -63,11 +81,14 @@ export async function POST(req: NextRequest) {
         pageText = pageText.slice(0, 8000) + "... [truncated]";
       }
 
-      // 3. Send to Claude with slop generation prompt
+      // 3. Send to Claude (Opus by default for meme ideas, or the
+      // caller's preferred provider when overridden from the UI).
       try {
-        const results = await generateJSON({
+        const results = await generateRouted<unknown>({
+          provider: body.provider as LLMProvider | undefined,
           system: "You are a viral content creator for SemiAnalysis. Given this article/page content, generate slop content ideas. Be funny, punchy, technically accurate but accessible. Think TikTok/Twitter energy. HARD RULES: X/Twitter NEVER gets hashtags. TikTok NEVER gets overlay text or on-screen text. Never use em dashes. RESPOND ONLY IN VALID JSON. No markdown fences.",
           maxTokens: 4000,
+          model: body.provider ? undefined : OPUS_MEME_MODEL,
           prompt: `Here is the content from a URL the user pasted:
 
 ---
@@ -118,7 +139,8 @@ Generate viral slop content ideas based on this. Return JSON in this exact forma
     };
 
     try {
-      const briefs = await generateJSON({
+      const briefs = await generateRouted<unknown>({
+        provider: body.provider as LLMProvider | undefined,
         system: "You are a content strategist for SemiAnalysis, a semiconductor and AI infrastructure research firm. Generate actionable content briefs. Rules: Never use em dashes. No emojis in content. Be direct, technical, not clickbait. RESPOND ONLY IN VALID JSON. No markdown fences.",
         maxTokens: 4000,
         prompt: `Generate 3 content brief variations for a short-form video.
@@ -146,6 +168,9 @@ Return JSON with 3 variations (A, B, C):
       });
       return NextResponse.json({ briefs, ts: Date.now() });
     } catch (e) {
+      if (e instanceof LLMError) {
+        return NextResponse.json({ error: e.message, provider: e.provider }, { status: e.status });
+      }
       if ((e as AnthropicError).status) {
         return NextResponse.json({ error: (e as Error).message || "Generation failed" }, { status: (e as AnthropicError).status });
       }

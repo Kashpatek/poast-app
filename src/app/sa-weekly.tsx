@@ -176,12 +176,15 @@ var SYS_SOC = "You are a social media strategist for SemiAnalysis Weekly. HARD R
 
 // ═══ API ═══
 import { showToast } from "./toast-context";
+import { getSurfaceProvider, getPreferredProvider } from "./shared-constants";
+import { ProviderChips } from "./provider-chips";
 
 async function ask(sys: string, prompt: string): Promise<Record<string, unknown> | null> {
   try {
+    var provider = getSurfaceProvider("sa-weekly") || getPreferredProvider();
     var r = await fetch("/api/generate", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ system: sys, prompt: prompt }),
+      body: JSON.stringify({ system: sys, prompt: prompt, provider: provider, applyBrandVoice: true }),
     });
     var d = await r.json();
     if (d.error) { showToast("API Error: " + (d.error.message || d.error)); return null; }
@@ -499,12 +502,15 @@ function StepSetup({ ep, setEp, guests, setGuests }: { ep: EpState; setEp: (ep: 
     if (!ep.transcript || chL) return;
     setChL(true);
     try {
+      var provider = getSurfaceProvider("sa-weekly") || getPreferredProvider();
       var r = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           system: SYS_CHAPTERS,
           prompt: "Episode #" + ep.number + ". Transcript (first 20000 chars):\n\n" + ep.transcript.slice(0, 20000) + "\n\nReturn 5-10 chapters, one per line.",
+          provider: provider,
+          applyBrandVoice: true,
         }),
       });
       var d = await r.json();
@@ -1750,6 +1756,7 @@ export default function SAWeekly() {
         <div style={{ fontFamily: mn, fontSize: 11, color: D.txb, marginTop: 4, letterSpacing: "2px", textTransform: "uppercase" }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div>
       </div>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <ProviderChips surface="sa-weekly" compact />
         {hasDraft && <span onClick={loadDraft} title={logData.length > 0 ? logData.length + " past episode" + (logData.length === 1 ? "" : "s") + " also visible in the Log step" : undefined} style={{ fontFamily: mn, fontSize: 9, color: ACC, cursor: "pointer", padding: "6px 12px", border: "1px solid " + ACC + "40", borderRadius: 8, background: ACC + "08", transition: "all 0.2s ease" }}>Load from Draft{logData.length > 0 ? " · " + logData.length + " past ep" + (logData.length === 1 ? "" : "s") : ""}</span>}
         <a href="https://youtube.com/@SemianalysisWeekly" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 9, color: D.txl, textDecoration: "none", padding: "6px 12px", border: "1px solid " + D.border, borderRadius: 8, transition: "all 0.2s ease" }}>@SemianalysisWeekly</a>
       </div>

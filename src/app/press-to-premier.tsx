@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useUser } from "./user-context";
 import { TileDispatcher } from "./p2p-tiles";
+import { getSurfaceProvider, getPreferredProvider } from "./shared-constants";
+import { ProviderChips } from "./provider-chips";
 
 // ═══ TYPES ═══
 interface ToastEntry {
@@ -649,7 +651,7 @@ function Step6({ data, setData, onNext, onBack }: { data: ProjectData; setData: 
       if (ci > 0) await new Promise<void>(function(res) { setTimeout(res, 1500); });
       var shot = brollShots[ci];
       try {
-        var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: shot.prompt, engine: "grok", aspectRatio: data.aspect || data.format || "16:9" }) });
+        var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: shot.prompt, engine: getVideoEngine(), aspectRatio: data.aspect || data.format || "16:9" }) });
         var d = await r.json() as { task?: { task_id: string }; error?: string };
         if (d.task && d.task.task_id) {
           addLog("Shot " + (ci + 1) + " submitted (ID: " + d.task.task_id.slice(0, 10) + "...)", "success");
@@ -677,7 +679,7 @@ function Step6({ data, setData, onNext, onBack }: { data: ProjectData; setData: 
       for (var pi = 0; pi < clips.length; pi++) {
         if (!clips[pi].pending) continue;
         try {
-          var stR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", taskId: clips[pi].taskId, engine: "grok" }) });
+          var stR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", taskId: clips[pi].taskId, engine: getVideoEngine() }) });
           var stD = await stR.json() as { task?: { task_status: string; task_result?: { videos?: Array<{ url: string }> }; progress?: number } };
           if (stD.task && stD.task.task_status === "succeed" && stD.task.task_result && stD.task.task_result.videos) {
             clips[pi] = Object.assign({}, clips[pi], { videoUrl: stD.task.task_result.videos[0].url, pending: false, progress: 100 });
@@ -921,7 +923,7 @@ function Step7({ data, setData, onNext, onBack }: { data: ProjectData; setData: 
 
     try {
       // Submit
-      var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: shotInfo.prompt + ", alternative creative interpretation", engine: "grok", aspectRatio: data.aspect || data.format || "16:9" }) });
+      var r = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "generate", prompt: shotInfo.prompt + ", alternative creative interpretation", engine: getVideoEngine(), aspectRatio: data.aspect || data.format || "16:9" }) });
       var d = await r.json() as { task?: { task_id: string }; error?: string };
       if (!d.task || !d.task.task_id) { toast("Shot " + shotNum + " submit failed", "error"); setRegen(function(p) { var n = Object.assign({}, p); delete n[shotNum]; return n; }); return; }
 
@@ -931,7 +933,7 @@ function Step7({ data, setData, onNext, onBack }: { data: ProjectData; setData: 
       while (Date.now() - pollStart < 180000) {
         await new Promise<void>(function(res) { setTimeout(res, 8000); });
         try {
-          var stR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", taskId: taskId, engine: "grok" }) });
+          var stR = await fetch("/api/generate-clip", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "status", taskId: taskId, engine: getVideoEngine() }) });
           var stD = await stR.json() as { task?: { task_status: string; task_result?: { videos?: Array<{ url: string }> }; progress?: number } };
           if (stD.task && stD.task.task_status === "succeed" && stD.task.task_result && stD.task.task_result.videos) {
             var newClip = { taskId: taskId, videoUrl: stD.task.task_result.videos[0].url, shot: parseInt(shotNum), provider: "grok" };
@@ -1682,12 +1684,16 @@ function ProjectList({ projects, onOpen, onNew }: { projects: Project[]; onOpen:
   var production = projects.filter(function(p) { return p.status === "production"; });
   var premiered = projects.filter(function(p) { return p.status === "premiered"; });
   return <div>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 32 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 16 }}>
       <div>
         <div style={{ fontFamily: ft, fontSize: 48, fontWeight: 900, color: D.tx, letterSpacing: -2 }}>Press to Premier</div>
         <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginTop: 4 }}>Article to video production suite.</div>
       </div>
       <button onClick={onNew} style={{ padding: "14px 24px", background: "linear-gradient(135deg, " + D.amber + ", #E8A020)", color: D.bg, border: "none", borderRadius: 10, fontFamily: ft, fontSize: 14, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 20px " + D.amber + "25" }}>+ New Project</button>
+    </div>
+    <div style={{ display: "flex", gap: 10, marginBottom: 24, flexWrap: "wrap" }}>
+      <ProviderChips surface="p2p" label="Script + caption AI" />
+      <VideoEngineChips />
     </div>
     {[{ l: "In Production", items: production, c: D.amber }, { l: "Drafts", items: drafts, c: D.txl }, { l: "Premiered", items: premiered, c: D.teal }].map(function(sec) {
       if (sec.items.length === 0) return null;
@@ -1744,6 +1750,34 @@ const SUITE_TILES: SuiteTile[] = [
   { id: "stock",      label: "Stock Library",    sub: "Envato + uploads, auto-tagged.",                accent: "#26C9D8", status: "live" },
   { id: "queue",      label: "Render Queue",     sub: "Track every job in flight.",                    accent: "#9B59B6", status: "live" },
 ];
+
+// ─── Video engine selection ───────────────────────────────────────
+// Read by every /api/generate-clip caller in this file. Persisted to
+// localStorage so the choice survives a refresh.
+type VideoEngine = "veo" | "kling" | "grok";
+function getVideoEngine(): VideoEngine {
+  if (typeof window === "undefined") return "grok";
+  var v = window.localStorage.getItem("p2p-video-engine");
+  return v === "veo" || v === "kling" ? v : "grok";
+}
+function setVideoEngine(e: VideoEngine): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem("p2p-video-engine", e);
+}
+
+function VideoEngineChips() {
+  var _engine = useState<VideoEngine>("grok"), engine = _engine[0], setEngineState = _engine[1];
+  useEffect(function() { setEngineState(getVideoEngine()); }, []);
+  function pick(e: VideoEngine) { setEngineState(e); setVideoEngine(e); }
+  return <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "rgba(255,255,255,0.02)", border: "1px solid " + D.border, borderRadius: 6, fontFamily: "JetBrains Mono, monospace", fontSize: 10, color: D.txl, letterSpacing: 0.5 }}>
+    <span style={{ textTransform: "uppercase", fontWeight: 700 }}>Video engine</span>
+    {(["veo", "kling", "grok"] as VideoEngine[]).map(function(e) {
+      var on = engine === e;
+      var tip = e === "veo" ? "Google Veo 3 — premium quality, requires Google Cloud org access" : e === "kling" ? "Kling — solid default for cinematic" : "Grok — fastest, looser style";
+      return <span key={e} onClick={function() { pick(e); }} title={tip} style={{ padding: "2px 8px", borderRadius: 3, cursor: "pointer", background: on ? D.amber + "22" : "transparent", color: on ? D.amber : D.txl, border: "1px solid " + (on ? D.amber + "55" : "transparent"), fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>{e}</span>;
+    })}
+  </div>;
+}
 
 export default function PressToPremi() {
   var userCtx = useUser();
@@ -1823,7 +1857,8 @@ export default function PressToPremi() {
   var genOptions = async function() {
     setLoading(true); setStep(1);
     try {
-      var r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: "You are a video production strategist for SemiAnalysis. Never use em dashes. No emojis. RESPOND ONLY IN VALID JSON.", prompt: "Generate 3 title options, 3 hook options (under 12 words each), and 3 description options for a video about this article.\n\nArticle: " + (data.text || data.url || "") + "\n\nReturn JSON: {\"titles\":[\"t1\",\"t2\",\"t3\"],\"hooks\":[\"h1\",\"h2\",\"h3\"],\"descriptions\":[\"d1\",\"d2\",\"d3\"]}" }) });
+      var p2pProvider = getSurfaceProvider("p2p") || getPreferredProvider();
+      var r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: "You are a video production strategist for SemiAnalysis. Never use em dashes. No emojis. RESPOND ONLY IN VALID JSON.", prompt: "Generate 3 title options, 3 hook options (under 12 words each), and 3 description options for a video about this article.\n\nArticle: " + (data.text || data.url || "") + "\n\nReturn JSON: {\"titles\":[\"t1\",\"t2\",\"t3\"],\"hooks\":[\"h1\",\"h2\",\"h3\"],\"descriptions\":[\"d1\",\"d2\",\"d3\"]}", provider: p2pProvider, applyBrandVoice: true }) });
       var d = await r.json() as { content?: Array<{ text?: string }> }; var txt = (d.content || []).map(function(c) { return c.text || ""; }).join("");
       var parsed = JSON.parse(txt.replace(/```json|```/g, "").trim());
       setData(function(p) { return Object.assign({}, p, { options: parsed }); });
@@ -1851,9 +1886,12 @@ export default function PressToPremi() {
       brollSuffix = " Cinematic 16:9 composition, wider framing, room in the lower third for graphic overlays.";
     }
     try {
+      var p2pProvider = getSurfaceProvider("p2p") || getPreferredProvider();
       var r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         system: "You are a video scriptwriter for SemiAnalysis. Never use em dashes. No emojis. RESPOND ONLY IN VALID JSON.",
         prompt: "Write 3 script versions for a " + (data.duration || 60) + "-second video at " + aspect + " aspect ratio.\nTitle: " + title + "\nHook: " + hook + "\n\nASPECT-SPECIFIC RULES (follow strictly):\n" + aspectGuidance + "\n\nWhen you write each b-roll \"prompt\", APPEND this composition directive verbatim to the end of the prompt: \"" + brollSuffix.trim() + "\"\n\nEach version: different approach, different b-roll.\n\nIMPORTANT: The outro MUST be a complete, conclusive sentence that clearly ends the video. End with a definitive call to action like 'Read the full analysis at semianalysis.com' or 'Subscribe for more.' The script must feel finished, not cut off.\n\nReturn JSON: {\"scripts\":[{\"hook\":\"...\",\"intro\":\"first 8s\",\"body\":[\"p1\",\"p2\"],\"outro\":\"complete conclusive CTA sentence ending the video definitively\",\"broll\":[{\"shot\":1,\"timing\":\"0-5s\",\"description\":\"what we see\",\"prompt\":\"cinematic prompt 30-50 words (REMEMBER to append the composition directive)\",\"camera\":\"movement\"}]}]}",
+        provider: p2pProvider,
+        applyBrandVoice: true,
       }) });
       var d = await r.json() as { content?: Array<{ text?: string }> }; var txt = (d.content || []).map(function(c) { return c.text || ""; }).join("");
       var parsed = JSON.parse(txt.replace(/```json|```/g, "").trim());

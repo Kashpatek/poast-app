@@ -5,6 +5,7 @@ import {
   SA_BRAND_CUES,
   STYLE_PRESETS,
 } from "@/lib/grok-image";
+import { generateImagenImages, ImagenError } from "@/lib/imagen";
 
 export const maxDuration = 60;
 
@@ -17,6 +18,7 @@ export async function POST(req: NextRequest) {
     title?: string;
     referenceImageUrl?: string;
     count?: number;
+    provider?: "imagen" | "grok";
   };
   try {
     body = await req.json();
@@ -24,7 +26,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body", detail: String(err) }, { status: 400 });
   }
 
-  const { concept, style, textOverlay, mood, title, referenceImageUrl, count } = body;
+  const { concept, style, textOverlay, mood, title, referenceImageUrl, count, provider: requestedProvider } = body;
   if (!concept || typeof concept !== "string") {
     return NextResponse.json({ error: "Missing concept" }, { status: 400 });
   }
@@ -51,19 +53,37 @@ export async function POST(req: NextRequest) {
     .filter(Boolean)
     .join(" ");
 
+  const sampleCount = typeof count === "number" && count > 0 && count <= 4 ? count : 3;
+  const provider = requestedProvider === "grok" ? "grok" : "imagen";
+
   try {
-    const images = await generateGrokImages({
-      prompt: fullPrompt,
-      count: typeof count === "number" && count > 0 && count <= 4 ? count : 3,
-      referenceImageUrl,
-    });
-    if (!images.length) {
-      return NextResponse.json({ error: "No images generated" }, { status: 502 });
+    if (provider === "imagen") {
+      try {
+        const images = await generateImagenImages({ prompt: fullPrompt, count: sampleCount, aspectRatio: "16:9", referenceImageUrl });
+        if (images.length) return NextResponse.json({ images, provider: "imagen", ts: Date.now() });
+      } catch (e) {
+        // Silent fall-back to Grok on Imagen policy refusals (4xx).
+        if (e instanceof ImagenError && e.status >= 400 && e.status < 500) {
+          const images = await generateGrokImages({ prompt: fullPrompt, count: sampleCount, referenceImageUrl });
+          if (!images.length) return NextResponse.json({ error: "No images generated", provider: "grok" }, { status: 502 });
+          return NextResponse.json({ images, provider: "grok", fellBackTo: "grok", imagenError: e.message, ts: Date.now() });
+        }
+        throw e;
+      }
+      // Imagen returned empty without throwing — try Grok.
+      const images = await generateGrokImages({ prompt: fullPrompt, count: sampleCount, referenceImageUrl });
+      if (!images.length) return NextResponse.json({ error: "No images generated", provider: "grok" }, { status: 502 });
+      return NextResponse.json({ images, provider: "grok", fellBackTo: "grok", ts: Date.now() });
     }
-    return NextResponse.json({ images, ts: Date.now() });
+    const images = await generateGrokImages({ prompt: fullPrompt, count: sampleCount, referenceImageUrl });
+    if (!images.length) return NextResponse.json({ error: "No images generated", provider: "grok" }, { status: 502 });
+    return NextResponse.json({ images, provider: "grok", ts: Date.now() });
   } catch (err) {
     if (err instanceof GrokImageError) {
-      return NextResponse.json({ error: err.message }, { status: err.status });
+      return NextResponse.json({ error: err.message, provider }, { status: err.status });
+    }
+    if (err instanceof ImagenError) {
+      return NextResponse.json({ error: err.message, provider }, { status: err.status });
     }
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

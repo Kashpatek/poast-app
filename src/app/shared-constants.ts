@@ -76,9 +76,38 @@ export function setPreferredProvider(p: LLMProviderName): void {
   window.localStorage.setItem("poast-llm-provider", p);
 }
 
+// Per-surface override on top of the global default. Set to "auto" (or
+// null) to defer to the global default. Each caption-gen surface can
+// own its own key, e.g. "carousel", "sa-weekly", "p2p".
+export function getSurfaceProvider(surface: string): LLMProviderName | undefined {
+  if (typeof window === "undefined") return undefined;
+  const v = window.localStorage.getItem("poast-llm-provider:" + surface);
+  return v === "claude" || v === "gemini" || v === "grok" ? v : undefined;
+}
+
+export function setSurfaceProvider(surface: string, p: LLMProviderName | "auto"): void {
+  if (typeof window === "undefined") return;
+  const key = "poast-llm-provider:" + surface;
+  if (p === "auto") window.localStorage.removeItem(key);
+  else window.localStorage.setItem(key, p);
+}
+
 interface AskOptions {
   provider?: LLMProviderName;
   applyBrandVoice?: boolean;
+  // Optional surface key — when set we'll prefer the user's per-surface
+  // override (set on that surface's picker chip row) before falling back
+  // to the global default.
+  surface?: string;
+}
+
+function resolveProvider(opts?: AskOptions): LLMProviderName {
+  if (opts?.provider) return opts.provider;
+  if (opts?.surface) {
+    const surfaceOverride = getSurfaceProvider(opts.surface);
+    if (surfaceOverride) return surfaceOverride;
+  }
+  return getPreferredProvider();
 }
 
 export async function askAPI(sys: string, prompt: string, opts?: AskOptions): Promise<Record<string, unknown> | null> {
@@ -88,7 +117,7 @@ export async function askAPI(sys: string, prompt: string, opts?: AskOptions): Pr
       body: JSON.stringify({
         system: sys,
         prompt: prompt,
-        provider: opts?.provider || getPreferredProvider(),
+        provider: resolveProvider(opts),
         applyBrandVoice: opts?.applyBrandVoice !== false,
       }),
     });
@@ -109,7 +138,7 @@ export async function askAPIRaw(sys: string, prompt: string, opts?: AskOptions):
       body: JSON.stringify({
         system: sys,
         prompt: prompt,
-        provider: opts?.provider || getPreferredProvider(),
+        provider: resolveProvider(opts),
         applyBrandVoice: opts?.applyBrandVoice !== false,
       }),
     });

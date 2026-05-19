@@ -183,6 +183,19 @@ function Spinner() {
   </div>;
 }
 
+// ═══ PERSISTENCE HELPERS ═══
+function readPersisted(key: string, fallback: string): string {
+  if (typeof window === "undefined") return fallback;
+  try {
+    var v = window.localStorage.getItem(key);
+    return v !== null ? v : fallback;
+  } catch { return fallback; }
+}
+function writePersisted(key: string, value: string): void {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(key, value); } catch { /* ignore */ }
+}
+
 // ═══ COPY HELPER ═══
 function copyBrief(brief: Brief, label: string, platform?: string) {
   var lines = [];
@@ -428,19 +441,52 @@ export default function SlopTop() {
   // Brainrot level state
   var _brainrotLevel = useState(5), brainrotLevel = _brainrotLevel[0], setBrainrotLevel = _brainrotLevel[1];
 
+  // Per-surface caption provider override. Falls back to global default
+  // (set on the AI Training page) when "auto" is selected.
+  function readProviderOverride(): "auto" | "claude" | "gemini" | "grok" {
+    if (typeof window === "undefined") return "auto";
+    var v = window.localStorage.getItem("sloptop-provider");
+    return v === "claude" || v === "gemini" || v === "grok" ? v : "auto";
+  }
+  var _provider = useState<"auto" | "claude" | "gemini" | "grok">(readProviderOverride), provider = _provider[0], setProvider = _provider[1];
+  function pickProvider(p: "auto" | "claude" | "gemini" | "grok") {
+    setProvider(p);
+    if (typeof window !== "undefined") {
+      if (p === "auto") window.localStorage.removeItem("sloptop-provider");
+      else window.localStorage.setItem("sloptop-provider", p);
+    }
+  }
+
+  // Global submit toast (also reused for the arxiv tab so every submit
+  // gets immediate feedback).
+  var _submitToast = useState<string | null>(null), submitToast = _submitToast[0], setSubmitToast = _submitToast[1];
+  function flashToast(msg: string) {
+    setSubmitToast(msg);
+    setTimeout(function() { setSubmitToast(null); }, 3200);
+  }
+
   // Link-to-slop state
-  var _slopUrl = useState(""), slopUrl = _slopUrl[0], setSlopUrl = _slopUrl[1];
+  var _slopUrl = useState(function() { return readPersisted("sloptop-slopUrl", ""); }), slopUrl = _slopUrl[0], setSlopUrl = _slopUrl[1];
   var _slopLoading = useState(false), slopLoading = _slopLoading[0], setSlopLoading = _slopLoading[1];
   var _slopError = useState<string | null>(null), slopError = _slopError[0], setSlopError = _slopError[1];
   var _slopResults = useState<SlopResultsData | null>(null), slopResults = _slopResults[0], setSlopResults = _slopResults[1];
 
-  // Input state
-  var _topic = useState(""), topic = _topic[0], setTopic = _topic[1];
-  var _platform = useState("multi"), platform = _platform[0], setPlatform = _platform[1];
-  var _vibe = useState("Educational"), vibe = _vibe[0], setVibe = _vibe[1];
-  var _trendRef = useState(""), trendRef = _trendRef[0], setTrendRef = _trendRef[1];
-  var _host = useState("B-roll only"), host = _host[0], setHost = _host[1];
+  // Input state — persisted to localStorage so the next session opens
+  // with the same Meme/Topic-of-Meme/etc. values pre-filled.
+  var _topic = useState(function() { return readPersisted("sloptop-topic", ""); }), topic = _topic[0], setTopic = _topic[1];
+  var _platform = useState(function() { return readPersisted("sloptop-platform", "multi"); }), platform = _platform[0], setPlatform = _platform[1];
+  var _vibe = useState(function() { return readPersisted("sloptop-vibe", "Educational"); }), vibe = _vibe[0], setVibe = _vibe[1];
+  var _trendRef = useState(function() { return readPersisted("sloptop-trendRef", ""); }), trendRef = _trendRef[0], setTrendRef = _trendRef[1];
+  var _host = useState(function() { return readPersisted("sloptop-host", "B-roll only"); }), host = _host[0], setHost = _host[1];
   var _assetSwapUrl = useState(""), assetSwapUrl = _assetSwapUrl[0], setAssetSwapUrl = _assetSwapUrl[1];
+
+  // Persist these on change so re-opening the page restores them.
+  useEffect(function() { writePersisted("sloptop-topic", topic); }, [topic]);
+  useEffect(function() { writePersisted("sloptop-platform", platform); }, [platform]);
+  useEffect(function() { writePersisted("sloptop-vibe", vibe); }, [vibe]);
+  useEffect(function() { writePersisted("sloptop-trendRef", trendRef); }, [trendRef]);
+  useEffect(function() { writePersisted("sloptop-host", host); }, [host]);
+  useEffect(function() { writePersisted("sloptop-slopUrl", slopUrl); }, [slopUrl]);
 
   // Output state
   var _briefs = useState<Record<string, Brief> | null>(null), briefs = _briefs[0], setBriefs = _briefs[1];
@@ -467,11 +513,12 @@ export default function SlopTop() {
     setSlopError(null);
     setSlopResults(null);
     pickLoadingPhrase();
+    flashToast("🔁 Submitted — Opus is cooking your slop");
 
     fetch("/api/slob-top", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "link-to-slop", url: slopUrl.trim(), brainrotLevel: brainrotLevel, brainrotModifier: (BRAINROT_LEVEL_PROMPTS as Record<number, string>)[brainrotLevel] }),
+      body: JSON.stringify({ action: "link-to-slop", url: slopUrl.trim(), brainrotLevel: brainrotLevel, brainrotModifier: (BRAINROT_LEVEL_PROMPTS as Record<number, string>)[brainrotLevel], provider: provider === "auto" ? undefined : provider }),
     })
     .then(function(r) { return r.json(); })
     .then(function(data: { error?: string; raw?: string; results?: SlopResultsData }) {
@@ -500,6 +547,7 @@ export default function SlopTop() {
     setError(null);
     setBriefs(null);
     setSelected(null);
+    flashToast("🔁 Submitted — generating 3 brief variations");
 
     fetch("/api/slob-top", {
       method: "POST",
@@ -507,6 +555,7 @@ export default function SlopTop() {
       body: JSON.stringify({
         topic: topic, platform: platform, vibe: vibe,
         trendRef: trendRef, host: host, assetSwapUrl: assetSwapUrl,
+        provider: provider === "auto" ? undefined : provider,
       }),
     })
     .then(function(r) { return r.json(); })
@@ -1066,6 +1115,27 @@ export default function SlopTop() {
       {arxivToast}
       <span onClick={function() { setArxivToast(null); }} style={{ cursor: "pointer", marginLeft: 8, color: D.txm, fontSize: 16 }}>{"✕"}</span>
     </div>}
+
+    {/* Submit confirmation toast — top center, fades after 3.2s */}
+    {submitToast && <div style={{
+      position: "fixed", top: 76, left: "50%", transform: "translateX(-50%)", zIndex: 9998,
+      padding: "10px 20px", borderRadius: 10,
+      background: "linear-gradient(135deg, " + D.amber + "22, " + D.card + "F0)",
+      border: "1px solid " + D.amber + "70",
+      boxShadow: "0 8px 32px rgba(247,176,65,0.25), 0 0 40px rgba(247,176,65,0.08)",
+      fontFamily: mn, fontSize: 12, fontWeight: 700, color: D.amber,
+      letterSpacing: 0.4, backdropFilter: "blur(12px)", display: "inline-flex", alignItems: "center", gap: 8,
+    }}>{submitToast}</div>}
+
+    {/* Caption provider override chip row — sits under the header so the
+        choice is always visible without leaving the tab. */}
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14, flexWrap: "wrap", padding: "6px 10px", background: D.surface, border: "1px solid " + D.border, borderRadius: 8 }}>
+      <span style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 1, textTransform: "uppercase", fontWeight: 700 }}>Provider</span>
+      {(["auto", "claude", "gemini", "grok"] as const).map(function(p) {
+        var on = provider === p;
+        return <span key={p} onClick={function() { pickProvider(p); }} style={{ fontFamily: mn, fontSize: 9.5, padding: "3px 9px", borderRadius: 4, cursor: "pointer", background: on ? D.amber + "20" : "transparent", color: on ? D.amber : D.txd, border: "1px solid " + (on ? D.amber + "55" : D.border), textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700 }}>{p === "auto" ? "Auto (Opus for meme ideas)" : p}</span>;
+      })}
+    </div>
 
     {/* ═══ TABS ═══ */}
     <div style={{ display: "flex", gap: 0, marginBottom: 28, borderBottom: "1px solid " + D.border }}>
