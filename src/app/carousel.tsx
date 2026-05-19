@@ -815,11 +815,35 @@ function TopMarginSlider({ value, onChange }: { value: number; onChange: (v: num
 }
 
 // ═══ B-ROLL PICKER MODAL (full-modal version for inline canvas use) ═══
-function BRollPickerModal({ open, onSelect, onClose }: { open: boolean; onSelect: (url: string) => void; onClose: () => void }) {
+function BRollPickerModal({ open, onSelect, onClose, slideContext }: { open: boolean; onSelect: (url: string) => void; onClose: () => void; slideContext?: { title?: string; subtitle?: string; bodyText?: string; type?: string } }) {
   var _assets = useState<BRollImageAsset[]>([]), assets = _assets[0], setAssets = _assets[1];
   var _loadState = useState<string>("idle"), loadState = _loadState[0], setLoadState = _loadState[1];
   var _search = useState(""), search = _search[0], setSearch = _search[1];
   var _catFilter = useState("all"), catFilter = _catFilter[0], setCatFilter = _catFilter[1];
+
+  // ── Generate-with-AI mode ───────────────────────────────────────
+  var _mode = useState<"library" | "generate">("library"), mode = _mode[0], setMode = _mode[1];
+  var _prompt = useState(""), prompt = _prompt[0], setPrompt = _prompt[1];
+  var _style = useState("editorial"), style = _style[0], setStyle = _style[1];
+  var _imgProvider = useState<"imagen" | "grok">(function() {
+    if (typeof window === "undefined") return "imagen";
+    var v = window.localStorage.getItem("poast-image-provider");
+    return v === "grok" ? "grok" : "imagen";
+  }), imgProvider = _imgProvider[0], setImgProvider = _imgProvider[1];
+  var _generating = useState(false), generating = _generating[0], setGenerating = _generating[1];
+  var _variants = useState<string[]>([]), variants = _variants[0], setVariants = _variants[1];
+  var _genError = useState<string | null>(null), genError = _genError[0], setGenError = _genError[1];
+
+  // Seed prompt from slide context the first time the modal opens with a
+  // context. Don't clobber what the user has typed.
+  useEffect(function() {
+    if (!open || !slideContext || prompt) return;
+    var parts: string[] = [];
+    if (slideContext.title) parts.push(slideContext.title);
+    if (slideContext.subtitle) parts.push(slideContext.subtitle);
+    if (!parts.length && slideContext.bodyText) parts.push(slideContext.bodyText.slice(0, 140));
+    if (parts.length) setPrompt(parts.join(" — "));
+  }, [open]);
 
   useEffect(function() {
     if (!open || loadState !== "idle") return;
@@ -835,6 +859,34 @@ function BRollPickerModal({ open, onSelect, onClose }: { open: boolean; onSelect
     }).catch(function() { setLoadState("loaded"); });
   }, [open]);
 
+  function pickProvider(p: "imagen" | "grok") {
+    setImgProvider(p);
+    if (typeof window !== "undefined") window.localStorage.setItem("poast-image-provider", p);
+  }
+
+  function runGenerate() {
+    if (!prompt.trim() || generating) return;
+    setGenerating(true);
+    setGenError(null);
+    setVariants([]);
+    fetch("/api/carousel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "generateImage",
+        title: slideContext?.title,
+        subtitle: slideContext?.subtitle,
+        slideType: slideContext?.type,
+        slideText: prompt,
+        style: style,
+        provider: imgProvider,
+      }),
+    }).then(function(r) { return r.json().then(function(j) { return { ok: r.ok, j: j }; }); }).then(function(o) {
+      if (!o.ok) { setGenError((o.j && o.j.error) || "Generate failed"); return; }
+      setVariants((o.j && o.j.images) || []);
+    }).catch(function(e) { setGenError(String(e)); }).finally(function() { setGenerating(false); });
+  }
+
   if (!open) return null;
   var categories: string[] = [];
   assets.forEach(function(a) { if (a.category && categories.indexOf(a.category) === -1) categories.push(a.category); });
@@ -849,27 +901,111 @@ function BRollPickerModal({ open, onSelect, onClose }: { open: boolean; onSelect
     return true;
   });
 
+  var STYLES = [
+    { id: "editorial",      label: "Editorial" },
+    { id: "cinematic",      label: "Cinematic" },
+    { id: "photorealistic", label: "Photoreal" },
+    { id: "dataviz",        label: "Data viz" },
+    { id: "abstract",       label: "Abstract" },
+  ];
+
+  function tabBtnStyle(active: boolean): React.CSSProperties {
+    return {
+      padding: "7px 14px",
+      background: active ? C.amber + "20" : "transparent",
+      border: "1px solid " + (active ? C.amber + "55" : C.border),
+      borderRadius: 6,
+      color: active ? C.amber : C.txm,
+      fontFamily: mn,
+      fontSize: 10,
+      letterSpacing: "0.8px",
+      textTransform: "uppercase",
+      cursor: "pointer",
+      fontWeight: 700,
+    };
+  }
+
   return <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }}>
-    <div onClick={function(e) { e.stopPropagation(); }} style={{ background: "rgba(13,13,18,0.92)", backdropFilter: "blur(18px)", border: "1px solid " + C.amber + "40", borderRadius: 14, padding: "20px 22px", width: 540, maxWidth: "90vw", maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 80px rgba(0,0,0,0.6)" }}>
-      <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>B-Roll Library</div>
-      <input value={search} onChange={function(e) { setSearch(e.target.value); }} placeholder="Search..." style={{ width: "100%", padding: "8px 12px", background: C.surface, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: ft, fontSize: 12, outline: "none", boxSizing: "border-box", marginBottom: 8 }} />
-      {categories.length > 0 && <div style={{ display: "flex", gap: 4, marginBottom: 10, flexWrap: "wrap" }}>
-        <span onClick={function() { setCatFilter("all"); }} style={{ fontFamily: mn, fontSize: 9, padding: "3px 8px", borderRadius: 4, cursor: "pointer", background: catFilter === "all" ? C.amber + "20" : "transparent", color: catFilter === "all" ? C.amber : C.txd, border: "1px solid " + (catFilter === "all" ? C.amber + "40" : C.border) }}>All</span>
-        {categories.map(function(cat) {
-          return <span key={cat} onClick={function() { setCatFilter(cat); }} style={{ fontFamily: mn, fontSize: 9, padding: "3px 8px", borderRadius: 4, cursor: "pointer", background: catFilter === cat ? C.amber + "20" : "transparent", color: catFilter === cat ? C.amber : C.txd, border: "1px solid " + (catFilter === cat ? C.amber + "40" : C.border) }}>{cat}</span>;
-        })}
-      </div>}
-      <div style={{ flex: 1, overflowY: "auto", padding: 4 }}>
-        {loadState === "loading" && <div style={{ textAlign: "center", padding: 30, fontFamily: ft, fontSize: 12, color: C.txm }}>Loading...</div>}
-        {loadState === "loaded" && filtered.length === 0 && <div style={{ textAlign: "center", padding: 30, fontFamily: ft, fontSize: 12, color: C.txd }}>No images found</div>}
-        {filtered.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
-          {filtered.map(function(asset) {
-            return <div key={asset.id} onClick={function() { onSelect(asset.url); }} title={asset.filename || asset.description || ""} style={{ width: "100%", aspectRatio: "1", borderRadius: 6, overflow: "hidden", cursor: "pointer", border: "1px solid " + C.border, background: C.surface, transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.amber; e.currentTarget.style.transform = "scale(1.05)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "scale(1)"; }}>
-              <img src={asset.thumbnail || asset.url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
-            </div>;
+    <div onClick={function(e) { e.stopPropagation(); }} style={{ background: "rgba(13,13,18,0.92)", backdropFilter: "blur(18px)", border: "1px solid " + C.amber + "40", borderRadius: 14, padding: "20px 22px", width: 600, maxWidth: "92vw", maxHeight: "84vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 80px rgba(0,0,0,0.6)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px" }}>{mode === "library" ? "B-Roll Library" : "Generate with AI"}</div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={function() { setMode("library"); }} style={tabBtnStyle(mode === "library")}>Library</button>
+          <button onClick={function() { setMode("generate"); }} style={tabBtnStyle(mode === "generate")}>Generate</button>
+        </div>
+      </div>
+
+      {mode === "library" ? <>
+        <input value={search} onChange={function(e) { setSearch(e.target.value); }} placeholder="Search..." style={{ width: "100%", padding: "8px 12px", background: C.surface, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: ft, fontSize: 12, outline: "none", boxSizing: "border-box", marginBottom: 8 }} />
+        {categories.length > 0 && <div style={{ display: "flex", gap: 4, marginBottom: 10, flexWrap: "wrap" }}>
+          <span onClick={function() { setCatFilter("all"); }} style={{ fontFamily: mn, fontSize: 9, padding: "3px 8px", borderRadius: 4, cursor: "pointer", background: catFilter === "all" ? C.amber + "20" : "transparent", color: catFilter === "all" ? C.amber : C.txd, border: "1px solid " + (catFilter === "all" ? C.amber + "40" : C.border) }}>All</span>
+          {categories.map(function(cat) {
+            return <span key={cat} onClick={function() { setCatFilter(cat); }} style={{ fontFamily: mn, fontSize: 9, padding: "3px 8px", borderRadius: 4, cursor: "pointer", background: catFilter === cat ? C.amber + "20" : "transparent", color: catFilter === cat ? C.amber : C.txd, border: "1px solid " + (catFilter === cat ? C.amber + "40" : C.border) }}>{cat}</span>;
           })}
         </div>}
-      </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: 4 }}>
+          {loadState === "loading" && <div style={{ textAlign: "center", padding: 30, fontFamily: ft, fontSize: 12, color: C.txm }}>Loading...</div>}
+          {loadState === "loaded" && filtered.length === 0 && <div style={{ textAlign: "center", padding: 30, fontFamily: ft, fontSize: 12, color: C.txd }}>No images found. Try the Generate tab to make one with AI.</div>}
+          {filtered.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
+            {filtered.map(function(asset) {
+              return <div key={asset.id} onClick={function() { onSelect(asset.url); }} title={asset.filename || asset.description || ""} style={{ width: "100%", aspectRatio: "1", borderRadius: 6, overflow: "hidden", cursor: "pointer", border: "1px solid " + C.border, background: C.surface, transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.amber; e.currentTarget.style.transform = "scale(1.05)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "scale(1)"; }}>
+                <img src={asset.thumbnail || asset.url} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
+              </div>;
+            })}
+          </div>}
+        </div>
+      </> : <>
+        <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 4 }}>Prompt</div>
+        <textarea
+          value={prompt}
+          onChange={function(e) { setPrompt(e.target.value); }}
+          placeholder="e.g. NVIDIA Blackwell server rack glowing in a data center, restrained color palette, magazine-cover composition"
+          style={{ width: "100%", padding: "10px 12px", background: C.surface, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: ft, fontSize: 12, outline: "none", boxSizing: "border-box", minHeight: 64, resize: "vertical", lineHeight: 1.5, marginBottom: 10 }}
+        />
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, textTransform: "uppercase", letterSpacing: "1.2px" }}>Provider</div>
+          <div style={{ display: "flex", gap: 4 }}>
+            <span onClick={function() { pickProvider("imagen"); }} title="Google Imagen 3 — editorial polish, brand-safe" style={{ fontFamily: mn, fontSize: 9, padding: "4px 9px", borderRadius: 4, cursor: "pointer", background: imgProvider === "imagen" ? C.amber + "20" : "transparent", color: imgProvider === "imagen" ? C.amber : C.txd, border: "1px solid " + (imgProvider === "imagen" ? C.amber + "55" : C.border), textTransform: "uppercase", letterSpacing: "0.5px" }}>Imagen 3</span>
+            <span onClick={function() { pickProvider("grok"); }} title="xAI Grok — looser, can produce people/IP that Imagen refuses" style={{ fontFamily: mn, fontSize: 9, padding: "4px 9px", borderRadius: 4, cursor: "pointer", background: imgProvider === "grok" ? C.amber + "20" : "transparent", color: imgProvider === "grok" ? C.amber : C.txd, border: "1px solid " + (imgProvider === "grok" ? C.amber + "55" : C.border), textTransform: "uppercase", letterSpacing: "0.5px" }}>Grok</span>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, textTransform: "uppercase", letterSpacing: "1.2px" }}>Style</div>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {STYLES.map(function(s) {
+              return <span key={s.id} onClick={function() { setStyle(s.id); }} style={{ fontFamily: mn, fontSize: 9, padding: "4px 9px", borderRadius: 4, cursor: "pointer", background: style === s.id ? C.amber + "20" : "transparent", color: style === s.id ? C.amber : C.txd, border: "1px solid " + (style === s.id ? C.amber + "55" : C.border), textTransform: "uppercase", letterSpacing: "0.5px" }}>{s.label}</span>;
+            })}
+          </div>
+          <button
+            onClick={runGenerate}
+            disabled={!prompt.trim() || generating}
+            style={{ marginLeft: "auto", padding: "8px 16px", background: prompt.trim() && !generating ? C.amber : "transparent", border: "1px solid " + (prompt.trim() && !generating ? C.amber : C.border), borderRadius: 6, color: prompt.trim() && !generating ? "#060608" : C.txd, fontFamily: ft, fontSize: 12, fontWeight: 800, cursor: prompt.trim() && !generating ? "pointer" : "not-allowed", letterSpacing: "0.3px" }}
+          >
+            {generating ? "Generating…" : variants.length ? "Re-generate" : "Generate 3 variants"}
+          </button>
+        </div>
+
+        {genError ? <div style={{ fontFamily: mn, fontSize: 11, color: C.coral, marginBottom: 10, padding: "8px 10px", background: "rgba(224,99,71,0.08)", border: "1px solid " + C.coral + "55", borderRadius: 6 }}>{genError}</div> : null}
+
+        <div style={{ flex: 1, overflowY: "auto", padding: 4 }}>
+          {generating && variants.length === 0 ? <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+            {[0, 1, 2].map(function(i) {
+              return <div key={i} style={{ width: "100%", aspectRatio: "1", borderRadius: 8, background: C.surface, border: "1px dashed " + C.border, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 10, color: C.txd, letterSpacing: "0.5px" }}>generating…</div>;
+            })}
+          </div> : null}
+          {variants.length > 0 ? <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+            {variants.map(function(url, i) {
+              return <div key={i} onClick={function() { onSelect(url); }} title={"Use variant " + (i + 1)} style={{ width: "100%", aspectRatio: "1", borderRadius: 8, overflow: "hidden", cursor: "pointer", border: "1px solid " + C.border, background: C.surface, transition: "all 0.15s", position: "relative" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.amber; e.currentTarget.style.transform = "scale(1.03)"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "scale(1)"; }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt={"variant " + (i + 1)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                <div style={{ position: "absolute", left: 6, top: 6, fontFamily: mn, fontSize: 9, color: "#fff", background: "rgba(0,0,0,0.55)", padding: "2px 6px", borderRadius: 4, letterSpacing: "0.5px" }}>{i + 1}</div>
+              </div>;
+            })}
+          </div> : null}
+          {!generating && !variants.length ? <div style={{ textAlign: "center", padding: 30, fontFamily: ft, fontSize: 12, color: C.txd, lineHeight: 1.5 }}>Write a prompt above and hit Generate. Each run produces 3 variants — click any one to drop it into the slide.</div> : null}
+        </div>
+      </>}
+
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
         <button onClick={onClose} style={{ padding: "8px 16px", background: "transparent", border: "1px solid " + C.border, borderRadius: 6, color: C.txm, fontFamily: ft, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Close</button>
       </div>
@@ -1375,6 +1511,7 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: {
         setPickerField(null);
       }}
       onClose={function() { setPickerField(null); }}
+      slideContext={currentSlide ? { title: currentSlide.title, subtitle: currentSlide.subtitle, bodyText: currentSlide.bodyText, type: currentSlide.type } : undefined}
     />
 
     {/* Push-to-next-slide modal */}

@@ -36,6 +36,9 @@ import { EVENT_ROSTER, findEvent, type EventEntry } from "./events";
 interface EventWizardProps {
   open: boolean;
   onClose: () => void;
+  initialEventId?: string;
+  initialCategoryId?: string;
+  initialPresetId?: string;
 }
 
 const SA_ROLES = [
@@ -45,14 +48,18 @@ const SA_ROLES = [
   { id: "host",     label: "Host" },
 ];
 
-export function EventWizard({ open, onClose }: EventWizardProps) {
+export function EventWizard({ open, onClose, initialEventId, initialCategoryId, initialPresetId }: EventWizardProps) {
   const router = useRouter();
   const { showToast } = useToast();
 
-  const [step, setStep] = useState(0);
-  const [eventId, setEventId] = useState("");
-  const [categoryId, setCategoryId] = useState("event-flyer");
-  const [presetId, setPresetId] = useState("event-flyer-letter");
+  const validEventId = initialEventId && findEvent(initialEventId) ? initialEventId : "";
+  const validCatId = initialCategoryId && findCategory(initialCategoryId) ? initialCategoryId : "event-flyer";
+  // Step 0=event, 1=category+size, 2=brief. Skip what's preselected.
+  const startStep = validEventId && initialPresetId ? 2 : validEventId ? 1 : 0;
+  const [step, setStep] = useState<number>(startStep);
+  const [eventId, setEventId] = useState(validEventId);
+  const [categoryId, setCategoryId] = useState(validCatId);
+  const [presetId, setPresetId] = useState(initialPresetId ?? "event-flyer-letter");
   const [showAllSizes, setShowAllSizes] = useState(false);
   const [saRole, setSaRole] = useState("speaker");
   const [keyMessages, setKeyMessages] = useState("");

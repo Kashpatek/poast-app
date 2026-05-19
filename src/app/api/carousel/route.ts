@@ -4,6 +4,7 @@ import { generateWithClaude, generateJSON, AnthropicError } from "@/lib/anthropi
 import { stripHTML, extractImages } from "@/lib/html";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { generateGrokImages, GrokImageError, SA_BRAND_CUES, STYLE_PRESETS } from "@/lib/grok-image";
+import { generateImagenImages, ImagenError } from "@/lib/imagen";
 
 // SA Carousel Schema v1.0
 const TEMPLATE_IDS: Record<string, string> = {
@@ -327,10 +328,10 @@ Style rules:
     }
 
     if (action === "generateImage") {
-      // Grok image generation for carousel slides. Inputs the slide's
-      // text content + slide type so we can bias the prompt toward
-      // either a strong-focal cover composition or a tighter supporting
-      // illustration for body slides.
+      // Image generation for carousel slides. Routes to Imagen (default)
+      // or Grok via the `provider` field. Both producers receive the
+      // same SA-branded prompt so the choice is purely about which
+      // model the user trusts more for this image.
       const {
         title: imgTitle,
         subtitle: imgSubtitle,
@@ -338,6 +339,7 @@ Style rules:
         slideText,
         category: imgCategory,
         style: imgStyle,
+        provider: imgProvider,
       } = body as {
         title?: string;
         subtitle?: string;
@@ -345,6 +347,7 @@ Style rules:
         slideText?: string;
         category?: string;
         style?: string;
+        provider?: "imagen" | "grok";
       };
 
       const stylePrompt =
@@ -368,15 +371,40 @@ Style rules:
         .filter(Boolean)
         .join(" ");
 
+      const provider = imgProvider === "grok" ? "grok" : "imagen";
+      // Imagen refuses real people / IP more aggressively than Grok.
+      // Silent-fallback to Grok so the user just gets variants instead
+      // of a refusal banner. We surface `fellBackTo` on the response so
+      // the UI can show a small note if it wants.
       try {
-        const images = await generateGrokImages({ prompt: fullPrompt, count: 3 });
-        if (!images.length) {
-          return NextResponse.json({ error: "No images generated" }, { status: 502 });
+        if (provider === "imagen") {
+          try {
+            const images = await generateImagenImages({ prompt: fullPrompt, count: 3, aspectRatio: "1:1" });
+            if (images.length) return NextResponse.json({ images, provider: "imagen", ts: Date.now() });
+          } catch (e) {
+            // Only fall back on policy-style refusals (400-class). Real
+            // outages (5xx) should surface so the user knows to retry.
+            if (e instanceof ImagenError && e.status >= 400 && e.status < 500) {
+              const images = await generateGrokImages({ prompt: fullPrompt, count: 3 });
+              if (!images.length) return NextResponse.json({ error: "No images generated", provider: "grok" }, { status: 502 });
+              return NextResponse.json({ images, provider: "grok", fellBackTo: "grok", imagenError: e.message, ts: Date.now() });
+            }
+            throw e;
+          }
+          // Imagen returned empty without throwing — fall through to Grok.
+          const images = await generateGrokImages({ prompt: fullPrompt, count: 3 });
+          if (!images.length) return NextResponse.json({ error: "No images generated", provider: "grok" }, { status: 502 });
+          return NextResponse.json({ images, provider: "grok", fellBackTo: "grok", ts: Date.now() });
         }
-        return NextResponse.json({ images, ts: Date.now() });
+        const images = await generateGrokImages({ prompt: fullPrompt, count: 3 });
+        if (!images.length) return NextResponse.json({ error: "No images generated", provider: "grok" }, { status: 502 });
+        return NextResponse.json({ images, provider: "grok", ts: Date.now() });
       } catch (e) {
         if (e instanceof GrokImageError) {
-          return NextResponse.json({ error: e.message }, { status: e.status });
+          return NextResponse.json({ error: e.message, provider }, { status: e.status });
+        }
+        if (e instanceof ImagenError) {
+          return NextResponse.json({ error: e.message, provider }, { status: e.status });
         }
         throw e;
       }

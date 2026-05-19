@@ -10,7 +10,7 @@ import { useToast } from "../../toast-context";
 import { WizardShell, wizardLabel, wizardInput } from "./wizard-shell";
 import { findPreset } from "./size-presets";
 
-interface MotionWizardProps { open: boolean; onClose: () => void }
+interface MotionWizardProps { open: boolean; onClose: () => void; initialPresetId?: string }
 
 const PRESETS = [
   { id: "ig-square",  label: "Square 1080²",     w: 1080, h: 1080 },
@@ -18,12 +18,14 @@ const PRESETS = [
   { id: "slide-16-9", label: "Landscape 16:9",    w: 1920, h: 1080 },
 ];
 
-export function MotionWizard({ open, onClose }: MotionWizardProps) {
+export function MotionWizard({ open, onClose, initialPresetId }: MotionWizardProps) {
   const router = useRouter();
   const { showToast } = useToast();
 
   const [name, setName] = useState("");
-  const [presetId, setPresetId] = useState("ig-square");
+  const [presetId, setPresetId] = useState(() =>
+    initialPresetId && PRESETS.some((p) => p.id === initialPresetId) ? initialPresetId : "ig-square"
+  );
   const [submitting, setSubmitting] = useState(false);
 
   function reset() {

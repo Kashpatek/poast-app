@@ -1641,6 +1641,21 @@ export default function SAWeekly() {
     setHasDraft(false);
     draftRef.current = null;
     setInteracted(true);
+
+    // Defensive re-pull of the activity log. The mount fetch already
+    // populated logData, but if anything shuffled state during the
+    // session (multi-tab, stale Redis fallback, a debounced save that
+    // closed over an early empty array) past episodes can disappear
+    // from the Log step. Refetching directly from the Supabase row
+    // here guarantees they show up as soon as the user navigates to
+    // step 6 after Load from Draft.
+    fetch("/api/db?table=projects").then(function(r) { return r.json(); }).then(function(res: { data?: Array<{ type: string; id: string; data?: { log?: LogEntry[] } }> }) {
+      if (!res.data || !res.data.length) return;
+      var row = res.data.find(function(rr) { return rr.type === "weekly" && rr.id === "weekly-master"; });
+      if (row && row.data && Array.isArray(row.data.log) && row.data.log.length > 0) {
+        setLogData(row.data.log);
+      }
+    }).catch(function() { /* ignore — keep whatever logData we already have */ });
   };
 
   // "Develop Clips" entry from the Activity Log. Loads a past episode's
@@ -1735,7 +1750,7 @@ export default function SAWeekly() {
         <div style={{ fontFamily: mn, fontSize: 11, color: D.txb, marginTop: 4, letterSpacing: "2px", textTransform: "uppercase" }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div>
       </div>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        {hasDraft && <span onClick={loadDraft} style={{ fontFamily: mn, fontSize: 9, color: ACC, cursor: "pointer", padding: "6px 12px", border: "1px solid " + ACC + "40", borderRadius: 8, background: ACC + "08", transition: "all 0.2s ease" }}>Load from Draft</span>}
+        {hasDraft && <span onClick={loadDraft} title={logData.length > 0 ? logData.length + " past episode" + (logData.length === 1 ? "" : "s") + " also visible in the Log step" : undefined} style={{ fontFamily: mn, fontSize: 9, color: ACC, cursor: "pointer", padding: "6px 12px", border: "1px solid " + ACC + "40", borderRadius: 8, background: ACC + "08", transition: "all 0.2s ease" }}>Load from Draft{logData.length > 0 ? " · " + logData.length + " past ep" + (logData.length === 1 ? "" : "s") : ""}</span>}
         <a href="https://youtube.com/@SemianalysisWeekly" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 9, color: D.txl, textDecoration: "none", padding: "6px 12px", border: "1px solid " + D.border, borderRadius: 8, transition: "all 0.2s ease" }}>@SemianalysisWeekly</a>
       </div>
     </div>

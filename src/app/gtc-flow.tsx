@@ -418,6 +418,22 @@ function AddEpisodeModal(p: { onAdd: (ep: Episode) => void; onClose: () => void;
 function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep: Episode) => void }){var ep=p.ep,cad=p.cad,onBack=p.onBack,onUpdate=p.onUpdate;
   var [tab,setTab]=useState("kit");var [genK,setGenK]=useState(false);var [kitOut,setKitOut]=useState("");var [c1,setC1]=useState("");var [c2,setC2]=useState("");var [clipOut,setClipOut]=useState("");var [genC,setGenC]=useState(false);var [cp,setCp]=useState("");
   var [ytTranscript,setYtTranscript]=useState("");var [ytOut,setYtOut]=useState("");var [genYt,setGenYt]=useState(false);
+  var [gBio,setGBio]=useState(ep.bio||"");
+  var [hBio,setHBio]=useState("");
+  useEffect(function(){
+    setGBio(ep.bio||"");
+    if(typeof window==="undefined")return;
+    var saved=window.localStorage.getItem("hostBio:"+ep.host);
+    setHBio(saved||"");
+  },[ep.id,ep.host,ep.bio]);
+  useEffect(function(){
+    if(typeof window==="undefined"||!ep.host)return;
+    var t=setTimeout(function(){
+      if(hBio.trim())window.localStorage.setItem("hostBio:"+ep.host,hBio);
+      else window.localStorage.removeItem("hostBio:"+ep.host);
+    },500);
+    return function(){clearTimeout(t)};
+  },[ep.host,hBio]);
   var [editing,setEditing]=useState(false);
   var [eBio,setEBio]=useState(ep.bio||"");
   var [eTitle,setETitle]=useState(ep.title||"");
@@ -464,8 +480,9 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
       "Generate the FULL launch kit for this episode. Every section must pull specific hooks from the bio/topics.",
       "",
       "Guest: " + ep.guest + ", " + ep.title + " at " + ep.company,
+      "Guest bio: " + (gBio || ep.bio || "[no guest bio provided]"),
       "Host: " + ep.host,
-      "Bio: " + ep.bio,
+      "Host bio: " + (hBio || "[no host bio provided]"),
       "Topics: " + (ep.topics || "general"),
       "Company: " + (ep.companyDesc || ""),
       "Format: " + (ep.virtual ? "virtual via Riverside" : "on-site at NVIDIA GTC 2026 in San Jose"),
@@ -526,13 +543,14 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
       "Generate a full YouTube description for this episode. Exactly 3 paragraphs. NO chapter markers or timestamps (user adds those themselves).",
       "",
       "Guest: " + ep.guest + ", " + ep.title + " at " + ep.company,
+      "Guest bio: " + (gBio || ep.bio || "[no guest bio provided]"),
       "Host: " + ep.host,
-      "Bio: " + ep.bio,
+      "Host bio: " + (hBio || "[no host bio provided]"),
       "Topics: " + (ep.topics || "general"),
       "Company: " + (ep.companyDesc || ""),
       "Format: " + (ep.virtual ? "virtual via Riverside" : "on-site at NVIDIA GTC 2026 in San Jose"),
       "",
-      hasTx ? "TRANSCRIPT (use for pulling specific technical details, numbers, and quotes):\n" + ytTranscript.slice(0, 8000) + "\n" : "",
+      hasTx ? "TRANSCRIPT (use for pulling specific technical details, numbers, and quotes; use the bios above to attribute correctly to host vs guest):\n" + ytTranscript.slice(0, 8000) + "\n" : "",
       "Output exactly 3 paragraphs, separated by blank lines:",
       "",
       "[Paragraph 1: " + ep.host + " sits down with " + ep.guest + ", " + ep.title + " at " + ep.company + ", to discuss [topics]. " + firstName + " dives into [3 specific technical details with numbers from bio/topics/transcript].]",
@@ -545,7 +563,55 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
     setYtOut(r);
     setGenYt(false);
   }
-  async function gClip(){setGenC(true);var r=await callAPI(DYLAN_SYS,"2 clips. All casual.\nGuest: "+ep.guest+" ("+ep.company+")\n\nCLIP 1:\n"+(c1||"[no transcript]")+"\n\nCLIP 2:\n"+(c2||"[no transcript]")+"\n\nEach clip: X (NEVER hashtags), YT Shorts (title<40 + #shorts), IG Reels (save CTA + 5-8 hashtags + San Jose), TikTok (lowercase caption only, NEVER overlay/on-screen text, NEVER hashtags), Story (1 line).\nClip1 Thu 10AM, Clip2 Tue 10AM. TikTok stagger 4-6hr.");setClipOut(r);setGenC(false)}
+  async function gClip(){
+    setGenC(true);
+    var prompt = [
+      "2 clips. All casual.",
+      "Guest: " + ep.guest + " (" + ep.company + ")",
+      "Guest bio: " + (gBio || ep.bio || "[no guest bio provided]"),
+      "Host: " + ep.host,
+      "Host bio: " + (hBio || "[no host bio provided]"),
+      "Use the bios to attribute claims correctly. The guest is the subject of the captions; the host asks the questions.",
+      "",
+      "CLIP 1:",
+      c1 || "[no transcript]",
+      "",
+      "CLIP 2:",
+      c2 || "[no transcript]",
+      "",
+      "Each clip: X (NEVER hashtags), YT Shorts (title<40 + #shorts), IG Reels (save CTA + 5-8 hashtags + San Jose), TikTok (lowercase caption only, NEVER overlay/on-screen text, NEVER hashtags), Story (1 line).",
+      "Clip1 Thu 10AM, Clip2 Tue 10AM. TikTok stagger 4-6hr."
+    ].join("\n");
+    var r = await callAPI(DYLAN_SYS, prompt);
+    setClipOut(r);
+    setGenC(false);
+  }
+
+  function speakersPanel(){
+    var missing = !gBio.trim() || !hBio.trim();
+    return <div style={{marginBottom:12,padding:14,background:BG1,border:"1px solid "+(missing?AMB+"30":BDR),borderRadius:8}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,fontFamily:MONO}}>Speakers</div>
+        {missing&&<div style={{fontSize:10,color:AMB,fontFamily:MONO,letterSpacing:0.5}}>Add bios so captions know who is who</div>}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
+            <div style={{fontSize:10,color:"#9ca3af",fontFamily:MONO,fontWeight:700}}>Host: {ep.host}</div>
+            <div style={{fontSize:9,color:"#4b5563",fontFamily:MONO}}>{hBio.trim()?"Saved for "+ep.host:""}</div>
+          </div>
+          <textarea value={hBio} onChange={function(e){setHBio(e.target.value)}} placeholder="Short host bio. What they cover at SemiAnalysis, what makes their POV. Used to frame the interviewer." style={{width:"100%",minHeight:78,padding:8,background:BG0,border:"1px solid "+BDR,borderRadius:6,color:"#d1d5db",fontFamily:FONT,fontSize:11,resize:"vertical",outline:"none",boxSizing:"border-box",lineHeight:1.6}}/>
+        </div>
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
+            <div style={{fontSize:10,color:"#9ca3af",fontFamily:MONO,fontWeight:700}}>Guest: {ep.guest}</div>
+            <div style={{fontSize:9,color:"#4b5563",fontFamily:MONO}}>{gBio!==(ep.bio||"")?"override":""}</div>
+          </div>
+          <textarea value={gBio} onChange={function(e){setGBio(e.target.value)}} placeholder="Guest bio with concrete details, numbers, claims. Pulled into caption hooks." style={{width:"100%",minHeight:78,padding:8,background:BG0,border:"1px solid "+BDR,borderRadius:6,color:"#d1d5db",fontFamily:FONT,fontSize:11,resize:"vertical",outline:"none",boxSizing:"border-box",lineHeight:1.6}}/>
+        </div>
+      </div>
+    </div>;
+  }
 
   return <div style={{fontFamily:FONT,color:"#E8E4DD"}}><div style={{maxWidth:960,margin:"0 auto",padding:"28px 32px 60px"}}>
     <div style={{display:"flex",gap:8,marginBottom:24}}>
@@ -657,6 +723,7 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
     })()}
 
     {tab==="yt"&&<div>
+      {speakersPanel()}
       <div style={{marginBottom:12,padding:14,background:BG1,border:"1px solid "+BDR,borderRadius:8}}>
         <div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,fontFamily:MONO,marginBottom:8}}>Transcript (optional)</div>
         <textarea value={ytTranscript} onChange={function(e){setYtTranscript(e.target.value)}} placeholder="Paste full interview transcript. AI will pull specific technical details, numbers, and claims from it to make the description richer..." style={{width:"100%",minHeight:140,padding:10,background:BG0,border:"1px solid "+BDR,borderRadius:6,color:"#d1d5db",fontFamily:FONT,fontSize:11,resize:"vertical",outline:"none",boxSizing:"border-box"}}/>
@@ -672,6 +739,7 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
     </div>}
 
     {tab==="clips"&&<div>
+      {speakersPanel()}
       <div style={{marginBottom:12,padding:14,background:CYN+"08",border:"1px solid "+CYN+"30",borderRadius:8}}>
         <div style={{fontSize:10,color:CYN,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,fontFamily:MONO,marginBottom:6}}>How to get clip transcripts fast</div>
         <ol style={{margin:"0 0 0 18px",padding:0,fontSize:11,color:"#9ca3af",lineHeight:1.7}}>

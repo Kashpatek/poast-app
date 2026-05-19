@@ -17,6 +17,52 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { action, engine } = body;
+
+    // ═══ VEO (Google) ═══
+    if (engine === "veo") {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) return NextResponse.json({ error: "GEMINI_API_KEY not configured" }, { status: 500 });
+      const model = process.env.VEO_MODEL || "veo-3.0-generate-001";
+
+      if (action === "generate") {
+        // Veo uses a long-running operation: start returns an operation name we poll.
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:predictLongRunning?key=${apiKey}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            instances: [{ prompt: body.prompt }],
+            parameters: {
+              aspectRatio: body.aspectRatio || "16:9",
+              durationSeconds: Number(body.duration) || 8,
+              personGeneration: "allow_adult",
+            },
+          }),
+        });
+        const data = await r.json();
+        if (!r.ok || data.error) return NextResponse.json({ error: "Veo: " + (data.error?.message || JSON.stringify(data.error) || r.statusText) }, { status: r.status || 400 });
+        // `name` is the operation handle; we use it as task_id.
+        return NextResponse.json({ task: { task_id: data.name, provider: "veo" }, ts: Date.now() });
+      }
+
+      if (action === "status") {
+        // Poll the long-running operation by its name.
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/${encodeURIComponent(body.taskId)}?key=${apiKey}`);
+        const data = await r.json();
+        if (!r.ok) return NextResponse.json({ error: "Veo status: " + (data.error?.message || r.statusText) }, { status: r.status });
+        if (data.done) {
+          const videos: Array<{ url?: string; bytesBase64Encoded?: string; mimeType?: string }> = data.response?.generateVideoResponse?.generatedSamples || data.response?.predictions || [];
+          const out = videos.map((v) => {
+            if (v.url) return { url: v.url };
+            if (v.bytesBase64Encoded) return { url: `data:${v.mimeType || "video/mp4"};base64,${v.bytesBase64Encoded}` };
+            return null;
+          }).filter(Boolean);
+          if (!out.length) return NextResponse.json({ task: { task_status: "failed", provider: "veo" }, ts: Date.now() });
+          return NextResponse.json({ task: { task_status: "succeed", task_result: { videos: out }, progress: 100, provider: "veo" }, ts: Date.now() });
+        }
+        return NextResponse.json({ task: { task_status: "processing", progress: 50, provider: "veo" }, ts: Date.now() });
+      }
+    }
+
     const useGrok = engine === "grok" || !process.env.KLING_ACCESS_KEY;
 
     // ═══ GROK VIDEO ═══

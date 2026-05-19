@@ -36,15 +36,21 @@ import {
 interface DocumentWizardProps {
   open: boolean;
   onClose: () => void;
+  initialCategoryId?: string;
+  initialPresetId?: string;
 }
 
-export function DocumentWizard({ open, onClose }: DocumentWizardProps) {
+export function DocumentWizard({ open, onClose, initialCategoryId, initialPresetId }: DocumentWizardProps) {
   const router = useRouter();
   const { showToast } = useToast();
 
-  const [step, setStep] = useState(0);
-  const [categoryId, setCategoryId] = useState<string>("");
-  const [presetId, setPresetId] = useState<string>("");
+  // Initial-state from deep-link preselection. The parent passes a `key`
+  // that changes when these inputs change, so the wizard remounts fresh
+  // and these initializers re-run.
+  const initialCat = initialCategoryId ? findCategory(initialCategoryId) : undefined;
+  const [step, setStep] = useState<number>(initialCat ? (initialPresetId ? 2 : 1) : 0);
+  const [categoryId, setCategoryId] = useState<string>(initialCat?.id ?? "");
+  const [presetId, setPresetId] = useState<string>(initialPresetId ?? initialCat?.defaultPreset ?? "");
   const [customSize, setCustomSize] = useState<{ w: string; h: string }>({ w: "", h: "" });
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");

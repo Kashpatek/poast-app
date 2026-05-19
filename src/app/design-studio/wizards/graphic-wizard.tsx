@@ -30,15 +30,18 @@ import {
 interface GraphicWizardProps {
   open: boolean;
   onClose: () => void;
+  initialCategoryId?: string;
+  initialPresetId?: string;
 }
 
-export function GraphicWizard({ open, onClose }: GraphicWizardProps) {
+export function GraphicWizard({ open, onClose, initialCategoryId, initialPresetId }: GraphicWizardProps) {
   const router = useRouter();
   const { showToast } = useToast();
 
-  const [step, setStep] = useState(0);
-  const [categoryId, setCategoryId] = useState("");
-  const [presetId, setPresetId] = useState("");
+  const initialCat = initialCategoryId ? findCategory(initialCategoryId) : undefined;
+  const [step, setStep] = useState<number>(initialCat && initialPresetId ? 1 : 0);
+  const [categoryId, setCategoryId] = useState(initialCat?.id ?? "");
+  const [presetId, setPresetId] = useState(initialPresetId ?? initialCat?.defaultPreset ?? "");
   const [showAllSizes, setShowAllSizes] = useState(false);
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);

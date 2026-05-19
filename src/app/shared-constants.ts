@@ -58,11 +58,39 @@ export function copyText(str: string): boolean {
 export function uid(prefix?: string): string { return (prefix || "id") + "-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8); }
 
 // ─── API Helpers ───
-export async function askAPI(sys: string, prompt: string): Promise<Record<string, unknown> | null> {
+// ─── Provider preference ──────────────────────────────────────────
+// Read by every caption-gen helper so the user's pick on the AI
+// Training page propagates everywhere without each surface needing
+// its own plumbing. Per-call override stays possible — just pass
+// `provider` to askAPI{,Raw} explicitly.
+export type LLMProviderName = "claude" | "gemini" | "grok";
+
+export function getPreferredProvider(): LLMProviderName {
+  if (typeof window === "undefined") return "claude";
+  var v = window.localStorage.getItem("poast-llm-provider");
+  return v === "gemini" || v === "grok" ? v : "claude";
+}
+
+export function setPreferredProvider(p: LLMProviderName): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem("poast-llm-provider", p);
+}
+
+interface AskOptions {
+  provider?: LLMProviderName;
+  applyBrandVoice?: boolean;
+}
+
+export async function askAPI(sys: string, prompt: string, opts?: AskOptions): Promise<Record<string, unknown> | null> {
   try {
     var r = await fetch("/api/generate", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ system: sys, prompt: prompt }),
+      body: JSON.stringify({
+        system: sys,
+        prompt: prompt,
+        provider: opts?.provider || getPreferredProvider(),
+        applyBrandVoice: opts?.applyBrandVoice !== false,
+      }),
     });
     var d = await r.json();
     if (d.error) { console.error("API Error:", d.error); return null; }
@@ -74,11 +102,16 @@ export async function askAPI(sys: string, prompt: string): Promise<Record<string
   } catch (e) { console.error("API:", e); return null; }
 }
 
-export async function askAPIRaw(sys: string, prompt: string): Promise<string | null> {
+export async function askAPIRaw(sys: string, prompt: string, opts?: AskOptions): Promise<string | null> {
   try {
     var r = await fetch("/api/generate", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ system: sys, prompt: prompt }),
+      body: JSON.stringify({
+        system: sys,
+        prompt: prompt,
+        provider: opts?.provider || getPreferredProvider(),
+        applyBrandVoice: opts?.applyBrandVoice !== false,
+      }),
     });
     var d = await r.json();
     if (d.error) return null;

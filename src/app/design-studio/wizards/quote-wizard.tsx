@@ -37,20 +37,25 @@ import {
 interface QuoteWizardProps {
   open: boolean;
   onClose: () => void;
+  initialCategoryId?: string;
+  initialPresetId?: string;
+  initialTemplateId?: QuoteTemplateId;
 }
 
-export function QuoteWizard({ open, onClose }: QuoteWizardProps) {
+export function QuoteWizard({ open, onClose, initialCategoryId, initialPresetId, initialTemplateId }: QuoteWizardProps) {
   const router = useRouter();
   const { showToast } = useToast();
 
-  const [step, setStep] = useState(0);
-  const [categoryId, setCategoryId] = useState<string>("quote-card");
-  const [presetId, setPresetId] = useState<string>("ig-square");
+  const [step, setStep] = useState<number>(initialPresetId ? 1 : 0);
+  const [categoryId, setCategoryId] = useState<string>(
+    initialCategoryId && findCategory(initialCategoryId) ? initialCategoryId : "quote-card"
+  );
+  const [presetId, setPresetId] = useState<string>(initialPresetId ?? "ig-square");
   const [showAllSizes, setShowAllSizes] = useState(false);
   const [quote, setQuote] = useState("");
   const [attribution, setAttribution] = useState("");
   const [source, setSource] = useState("");
-  const [templateId, setTemplateId] = useState<QuoteTemplateId>("amber-on-dark");
+  const [templateId, setTemplateId] = useState<QuoteTemplateId>(initialTemplateId ?? "amber-on-dark");
   const [submitting, setSubmitting] = useState(false);
 
   const category: Category | undefined = useMemo(() => findCategory(categoryId), [categoryId]);

@@ -10,7 +10,7 @@ import { D, ft, gf, mn } from "../../shared-constants";
 import { useToast } from "../../toast-context";
 import { WizardShell, wizardLabel, wizardInput } from "./wizard-shell";
 
-interface ProgrammaticWizardProps { open: boolean; onClose: () => void }
+interface ProgrammaticWizardProps { open: boolean; onClose: () => void; initialCompId?: string }
 
 const COMPS = [
   { id: "quote-card",      label: "Quote card",      sub: "5s · 1920×1080 · brand amber" },
@@ -18,12 +18,14 @@ const COMPS = [
   { id: "episode-trailer", label: "Episode trailer", sub: "30s · 1920×1080 · 4-scene structure" },
 ];
 
-export function ProgrammaticWizard({ open, onClose }: ProgrammaticWizardProps) {
+export function ProgrammaticWizard({ open, onClose, initialCompId }: ProgrammaticWizardProps) {
   const router = useRouter();
   const { showToast } = useToast();
 
   const [name, setName] = useState("");
-  const [compId, setCompId] = useState("quote-card");
+  const [compId, setCompId] = useState(() =>
+    initialCompId && COMPS.some((c) => c.id === initialCompId) ? initialCompId : "quote-card"
+  );
   const [submitting, setSubmitting] = useState(false);
 
   function reset() {
