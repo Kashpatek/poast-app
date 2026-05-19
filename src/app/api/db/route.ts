@@ -6,12 +6,22 @@ export const dynamic = "force-dynamic";
 
 let _supabase: ReturnType<typeof createClient> | null = null;
 
+// Prefer the service-role key on the server when available so writes
+// bypass Row-Level Security policies on the projects table. Falls
+// back to the anon key, which works only when RLS allows anon writes
+// (or isn't enabled on the table). If you see "new row violates
+// row-level security policy" in a save-failure, set
+// SUPABASE_SERVICE_ROLE_KEY in your Vercel env.
 function getSupabase() {
   if (_supabase) return _supabase;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key = serviceKey || anonKey;
   if (!url || !key) return null;
-  _supabase = createClient(url, key);
+  _supabase = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
   return _supabase;
 }
 
@@ -79,7 +89,17 @@ export async function POST(req: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: result, error } = await supabase.from(table).upsert(data as any, { onConflict: "id" }).select();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      // Surface the full PostgREST error so the client can show it inline.
+      // Includes message, hint, code (e.g. "42501" for RLS denial,
+      // "23505" duplicate-key, "23502" not-null violation, etc.).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const e = error as any;
+      return NextResponse.json(
+        { error: `${e.message || "Save failed"}${e.hint ? " · hint: " + e.hint : ""}${e.code ? " · code: " + e.code : ""}${e.details ? " · " + e.details : ""}` },
+        { status: 500 }
+      );
+    }
     return NextResponse.json({ data: result });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

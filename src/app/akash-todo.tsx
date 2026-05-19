@@ -1466,7 +1466,7 @@ function AddTaskModal({ mode, onCancel, onAdd, onSwitchMode }: { mode: AddMode; 
         ) : null}
 
         {mode === "prompt" ? (
-          <div>
+          <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <div style={lbl}>Paste anything · Slack thread, email, meeting notes, brain dump</div>
             <textarea
               value={promptText}
@@ -1489,7 +1489,7 @@ function AddTaskModal({ mode, onCancel, onAdd, onSwitchMode }: { mode: AddMode; 
 
         {mode === "image" ? (
           parsedTasks.length > 0 ? (
-            <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 16, flex: 1, minHeight: 0 }}>
               <div>
                 <div style={lbl}>Source image</div>
                 {imagePreview ? (
@@ -1506,7 +1506,7 @@ function AddTaskModal({ mode, onCancel, onAdd, onSwitchMode }: { mode: AddMode; 
                   Different image
                 </button>
               </div>
-              <div style={{ minWidth: 0 }}>
+              <div style={{ minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
                 <ParsedPreview tasks={parsedTasks} onConfirm={() => onAdd(parsedTasks)} onEdit={setParsedTasks} onCancel={() => setParsedTasks([])} />
               </div>
             </div>
@@ -1564,27 +1564,30 @@ function AddTaskModal({ mode, onCancel, onAdd, onSwitchMode }: { mode: AddMode; 
 
 function ParsedPreview({ tasks, onConfirm, onEdit, onCancel }: { tasks: Omit<Task, "id" | "addedAt">[]; onConfirm: () => void; onEdit: (t: Omit<Task, "id" | "addedAt">[]) => void; onCancel: () => void }) {
   return (
-    <div style={{ marginTop: 16 }}>
-      <div style={lbl}>Found {tasks.length} task{tasks.length === 1 ? "" : "s"} — review before adding</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: "60vh", overflowY: "auto", marginBottom: 12, paddingRight: 4 }}>
+    <div style={{ marginTop: 16, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
+        <div style={lbl}>Found {tasks.length} task{tasks.length === 1 ? "" : "s"} — review before adding</div>
+        <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.4 }}>2-column dense layout</div>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, overflowY: "auto", marginBottom: 12, paddingRight: 4, alignContent: "start" }}>
         {tasks.map((t, i) => {
           const cColor = CATEGORY_COLORS[t.category] || D.txm;
+          const pColor = PRIORITY_COLORS[t.priority as Priority] || D.txd;
           return (
-            <div key={i} style={{ background: D.bg, border: `1px solid ${D.border}`, borderRadius: 8, padding: "8px 10px" }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 2 }}>
-                <span style={{ fontFamily: mn, fontSize: 9, color: cColor, letterSpacing: 0.8, textTransform: "uppercase", padding: "1px 6px", border: `1px solid ${cColor}55`, borderRadius: 3 }}>{t.category}</span>
-                <span style={{ fontFamily: mn, fontSize: 9, color: PRIORITY_COLORS[t.priority as Priority], letterSpacing: 0.8 }}>{t.priority}</span>
-                {t.dueDate ? <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: D.txd }}>{t.dueDate}</span> : null}
+            <div key={i} style={{ background: D.bg, border: `1px solid ${D.border}`, borderLeft: `3px solid ${pColor}`, borderRadius: 8, padding: "8px 10px", position: "relative", display: "flex", flexDirection: "column", gap: 3 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontFamily: mn, fontSize: 8.5, color: cColor, letterSpacing: 0.6, textTransform: "uppercase", padding: "1px 5px", border: `1px solid ${cColor}55`, borderRadius: 3, lineHeight: 1.3 }}>{t.category}</span>
+                <span style={{ fontFamily: mn, fontSize: 8.5, color: pColor, letterSpacing: 0.6 }}>{t.priority}</span>
+                {t.dueDate ? <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 8.5, color: D.txd, letterSpacing: 0.3 }}>{t.dueDate}</span> : null}
+                <button
+                  type="button"
+                  onClick={() => onEdit(tasks.filter((_, idx) => idx !== i))}
+                  title="Drop this task"
+                  style={{ marginLeft: t.dueDate ? 4 : "auto", background: "transparent", border: "none", color: D.txd, cursor: "pointer", padding: "0 2px", fontSize: 13, lineHeight: 1 }}
+                >×</button>
               </div>
-              <div style={{ fontFamily: gf, fontSize: 13, fontWeight: 700, color: D.tx, marginBottom: 2 }}>{t.title}</div>
-              {t.description ? <div style={{ fontFamily: ft, fontSize: 11, color: D.txm, lineHeight: 1.4 }}>{t.description}</div> : null}
-              <button
-                type="button"
-                onClick={() => onEdit(tasks.filter((_, idx) => idx !== i))}
-                style={{ background: "transparent", border: "none", color: D.coral, fontFamily: mn, fontSize: 9, cursor: "pointer", marginTop: 4, letterSpacing: 0.4 }}
-              >
-                drop
-              </button>
+              <div style={{ fontFamily: gf, fontSize: 12.5, fontWeight: 700, color: D.tx, lineHeight: 1.3, letterSpacing: -0.2 }}>{t.title}</div>
+              {t.description ? <div style={{ fontFamily: ft, fontSize: 11, color: D.txm, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.description}</div> : null}
             </div>
           );
         })}
@@ -1824,6 +1827,7 @@ function parseDueWord(w: string): string | undefined {
 
 // ── Save indicator ──────────────────────────────────────────────────
 function SaveIndicator({ state, error, onRetry }: { state: "idle" | "saving" | "saved" | "error"; error: string | null; onRetry: () => void }) {
+  const [showFull, setShowFull] = useState(false);
   if (state === "idle") return null;
   if (state === "saving") {
     return <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 0.6, color: D.txm, display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 9px", borderRadius: 999, background: "rgba(255,255,255,0.04)", border: `1px solid ${D.border}` }}>
@@ -1835,10 +1839,30 @@ function SaveIndicator({ state, error, onRetry }: { state: "idle" | "saving" | "
   if (state === "saved") {
     return <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 0.6, color: D.teal, display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 9px", borderRadius: 999, background: D.teal + "12", border: `1px solid ${D.teal}40` }}>✓ Saved</span>;
   }
-  return <span title={error || ""} style={{ fontFamily: mn, fontSize: 10, letterSpacing: 0.6, color: D.coral, display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 9px", borderRadius: 999, background: D.coral + "12", border: `1px solid ${D.coral}55` }}>
-    ⚠ Save failed
-    <button type="button" onClick={onRetry} style={{ background: "transparent", border: "none", color: D.coral, cursor: "pointer", fontFamily: mn, fontSize: 10, padding: 0, marginLeft: 2, textDecoration: "underline", letterSpacing: 0.4 }}>retry</button>
-  </span>;
+  // Error state — show inline expandable so the actual cause is visible.
+  return (
+    <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "stretch", gap: 4 }}>
+      <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 0.6, color: D.coral, display: "inline-flex", alignItems: "center", gap: 8, padding: "4px 10px", borderRadius: 8, background: D.coral + "16", border: `1px solid ${D.coral}55` }}>
+        ⚠ Save failed — your changes are LOCAL ONLY, reload will lose them
+        <button type="button" onClick={onRetry} style={{ background: D.coral, border: "none", color: "#060608", cursor: "pointer", fontFamily: mn, fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 700, letterSpacing: 0.4 }}>retry</button>
+        <button type="button" onClick={() => setShowFull((v) => !v)} style={{ background: "transparent", border: `1px solid ${D.coral}55`, color: D.coral, cursor: "pointer", fontFamily: mn, fontSize: 10, padding: "2px 8px", borderRadius: 4, letterSpacing: 0.4 }}>{showFull ? "hide" : "why?"}</button>
+        {error ? (
+          <button
+            type="button"
+            onClick={() => { if (error) navigator.clipboard?.writeText(error); }}
+            style={{ background: "transparent", border: `1px solid ${D.coral}55`, color: D.coral, cursor: "pointer", fontFamily: mn, fontSize: 10, padding: "2px 8px", borderRadius: 4, letterSpacing: 0.4 }}
+          >
+            copy
+          </button>
+        ) : null}
+      </span>
+      {showFull && error ? (
+        <span style={{ fontFamily: mn, fontSize: 11, color: D.coral, padding: "8px 12px", background: D.coral + "0a", border: `1px solid ${D.coral}40`, borderRadius: 8, whiteSpace: "pre-wrap", maxWidth: 720, lineHeight: 1.5, letterSpacing: 0.2 }}>
+          {error}
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
 // ── Skeleton view (loading state that matches the eventual layout) ─
