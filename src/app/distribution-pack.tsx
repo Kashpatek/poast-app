@@ -167,8 +167,12 @@ export default function DistributionPack() {
             input: {
               channelIds: [channelId],
               text: postText.trim(),
-              status: "draft",
-              media: activeArticle?.coverImage ? { url: activeArticle.coverImage } : undefined,
+              schedulingType: "draft",
+              // Buffer's new AssetInput schema (May 2026) — discriminated
+              // union per asset. Empty array if there's no media.
+              assets: activeArticle?.coverImage
+                ? [{ image: { url: activeArticle.coverImage } }]
+                : [],
             },
           }),
         });

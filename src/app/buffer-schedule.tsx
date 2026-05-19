@@ -375,12 +375,48 @@ function DraftsTab({ drafts, channels, onRefresh }: { drafts: BufferPost[]; chan
 }
 
 // ═══ GENERIC POST LIST (Scheduled / Sent) ═══
-function PostList({ posts, channels, emptyLabel, showSearch, showEdit, onDelete }: { posts: BufferPost[]; channels: BufferChannel[]; emptyLabel?: string; showSearch?: boolean; showEdit?: boolean; onDelete?: (id: string) => void }) {
+function PostList({ posts, channels, emptyLabel, showSearch, showEdit, onDelete, onRefresh }: { posts: BufferPost[]; channels: BufferChannel[]; emptyLabel?: string; showSearch?: boolean; showEdit?: boolean; onDelete?: (id: string) => void; onRefresh?: () => void }) {
   var _pf = useState<string | null>(null), platF = _pf[0], setPlatF = _pf[1];
   var _search = useState<string>(""), search = _search[0], setSearch = _search[1];
+  var _editingId = useState<string | null>(null), editingId = _editingId[0], setEditingId = _editingId[1];
+  var _editText = useState(""), editText = _editText[0], setEditText = _editText[1];
+  var _editDue = useState(""), editDue = _editDue[0], setEditDue = _editDue[1];
+  var _saving = useState(false), saving = _saving[0], setSaving = _saving[1];
+  var _saveErr = useState<string | null>(null), saveErr = _saveErr[0], setSaveErr = _saveErr[1];
   var filtered = posts;
   if (platF) filtered = filtered.filter(function(p) { return (p.channel ? p.channel.service : p.channelService) === platF; });
   if (search.trim()) { var q = search.toLowerCase(); filtered = filtered.filter(function(p) { return (p.text || "").toLowerCase().includes(q); }); }
+
+  function openEditor(p: BufferPost) {
+    setEditingId(p.id);
+    setEditText(p.text || "");
+    // datetime-local needs "yyyy-MM-ddTHH:mm". Buffer returns ISO; trim seconds + Z.
+    setEditDue(p.dueAt ? new Date(p.dueAt).toISOString().slice(0, 16) : "");
+    setSaveErr(null);
+  }
+  function cancelEdit() { setEditingId(null); setSaveErr(null); }
+  async function saveEdit() {
+    if (!editingId || saving) return;
+    setSaving(true);
+    setSaveErr(null);
+    try {
+      var input: Record<string, string | undefined> = { id: editingId, text: editText, schedulingType: "custom" };
+      if (editDue) input.dueAt = new Date(editDue).toISOString();
+      var r = await fetch("/api/buffer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "editPost", input: input }),
+      });
+      var j = await r.json();
+      if (!r.ok) { setSaveErr(j.error || ("HTTP " + r.status)); setSaving(false); return; }
+      setEditingId(null);
+      setSaving(false);
+      if (onRefresh) onRefresh();
+    } catch (e) {
+      setSaveErr(String(e));
+      setSaving(false);
+    }
+  }
 
   return (<div>
     <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 4 }}>
@@ -407,13 +443,40 @@ function PostList({ posts, channels, emptyLabel, showSearch, showEdit, onDelete 
             <span style={{ fontFamily: mn, fontSize: 8, color: p.status === "sent" ? D.teal : D.blue, padding: "1px 6px", borderRadius: 3, background: (p.status === "sent" ? D.teal : D.blue) + "12" }}>{p.status}</span>
           </div>
         </div>
-        <div onClick={function() { setExpanded(!expanded); }} style={{ padding: "0 20px 12px", cursor: "pointer" }}>
-          <div style={{ fontFamily: ft, fontSize: 14, color: p.text ? D.tx : D.txs, lineHeight: 1.7, whiteSpace: "pre-wrap", overflow: "hidden", maxHeight: expanded ? "none" : "3.2em", fontStyle: p.text ? "normal" : "italic" }}>{text}</div>
-        </div>
+        {editingId === p.id ? (
+          <div style={{ padding: "10px 20px 14px" }}>
+            <textarea
+              value={editText}
+              onChange={function(e: React.ChangeEvent<HTMLTextAreaElement>) { setEditText(e.target.value); }}
+              rows={4}
+              style={{ width: "100%", padding: "10px 12px", background: D.bg, border: "1px solid " + D.border, borderRadius: 6, color: D.tx, fontFamily: ft, fontSize: 13, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.5 }}
+            />
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: mn, fontSize: 9, color: D.txs, letterSpacing: 0.5 }}>SCHEDULED FOR</span>
+              <input
+                type="datetime-local"
+                value={editDue}
+                onChange={function(e: React.ChangeEvent<HTMLInputElement>) { setEditDue(e.target.value); }}
+                style={{ padding: "5px 9px", background: D.bg, border: "1px solid " + D.border, borderRadius: 6, color: D.tx, fontFamily: mn, fontSize: 11, outline: "none" }}
+              />
+              <span style={{ fontFamily: mn, fontSize: 9, color: D.txs, letterSpacing: 0.5, marginLeft: "auto" }}>{editText.length} chars</span>
+            </div>
+            {saveErr ? <div style={{ marginTop: 8, fontFamily: mn, fontSize: 10, color: D.coral, padding: "6px 10px", background: D.coral + "10", border: "1px solid " + D.coral + "40", borderRadius: 6 }}>{saveErr}</div> : null}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 8 }}>
+              <span onClick={cancelEdit} style={{ fontFamily: mn, fontSize: 10, color: D.txs, cursor: "pointer", padding: "5px 12px", borderRadius: 6, border: "1px solid " + D.border }}>Cancel</span>
+              <span onClick={saveEdit} style={{ fontFamily: mn, fontSize: 10, color: "#060608", background: saving ? D.amber + "55" : D.amber, cursor: saving ? "wait" : "pointer", padding: "5px 14px", borderRadius: 6, fontWeight: 700, letterSpacing: 0.4 }}>{saving ? "Saving…" : "Save"}</span>
+            </div>
+          </div>
+        ) : (
+          <div onClick={function() { setExpanded(!expanded); }} style={{ padding: "0 20px 12px", cursor: "pointer" }}>
+            <div style={{ fontFamily: ft, fontSize: 14, color: p.text ? D.tx : D.txs, lineHeight: 1.7, whiteSpace: "pre-wrap", overflow: "hidden", maxHeight: expanded ? "none" : "3.2em", fontStyle: p.text ? "normal" : "italic" }}>{text}</div>
+          </div>
+        )}
         <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 20px 12px", borderTop: "1px solid " + D.border }}>
           <div style={{ display: "flex", gap: 4 }}>{(p.tags || []).map(function(t, i) { return <span key={i} style={{ fontFamily: mn, fontSize: 8, color: D.amber, padding: "2px 6px", borderRadius: 4, background: D.amber + "12" }}>{t.name}</span>; })}</div>
           <div style={{ display: "flex", gap: 6 }}>
-            {showEdit && <a href="https://publish.buffer.com" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 9, color: D.amber, textDecoration: "none", padding: "3px 8px", borderRadius: 4, border: "1px solid " + D.amber + "30" }}>Edit in Buffer</a>}
+            {showEdit && editingId !== p.id && <span onClick={function() { openEditor(p); }} style={{ fontFamily: mn, fontSize: 9, color: D.amber, cursor: "pointer", padding: "3px 8px", borderRadius: 4, border: "1px solid " + D.amber + "30" }}>✎ Edit</span>}
+            {showEdit && <a href="https://publish.buffer.com" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 9, color: D.txs, textDecoration: "none", padding: "3px 8px", borderRadius: 4, border: "1px solid " + D.border }}>Open in Buffer ↗</a>}
             {onDelete && <span onClick={function() { onDelete(p.id); }} style={{ fontFamily: mn, fontSize: 9, color: D.coral, cursor: "pointer", padding: "3px 8px", borderRadius: 4, border: "1px solid " + D.coral + "30" }}>Delete</span>}
           </div>
         </div>
@@ -979,7 +1042,7 @@ export default function BufferSchedule() {
     : <div>
       {tab === "home" && <HomeTab data={data!} onTab={setTab} onCompose={function() { setCompose(true); }} />}
       {tab === "calendar" && <CalendarTab posts={allPosts} channels={data!.channels} />}
-      {tab === "scheduled" && <PostList posts={chanFilter ? (data!.scheduled || []).filter(function(p) { return (p.channel ? p.channel.service : "") === chanFilter; }) : data!.scheduled || []} channels={data!.channels} onDelete={deletePost} showEdit emptyLabel="No scheduled posts" />}
+      {tab === "scheduled" && <PostList posts={chanFilter ? (data!.scheduled || []).filter(function(p) { return (p.channel ? p.channel.service : "") === chanFilter; }) : data!.scheduled || []} channels={data!.channels} onDelete={deletePost} onRefresh={load} showEdit emptyLabel="No scheduled posts" />}
       {tab === "sent" && <PostList posts={data!.sent || []} channels={data!.channels} emptyLabel="No sent posts" showSearch />}
       {tab === "drafts" && <DraftsTab drafts={data!.drafts || []} channels={data!.channels} onRefresh={load} />}
       {tab === "channels" && <ChannelsTab channels={data!.channels} data={data!} onFilter={function(svc: string) { setChanFilter(svc); setTab("scheduled"); }} />}
