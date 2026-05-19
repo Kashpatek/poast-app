@@ -1398,18 +1398,28 @@ function AddTaskModal({ mode, onCancel, onAdd, onSwitchMode }: { mode: AddMode; 
   }
 
   const wide = mode === "image" || mode === "prompt";
-  const panelStyle: React.CSSProperties = {
-    ...panel,
-    width: wide ? "min(1080px, 96vw)" : panel.width,
-    minHeight: wide ? "min(720px, calc(100vh - 48px))" : undefined,
-    display: wide ? "flex" : undefined,
-    flexDirection: wide ? "column" : undefined,
-  };
+  // Explicit height (not just min) so flex children can actually grow to
+  // fill the panel. With overflowY: auto + only a minHeight, the panel
+  // collapses to its intrinsic content height and `flex: 1` resolves to
+  // zero remaining space, which is why the parsed-task list used to take
+  // only the top third of the modal with a dark void below.
+  const panelStyle: React.CSSProperties = wide
+    ? {
+        ...panel,
+        width: "min(1080px, 96vw)",
+        height: "min(840px, calc(100vh - 48px))",
+        maxHeight: "calc(100vh - 48px)",
+        minHeight: undefined,
+        overflowY: "hidden",
+        display: "flex",
+        flexDirection: "column",
+      }
+    : panel;
 
   return (
     <div style={overlay} onClick={onCancel}>
       <div style={panelStyle} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 16, flexShrink: 0 }}>
           {(["manual", "prompt", "image"] as const).map((m) => {
             const active = mode === m;
             return (
