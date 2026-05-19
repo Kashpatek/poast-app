@@ -759,10 +759,18 @@ function StatsTab({ data }: { data: BufferData }) {
 function ComposeModal({ channels, onClose, onRefresh }: { channels: BufferChannel[]; onClose: () => void; onRefresh: () => void }) {
   var _text = useState<string>(""), text = _text[0], setText = _text[1];
   var _sel = useState<string[]>([]), sel = _sel[0], setSel = _sel[1];
-  var _mode = useState("now"), mode = _mode[0], setMode = _mode[1];
+  // Sprint fix #14: default to Schedule (not Now) so adding to the queue
+  // can never auto-release without an explicit datetime. The Post Now
+  // path still exists but requires an extra confirm before firing.
+  var _mode = useState("schedule"), mode = _mode[0], setMode = _mode[1];
   var _date = useState(""), date = _date[0], setDate = _date[1];
   var _time = useState("08:00"), time = _time[0], setTime = _time[1];
   var _sending = useState(false), sending = _sending[0], setSending = _sending[1];
+
+  // Surface the schedule timezone — Buffer renders dueAt in the account's
+  // home tz, which the team set to Chicago/Central. Show this everywhere
+  // dueAt appears so 8:00 AM never means "8 AM in some other tz".
+  var TZ_LABEL = "America/Chicago (CT)";
 
   var toggle = function(id: string) { setSel(function(p) { return p.indexOf(id) >= 0 ? p.filter(function(x) { return x !== id; }) : p.concat([id]); }); };
 
@@ -811,10 +819,20 @@ function ComposeModal({ channels, onClose, onRefresh }: { channels: BufferChanne
 
   var send = async function() {
     if (!canSubmit || sending) return;
+    var isScheduled = mode === "schedule" && date && time;
+    // Sprint fix #14: explicit confirm before any immediate publish so a
+    // misclick can't blast unscheduled posts to every channel at once.
+    if (!isScheduled) {
+      var ok = window.confirm(
+        "Publish " + sel.length + " post" + (sel.length === 1 ? "" : "s") + " IMMEDIATELY to the selected channel" + (sel.length === 1 ? "" : "s") + "?\n\n" +
+        "This bypasses the queue and posts to your followers right now. " +
+        "Switch to Schedule if you wanted a queued release."
+      );
+      if (!ok) return;
+    }
     setSending(true);
     var successCount = 0;
     var failCount = 0;
-    var isScheduled = mode === "schedule" && date && time;
     var dueAt = isScheduled ? new Date(date + "T" + time + ":00").toISOString() : undefined;
 
     for (var i = 0; i < sel.length; i++) {
@@ -958,8 +976,9 @@ function ComposeModal({ channels, onClose, onRefresh }: { channels: BufferChanne
               </div>
             </div>
             {date && time && <div style={{ fontFamily: ft, fontSize: 11, color: D.txs, marginTop: 10 }}>
-              Posting on {new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} at {time}
+              Posting on {new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} at {time} <span style={{ color: D.amber, fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.5, marginLeft: 6 }}>{TZ_LABEL}</span>
             </div>}
+            <div style={{ fontFamily: mn, fontSize: 9, color: D.txs, marginTop: 6, letterSpacing: 0.5, textTransform: "uppercase", fontWeight: 700 }}>Timezone: {TZ_LABEL}</div>
           </div>}
 
           {/* Summary of what will happen */}
@@ -967,8 +986,9 @@ function ComposeModal({ channels, onClose, onRefresh }: { channels: BufferChanne
             fontFamily: ft, fontSize: 11, color: D.txs, marginBottom: 16, padding: "8px 12px",
             background: D.bg, borderRadius: 6, border: "1px solid " + D.border
           }}>
-            {mode === "now" ? "Will publish" : "Will schedule"} to <span style={{ color: D.tx, fontWeight: 600 }}>{sel.length} channel{sel.length > 1 ? "s" : ""}</span>
-            {mode === "schedule" && date && <span> for <span style={{ color: D.amber }}>{new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} at {time}</span></span>}
+            {mode === "now" ? "Will publish IMMEDIATELY" : "Will schedule"} to <span style={{ color: D.tx, fontWeight: 600 }}>{sel.length} channel{sel.length > 1 ? "s" : ""}</span>
+            {mode === "schedule" && date && <span> for <span style={{ color: D.amber }}>{new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} at {time} {TZ_LABEL}</span></span>}
+            {mode === "now" && <span style={{ color: D.coral, fontWeight: 700 }}> (you'll be asked to confirm)</span>}
           </div>}
 
           {/* Actions */}

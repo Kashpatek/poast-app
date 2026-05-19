@@ -179,8 +179,19 @@ export default function DistributionPack() {
           }),
         });
         const j = await res.json();
-        if (res.ok && (j.post || !j.error)) {
+        // Sprint fix #15: previous check used `(j.post || !j.error)` which
+        // counted a 200-with-no-post-and-no-error as success — Threads has
+        // returned exactly that shape, which is why the user saw silent
+        // failures. Require a real post object back from Buffer to count
+        // it as ok. Anything else surfaces with its full error.
+        const svc = (chan?.service || "").toLowerCase();
+        if (res.ok && j.post && j.post.id) {
           ok++;
+        } else if (res.ok && !j.post) {
+          failed.push({
+            name: chan?.name || channelId,
+            error: (svc === "threads" ? "Threads draft: " : "") + (j.error || `Buffer accepted the call but returned no post object (likely a per-service rejection — for Threads this usually means the channel needs reconnect in Buffer settings, or the post copy violates Threads policy).`),
+          });
         } else {
           failed.push({ name: chan?.name || channelId, error: j.error || ("HTTP " + res.status) });
         }
@@ -412,8 +423,17 @@ export default function DistributionPack() {
                   {sendResult.ok} draft{sendResult.ok === 1 ? "" : "s"} created in Buffer.
                 </div>
                 {sendResult.failed.length > 0 ? (
-                  <div style={{ fontFamily: mn, fontSize: 10, color: D.coral }}>
-                    {sendResult.failed.length} failed: {sendResult.failed.map((f) => `${f.name} (${f.error.slice(0, 60)})`).join(" · ")}
+                  <div style={{ marginTop: 6 }}>
+                    <div style={{ fontFamily: mn, fontSize: 10, color: D.coral, fontWeight: 700, letterSpacing: 0.4, marginBottom: 4 }}>
+                      {sendResult.failed.length} channel{sendResult.failed.length === 1 ? "" : "s"} failed:
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {sendResult.failed.map((f, i) => (
+                        <div key={i} style={{ fontFamily: mn, fontSize: 10.5, color: D.coral, padding: "5px 8px", background: D.coral + "12", border: `1px solid ${D.coral}40`, borderRadius: 6, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                          <strong>{f.name}</strong>: {f.error}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
                 <a href="https://publish.buffer.com" target="_blank" rel="noopener noreferrer" style={{ fontFamily: mn, fontSize: 10, color: D.amber, textDecoration: "underline", letterSpacing: 0.4 }}>Open Buffer →</a>

@@ -197,6 +197,12 @@ var CinematicClip: React.FC<{ clipUrl: string; volume: number; index: number; du
   });
   // Crossfade in for the first 12 frames of the clip.
   var fadeIn = interpolate(frame, [0, 12], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  // Belt + suspenders: pass muted={true} when caller wants zero source-video
+  // audio. Some browsers / encoder pipelines have ignored volume=0 alone
+  // for HTMLVideoElement audio tracks, which caused the original
+  // three-track overlap. With muted=true the source track is dropped at
+  // the element level before reaching the mix.
+  var isMuted = !volume || volume <= 0.001;
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden", opacity: fadeIn }}>
       <div
@@ -211,6 +217,7 @@ var CinematicClip: React.FC<{ clipUrl: string; volume: number; index: number; du
         <Video
           src={clipUrl}
           volume={volume}
+          muted={isMuted}
           style={{
             width: "100%",
             height: "100%",
@@ -275,7 +282,15 @@ export var SAVideo: React.FC<Props> = function (props) {
   var duration = props.duration;
   var fontFamily = props.fontFamily || DEFAULT_FONT;
   var captionStyle = props.captionStyle || "overlay";
-  var clipVolume = typeof props.clipVolume === "number" ? props.clipVolume : 0.3;
+  // ─── Audio mix (May sprint fix #13) ────────────────────────────────
+  // Three-track overlap was: source b-roll audio + narrator + bg music
+  // all played at once. New defaults strip source-video audio entirely
+  // and duck the music well under the narrator. Callers can still pass
+  // explicit volumes to override per-render.
+  //   clipVolume default: 0    (source b-roll audio is muted)
+  //   voVolume   default: 1.0  (narrator at 0 dB, dominant)
+  //   musicVolume default: 0.15 (~-16 dB, sits in the -12 to -18 target)
+  var clipVolume = typeof props.clipVolume === "number" ? props.clipVolume : 0;
   var voVolume = typeof props.voVolume === "number" ? props.voVolume : 1.0;
   var musicVolume = typeof props.musicVolume === "number" ? props.musicVolume : 0.15;
 
