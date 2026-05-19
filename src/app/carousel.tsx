@@ -443,6 +443,78 @@ function SlideCanvas({ slide, theme, onUpdate, onRequestPicker }: { slide: Slide
       </div>
     </div>}
 
+    {/* ── New: cover_image (full-bleed image, no text) ── */}
+    {slide.type === "cover_image" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.10 * SCALE, padding: "0 " + (60 * SCALE) + "px" }}>
+      <ImageFrame
+        imageUrl={slide.imageUrl}
+        onImageChange={function(url) { updateField("imageUrl", url); }}
+        onPositionChange={function(pos) { updateField("imagePosition", pos); }}
+        imagePosition={slide.imagePosition}
+        imageFit={slide.imageFit}
+        slideId={slide.id}
+        onRequestPicker={onRequestPicker ? function() { onRequestPicker("imageUrl"); } : undefined}
+        style={{ width: "100%", height: "100%", borderRadius: 20 * SCALE }}
+      />
+    </div>}
+
+    {/* ── New: large_with_title (large image + title + subtitle) ── */}
+    {slide.type === "large_with_title" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: slide.inverted ? "column-reverse" : "column", justifyContent: slide.inverted ? "flex-end" : "flex-start" }}>
+      <ImageFrame
+        imageUrl={slide.imageUrl}
+        onImageChange={function(url) { updateField("imageUrl", url); }}
+        onPositionChange={function(pos) { updateField("imagePosition", pos); }}
+        imagePosition={slide.imagePosition}
+        imageFit={slide.imageFit}
+        slideId={slide.id}
+        onRequestPicker={onRequestPicker ? function() { onRequestPicker("imageUrl"); } : undefined}
+        style={{ width: "100%", height: (slide.imageHeight || 60) + "%", marginBottom: slide.inverted ? 0 : 12, marginTop: slide.inverted ? 12 : 0, borderRadius: 20 * SCALE, flexShrink: 0 }}
+      />
+      <div
+        contentEditable
+        suppressContentEditableWarning
+        onBlur={function(e) { updateField("title", e.currentTarget.innerText); }}
+        style={{ fontFamily: gf, fontSize: slide.titleSize * SCALE, fontWeight: 800, color: "#ffffff", lineHeight: 1.15, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", marginBottom: 8, textAlign: "left" }}
+      >{slide.title || "Title"}</div>
+      <div
+        contentEditable
+        suppressContentEditableWarning
+        onBlur={function(e) { updateField("subtitle", e.currentTarget.innerText); }}
+        style={{ fontFamily: gf, fontSize: slide.subtitleSize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.78)", lineHeight: 1.4, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", textAlign: "left" }}
+      >{slide.subtitle || "Subtitle"}</div>
+    </div>}
+
+    {/* ── New: body_dual (body text + two stacked images) ── */}
+    {slide.type === "body_dual" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: slide.inverted ? "column-reverse" : "column", justifyContent: slide.inverted ? "flex-end" : "flex-start", gap: 10 }}>
+      <div
+        contentEditable
+        suppressContentEditableWarning
+        onBlur={function(e) { updateField("bodyText", e.currentTarget.innerText); }}
+        style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.92)", lineHeight: 1.5, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", flexShrink: 0, textAlign: "left" }}
+      >{slide.bodyText || "Body text"}</div>
+      <div style={{ display: "flex", flex: 1, gap: 8, minHeight: 0 }}>
+        <ImageFrame
+          imageUrl={slide.imageUrl}
+          onImageChange={function(url) { updateField("imageUrl", url); }}
+          onPositionChange={function(pos) { updateField("imagePosition", pos); }}
+          imagePosition={slide.imagePosition}
+          imageFit={slide.imageFit}
+          slideId={slide.id + "-1"}
+          onRequestPicker={onRequestPicker ? function() { onRequestPicker("imageUrl"); } : undefined}
+          style={{ flex: 1, height: "100%", borderRadius: 16 * SCALE }}
+        />
+        <ImageFrame
+          imageUrl={slide.imageUrl2}
+          onImageChange={function(url) { updateField("imageUrl2", url); }}
+          onPositionChange={function(pos) { updateField("imagePosition2", pos); }}
+          imagePosition={slide.imagePosition2}
+          imageFit={slide.imageFit}
+          slideId={slide.id + "-2"}
+          onRequestPicker={onRequestPicker ? function() { onRequestPicker("imageUrl2"); } : undefined}
+          style={{ flex: 1, height: "100%", borderRadius: 16 * SCALE }}
+        />
+      </div>
+    </div>}
+
     {/* Slide position badge */}
     <div style={{ position: "absolute", top: 8, left: 8, fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.35)", background: "rgba(0,0,0,0.3)", padding: "2px 6px", borderRadius: 4 }}>
       {slide.position === 1 ? "COVER" : slide.position === 4 ? "CLOSER" : "BODY " + (slide.position === 2 ? "A" : "B")} // pos {slide.position}
@@ -1151,7 +1223,7 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: {
         var pos = newPositions[i];
         return Object.assign({}, sl, {
           position: pos,
-          type: pos === 1 ? "cover" : (sl.type === "image_text" || sl.type === "large_image" || sl.type === "dual_image") ? sl.type : "body",
+          type: pos === 1 ? (sl.type === "cover_image" ? "cover_image" : "cover") : (sl.type === "image_text" || sl.type === "large_image" || sl.type === "dual_image" || sl.type === "large_with_title" || sl.type === "body_dual") ? sl.type : "body",
         });
       });
     }
@@ -1243,7 +1315,7 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: {
       var pos = newPositions[i];
       return Object.assign({}, sl, {
         position: pos,
-        type: pos === 1 ? "cover" : (sl.type === "image_text" || sl.type === "large_image") ? sl.type : "body",
+        type: pos === 1 ? (sl.type === "cover_image" ? "cover_image" : "cover") : (sl.type === "image_text" || sl.type === "large_image" || sl.type === "dual_image" || sl.type === "large_with_title" || sl.type === "body_dual") ? sl.type : "body",
       });
     });
     setSlides(newSlides);
@@ -1257,7 +1329,7 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: {
       var pos = newPositions[i];
       return Object.assign({}, sl, {
         position: pos,
-        type: pos === 1 ? "cover" : (sl.type === "image_text" || sl.type === "large_image") ? sl.type : "body",
+        type: pos === 1 ? (sl.type === "cover_image" ? "cover_image" : "cover") : (sl.type === "image_text" || sl.type === "large_image" || sl.type === "dual_image" || sl.type === "large_with_title" || sl.type === "body_dual") ? sl.type : "body",
       });
     });
     setSlides(newSlides);
@@ -1274,14 +1346,23 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: {
     return function() { window.removeEventListener("keydown", handleKey); };
   }, [currentIdx, slides.length]);
 
-  // Available slide types depending on position
+  // Available slide types depending on position. New types added in
+  // round 3 of the May sprint:
+  //   cover_image — full-bleed image cover, no title/subtitle
+  //   large_with_title — large image + title + subtitle (hero-with-copy)
+  //   body_dual — body text + two stacked images, fills sparse slides
   var typeOptions = currentSlide.position === 1
-    ? [{ value: "cover", label: "Cover" }]
+    ? [
+        { value: "cover", label: "Cover" },
+        { value: "cover_image", label: "Cover Image" },
+      ]
     : [
         { value: "body", label: "Body Text" },
         { value: "image_text", label: "Image + Text" },
         { value: "large_image", label: "Large Image" },
+        { value: "large_with_title", label: "Large + Title" },
         { value: "dual_image", label: "2 Images" },
+        { value: "body_dual", label: "Text + 2 Images" },
       ];
 
   return <div>
@@ -1716,9 +1797,32 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
                   <div style={{ fontFamily: gf, fontSize: (sl.captionSize || 16) * rScale, color: "rgba(255,255,255,0.6)", lineHeight: 1.2, flexShrink: 0 }}>{sl.caption2 || ""}</div>
                 </div>
               </div>}
+              {sl.type === "cover_image" && <div style={{ height: "100%", display: "flex" }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: "100%", borderRadius: 8 * rScale, overflow: "hidden", background: "#000" }}>
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
+                </div>}
+              </div>}
+              {sl.type === "large_with_title" && <div style={{ height: "100%", display: "flex", flexDirection: sl.inverted ? "column-reverse" : "column", justifyContent: sl.inverted ? "flex-end" : "flex-start" }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 60) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: sl.inverted ? 0 : 6, marginTop: sl.inverted ? 6 : 0, flexShrink: 0, background: "#000" }}>
+                  <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
+                </div>}
+                <div style={{ fontFamily: gf, fontSize: sl.titleSize * rScale, fontWeight: 800, color: "#fff", lineHeight: 1.15, marginBottom: 3, overflow: "hidden" }}>{sl.title || ""}</div>
+                <div style={{ fontFamily: gf, fontSize: sl.subtitleSize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.75)", lineHeight: 1.35, overflow: "hidden" }}>{sl.subtitle || ""}</div>
+              </div>}
+              {sl.type === "body_dual" && <div style={{ height: "100%", display: "flex", flexDirection: sl.inverted ? "column-reverse" : "column", justifyContent: sl.inverted ? "flex-end" : "flex-start", gap: 4 }}>
+                <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, color: "rgba(255,255,255,0.9)", lineHeight: 1.4, overflow: "hidden", whiteSpace: "pre-wrap", flexShrink: 0 }}>{sl.bodyText || ""}</div>
+                <div style={{ display: "flex", flex: 1, gap: 4, minHeight: 0 }}>
+                  {sl.imageUrl && <div style={{ flex: 1, height: "100%", borderRadius: 6 * rScale, overflow: "hidden", background: "#000" }}>
+                    <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
+                  </div>}
+                  {sl.imageUrl2 && <div style={{ flex: 1, height: "100%", borderRadius: 6 * rScale, overflow: "hidden", background: "#000" }}>
+                    <img src={sl.imageUrl2} style={{ width: "100%", height: "100%", objectFit: imgFit, display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
+                  </div>}
+                </div>
+              </div>}
             </div>
           </div>
-          <div style={{ textAlign: "center", fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6 }}>Slide {i + 1} -- {sl.type === "cover" ? "Cover" : sl.position === 4 ? "Closer" : sl.type === "dual_image" ? "2 Images" : sl.type === "image_text" ? "Img+Text" : sl.type === "large_image" ? "Large Img" : "Body"}</div>
+          <div style={{ textAlign: "center", fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6 }}>Slide {i + 1} -- {sl.type === "cover" ? "Cover" : sl.type === "cover_image" ? "Cover Img" : sl.position === 4 ? "Closer" : sl.type === "dual_image" ? "2 Images" : sl.type === "image_text" ? "Img+Text" : sl.type === "large_image" ? "Large Img" : sl.type === "large_with_title" ? "Large+Title" : sl.type === "body_dual" ? "Text+2Img" : "Body"}</div>
         </div>;
       })}
     </div>
@@ -2112,6 +2216,48 @@ function renderSlideToCanvas(slide: Slide, bgUrl: string): Promise<Blob> {
           drawText(slide.caption || "", MARGIN_X, TOP_Y + halfH - 16, contentWidth, slide.captionSize || 16, "400", "rgba(255,255,255,0.65)", 1.3);
           await drawImage(slide.imageUrl2, MARGIN_X, TOP_Y + halfH + 8, contentWidth, halfH - 20, 16, imgOpts2);
           drawText(slide.caption2 || "", MARGIN_X, TOP_Y + halfH * 2 - 8, contentWidth, slide.captionSize || 16, "400", "rgba(255,255,255,0.65)", 1.3);
+
+        } else if (slide.type === "cover_image") {
+          // Full-bleed image, no text. Fills the inner area between
+          // the 10% top and 10% bottom safe zones.
+          var ciTop = Math.round(FULL_H * 0.10);
+          var ciH = FULL_H - ciTop * 2;
+          await drawImage(slide.imageUrl, COVER_MX, ciTop, coverContentWidth, ciH, 20, imgOpts);
+
+        } else if (slide.type === "large_with_title") {
+          // Large image + title + subtitle (hero-with-copy). Mirrors
+          // SlideCanvas behavior including inverted (text-on-top).
+          ctx.textAlign = "left";
+          var lwtImgH = Math.round(availH * ((slide.imageHeight || 60) / 100));
+          if (!slide.inverted) {
+            await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, lwtImgH, 20, imgOpts);
+            var lwtTitleY = TOP_Y + lwtImgH + 16;
+            var lwtAfterTitle = drawText(slide.title || "", MARGIN_X, lwtTitleY, contentWidth, slide.titleSize, "800", "#ffffff", 1.15);
+            drawText(slide.subtitle || "", MARGIN_X, lwtAfterTitle + 8, contentWidth, slide.subtitleSize, "400", "rgba(255,255,255,0.78)", 1.4);
+          } else {
+            var lwtAfterTitleI = drawText(slide.title || "", MARGIN_X, TOP_Y, contentWidth, slide.titleSize, "800", "#ffffff", 1.15);
+            var lwtAfterSubI = drawText(slide.subtitle || "", MARGIN_X, lwtAfterTitleI + 8, contentWidth, slide.subtitleSize, "400", "rgba(255,255,255,0.78)", 1.4);
+            await drawImage(slide.imageUrl, MARGIN_X, lwtAfterSubI + 16, contentWidth, lwtImgH, 20, imgOpts);
+          }
+
+        } else if (slide.type === "body_dual") {
+          // Body text + two side-by-side images below. Inverted swaps so
+          // images go on top, text below.
+          ctx.textAlign = "left";
+          var bdGap = 10;
+          var bdImgGap = 8;
+          var bdImageRowH = Math.max(120, Math.round(availH * 0.55));
+          var bdHalfW = Math.round((contentWidth - bdImgGap) / 2);
+          if (!slide.inverted) {
+            var bdTextEnd = drawText(slide.bodyText || "", MARGIN_X, TOP_Y, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.5);
+            var bdImgY = bdTextEnd + bdGap;
+            await drawImage(slide.imageUrl, MARGIN_X, bdImgY, bdHalfW, bdImageRowH, 16, imgOpts);
+            await drawImage(slide.imageUrl2, MARGIN_X + bdHalfW + bdImgGap, bdImgY, bdHalfW, bdImageRowH, 16, imgOpts2);
+          } else {
+            await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, bdHalfW, bdImageRowH, 16, imgOpts);
+            await drawImage(slide.imageUrl2, MARGIN_X + bdHalfW + bdImgGap, TOP_Y, bdHalfW, bdImageRowH, 16, imgOpts2);
+            drawText(slide.bodyText || "", MARGIN_X, TOP_Y + bdImageRowH + bdGap, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.5);
+          }
         }
 
         // CTA text on closer (position 4)
