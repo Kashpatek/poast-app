@@ -9,12 +9,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { D, ft, mn, getPreferredProvider, setPreferredProvider, type LLMProviderName } from "../shared-constants";
 import { useToast } from "../toast-context";
-import HeadlineDoctor from "../headline-doctor";
-import VoiceScorer from "../voice-scorer";
 import type { LLMProvider } from "@/lib/llm-provider";
 import { TONE_LABELS, type Voice, type VoiceTone, type VoiceExample, type VoicesArchive, defaultArchive } from "@/lib/brand-voice";
 
-type Tab = "voice" | "headline" | "voice-scorer" | "playground";
+type Tab = "voice" | "playground";
 
 export default function AITrainingPage() {
   const { showToast } = useToast();
@@ -55,10 +53,8 @@ export default function AITrainingPage() {
 
       <div style={{ display: "flex", gap: 6, marginBottom: 22, flexWrap: "wrap" }}>
         {([
-          { id: "voice",        label: "Brand voice" },
-          { id: "headline",     label: "Headline Doctor" },
-          { id: "voice-scorer", label: "Voice Scorer" },
-          { id: "playground",   label: "Playground" },
+          { id: "voice",      label: "Brand voice" },
+          { id: "playground", label: "Playground" },
         ] as Array<{ id: Tab; label: string }>).map((t) => {
           const active = tab === t.id;
           return (
@@ -68,8 +64,6 @@ export default function AITrainingPage() {
       </div>
 
       {tab === "voice" ? <VoiceTuner onToast={showToast} /> : null}
-      {tab === "headline" ? <HeadlineDoctor /> : null}
-      {tab === "voice-scorer" ? <VoiceScorer /> : null}
       {tab === "playground" ? <Playground onToast={showToast} /> : null}
     </div>
   );
