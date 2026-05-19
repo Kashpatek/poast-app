@@ -26,7 +26,7 @@ import AkashTodo from "./akash-todo";
 import { BugButton } from "./bug-report";
 import { trackEvent } from "../lib/poast-track";
 
-import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings, Wand, ShieldCheck, Sparkles, BookmarkCheck, ClipboardCheck, TrendingUp, Layers, CheckSquare } from "lucide-react";
+import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings, Wand, ShieldCheck, Sparkles, BookmarkCheck, ClipboardCheck, TrendingUp, Layers, CheckSquare, Brain } from "lucide-react";
 type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>;
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
 import { useUser, isAnalyst, canUseDocuDesign, isAkash } from "./user-context";
@@ -572,6 +572,7 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "perf",     l: "Performance",      Icon: TrendingUp,      badge: "NEW" },
   ]},
   admin:   { label: "ADMIN",   color: C.violet, glow: "rgba(144,92,203,", items: [
+    { id: "training", l: "AI Training",      Icon: Brain,          href: "/ai-training", badge: "NEW" },
     { id: "tasks",    l: "Task Board",       Icon: CheckSquare,    badge: "AKASH" },
     { id: "prompts",  l: "Saved Prompts",    Icon: BookmarkCheck,  badge: "NEW" },
     { id: "settings", l: "POAST Settings",   Icon: Settings },
