@@ -17,6 +17,8 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { D, ft, gf, mn } from "./shared-constants";
+import HeadlineDoctor from "./headline-doctor";
+import VoiceScorer from "./voice-scorer";
 
 interface Article {
   title: string;
@@ -491,7 +493,83 @@ export default function DistributionPack() {
           </div>
         ) : null}
       </div>
+
+      {/* ── POAST Suite ──────────────────────────────────────────────
+          Headline Doctor + Voice Scorer wedged in as collapsible
+          panels so the launch flow can sanity-check the headline and
+          voice before pushing drafts to Buffer, without leaving the
+          page or context-switching to the sidebar tools. */}
+      <PoastSuite />
     </div>
+  );
+}
+
+function PoastSuite() {
+  const [openTool, setOpenTool] = useState<null | "headline" | "voice">(null);
+  return (
+    <div style={{ marginTop: 36 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 10 }}>
+        <div style={{ fontFamily: gf, fontSize: 18, fontWeight: 800, color: D.tx, letterSpacing: -0.4 }}>POAST suite</div>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.6 }}>
+          Headline + voice sanity-checks. Click to expand. Tune your post before it hits the queue.
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 8 }}>
+        <SuiteCard
+          open={openTool === "headline"}
+          onToggle={() => setOpenTool((cur) => cur === "headline" ? null : "headline")}
+          title="Headline Doctor"
+          sub="Diagnose and rewrite the article headline before launch"
+        />
+        <SuiteCard
+          open={openTool === "voice"}
+          onToggle={() => setOpenTool((cur) => cur === "voice" ? null : "voice")}
+          title="Voice Scorer"
+          sub="Score the launch post against the SA voice profile"
+        />
+      </div>
+      {openTool === "headline" ? (
+        <div style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, padding: "20px 24px" }}>
+          <HeadlineDoctor />
+        </div>
+      ) : null}
+      {openTool === "voice" ? (
+        <div style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, padding: "20px 24px" }}>
+          <VoiceScorer />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SuiteCard({ open, onToggle, title, sub }: { open: boolean; onToggle: () => void; title: string; sub: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      style={{
+        textAlign: "left",
+        padding: "14px 16px",
+        background: open ? "rgba(247,176,65,0.08)" : D.surface,
+        border: `1px solid ${open ? D.amber + "55" : D.border}`,
+        borderRadius: 10,
+        color: D.tx,
+        cursor: "pointer",
+        fontFamily: ft,
+        transition: "background 0.15s ease, border-color 0.15s ease",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+      }}
+    >
+      <span style={{ flex: 1 }}>
+        <span style={{ display: "block", fontFamily: gf, fontSize: 15, fontWeight: 700, color: open ? D.amber : D.tx, marginBottom: 2, letterSpacing: -0.3 }}>{title}</span>
+        <span style={{ display: "block", fontFamily: ft, fontSize: 12, color: D.txm, lineHeight: 1.4 }}>{sub}</span>
+      </span>
+      <span style={{ fontFamily: mn, fontSize: 11, color: open ? D.amber : D.txd, letterSpacing: 0.6 }}>
+        {open ? "▾ hide" : "▸ open"}
+      </span>
+    </button>
   );
 }
 

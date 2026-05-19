@@ -115,9 +115,14 @@ export default function AkashTodo() {
   const [boardModalOpen, setBoardModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [quickAdd, setQuickAdd] = useState("");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const quickRef = useRef<HTMLInputElement>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedRef = useRef<string>("");
+  const savedFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Load / persist ──────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -140,6 +145,9 @@ export default function AkashTodo() {
       if (!data.activeId || !data.boards.find((b) => b.id === data.activeId)) {
         data.activeId = data.boards[0].id;
       }
+      // Snapshot what we loaded so the auto-save effect doesn't fire on the
+      // initial render purely from setArchive populating the value.
+      lastSavedRef.current = JSON.stringify(data);
       setArchive(data);
     } catch { /* tolerate */ }
     setLoading(false);
@@ -147,10 +155,14 @@ export default function AkashTodo() {
 
   useEffect(() => { if (allowed) load(); }, [allowed, load]);
 
-  const persist = useCallback(async (next: BoardArchive) => {
-    setArchive(next);
+  // Auto-save: any change to `archive` after load triggers a debounced
+  // write. We surface saving / saved / error so a silent Supabase failure
+  // can't make changes look persisted when they aren't.
+  const saveArchive = useCallback(async (next: BoardArchive) => {
+    setSaveState("saving");
+    setSaveError(null);
     try {
-      await fetch("/api/db", {
+      const res = await fetch("/api/db", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -164,22 +176,51 @@ export default function AkashTodo() {
           },
         }),
       });
-    } catch { /* ignore */ }
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setSaveError(j.error || `HTTP ${res.status}`);
+        setSaveState("error");
+        return;
+      }
+      lastSavedRef.current = JSON.stringify(next);
+      setSaveState("saved");
+      if (savedFlashTimerRef.current) clearTimeout(savedFlashTimerRef.current);
+      savedFlashTimerRef.current = setTimeout(() => setSaveState((s) => s === "saved" ? "idle" : s), 1500);
+    } catch (e) {
+      setSaveError(String(e));
+      setSaveState("error");
+    }
   }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    const serialized = JSON.stringify(archive);
+    if (serialized === lastSavedRef.current) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => { saveArchive(archive); }, 400);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [archive, loading, saveArchive]);
 
   const activeBoard = archive.boards.find((b) => b.id === archive.activeId);
 
+  // Functional setter that always reads the latest committed `archive`,
+  // so rapid sequential updates (quick-add, then a toggle, then a drag)
+  // can never lose intermediate state via stale closure.
   function updateActiveBoard(patch: Partial<Board> | ((b: Board) => Board)) {
-    if (!activeBoard) return;
-    const next = typeof patch === "function" ? patch(activeBoard) : { ...activeBoard, ...patch };
-    persist({
-      ...archive,
-      boards: archive.boards.map((b) => (b.id === activeBoard.id ? next : b)),
+    setArchive((cur) => {
+      const activeId = cur.activeId;
+      if (!activeId) return cur;
+      const idx = cur.boards.findIndex((b) => b.id === activeId);
+      if (idx === -1) return cur;
+      const current = cur.boards[idx];
+      const next = typeof patch === "function" ? patch(current) : { ...current, ...patch };
+      const boards = cur.boards.slice();
+      boards[idx] = next;
+      return { ...cur, boards };
     });
   }
 
   async function addTasks(newTasks: Omit<Task, "id" | "addedAt">[]) {
-    if (!activeBoard) return;
     const stamp = new Date().toISOString();
     const expanded: Task[] = newTasks.map((t, i) => ({
       ...t,
@@ -305,11 +346,14 @@ export default function AkashTodo() {
     <div style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 32px" }}>
       {/* ── Header ──────────────────────────────────────────────── */}
       <div style={{ marginBottom: 18 }}>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "4px 10px", borderRadius: 999, background: "rgba(247,176,65,0.10)", border: `1px solid ${D.amber}55`, marginBottom: 14 }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: D.amber, boxShadow: `0 0 8px ${D.amber}` }} />
-          <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.amber, textTransform: "uppercase" }}>
-            Marketing + Production
-          </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "4px 10px", borderRadius: 999, background: "rgba(247,176,65,0.10)", border: `1px solid ${D.amber}55` }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: D.amber, boxShadow: `0 0 8px ${D.amber}` }} />
+            <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.amber, textTransform: "uppercase" }}>
+              Marketing + Production
+            </span>
+          </div>
+          <SaveIndicator state={saveState} error={saveError} onRetry={() => saveArchive(archive)} />
         </div>
         <h1 style={{ fontFamily: ft, fontSize: 46, fontWeight: 900, letterSpacing: -1.6, margin: 0, marginBottom: 4, color: D.tx }}>
           Task Board{" "}
@@ -359,7 +403,7 @@ export default function AkashTodo() {
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 10 }}>
         <select
           value={archive.activeId}
-          onChange={(e) => persist({ ...archive, activeId: e.target.value })}
+          onChange={(e) => setArchive((cur) => ({ ...cur, activeId: e.target.value }))}
           style={{ ...inputStyle, width: 200 }}
         >
           {archive.boards.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -492,7 +536,7 @@ export default function AkashTodo() {
 
       {/* ── View body ──────────────────────────────────────────── */}
       {loading ? (
-        <div style={{ fontFamily: mn, fontSize: 12, color: D.txm, padding: 20 }}>Loading…</div>
+        <SkeletonView />
       ) : visibleTasks.length === 0 && view !== "calendar" && view !== "week" ? (
         <div style={emptyBox}>
           {filter || filterChip !== "all" || tagFilter
@@ -524,7 +568,7 @@ export default function AkashTodo() {
         <BoardModal
           archive={archive}
           onCancel={() => setBoardModalOpen(false)}
-          onSave={(next) => { persist(next); setBoardModalOpen(false); }}
+          onSave={(next) => { setArchive(next); setBoardModalOpen(false); }}
         />
       ) : null}
       {editingTask ? (
@@ -1776,6 +1820,49 @@ function parseDueWord(w: string): string | undefined {
     return isoDate(d);
   }
   return undefined;
+}
+
+// ── Save indicator ──────────────────────────────────────────────────
+function SaveIndicator({ state, error, onRetry }: { state: "idle" | "saving" | "saved" | "error"; error: string | null; onRetry: () => void }) {
+  if (state === "idle") return null;
+  if (state === "saving") {
+    return <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 0.6, color: D.txm, display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 9px", borderRadius: 999, background: "rgba(255,255,255,0.04)", border: `1px solid ${D.border}` }}>
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: D.amber, animation: "tbPulse 1.1s ease-in-out infinite" }} />
+      Saving
+      <style dangerouslySetInnerHTML={{ __html: "@keyframes tbPulse{0%,100%{opacity:0.35}50%{opacity:1}}" }} />
+    </span>;
+  }
+  if (state === "saved") {
+    return <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 0.6, color: D.teal, display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 9px", borderRadius: 999, background: D.teal + "12", border: `1px solid ${D.teal}40` }}>✓ Saved</span>;
+  }
+  return <span title={error || ""} style={{ fontFamily: mn, fontSize: 10, letterSpacing: 0.6, color: D.coral, display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 9px", borderRadius: 999, background: D.coral + "12", border: `1px solid ${D.coral}55` }}>
+    ⚠ Save failed
+    <button type="button" onClick={onRetry} style={{ background: "transparent", border: "none", color: D.coral, cursor: "pointer", fontFamily: mn, fontSize: 10, padding: 0, marginLeft: 2, textDecoration: "underline", letterSpacing: 0.4 }}>retry</button>
+  </span>;
+}
+
+// ── Skeleton view (loading state that matches the eventual layout) ─
+function SkeletonView() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      {[0, 1].map((g) => (
+        <div key={g}>
+          <div style={{ width: 110, height: 12, background: D.surface, borderRadius: 4, marginBottom: 10, opacity: 0.7 }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {[0, 1, 2, 3].map((r) => (
+              <div key={r} style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 14, height: 44, opacity: 0.55, animation: `tbSk 1.3s ease-in-out infinite ${(g * 4 + r) * 80}ms` }}>
+                <div style={{ width: 14, height: 14, borderRadius: "50%", background: D.border, flexShrink: 0 }} />
+                <div style={{ width: 110, height: 14, borderRadius: 4, background: D.border, flexShrink: 0 }} />
+                <div style={{ flex: 1, height: 12, borderRadius: 4, background: D.border, opacity: 0.6 }} />
+                <div style={{ width: 60, height: 10, borderRadius: 4, background: D.border, opacity: 0.5 }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      <style dangerouslySetInnerHTML={{ __html: "@keyframes tbSk{0%,100%{opacity:0.4}50%{opacity:0.7}}" }} />
+    </div>
+  );
 }
 
 const lbl: React.CSSProperties = { fontFamily: mn, fontSize: 10, letterSpacing: 1.2, textTransform: "uppercase", color: D.txd, marginBottom: 4 };
