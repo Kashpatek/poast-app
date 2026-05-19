@@ -339,7 +339,7 @@ function SlideCanvas({ slide, theme, onUpdate, onRequestPicker }: { slide: Slide
     </div>}
 
     {/* ─── BODY TEXT SLIDE (positions 2, 3, 4) ─── */}
-    {slide.type === "body" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: slide.inverted ? "column-reverse" : "column", justifyContent: slide.bodyAnchor === "top" ? "flex-start" : (slide.imageUrl ? "flex-start" : "center") }}>
+    {slide.type === "body" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: slide.inverted ? "column-reverse" : "column", justifyContent: slide.inverted && slide.imageUrl ? "flex-end" : (slide.bodyAnchor === "top" ? "flex-start" : (slide.imageUrl ? "flex-start" : "center")) }}>
       {/* Optional image on body slides */}
       {slide.imageUrl && <ImageFrame
         imageUrl={slide.imageUrl}
@@ -362,7 +362,7 @@ function SlideCanvas({ slide, theme, onUpdate, onRequestPicker }: { slide: Slide
     </div>}
 
     {/* ─── IMAGE + TEXT SLIDE ─── */}
-    {slide.type === "image_text" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: slide.inverted ? "column-reverse" : "column" }}>
+    {slide.type === "image_text" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: slide.inverted ? "column-reverse" : "column", justifyContent: slide.inverted ? "flex-end" : "flex-start" }}>
       <ImageFrame
         imageUrl={slide.imageUrl}
         onImageChange={function(url) { updateField("imageUrl", url); }}
@@ -382,7 +382,7 @@ function SlideCanvas({ slide, theme, onUpdate, onRequestPicker }: { slide: Slide
     </div>}
 
     {/* ─── LARGE IMAGE SLIDE ─── */}
-    {slide.type === "large_image" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: slide.inverted ? "column-reverse" : "column" }}>
+    {slide.type === "large_image" && <div style={{ position: "absolute", left: 0, right: 0, top: FULL_H * 0.10 * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + mx + "px", display: "flex", flexDirection: slide.inverted ? "column-reverse" : "column", justifyContent: slide.inverted ? "flex-end" : "flex-start" }}>
       <ImageFrame
         imageUrl={slide.imageUrl}
         onImageChange={function(url) { updateField("imageUrl", url); }}
@@ -1683,21 +1683,21 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
                 <div style={{ fontFamily: gf, fontSize: sl.titleSize * rScale, fontWeight: 800, color: "#fff", lineHeight: 1.15, marginBottom: 4, overflow: "hidden", textAlign: "left" }}>{sl.title || ""}</div>
                 <div style={{ fontFamily: gf, fontSize: sl.subtitleSize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.75)", lineHeight: 1.35, overflow: "hidden", textAlign: "left" }}>{sl.subtitle || ""}</div>
               </div>}
-              {sl.type === "body" && <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: sl.bodyAnchor === "top" ? "flex-start" : (sl.imageUrl ? "flex-start" : "center"), position: "relative" }}>
-                {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 45) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
+              {sl.type === "body" && <div style={{ height: "100%", display: "flex", flexDirection: sl.inverted ? "column-reverse" : "column", justifyContent: sl.inverted && sl.imageUrl ? "flex-end" : (sl.bodyAnchor === "top" ? "flex-start" : (sl.imageUrl ? "flex-start" : "center")), position: "relative" }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 45) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: sl.inverted ? 0 : 6, marginTop: sl.inverted ? 6 : 0, flexShrink: 0, background: "#000" }}>
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, fontWeight: 400, color: "rgba(255,255,255,0.9)", lineHeight: 1.5, overflow: "hidden", whiteSpace: "pre-wrap" }}>{sl.bodyText || ""}</div>
                 {sl.position === 4 && sl.ctaText && <div style={{ position: "absolute", bottom: 60 * rScale, left: sl.ctaPosition === "bottom-center" ? 0 : "auto", right: sl.ctaPosition === "bottom-center" ? 0 : sidePad, width: sl.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: sl.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * rScale, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.5)", letterSpacing: "1px" }}>{sl.ctaText}</div>}
               </div>}
-              {sl.type === "image_text" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-                {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 50) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
+              {sl.type === "image_text" && <div style={{ height: "100%", display: "flex", flexDirection: sl.inverted ? "column-reverse" : "column", justifyContent: sl.inverted ? "flex-end" : "flex-start" }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 50) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: sl.inverted ? 0 : 6, marginTop: sl.inverted ? 6 : 0, flexShrink: 0, background: "#000" }}>
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, color: "rgba(255,255,255,0.9)", lineHeight: 1.4, overflow: "hidden" }}>{sl.bodyText || ""}</div>
               </div>}
-              {sl.type === "large_image" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-                {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 72) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
+              {sl.type === "large_image" && <div style={{ height: "100%", display: "flex", flexDirection: sl.inverted ? "column-reverse" : "column", justifyContent: sl.inverted ? "flex-end" : "flex-start" }}>
+                {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 72) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: sl.inverted ? 0 : 6, marginTop: sl.inverted ? 6 : 0, flexShrink: 0, background: "#000" }}>
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                 </div>}
                 <div style={{ fontFamily: gf, fontSize: (sl.captionSize || 18) * rScale, color: "rgba(255,255,255,0.6)", lineHeight: 1.3 }}>{sl.caption || ""}</div>
@@ -1933,9 +1933,24 @@ function renderSlideToCanvas(slide: Slide, bgUrl: string): Promise<Blob> {
         return currentY;
       }
 
-      function drawImage(imageUrl: string | undefined, x: number, y: number, w: number, h: number, radius: number) {
+      function drawImage(imageUrl: string | undefined, x: number, y: number, w: number, h: number, radius: number, opts?: { position?: string; fit?: string }) {
         return new Promise<void>(function(resolveImg) {
           if (!imageUrl) { resolveImg(); return; }
+
+          // Resolve CSS-like object-position to fractional offsets so the
+          // canvas pipeline matches what the editor and review panel show
+          // when the user picks Top / Left / Center / etc.
+          function resolveOffset(pos: string | undefined) {
+            var hx = 0.5, vy = 0.5;
+            if (pos) {
+              var p = pos.toLowerCase().trim();
+              if (p.indexOf("left") >= 0) hx = 0;
+              else if (p.indexOf("right") >= 0) hx = 1;
+              if (p.indexOf("top") >= 0) vy = 0;
+              else if (p.indexOf("bottom") >= 0) vy = 1;
+            }
+            return { hx: hx, vy: vy };
+          }
 
           function renderImg(img: HTMLImageElement) {
             ctx.save();
@@ -1951,11 +1966,34 @@ function renderSlideToCanvas(slide: Slide, bgUrl: string): Promise<Blob> {
             ctx.arcTo(x, y, x + radius, y, radius);
             ctx.closePath();
             ctx.clip();
+
+            var fit = (opts && opts.fit) || "cover";
+            var off = resolveOffset(opts && opts.position);
             var imgAspect = img.width / img.height;
             var frameAspect = w / h;
             var dw, dh, dx, dy;
-            if (imgAspect > frameAspect) { dh = h; dw = dh * imgAspect; dx = x + (w - dw) / 2; dy = y; }
-            else { dw = w; dh = dw / imgAspect; dx = x; dy = y + (h - dh) / 2; }
+
+            if (fit === "fill") {
+              // Stretch to frame — distortion expected.
+              dw = w; dh = h; dx = x; dy = y;
+            } else if (fit === "contain") {
+              // Letterbox — fit entire image inside frame, use position to
+              // place the letterboxed image.
+              if (imgAspect > frameAspect) { dw = w; dh = w / imgAspect; }
+              else { dh = h; dw = h * imgAspect; }
+              dx = x + (w - dw) * off.hx;
+              dy = y + (h - dh) * off.vy;
+            } else {
+              // cover (default) — fill frame, crop excess based on position.
+              // When dw > w, (w - dw) is negative; multiplying by hx slides
+              // the image so hx=0 anchors the LEFT edge of the image to the
+              // frame's left, hx=1 anchors the RIGHT edge.
+              if (imgAspect > frameAspect) { dh = h; dw = dh * imgAspect; }
+              else { dw = w; dh = dw / imgAspect; }
+              dx = x + (w - dw) * off.hx;
+              dy = y + (h - dh) * off.vy;
+            }
+
             ctx.drawImage(img, dx, dy, dw, dh);
             ctx.restore();
             resolveImg();
@@ -1995,11 +2033,16 @@ function renderSlideToCanvas(slide: Slide, bgUrl: string): Promise<Blob> {
         // Drawn small in top-left, below logo line
         // (skip — logo area is sacred, stamp goes nowhere visible on the slide itself)
 
+        // Per-slide image rendering options (CSS object-position / fit
+        // semantics) so the canvas export matches the editor exactly.
+        var imgOpts = { position: slide.imagePosition, fit: slide.imageFit };
+        var imgOpts2 = { position: slide.imagePosition2, fit: slide.imageFit };
+
         if (slide.type === "cover") {
           ctx.textAlign = "left";
           var imgHPct = (slide.imageHeight || 46) / 100;
           var imgH = Math.round(coverAvailH * imgHPct);
-          await drawImage(slide.imageUrl, COVER_MX, COVER_TOP_Y, coverContentWidth, imgH, 20);
+          await drawImage(slide.imageUrl, COVER_MX, COVER_TOP_Y, coverContentWidth, imgH, 20, imgOpts);
           var titleY = COVER_TOP_Y + imgH + 20;
           var afterTitle = drawText(slide.title || "", COVER_MX, titleY, coverContentWidth, slide.titleSize, "800", "#ffffff", 1.15);
           drawText(slide.subtitle || "", COVER_MX, afterTitle + 8, coverContentWidth, slide.subtitleSize, "400", "rgba(255,255,255,0.78)", 1.4);
@@ -2009,13 +2052,13 @@ function renderSlideToCanvas(slide: Slide, bgUrl: string): Promise<Blob> {
           if (slide.imageUrl && !slide.inverted) {
             // Image on top, text below
             var bImgH = Math.round(availH * ((slide.imageHeight || 45) / 100));
-            await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, bImgH, 20);
+            await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, bImgH, 20, imgOpts);
             drawText(slide.bodyText || "", MARGIN_X, TOP_Y + bImgH + 16, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.55);
           } else if (slide.imageUrl && slide.inverted) {
             // Text on top, image below
             var bImgH2 = Math.round(availH * ((slide.imageHeight || 45) / 100));
             var textEndY = drawText(slide.bodyText || "", MARGIN_X, TOP_Y, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.55);
-            await drawImage(slide.imageUrl, MARGIN_X, textEndY + 16, contentWidth, bImgH2, 20);
+            await drawImage(slide.imageUrl, MARGIN_X, textEndY + 16, contentWidth, bImgH2, 20, imgOpts);
           } else if (slide.bodyAnchor === "top") {
             // Text only, top-anchored
             drawText(slide.bodyText || "", MARGIN_X, TOP_Y, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.55);
@@ -2046,28 +2089,28 @@ function renderSlideToCanvas(slide: Slide, bgUrl: string): Promise<Blob> {
         } else if (slide.type === "image_text") {
           var itImgH = Math.round(availH * ((slide.imageHeight || 50) / 100));
           if (!slide.inverted) {
-            await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, itImgH, 20);
+            await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, itImgH, 20, imgOpts);
             drawText(slide.bodyText || "", MARGIN_X, TOP_Y + itImgH + 16, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.5);
           } else {
             var itTextEnd = drawText(slide.bodyText || "", MARGIN_X, TOP_Y, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.5);
-            await drawImage(slide.imageUrl, MARGIN_X, itTextEnd + 16, contentWidth, itImgH, 20);
+            await drawImage(slide.imageUrl, MARGIN_X, itTextEnd + 16, contentWidth, itImgH, 20, imgOpts);
           }
 
         } else if (slide.type === "large_image") {
           var liImgH = Math.round(availH * ((slide.imageHeight || 72) / 100));
           if (!slide.inverted) {
-            await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, liImgH, 20);
+            await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, liImgH, 20, imgOpts);
             drawText(slide.caption || "", MARGIN_X, TOP_Y + liImgH + 12, contentWidth, slide.captionSize || 18, "400", "rgba(255,255,255,0.65)", 1.4);
           } else {
             var liCapEnd = drawText(slide.caption || "", MARGIN_X, TOP_Y, contentWidth, slide.captionSize || 18, "400", "rgba(255,255,255,0.65)", 1.4);
-            await drawImage(slide.imageUrl, MARGIN_X, liCapEnd + 12, contentWidth, liImgH, 20);
+            await drawImage(slide.imageUrl, MARGIN_X, liCapEnd + 12, contentWidth, liImgH, 20, imgOpts);
           }
 
         } else if (slide.type === "dual_image") {
           var halfH = Math.round((availH - 16) / 2);
-          await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, halfH - 20, 16);
+          await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, halfH - 20, 16, imgOpts);
           drawText(slide.caption || "", MARGIN_X, TOP_Y + halfH - 16, contentWidth, slide.captionSize || 16, "400", "rgba(255,255,255,0.65)", 1.3);
-          await drawImage(slide.imageUrl2, MARGIN_X, TOP_Y + halfH + 8, contentWidth, halfH - 20, 16);
+          await drawImage(slide.imageUrl2, MARGIN_X, TOP_Y + halfH + 8, contentWidth, halfH - 20, 16, imgOpts2);
           drawText(slide.caption2 || "", MARGIN_X, TOP_Y + halfH * 2 - 8, contentWidth, slide.captionSize || 16, "400", "rgba(255,255,255,0.65)", 1.3);
         }
 
