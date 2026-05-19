@@ -12,6 +12,7 @@ const GenerateSchema = z.object({
   // keep working with provider="claude" and no brand-voice injection.
   provider: z.enum(["claude", "gemini", "grok"]).optional(),
   applyBrandVoice: z.boolean().optional(),
+  voiceId: z.string().optional(),
   maxTokens: z.number().optional(),
   model: z.string().optional(),
 }).passthrough();
@@ -35,10 +36,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { system, prompt, provider, maxTokens, model } = parsed.data;
+    const { system, prompt, provider, maxTokens, model, voiceId } = parsed.data;
     const usedProvider: LLMProvider = provider || "claude";
     const finalSystem = parsed.data.applyBrandVoice
-      ? await applyBrandVoice(system)
+      ? await applyBrandVoice(system, voiceId)
       : system;
 
     const data = await callLLM({

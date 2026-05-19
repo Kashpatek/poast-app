@@ -1,10 +1,15 @@
-// CRUD for the single brand-voice row in projects table. Reads are cached
-// for 30s inside brand-voice.ts so caption-gen routes don't hammer
-// Supabase on every Claude call.
+// GET → returns the full voices archive (migrating legacy shape on the fly).
+// POST → saves the archive. Body: { archive: VoicesArchive }.
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { BRAND_VOICE_ID, invalidateBrandVoiceCache, type BrandVoice } from "@/lib/brand-voice";
+import {
+  BRAND_VOICE_ID,
+  defaultArchive,
+  invalidateBrandVoiceCache,
+  loadVoicesArchive,
+  type VoicesArchive,
+} from "@/lib/brand-voice";
 
 export const dynamic = "force-dynamic";
 
@@ -20,19 +25,12 @@ function getSupabase() {
 
 export async function GET() {
   const supabase = getSupabase();
-  if (!supabase) return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
+  if (!supabase) return NextResponse.json({ error: "Supabase not configured", archive: defaultArchive() }, { status: 503 });
   try {
-    const { data, error } = await supabase
-      .from("projects")
-      .select("data, updated_at")
-      .eq("id", BRAND_VOICE_ID)
-      .eq("type", "brand-voice")
-      .maybeSingle();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    const row = data as { data?: BrandVoice; updated_at?: string } | null;
-    return NextResponse.json({ voice: row?.data || null, updated_at: row?.updated_at || null });
+    const archive = await loadVoicesArchive();
+    return NextResponse.json({ archive });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return NextResponse.json({ error: String(e), archive: defaultArchive() }, { status: 500 });
   }
 }
 
@@ -41,12 +39,17 @@ export async function POST(req: NextRequest) {
   if (!supabase) return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
   try {
     const body = await req.json();
-    const voice = (body?.voice || {}) as BrandVoice;
+    const archive = body?.archive as VoicesArchive | undefined;
+    if (!archive || !Array.isArray(archive.voices) || archive.voices.length === 0) {
+      return NextResponse.json({ error: "Missing archive { voices, defaultId }" }, { status: 400 });
+    }
+    // Make sure defaultId points to something real; fall back to first voice.
+    const defaultId = archive.voices.find((v) => v.id === archive.defaultId)?.id || archive.voices[0].id;
     const row = {
       id: BRAND_VOICE_ID,
       name: "Brand Voice",
       type: "brand-voice",
-      data: { ...voice, updatedAt: new Date().toISOString() },
+      data: { voices: archive.voices, defaultId, updatedAt: new Date().toISOString() },
       updated_at: new Date().toISOString(),
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
