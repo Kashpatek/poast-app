@@ -37,7 +37,10 @@ export class LLMError extends Error {
   }
 }
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash-001";
+// gemini-2.5-flash is the current production-default Flash model
+// (2.0-flash-001 was retired for new users in mid-2026). Override via
+// the GEMINI_MODEL env var if you want 2.5-pro or 2.5-flash-lite.
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const GROK_TEXT_MODEL = process.env.GROK_TEXT_MODEL || "grok-2-1212";
 
 export async function callLLM(opts: LLMOptions): Promise<LLMResponse> {
