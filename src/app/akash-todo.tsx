@@ -602,34 +602,55 @@ function ListView({ tasks, groupBy, sortBy, handlers }: { tasks: Task[]; groupBy
   const rest = sorted.filter((t) => !t.pinned);
   const grouped = useMemo(() => groupTasks(rest, groupBy), [rest, groupBy]);
 
+  // Translate a drop on a group header into the right field patch:
+  //   priority groups  → { priority: HIGH | MEDIUM | THIS WEEK | ONGOING | DONE, done: false (except DONE) }
+  //   category groups  → { category: <name> }
+  //   due groups       → relative dueDate (today / +3d / +14d / undefined)
+  function patchForGroup(key: string): Partial<Task> | null {
+    if (groupBy === "priority") {
+      const p = key as Priority;
+      if (PRIORITIES.includes(p)) {
+        return p === "DONE" ? { done: true } : { priority: p, done: false };
+      }
+      return null;
+    }
+    if (groupBy === "category") {
+      return { category: key };
+    }
+    if (groupBy === "due") {
+      const today = startOfDay(new Date());
+      if (key === "Overdue") { const d = new Date(today); d.setDate(d.getDate() - 1); return { dueDate: isoDate(d) }; }
+      if (key === "This week") { const d = new Date(today); d.setDate(d.getDate() + 3); return { dueDate: isoDate(d) }; }
+      if (key === "Later") { const d = new Date(today); d.setDate(d.getDate() + 14); return { dueDate: isoDate(d) }; }
+      if (key === "No due date") return { dueDate: undefined };
+    }
+    return null;
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {pinned.length > 0 ? (
-        <div>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, textTransform: "uppercase", color: D.amber, display: "flex", alignItems: "center", gap: 8 }}>
-              ★ Pinned
-            </div>
-            <span style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.4 }}>{pinned.length}</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {pinned.map((t) => <TaskRow key={t.id} task={t} handlers={handlers} />)}
-          </div>
-        </div>
+        <DropGroup
+          label="★ Pinned"
+          color={D.amber}
+          count={pinned.length}
+          onDropTask={(id) => handlers.onMove(id, { pinned: true })}
+          hint="drop a task here to pin it"
+        >
+          {pinned.map((t) => <TaskRow key={t.id} task={t} handlers={handlers} />)}
+        </DropGroup>
       ) : null}
       {grouped.map(({ key, tasks: gts }) => (
-        <div key={key}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, textTransform: "uppercase", color: D.txd, display: "flex", alignItems: "center", gap: 8 }}>
-              {groupBy === "priority" ? <span style={{ width: 8, height: 8, borderRadius: "50%", background: PRIORITY_COLORS[key as Priority] || D.txd }} /> : null}
-              {key}
-            </div>
-            <span style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.4 }}>{gts.length}</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {gts.map((t) => <TaskRow key={t.id} task={t} handlers={handlers} />)}
-          </div>
-        </div>
+        <DropGroup
+          key={key}
+          label={key}
+          color={groupBy === "priority" ? (PRIORITY_COLORS[key as Priority] || D.txd) : null}
+          count={gts.length}
+          onDropTask={(id) => { const patch = patchForGroup(key); if (patch) handlers.onMove(id, patch); }}
+          hint={`drop here to move to "${key}"`}
+        >
+          {gts.map((t) => <TaskRow key={t.id} task={t} handlers={handlers} />)}
+        </DropGroup>
       ))}
       {grouped.length === 0 && pinned.length === 0 ? (
         <div style={emptyBox}>No tasks match the current filters.</div>
@@ -638,25 +659,76 @@ function ListView({ tasks, groupBy, sortBy, handlers }: { tasks: Task[]; groupBy
   );
 }
 
+// Wraps a list group so the entire group (header + rows + a small drop
+// strip below) accepts a drop. Dropping moves the task into that group
+// (changes priority / category / due bucket / pinned).
+function DropGroup({ label, color, count, onDropTask, hint, children }: { label: string; color: string | null; count: number; onDropTask: (id: string) => void; hint: string; children: React.ReactNode }) {
+  const [over, setOver] = useState(false);
+  return (
+    <div
+      onDragOver={(e) => { e.preventDefault(); if (!over) setOver(true); }}
+      onDragLeave={(e) => {
+        // Only clear when the drag actually leaves the group (not when
+        // moving between child elements). currentTarget.contains check
+        // would require a ref; the relatedTarget approach is good enough.
+        const next = e.relatedTarget as Node | null;
+        if (!next || !(e.currentTarget as HTMLDivElement).contains(next)) setOver(false);
+      }}
+      onDrop={(e) => { e.preventDefault(); setOver(false); const id = e.dataTransfer.getData("text/plain"); if (id) onDropTask(id); }}
+      style={{
+        padding: over ? "6px 8px" : "0px",
+        margin: over ? "-6px -8px" : "0px",
+        borderRadius: 10,
+        background: over ? "rgba(247,176,65,0.05)" : "transparent",
+        outline: over ? `1px dashed ${D.amber}55` : "none",
+        transition: "background 0.12s",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
+        <div style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, textTransform: "uppercase", color: color || D.txd, display: "flex", alignItems: "center", gap: 8 }}>
+          {color ? <span style={{ width: 8, height: 8, borderRadius: "50%", background: color }} /> : null}
+          {label}
+          {over ? <span style={{ fontFamily: mn, fontSize: 9, color: D.amber, letterSpacing: 0.6 }}>· {hint}</span> : null}
+        </div>
+        <span style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.4 }}>{count}</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{children}</div>
+    </div>
+  );
+}
+
 function TaskRow({ task, handlers }: { task: Task; handlers: Handlers }) {
   const pColor = PRIORITY_COLORS[(task.done ? "DONE" : task.priority) as Priority] || D.txd;
   const cColor = CATEGORY_COLORS[task.category] || D.txm;
   const due = formatDue(task.dueDate);
+  const [hover, setHover] = useState(false);
+  const [priorityMenuOpen, setPriorityMenuOpen] = useState(false);
+
+  function pickPriority(p: Priority) {
+    setPriorityMenuOpen(false);
+    if (p === "DONE") handlers.onMove(task.id, { done: true });
+    else handlers.onMove(task.id, { priority: p, done: false });
+  }
+
   return (
     <div
       draggable
       onDragStart={(e) => e.dataTransfer.setData("text/plain", task.id)}
       onClick={() => handlers.onEdit(task)}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => { setHover(false); setPriorityMenuOpen(false); }}
       style={{
         background: D.surface,
-        border: `1px solid ${D.border}`,
+        border: `1px solid ${hover ? D.amber + "33" : D.border}`,
         borderRadius: 10,
         padding: "10px 14px",
         display: "flex",
         alignItems: "center",
         gap: 14,
-        cursor: "pointer",
+        cursor: "grab",
         opacity: task.done ? 0.55 : 1,
+        position: "relative",
+        transition: "border-color 0.12s",
       }}
     >
       <button
@@ -693,6 +765,51 @@ function TaskRow({ task, handlers }: { task: Task; handlers: Handlers }) {
           </div>
         ) : null}
       </div>
+      {/* Quick priority change — click the pill to open a popover. */}
+      <div style={{ position: "relative", flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          onClick={() => setPriorityMenuOpen((v) => !v)}
+          title={`Priority: ${task.done ? "DONE" : task.priority} — click to change`}
+          style={{
+            fontFamily: mn, fontSize: 9, letterSpacing: 1, textTransform: "uppercase",
+            fontWeight: 700, color: pColor, background: pColor + "1c", border: `1px solid ${pColor}55`,
+            padding: "3px 8px", borderRadius: 4, cursor: "pointer", lineHeight: 1.4,
+          }}
+        >
+          {task.done ? "DONE" : task.priority}
+        </button>
+        {priorityMenuOpen ? (
+          <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: D.bg, border: `1px solid ${D.border}`, borderRadius: 8, padding: 4, zIndex: 100, boxShadow: "0 6px 24px rgba(0,0,0,0.4)", display: "flex", flexDirection: "column", gap: 2, minWidth: 110 }}>
+            {PRIORITIES.map((p) => {
+              const c = PRIORITY_COLORS[p];
+              const active = (task.done ? "DONE" : task.priority) === p;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => pickPriority(p)}
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", background: active ? c + "22" : "transparent", color: active ? c : D.tx, border: "none", borderRadius: 4, fontFamily: mn, fontSize: 10, letterSpacing: 0.6, cursor: "pointer", textAlign: "left" }}
+                >
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: c }} />
+                  {p}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Edit button — always present so it's discoverable; muted until hover. */}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); handlers.onEdit(task); }}
+        title="Edit task"
+        style={{ background: "transparent", border: `1px solid ${hover ? D.border : "transparent"}`, color: hover ? D.tx : D.txd, fontFamily: mn, fontSize: 9, letterSpacing: 0.6, cursor: "pointer", padding: "3px 8px", borderRadius: 4, lineHeight: 1.4, flexShrink: 0, textTransform: "uppercase", fontWeight: 700 }}
+      >
+        Edit
+      </button>
+
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); handlers.onTogglePin(task); }}
