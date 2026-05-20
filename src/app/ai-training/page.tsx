@@ -11,8 +11,9 @@ import { D, ft, mn, getPreferredProvider, setPreferredProvider, type LLMProvider
 import { useToast } from "../toast-context";
 import type { LLMProvider } from "@/lib/llm-provider";
 import { TONE_LABELS, type Voice, type VoiceTone, type VoiceExample, type VoicesArchive, defaultArchive } from "@/lib/brand-voice";
+import { VoiceLab } from "./voice-lab";
 
-type Tab = "voice" | "playground";
+type Tab = "voice" | "lab" | "playground";
 
 export default function AITrainingPage() {
   const { showToast } = useToast();
@@ -54,6 +55,7 @@ export default function AITrainingPage() {
       <div style={{ display: "flex", gap: 6, marginBottom: 22, flexWrap: "wrap" }}>
         {([
           { id: "voice",      label: "Brand voice" },
+          { id: "lab",        label: "Voice Lab" },
           { id: "playground", label: "Playground" },
         ] as Array<{ id: Tab; label: string }>).map((t) => {
           const active = tab === t.id;
@@ -64,6 +66,7 @@ export default function AITrainingPage() {
       </div>
 
       {tab === "voice" ? <VoiceTuner onToast={showToast} /> : null}
+      {tab === "lab" ? <VoiceLabTab onToast={showToast} /> : null}
       {tab === "playground" ? <Playground onToast={showToast} /> : null}
     </div>
   );
@@ -552,6 +555,81 @@ function PreviewPane({ title, subtitle, text, loading, err, onRerun, tone, highl
 // ════════════════════════════════════════════════════════════════════
 // Playground (kept from earlier — quick prompt bench)
 // ════════════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════════
+// Voice Lab tab — loads the archive, picks a target voice, hands off
+// to the Lab component, and persists the merged result on apply.
+// ════════════════════════════════════════════════════════════════════
+
+function VoiceLabTab({ onToast }: { onToast: (m: string) => void }) {
+  const [archive, setArchive] = useState<VoicesArchive | null>(null);
+  const [activeId, setActiveId] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/brand-voice").then((r) => r.json()).then((j) => {
+      if (cancelled) return;
+      const a: VoicesArchive = j?.archive || defaultArchive();
+      setArchive(a);
+      setActiveId(a.defaultId);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!archive) return <div style={{ fontFamily: mn, fontSize: 12, color: D.txm, padding: 20 }}>Loading voices…</div>;
+  const active = archive.voices.find((v) => v.id === activeId) || archive.voices[0];
+  if (!active) return <div style={{ fontFamily: mn, fontSize: 12, color: D.txm, padding: 20 }}>No voice to lab against. Create one on the Brand voice tab first.</div>;
+
+  async function applyPatch(patch: { encouraged?: string[]; banned?: string[]; notes?: string }) {
+    if (!archive || !active) return;
+    setSaving(true);
+    const nextVoice: Voice = {
+      ...active,
+      encouraged: patch.encouraged ?? active.encouraged,
+      banned: patch.banned ?? active.banned,
+      notes: patch.notes ?? active.notes,
+      updatedAt: new Date().toISOString(),
+    };
+    const nextArchive: VoicesArchive = {
+      ...archive,
+      voices: archive.voices.map((v) => (v.id === active.id ? nextVoice : v)),
+    };
+    setArchive(nextArchive);
+    try {
+      const res = await fetch("/api/brand-voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archive: nextArchive }),
+      });
+      const j = await res.json();
+      if (!res.ok) { onToast(j.error || "Save failed"); return; }
+      onToast(`"${active.name}" updated with the Lab's findings. Carry on tuning on the Brand voice tab.`);
+    } catch (e) {
+      onToast(String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div>
+      {archive.voices.length > 1 ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          <span style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}>Lab target</span>
+          {archive.voices.map((v) => {
+            const on = v.id === active.id;
+            return (
+              <button key={v.id} type="button" onClick={() => setActiveId(v.id)} style={{ padding: "6px 12px", background: on ? D.amber : "transparent", color: on ? "#060608" : D.tx, border: `1px solid ${on ? D.amber : D.border}`, borderRadius: 6, fontFamily: ft, fontSize: 12, fontWeight: on ? 800 : 500, cursor: "pointer", letterSpacing: 0.3 }}>{v.name}</button>
+            );
+          })}
+          {saving ? <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 0.5 }}>saving…</span> : null}
+        </div>
+      ) : null}
+      <VoiceLab voice={active} onApply={applyPatch} />
+    </div>
+  );
+}
 
 function Playground({ onToast }: { onToast: (m: string) => void }) {
   const [system, setSystem] = useState("You write Instagram captions for SemiAnalysis. Under 220 chars. No hashtags here. No em dashes, no hype.");
