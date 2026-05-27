@@ -454,30 +454,51 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
   function doCopy(t: string, l: string){navigator.clipboard.writeText(t);setCp(l);setTimeout(function(){setCp("")},2000)}
 
   var KIT_SYS = [
-    "You write launch kits for SemiAnalysis GTC interview series (Researcher Conversations by SAIL).",
-    "Every piece of content must be attention-grabbing, specific, and make the reader want to click/watch.",
-    "The user launches with either the video thumbnail OR just the link — so captions must sell the watch on their own.",
+    "GTC LAUNCH VOICE — INTERVIEW CAPTION STYLE",
+    "You write launch captions for SemiAnalysis GTC interview clips (Researcher Conversations by SAIL).",
+    "Informed. Understated. Lets the insight do the talking.",
     "",
-    "STYLE RULES:",
-    "- Lead with a specific number, claim, or concrete technical detail. Never vibes. Never marketing fluff.",
-    "- Short sentences. Casual but informed. Direct.",
-    "- No em dashes. No emojis. No generic hype words (revolutionary, game-changing, explores, dives deep, breaks down).",
-    "- Hooks should make readers stop scrolling. Use curiosity gaps, surprising numbers, or contrarian takes.",
-    "- X: NEVER hashtags. 1 sentence hook.",
-    "- LinkedIn: 3-5 sentences, guest context + why it matters to industry.",
-    "- Facebook: 3-5 sentences, conversational, a little more color.",
-    "- Story: 1 punchy line.",
+    "X / TWITTER STRUCTURE — follow exactly (four lines, on four lines, in this order):",
+    "  1. HOOK — one sentence, states a problem as a fact. No fluff.",
+    "  2. BODY — one to two sentences, reframes why the obvious fix fails at scale. Technical but not jargon-heavy.",
+    "  3. QUESTION — one line. Flips the problem into curiosity. MUST start with 'So why' or 'So what'.",
+    "  4. CTA — guest first name + last name at company + 'has a solution' (or 'breaks it down') + colon + [INSERT YOUTUBE LINK]",
     "",
-    "REFERENCE YOUTUBE DESCRIPTION (match this quality):",
+    "REFERENCE X EXAMPLE (match this rhythm and density):",
+    "GPUs are leaving performance on the table.",
+    "Closing the gap between theoretical peak and real-world throughput is nearly impossible when hand-tuning CUDA kernels at scale.",
+    "So why are hand-written CUDA kernels losing to auto-generated ones?",
+    "Mohamed Abdelfattah at Makora has a solution: [INSERT YOUTUBE LINK]",
+    "",
+    "HARD RULES (absolute, never violate):",
+    "- NEVER hashtags. Not one. Ever.",
+    "- NEVER em dashes. Use periods or commas.",
+    "- NEVER hype words. Banned entirely: game-changing, game changer, revolutionary, groundbreaking, exciting, transformative, unlock, leverage, harness, deep dive, dives deep, dive into, explores, breaks down (only allowed in the CTA line in the exact phrase 'breaks it down').",
+    "- NEVER filler CTAs: 'check it out', 'watch this', 'don't miss this', 'must watch'.",
+    "- Technical credibility over enthusiasm.",
+    "- Every line must earn its place. Short. Tight. Confident.",
+    "",
+    "LINKEDIN / FACEBOOK STRUCTURE — same understated voice, more room to breathe:",
+    "- 3-5 sentences. Same Hook → Body → CTA flow, no explicit question line required.",
+    "- Lead with the specific problem from the interview. Set stakes for someone building AI infra.",
+    "- End with 'Guest first+last at Company has a solution.' or 'breaks it down.' then '[INSERT YOUTUBE LINK]'.",
+    "- LinkedIn: technical, infrastructure-aware. Facebook: same substance, marginally more conversational tone — never breezy.",
+    "",
+    "STORY: 1 line. The hook only.",
+    "",
+    "YOUTUBE DESCRIPTION REFERENCE (match this quality):",
     "Jordan Nanos sits down with Thomas Sohmers, Co-Founder & CTO at Positron AI, to discuss AI inference hardware, FPGA, competing with NVIDIA. Thomas dives into how Positron is achieving a 1:1 ratio for matrix-matrix and matrix-vector performance, their strategic shift to LPDDR memory to bypass HBM supply constraints, and how their Titan server is designed to run 16-trillion parameter models with million-token context lengths on a single box.",
     "",
-    "Thomas Sohmers is a hardware pioneer and the founder of Positron AI, a startup reimagining the infrastructure for large-scale AI inference. By focusing on maximizing memory bandwidth utilization (hitting 93% of theoretical peak) and leveraging commodity supply chains like organic substrates and LPDDR, Thomas and his team are building a more accessible, high-performance path for the world's most demanding LLM workloads."
+    "Thomas Sohmers is a hardware pioneer and the founder of Positron AI, a startup reimagining the infrastructure for large-scale AI inference. By focusing on maximizing memory bandwidth utilization (hitting 93% of theoretical peak) and leveraging commodity supply chains like organic substrates and LPDDR, Thomas and his team are building a more accessible, high-performance path for the world's most demanding LLM workloads.",
+    "",
+    "(YouTube description body avoids 'dives into' on its OWN line but the reference shows the verb in flowing prose — keep that usage; the ban is on standalone 'dive into' / 'dives deep' as a CTA-style phrase.)"
   ].join("\n");
 
   async function gKit(){
     setGenK(true);
+    var hasTx = ytTranscript.trim().length > 200;
     var prompt = [
-      "Generate the FULL launch kit for this episode. Every section must pull specific hooks from the bio/topics.",
+      "Generate the FULL launch kit for this episode. Every section must pull specific hooks from the bio/topics/transcript.",
       "",
       "Guest: " + ep.guest + ", " + ep.title + " at " + ep.company,
       "Guest bio: " + (gBio || ep.bio || "[no guest bio provided]"),
@@ -487,15 +508,20 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
       "Company: " + (ep.companyDesc || ""),
       "Format: " + (ep.virtual ? "virtual via Riverside" : "on-site at NVIDIA GTC 2026 in San Jose"),
       "",
-      "REQUIREMENTS:",
-      "- Each caption must contain at least ONE concrete detail/metric/claim pulled from bio or topics.",
-      "- YouTube description: 3 paragraphs. Para 1 includes 3 specific technical hooks. Para 2 includes 1+ metric. Para 3 VERBATIM as given below.",
-      "- X hook: one sentence that makes people want to click. Lead with a number/claim from the bio.",
-      "- LinkedIn: set up stakes for industry insiders. Why should someone building AI infra care?",
-      "- Facebook: same substance, more conversational tone.",
-      "- Story: punchy one-liner.",
-      "- Thumbnail headline: 6-8 words, bold claim or number, optimized for video thumbnail text.",
-      "- YouTube title: under 70 chars, front-loads the most clickable hook (not just the guest name).",
+      hasTx ? "TRANSCRIPT (use to pull specific technical details, numbers, and quotes; attribute to host vs guest correctly):\n" + ytTranscript.slice(0, 12000) + "\n" : "",
+      "",
+      "X / TWITTER REQUIREMENTS — strict four-line structure:",
+      "  Line 1 HOOK: one sentence, states a problem as a fact. No fluff.",
+      "  Line 2 BODY: one to two sentences, reframes why the obvious fix fails at scale.",
+      "  Line 3 QUESTION: one line, must start with 'So why' or 'So what'.",
+      "  Line 4 CTA: '" + ep.guest + " at " + ep.company + " has a solution: [INSERT YOUTUBE LINK]' (or use 'breaks it down:' instead of 'has a solution:').",
+      "",
+      "Other requirements:",
+      "- LinkedIn / Facebook: same understated voice, 3-5 sentences, end with 'Guest at Company has a solution.' + link.",
+      "- Story: 1 punchy hook line only.",
+      "- Thumbnail headline: 6-8 words, bold claim or number.",
+      "- YouTube title: under 70 chars, front-load the clickable hook (not just the guest name).",
+      "- YouTube description: 3 paragraphs. Para 1 = 3 specific technical hooks. Para 2 = positioning + metric. Para 3 VERBATIM as given below. If chapters block is supplied, append it AFTER Para 3 verbatim.",
       "",
       "VERBATIM PARA 3 (do not change):",
       seriesPara,
@@ -508,30 +534,44 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
       "[6-8 words for thumbnail overlay text]",
       "",
       "--- YOUTUBE DESCRIPTION ---",
-      "[Para 1: " + ep.host + " sits down with " + ep.guest + ", " + ep.title + " at " + ep.company + ", to discuss [topics]. " + firstName + " dives into [3 specific technical hooks with numbers].]",
+      "[Para 1: " + ep.host + " sits down with " + ep.guest + ", " + ep.title + " at " + ep.company + ", to discuss [topics]. " + firstName + " dives into [3 specific technical hooks with numbers from bio/topics/transcript].]",
       "",
       "[Para 2: positioning + specific metric + outcome]",
       "",
       seriesPara,
       "",
       "--- X (HOOK) ---",
-      "[1 sentence, specific claim, no link, no hashtags]",
+      "[Line 1: problem-as-fact hook]",
+      "[Line 2: 1-2 sentences reframing why the obvious fix fails at scale]",
+      "[Line 3: 'So why ...' or 'So what ...' question]",
+      "[Line 4: " + ep.guest + " at " + ep.company + " has a solution: ... (the X REPLY block below holds the link, so omit the link here)]",
       "",
       "--- X (REPLY) ---",
       "[INSERT YOUTUBE LINK]",
       "",
       "--- LINKEDIN ---",
-      "[3-5 sentences with specific technical stakes + why industry should care]",
+      "[3-5 sentences, technical stakes for AI infra readers, end with 'Guest at Company has a solution.']",
       "[INSERT YOUTUBE LINK]",
       "",
       "--- FACEBOOK ---",
-      "[3-5 sentences conversational, same substance]",
+      "[3-5 sentences, marginally more conversational, same substance, end with same CTA pattern.]",
       "[INSERT YOUTUBE LINK]",
       "",
       "--- STORY ---",
-      "[1 punchy line]"
+      "[1 punchy hook line]"
     ].join("\n");
     var r = await callAPI(KIT_SYS, prompt);
+    // Auto-append chapters to the YT description section if a transcript
+    // was provided. Generated separately so the user doesn't have to run
+    // chapter extraction by hand on the YT tab.
+    if (hasTx) {
+      try {
+        var chapters = await gChapters(ytTranscript);
+        if (chapters) {
+          r = injectChapters(r, chapters);
+        }
+      } catch { /* ignore — chapters are bonus, not required */ }
+    }
     setKitOut(r);
     setGenK(false);
   }
@@ -540,7 +580,7 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
     setGenYt(true);
     var hasTx = ytTranscript.trim().length > 200;
     var prompt = [
-      "Generate a full YouTube description for this episode. Exactly 3 paragraphs. NO chapter markers or timestamps (user adds those themselves).",
+      "Generate a full YouTube description for this episode. Exactly 3 paragraphs. Chapters get appended automatically below — do NOT output chapter markers yourself.",
       "",
       "Guest: " + ep.guest + ", " + ep.title + " at " + ep.company,
       "Guest bio: " + (gBio || ep.bio || "[no guest bio provided]"),
@@ -550,7 +590,7 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
       "Company: " + (ep.companyDesc || ""),
       "Format: " + (ep.virtual ? "virtual via Riverside" : "on-site at NVIDIA GTC 2026 in San Jose"),
       "",
-      hasTx ? "TRANSCRIPT (use for pulling specific technical details, numbers, and quotes; use the bios above to attribute correctly to host vs guest):\n" + ytTranscript.slice(0, 8000) + "\n" : "",
+      hasTx ? "TRANSCRIPT (use for pulling specific technical details, numbers, and quotes; use the bios above to attribute correctly to host vs guest):\n" + ytTranscript.slice(0, 12000) + "\n" : "",
       "Output exactly 3 paragraphs, separated by blank lines:",
       "",
       "[Paragraph 1: " + ep.host + " sits down with " + ep.guest + ", " + ep.title + " at " + ep.company + ", to discuss [topics]. " + firstName + " dives into [3 specific technical details with numbers from bio/topics/transcript].]",
@@ -560,8 +600,48 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
       seriesPara
     ].join("\n");
     var r = await callAPI(KIT_SYS, prompt);
+    // If a transcript is present, auto-generate chapters and append.
+    if (hasTx) {
+      try {
+        var chapters = await gChapters(ytTranscript);
+        if (chapters) r = (r || "").trimEnd() + "\n\nCHAPTERS\n" + chapters;
+      } catch { /* ignore — chapters bonus */ }
+    }
     setYtOut(r);
     setGenYt(false);
+  }
+
+  // Ask Claude for YouTube-format chapters from the pasted transcript.
+  // Returns one chapter per line in the form `(MM:SS) Title` (or
+  // `(HH:MM:SS) Title` for episodes over an hour). Filters non-conforming
+  // lines so stray prose can't sneak in.
+  async function gChapters(transcript: string): Promise<string> {
+    var sys = "You extract YouTube chapters from podcast transcripts. Output ONLY the chapter list — one chapter per line, no preamble, no markdown fences. Format: `(MM:SS) Chapter title` (or `(HH:MM:SS) Chapter title` for episodes over an hour). 5-10 chapters total. Titles 3-7 words, specific (name what was discussed, not 'Discussion of X'). (00:00) must always be the first chapter. Times in ascending order. If the transcript has embedded timestamps, use them. If not, estimate from topic-shift positions. SA voice: no em dashes, no emojis, no hype words.";
+    var prompt = "Guest: " + ep.guest + " (" + ep.company + "). Transcript (first 20000 chars):\n\n" + transcript.slice(0, 20000) + "\n\nReturn 5-10 chapters, one per line.";
+    var raw = await callAPI(sys, prompt);
+    if (!raw) return "";
+    var cleaned = raw.replace(/```[a-z]*|```/g, "").trim();
+    var lines = cleaned.split("\n").map(function(l: string){return l.trim();}).filter(function(l: string){return /^\(\d{1,2}:\d{2}(?::\d{2})?\)\s+\S/.test(l);});
+    return lines.join("\n");
+  }
+
+  // Splice a CHAPTERS block into the launch kit's YT description section
+  // after Para 3 but before the next section divider. Idempotent — if
+  // chapters are already present, replace them.
+  function injectChapters(kit: string, chapters: string): string {
+    if (!chapters) return kit;
+    // Strip any existing CHAPTERS block we might have written previously.
+    var stripped = kit.replace(/\n+CHAPTERS\n[\s\S]*?(?=\n---|\n\n---|$)/g, "");
+    // Find the YOUTUBE DESCRIPTION section, append chapters at its end.
+    var marker = "--- YOUTUBE DESCRIPTION ---";
+    var idx = stripped.indexOf(marker);
+    if (idx < 0) return stripped + "\n\nCHAPTERS\n" + chapters;
+    // Find next section divider after the description.
+    var after = stripped.indexOf("\n---", idx + marker.length);
+    if (after < 0) return stripped.trimEnd() + "\n\nCHAPTERS\n" + chapters;
+    var before = stripped.slice(0, after).trimEnd();
+    var rest = stripped.slice(after);
+    return before + "\n\nCHAPTERS\n" + chapters + "\n" + rest;
   }
   async function gClip(){
     setGenC(true);
@@ -681,7 +761,7 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
       <Btn on={tab==="yt"} onClick={function(){setTab("yt")}}>YT Description</Btn>
       <Btn on={tab==="clips"} onClick={function(){setTab("clips")}}>Clips Kit</Btn>
     </div>
-    <div style={{fontSize:9,color:"#4b5563",marginBottom:14}}>{tab==="kit"?"Title + thumbnail headline + YT desc + X, LinkedIn, Facebook, Story — all attention-grabbing":tab==="yt"?"3-paragraph YouTube description. Paste transcript for sharper specifics. Timestamps added manually on YouTube.":"Paste 2 clip transcripts. Generates X, Shorts, Reels, TikTok, Story"}</div>
+    <div style={{fontSize:9,color:"#4b5563",marginBottom:14}}>{tab==="kit"?"Title + thumbnail + YT desc with auto-chapters + X (4-line hook/body/question/CTA) + LinkedIn + Facebook + Story":tab==="yt"?"3-paragraph YouTube description with auto-extracted chapters when transcript is pasted":"Paste 2 clip transcripts. Generates X, Shorts, Reels, TikTok, Story"}</div>
 
     {tab==="kit"&&(function(){
       var sections = kitOut ? splitKitSections(kitOut) : {};
@@ -694,7 +774,18 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
         { key: "FACEBOOK", label: "Facebook", color: "#1877F2", lines: 5 },
         { key: "STORY", label: "Story", color: CYN, lines: 1 },
       ];
+      var hasTx = ytTranscript.trim().length > 200;
       return <div>
+        {/* Transcript box — shared with the YT Description tab. Pasting
+            here enriches the launch kit captions AND auto-loads chapters
+            into the YouTube description section. */}
+        <div style={{marginBottom:10,padding:10,background:BG1,border:"1px solid "+(hasTx?GRN+"40":BDR),borderRadius:8}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <div style={{fontSize:10,color:hasTx?GRN:AMB,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,fontFamily:MONO}}>Transcript (optional)</div>
+            <div style={{fontSize:9,color:"#6b7280",fontFamily:MONO}}>{hasTx?ytTranscript.length.toLocaleString()+" chars · chapters will auto-load":"Paste to enrich captions + auto-add chapters"}</div>
+          </div>
+          <textarea value={ytTranscript} onChange={function(e){setYtTranscript(e.target.value)}} placeholder="Paste the full interview transcript. AI pulls specific technical details, numbers, and quotes for the captions; chapters get extracted and appended to the YouTube description automatically." style={{width:"100%",minHeight:90,padding:8,background:BG0,border:"1px solid "+BDR,borderRadius:6,color:"#d1d5db",fontFamily:FONT,fontSize:11,resize:"vertical",outline:"none",boxSizing:"border-box"}}/>
+        </div>
         <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
           <Btn on={true} onClick={gKit} sx={{opacity:genK?.5:1}}>{genK?"Generating...":kitOut?"Regenerate":"Generate Launch Kit"}</Btn>
           {kitOut&&<Btn on={false} onClick={function(){doCopy(kitOut,"kit")}} sx={{borderColor:AMB+"60",color:AMB}}>{cp==="kit"?"Copied!":"Copy All"}</Btn>}
