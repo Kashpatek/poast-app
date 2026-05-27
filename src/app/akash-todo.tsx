@@ -38,6 +38,13 @@ interface Task {
   pinned?: boolean;
   tags?: string[];
   subtasks?: Subtask[];
+  // ISO datetime — when the user time-blocked this task on the Daily
+  // Planner. Drives where it renders in the hour timeline. May or may
+  // not be the same day as dueDate (you can block tomorrow's work today).
+  scheduledFor?: string;
+  // Optional estimate in minutes, used by the planner to size the
+  // timeline block. Defaults to 30 if not set.
+  estimateMins?: number;
   source?: "manual" | "prompt" | "image" | "quick";
   addedAt: string;
   updatedAt?: string;
@@ -121,6 +128,7 @@ export default function AkashTodo() {
   const [addingMode, setAddingMode] = useState<AddMode | null>(null);
   const [boardModalOpen, setBoardModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [focusModeTask, setFocusModeTask] = useState<Task | null>(null);
   const [quickAdd, setQuickAdd] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -350,6 +358,7 @@ export default function AkashTodo() {
     onTogglePin: (t: Task) => updateTask(t.id, { pinned: !t.pinned }),
     onMove: (id: string, patch: Partial<Task>) => updateTask(id, patch),
     onRemove: (id: string) => removeTask(id),
+    onStartFocus: (t: Task) => setFocusModeTask(t),
   };
 
   // Counts per priority on full board (not filtered)
@@ -606,6 +615,36 @@ export default function AkashTodo() {
           onRemove={() => { if (confirm("Remove this task?")) { removeTask(editingTask.id); setEditingTask(null); } }}
         />
       ) : null}
+      {focusModeTask ? (
+        <FocusMode
+          task={
+            // Always read the fresh task from state so subtask toggles
+            // inside Focus Mode reflect immediately.
+            activeBoard?.tasks.find((t) => t.id === focusModeTask.id) || focusModeTask
+          }
+          onClose={() => setFocusModeTask(null)}
+          onUpdate={(patch) => updateTask(focusModeTask.id, patch)}
+          onComplete={() => {
+            updateTask(focusModeTask.id, { done: true });
+            // Auto-pick next unfinished task scheduled today, then today
+            // by due date, then any priority HIGH task.
+            const all = activeBoard?.tasks || [];
+            const todayIso = isoDate(startOfDay(new Date()));
+            const next = all.find((t) => !t.done && t.id !== focusModeTask.id && t.scheduledFor && isoDate(new Date(t.scheduledFor)) === todayIso)
+              || all.find((t) => !t.done && t.id !== focusModeTask.id && t.dueDate === todayIso)
+              || all.find((t) => !t.done && t.id !== focusModeTask.id && t.priority === "HIGH");
+            setFocusModeTask(next || null);
+          }}
+          onSkipToNext={() => {
+            const all = activeBoard?.tasks || [];
+            const todayIso = isoDate(startOfDay(new Date()));
+            const next = all.find((t) => !t.done && t.id !== focusModeTask.id && t.scheduledFor && isoDate(new Date(t.scheduledFor)) === todayIso)
+              || all.find((t) => !t.done && t.id !== focusModeTask.id && t.dueDate === todayIso)
+              || all.find((t) => !t.done && t.id !== focusModeTask.id);
+            setFocusModeTask(next || null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -620,6 +659,7 @@ interface Handlers {
   onTogglePin: (t: Task) => void;
   onMove: (id: string, patch: Partial<Task>) => void;
   onRemove: (id: string) => void;
+  onStartFocus: (t: Task) => void;
 }
 
 // ── List view ──────────────────────────────────────────────────────
@@ -1396,128 +1436,447 @@ function WeekChip({ task, handlers }: { task: Task; handlers: Handlers }) {
 }
 
 // ── Focus view ─────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════
+// Focus / Today view — Daily Planner with hour timeline + task queue +
+// daily brief banner + one-click into Focus Mode (single-task overlay).
+// ════════════════════════════════════════════════════════════════════
+
+// Timeline runs 7am → 9pm on 30-min slots. Each slot = 30px tall.
+const TIMELINE_START_HOUR = 7;
+const TIMELINE_END_HOUR = 21;
+const SLOT_HEIGHT_PX = 30;
+const SLOTS_PER_HOUR = 2;
+
 function FocusView({ tasks, handlers }: { tasks: Task[]; handlers: Handlers }) {
-  const today = isoDate(startOfDay(new Date()));
-  const tomorrow = (() => { const d = startOfDay(new Date()); d.setDate(d.getDate() + 1); return isoDate(d); })();
+  const today = startOfDay(new Date());
+  const todayIso = isoDate(today);
 
-  const overdue = tasks.filter((t) => !t.done && t.dueDate && t.dueDate < today).sort(byDueAsc);
-  const todayList = tasks.filter((t) => t.dueDate === today).sort(byPriorityAsc);
-  const pinned = tasks.filter((t) => t.pinned && t.dueDate !== today && (!t.dueDate || t.dueDate > today)).sort(byPriorityAsc);
-  const tomorrowList = tasks.filter((t) => t.dueDate === tomorrow).sort(byPriorityAsc);
+  // Bucket tasks by status. A task is "scheduled today" if its
+  // scheduledFor falls on today's date.
+  const overdue = tasks.filter((t) => !t.done && t.dueDate && t.dueDate < todayIso).sort(byDueAsc);
+  const scheduledToday = tasks.filter((t) => !t.done && t.scheduledFor && isoDate(new Date(t.scheduledFor)) === todayIso).sort(byScheduled);
+  const scheduledIds = new Set(scheduledToday.map((t) => t.id));
+  const dueTodayUnsched = tasks.filter((t) => !t.done && t.dueDate === todayIso && !scheduledIds.has(t.id)).sort(byPriorityAsc);
+  const weekOut = (() => { const d = new Date(today); d.setDate(d.getDate() + 7); return isoDate(d); })();
+  const thisWeek = tasks.filter((t) => !t.done && t.dueDate && t.dueDate > todayIso && t.dueDate <= weekOut && !scheduledIds.has(t.id)).sort(byDueAsc);
+  const noDate = tasks.filter((t) => !t.done && !t.dueDate && !scheduledIds.has(t.id) && !t.pinned).slice(0, 12);
+  const pinned = tasks.filter((t) => !t.done && t.pinned && !scheduledIds.has(t.id));
 
-  const focusList = [...overdue, ...todayList];
-  const focusDone = focusList.filter((t) => t.done).length;
+  const doneToday = tasks.filter((t) => t.done && (t.scheduledFor && isoDate(new Date(t.scheduledFor)) === todayIso || t.dueDate === todayIso)).length;
+  const totalToday = scheduledToday.length + dueTodayUnsched.length + overdue.length + doneToday;
+
+  // Suggested next: highest priority unfinished, prefer scheduled-today
+  // first, then due-today, then overdue, then any HIGH.
+  const suggested = scheduledToday[0] || dueTodayUnsched[0] || overdue[0] || tasks.find((t) => !t.done && t.priority === "HIGH") || null;
+
+  function scheduleAt(id: string, hour: number, minute: number) {
+    const dt = new Date(today);
+    dt.setHours(hour, minute, 0, 0);
+    handlers.onMove(id, { scheduledFor: dt.toISOString() });
+  }
+  function unschedule(id: string) {
+    handlers.onMove(id, { scheduledFor: undefined });
+  }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)", gap: 24 }}>
-      <div>
-        <div style={{ marginBottom: 14, display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.amber, textTransform: "uppercase", marginBottom: 4 }}>Focus · today + overdue</div>
-            <div style={{ fontFamily: gf, fontSize: 28, fontWeight: 800, color: D.tx, letterSpacing: -1 }}>
-              {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
-            </div>
+    <div>
+      {/* ── DAILY BRIEF BANNER ──────────────────────────────────────── */}
+      <div style={{
+        marginBottom: 18,
+        padding: "16px 18px",
+        background: "linear-gradient(135deg, " + D.amber + "12, transparent 70%)",
+        border: `1px solid ${overdue.length > 0 ? D.coral + "55" : D.amber + "44"}`,
+        borderRadius: 14,
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1fr) auto",
+        gap: 16,
+        alignItems: "center",
+      }}>
+        <div>
+          <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 700, marginBottom: 4 }}>Daily brief · {today.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 14, alignItems: "baseline", marginBottom: 6 }}>
+            {overdue.length > 0 ? (
+              <span style={{ fontFamily: gf, fontSize: 26, fontWeight: 900, color: D.coral, letterSpacing: -0.6, display: "inline-flex", alignItems: "baseline", gap: 6, animation: "tbPulseRed 1.8s ease-in-out infinite" }}>
+                {overdue.length} <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700, color: D.coral }}>overdue</span>
+              </span>
+            ) : null}
+            <span style={{ fontFamily: gf, fontSize: 22, fontWeight: 800, color: D.tx, letterSpacing: -0.4, display: "inline-flex", alignItems: "baseline", gap: 6 }}>
+              {scheduledToday.length + dueTodayUnsched.length} <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700, color: D.txm }}>queued today</span>
+            </span>
+            <span style={{ fontFamily: gf, fontSize: 18, fontWeight: 700, color: D.txm, letterSpacing: -0.3, display: "inline-flex", alignItems: "baseline", gap: 6 }}>
+              {thisWeek.length} <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700, color: D.txd }}>this week</span>
+            </span>
+            {doneToday > 0 ? (
+              <span style={{ fontFamily: gf, fontSize: 16, fontWeight: 700, color: D.teal, letterSpacing: -0.3, display: "inline-flex", alignItems: "baseline", gap: 6 }}>
+                {doneToday} <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700, color: D.teal }}>done</span>
+              </span>
+            ) : null}
           </div>
-          {focusList.length > 0 ? (
-            <div style={{ fontFamily: mn, fontSize: 11, color: D.txm, letterSpacing: 0.4 }}>{focusDone} / {focusList.length} done</div>
+          {suggested ? (
+            <div style={{ fontFamily: ft, fontSize: 13, color: D.txm, lineHeight: 1.5 }}>
+              Next up: <strong style={{ color: D.tx }}>{suggested.title}</strong>
+              {suggested.subtasks && suggested.subtasks.length > 0 ? <span style={{ color: D.txd }}> · {suggested.subtasks.filter((s) => !s.done).length} subtasks open</span> : null}
+              {suggested.dueDate ? <span style={{ color: suggested.dueDate < todayIso ? D.coral : D.txd }}> · {formatDue(suggested.dueDate)?.label}</span> : null}
+            </div>
+          ) : (
+            <div style={{ fontFamily: ft, fontSize: 13, color: D.txm }}>Nothing overdue, nothing scheduled. Drag from the queue or hit Quick Add to set up the day.</div>
+          )}
+          <style dangerouslySetInnerHTML={{ __html: "@keyframes tbPulseRed{0%,100%{opacity:1}50%{opacity:0.55}}" }} />
+        </div>
+        {suggested ? (
+          <button
+            type="button"
+            onClick={() => handlers.onStartFocus(suggested)}
+            style={{ background: D.amber, color: "#060608", border: "none", padding: "12px 22px", borderRadius: 10, fontFamily: ft, fontSize: 14, fontWeight: 800, cursor: "pointer", letterSpacing: 0.3, boxShadow: `0 0 24px ${D.amber}33` }}
+          >
+            ▶ Start Focus
+          </button>
+        ) : null}
+      </div>
+
+      {/* ── PLANNER GRID ────────────────────────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", gap: 18 }}>
+        {/* LEFT — hour timeline */}
+        <div style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, padding: 12 }}>
+          <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>Time block · today</div>
+          <Timeline
+            today={today}
+            tasksToday={scheduledToday}
+            onDropAt={(id, h, m) => scheduleAt(id, h, m)}
+            onUnschedule={unschedule}
+            handlers={handlers}
+          />
+        </div>
+
+        {/* RIGHT — task queue */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {overdue.length > 0 ? (
+            <QueueGroup label={`⚠ Overdue · ${overdue.length}`} color={D.coral} tasks={overdue} handlers={handlers} pulse />
+          ) : null}
+          {dueTodayUnsched.length > 0 ? (
+            <QueueGroup label={`🔥 Today · ${dueTodayUnsched.length}`} color={D.amber} tasks={dueTodayUnsched} handlers={handlers} />
+          ) : null}
+          {pinned.length > 0 ? (
+            <QueueGroup label={`★ Pinned · ${pinned.length}`} color={D.amber} tasks={pinned} handlers={handlers} />
+          ) : null}
+          {thisWeek.length > 0 ? (
+            <QueueGroup label={`📅 This week · ${thisWeek.length}`} color={D.blue} tasks={thisWeek} handlers={handlers} />
+          ) : null}
+          {noDate.length > 0 ? (
+            <QueueGroup label={`Unscheduled · ${noDate.length}`} color={D.txm} tasks={noDate} handlers={handlers} />
+          ) : null}
+          {overdue.length === 0 && dueTodayUnsched.length === 0 && thisWeek.length === 0 && pinned.length === 0 && noDate.length === 0 ? (
+            <div style={emptyBox}>Inbox zero. Or just no tasks queued for this stretch. Add some via Quick Add.</div>
           ) : null}
         </div>
-        {focusList.length === 0 ? (
-          <div style={emptyBox}>Nothing due today and nothing overdue. Pick something from Tomorrow or Pinned.</div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {focusList.map((t) => <FocusCard key={t.id} task={t} overdue={!!t.dueDate && t.dueDate < today} handlers={handlers} />)}
-          </div>
-        )}
-      </div>
-      <div>
-        {pinned.length > 0 ? (
-          <div style={{ marginBottom: 18 }}>
-            <div style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.amber, textTransform: "uppercase", marginBottom: 8 }}>★ Pinned</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {pinned.map((t) => <SidebarCard key={t.id} task={t} handlers={handlers} />)}
-            </div>
-          </div>
-        ) : null}
-        <div>
-          <div style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.txd, textTransform: "uppercase", marginBottom: 8 }}>Tomorrow</div>
-          {tomorrowList.length === 0 ? (
-            <div style={{ fontFamily: ft, fontSize: 12, color: D.txd, padding: 8 }}>Nothing scheduled.</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {tomorrowList.map((t) => <SidebarCard key={t.id} task={t} handlers={handlers} />)}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
 }
 
-function FocusCard({ task, overdue, handlers }: { task: Task; overdue: boolean; handlers: Handlers }) {
-  const pColor = PRIORITY_COLORS[(task.done ? "DONE" : task.priority) as Priority];
-  const cColor = CATEGORY_COLORS[task.category] || D.txm;
+function byScheduled(a: Task, b: Task) {
+  return (a.scheduledFor || "").localeCompare(b.scheduledFor || "");
+}
+
+// ── Timeline ────────────────────────────────────────────────────────
+function Timeline({ today, tasksToday, onDropAt, onUnschedule, handlers }: { today: Date; tasksToday: Task[]; onDropAt: (id: string, h: number, m: number) => void; onUnschedule: (id: string) => void; handlers: Handlers }) {
+  const totalSlots = (TIMELINE_END_HOUR - TIMELINE_START_HOUR) * SLOTS_PER_HOUR;
+  const nowMinutes = (() => {
+    const n = new Date();
+    if (isoDate(startOfDay(n)) !== isoDate(today)) return null;
+    return (n.getHours() - TIMELINE_START_HOUR) * 60 + n.getMinutes();
+  })();
+
+  // Render scheduled tasks as absolutely-positioned blocks atop the slots.
+  function blockFor(t: Task) {
+    if (!t.scheduledFor) return null;
+    const dt = new Date(t.scheduledFor);
+    const startMin = (dt.getHours() - TIMELINE_START_HOUR) * 60 + dt.getMinutes();
+    if (startMin < 0 || startMin > (TIMELINE_END_HOUR - TIMELINE_START_HOUR) * 60) return null;
+    const dur = Math.max(15, t.estimateMins || 30);
+    const topPx = (startMin / 30) * SLOT_HEIGHT_PX;
+    const heightPx = Math.max(SLOT_HEIGHT_PX - 4, (dur / 30) * SLOT_HEIGHT_PX - 4);
+    return { topPx, heightPx };
+  }
+
+  return (
+    <div style={{ position: "relative", maxHeight: 540, overflowY: "auto" }}>
+      <div style={{ position: "relative", height: totalSlots * SLOT_HEIGHT_PX, paddingLeft: 56 }}>
+        {/* Hour labels + drop slots */}
+        {Array.from({ length: totalSlots }, (_, i) => {
+          const hour = TIMELINE_START_HOUR + Math.floor(i / SLOTS_PER_HOUR);
+          const minute = (i % SLOTS_PER_HOUR) * 30;
+          const onHour = minute === 0;
+          return (
+            <TimelineSlot
+              key={i}
+              hour={hour}
+              minute={minute}
+              onHour={onHour}
+              top={i * SLOT_HEIGHT_PX}
+              onDrop={(id) => onDropAt(id, hour, minute)}
+            />
+          );
+        })}
+
+        {/* Current-time line */}
+        {nowMinutes !== null && nowMinutes >= 0 ? (
+          <div style={{
+            position: "absolute",
+            left: 50, right: 0,
+            top: (nowMinutes / 30) * SLOT_HEIGHT_PX,
+            borderTop: `2px solid ${D.coral}`,
+            zIndex: 5,
+            pointerEvents: "none",
+          }}>
+            <span style={{ position: "absolute", left: -42, top: -10, fontFamily: mn, fontSize: 9, color: D.coral, fontWeight: 700, letterSpacing: 0.4, background: D.surface, padding: "1px 4px", borderRadius: 3 }}>NOW</span>
+          </div>
+        ) : null}
+
+        {/* Scheduled blocks */}
+        {tasksToday.map((t) => {
+          const b = blockFor(t);
+          if (!b) return null;
+          const c = PRIORITY_COLORS[t.priority];
+          const dt = new Date(t.scheduledFor!);
+          const timeLabel = dt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+          return (
+            <div
+              key={t.id}
+              draggable
+              onDragStart={(e) => e.dataTransfer.setData("text/plain", t.id)}
+              onClick={() => handlers.onStartFocus(t)}
+              style={{
+                position: "absolute",
+                left: 56,
+                right: 4,
+                top: b.topPx,
+                height: b.heightPx,
+                background: c + "22",
+                borderLeft: `3px solid ${c}`,
+                borderRadius: 6,
+                padding: "4px 8px",
+                cursor: "pointer",
+                overflow: "hidden",
+                fontFamily: ft,
+                opacity: t.done ? 0.55 : 1,
+                zIndex: 4,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: b.heightPx > 36 ? "flex-start" : "center",
+              }}
+              title={`${t.title} · ${timeLabel}`}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontFamily: mn, fontSize: 9, color: c, letterSpacing: 0.4, fontWeight: 700 }}>{timeLabel}</span>
+                <span style={{ fontFamily: gf, fontSize: 12, fontWeight: 700, color: D.tx, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{t.title}</span>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onUnschedule(t.id); }}
+                  title="Unschedule"
+                  style={{ background: "transparent", border: "none", color: D.txd, fontSize: 11, cursor: "pointer", padding: 0, lineHeight: 1 }}
+                >×</button>
+              </div>
+              {b.heightPx > 38 && t.subtasks && t.subtasks.length > 0 ? (
+                <div style={{ marginTop: 2, fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.3 }}>
+                  {t.subtasks.filter((s) => s.done).length}/{t.subtasks.length} subtasks
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TimelineSlot({ hour, minute, onHour, top, onDrop }: { hour: number; minute: number; onHour: boolean; top: number; onDrop: (id: string) => void }) {
+  const [over, setOver] = useState(false);
+  const h12 = ((hour + 11) % 12) + 1;
+  const ampm = hour < 12 ? "am" : "pm";
   return (
     <div
-      onClick={() => handlers.onEdit(task)}
+      onDragOver={(e) => { e.preventDefault(); if (!over) setOver(true); }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => { e.preventDefault(); setOver(false); const id = e.dataTransfer.getData("text/plain"); if (id) onDrop(id); }}
       style={{
-        background: D.surface,
-        border: `1px solid ${overdue ? D.coral + "55" : D.border}`,
-        borderLeft: `4px solid ${pColor}`,
-        borderRadius: 12,
-        padding: "14px 16px",
-        cursor: "pointer",
-        opacity: task.done ? 0.55 : 1,
-        display: "flex", alignItems: "flex-start", gap: 14,
+        position: "absolute",
+        left: 0, right: 0,
+        top, height: SLOT_HEIGHT_PX,
+        borderTop: onHour ? `1px solid ${D.border}` : `1px dashed ${D.border}88`,
+        background: over ? "rgba(247,176,65,0.08)" : "transparent",
+        transition: "background 0.1s",
       }}
     >
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); handlers.onToggleDone(task); }}
-        style={{ width: 22, height: 22, borderRadius: "50%", background: task.done ? D.teal : "transparent", border: `2px solid ${task.done ? D.teal : pColor}`, boxShadow: !task.done ? `0 0 10px ${pColor}55` : "none", cursor: "pointer", padding: 0, flexShrink: 0, marginTop: 2 }}
-      />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-          <span style={{ fontFamily: mn, fontSize: 9, color: cColor, letterSpacing: 1, textTransform: "uppercase", padding: "2px 8px", border: `1px solid ${cColor}55`, borderRadius: 3 }}>{task.category}</span>
-          {overdue ? <span style={{ fontFamily: mn, fontSize: 9, color: D.coral, letterSpacing: 1, textTransform: "uppercase", fontWeight: 700 }}>Overdue · {formatDue(task.dueDate)?.label}</span> : null}
-          {task.pinned ? <span style={{ color: D.amber, fontSize: 12 }}>★</span> : null}
-          {(task.tags || []).map((tag) => (
-            <span key={tag} style={{ fontFamily: mn, fontSize: 9, color: D.violet, background: D.violet + "1c", padding: "1px 6px", borderRadius: 3, letterSpacing: 0.4 }}>#{tag}</span>
-          ))}
+      {onHour ? (
+        <div style={{ position: "absolute", left: 0, top: -7, width: 50, textAlign: "right", paddingRight: 8, fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.4 }}>
+          {h12}:{String(minute).padStart(2, "0")} {ampm}
         </div>
-        <div style={{ fontFamily: gf, fontSize: 17, fontWeight: 700, color: D.tx, letterSpacing: -0.4, lineHeight: 1.3, textDecoration: task.done ? "line-through" : "none" }}>
-          {task.title}
-        </div>
-        {task.description ? (
-          <div style={{ fontFamily: ft, fontSize: 12.5, color: D.txm, marginTop: 4, lineHeight: 1.5 }}>
-            {task.description}
-          </div>
-        ) : null}
+      ) : null}
+    </div>
+  );
+}
+
+// ── Queue group (right side of planner) ──────────────────────────────
+function QueueGroup({ label, color, tasks, handlers, pulse }: { label: string; color: string; tasks: Task[]; handlers: Handlers; pulse?: boolean }) {
+  return (
+    <div style={{ background: D.surface, border: `1px solid ${color}33`, borderRadius: 10, padding: 10 }}>
+      <div style={{ fontFamily: mn, fontSize: 10, color, letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700, marginBottom: 8, animation: pulse ? "tbPulseRed 1.8s ease-in-out infinite" : undefined }}>{label}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+        {tasks.map((t) => <QueueCard key={t.id} task={t} handlers={handlers} />)}
       </div>
     </div>
   );
 }
 
-function SidebarCard({ task, handlers }: { task: Task; handlers: Handlers }) {
-  const pColor = PRIORITY_COLORS[(task.done ? "DONE" : task.priority) as Priority];
+function QueueCard({ task, handlers }: { task: Task; handlers: Handlers }) {
+  const pColor = PRIORITY_COLORS[task.priority];
+  const due = formatDue(task.dueDate);
   return (
     <div
+      draggable
+      onDragStart={(e) => e.dataTransfer.setData("text/plain", task.id)}
       onClick={() => handlers.onEdit(task)}
       style={{
-        background: D.surface,
+        background: D.bg,
         border: `1px solid ${D.border}`,
         borderLeft: `3px solid ${pColor}`,
-        borderRadius: 8,
-        padding: "8px 10px",
-        cursor: "pointer",
+        borderRadius: 6,
+        padding: "6px 9px",
+        cursor: "grab",
         opacity: task.done ? 0.55 : 1,
       }}
+      title="Drag onto a timeline slot to schedule"
     >
-      <div style={{ fontFamily: ft, fontSize: 12.5, fontWeight: 600, color: D.tx, lineHeight: 1.3, textDecoration: task.done ? "line-through" : "none" }}>
-        {task.pinned ? "★ " : ""}{task.title}
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); handlers.onToggleDone(task); }}
+          style={{ width: 11, height: 11, borderRadius: "50%", background: task.done ? D.teal : "transparent", border: `2px solid ${task.done ? D.teal : pColor}`, cursor: "pointer", padding: 0, flexShrink: 0 }}
+        />
+        <span style={{ flex: 1, minWidth: 0, fontFamily: ft, fontSize: 12.5, fontWeight: 600, color: D.tx, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.pinned ? "★ " : ""}{task.title}</span>
+        {task.subtasks && task.subtasks.length > 0 ? (
+          <span style={{ fontFamily: mn, fontSize: 8.5, color: D.violet, letterSpacing: 0.3 }}>{task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}</span>
+        ) : null}
+        {due ? <span style={{ fontFamily: mn, fontSize: 9, color: due.urgent ? D.coral : D.txm, letterSpacing: 0.4 }}>{due.label}</span> : null}
       </div>
-      <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.4, textTransform: "uppercase", marginTop: 2 }}>
-        {task.category}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════
+// Focus Mode — single-task, full-screen overlay. Pomodoro-ish timer,
+// subtask checklist, "Done + next" / "Skip" / "Exit" actions.
+// ════════════════════════════════════════════════════════════════════
+
+function FocusMode({ task, onClose, onUpdate, onComplete, onSkipToNext }: { task: Task; onClose: () => void; onUpdate: (patch: Partial<Task>) => void; onComplete: () => void; onSkipToNext: () => void }) {
+  const [secs, setSecs] = useState(25 * 60);
+  const [running, setRunning] = useState(false);
+
+  // Reset timer when the focused task changes (Done + next swaps task).
+  useEffect(() => { setSecs(25 * 60); setRunning(false); }, [task.id]);
+
+  useEffect(() => {
+    if (!running) return;
+    const iv = setInterval(() => setSecs((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(iv);
+  }, [running]);
+
+  // Keyboard: Esc closes, Space toggles timer, Enter marks done + next.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") { e.preventDefault(); onClose(); }
+      if (e.key === " " && (e.target as HTMLElement)?.tagName !== "INPUT") { e.preventDefault(); setRunning((r) => !r); }
+      if (e.key === "Enter" && !(e.target as HTMLElement)?.closest("input")) { e.preventDefault(); onComplete(); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, onComplete]);
+
+  const mm = Math.floor(secs / 60);
+  const ss = secs % 60;
+  const subtasks = task.subtasks || [];
+  const doneSubs = subtasks.filter((s) => s.done).length;
+
+  function toggleSub(id: string) {
+    onUpdate({ subtasks: subtasks.map((s) => s.id === id ? { ...s, done: !s.done } : s) });
+  }
+
+  const pColor = PRIORITY_COLORS[task.priority];
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 12500,
+      background: "rgba(6,6,12,0.94)",
+      backdropFilter: "blur(20px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 24,
+    }}>
+      <div style={{ width: "min(720px, 96vw)", maxHeight: "calc(100vh - 48px)", overflowY: "auto", display: "flex", flexDirection: "column", gap: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 1.6, textTransform: "uppercase", fontWeight: 700 }}>Focus mode · {task.category}</div>
+          <button type="button" onClick={onClose} style={{ background: "transparent", border: `1px solid ${D.border}`, color: D.txm, padding: "5px 12px", borderRadius: 6, fontFamily: mn, fontSize: 10, cursor: "pointer", letterSpacing: 0.6 }}>Esc · exit</button>
+        </div>
+
+        <div>
+          <div style={{ fontFamily: gf, fontSize: 36, fontWeight: 900, color: D.tx, letterSpacing: -1.4, lineHeight: 1.15, marginBottom: 8 }}>{task.title}</div>
+          {task.description ? (
+            <div style={{ fontFamily: ft, fontSize: 14.5, color: D.txm, lineHeight: 1.55 }}>{task.description}</div>
+          ) : null}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+            <span style={{ fontFamily: mn, fontSize: 10, color: pColor, background: pColor + "22", border: `1px solid ${pColor}55`, padding: "2px 8px", borderRadius: 4, letterSpacing: 0.6, fontWeight: 700, textTransform: "uppercase" }}>{task.priority}</span>
+            {task.dueDate ? (
+              <span style={{ fontFamily: mn, fontSize: 10, color: formatDue(task.dueDate)?.urgent ? D.coral : D.txm, letterSpacing: 0.5 }}>Due {formatDue(task.dueDate)?.label}</span>
+            ) : null}
+            {(task.tags || []).map((tag) => (
+              <span key={tag} style={{ fontFamily: mn, fontSize: 10, color: D.violet, background: D.violet + "1c", padding: "1px 7px", borderRadius: 3, letterSpacing: 0.4 }}>#{tag}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* Timer */}
+        <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "12px 16px", background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12 }}>
+          <div style={{ fontFamily: mn, fontSize: 36, fontWeight: 800, color: secs < 60 ? D.coral : D.tx, letterSpacing: 1, minWidth: 96 }}>
+            {String(mm).padStart(2, "0")}:{String(ss).padStart(2, "0")}
+          </div>
+          <button type="button" onClick={() => setRunning((r) => !r)} style={{ background: running ? D.coral + "22" : D.amber, color: running ? D.coral : "#060608", border: `1px solid ${running ? D.coral + "55" : D.amber}`, padding: "9px 18px", borderRadius: 8, fontFamily: ft, fontSize: 13, fontWeight: 800, cursor: "pointer", letterSpacing: 0.3 }}>
+            {running ? "⏸ Pause" : "▶ Start"}
+          </button>
+          <div style={{ display: "flex", gap: 4 }}>
+            {[5, 15, 25, 50].map((m) => (
+              <button key={m} type="button" onClick={() => { setSecs(m * 60); setRunning(false); }} style={{ padding: "5px 10px", background: secs === m * 60 ? D.amber + "22" : "transparent", color: secs === m * 60 ? D.amber : D.txm, border: `1px solid ${secs === m * 60 ? D.amber + "55" : D.border}`, borderRadius: 5, fontFamily: mn, fontSize: 10, cursor: "pointer", letterSpacing: 0.4, fontWeight: 700 }}>{m}m</button>
+            ))}
+          </div>
+          <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.5 }}>Space ▷ toggle · Enter ▷ done + next</span>
+        </div>
+
+        {/* Subtasks */}
+        {subtasks.length > 0 ? (
+          <div style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, padding: "14px 18px" }}>
+            <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700, marginBottom: 10 }}>Checklist · {doneSubs}/{subtasks.length}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {subtasks.map((s) => (
+                <div key={s.id} onClick={() => toggleSub(s.id)} style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+                  <span style={{ width: 18, height: 18, borderRadius: 4, background: s.done ? D.teal : "transparent", border: `2px solid ${s.done ? D.teal : D.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#060608", fontFamily: mn, fontSize: 12, fontWeight: 800 }}>{s.done ? "✓" : ""}</span>
+                  <span style={{ fontFamily: ft, fontSize: 15, color: s.done ? D.txd : D.tx, textDecoration: s.done ? "line-through" : "none", lineHeight: 1.4 }}>{s.title}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Action row */}
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <button type="button" onClick={onComplete} style={{ flex: 1, padding: "14px 20px", background: D.teal, color: "#060608", border: "none", borderRadius: 10, fontFamily: ft, fontSize: 15, fontWeight: 800, cursor: "pointer", letterSpacing: 0.4, boxShadow: `0 0 24px ${D.teal}33` }}>
+            ✓ Done & Next
+          </button>
+          <button type="button" onClick={onSkipToNext} style={{ padding: "14px 20px", background: "transparent", color: D.tx, border: `1px solid ${D.border}`, borderRadius: 10, fontFamily: ft, fontSize: 14, cursor: "pointer", letterSpacing: 0.3 }}>
+            Skip
+          </button>
+          <button type="button" onClick={onClose} style={{ padding: "14px 20px", background: "transparent", color: D.txm, border: `1px solid ${D.border}`, borderRadius: 10, fontFamily: ft, fontSize: 14, cursor: "pointer", letterSpacing: 0.3 }}>
+            Exit
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1715,7 +2074,12 @@ function AddTaskModal({ mode, onCancel, onAdd, onSwitchMode }: { mode: AddMode; 
       });
       const j = await res.json();
       if (!res.ok) {
-        setError(j.error || "Parse failed");
+        // Surface the raw model output too when the parse route gave it
+        // back so we can see exactly what came through and either retry
+        // or copy + manually shape.
+        const e = j.error || "Parse failed";
+        const raw = typeof j.raw === "string" ? "\n\n--- model output ---\n" + j.raw : "";
+        setError(e + raw);
       } else {
         setParsedTasks((j.tasks || []).map((t: Omit<Task, "id" | "addedAt">) => ({ ...t, source: imageUrl ? "image" : "prompt" })));
       }

@@ -115,7 +115,15 @@ export async function POST(req: NextRequest) {
     const j = await res.json();
     if (!res.ok) return NextResponse.json({ error: j.error?.message || "Claude call failed" }, { status: res.status });
     const out: string = (j.content || []).map((c: { text?: string }) => c.text || "").join("");
-    const cleaned = out.replace(/```[a-z]*|```/g, "").trim();
+    let cleaned = out.replace(/```[a-z]*|```/g, "").trim();
+    // Models sometimes prepend / append prose despite "JSON only"
+    // instructions. Slice from the first '{' to the last '}' to
+    // tolerate that without failing the whole import.
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
+    if (firstBrace > 0 && lastBrace > firstBrace) {
+      cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+    }
     try {
       const parsed = JSON.parse(cleaned);
       const tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
