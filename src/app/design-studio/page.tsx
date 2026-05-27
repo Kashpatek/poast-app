@@ -14,6 +14,7 @@ import {
   PenTool,
   Wand,
   Search,
+  Camera,
 } from "lucide-react";
 import { DocuShell } from "./docu-shell";
 import { D, ft, gf, mn } from "../shared-constants";
@@ -26,6 +27,7 @@ import { EventWizard } from "./wizards/event-wizard";
 import { GraphicWizard } from "./wizards/graphic-wizard";
 import { MotionWizard } from "./wizards/motion-wizard";
 import { ProgrammaticWizard } from "./wizards/programmatic-wizard";
+import { RebuildWizard } from "./wizards/rebuild-wizard";
 import { ALL_CATEGORIES, type Category, type StudioTool } from "./wizards/categories";
 import { SIZE_PRESETS } from "./wizards/size-presets";
 import { QUOTE_TEMPLATES, type QuoteTemplateId } from "./wizards/quote-templates";
@@ -54,10 +56,11 @@ interface StudioTile {
   Icon: React.ComponentType<{ size?: number; strokeWidth?: number; color?: string }>;
   accent: string;
   status: TileStatus;
-  action: "doc" | "graphic" | "image" | "motion" | "programmatic" | "quote" | "event" | "custom";
+  action: "doc" | "graphic" | "image" | "motion" | "programmatic" | "quote" | "event" | "custom" | "rebuild";
 }
 
 const TILES: StudioTile[] = [
+  { id: "rebuild",     label: "Rebuild from Image", sub: "Upload an old chart or table, we extract + remake", Icon: Camera, accent: D.teal, status: "live", action: "rebuild" },
   { id: "docu",        label: "DocuDesign",     sub: "Docs, flyers, briefs, decks",   Icon: FileText,     accent: D.blue,    status: "live", action: "doc" },
   { id: "graphics",    label: "Graphics",       sub: "Canva-style WYSIWYG editor",    Icon: LayoutGrid,   accent: D.amber,   status: "live", action: "graphic" },
   { id: "image",       label: "Image Studio",   sub: "AI gen + inline editor",        Icon: Sparkles,     accent: D.violet,  status: "live", action: "image" },
@@ -83,6 +86,7 @@ export default function DesignStudioHubPage() {
   const [graphicWizardOpen, setGraphicWizardOpen] = useState(false);
   const [motionWizardOpen, setMotionWizardOpen] = useState(false);
   const [programmaticWizardOpen, setProgrammaticWizardOpen] = useState(false);
+  const [rebuildWizardOpen, setRebuildWizardOpen] = useState(false);
 
   // Preselection handed to a wizard the next time it opens (cleared on close).
   // Each tool keeps its own bag so opening one wizard doesn't leak into another.
@@ -174,6 +178,8 @@ export default function DesignStudioHubPage() {
       setEventWizardOpen(true);
     } else if (tool === "custom") {
       createProject("other");
+    } else if (tool === "rebuild") {
+      setRebuildWizardOpen(true);
     }
   }
 
@@ -316,6 +322,7 @@ export default function DesignStudioHubPage() {
     else if (t.action === "quote") setQuoteWizardOpen(true);
     else if (t.action === "event") setEventWizardOpen(true);
     else if (t.action === "custom") createProject("other");
+    else if (t.action === "rebuild") setRebuildWizardOpen(true);
   }
 
   async function deleteProject(p: ProjectSummary) {
@@ -681,6 +688,10 @@ export default function DesignStudioHubPage() {
         initialCategoryId={pick.event?.categoryId}
         initialPresetId={pick.event?.presetId}
       />
+      <RebuildWizard
+        open={rebuildWizardOpen}
+        onClose={() => setRebuildWizardOpen(false)}
+      />
     </DocuShell>
   );
 }
@@ -819,6 +830,7 @@ function toolDisplay(t: StudioTool): string {
   if (t === "programmatic") return "Programmatic";
   if (t === "quote") return "Quote";
   if (t === "event") return "Event";
+  if (t === "rebuild") return "Rebuild";
   return "Custom";
 }
 

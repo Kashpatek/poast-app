@@ -4,7 +4,7 @@
 
 import type { SizeGroup } from "./size-presets";
 
-export type StudioTool = "doc" | "graphic" | "image" | "motion" | "programmatic" | "quote" | "event" | "custom";
+export type StudioTool = "doc" | "graphic" | "image" | "motion" | "programmatic" | "quote" | "event" | "custom" | "rebuild";
 
 export interface Category {
   id: string;

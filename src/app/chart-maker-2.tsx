@@ -6227,6 +6227,30 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type]);
 
+  // Rebuild-from-Image handoff. The DesignStudio rebuild wizard stashes
+  // an extracted chart in localStorage under `cm2-import-pending` and
+  // navigates here. We apply once, then clear the key so a refresh
+  // doesn't re-apply the same import.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("cm2-import-pending");
+      if (!raw) return;
+      const j = JSON.parse(raw) as { chartType?: ChartType; title?: string; subtitle?: string; sheet?: DataSheet };
+      if (j?.sheet && Array.isArray(j.sheet.schema) && Array.isArray(j.sheet.rows)) {
+        // Map the imported chart type onto one we know how to render;
+        // fall back to clustered bars for anything unrecognized.
+        const knownTypes: ChartType[] = ["stacked","pct","clustered","wfup","wfdn","mekkoPct","combo","line","stackedArea","pctArea","mekkoUnit","pie","doughnut","scatter","bubble","variance","gantt"];
+        const importedType = (j.chartType && knownTypes.indexOf(j.chartType as ChartType) >= 0 ? j.chartType : "clustered") as ChartType;
+        setType(importedType);
+        setSheets((p) => ({ ...p, [importedType]: j.sheet as DataSheet }));
+        if (j.title) setTitle(j.title);
+        if (j.subtitle) setSubtitle(j.subtitle);
+      }
+      localStorage.removeItem("cm2-import-pending");
+    } catch { /* ignore — corrupted import is a no-op */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const onToggleGroup = (k: string) => setGanttOpts(p => ({ ...p, collapsedKeys: { ...p.collapsedKeys, [k]: !p.collapsedKeys[k] } }));
 
   const W = 1280;
