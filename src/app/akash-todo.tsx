@@ -20,6 +20,12 @@ type ViewType = "list" | "board" | "calendar" | "week" | "focus";
 type SortType = "manual" | "due" | "added" | "alpha";
 type FilterChip = "all" | "today" | "overdue" | "week" | "nodue" | "pinned";
 
+interface Subtask {
+  id: string;
+  title: string;
+  done?: boolean;
+}
+
 interface Task {
   id: string;
   title: string;
@@ -31,6 +37,7 @@ interface Task {
   done?: boolean;
   pinned?: boolean;
   tags?: string[];
+  subtasks?: Subtask[];
   source?: "manual" | "prompt" | "image" | "quick";
   addedAt: string;
   updatedAt?: string;
@@ -245,6 +252,15 @@ export default function AkashTodo() {
   function submitQuickAdd() {
     const txt = quickAdd.trim();
     if (!txt) return;
+    // Multi-line paste → one task per non-empty line. Each line gets its
+    // own smart-prefix parse (!high, @category, due:, #tag).
+    const lines = txt.split(/\r?\n+/).map((l) => l.trim()).filter(Boolean);
+    if (lines.length > 1) {
+      const parsedTasks = lines.map(parseQuickAdd).filter((p) => p.title);
+      if (parsedTasks.length) addTasks(parsedTasks);
+      setQuickAdd("");
+      return;
+    }
     const parsed = parseQuickAdd(txt);
     if (!parsed.title) return;
     addTasks([parsed]);
@@ -513,7 +529,18 @@ export default function AkashTodo() {
           value={quickAdd}
           onChange={(e) => setQuickAdd(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") submitQuickAdd(); }}
-          placeholder='Quick add · "Redo ClusterMax ribbons !high @design due:wed #ribbons" · Enter to add'
+          onPaste={(e) => {
+            // Multi-line paste shortcut: split clipboard into one task per
+            // line and submit immediately (smart-prefix parser runs on each).
+            const txt = e.clipboardData.getData("text");
+            if (txt && /\r?\n/.test(txt.trim())) {
+              e.preventDefault();
+              const lines = txt.split(/\r?\n+/).map((l) => l.trim()).filter(Boolean);
+              const parsedTasks = lines.map(parseQuickAdd).filter((p) => p.title);
+              if (parsedTasks.length) { addTasks(parsedTasks); setQuickAdd(""); }
+            }
+          }}
+          placeholder='Quick add · paste multiple lines for batch · "Redo ribbons !high @design due:wed #ribbons" · Enter to add'
           style={{ ...inputStyle, border: "none", background: "transparent", padding: "8px 6px" }}
         />
         <button type="button" onClick={submitQuickAdd} disabled={!quickAdd.trim()} style={{ ...primaryBtn, opacity: quickAdd.trim() ? 1 : 0.4, padding: "7px 14px" }}>Add</button>
@@ -703,6 +730,14 @@ function TaskRow({ task, handlers }: { task: Task; handlers: Handlers }) {
   const due = formatDue(task.dueDate);
   const [hover, setHover] = useState(false);
   const [priorityMenuOpen, setPriorityMenuOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameDraft, setRenameDraft] = useState(task.title);
+  const [expanded, setExpanded] = useState(false);
+
+  const subtasks = task.subtasks || [];
+  const totalSubs = subtasks.length;
+  const doneSubs = subtasks.filter((s) => s.done).length;
+  const hasSubs = totalSubs > 0;
 
   function pickPriority(p: Priority) {
     setPriorityMenuOpen(false);
@@ -710,61 +745,135 @@ function TaskRow({ task, handlers }: { task: Task; handlers: Handlers }) {
     else handlers.onMove(task.id, { priority: p, done: false });
   }
 
+  function commitRename() {
+    const next = renameDraft.trim();
+    setRenaming(false);
+    if (next && next !== task.title) handlers.onMove(task.id, { title: next });
+    else setRenameDraft(task.title);
+  }
+
+  function toggleSubtask(id: string) {
+    const nextSubs = subtasks.map((s) => s.id === id ? { ...s, done: !s.done } : s);
+    handlers.onMove(task.id, { subtasks: nextSubs });
+  }
+
+  function addSubtask(title: string) {
+    const t = title.trim();
+    if (!t) return;
+    const id = "s-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6);
+    handlers.onMove(task.id, { subtasks: [...subtasks, { id, title: t, done: false }] });
+  }
+
+  function removeSubtask(id: string) {
+    handlers.onMove(task.id, { subtasks: subtasks.filter((s) => s.id !== id) });
+  }
+
   return (
     <div
-      draggable
-      onDragStart={(e) => e.dataTransfer.setData("text/plain", task.id)}
-      onClick={() => handlers.onEdit(task)}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => { setHover(false); setPriorityMenuOpen(false); }}
       style={{
         background: D.surface,
-        border: `1px solid ${hover ? D.amber + "33" : D.border}`,
+        border: `1px solid ${hover ? D.amber + "44" : D.border}`,
         borderRadius: 10,
-        padding: "10px 14px",
-        display: "flex",
-        alignItems: "center",
-        gap: 14,
-        cursor: "grab",
         opacity: task.done ? 0.55 : 1,
         position: "relative",
-        transition: "border-color 0.12s",
+        transition: "border-color 0.15s, box-shadow 0.15s, transform 0.15s",
+        boxShadow: hover ? "0 4px 12px rgba(0,0,0,0.25)" : "none",
+        transform: hover ? "translateY(-1px)" : "translateY(0)",
+        animation: "tbRowIn 0.2s ease",
       }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => { setHover(false); setPriorityMenuOpen(false); }}
     >
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); handlers.onToggleDone(task); }}
-        title={task.done ? "Mark as not done" : "Mark as done"}
+      <style dangerouslySetInnerHTML={{ __html: "@keyframes tbRowIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}" }} />
+      <div
+        draggable={!renaming}
+        onDragStart={(e) => e.dataTransfer.setData("text/plain", task.id)}
+        onClick={(e) => { if (renaming) return; if ((e.target as HTMLElement).closest("[data-no-row-click]")) return; handlers.onEdit(task); }}
         style={{
-          width: 14, height: 14, borderRadius: "50%",
-          background: task.done ? D.teal : "transparent",
-          border: `2px solid ${task.done ? D.teal : pColor}`,
-          boxShadow: !task.done ? `0 0 6px ${pColor}66` : "none",
-          cursor: "pointer", flexShrink: 0, padding: 0,
+          padding: "9px 14px",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          cursor: renaming ? "text" : "grab",
         }}
-      />
-      <div style={{
-        fontFamily: mn, fontSize: 9, letterSpacing: 1.2, textTransform: "uppercase",
-        fontWeight: 700, color: cColor, background: cColor + "1c", border: `1px solid ${cColor}55`,
-        padding: "3px 10px", borderRadius: 4, flexShrink: 0, minWidth: 110, textAlign: "center",
-      }}>
-        {task.category}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontFamily: gf, fontSize: 14, fontWeight: 700, color: D.tx, letterSpacing: -0.3, textDecoration: task.done ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {task.title}
-          </span>
-          {(task.tags || []).map((tag) => (
-            <span key={tag} style={{ fontFamily: mn, fontSize: 9, color: D.violet, background: D.violet + "1c", border: `1px solid ${D.violet}55`, padding: "1px 6px", borderRadius: 3, letterSpacing: 0.4 }}>#{tag}</span>
-          ))}
+      >
+        <button
+          type="button"
+          data-no-row-click
+          onClick={(e) => { e.stopPropagation(); handlers.onToggleDone(task); }}
+          title={task.done ? "Mark as not done" : "Mark as done"}
+          style={{
+            width: 14, height: 14, borderRadius: "50%",
+            background: task.done ? D.teal : "transparent",
+            border: `2px solid ${task.done ? D.teal : pColor}`,
+            boxShadow: !task.done ? `0 0 6px ${pColor}66` : "none",
+            cursor: "pointer", flexShrink: 0, padding: 0,
+          }}
+        />
+        <div style={{
+          fontFamily: mn, fontSize: 9, letterSpacing: 1.2, textTransform: "uppercase",
+          fontWeight: 700, color: cColor, background: cColor + "1c", border: `1px solid ${cColor}55`,
+          padding: "3px 10px", borderRadius: 4, flexShrink: 0, minWidth: 110, textAlign: "center",
+        }}>
+          {task.category}
         </div>
-        {task.description ? (
-          <div style={{ fontFamily: ft, fontSize: 11.5, color: D.txm, marginTop: 2, lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {task.description}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {renaming ? (
+              <input
+                data-no-row-click
+                autoFocus
+                value={renameDraft}
+                onChange={(e) => setRenameDraft(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); commitRename(); }
+                  if (e.key === "Escape") { setRenameDraft(task.title); setRenaming(false); }
+                }}
+                style={{ flex: 1, minWidth: 0, background: D.bg, color: D.tx, border: `1px solid ${D.amber}`, borderRadius: 4, padding: "3px 8px", fontFamily: gf, fontSize: 14, fontWeight: 700, outline: "none" }}
+              />
+            ) : (
+              <span
+                data-no-row-click
+                onClick={(e) => { e.stopPropagation(); setRenameDraft(task.title); setRenaming(true); }}
+                title="Click to rename"
+                style={{ fontFamily: gf, fontSize: 14, fontWeight: 700, color: D.tx, letterSpacing: -0.3, textDecoration: task.done ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "text", padding: "1px 2px", borderRadius: 3 }}
+              >
+                {task.title}
+              </span>
+            )}
+            {(task.tags || []).map((tag) => (
+              <span key={tag} style={{ fontFamily: mn, fontSize: 9, color: D.violet, background: D.violet + "1c", border: `1px solid ${D.violet}55`, padding: "1px 6px", borderRadius: 3, letterSpacing: 0.4 }}>#{tag}</span>
+            ))}
           </div>
+          {task.description ? (
+            <div style={{ fontFamily: ft, fontSize: 11.5, color: D.txm, marginTop: 2, lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {task.description}
+            </div>
+          ) : null}
+        </div>
+
+        {hasSubs ? (
+          <button
+            type="button"
+            data-no-row-click
+            onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+            title={`${doneSubs} of ${totalSubs} subtasks done`}
+            style={{
+              fontFamily: mn, fontSize: 9, letterSpacing: 0.6,
+              padding: "3px 8px", borderRadius: 4,
+              background: doneSubs === totalSubs ? D.teal + "1c" : D.violet + "1c",
+              color: doneSubs === totalSubs ? D.teal : D.violet,
+              border: `1px solid ${(doneSubs === totalSubs ? D.teal : D.violet)}55`,
+              cursor: "pointer", flexShrink: 0, lineHeight: 1.4,
+              display: "inline-flex", alignItems: "center", gap: 4,
+            }}
+          >
+            <span style={{ fontSize: 8 }}>{expanded ? "▾" : "▸"}</span>
+            {doneSubs}/{totalSubs}
+          </button>
         ) : null}
-      </div>
       {/* Quick priority change — click the pill to open a popover. */}
       <div style={{ position: "relative", flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
         <button
@@ -803,6 +912,7 @@ function TaskRow({ task, handlers }: { task: Task; handlers: Handlers }) {
       {/* Edit button — always present so it's discoverable; muted until hover. */}
       <button
         type="button"
+        data-no-row-click
         onClick={(e) => { e.stopPropagation(); handlers.onEdit(task); }}
         title="Edit task"
         style={{ background: "transparent", border: `1px solid ${hover ? D.border : "transparent"}`, color: hover ? D.tx : D.txd, fontFamily: mn, fontSize: 9, letterSpacing: 0.6, cursor: "pointer", padding: "3px 8px", borderRadius: 4, lineHeight: 1.4, flexShrink: 0, textTransform: "uppercase", fontWeight: 700 }}
@@ -812,6 +922,7 @@ function TaskRow({ task, handlers }: { task: Task; handlers: Handlers }) {
 
       <button
         type="button"
+        data-no-row-click
         onClick={(e) => { e.stopPropagation(); handlers.onTogglePin(task); }}
         title={task.pinned ? "Unpin" : "Pin"}
         style={{ background: "transparent", border: "none", color: task.pinned ? D.amber : D.txd, fontSize: 14, cursor: "pointer", padding: 0, lineHeight: 1 }}
@@ -823,6 +934,55 @@ function TaskRow({ task, handlers }: { task: Task; handlers: Handlers }) {
           {due.label}
         </div>
       ) : null}
+      </div>
+      {/* Expanded subtask checklist — collapsed by default; toggles via the
+          progress pill. Adding/removing/toggling all auto-saves through
+          the standard handlers. */}
+      {expanded ? (
+        <div
+          data-no-row-click
+          onClick={(e) => e.stopPropagation()}
+          style={{ padding: "4px 14px 12px 44px", borderTop: `1px solid ${D.border}`, display: "flex", flexDirection: "column", gap: 4 }}
+        >
+          {subtasks.map((s) => (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => toggleSubtask(s.id)}
+                title={s.done ? "Mark not done" : "Mark done"}
+                style={{ width: 12, height: 12, borderRadius: 3, background: s.done ? D.teal : "transparent", border: `1.5px solid ${s.done ? D.teal : D.border}`, cursor: "pointer", padding: 0, flexShrink: 0 }}
+              />
+              <span style={{ flex: 1, fontFamily: ft, fontSize: 12.5, color: s.done ? D.txd : D.tx, textDecoration: s.done ? "line-through" : "none", lineHeight: 1.4 }}>{s.title}</span>
+              <button
+                type="button"
+                onClick={() => removeSubtask(s.id)}
+                title="Remove subtask"
+                style={{ background: "transparent", border: "none", color: D.txd, fontFamily: mn, fontSize: 11, cursor: "pointer", padding: "0 4px", opacity: 0.6 }}
+              >×</button>
+            </div>
+          ))}
+          <SubtaskInlineAdd onAdd={addSubtask} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SubtaskInlineAdd({ onAdd }: { onAdd: (t: string) => void }) {
+  const [v, setV] = useState("");
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+      <span style={{ width: 12, height: 12, borderRadius: 3, border: `1.5px dashed ${D.border}`, flexShrink: 0 }} />
+      <input
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); if (v.trim()) { onAdd(v.trim()); setV(""); } }
+          if (e.key === "Escape") { setV(""); (e.target as HTMLInputElement).blur(); }
+        }}
+        placeholder="+ Add subtask, Enter to save"
+        style={{ flex: 1, background: "transparent", color: D.tx, border: "none", outline: "none", fontFamily: ft, fontSize: 12.5, padding: "2px 0", lineHeight: 1.4 }}
+      />
     </div>
   );
 }
@@ -926,11 +1086,18 @@ function BoardCard({ task, handlers }: { task: Task; handlers: Handlers }) {
           {task.description}
         </div>
       ) : null}
-      {(task.tags || []).length > 0 || due ? (
+      {(task.tags || []).length > 0 || due || (task.subtasks && task.subtasks.length > 0) ? (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
           {(task.tags || []).map((tag) => (
             <span key={tag} style={{ fontFamily: mn, fontSize: 8.5, color: D.violet, background: D.violet + "1c", padding: "1px 5px", borderRadius: 3, letterSpacing: 0.4 }}>#{tag}</span>
           ))}
+          {task.subtasks && task.subtasks.length > 0 ? (() => {
+            const tot = task.subtasks.length;
+            const done = task.subtasks.filter((s) => s.done).length;
+            const all = done === tot;
+            const c = all ? D.teal : D.violet;
+            return <span style={{ fontFamily: mn, fontSize: 8.5, color: c, background: c + "1c", padding: "1px 5px", borderRadius: 3, letterSpacing: 0.4, border: `1px solid ${c}55` }}>☑ {done}/{tot}</span>;
+          })() : null}
           {due ? <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: due.urgent ? D.coral : D.txm, letterSpacing: 0.4 }}>{due.label}</span> : null}
         </div>
       ) : null}
@@ -1371,6 +1538,24 @@ function EditTaskModal({ task, onCancel, onSave, onRemove }: { task: Task; onCan
   const [tags, setTags] = useState((task.tags || []).join(", "));
   const [pinned, setPinned] = useState(!!task.pinned);
   const [done, setDone] = useState(!!task.done);
+  const [subtasks, setSubtasks] = useState<Subtask[]>(task.subtasks || []);
+  const [subDraft, setSubDraft] = useState("");
+
+  function addSub() {
+    const t = subDraft.trim();
+    if (!t) return;
+    setSubtasks((cur) => [...cur, { id: "s-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6), title: t, done: false }]);
+    setSubDraft("");
+  }
+  function toggleSub(id: string) {
+    setSubtasks((cur) => cur.map((s) => s.id === id ? { ...s, done: !s.done } : s));
+  }
+  function removeSub(id: string) {
+    setSubtasks((cur) => cur.filter((s) => s.id !== id));
+  }
+  function updateSubTitle(id: string, next: string) {
+    setSubtasks((cur) => cur.map((s) => s.id === id ? { ...s, title: next } : s));
+  }
 
   function save() {
     if (!title.trim()) return;
@@ -1384,6 +1569,7 @@ function EditTaskModal({ task, onCancel, onSave, onRemove }: { task: Task; onCan
       tags: tags.split(",").map((t) => t.trim().replace(/^#/, "")).filter(Boolean),
       pinned,
       done,
+      subtasks: subtasks.length > 0 ? subtasks.map((s) => ({ ...s, title: s.title.trim() })).filter((s) => s.title) : undefined,
     });
   }
 
@@ -1419,6 +1605,45 @@ function EditTaskModal({ task, onCancel, onSave, onRemove }: { task: Task; onCan
         </div>
         <Field label="Due date" value={dueDate} onChange={setDueDate} type="date" />
         <Field label="Tags (comma separated)" value={tags} onChange={setTags} placeholder="ribbons, q3, hotfix" />
+
+        {/* Subtasks editor — full add/remove/toggle/rename. */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+            <div style={lbl}>Subtasks</div>
+            <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.4 }}>{subtasks.filter((s) => s.done).length}/{subtasks.length} done</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 6 }}>
+            {subtasks.map((s) => (
+              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 8px", background: D.surface, border: `1px solid ${D.border}`, borderRadius: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => toggleSub(s.id)}
+                  style={{ width: 14, height: 14, borderRadius: 3, background: s.done ? D.teal : "transparent", border: `1.5px solid ${s.done ? D.teal : D.border}`, cursor: "pointer", padding: 0, flexShrink: 0 }}
+                />
+                <input
+                  value={s.title}
+                  onChange={(e) => updateSubTitle(s.id, e.target.value)}
+                  style={{ flex: 1, background: "transparent", color: s.done ? D.txd : D.tx, textDecoration: s.done ? "line-through" : "none", border: "none", outline: "none", fontFamily: ft, fontSize: 13, padding: "2px 0" }}
+                />
+                <button type="button" onClick={() => removeSub(s.id)} title="Remove" style={{ background: "transparent", border: "none", color: D.txd, fontFamily: mn, fontSize: 12, cursor: "pointer", padding: "0 2px", opacity: 0.6 }}>×</button>
+              </div>
+            ))}
+            {subtasks.length === 0 ? (
+              <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.3, padding: "4px 2px" }}>No subtasks yet</div>
+            ) : null}
+          </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 8px", background: D.surface, border: `1px dashed ${D.border}`, borderRadius: 6 }}>
+            <span style={{ width: 14, height: 14, borderRadius: 3, border: `1.5px dashed ${D.border}`, flexShrink: 0 }} />
+            <input
+              value={subDraft}
+              onChange={(e) => setSubDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSub(); } }}
+              placeholder="+ Add subtask, Enter to save"
+              style={{ flex: 1, background: "transparent", color: D.tx, border: "none", outline: "none", fontFamily: ft, fontSize: 13, padding: "2px 0" }}
+            />
+          </div>
+        </div>
+
         <Field label="Notes" value={notes} onChange={setNotes} multi />
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
           <button type="button" onClick={onRemove} style={{ background: "transparent", border: `1px solid ${D.coral}55`, color: D.coral, padding: "9px 14px", borderRadius: 8, fontFamily: ft, fontSize: 12, cursor: "pointer" }}>Delete task</button>
@@ -1715,6 +1940,18 @@ function ParsedPreview({ tasks, onConfirm, onEdit, onCancel }: { tasks: Omit<Tas
               </div>
               <div style={{ fontFamily: gf, fontSize: 12.5, fontWeight: 700, color: D.tx, lineHeight: 1.3, letterSpacing: -0.2 }}>{t.title}</div>
               {t.description ? <div style={{ fontFamily: ft, fontSize: 11, color: D.txm, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.description}</div> : null}
+              {t.subtasks && t.subtasks.length > 0 ? (
+                <div style={{ marginTop: 4, paddingTop: 4, borderTop: `1px dashed ${D.border}`, display: "flex", flexDirection: "column", gap: 2 }}>
+                  <div style={{ fontFamily: mn, fontSize: 8.5, color: D.violet, letterSpacing: 0.4, textTransform: "uppercase", fontWeight: 700 }}>{t.subtasks.length} subtask{t.subtasks.length === 1 ? "" : "s"}</div>
+                  {t.subtasks.slice(0, 4).map((s, si) => (
+                    <div key={si} style={{ fontFamily: ft, fontSize: 10.5, color: D.txm, lineHeight: 1.4, display: "flex", alignItems: "center", gap: 5 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 2, border: `1px solid ${D.border}`, flexShrink: 0 }} />
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
+                    </div>
+                  ))}
+                  {t.subtasks.length > 4 ? <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.3 }}>+ {t.subtasks.length - 4} more</div> : null}
+                </div>
+              ) : null}
             </div>
           );
         })}

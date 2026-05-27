@@ -40,6 +40,7 @@ Each task you extract has:
 - priority: one of ${PRIORITIES.map((p) => '"' + p + '"').join(", ")}
 - dueDate: ISO yyyy-mm-dd if a specific date or relative date ("next Wednesday", "May 18") can be inferred from the input. Today's date is provided in the user message. Leave empty if no due date.
 - notes: anything that doesn't fit elsewhere (contacts, links, blockers)
+- subtasks: 2-5 concrete steps to actually finish this task. ALWAYS include subtasks unless the task is genuinely a one-liner (e.g. "send Slack reminder"). Each subtask is a short imperative ("Draft v1 sketch", "Get Jacob sign-off", "Export to Buffer"). Keep titles ≤ 70 chars. Order them in the sequence you'd actually do them.
 
 Be aggressive about splitting compound items into separate tasks. If a paragraph mentions four things to do, return four tasks.
 
@@ -57,7 +58,12 @@ Return JSON:
       "category": "GRAPHIC DESIGN",
       "priority": "HIGH",
       "dueDate": "2026-05-21",
-      "notes": "..."
+      "notes": "...",
+      "subtasks": [
+        { "title": "Pull current ribbon assets from Asset Library" },
+        { "title": "Draft participant + basic versions in Figma" },
+        { "title": "Get Akash signoff before sending to print" }
+      ]
     }
   ]
 }`;
@@ -114,14 +120,33 @@ export async function POST(req: NextRequest) {
       const parsed = JSON.parse(cleaned);
       const tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
       // Validate / normalize.
-      const normalized = tasks.map((t: Record<string, unknown>) => ({
-        title: String(t.title || "").slice(0, 200),
-        description: t.description ? String(t.description).slice(0, 500) : undefined,
-        category: CATEGORIES.includes(String(t.category)) ? String(t.category) : "OTHER",
-        priority: PRIORITIES.includes(String(t.priority)) ? String(t.priority) : "MEDIUM",
-        dueDate: t.dueDate ? String(t.dueDate).slice(0, 10) : undefined,
-        notes: t.notes ? String(t.notes).slice(0, 500) : undefined,
-      }));
+      const normalized = tasks.map((t: Record<string, unknown>) => {
+        // Subtasks come back as array of { title } (sometimes plain strings) —
+        // normalize either shape into { id, title, done: false }.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rawSubs: any[] = Array.isArray(t.subtasks) ? (t.subtasks as any[]) : [];
+        const subtasks = rawSubs
+          .map((s, i) => {
+            const title = typeof s === "string" ? s : String((s && s.title) || "");
+            return title.trim() ? {
+              id: "s-" + Date.now() + "-" + i + "-" + Math.random().toString(36).slice(2, 6),
+              title: title.slice(0, 200),
+              done: false,
+            } : null;
+          })
+          .filter(Boolean)
+          .slice(0, 12); // sanity cap
+
+        return {
+          title: String(t.title || "").slice(0, 200),
+          description: t.description ? String(t.description).slice(0, 500) : undefined,
+          category: CATEGORIES.includes(String(t.category)) ? String(t.category) : "OTHER",
+          priority: PRIORITIES.includes(String(t.priority)) ? String(t.priority) : "MEDIUM",
+          dueDate: t.dueDate ? String(t.dueDate).slice(0, 10) : undefined,
+          notes: t.notes ? String(t.notes).slice(0, 500) : undefined,
+          subtasks: subtasks.length > 0 ? subtasks : undefined,
+        };
+      });
       return NextResponse.json({ tasks: normalized, ts: Date.now() });
     } catch {
       return NextResponse.json({ error: "Model returned non-JSON", raw: cleaned.slice(0, 600) }, { status: 502 });
