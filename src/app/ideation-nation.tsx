@@ -624,13 +624,16 @@ export default function IdeationNation() {
     return function() { clearTimeout(timer); };
   }, []);
 
-  // Check for routed context from News Flow
+  // Check for routed context from News Flow. Reads the namespaced key
+  // that News Flow writes; falls back to the legacy unnamespaced key so
+  // existing tabs that haven't reloaded post-fix still work.
   useEffect(function() {
     try {
-      var raw = localStorage.getItem("poast-route-to");
+      var raw = localStorage.getItem("poast-route-to:ideation") || localStorage.getItem("poast-route-to");
       if (raw) {
         var route = JSON.parse(raw);
         if (route.section === "ideation" && route.data) {
+          localStorage.removeItem("poast-route-to:ideation");
           localStorage.removeItem("poast-route-to");
           setWizardOpen(true);
           showToast("News item loaded -- generate ideas from it");

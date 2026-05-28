@@ -139,9 +139,13 @@ function SmBtn({ children, onClick, color, on }: { children: React.ReactNode; on
 }
 
 // ═══ SEND TO IDEATION ═══
+// Per-destination key so an ideation-nation outbound write (which uses
+// "poast-route-to" with arbitrary section keys nothing reads yet) can't
+// race-clobber an inbound news payload before the ideation listener
+// picks it up.
 function sendToIdeation(item: NewsItem) {
   try {
-    localStorage.setItem("poast-route-to", JSON.stringify({
+    localStorage.setItem("poast-route-to:ideation", JSON.stringify({
       section: "ideation",
       data: {
         prompt: item.title + "\n\n" + (item.description || item.snippet || ""),
