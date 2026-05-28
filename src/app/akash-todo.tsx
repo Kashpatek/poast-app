@@ -260,11 +260,26 @@ export default function AkashTodo() {
   function submitQuickAdd() {
     const txt = quickAdd.trim();
     if (!txt) return;
-    // Multi-line paste → one task per non-empty line. Each line gets its
-    // own smart-prefix parse (!high, @category, due:, #tag).
-    const lines = txt.split(/\r?\n+/).map((l) => l.trim()).filter(Boolean);
-    if (lines.length > 1) {
-      const parsedTasks = lines.map(parseQuickAdd).filter((p) => p.title);
+    // Multi-line paste → group bullet/dash lines as subtasks of the
+    // preceding non-bullet line. Each "parent" line gets its own smart-
+    // prefix parse (!high, @category, due:, #tag). Bullets get attached
+    // as subtasks (still get smart-prefix parsing on their title).
+    const rawLines = txt.split(/\r?\n/);
+    const groups = groupLinesIntoTasks(rawLines);
+    if (groups.length > 1 || (groups.length === 1 && groups[0].subs.length > 0)) {
+      const parsedTasks = groups.map((g) => {
+        const parent = parseQuickAdd(g.parent);
+        if (!parent.title) return null;
+        const subs = g.subs.map((s) => parseQuickAdd(s).title).filter(Boolean);
+        if (subs.length > 0) {
+          parent.subtasks = subs.map((t, i) => ({
+            id: "s-" + Date.now() + "-" + i + "-" + Math.random().toString(36).slice(2, 6),
+            title: t,
+            done: false,
+          }));
+        }
+        return parent;
+      }).filter((p): p is Omit<Task, "id" | "addedAt"> => p !== null);
       if (parsedTasks.length) addTasks(parsedTasks);
       setQuickAdd("");
       return;
@@ -539,13 +554,27 @@ export default function AkashTodo() {
           onChange={(e) => setQuickAdd(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") submitQuickAdd(); }}
           onPaste={(e) => {
-            // Multi-line paste shortcut: split clipboard into one task per
-            // line and submit immediately (smart-prefix parser runs on each).
+            // Multi-line paste shortcut. Detects bullet/dash/numbered
+            // children and folds them into subtasks of the preceding
+            // parent line. Top-level bullets without a parent become
+            // their own tasks.
             const txt = e.clipboardData.getData("text");
             if (txt && /\r?\n/.test(txt.trim())) {
               e.preventDefault();
-              const lines = txt.split(/\r?\n+/).map((l) => l.trim()).filter(Boolean);
-              const parsedTasks = lines.map(parseQuickAdd).filter((p) => p.title);
+              const groups = groupLinesIntoTasks(txt.split(/\r?\n/));
+              const parsedTasks = groups.map((g) => {
+                const parent = parseQuickAdd(g.parent);
+                if (!parent.title) return null;
+                const subs = g.subs.map((s) => parseQuickAdd(s).title).filter(Boolean);
+                if (subs.length > 0) {
+                  parent.subtasks = subs.map((t, i) => ({
+                    id: "s-" + Date.now() + "-" + i + "-" + Math.random().toString(36).slice(2, 6),
+                    title: t,
+                    done: false,
+                  }));
+                }
+                return parent;
+              }).filter((p): p is Omit<Task, "id" | "addedAt"> => p !== null);
               if (parsedTasks.length) { addTasks(parsedTasks); setQuickAdd(""); }
             }
           }}
@@ -816,9 +845,16 @@ function TaskRow({ task, handlers }: { task: Task; handlers: Handlers }) {
         borderRadius: 10,
         opacity: task.done ? 0.55 : 1,
         position: "relative",
+        // When the priority popover is open, lift the whole row above
+        // its siblings so the popover doesn't sit behind the next row.
+        // (The hover `transform` below creates a stacking context, so
+        // we need to raise zIndex here, not on the inner popover.)
+        zIndex: priorityMenuOpen ? 50 : "auto",
         transition: "border-color 0.15s, box-shadow 0.15s, transform 0.15s",
         boxShadow: hover ? "0 4px 12px rgba(0,0,0,0.25)" : "none",
-        transform: hover ? "translateY(-1px)" : "translateY(0)",
+        // Skip the hover lift while the menu is open so we don't create
+        // a new stacking context that would re-trap the popover.
+        transform: hover && !priorityMenuOpen ? "translateY(-1px)" : "translateY(0)",
         animation: "tbRowIn 0.2s ease",
       }}
       onMouseEnter={() => setHover(true)}
@@ -2475,6 +2511,34 @@ function buildMonthGrid(anchor: Date): Array<{ date: Date; inMonth: boolean }> {
     out.push({ date: d, inMonth: d.getMonth() === month });
   }
   return out;
+}
+
+// Group a flat list of pasted lines into parent-with-subtask blocks.
+// Recognizes bullet/dash/asterisk/numbered children, with optional
+// leading whitespace (so indentation works too). The first non-empty
+// line that DOESN'T look like a bullet becomes a parent; subsequent
+// bullet lines attach to it as subtasks until the next parent appears.
+// Top-level bullets with no preceding parent each become their own
+// flat task (no subtasks).
+function groupLinesIntoTasks(lines: string[]): Array<{ parent: string; subs: string[] }> {
+  const groups: Array<{ parent: string; subs: string[] }> = [];
+  const bulletRe = /^(?:\s*)(?:[-*•·→▸]|\d+[.)])\s+(.+)$/;
+  for (const raw of lines) {
+    if (!raw || !raw.trim()) continue;
+    const bulletMatch = raw.match(bulletRe);
+    if (bulletMatch) {
+      const content = bulletMatch[1].trim();
+      if (!content) continue;
+      // If there's a parent above, attach as subtask. Otherwise treat
+      // as its own flat task (so a pure bullet list still imports
+      // sensibly with no forced subtasks).
+      if (groups.length > 0) groups[groups.length - 1].subs.push(content);
+      else groups.push({ parent: content, subs: [] });
+    } else {
+      groups.push({ parent: raw.trim(), subs: [] });
+    }
+  }
+  return groups;
 }
 
 function parseQuickAdd(input: string): Omit<Task, "id" | "addedAt"> {

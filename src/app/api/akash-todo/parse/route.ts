@@ -44,6 +44,19 @@ Each task you extract has:
 
 Be aggressive about splitting compound items into separate tasks. If a paragraph mentions four things to do, return four tasks.
 
+HIERARCHY RULES (very important — this is how the user denotes structure):
+- A line followed by indented bullet / dash / asterisk lines is ONE task whose subtasks are those bullets. Examples:
+    Redo ClusterMax ribbons
+    - Pull current assets
+    - Draft v1 in Figma
+    - Get signoff
+    → ONE task "Redo ClusterMax ribbons" with three subtasks.
+- A line followed by numbered list items ("1. ...", "2. ...") is also ONE task with those numbers as subtasks.
+- An "•" or "·" or "→" or "→" prefix on indented lines also marks subtasks.
+- When in doubt: if a line is short and looks like a parent (no period or fragments), and the next lines start with a bullet / dash / number and are indented or visually nested, treat them as subtasks of the parent line, NOT as separate top-level tasks.
+- Top-level bullets that are NOT under a parent line are still separate tasks (a flat to-do list with no hierarchy).
+- When the user's input already provides subtasks via bullets, you MAY skip auto-inventing additional ones — respect their structure first, only add subtasks they didn't provide if the task clearly needs more steps.
+
 Use SA voice in titles and descriptions:
 - No em dashes (use commas or periods)
 - No emojis
