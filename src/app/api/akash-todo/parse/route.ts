@@ -31,6 +31,10 @@ const CATEGORIES = [
 
 const PRIORITIES = ["HIGH", "MEDIUM", "THIS WEEK", "ONGOING"];
 
+// SemiAnalysis marketing roster — must match the client's ASSIGNEES list.
+// Anything else gets normalized to "Unassigned" downstream.
+const ASSIGNEES = ["Akash", "Daksh", "Vansh", "Max", "Michelle", "Unassigned"];
+
 const SYSTEM = `You extract structured tasks from informal input for Akash, the Brand and Creative Director at SemiAnalysis. Output ONLY valid JSON.
 
 Each task you extract has:
@@ -38,6 +42,7 @@ Each task you extract has:
 - description: 1-sentence context if available (optional)
 - category: one of ${CATEGORIES.map((c) => '"' + c + '"').join(", ")}
 - priority: one of ${PRIORITIES.map((p) => '"' + p + '"').join(", ")}
+- assignee: one of ${ASSIGNEES.map((a) => '"' + a + '"').join(", ")}. Detect a person's name in the input: "Daksh to redo X" / "ask Vansh to Y" / "Max should ship Z" / "for Michelle" → use that person. Default to "Akash" for anything in his voice or anything he sounds like he's doing himself ("I'll redo…", "need to send…"). Use "Unassigned" only when the input names a task with no clear owner and no first-person voice. Never invent names — only the six in the list above are valid.
 - dueDate: ISO yyyy-mm-dd if a specific date or relative date ("next Wednesday", "May 18") can be inferred from the input. Today's date is provided in the user message. Leave empty if no due date.
 - notes: anything that doesn't fit elsewhere (contacts, links, blockers)
 - subtasks: 2-5 concrete steps to actually finish this task. ALWAYS include subtasks unless the task is genuinely a one-liner (e.g. "send Slack reminder"). Each subtask is a short imperative ("Draft v1 sketch", "Get Jacob sign-off", "Export to Buffer"). Keep titles ≤ 70 chars. Order them in the sequence you'd actually do them.
@@ -70,6 +75,7 @@ Return JSON:
       "description": "...",
       "category": "GRAPHIC DESIGN",
       "priority": "HIGH",
+      "assignee": "Daksh",
       "dueDate": "2026-05-21",
       "notes": "...",
       "subtasks": [
@@ -162,11 +168,18 @@ export async function POST(req: NextRequest) {
           .filter(Boolean)
           .slice(0, 12); // sanity cap
 
+        // Assignee: if the model returned anything that isn't a known
+        // person, treat it as "Akash" (the board default). "Unassigned"
+        // collapses to undefined on the client, which is fine.
+        const rawAssignee = t.assignee ? String(t.assignee) : "Akash";
+        const assignee = ASSIGNEES.includes(rawAssignee) ? rawAssignee : "Akash";
+
         return {
           title: String(t.title || "").slice(0, 200),
           description: t.description ? String(t.description).slice(0, 500) : undefined,
           category: CATEGORIES.includes(String(t.category)) ? String(t.category) : "OTHER",
           priority: PRIORITIES.includes(String(t.priority)) ? String(t.priority) : "MEDIUM",
+          assignee: assignee === "Unassigned" ? undefined : assignee,
           dueDate: t.dueDate ? String(t.dueDate).slice(0, 10) : undefined,
           notes: t.notes ? String(t.notes).slice(0, 500) : undefined,
           subtasks: subtasks.length > 0 ? subtasks : undefined,

@@ -11,14 +11,16 @@
 // (Claude vision extracts tasks).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { D, ft, gf, mn } from "./shared-constants";
 import { useUser, isAkash } from "./user-context";
 
 type Priority = "HIGH" | "MEDIUM" | "THIS WEEK" | "ONGOING" | "DONE";
 type AddMode = "manual" | "prompt" | "image";
-type ViewType = "list" | "board" | "calendar" | "week" | "focus";
+type ViewType = "list" | "board" | "calendar" | "week" | "focus" | "category";
 type SortType = "manual" | "due" | "added" | "alpha";
 type FilterChip = "all" | "today" | "overdue" | "week" | "nodue" | "pinned";
+type GroupBy = "priority" | "category" | "due" | "assignee";
 
 interface Subtask {
   id: string;
@@ -37,6 +39,9 @@ interface Task {
   done?: boolean;
   pinned?: boolean;
   tags?: string[];
+  // Who is on the hook for this task. Defaults to "Akash" (owner of the
+  // board). "Unassigned" surfaces tasks waiting for an owner.
+  assignee?: string;
   subtasks?: Subtask[];
   // ISO datetime — when the user time-blocked this task on the Daily
   // Planner. Drives where it renders in the hour timeline. May or may
@@ -100,12 +105,33 @@ const PRIORITY_COLORS: Record<Priority, string> = {
   "DONE":      "#2EAD8E",
 };
 
+// SemiAnalysis marketing roster. Akash is the board owner — every task
+// defaults to him; he reassigns out to the team via the avatar popover.
+// "Unassigned" is a real bucket (lets a task wait for an owner without
+// faking ownership).
+interface AssigneeSpec { id: string; name: string; initial: string; color: string }
+const ASSIGNEES: AssigneeSpec[] = [
+  { id: "Akash",      name: "Akash",      initial: "A", color: "#F7B041" },
+  { id: "Daksh",      name: "Daksh",      initial: "D", color: "#0B86D1" },
+  { id: "Vansh",      name: "Vansh",      initial: "V", color: "#905CCB" },
+  { id: "Max",        name: "Max",        initial: "M", color: "#26C9D8" },
+  { id: "Michelle",   name: "Michelle",   initial: "M", color: "#E06347" },
+  { id: "Unassigned", name: "Unassigned", initial: "?", color: "#4E4B56" },
+];
+const ASSIGNEE_BY_ID: Record<string, AssigneeSpec> = Object.fromEntries(ASSIGNEES.map((a) => [a.id, a]));
+function getAssigneeSpec(id: string | undefined): AssigneeSpec {
+  if (!id) return ASSIGNEE_BY_ID.Unassigned;
+  return ASSIGNEE_BY_ID[id] || ASSIGNEE_BY_ID.Unassigned;
+}
+const ASSIGNEE_NAMES = ASSIGNEES.map((a) => a.id);
+
 const VIEW_OPTIONS: Array<{ id: ViewType; label: string; hint: string }> = [
   { id: "list",     label: "List",     hint: "1" },
   { id: "board",    label: "Board",    hint: "2" },
   { id: "calendar", label: "Calendar", hint: "3" },
   { id: "week",     label: "Week",     hint: "4" },
   { id: "focus",    label: "Focus",    hint: "5" },
+  { id: "category", label: "Category", hint: "6" },
 ];
 
 // ════════════════════════════════════════════════════════════════════
@@ -119,16 +145,23 @@ export default function AkashTodo() {
   const [archive, setArchive] = useState<BoardArchive>({ boards: [], activeId: "" });
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewType>("list");
-  const [groupBy, setGroupBy] = useState<"priority" | "category" | "due">("priority");
+  const [groupBy, setGroupBy] = useState<GroupBy>("priority");
   const [sortBy, setSortBy] = useState<SortType>("manual");
   const [showDone, setShowDone] = useState(false);
   const [filter, setFilter] = useState("");
   const [filterChip, setFilterChip] = useState<FilterChip>("all");
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
   const [addingMode, setAddingMode] = useState<AddMode | null>(null);
   const [boardModalOpen, setBoardModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [focusModeTask, setFocusModeTask] = useState<Task | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Combine bucket — drag duplicates here, then merge into one task. Set
+  // is insertion-ordered so the merge preview keeps the user's pick order.
+  const [combineIds, setCombineIds] = useState<Set<string>>(new Set());
+  const [combineOpen, setCombineOpen] = useState(false);
   const [quickAdd, setQuickAdd] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -257,6 +290,48 @@ export default function AkashTodo() {
     updateActiveBoard((b) => ({ ...b, tasks: b.tasks.filter((t) => t.id !== id) }));
   }
 
+  // ── Bulk-selection helpers ──────────────────────────────────────
+  function toggleSelected(id: string) {
+    setSelectedIds((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function clearSelection() { setSelectedIds(new Set()); }
+  function bulkPatch(patch: Partial<Task>) {
+    if (selectedIds.size === 0) return;
+    updateActiveBoard((b) => ({
+      ...b,
+      tasks: b.tasks.map((t) => selectedIds.has(t.id) ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t),
+    }));
+  }
+  function bulkRemove() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Remove ${selectedIds.size} task${selectedIds.size === 1 ? "" : "s"}?`)) return;
+    updateActiveBoard((b) => ({ ...b, tasks: b.tasks.filter((t) => !selectedIds.has(t.id)) }));
+    clearSelection();
+  }
+
+  // ── Combine bucket helpers ─────────────────────────────────────
+  function addToCombine(id: string) {
+    setCombineIds((cur) => { const next = new Set(cur); next.add(id); return next; });
+  }
+  function removeFromCombine(id: string) {
+    setCombineIds((cur) => { const next = new Set(cur); next.delete(id); return next; });
+  }
+  function clearCombine() { setCombineIds(new Set()); }
+  function commitCombine(merged: Omit<Task, "id" | "addedAt">, sourceIds: string[]) {
+    const stamp = new Date().toISOString();
+    const newTask: Task = { ...merged, id: "t-" + Date.now(), addedAt: stamp };
+    updateActiveBoard((b) => ({
+      ...b,
+      tasks: [newTask, ...b.tasks.filter((t) => !sourceIds.includes(t.id))],
+    }));
+    clearCombine();
+    setCombineOpen(false);
+  }
+
   function submitQuickAdd() {
     const txt = quickAdd.trim();
     if (!txt) return;
@@ -309,6 +384,10 @@ export default function AkashTodo() {
         if (!hay.includes(q)) return false;
       }
       if (tagFilter && !(t.tags || []).includes(tagFilter)) return false;
+      if (assigneeFilter) {
+        const a = t.assignee || "Akash";
+        if (a !== assigneeFilter) return false;
+      }
       if (filterChip === "today") {
         if (!t.dueDate) return false;
         const d = startOfDay(new Date(t.dueDate));
@@ -329,30 +408,40 @@ export default function AkashTodo() {
       }
       return true;
     });
-  }, [activeBoard, filter, showDone, filterChip, tagFilter]);
+  }, [activeBoard, filter, showDone, filterChip, tagFilter, assigneeFilter]);
 
   // ── Keyboard shortcuts ──────────────────────────────────────────
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement | null)?.tagName;
       const inText = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      // Cmd/Ctrl+K opens the command palette from anywhere, including
+      // inside text fields — that's the standard Linear/Notion/Slack
+      // expectation and we honor it.
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+        return;
+      }
       if (e.key === "Escape") {
+        if (paletteOpen) { setPaletteOpen(false); return; }
         if (editingTask) { setEditingTask(null); return; }
         if (addingMode) { setAddingMode(null); return; }
         if (boardModalOpen) { setBoardModalOpen(false); return; }
+        if (selectedIds.size > 0) { setSelectedIds(new Set()); return; }
       }
       if (inText) return;
       if (e.key === "/") { e.preventDefault(); searchRef.current?.focus(); return; }
       if (e.key === "n") { e.preventDefault(); quickRef.current?.focus(); return; }
       if (e.key === "N") { e.preventDefault(); setAddingMode("manual"); return; }
-      if (e.key >= "1" && e.key <= "5") {
+      if (e.key >= "1" && e.key <= "6") {
         const v = VIEW_OPTIONS[Number(e.key) - 1];
         if (v) setView(v.id);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editingTask, addingMode, boardModalOpen]);
+  }, [editingTask, addingMode, boardModalOpen, paletteOpen, selectedIds.size]);
 
   // ── Guard ───────────────────────────────────────────────────────
   if (!allowed) {
@@ -367,13 +456,16 @@ export default function AkashTodo() {
   }
 
   // Common task handlers passed into each view
-  const taskHandlers = {
+  const taskHandlers: Handlers = {
     onEdit: (t: Task) => setEditingTask(t),
     onToggleDone: (t: Task) => updateTask(t.id, { done: !t.done }),
     onTogglePin: (t: Task) => updateTask(t.id, { pinned: !t.pinned }),
     onMove: (id: string, patch: Partial<Task>) => updateTask(id, patch),
     onRemove: (id: string) => removeTask(id),
     onStartFocus: (t: Task) => setFocusModeTask(t),
+    isSelected: (id: string) => selectedIds.has(id),
+    anySelected: selectedIds.size > 0,
+    onToggleSelected: toggleSelected,
   };
 
   // Counts per priority on full board (not filtered)
@@ -383,7 +475,15 @@ export default function AkashTodo() {
   }));
 
   return (
-    <div style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 32px" }}>
+    <div style={{ position: "relative", maxWidth: 1280, margin: "0 auto", padding: "40px 32px" }}>
+      {/* Ambient backdrop · two soft radial glows (amber top-right, cobalt
+          bottom-left) that breathe through the page. Pointer-events:none
+          so they never intercept clicks. Lives behind everything. */}
+      <div aria-hidden="true" style={{
+        position: "fixed", inset: 0, zIndex: -1, pointerEvents: "none",
+        background: "radial-gradient(900px 600px at 85% -10%, rgba(247,176,65,0.10), transparent 60%), radial-gradient(900px 700px at -10% 110%, rgba(11,134,209,0.10), transparent 60%)",
+      }} />
+      <style dangerouslySetInnerHTML={{ __html: "@keyframes tbBreathe{0%,100%{opacity:0.55;transform:scale(1)}50%{opacity:1;transform:scale(1.03)}}.tb-chip{transition:transform 0.12s ease, border-color 0.12s ease, background 0.12s ease}.tb-chip:hover{transform:translateY(-1px)}" }} />
       {/* ── Header ──────────────────────────────────────────────── */}
       <div style={{ marginBottom: 18 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
@@ -395,15 +495,18 @@ export default function AkashTodo() {
           </div>
           <SaveIndicator state={saveState} error={saveError} onRetry={() => saveArchive(archive)} />
         </div>
-        <h1 style={{ fontFamily: ft, fontSize: 46, fontWeight: 900, letterSpacing: -1.6, margin: 0, marginBottom: 4, color: D.tx }}>
-          Task Board{" "}
-          <span style={{ background: "linear-gradient(120deg,#F7B041,#26C9D8,#F7B041)", backgroundSize: "200% 100%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", animation: "tbShim 9s ease-in-out infinite" }}>
+        <h1 style={{ fontFamily: ft, fontSize: 46, fontWeight: 900, letterSpacing: -1.6, margin: 0, marginBottom: 6, color: D.tx, display: "inline-flex", alignItems: "baseline", gap: 12 }}>
+          <span>Task Board</span>
+          <span style={{ background: "linear-gradient(120deg,#F7B041 0%,#26C9D8 50%,#F7B041 100%)", backgroundSize: "300% 100%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", animation: "tbShim 14s linear infinite" }}>
             {activeBoard?.name || ""}
           </span>
-          <style dangerouslySetInnerHTML={{ __html: "@keyframes tbShim{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}" }} />
+          <style dangerouslySetInnerHTML={{ __html: "@keyframes tbShim{0%{background-position:0% 50%}100%{background-position:300% 50%}}" }} />
         </h1>
+        {/* Thin animated underline · echoes the title gradient and gives
+            the header a finished, intentional edge. */}
+        <div aria-hidden="true" style={{ width: 96, height: 2, marginBottom: 8, borderRadius: 2, background: "linear-gradient(120deg,#F7B041,#26C9D8,#F7B041)", backgroundSize: "300% 100%", animation: "tbShim 14s linear infinite", opacity: 0.85 }} />
         <div style={{ fontFamily: ft, fontSize: 13, color: D.txm }}>
-          SemiAnalysis Marketing · Akash Patel · 1-5 switch views · n quick-add · / search · Esc close
+          SemiAnalysis Marketing · Akash Patel · ⌘K palette · ⌘-click multi-select · drag→Combine bucket · 1-6 views · n quick-add · / search · hover row + a/p/t/d/e/f · Esc close
         </div>
       </div>
 
@@ -457,9 +560,10 @@ export default function AkashTodo() {
           style={{ ...inputStyle, flex: 1, minWidth: 180 }}
         />
         {view === "list" || view === "board" ? (
-          <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as typeof groupBy)} style={{ ...inputStyle, width: 160 }}>
+          <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)} style={{ ...inputStyle, width: 170 }}>
             <option value="priority">Group: Priority</option>
             <option value="category">Group: Category</option>
+            <option value="assignee">Group: Assignee</option>
             {view === "list" ? <option value="due">Group: Due</option> : null}
           </select>
         ) : null}
@@ -497,6 +601,7 @@ export default function AkashTodo() {
             <button
               key={c.id}
               type="button"
+              className="tb-chip"
               onClick={() => setFilterChip(c.id as FilterChip)}
               style={{
                 padding: "5px 12px",
@@ -509,6 +614,7 @@ export default function AkashTodo() {
                 fontWeight: 600,
                 cursor: "pointer",
                 letterSpacing: 0.4,
+                boxShadow: active ? "0 2px 10px rgba(247,176,65,0.16)" : "none",
               }}
             >
               {c.label}
@@ -524,6 +630,7 @@ export default function AkashTodo() {
                 <button
                   key={tag}
                   type="button"
+                  className="tb-chip"
                   onClick={() => setTagFilter(active ? null : tag)}
                   style={{
                     padding: "5px 10px",
@@ -543,6 +650,61 @@ export default function AkashTodo() {
             })}
           </>
         ) : null}
+      </div>
+
+      {/* ── Assignee filter chips ──────────────────────────────────
+          Mirror of the date/pinned chip row above but for ownership.
+          "All" clears, each chip filters to a single person's queue. */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 14 }}>
+        <span style={{ fontFamily: mn, fontSize: 9, letterSpacing: 1.2, textTransform: "uppercase", color: D.txd, marginRight: 4 }}>Assigned</span>
+        <button
+          type="button"
+          className="tb-chip"
+          onClick={() => setAssigneeFilter(null)}
+          style={{
+            padding: "5px 12px",
+            background: assigneeFilter === null ? "rgba(247,176,65,0.16)" : "transparent",
+            color: assigneeFilter === null ? D.amber : D.txm,
+            border: `1px solid ${assigneeFilter === null ? D.amber : D.border}`,
+            borderRadius: 999,
+            fontFamily: mn,
+            fontSize: 10.5,
+            fontWeight: 600,
+            cursor: "pointer",
+            letterSpacing: 0.4,
+          }}
+        >
+          All
+        </button>
+        {ASSIGNEES.map((a) => {
+          const active = assigneeFilter === a.id;
+          return (
+            <button
+              key={a.id}
+              type="button"
+              className="tb-chip"
+              onClick={() => setAssigneeFilter(active ? null : a.id)}
+              style={{
+                padding: "4px 10px 4px 4px",
+                background: active ? a.color + "22" : "transparent",
+                color: active ? a.color : D.txm,
+                border: `1px solid ${active ? a.color : D.border}`,
+                borderRadius: 999,
+                fontFamily: mn,
+                fontSize: 10.5,
+                fontWeight: 600,
+                cursor: "pointer",
+                letterSpacing: 0.4,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Avatar spec={a} size={18} glow={active} />
+              {a.name}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Quick add ──────────────────────────────────────────── */}
@@ -578,7 +740,7 @@ export default function AkashTodo() {
               if (parsedTasks.length) { addTasks(parsedTasks); setQuickAdd(""); }
             }
           }}
-          placeholder='Quick add · paste multiple lines for batch · "Redo ribbons !high @design due:wed #ribbons" · Enter to add'
+          placeholder='Quick add · "Redo ribbons !high @design +Daksh due:wed #ribbons" · Enter to add'
           style={{ ...inputStyle, border: "none", background: "transparent", padding: "8px 6px" }}
         />
         <button type="button" onClick={submitQuickAdd} disabled={!quickAdd.trim()} style={{ ...primaryBtn, opacity: quickAdd.trim() ? 1 : 0.4, padding: "7px 14px" }}>Add</button>
@@ -589,12 +751,7 @@ export default function AkashTodo() {
         {fullCounts.map(({ p, n }) => {
           const color = PRIORITY_COLORS[p];
           return (
-            <div key={p} style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 10, padding: "10px 14px" }}>
-              <div style={{ fontFamily: mn, fontSize: 9, letterSpacing: 1.2, textTransform: "uppercase", color: D.txd, marginBottom: 4 }}>{p}</div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <span style={{ fontFamily: gf, fontSize: 24, fontWeight: 900, color, letterSpacing: -0.8, lineHeight: 1 }}>{n}</span>
-              </div>
-            </div>
+            <PriorityCounter key={p} label={p} count={n} color={color} />
           );
         })}
       </div>
@@ -611,11 +768,13 @@ export default function AkashTodo() {
       ) : view === "list" ? (
         <ListView tasks={visibleTasks} groupBy={groupBy} sortBy={sortBy} handlers={taskHandlers} />
       ) : view === "board" ? (
-        <BoardView tasks={visibleTasks} groupBy={groupBy === "due" ? "priority" : groupBy} handlers={taskHandlers} />
+        <BoardView tasks={visibleTasks} groupBy={groupBy === "due" ? "priority" : groupBy as "priority" | "category" | "assignee"} handlers={taskHandlers} />
       ) : view === "calendar" ? (
         <CalendarView tasks={visibleTasks} handlers={taskHandlers} />
       ) : view === "week" ? (
         <WeekView tasks={visibleTasks} handlers={taskHandlers} />
+      ) : view === "category" ? (
+        <CategoryView tasks={visibleTasks} handlers={taskHandlers} />
       ) : (
         <FocusView tasks={visibleTasks} handlers={taskHandlers} />
       )}
@@ -624,6 +783,7 @@ export default function AkashTodo() {
       {addingMode ? (
         <AddTaskModal
           mode={addingMode}
+          existingTasks={activeBoard?.tasks || []}
           onCancel={() => setAddingMode(null)}
           onAdd={addTasks}
           onSwitchMode={setAddingMode}
@@ -634,6 +794,51 @@ export default function AkashTodo() {
           archive={archive}
           onCancel={() => setBoardModalOpen(false)}
           onSave={(next) => { setArchive(next); setBoardModalOpen(false); }}
+        />
+      ) : null}
+      {/* Combine bucket — visible whenever there's at least one task on
+          the board so the user can always drag a duplicate there. Hidden
+          on calendar / week / focus views which have their own chrome. */}
+      {(view === "list" || view === "board" || view === "category") && (activeBoard?.tasks.length || 0) > 0 ? (
+        <CombineDock
+          ids={combineIds}
+          tasks={(activeBoard?.tasks || []).filter((t) => combineIds.has(t.id))}
+          onAdd={addToCombine}
+          onRemove={removeFromCombine}
+          onClear={clearCombine}
+          onOpen={() => setCombineOpen(true)}
+        />
+      ) : null}
+      {combineOpen ? (
+        <CombineModal
+          tasks={(activeBoard?.tasks || []).filter((t) => combineIds.has(t.id))}
+          onCancel={() => setCombineOpen(false)}
+          onCommit={commitCombine}
+        />
+      ) : null}
+      {selectedIds.size > 0 ? (
+        <BulkActionBar
+          count={selectedIds.size}
+          onAssign={(id) => bulkPatch({ assignee: id === "Unassigned" ? undefined : id })}
+          onPriority={(p) => bulkPatch({ priority: p, done: false })}
+          onDone={() => { bulkPatch({ done: true }); clearSelection(); }}
+          onPin={() => bulkPatch({ pinned: true })}
+          onDelete={bulkRemove}
+          onClear={clearSelection}
+        />
+      ) : null}
+      {paletteOpen ? (
+        <CommandPalette
+          tasks={activeBoard?.tasks || []}
+          onClose={() => setPaletteOpen(false)}
+          onOpenTask={(t) => { setPaletteOpen(false); setEditingTask(t); }}
+          onStartFocus={(t) => { setPaletteOpen(false); setFocusModeTask(t); }}
+          onSwitchView={(v) => { setPaletteOpen(false); setView(v); }}
+          onSetAssigneeFilter={(a) => { setPaletteOpen(false); setAssigneeFilter(a); }}
+          onSetChip={(c) => { setPaletteOpen(false); setFilterChip(c); }}
+          onClearFilters={() => { setPaletteOpen(false); setFilter(""); setFilterChip("all"); setTagFilter(null); setAssigneeFilter(null); }}
+          onAddTask={() => { setPaletteOpen(false); setAddingMode("manual"); }}
+          onFromPrompt={() => { setPaletteOpen(false); setAddingMode("prompt"); }}
         />
       ) : null}
       {editingTask ? (
@@ -689,10 +894,18 @@ interface Handlers {
   onMove: (id: string, patch: Partial<Task>) => void;
   onRemove: (id: string) => void;
   onStartFocus: (t: Task) => void;
+  // Bulk selection — rows know whether they're selected so they can
+  // light up, and a Cmd-click anywhere on the row toggles membership.
+  // `anySelected` is true whenever the selection set is non-empty (the
+  // row uses it to flip plain-click into a toggle, matching how Finder
+  // and Notion behave in multi-select mode).
+  isSelected: (id: string) => boolean;
+  anySelected: boolean;
+  onToggleSelected: (id: string) => void;
 }
 
 // ── List view ──────────────────────────────────────────────────────
-function ListView({ tasks, groupBy, sortBy, handlers }: { tasks: Task[]; groupBy: "priority" | "category" | "due"; sortBy: SortType; handlers: Handlers }) {
+function ListView({ tasks, groupBy, sortBy, handlers }: { tasks: Task[]; groupBy: GroupBy; sortBy: SortType; handlers: Handlers }) {
   const sorted = useMemo(() => sortTasks(tasks, sortBy), [tasks, sortBy]);
   const pinned = sorted.filter((t) => t.pinned);
   const rest = sorted.filter((t) => !t.pinned);
@@ -712,6 +925,9 @@ function ListView({ tasks, groupBy, sortBy, handlers }: { tasks: Task[]; groupBy
     }
     if (groupBy === "category") {
       return { category: key };
+    }
+    if (groupBy === "assignee") {
+      return { assignee: key === "Unassigned" ? undefined : key };
     }
     if (groupBy === "due") {
       const today = startOfDay(new Date());
@@ -740,7 +956,12 @@ function ListView({ tasks, groupBy, sortBy, handlers }: { tasks: Task[]; groupBy
         <DropGroup
           key={key}
           label={key}
-          color={groupBy === "priority" ? (PRIORITY_COLORS[key as Priority] || D.txd) : null}
+          color={
+            groupBy === "priority" ? (PRIORITY_COLORS[key as Priority] || D.txd)
+            : groupBy === "assignee" ? getAssigneeSpec(key).color
+            : groupBy === "category" ? (CATEGORY_COLORS[key] || D.txd)
+            : null
+          }
           count={gts.length}
           onDropTask={(id) => { const patch = patchForGroup(key); if (patch) handlers.onMove(id, patch); }}
           hint={`drop here to move to "${key}"`}
@@ -796,12 +1017,31 @@ function DropGroup({ label, color, count, onDropTask, hint, children }: { label:
 function TaskRow({ task, handlers }: { task: Task; handlers: Handlers }) {
   const pColor = PRIORITY_COLORS[(task.done ? "DONE" : task.priority) as Priority] || D.txd;
   const cColor = CATEGORY_COLORS[task.category] || D.txm;
+  const aSpec = getAssigneeSpec(task.assignee || "Akash");
   const due = formatDue(task.dueDate);
   const [hover, setHover] = useState(false);
   const [priorityMenuOpen, setPriorityMenuOpen] = useState(false);
+  const [assigneeMenuOpen, setAssigneeMenuOpen] = useState(false);
+  const [dueMenuOpen, setDueMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState(task.title);
   const [expanded, setExpanded] = useState(false);
+  // Brief green pulse when a task transitions to done. Watch `task.done`
+  // and flip a transient flag for 700ms; CSS keyframes handle the rest.
+  const [justDone, setJustDone] = useState(false);
+  const prevDoneRef = useRef<boolean>(!!task.done);
+  useEffect(() => {
+    const wasDone = prevDoneRef.current;
+    const isDone = !!task.done;
+    prevDoneRef.current = isDone;
+    if (!wasDone && isDone) {
+      setJustDone(true);
+      const id = setTimeout(() => setJustDone(false), 700);
+      return () => clearTimeout(id);
+    }
+  }, [task.done]);
+  const anyMenuOpen = priorityMenuOpen || assigneeMenuOpen || dueMenuOpen;
+  const selected = handlers.isSelected(task.id);
 
   const subtasks = task.subtasks || [];
   const totalSubs = subtasks.length;
@@ -813,6 +1053,42 @@ function TaskRow({ task, handlers }: { task: Task; handlers: Handlers }) {
     if (p === "DONE") handlers.onMove(task.id, { done: true });
     else handlers.onMove(task.id, { priority: p, done: false });
   }
+
+  function pickAssignee(id: string) {
+    setAssigneeMenuOpen(false);
+    handlers.onMove(task.id, { assignee: id === "Unassigned" ? undefined : id });
+  }
+
+  function pickDue(d: string | undefined) {
+    setDueMenuOpen(false);
+    handlers.onMove(task.id, { dueDate: d });
+  }
+
+  // Hover hotkeys — when this row is the one under the cursor, hitting
+  // a/p/d/e/f/Backspace runs the matching action. Skipped if any popover
+  // is already open (so menu navigation isn't hijacked) or if focus is
+  // inside a text field (so typing in another input doesn't fire).
+  useEffect(() => {
+    if (!hover || renaming) return;
+    function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "a" || e.key === "A") { e.preventDefault(); setAssigneeMenuOpen((v) => !v); setPriorityMenuOpen(false); setDueMenuOpen(false); }
+      else if (e.key === "p" || e.key === "P") { e.preventDefault(); setPriorityMenuOpen((v) => !v); setAssigneeMenuOpen(false); setDueMenuOpen(false); }
+      else if (e.key === "t" || e.key === "T") { e.preventDefault(); setDueMenuOpen((v) => !v); setAssigneeMenuOpen(false); setPriorityMenuOpen(false); }
+      else if (e.key === "d" || e.key === "D") { e.preventDefault(); handlers.onToggleDone(task); }
+      else if (e.key === "e" || e.key === "E") { e.preventDefault(); handlers.onEdit(task); }
+      else if (e.key === "f" || e.key === "F") { e.preventDefault(); handlers.onStartFocus(task); }
+      else if (e.key === "Backspace" || e.key === "Delete") {
+        if (anyMenuOpen) return;
+        e.preventDefault();
+        if (confirm(`Remove "${task.title}"?`)) handlers.onRemove(task.id);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [hover, renaming, anyMenuOpen, task, handlers]);
 
   function commitRename() {
     const next = renameDraft.trim();
@@ -840,31 +1116,49 @@ function TaskRow({ task, handlers }: { task: Task; handlers: Handlers }) {
   return (
     <div
       style={{
-        background: D.surface,
-        border: `1px solid ${hover ? D.amber + "44" : D.border}`,
+        background: selected ? "rgba(247,176,65,0.10)" : justDone ? "rgba(46,173,142,0.10)" : D.surface,
+        border: `1px solid ${selected ? D.amber : justDone ? D.teal : hover ? D.amber + "44" : D.border}`,
         borderRadius: 10,
         opacity: task.done ? 0.55 : 1,
         position: "relative",
-        // When the priority popover is open, lift the whole row above
-        // its siblings so the popover doesn't sit behind the next row.
-        // (The hover `transform` below creates a stacking context, so
-        // we need to raise zIndex here, not on the inner popover.)
-        zIndex: priorityMenuOpen ? 50 : "auto",
-        transition: "border-color 0.15s, box-shadow 0.15s, transform 0.15s",
-        boxShadow: hover ? "0 4px 12px rgba(0,0,0,0.25)" : "none",
-        // Skip the hover lift while the menu is open so we don't create
+        boxShadow: selected ? `0 0 0 2px ${D.amber}33` : justDone ? `0 0 0 2px ${D.teal}55, 0 0 22px ${D.teal}33` : (hover ? "0 4px 12px rgba(0,0,0,0.25)" : "none"),
+        // When any popover (priority/assignee) is open, lift the whole
+        // row above its siblings so the popover doesn't sit behind the
+        // next row. (The hover `transform` below creates a stacking
+        // context, so we need to raise zIndex here, not on the inner
+        // popover.)
+        zIndex: anyMenuOpen ? 50 : "auto",
+        transition: "border-color 0.15s, box-shadow 0.15s, transform 0.15s, background 0.2s",
+        // Skip the hover lift while a menu is open so we don't create
         // a new stacking context that would re-trap the popover.
-        transform: hover && !priorityMenuOpen ? "translateY(-1px)" : "translateY(0)",
+        transform: hover && !anyMenuOpen ? "translateY(-1px)" : "translateY(0)",
         animation: "tbRowIn 0.2s ease",
       }}
       onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => { setHover(false); setPriorityMenuOpen(false); }}
+      onMouseLeave={() => { setHover(false); setPriorityMenuOpen(false); setAssigneeMenuOpen(false); setDueMenuOpen(false); }}
     >
-      <style dangerouslySetInnerHTML={{ __html: "@keyframes tbRowIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}" }} />
+      <style dangerouslySetInnerHTML={{ __html: "@keyframes tbRowIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}@keyframes tbBurst{0%{opacity:0;transform:translate(-50%,-50%) scale(0.4)}30%{opacity:1;transform:translate(-50%,-50%) scale(1.05)}70%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.4)}}" }} />
+      {justDone ? (
+        <div aria-hidden="true" style={{ position: "absolute", left: 24, top: "50%", transform: "translate(-50%,-50%)", width: 28, height: 28, borderRadius: "50%", background: D.teal, color: "#06060C", fontFamily: gf, fontSize: 16, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 24px ${D.teal}`, pointerEvents: "none", zIndex: 60, animation: "tbBurst 0.7s ease-out forwards" }}>
+          ✓
+        </div>
+      ) : null}
       <div
         draggable={!renaming}
         onDragStart={(e) => e.dataTransfer.setData("text/plain", task.id)}
-        onClick={(e) => { if (renaming) return; if ((e.target as HTMLElement).closest("[data-no-row-click]")) return; handlers.onEdit(task); }}
+        onClick={(e) => {
+          if (renaming) return;
+          if ((e.target as HTMLElement).closest("[data-no-row-click]")) return;
+          // Cmd/Ctrl-click always toggles selection. Once anything is
+          // selected, a plain click also toggles — so the user can
+          // multi-select without holding Cmd after the first one. This
+          // matches Finder/Notion's multi-select UX.
+          if (e.metaKey || e.ctrlKey || handlers.anySelected) {
+            handlers.onToggleSelected(task.id);
+            return;
+          }
+          handlers.onEdit(task);
+        }}
         style={{
           padding: "9px 14px",
           display: "flex",
@@ -935,26 +1229,61 @@ function TaskRow({ task, handlers }: { task: Task; handlers: Handlers }) {
             type="button"
             data-no-row-click
             onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
-            title={`${doneSubs} of ${totalSubs} subtasks done`}
+            title={`${doneSubs} of ${totalSubs} subtasks done · click to ${expanded ? "collapse" : "expand"}`}
             style={{
-              fontFamily: mn, fontSize: 9, letterSpacing: 0.6,
-              padding: "3px 8px", borderRadius: 4,
-              background: doneSubs === totalSubs ? D.teal + "1c" : D.violet + "1c",
-              color: doneSubs === totalSubs ? D.teal : D.violet,
-              border: `1px solid ${(doneSubs === totalSubs ? D.teal : D.violet)}55`,
-              cursor: "pointer", flexShrink: 0, lineHeight: 1.4,
+              background: "transparent", border: "none", padding: "2px 4px",
+              cursor: "pointer", flexShrink: 0, lineHeight: 1,
               display: "inline-flex", alignItems: "center", gap: 4,
+              borderRadius: 4,
             }}
           >
-            <span style={{ fontSize: 8 }}>{expanded ? "▾" : "▸"}</span>
-            {doneSubs}/{totalSubs}
+            <SubtaskRing done={doneSubs} total={totalSubs} color={doneSubs === totalSubs ? D.teal : D.violet} />
+            <span style={{ fontFamily: mn, fontSize: 8, color: D.txd, lineHeight: 1 }}>{expanded ? "▾" : "▸"}</span>
           </button>
         ) : null}
+      {/* Quick assignee change — click the avatar bubble to reassign. */}
+      <div style={{ position: "relative", flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          onClick={() => { setAssigneeMenuOpen((v) => !v); setPriorityMenuOpen(false); }}
+          title={`Assigned to ${aSpec.name} — click to reassign`}
+          style={{
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            lineHeight: 1,
+          }}
+        >
+          <Avatar spec={aSpec} size={20} glow={hover || assigneeMenuOpen} />
+        </button>
+        {assigneeMenuOpen ? (
+          <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: D.bg, border: `1px solid ${D.border}`, borderRadius: 8, padding: 4, zIndex: 100, boxShadow: "0 6px 24px rgba(0,0,0,0.4)", display: "flex", flexDirection: "column", gap: 2, minWidth: 160 }}>
+            {ASSIGNEES.map((a) => {
+              const active = (task.assignee || "Akash") === a.id;
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => pickAssignee(a.id)}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", background: active ? a.color + "22" : "transparent", color: active ? a.color : D.tx, border: "none", borderRadius: 4, fontFamily: mn, fontSize: 10.5, letterSpacing: 0.4, cursor: "pointer", textAlign: "left" }}
+                >
+                  <Avatar spec={a} size={16} />
+                  {a.name}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+
       {/* Quick priority change — click the pill to open a popover. */}
       <div style={{ position: "relative", flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
-          onClick={() => setPriorityMenuOpen((v) => !v)}
+          onClick={() => { setPriorityMenuOpen((v) => !v); setAssigneeMenuOpen(false); }}
           title={`Priority: ${task.done ? "DONE" : task.priority} — click to change`}
           style={{
             fontFamily: mn, fontSize: 9, letterSpacing: 1, textTransform: "uppercase",
@@ -1005,11 +1334,30 @@ function TaskRow({ task, handlers }: { task: Task; handlers: Handlers }) {
       >
         {task.pinned ? "★" : "☆"}
       </button>
-      {due ? (
-        <div style={{ fontFamily: mn, fontSize: 10, color: due.urgent ? D.coral : D.txm, letterSpacing: 0.4, flexShrink: 0, minWidth: 60, textAlign: "right" }}>
-          {due.label}
-        </div>
-      ) : null}
+      <div style={{ position: "relative", flexShrink: 0, minWidth: due ? 60 : 0, textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
+        {due ? (
+          <button
+            type="button"
+            data-no-row-click
+            onClick={() => { setDueMenuOpen((v) => !v); setAssigneeMenuOpen(false); setPriorityMenuOpen(false); }}
+            title="Click to retarget · t to toggle"
+            style={{ background: "transparent", border: `1px solid ${dueMenuOpen ? (due.urgent ? D.coral : D.amber) : "transparent"}`, color: due.urgent ? D.coral : D.txm, fontFamily: mn, fontSize: 10, letterSpacing: 0.4, padding: "2px 6px", borderRadius: 4, cursor: "pointer", lineHeight: 1.4 }}
+          >
+            {due.label}
+          </button>
+        ) : hover ? (
+          <button
+            type="button"
+            data-no-row-click
+            onClick={() => { setDueMenuOpen((v) => !v); setAssigneeMenuOpen(false); setPriorityMenuOpen(false); }}
+            title="Add a due date · t to toggle"
+            style={{ background: "transparent", border: `1px dashed ${D.border}`, color: D.txd, fontFamily: mn, fontSize: 9, letterSpacing: 0.4, padding: "2px 7px", borderRadius: 4, cursor: "pointer", lineHeight: 1.4 }}
+          >
+            + Date
+          </button>
+        ) : null}
+        {dueMenuOpen ? <DueMenu current={task.dueDate} onPick={pickDue} /> : null}
+      </div>
       </div>
       {/* Expanded subtask checklist — collapsed by default; toggles via the
           progress pill. Adding/removing/toggling all auto-saves through
@@ -1064,19 +1412,27 @@ function SubtaskInlineAdd({ onAdd }: { onAdd: (t: string) => void }) {
 }
 
 // ── Board view (Kanban) ────────────────────────────────────────────
-function BoardView({ tasks, groupBy, handlers }: { tasks: Task[]; groupBy: "priority" | "category"; handlers: Handlers }) {
+function BoardView({ tasks, groupBy, handlers }: { tasks: Task[]; groupBy: "priority" | "category" | "assignee"; handlers: Handlers }) {
   const cols = groupBy === "priority"
     ? PRIORITIES.filter((p) => p !== "DONE").map((p) => ({ key: p, color: PRIORITY_COLORS[p] }))
+    : groupBy === "assignee"
+    ? ASSIGNEES.map((a) => ({ key: a.id, color: a.color }))
     : CATEGORIES.map((c) => ({ key: c, color: CATEGORY_COLORS[c] || D.txm }));
 
   function dropPatch(colKey: string): Partial<Task> {
-    return groupBy === "priority" ? { priority: colKey as Priority, done: false } : { category: colKey };
+    if (groupBy === "priority") return { priority: colKey as Priority, done: false };
+    if (groupBy === "assignee") return { assignee: colKey === "Unassigned" ? undefined : colKey };
+    return { category: colKey };
   }
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(cols.length, 4)}, 1fr)`, gap: 12, overflowX: "auto" }}>
       {cols.map((col) => {
-        const colTasks = tasks.filter((t) => (groupBy === "priority" ? (t.done ? "DONE" : t.priority) === col.key : t.category === col.key));
+        const colTasks = tasks.filter((t) => (
+          groupBy === "priority" ? (t.done ? "DONE" : t.priority) === col.key
+          : groupBy === "assignee" ? (t.assignee || "Akash") === col.key
+          : t.category === col.key
+        ));
         return (
           <BoardColumn
             key={col.key}
@@ -1122,6 +1478,7 @@ function BoardColumn({ label, color, tasks, onDropTask, handlers }: { label: str
 function BoardCard({ task, handlers }: { task: Task; handlers: Handlers }) {
   const cColor = CATEGORY_COLORS[task.category] || D.txm;
   const pColor = PRIORITY_COLORS[(task.done ? "DONE" : task.priority) as Priority] || D.txd;
+  const aSpec = getAssigneeSpec(task.assignee || "Akash");
   const due = formatDue(task.dueDate);
   return (
     <div
@@ -1139,6 +1496,7 @@ function BoardCard({ task, handlers }: { task: Task; handlers: Handlers }) {
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+        <Avatar spec={aSpec} size={16} />
         <span style={{ fontFamily: mn, fontSize: 8.5, color: cColor, letterSpacing: 0.8, textTransform: "uppercase", padding: "1px 6px", border: `1px solid ${cColor}55`, borderRadius: 3 }}>{task.category}</span>
         <button
           type="button"
@@ -1331,6 +1689,7 @@ function CalendarCell({ date, isToday, inMonth, tasks, onDrop, onSelect, onEdit 
 function DayDetailModal({ iso, tasks, onClose, handlers }: { iso: string; tasks: Task[]; onClose: () => void; handlers: Handlers }) {
   const label = new Date(iso + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
   return (
+    <ModalPortal>
     <div style={overlay} onClick={onClose}>
       <div style={{ ...panel, width: "min(540px, 96vw)" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
@@ -1349,6 +1708,7 @@ function DayDetailModal({ iso, tasks, onClose, handlers }: { iso: string; tasks:
         )}
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -1610,6 +1970,86 @@ function FocusView({ tasks, handlers }: { tasks: Task[]; handlers: Handlers }) {
   );
 }
 
+// ── Category view ───────────────────────────────────────────────────
+// Tab row across the top (one tab per category that has tasks, plus
+// "All"), and a clean list below. Dropping a task on a tab reassigns
+// its category — so this doubles as a category-router. The tab order
+// matches the canonical CATEGORIES list so muscle memory persists.
+function CategoryView({ tasks, handlers }: { tasks: Task[]; handlers: Handlers }) {
+  const counts: Record<string, number> = {};
+  tasks.forEach((t) => { counts[t.category] = (counts[t.category] || 0) + 1; });
+  // Show every canonical category that has at least one task, in the
+  // canonical order. Anything non-canonical falls into "OTHER".
+  const tabs: string[] = ["__ALL__", ...CATEGORIES.filter((c) => (counts[c] || 0) > 0)];
+  const [active, setActive] = useState<string>("__ALL__");
+  const filtered = active === "__ALL__" ? tasks : tasks.filter((t) => t.category === active);
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 4, marginBottom: 14, flexWrap: "wrap", borderBottom: `1px solid ${D.border}`, paddingBottom: 1 }}>
+        {tabs.map((c) => {
+          const isAll = c === "__ALL__";
+          const color = isAll ? D.amber : (CATEGORY_COLORS[c] || D.txm);
+          const isActive = active === c;
+          const n = isAll ? tasks.length : (counts[c] || 0);
+          return (
+            <CategoryTab
+              key={c}
+              label={isAll ? "All" : c}
+              color={color}
+              count={n}
+              active={isActive}
+              onClick={() => setActive(c)}
+              onDropTask={isAll ? undefined : (id) => handlers.onMove(id, { category: c })}
+            />
+          );
+        })}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {filtered.length === 0 ? (
+          <div style={emptyBox}>No tasks in this category.</div>
+        ) : filtered.map((t) => <TaskRow key={t.id} task={t} handlers={handlers} />)}
+      </div>
+    </div>
+  );
+}
+
+function CategoryTab({ label, color, count, active, onClick, onDropTask }: { label: string; color: string; count: number; active: boolean; onClick: () => void; onDropTask?: (id: string) => void }) {
+  const [over, setOver] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onDragOver={onDropTask ? (e) => { e.preventDefault(); if (!over) setOver(true); } : undefined}
+      onDragLeave={onDropTask ? () => setOver(false) : undefined}
+      onDrop={onDropTask ? (e) => { e.preventDefault(); setOver(false); const id = e.dataTransfer.getData("text/plain"); if (id) onDropTask(id); } : undefined}
+      style={{
+        position: "relative",
+        padding: "8px 14px",
+        background: over ? color + "22" : active ? color + "16" : "transparent",
+        color: over ? color : active ? color : D.txm,
+        border: "none",
+        borderBottom: `2px solid ${over ? color : active ? color : "transparent"}`,
+        borderRadius: 0,
+        fontFamily: mn,
+        fontSize: 10.5,
+        fontWeight: active ? 800 : 600,
+        cursor: "pointer",
+        letterSpacing: 0.6,
+        textTransform: "uppercase",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        transition: "color 0.12s, background 0.12s, border-color 0.12s",
+        marginBottom: -1,
+      }}
+    >
+      {label}
+      <span style={{ fontFamily: mn, fontSize: 9, padding: "1px 6px", borderRadius: 3, background: active || over ? color + "33" : "rgba(255,255,255,0.05)", color: active || over ? color : D.txd, letterSpacing: 0.3 }}>{count}</span>
+    </button>
+  );
+}
+
 function byScheduled(a: Task, b: Task) {
   return (a.scheduledFor || "").localeCompare(b.scheduledFor || "");
 }
@@ -1841,6 +2281,7 @@ function FocusMode({ task, onClose, onUpdate, onComplete, onSkipToNext }: { task
   const pColor = PRIORITY_COLORS[task.priority];
 
   return (
+    <ModalPortal>
     <div style={{
       position: "fixed", inset: 0, zIndex: 12500,
       background: "rgba(6,6,12,0.94)",
@@ -1915,6 +2356,7 @@ function FocusMode({ task, onClose, onUpdate, onComplete, onSkipToNext }: { task
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -1928,6 +2370,7 @@ function EditTaskModal({ task, onCancel, onSave, onRemove }: { task: Task; onCan
   const [description, setDescription] = useState(task.description || "");
   const [category, setCategory] = useState(task.category);
   const [priority, setPriority] = useState<Priority>(task.priority);
+  const [assignee, setAssignee] = useState<string>(task.assignee || "Akash");
   const [dueDate, setDueDate] = useState(task.dueDate || "");
   const [notes, setNotes] = useState(task.notes || "");
   const [tags, setTags] = useState((task.tags || []).join(", "));
@@ -1959,6 +2402,7 @@ function EditTaskModal({ task, onCancel, onSave, onRemove }: { task: Task; onCan
       description: description.trim() || undefined,
       category,
       priority,
+      assignee: assignee === "Unassigned" ? undefined : assignee,
       dueDate: dueDate || undefined,
       notes: notes.trim() || undefined,
       tags: tags.split(",").map((t) => t.trim().replace(/^#/, "")).filter(Boolean),
@@ -1969,6 +2413,7 @@ function EditTaskModal({ task, onCancel, onSave, onRemove }: { task: Task; onCan
   }
 
   return (
+    <ModalPortal>
     <div style={overlay} onClick={onCancel}>
       <div style={{ ...panel, width: "min(640px, 96vw)" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
@@ -1998,7 +2443,16 @@ function EditTaskModal({ task, onCancel, onSave, onRemove }: { task: Task; onCan
             </select>
           </div>
         </div>
-        <Field label="Due date" value={dueDate} onChange={setDueDate} type="date" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div>
+            <div style={lbl}>Assignee</div>
+            <AssigneePicker value={assignee} onChange={setAssignee} />
+          </div>
+          <div>
+            <div style={lbl}>Due date</div>
+            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={inputStyle} />
+          </div>
+        </div>
         <Field label="Tags (comma separated)" value={tags} onChange={setTags} placeholder="ribbons, q3, hotfix" />
 
         {/* Subtasks editor — full add/remove/toggle/rename. */}
@@ -2049,15 +2503,17 @@ function EditTaskModal({ task, onCancel, onSave, onRemove }: { task: Task; onCan
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
 // ── Add Task Modal (preserved from prior version) ─────────────────
-function AddTaskModal({ mode, onCancel, onAdd, onSwitchMode }: { mode: AddMode; onCancel: () => void; onAdd: (tasks: Omit<Task, "id" | "addedAt">[]) => void; onSwitchMode: (m: AddMode) => void }) {
+function AddTaskModal({ mode, existingTasks, onCancel, onAdd, onSwitchMode }: { mode: AddMode; existingTasks: Task[]; onCancel: () => void; onAdd: (tasks: Omit<Task, "id" | "addedAt">[]) => void; onSwitchMode: (m: AddMode) => void }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("MARKETING OPS");
   const [priority, setPriority] = useState<Priority>("MEDIUM");
+  const [assignee, setAssignee] = useState<string>("Akash");
   const [dueDate, setDueDate] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -2133,6 +2589,7 @@ function AddTaskModal({ mode, onCancel, onAdd, onSwitchMode }: { mode: AddMode; 
       description: description.trim() || undefined,
       category,
       priority,
+      assignee: assignee === "Unassigned" ? undefined : assignee,
       dueDate: dueDate || undefined,
       notes: notes.trim() || undefined,
       source: "manual",
@@ -2159,6 +2616,7 @@ function AddTaskModal({ mode, onCancel, onAdd, onSwitchMode }: { mode: AddMode; 
     : panel;
 
   return (
+    <ModalPortal>
     <div style={overlay} onClick={onCancel}>
       <div style={panelStyle} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", gap: 6, marginBottom: 16, flexShrink: 0 }}>
@@ -2206,7 +2664,16 @@ function AddTaskModal({ mode, onCancel, onAdd, onSwitchMode }: { mode: AddMode; 
                 </select>
               </div>
             </div>
-            <Field label="Due date (optional)" value={dueDate} onChange={setDueDate} placeholder="2026-05-21" type="date" />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <div style={lbl}>Assignee</div>
+                <AssigneePicker value={assignee} onChange={setAssignee} />
+              </div>
+              <div>
+                <div style={lbl}>Due date (optional)</div>
+                <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} placeholder="2026-05-21" style={inputStyle} />
+              </div>
+            </div>
             <Field label="Notes (optional)" value={notes} onChange={setNotes} placeholder="Contacts, blockers, links" multi />
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button type="button" onClick={onCancel} style={ghostBtn}>Cancel</button>
@@ -2234,7 +2701,7 @@ function AddTaskModal({ mode, onCancel, onAdd, onSwitchMode }: { mode: AddMode; 
             </div>
             {error ? <div style={{ marginTop: 10, fontFamily: mn, fontSize: 11, color: D.coral }}>{error}</div> : null}
             {parsedTasks.length > 0 ? (
-              <ParsedPreview tasks={parsedTasks} onConfirm={() => onAdd(parsedTasks)} onEdit={setParsedTasks} onCancel={() => setParsedTasks([])} />
+              <ParsedPreview tasks={parsedTasks} existingTasks={existingTasks} onConfirm={() => onAdd(parsedTasks)} onEdit={setParsedTasks} onCancel={() => setParsedTasks([])} />
             ) : null}
           </div>
         ) : null}
@@ -2259,7 +2726,7 @@ function AddTaskModal({ mode, onCancel, onAdd, onSwitchMode }: { mode: AddMode; 
                 </button>
               </div>
               <div style={{ minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
-                <ParsedPreview tasks={parsedTasks} onConfirm={() => onAdd(parsedTasks)} onEdit={setParsedTasks} onCancel={() => setParsedTasks([])} />
+                <ParsedPreview tasks={parsedTasks} existingTasks={existingTasks} onConfirm={() => onAdd(parsedTasks)} onEdit={setParsedTasks} onCancel={() => setParsedTasks([])} />
               </div>
             </div>
           ) : (
@@ -2311,22 +2778,50 @@ function AddTaskModal({ mode, onCancel, onAdd, onSwitchMode }: { mode: AddMode; 
         ) : null}
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
-function ParsedPreview({ tasks, onConfirm, onEdit, onCancel }: { tasks: Omit<Task, "id" | "addedAt">[]; onConfirm: () => void; onEdit: (t: Omit<Task, "id" | "addedAt">[]) => void; onCancel: () => void }) {
+function ParsedPreview({ tasks, existingTasks, onConfirm, onEdit, onCancel }: { tasks: Omit<Task, "id" | "addedAt">[]; existingTasks: Task[]; onConfirm: () => void; onEdit: (t: Omit<Task, "id" | "addedAt">[]) => void; onCancel: () => void }) {
+  // Compute dup matches once per render. Compare every parsed task to:
+  //   1. each existing board task (only the best match above threshold)
+  //   2. each OTHER parsed task in the batch (catches the model emitting
+  //      two near-identical rows for the same prose item)
+  const matches = tasks.map((t, i) => {
+    let existingHit: { title: string; score: number } | null = null;
+    for (const e of existingTasks) {
+      const s = similarity(t.title, e.title);
+      if (s >= 0.5 && (!existingHit || s > existingHit.score)) existingHit = { title: e.title, score: s };
+    }
+    let batchHit: { title: string; index: number; score: number } | null = null;
+    for (let j = 0; j < tasks.length; j++) {
+      if (j === i) continue;
+      const s = similarity(t.title, tasks[j].title);
+      if (s >= 0.5 && (!batchHit || s > batchHit.score)) batchHit = { title: tasks[j].title, index: j, score: s };
+    }
+    return { existingHit, batchHit };
+  });
+  const dupCount = matches.filter((m) => m.existingHit || m.batchHit).length;
+
   return (
     <div style={{ marginTop: 16, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
         <div style={lbl}>Found {tasks.length} task{tasks.length === 1 ? "" : "s"} — review before adding</div>
         <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.4 }}>2-column dense layout</div>
       </div>
+      {dupCount > 0 ? (
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.coral, letterSpacing: 0.3, padding: "6px 10px", marginBottom: 8, background: "rgba(224,99,71,0.08)", border: `1px solid ${D.coral}55`, borderRadius: 6 }}>
+          ⚠ {dupCount} item{dupCount === 1 ? "" : "s"} look{dupCount === 1 ? "s" : ""} like a duplicate. Drop with × before confirming, or add them and merge later via the Combine bucket.
+        </div>
+      ) : null}
       <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, overflowY: "auto", marginBottom: 12, paddingRight: 4, alignContent: "start" }}>
         {tasks.map((t, i) => {
           const cColor = CATEGORY_COLORS[t.category] || D.txm;
           const pColor = PRIORITY_COLORS[t.priority as Priority] || D.txd;
+          const m = matches[i];
+          const dup = m.existingHit || m.batchHit;
           return (
-            <div key={i} style={{ background: D.bg, border: `1px solid ${D.border}`, borderLeft: `3px solid ${pColor}`, borderRadius: 8, padding: "8px 10px", position: "relative", display: "flex", flexDirection: "column", gap: 3 }}>
+            <div key={i} style={{ background: D.bg, border: `1px solid ${dup ? D.coral + "55" : D.border}`, borderLeft: `3px solid ${pColor}`, borderRadius: 8, padding: "8px 10px", position: "relative", display: "flex", flexDirection: "column", gap: 3, boxShadow: dup ? `inset 0 0 0 1px ${D.coral}22` : "none" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontFamily: mn, fontSize: 8.5, color: cColor, letterSpacing: 0.6, textTransform: "uppercase", padding: "1px 5px", border: `1px solid ${cColor}55`, borderRadius: 3, lineHeight: 1.3 }}>{t.category}</span>
                 <span style={{ fontFamily: mn, fontSize: 8.5, color: pColor, letterSpacing: 0.6 }}>{t.priority}</span>
@@ -2339,6 +2834,14 @@ function ParsedPreview({ tasks, onConfirm, onEdit, onCancel }: { tasks: Omit<Tas
                 >×</button>
               </div>
               <div style={{ fontFamily: gf, fontSize: 12.5, fontWeight: 700, color: D.tx, lineHeight: 1.3, letterSpacing: -0.2 }}>{t.title}</div>
+              {dup ? (
+                <div style={{ fontFamily: mn, fontSize: 9, color: D.coral, letterSpacing: 0.3, lineHeight: 1.35, display: "flex", alignItems: "center", gap: 4 }} title={m.existingHit ? `Already on board (${Math.round((m.existingHit.score) * 100)}% match)` : `Duplicate inside this batch (${Math.round(((m.batchHit?.score) || 0) * 100)}% match)`}>
+                  <span>{m.existingHit ? "↻ on board:" : "↻ batch dup:"}</span>
+                  <span style={{ color: D.txm, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                    {(m.existingHit?.title || m.batchHit?.title || "").slice(0, 60)}
+                  </span>
+                </div>
+              ) : null}
               {t.description ? <div style={{ fontFamily: ft, fontSize: 11, color: D.txm, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.description}</div> : null}
               {t.subtasks && t.subtasks.length > 0 ? (
                 <div style={{ marginTop: 4, paddingTop: 4, borderTop: `1px dashed ${D.border}`, display: "flex", flexDirection: "column", gap: 2 }}>
@@ -2383,6 +2886,7 @@ function BoardModal({ archive, onCancel, onSave }: { archive: BoardArchive; onCa
   }
 
   return (
+    <ModalPortal>
     <div style={overlay} onClick={onCancel}>
       <div style={panel} onClick={(e) => e.stopPropagation()}>
         <div style={{ fontFamily: gf, fontSize: 20, fontWeight: 800, color: D.tx, letterSpacing: -0.5, marginBottom: 14 }}>Boards</div>
@@ -2408,6 +2912,7 @@ function BoardModal({ archive, onCancel, onSave }: { archive: BoardArchive; onCa
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -2428,7 +2933,7 @@ function Field({ label, value, onChange, placeholder, multi, type }: { label: st
   );
 }
 
-function groupTasks(tasks: Task[], by: "priority" | "category" | "due"): Array<{ key: string; tasks: Task[] }> {
+function groupTasks(tasks: Task[], by: GroupBy): Array<{ key: string; tasks: Task[] }> {
   if (by === "priority") {
     const order: Priority[] = ["HIGH", "MEDIUM", "THIS WEEK", "ONGOING", "DONE"];
     return order
@@ -2441,6 +2946,12 @@ function groupTasks(tasks: Task[], by: "priority" | "category" | "due"): Array<{
     return Object.entries(buckets)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([k, ts]) => ({ key: k, tasks: ts }));
+  }
+  if (by === "assignee") {
+    // Walk the canonical roster so column order matches the filter chips.
+    return ASSIGNEES
+      .map((a) => ({ key: a.id, tasks: tasks.filter((t) => (t.assignee || "Akash") === a.id) }))
+      .filter((g) => g.tasks.length > 0);
   }
   const buckets: Record<string, Task[]> = { Overdue: [], "This week": [], "Later": [], "No due date": [] };
   const today = startOfDay(new Date());
@@ -2501,6 +3012,25 @@ function formatDue(due?: string): { label: string; urgent: boolean } | null {
 function startOfDay(d: Date): Date { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function isoDate(d: Date): string { return d.toISOString().slice(0, 10); }
 
+// Title similarity — Jaccard on tokens (lowercased, alphanumeric). Used
+// by the import flow to flag "this looks like one we already have." A
+// stopword filter keeps "Redo the ribbons" from matching everything that
+// happens to contain "the". Threshold the caller picks; 0.5 catches
+// "Redo ribbons" vs "Redo ClusterMax ribbons" without too many false
+// positives.
+const TB_STOP = new Set(["the", "a", "an", "and", "or", "to", "of", "for", "on", "in", "at", "by", "with", "from"]);
+function similarity(a: string, b: string): number {
+  const tok = (s: string) => new Set(
+    s.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((w) => w && !TB_STOP.has(w))
+  );
+  const A = tok(a), B = tok(b);
+  if (A.size === 0 || B.size === 0) return 0;
+  let inter = 0;
+  A.forEach((x) => { if (B.has(x)) inter++; });
+  const union = A.size + B.size - inter;
+  return union === 0 ? 0 : inter / union;
+}
+
 function buildMonthGrid(anchor: Date): Array<{ date: Date; inMonth: boolean }> {
   const month = anchor.getMonth();
   const first = new Date(anchor); first.setDate(1); first.setHours(0, 0, 0, 0);
@@ -2545,8 +3075,20 @@ function parseQuickAdd(input: string): Omit<Task, "id" | "addedAt"> {
   let title = input;
   let priority: Priority = "MEDIUM";
   let category = "MARKETING OPS";
+  let assignee: string | undefined;
   let dueDate: string | undefined;
   const tags: string[] = [];
+
+  // Assignee prefix `+name` — checked before category so `+Daksh` is a
+  // person, not a typo for `@daksh`. Names are matched case-insensitive
+  // against the ASSIGNEES roster.
+  const asgRe = /\+(\w+)/g;
+  const asgLcMap: Record<string, string> = Object.fromEntries(ASSIGNEE_NAMES.map((n) => [n.toLowerCase(), n]));
+  title = title.replace(asgRe, (_m, w) => {
+    const v = asgLcMap[(w as string).toLowerCase()];
+    if (v) { assignee = v; return ""; }
+    return "+" + w;
+  });
 
   const priMap: Record<string, Priority> = { high: "HIGH", h: "HIGH", med: "MEDIUM", medium: "MEDIUM", m: "MEDIUM", week: "THIS WEEK", w: "THIS WEEK", thisweek: "THIS WEEK", ongoing: "ONGOING", o: "ONGOING" };
   const priRe = /!(\w+)/g;
@@ -2592,6 +3134,7 @@ function parseQuickAdd(input: string): Omit<Task, "id" | "addedAt"> {
     title,
     category,
     priority,
+    assignee,
     dueDate,
     tags: tags.length ? tags : undefined,
     source: "quick",
@@ -2679,6 +3222,696 @@ function SkeletonView() {
       <style dangerouslySetInnerHTML={{ __html: "@keyframes tbSk{0%,100%{opacity:0.4}50%{opacity:0.7}}" }} />
     </div>
   );
+}
+
+// Round avatar with a person's initial. Used in chip rows, task rows, and
+// the popover. `glow` adds a soft halo so the active filter chip and the
+// task row's assignee bubble feel alive without screaming.
+function Avatar({ spec, size = 18, glow = false }: { spec: AssigneeSpec; size?: number; glow?: boolean }) {
+  const isUnassigned = spec.id === "Unassigned";
+  const fontSize = Math.max(8, Math.round(size * 0.5));
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: isUnassigned ? "transparent" : spec.color + "26",
+        border: `1.5px solid ${isUnassigned ? D.border : spec.color}`,
+        color: isUnassigned ? D.txd : spec.color,
+        fontFamily: mn,
+        fontSize,
+        fontWeight: 800,
+        letterSpacing: 0,
+        lineHeight: 1,
+        flexShrink: 0,
+        boxShadow: glow && !isUnassigned ? `0 0 8px ${spec.color}66` : "none",
+      }}
+      title={spec.name}
+    >
+      {spec.initial}
+    </span>
+  );
+}
+
+// Polished priority counter card · top accent bar in the priority color,
+// huge stat number, and a soft color-tinted glow on hover. Replaces the
+// flat dark cards that read as legend-only at a glance.
+function PriorityCounter({ label, count, color }: { label: string; count: number; color: string }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        position: "relative",
+        background: hover ? `linear-gradient(180deg, ${color}10, transparent 70%), ${D.surface}` : D.surface,
+        border: `1px solid ${hover ? color + "66" : D.border}`,
+        borderRadius: 10,
+        padding: "12px 14px 10px",
+        overflow: "hidden",
+        transition: "border-color 0.18s, box-shadow 0.18s, background 0.18s, transform 0.18s",
+        transform: hover ? "translateY(-1px)" : "translateY(0)",
+        boxShadow: hover ? `0 8px 22px ${color}26, inset 0 0 0 1px ${color}22` : "none",
+      }}
+    >
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${color}, ${color}66)` }} />
+      <div style={{ fontFamily: mn, fontSize: 9, letterSpacing: 1.2, textTransform: "uppercase", color: hover ? color : D.txd, marginBottom: 4, transition: "color 0.18s" }}>{label}</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+        <span style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, color, letterSpacing: -1, lineHeight: 1, textShadow: hover ? `0 0 14px ${color}55` : "none", transition: "text-shadow 0.18s" }}>{count}</span>
+      </div>
+    </div>
+  );
+}
+
+// Tiny circular progress donut for subtask completion. Sized to match
+// the old "0/3" pill so adjacent row chrome doesn't reflow. Pure SVG so
+// it animates cheaply and stays crisp at any zoom.
+function SubtaskRing({ done, total, color, size = 22 }: { done: number; total: number; color: string; size?: number }) {
+  const stroke = 2.2;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const pct = total === 0 ? 0 : done / total;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0, display: "block" }}>
+      <circle cx={size / 2} cy={size / 2} r={r} stroke={color + "33"} strokeWidth={stroke} fill="transparent" />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        stroke={color}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        fill="transparent"
+        strokeDasharray={`${c * pct} ${c}`}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        style={{ transition: "stroke-dasharray 0.3s" }}
+      />
+      <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fill={color} fontFamily="JetBrains Mono, monospace" fontSize={size * 0.36} fontWeight={800} letterSpacing="0">
+        {done}/{total}
+      </text>
+    </svg>
+  );
+}
+
+// ── Combine bucket ──────────────────────────────────────────────────
+// Floating "Combine" dock pinned to the right edge of the viewport.
+// Drag any task here to stage it for consolidation; once you have 2+
+// staged, the Combine button opens a merge preview where you can edit
+// the result before committing. Removing source tasks happens on
+// commit, not on drop, so a drag-then-cancel is harmless.
+function CombineDock({ ids, tasks, onAdd, onRemove, onClear, onOpen }: {
+  ids: Set<string>;
+  tasks: Task[];
+  onAdd: (id: string) => void;
+  onRemove: (id: string) => void;
+  onClear: () => void;
+  onOpen: () => void;
+}) {
+  const [over, setOver] = useState(false);
+  const [expanded, setExpanded] = useState(ids.size > 0);
+  useEffect(() => { if (ids.size > 0) setExpanded(true); }, [ids.size]);
+
+  return (
+    <ModalPortal>
+      <div
+        onDragOver={(e) => { e.preventDefault(); if (!over) setOver(true); }}
+        onDragLeave={(e) => {
+          const next = e.relatedTarget as Node | null;
+          if (!next || !(e.currentTarget as HTMLDivElement).contains(next)) setOver(false);
+        }}
+        onDrop={(e) => {
+          e.preventDefault(); setOver(false);
+          const id = e.dataTransfer.getData("text/plain");
+          if (id) onAdd(id);
+        }}
+        style={{
+          position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)",
+          width: expanded ? 240 : 52, maxHeight: "70vh",
+          background: "#0A0A14",
+          border: `1px solid ${over ? D.amber : ids.size > 0 ? D.amber + "55" : D.border}`,
+          borderRadius: 12,
+          padding: 10,
+          boxShadow: ids.size > 0 ? `0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px ${D.amber}22` : "0 8px 22px rgba(0,0,0,0.4)",
+          zIndex: 10800,
+          display: "flex", flexDirection: "column", gap: 8,
+          transition: "width 0.18s, border-color 0.12s, box-shadow 0.18s",
+        }}
+      >
+        {/* Header · always visible, doubles as collapse toggle. */}
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", color: ids.size > 0 ? D.amber : D.txm, cursor: "pointer", padding: 0, fontFamily: mn, fontSize: 10, letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}
+          title={expanded ? "Collapse combine dock" : "Expand combine dock"}
+        >
+          <span style={{ width: 18, height: 18, borderRadius: 4, background: ids.size > 0 ? D.amber + "22" : "transparent", border: `1px solid ${ids.size > 0 ? D.amber : D.border}`, color: ids.size > 0 ? D.amber : D.txm, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>
+            {ids.size > 0 ? ids.size : "+"}
+          </span>
+          {expanded ? <span>Combine</span> : null}
+        </button>
+        {expanded ? (
+          <>
+            <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.3, lineHeight: 1.4 }}>
+              {ids.size === 0 ? "Drag duplicates here to merge" : `${ids.size} staged · merge into one`}
+            </div>
+            <div
+              style={{
+                flex: 1, minHeight: ids.size === 0 ? 80 : 0,
+                overflowY: "auto",
+                display: "flex", flexDirection: "column", gap: 4,
+                padding: 6,
+                borderRadius: 8,
+                background: over ? "rgba(247,176,65,0.10)" : "rgba(255,255,255,0.02)",
+                border: `1px dashed ${over ? D.amber : D.border}`,
+                transition: "background 0.12s, border-color 0.12s",
+              }}
+            >
+              {tasks.length === 0 ? (
+                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.3, textAlign: "center", padding: "12px 4px" }}>
+                  Drag &amp; drop tasks here
+                </div>
+              ) : tasks.map((t) => {
+                const aSpec = getAssigneeSpec(t.assignee || "Akash");
+                return (
+                  <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 7px", background: D.bg, border: `1px solid ${D.border}`, borderRadius: 6 }}>
+                    <Avatar spec={aSpec} size={16} />
+                    <span style={{ flex: 1, minWidth: 0, fontFamily: ft, fontSize: 11.5, color: D.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.3 }}>{t.title}</span>
+                    <button type="button" onClick={() => onRemove(t.id)} title="Remove from bucket" style={{ background: "transparent", border: "none", color: D.txd, fontFamily: mn, fontSize: 12, cursor: "pointer", padding: "0 2px" }}>×</button>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                type="button"
+                onClick={onOpen}
+                disabled={ids.size < 2}
+                title={ids.size < 2 ? "Need at least 2 tasks to combine" : "Open merge preview"}
+                style={{ flex: 1, padding: "7px 10px", background: ids.size >= 2 ? D.amber : "transparent", color: ids.size >= 2 ? "#060608" : D.txd, border: `1px solid ${ids.size >= 2 ? D.amber : D.border}`, borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 800, cursor: ids.size >= 2 ? "pointer" : "not-allowed", letterSpacing: 0.3 }}
+              >
+                Combine {ids.size > 0 ? ids.size : ""}
+              </button>
+              {ids.size > 0 ? (
+                <button type="button" onClick={onClear} title="Empty bucket" style={{ padding: "7px 10px", background: "transparent", color: D.txm, border: `1px solid ${D.border}`, borderRadius: 6, fontFamily: mn, fontSize: 10, cursor: "pointer" }}>Clear</button>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+      </div>
+    </ModalPortal>
+  );
+}
+
+// Modal that shows the merged preview before committing. Pre-populates
+// every field with a smart default (longest title, concatenated descs,
+// highest priority, earliest due date, union of tags, deduped subtasks).
+// User can override anything before hitting confirm.
+function CombineModal({ tasks, onCancel, onCommit }: { tasks: Task[]; onCancel: () => void; onCommit: (merged: Omit<Task, "id" | "addedAt">, sourceIds: string[]) => void }) {
+  // Smart defaults computed once on open.
+  const defaults = (() => {
+    const longestTitle = tasks.reduce((a, b) => (a.title.length >= b.title.length ? a : b), tasks[0]).title;
+    const descs = tasks.map((t) => t.description).filter(Boolean) as string[];
+    const description = Array.from(new Set(descs)).join(" · ");
+    const notes = Array.from(new Set(tasks.map((t) => t.notes).filter(Boolean) as string[])).join(" · ");
+    // Highest priority wins; HIGH > MEDIUM > THIS WEEK > ONGOING.
+    const pOrder: Record<Priority, number> = { HIGH: 0, MEDIUM: 1, "THIS WEEK": 2, ONGOING: 3, DONE: 4 };
+    const priority = (tasks.map((t) => t.priority).sort((a, b) => pOrder[a] - pOrder[b])[0] || "MEDIUM") as Priority;
+    // Most common category (tie → first).
+    const catCount: Record<string, number> = {};
+    tasks.forEach((t) => { catCount[t.category] = (catCount[t.category] || 0) + 1; });
+    const category = Object.entries(catCount).sort((a, b) => b[1] - a[1])[0]?.[0] || tasks[0].category;
+    // Most common assignee.
+    const aCount: Record<string, number> = {};
+    tasks.forEach((t) => { const a = t.assignee || "Akash"; aCount[a] = (aCount[a] || 0) + 1; });
+    const assignee = Object.entries(aCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "Akash";
+    // Earliest due date.
+    const dueDates = tasks.map((t) => t.dueDate).filter(Boolean) as string[];
+    const dueDate = dueDates.sort()[0];
+    // Union of tags.
+    const tagSet = new Set<string>();
+    tasks.forEach((t) => (t.tags || []).forEach((tg) => tagSet.add(tg)));
+    const tags = Array.from(tagSet);
+    // Dedup subtasks by lowercased title.
+    const seen = new Set<string>();
+    const subtasks: Subtask[] = [];
+    tasks.forEach((t) => (t.subtasks || []).forEach((s) => {
+      const k = s.title.trim().toLowerCase();
+      if (!k || seen.has(k)) return;
+      seen.add(k);
+      subtasks.push({ id: "s-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6), title: s.title, done: !!s.done });
+    }));
+    const pinned = tasks.some((t) => t.pinned);
+    return { title: longestTitle, description, notes, priority, category, assignee, dueDate, tags, subtasks, pinned };
+  })();
+
+  const [title, setTitle] = useState(defaults.title);
+  const [description, setDescription] = useState(defaults.description);
+  const [notes, setNotes] = useState(defaults.notes);
+  const [priority, setPriority] = useState<Priority>(defaults.priority);
+  const [category, setCategory] = useState(defaults.category);
+  const [assignee, setAssignee] = useState(defaults.assignee);
+  const [dueDate, setDueDate] = useState(defaults.dueDate || "");
+  const [tagsStr, setTagsStr] = useState((defaults.tags || []).join(", "));
+  const [subtasks, setSubtasks] = useState<Subtask[]>(defaults.subtasks);
+
+  function toggleSub(id: string) { setSubtasks((cur) => cur.map((s) => s.id === id ? { ...s, done: !s.done } : s)); }
+  function removeSub(id: string) { setSubtasks((cur) => cur.filter((s) => s.id !== id)); }
+
+  function commit() {
+    if (!title.trim()) return;
+    const merged: Omit<Task, "id" | "addedAt"> = {
+      title: title.trim(),
+      description: description.trim() || undefined,
+      notes: notes.trim() || undefined,
+      category, priority,
+      assignee: assignee === "Unassigned" ? undefined : assignee,
+      dueDate: dueDate || undefined,
+      tags: tagsStr.split(",").map((s) => s.trim().replace(/^#/, "")).filter(Boolean),
+      pinned: defaults.pinned,
+      subtasks: subtasks.length ? subtasks : undefined,
+      source: "manual",
+    };
+    onCommit(merged, tasks.map((t) => t.id));
+  }
+
+  return (
+    <ModalPortal>
+      <div style={overlay} onClick={onCancel}>
+        <div style={{ ...panel, width: "min(680px, 96vw)" }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <div>
+              <div style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.amber, textTransform: "uppercase", fontWeight: 700 }}>Combine {tasks.length} tasks</div>
+              <div style={{ fontFamily: gf, fontSize: 22, fontWeight: 800, color: D.tx, letterSpacing: -0.5, marginTop: 2 }}>Merge preview</div>
+            </div>
+            <button type="button" onClick={onCancel} style={ghostBtn}>Cancel</button>
+          </div>
+
+          {/* Source list · tiny strip showing what's being merged. */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12, padding: "8px 10px", background: D.surface, border: `1px dashed ${D.border}`, borderRadius: 8 }}>
+            {tasks.map((t) => (
+              <span key={t.id} style={{ fontFamily: mn, fontSize: 9.5, color: D.txm, padding: "2px 8px", background: D.bg, border: `1px solid ${D.border}`, borderRadius: 999, letterSpacing: 0.2 }} title={t.description || ""}>
+                {t.title.length > 40 ? t.title.slice(0, 38) + "…" : t.title}
+              </span>
+            ))}
+          </div>
+
+          <Field label="Title" value={title} onChange={setTitle} />
+          <Field label="Description (concatenated)" value={description} onChange={setDescription} multi />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <div style={lbl}>Category</div>
+              <select value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle}>
+                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={lbl}>Priority</div>
+              <select value={priority} onChange={(e) => setPriority(e.target.value as Priority)} style={inputStyle}>
+                {PRIORITIES.filter((p) => p !== "DONE").map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <div style={lbl}>Assignee</div>
+              <AssigneePicker value={assignee} onChange={setAssignee} />
+            </div>
+            <div>
+              <div style={lbl}>Due date (earliest)</div>
+              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={inputStyle} />
+            </div>
+          </div>
+          <Field label="Tags (union, comma separated)" value={tagsStr} onChange={setTagsStr} />
+
+          {subtasks.length > 0 ? (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                <div style={lbl}>Subtasks (deduplicated)</div>
+                <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.4 }}>{subtasks.filter((s) => s.done).length}/{subtasks.length} done</div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto", padding: 2 }}>
+                {subtasks.map((s) => (
+                  <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 8px", background: D.surface, border: `1px solid ${D.border}`, borderRadius: 6 }}>
+                    <button type="button" onClick={() => toggleSub(s.id)} style={{ width: 14, height: 14, borderRadius: 3, background: s.done ? D.teal : "transparent", border: `1.5px solid ${s.done ? D.teal : D.border}`, cursor: "pointer", padding: 0, flexShrink: 0 }} />
+                    <span style={{ flex: 1, color: s.done ? D.txd : D.tx, fontFamily: ft, fontSize: 12.5, textDecoration: s.done ? "line-through" : "none" }}>{s.title}</span>
+                    <button type="button" onClick={() => removeSub(s.id)} title="Drop" style={{ background: "transparent", border: "none", color: D.txd, fontFamily: mn, fontSize: 12, cursor: "pointer", padding: "0 2px", opacity: 0.6 }}>×</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <Field label="Notes (concatenated)" value={notes} onChange={setNotes} multi />
+
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
+            <div style={{ fontFamily: mn, fontSize: 10, color: D.coral, letterSpacing: 0.4 }}>
+              ⚠ The {tasks.length} source task{tasks.length === 1 ? "" : "s"} will be deleted on commit.
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" onClick={onCancel} style={ghostBtn}>Cancel</button>
+              <button type="button" onClick={commit} disabled={!title.trim()} style={{ ...primaryBtn, opacity: title.trim() ? 1 : 0.5 }}>
+                Combine {tasks.length} → 1
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
+  );
+}
+
+// ── Bulk action bar ─────────────────────────────────────────────────
+// Floating toolbar pinned to the bottom of the viewport when one or
+// more tasks are selected (Cmd-click on a row to start a selection).
+// Surfaces the same actions as a single-row popover but applies them
+// to the whole set: reassign, repri, mark done, delete.
+function BulkActionBar({ count, onAssign, onPriority, onDone, onPin, onDelete, onClear }: {
+  count: number;
+  onAssign: (id: string) => void;
+  onPriority: (p: Priority) => void;
+  onDone: () => void;
+  onPin: () => void;
+  onDelete: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <ModalPortal>
+      <div style={{ position: "fixed", left: 0, right: 0, bottom: 24, display: "flex", justifyContent: "center", pointerEvents: "none", zIndex: 11000 }}>
+        <div style={{ pointerEvents: "auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "#0A0A14", border: `1px solid ${D.amber}55`, borderRadius: 12, boxShadow: "0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(247,176,65,0.08)", fontFamily: mn, fontSize: 11, letterSpacing: 0.3 }}>
+          <span style={{ color: D.amber, fontWeight: 700, padding: "3px 10px", background: D.amber + "1c", border: `1px solid ${D.amber}55`, borderRadius: 999 }}>
+            {count} selected
+          </span>
+          <span style={{ color: D.txd, fontSize: 9 }}>Assign:</span>
+          {ASSIGNEES.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => onAssign(a.id)}
+              title={"Assign to " + a.name}
+              style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", display: "inline-flex" }}
+            >
+              <Avatar spec={a} size={22} glow />
+            </button>
+          ))}
+          <span style={{ width: 1, height: 18, background: D.border, margin: "0 2px" }} />
+          <span style={{ color: D.txd, fontSize: 9 }}>Priority:</span>
+          {(["HIGH", "MEDIUM", "THIS WEEK", "ONGOING"] as Priority[]).map((p) => {
+            const c = PRIORITY_COLORS[p];
+            return (
+              <button
+                key={p}
+                type="button"
+                onClick={() => onPriority(p)}
+                title={"Set priority to " + p}
+                style={{ background: c + "1c", color: c, border: `1px solid ${c}55`, padding: "3px 8px", borderRadius: 4, fontFamily: mn, fontSize: 9, letterSpacing: 0.6, cursor: "pointer", fontWeight: 700, textTransform: "uppercase" }}
+              >
+                {p}
+              </button>
+            );
+          })}
+          <span style={{ width: 1, height: 18, background: D.border, margin: "0 2px" }} />
+          <button type="button" onClick={onDone}   style={{ background: "transparent", border: `1px solid ${D.teal}55`,  color: D.teal,  padding: "5px 10px", borderRadius: 6, fontFamily: mn, fontSize: 10, cursor: "pointer", letterSpacing: 0.4 }}>✓ Done</button>
+          <button type="button" onClick={onPin}    style={{ background: "transparent", border: `1px solid ${D.amber}55`, color: D.amber, padding: "5px 10px", borderRadius: 6, fontFamily: mn, fontSize: 10, cursor: "pointer", letterSpacing: 0.4 }}>★ Pin</button>
+          <button type="button" onClick={onDelete} style={{ background: "transparent", border: `1px solid ${D.coral}55`, color: D.coral, padding: "5px 10px", borderRadius: 6, fontFamily: mn, fontSize: 10, cursor: "pointer", letterSpacing: 0.4 }}>Delete</button>
+          <button type="button" onClick={onClear}  style={{ background: "transparent", border: `1px solid ${D.border}`,  color: D.txm,   padding: "5px 10px", borderRadius: 6, fontFamily: mn, fontSize: 10, cursor: "pointer", letterSpacing: 0.4 }}>Esc · Clear</button>
+        </div>
+      </div>
+    </ModalPortal>
+  );
+}
+
+// ── Command Palette (⌘K) ────────────────────────────────────────────
+// Universal switcher: fuzzy-search every task in the active board, plus
+// slash-commands for view switches, filter chips, and assignee filters.
+// Arrow keys navigate, Enter fires, Esc closes. Lives behind ModalPortal
+// so it pins to the viewport regardless of scroll.
+interface PaletteCommand {
+  id: string;
+  kind: "task" | "view" | "filter" | "assignee" | "action";
+  label: string;
+  hint: string;
+  color: string;
+  initial?: string;
+  task?: Task;
+  run: () => void;
+}
+function CommandPalette({ tasks, onClose, onOpenTask, onStartFocus, onSwitchView, onSetAssigneeFilter, onSetChip, onClearFilters, onAddTask, onFromPrompt }: {
+  tasks: Task[];
+  onClose: () => void;
+  onOpenTask: (t: Task) => void;
+  onStartFocus: (t: Task) => void;
+  onSwitchView: (v: ViewType) => void;
+  onSetAssigneeFilter: (id: string | null) => void;
+  onSetChip: (c: FilterChip) => void;
+  onClearFilters: () => void;
+  onAddTask: () => void;
+  onFromPrompt: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [cursor, setCursor] = useState(0);
+
+  // Build the command list every render — cheap (n=tasks+~25 statics)
+  // and lets typing immediately reshape the results.
+  const lcQuery = query.trim().toLowerCase();
+  const isSlash = lcQuery.startsWith("/") || lcQuery.startsWith("@");
+  const stripped = isSlash ? lcQuery.slice(1) : lcQuery;
+
+  // Static commands always available, filtered by prefix when slashing.
+  const staticCmds: PaletteCommand[] = [
+    { id: "v-list",     kind: "view",     label: "Switch to List view",     hint: "1",          color: D.amber, run: () => onSwitchView("list") },
+    { id: "v-board",    kind: "view",     label: "Switch to Board view",    hint: "2",          color: D.amber, run: () => onSwitchView("board") },
+    { id: "v-calendar", kind: "view",     label: "Switch to Calendar view", hint: "3",          color: D.amber, run: () => onSwitchView("calendar") },
+    { id: "v-week",     kind: "view",     label: "Switch to Week view",     hint: "4",          color: D.amber, run: () => onSwitchView("week") },
+    { id: "v-focus",    kind: "view",     label: "Switch to Focus view",    hint: "5",          color: D.amber, run: () => onSwitchView("focus") },
+    { id: "f-today",    kind: "filter",   label: "Filter: Today + overdue", hint: "chip",       color: D.coral, run: () => onSetChip("today") },
+    { id: "f-overdue",  kind: "filter",   label: "Filter: Overdue only",    hint: "chip",       color: D.coral, run: () => onSetChip("overdue") },
+    { id: "f-week",     kind: "filter",   label: "Filter: This week",       hint: "chip",       color: D.blue,  run: () => onSetChip("week") },
+    { id: "f-pinned",   kind: "filter",   label: "Filter: Pinned",          hint: "chip",       color: D.amber, run: () => onSetChip("pinned") },
+    { id: "f-nodue",    kind: "filter",   label: "Filter: No due date",     hint: "chip",       color: D.txm,   run: () => onSetChip("nodue") },
+    { id: "f-clear",    kind: "action",   label: "Clear all filters",       hint: "reset",      color: D.teal,  run: onClearFilters },
+    ...ASSIGNEES.map((a) => ({
+      id: "a-" + a.id, kind: "assignee" as const,
+      label: a.id === "Akash" ? "Mine (Akash)" : a.name,
+      hint: "show only",
+      color: a.color,
+      initial: a.initial,
+      run: () => onSetAssigneeFilter(a.id),
+    })),
+    { id: "a-all",      kind: "action",   label: "Show everyone's tasks",   hint: "reset",      color: D.teal,  run: () => onSetAssigneeFilter(null) },
+    { id: "add",        kind: "action",   label: "Add new task",            hint: "N",          color: D.amber, run: onAddTask },
+    { id: "add-prompt", kind: "action",   label: "Add from prompt (AI)",    hint: "paste",      color: D.amber, run: onFromPrompt },
+  ];
+
+  let results: PaletteCommand[] = [];
+  if (lcQuery === "") {
+    // Empty state: show a useful starter set (most recent tasks + key commands).
+    const recent = tasks.filter((t) => !t.done).slice(0, 6).map((t) => taskToCmd(t, onOpenTask, onStartFocus));
+    results = [
+      ...recent,
+      ...staticCmds.slice(0, 8),
+    ];
+  } else if (isSlash) {
+    // Slash mode: filter static commands only.
+    results = staticCmds.filter((c) => c.label.toLowerCase().includes(stripped));
+  } else {
+    // Free-text: fuzzy across tasks (title, desc, tags, category, assignee)
+    // plus any static command whose label contains the query.
+    const matchedTasks = tasks.filter((t) => {
+      const hay = `${t.title} ${t.description || ""} ${t.category} ${(t.assignee || "Akash")} ${(t.tags || []).join(" ")}`.toLowerCase();
+      return hay.includes(lcQuery);
+    }).slice(0, 12).map((t) => taskToCmd(t, onOpenTask, onStartFocus));
+    const matchedCmds = staticCmds.filter((c) => c.label.toLowerCase().includes(lcQuery));
+    results = [...matchedTasks, ...matchedCmds];
+  }
+
+  // Clamp cursor when results change.
+  const safeCursor = Math.min(cursor, Math.max(0, results.length - 1));
+
+  function fire(idx: number) {
+    const r = results[idx];
+    if (r) r.run();
+  }
+
+  function onKey(e: React.KeyboardEvent) {
+    if (e.key === "ArrowDown") { e.preventDefault(); setCursor((c) => Math.min(results.length - 1, c + 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setCursor((c) => Math.max(0, c - 1)); }
+    else if (e.key === "Enter") { e.preventDefault(); fire(safeCursor); }
+    else if (e.key === "Escape") { e.preventDefault(); onClose(); }
+  }
+
+  return (
+    <ModalPortal>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(6,6,12,0.72)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", zIndex: 13000, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "12vh", padding: 24 }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ width: "min(640px, 96vw)", background: "#0A0A14", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 14, boxShadow: "0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(247,176,65,0.08)", overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "70vh" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: `1px solid ${D.border}` }}>
+            <span style={{ fontFamily: mn, fontSize: 11, color: D.amber, letterSpacing: 0.6, padding: "2px 7px", border: `1px solid ${D.amber}55`, borderRadius: 4 }}>⌘K</span>
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); setCursor(0); }}
+              onKeyDown={onKey}
+              placeholder='Search tasks, or "/" for commands, "@" for filters…'
+              style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: D.tx, fontFamily: ft, fontSize: 16, padding: "2px 0", letterSpacing: -0.1 }}
+            />
+            <span style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.6 }}>↑↓ · Enter · Esc</span>
+          </div>
+          <div style={{ overflowY: "auto", flex: 1, padding: 6 }}>
+            {results.length === 0 ? (
+              <div style={{ padding: 24, textAlign: "center", fontFamily: mn, fontSize: 11, color: D.txd, letterSpacing: 0.4 }}>
+                No matches for &ldquo;{query}&rdquo;
+              </div>
+            ) : results.map((r, i) => {
+              const active = i === safeCursor;
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onMouseEnter={() => setCursor(i)}
+                  onClick={() => fire(i)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10, width: "100%",
+                    padding: "9px 12px",
+                    background: active ? "rgba(247,176,65,0.10)" : "transparent",
+                    border: "none",
+                    borderLeft: `2px solid ${active ? r.color : "transparent"}`,
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    fontFamily: ft, fontSize: 13, color: D.tx,
+                  }}
+                >
+                  <span style={{ width: 18, height: 18, borderRadius: 4, background: r.color + "22", border: `1px solid ${r.color}55`, color: r.color, display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 9, fontWeight: 800, flexShrink: 0 }}>
+                    {r.initial || (r.kind === "task" ? "T" : r.kind === "view" ? "V" : r.kind === "filter" ? "F" : r.kind === "assignee" ? "@" : "•")}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
+                  <span style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.5, flexShrink: 0 }}>{r.hint}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ padding: "8px 14px", borderTop: `1px solid ${D.border}`, fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.4, display: "flex", justifyContent: "space-between" }}>
+            <span>{results.length} result{results.length === 1 ? "" : "s"}</span>
+            <span>Type / for commands · @ for filters</span>
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
+  );
+}
+
+function taskToCmd(t: Task, onOpen: (t: Task) => void, _onFocus: (t: Task) => void): PaletteCommand {
+  const aSpec = getAssigneeSpec(t.assignee || "Akash");
+  const due = t.dueDate ? formatDue(t.dueDate) : null;
+  const hint = due ? due.label : (t.priority || "—");
+  return {
+    id: "t-" + t.id,
+    kind: "task",
+    label: t.title,
+    hint,
+    color: aSpec.color,
+    initial: aSpec.initial,
+    task: t,
+    run: () => onOpen(t),
+  };
+}
+
+// Quick due-date popover. Surfaced on the task row when the date pill
+// (or "+ Date" placeholder on hover) is clicked. Presets cover ~95% of
+// what gets typed manually; the native date input handles the rest.
+function DueMenu({ current, onPick }: { current?: string; onPick: (d: string | undefined) => void }) {
+  const today = startOfDay(new Date());
+  const todayIso = isoDate(today);
+  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+  // Friday-of-this-week: 5 - dow (0..6 with sun=0); if past Friday, fall through to next Friday.
+  const friday = new Date(today);
+  const fridayDelta = (5 - friday.getDay() + 7) % 7;
+  friday.setDate(friday.getDate() + (fridayDelta === 0 ? 7 : fridayDelta));
+  const nextMon = new Date(today);
+  const monDelta = (1 - nextMon.getDay() + 7) % 7;
+  nextMon.setDate(nextMon.getDate() + (monDelta === 0 ? 7 : monDelta));
+  const week = new Date(today); week.setDate(week.getDate() + 7);
+  const presets: Array<{ label: string; sub: string; iso: string }> = [
+    { label: "Today",    sub: "tonight",  iso: todayIso },
+    { label: "Tomorrow", sub: tomorrow.toLocaleDateString(undefined, { weekday: "short" }), iso: isoDate(tomorrow) },
+    { label: "Friday",   sub: friday.toLocaleDateString(undefined, { month: "short", day: "numeric" }), iso: isoDate(friday) },
+    { label: "Next Mon", sub: nextMon.toLocaleDateString(undefined, { month: "short", day: "numeric" }), iso: isoDate(nextMon) },
+    { label: "+1 week",  sub: week.toLocaleDateString(undefined, { month: "short", day: "numeric" }),   iso: isoDate(week) },
+  ];
+  return (
+    <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: D.bg, border: `1px solid ${D.border}`, borderRadius: 8, padding: 6, zIndex: 100, boxShadow: "0 6px 24px rgba(0,0,0,0.4)", display: "flex", flexDirection: "column", gap: 2, minWidth: 200, textAlign: "left" }}>
+      {presets.map((p) => {
+        const active = current === p.iso;
+        return (
+          <button
+            key={p.label}
+            type="button"
+            onClick={() => onPick(p.iso)}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "5px 10px", background: active ? D.amber + "22" : "transparent", color: active ? D.amber : D.tx, border: "none", borderRadius: 4, fontFamily: mn, fontSize: 10.5, letterSpacing: 0.4, cursor: "pointer" }}
+          >
+            <span>{p.label}</span>
+            <span style={{ color: D.txd, fontSize: 9, letterSpacing: 0.3 }}>{p.sub}</span>
+          </button>
+        );
+      })}
+      <div style={{ height: 1, background: D.border, margin: "4px 0" }} />
+      <label style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", fontFamily: mn, fontSize: 9.5, color: D.txm, letterSpacing: 0.4 }}>
+        <span>Pick:</span>
+        <input
+          type="date"
+          value={current || ""}
+          onChange={(e) => onPick(e.target.value || undefined)}
+          style={{ flex: 1, background: D.surface, color: D.tx, border: `1px solid ${D.border}`, borderRadius: 4, padding: "3px 6px", fontFamily: mn, fontSize: 10, outline: "none" }}
+        />
+      </label>
+      {current ? (
+        <button
+          type="button"
+          onClick={() => onPick(undefined)}
+          style={{ marginTop: 2, display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "transparent", color: D.coral, border: "none", borderRadius: 4, fontFamily: mn, fontSize: 10, letterSpacing: 0.4, cursor: "pointer", textAlign: "left" }}
+        >
+          × Clear date
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+// Avatar-chip picker used in the Add / Edit modals. Visual sibling of a
+// native <select> but with the assignee's color and initial baked in.
+function AssigneePicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  const spec = getAssigneeSpec(value);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", background: "rgba(255,255,255,0.03)", border: `1px solid ${D.border}`, borderRadius: 6, height: 38 }}>
+      <Avatar spec={spec} size={20} />
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ flex: 1, background: "transparent", color: D.tx, border: "none", outline: "none", fontFamily: ft, fontSize: 13, cursor: "pointer" }}
+      >
+        {ASSIGNEES.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+      </select>
+    </div>
+  );
+}
+
+// Portal a modal to <body> so ancestor transforms/filters/backdrop-filters
+// can't accidentally turn position:fixed into containing-block-relative.
+// Also locks body scroll so the underlying page can't slide out from
+// under the modal mid-edit.
+function ModalPortal({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+  if (!mounted) return null;
+  return createPortal(children, document.body);
 }
 
 const lbl: React.CSSProperties = { fontFamily: mn, fontSize: 10, letterSpacing: 1.2, textTransform: "uppercase", color: D.txd, marginBottom: 4 };
