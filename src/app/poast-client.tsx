@@ -1370,6 +1370,9 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
       { id: "broll",    label: "B-Roll",        sub: "Generated b-roll library", Icon: Film },
       { id: "chart",    label: "Chart Maker",   sub: "Quick charts",            Icon: BarChart3 },
       { id: "chart2",   label: "Chart Maker 2", sub: "Think-cell, drag, export", Icon: GanttChart, href: "/charts" },
+      { id: "distpack", label: "Distribution Pack", sub: "Launch posts + POAST suite", Icon: Layers },
+      { id: "voice",    label: "Voice Scorer",  sub: "Score voiceovers vs brand", Icon: ShieldCheck },
+      { id: "headline", label: "Headline Doctor", sub: "Diagnose + rewrite headlines", Icon: Sparkles },
     ] },
     { key: "podcast", label: "Podcast", sub: "SA Weekly + FK", color: C.coral, tiles: [
       { id: "fk",       label: "Fab Knowledge", sub: "Doug's interview prep",   Icon: Headphones },
@@ -1384,16 +1387,25 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
     ] },
     { key: "premier", label: "Premier", sub: "Schedule + ship", color: C.teal, tiles: [
       { id: "schedule", label: "Schedule",      sub: "Buffer queue",            Icon: Calendar },
+      { id: "approval", label: "Approval Queue", sub: "Pending sign-offs",      Icon: ClipboardCheck },
+      { id: "perf",     label: "Performance",   sub: "What's actually landing", Icon: TrendingUp },
       { id: "assets",   label: "Asset Library", sub: "Logos, fonts, brand kit", Icon: Library },
     ] },
     { key: "admin",   label: "Admin",   sub: "Tune the studio", color: C.violet, tiles: [
-      { id: "settings", label: "POAST Settings", sub: "Analytics + onboarding", Icon: Settings },
+      { id: "training", label: "AI Training",   sub: "Brand voice + multi-AI lab", Icon: Brain, href: "/ai-training" },
+      { id: "prompts",  label: "Saved Prompts", sub: "Reusable prompt library",  Icon: BookmarkCheck },
+      { id: "settings", label: "POAST Settings", sub: "Analytics + onboarding",  Icon: Settings },
     ] },
   ];
 
   // DesignStudio sits with Produce when the role can use it. Hides for any
   // role that fails canUseDocuDesign (Analyst).
-  if (canDocu) sections[0].tiles.push({ id: "docu", label: "DesignStudio", sub: "Docs · graphics · images · motion", Icon: Wand, href: "/design-studio" });
+  if (canDocu) sections[0].tiles.push({ id: "docu", label: "DesignStudio", sub: "Docs · graphics · images · motion · rebuild from image", Icon: Wand, href: "/design-studio" });
+  // Akash-only: Task Board with multi-view planner + Focus Mode goes
+  // under Admin so it doesn't crowd the daily creative tiles.
+  if (isAkash(userCtx.user)) {
+    sections[sections.length - 1].tiles.unshift({ id: "tasks", label: "Task Board", sub: "Daily planner + Focus Mode", Icon: CheckSquare });
+  }
 
   return <div style={{ minHeight: "100%", padding: "48px 0 64px", position: "relative" }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes ssRise{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}@keyframes ssShim{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}.ss-headline{background:linear-gradient(120deg,#F7B041 0%,#26C9D8 50%,#F7B041 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:ssShim 8s ease-in-out infinite}" }} />
