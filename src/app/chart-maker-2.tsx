@@ -6235,7 +6235,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     try {
       const raw = localStorage.getItem("cm2-import-pending");
       if (!raw) return;
-      const j = JSON.parse(raw) as { chartType?: ChartType; title?: string; subtitle?: string; sheet?: DataSheet };
+      const j = JSON.parse(raw) as { chartType?: ChartType; title?: string; subtitle?: string; sheet?: DataSheet; theme?: ThemeId; backdrop?: BackdropKey; backdropMode?: BackdropMode };
       if (j?.sheet && Array.isArray(j.sheet.schema) && Array.isArray(j.sheet.rows)) {
         // Map the imported chart type onto one we know how to render;
         // fall back to clustered bars for anything unrecognized.
@@ -6245,6 +6245,10 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
         setSheets((p) => ({ ...p, [importedType]: j.sheet as DataSheet }));
         if (j.title) setTitle(j.title);
         if (j.subtitle) setSubtitle(j.subtitle);
+        // SA style preset selected in the Rebuild wizard.
+        if (j.theme === "saCore" || j.theme === "saSpectrum") setTheme(j.theme);
+        if (j.backdrop === "amber" || j.backdrop === "cobalt" || j.backdrop === "both" || j.backdrop === "capital") setBackdrop(j.backdrop);
+        if (j.backdropMode === "dark" || j.backdropMode === "light") setBackdropMode(j.backdropMode);
       }
       localStorage.removeItem("cm2-import-pending");
     } catch { /* ignore — corrupted import is a no-op */ }

@@ -33,6 +33,29 @@ interface Extracted {
   reason?: string;
 }
 
+// SA style presets the user can apply at handoff. Each preset is a triple
+// of (theme, backdrop, backdropMode) that Chart Maker already understands.
+// Swatches are sampled from the actual chart palettes so the chip preview
+// matches what the user will see on the canvas.
+type SaStyleId = "editorial-dark" | "editorial-light" | "spectrum-dark" | "capital-dark" | "amber-dark";
+interface SaStyle {
+  id: SaStyleId;
+  name: string;
+  sub: string;
+  theme: "saCore" | "saSpectrum";
+  backdrop: "amber" | "cobalt" | "both" | "capital";
+  backdropMode: "dark" | "light";
+  swatches: string[];
+  bg: string;
+}
+const SA_STYLES: SaStyle[] = [
+  { id: "editorial-dark", name: "Editorial", sub: "Amber + Cobalt · dark", theme: "saCore", backdrop: "both", backdropMode: "dark", swatches: ["#F7B041", "#0B86D1", "#2EAD8E", "#E06347"], bg: "#06060C" },
+  { id: "editorial-light", name: "Editorial Light", sub: "Amber + Cobalt · light", theme: "saCore", backdrop: "both", backdropMode: "light", swatches: ["#F7B041", "#0B86D1", "#2EAD8E", "#E06347"], bg: "#FAFAF7" },
+  { id: "spectrum-dark", name: "Spectrum", sub: "Full hue · 5+ series", theme: "saSpectrum", backdrop: "both", backdropMode: "dark", swatches: ["#F7B041", "#0B86D1", "#905CCB", "#26C9D8"], bg: "#06060C" },
+  { id: "capital-dark", name: "Capital", sub: "Teal accent · dark", theme: "saCore", backdrop: "capital", backdropMode: "dark", swatches: ["#2EAD8E", "#F7B041", "#0B86D1", "#E06347"], bg: "#06120F" },
+  { id: "amber-dark", name: "Amber Accent", sub: "Amber-forward · dark", theme: "saCore", backdrop: "amber", backdropMode: "dark", swatches: ["#F7B041", "#AC7B2D", "#F9C370", "#0B86D1"], bg: "#06060C" },
+];
+
 interface RebuildWizardProps { open: boolean; onClose: () => void }
 
 export function RebuildWizard({ open, onClose }: RebuildWizardProps) {
@@ -45,6 +68,7 @@ export function RebuildWizard({ open, onClose }: RebuildWizardProps) {
   const [extracted, setExtracted] = useState<Extracted | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [chartStyle, setChartStyle] = useState<SaStyleId>("editorial-dark");
 
   function reset() {
     setStep(0);
@@ -54,6 +78,7 @@ export function RebuildWizard({ open, onClose }: RebuildWizardProps) {
     setExtracted(null);
     setErr(null);
     setSubmitting(false);
+    setChartStyle("editorial-dark");
   }
   function close() {
     if (extracting || submitting) return;
@@ -93,6 +118,7 @@ export function RebuildWizard({ open, onClose }: RebuildWizardProps) {
 
   async function openInChartMaker() {
     if (!extracted?.chart) return;
+    const style = SA_STYLES.find((s) => s.id === chartStyle) || SA_STYLES[0];
     try {
       // Hand the extraction off to Chart Maker via localStorage. Chart
       // Maker reads `cm2-import-pending` on mount and applies it.
@@ -105,6 +131,9 @@ export function RebuildWizard({ open, onClose }: RebuildWizardProps) {
           schema: extracted.chart.columns,
           rows: extracted.chart.rows,
         },
+        theme: style.theme,
+        backdrop: style.backdrop,
+        backdropMode: style.backdropMode,
       }));
     } catch (e) { showToast("Couldn't stash import: " + String(e)); return; }
     reset();
@@ -181,7 +210,13 @@ export function RebuildWizard({ open, onClose }: RebuildWizardProps) {
           onClear={() => { setImageFile(null); setImageUrl(""); setErr(null); }}
         />
       ) : (
-        <ReviewStep extracted={extracted} err={err} imageUrl={imageUrl} />
+        <ReviewStep
+          extracted={extracted}
+          err={err}
+          imageUrl={imageUrl}
+          chartStyle={chartStyle}
+          onPickStyle={setChartStyle}
+        />
       )}
     </WizardShell>
   );
@@ -230,7 +265,7 @@ function UploadStep({ imageFile, imageUrl, extracting, err, onLoadFile, onClear 
 }
 
 // ── Step 1 ──────────────────────────────────────────────────────────
-function ReviewStep({ extracted, err, imageUrl }: { extracted: Extracted | null; err: string | null; imageUrl: string }) {
+function ReviewStep({ extracted, err, imageUrl, chartStyle, onPickStyle }: { extracted: Extracted | null; err: string | null; imageUrl: string; chartStyle: SaStyleId; onPickStyle: (id: SaStyleId) => void }) {
   if (err) return <div style={{ fontFamily: mn, fontSize: 12, color: D.coral }}>{err}</div>;
   if (!extracted) return <div style={{ fontFamily: mn, fontSize: 12, color: D.txm }}>No extraction yet.</div>;
 
@@ -253,6 +288,52 @@ function ReviewStep({ extracted, err, imageUrl }: { extracted: Extracted | null;
         <div style={wizardLabel}>What we got</div>
         {extracted.kind === "chart" && extracted.chart ? <ChartPreview chart={extracted.chart} /> : null}
         {extracted.kind === "table" && extracted.table ? <TablePreview table={extracted.table} /> : null}
+        {extracted.kind === "chart" ? (
+          <StylePicker selected={chartStyle} onPick={onPickStyle} />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function StylePicker({ selected, onPick }: { selected: SaStyleId; onPick: (id: SaStyleId) => void }) {
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={wizardLabel}>SA style</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
+        {SA_STYLES.map((s) => {
+          const active = s.id === selected;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => onPick(s.id)}
+              style={{
+                textAlign: "left",
+                background: D.surface,
+                border: `1px solid ${active ? D.amber : D.border}`,
+                borderRadius: 8,
+                padding: 10,
+                cursor: "pointer",
+                outline: "none",
+                boxShadow: active ? `0 0 0 2px ${D.amber}33` : "none",
+                transition: "border-color 0.12s, box-shadow 0.12s",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <span style={{ width: 14, height: 14, borderRadius: 3, background: s.bg, border: `1px solid ${D.border}`, flex: "0 0 auto" }} />
+                {s.swatches.map((c, i) => (
+                  <span key={i} style={{ width: 10, height: 10, borderRadius: 2, background: c, flex: "0 0 auto" }} />
+                ))}
+              </div>
+              <div style={{ fontFamily: gf, fontSize: 12, fontWeight: 800, color: active ? D.tx : D.tx, letterSpacing: 0.2 }}>{s.name}</div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: D.txm, letterSpacing: 0.3, marginTop: 2 }}>{s.sub}</div>
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginTop: 8, letterSpacing: 0.3 }}>
+        Applied to the chart when you open it in Chart Maker.
       </div>
     </div>
   );
