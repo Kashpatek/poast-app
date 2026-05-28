@@ -187,6 +187,44 @@ export default function AkashTodo() {
   const [focusModeTask, setFocusModeTask] = useState<Task | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Undo / activity log. Each entry is a snapshot of the full archive
+  // taken BEFORE the labeled action ran, so restoring the entry
+  // rewinds the board to that exact state. Capped at 60 entries so
+  // memory stays bounded.
+  interface HistoryEntry { id: string; ts: string; label: string; archive: BoardArchive }
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const isRestoringRef = useRef(false);
+  function pushHistory(label: string) {
+    if (isRestoringRef.current) return;
+    setHistory((cur) => {
+      const entry: HistoryEntry = {
+        id: "h-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+        ts: new Date().toISOString(),
+        label,
+        archive: JSON.parse(JSON.stringify(archive)) as BoardArchive,
+      };
+      const next = [...cur, entry];
+      return next.length > 60 ? next.slice(next.length - 60) : next;
+    });
+  }
+  function undo() {
+    if (history.length === 0) return;
+    const last = history[history.length - 1];
+    isRestoringRef.current = true;
+    setArchive(last.archive);
+    setHistory((cur) => cur.slice(0, -1));
+    setTimeout(() => { isRestoringRef.current = false; }, 0);
+  }
+  function jumpToHistory(id: string) {
+    const idx = history.findIndex((e) => e.id === id);
+    if (idx < 0) return;
+    isRestoringRef.current = true;
+    setArchive(history[idx].archive);
+    setHistory((cur) => cur.slice(0, idx));
+    setHistoryOpen(false);
+    setTimeout(() => { isRestoringRef.current = false; }, 0);
+  }
   // Combine bucket — drag duplicates here, then merge into one task. Set
   // is insertion-ordered so the merge preview keeps the user's pick order.
   const [combineIds, setCombineIds] = useState<Set<string>>(new Set());
@@ -290,8 +328,12 @@ export default function AkashTodo() {
 
   // Functional setter that always reads the latest committed `archive`,
   // so rapid sequential updates (quick-add, then a toggle, then a drag)
-  // can never lose intermediate state via stale closure.
-  function updateActiveBoard(patch: Partial<Board> | ((b: Board) => Board)) {
+  // can never lose intermediate state via stale closure. The optional
+  // `label` is captured into the undo history before the mutation
+  // applies, so undo/jump-to entries surface meaningful actions
+  // (Add task, Reorder, Bulk delete, …) instead of generic "Change".
+  function updateActiveBoard(patch: Partial<Board> | ((b: Board) => Board), label?: string) {
+    if (label) pushHistory(label);
     setArchive((cur) => {
       const activeId = cur.activeId;
       if (!activeId) return cur;
@@ -312,19 +354,35 @@ export default function AkashTodo() {
       id: "t-" + Date.now() + "-" + i,
       addedAt: stamp,
     }));
-    updateActiveBoard((b) => ({ ...b, tasks: [...expanded, ...b.tasks] }));
+    updateActiveBoard((b) => ({ ...b, tasks: [...expanded, ...b.tasks] }), newTasks.length === 1 ? `Added "${newTasks[0].title.slice(0, 40)}"` : `Added ${newTasks.length} tasks`);
     setAddingMode(null);
   }
 
   function updateTask(id: string, patch: Partial<Task>) {
+    // Build a concise human label from the patch shape so the history
+    // tab reads like an activity feed ("Marked done", "Reassigned to
+    // Daksh") instead of generic "Edited task".
+    const keys = Object.keys(patch);
+    let label = "Edited task";
+    const t = (activeBoard?.tasks || []).find((x) => x.id === id);
+    const titleStr = t ? ` "${t.title.slice(0, 40)}"` : "";
+    if (patch.done !== undefined && keys.length <= 2) label = patch.done ? "Marked done" + titleStr : "Reopened" + titleStr;
+    else if (patch.assignee !== undefined && keys.length <= 2) label = `Reassigned${titleStr} to ${patch.assignee || "Unassigned"}`;
+    else if (patch.priority !== undefined && keys.length <= 2) label = `Set priority${titleStr} → ${patch.priority}`;
+    else if (patch.dueDate !== undefined && keys.length <= 2) label = patch.dueDate ? `Due${titleStr} → ${patch.dueDate}` : `Cleared date${titleStr}`;
+    else if (patch.pinned !== undefined && keys.length <= 2) label = patch.pinned ? "Pinned" + titleStr : "Unpinned" + titleStr;
+    else if (patch.subtasks !== undefined && keys.length <= 2) label = "Updated subtasks" + titleStr;
+    else if (patch.manualOrder !== undefined && keys.length <= 2) label = "Reordered" + titleStr;
+    else if (patch.title !== undefined) label = `Renamed${titleStr} → "${(patch.title || "").slice(0, 40)}"`;
     updateActiveBoard((b) => ({
       ...b,
       tasks: b.tasks.map((t) => (t.id === id ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t)),
-    }));
+    }), label);
   }
 
   function removeTask(id: string) {
-    updateActiveBoard((b) => ({ ...b, tasks: b.tasks.filter((t) => t.id !== id) }));
+    const t = (activeBoard?.tasks || []).find((x) => x.id === id);
+    updateActiveBoard((b) => ({ ...b, tasks: b.tasks.filter((t) => t.id !== id) }), `Removed "${(t?.title || "task").slice(0, 40)}"`);
   }
 
   // ── Bulk-selection helpers ──────────────────────────────────────
@@ -338,15 +396,19 @@ export default function AkashTodo() {
   function clearSelection() { setSelectedIds(new Set()); }
   function bulkPatch(patch: Partial<Task>) {
     if (selectedIds.size === 0) return;
+    const n = selectedIds.size;
+    const labelKey = Object.keys(patch)[0] || "field";
+    const label = `Bulk ${labelKey === "done" ? (patch.done ? "marked done" : "reopened") : labelKey === "assignee" ? "reassigned" : labelKey === "priority" ? "repri" : labelKey === "pinned" ? (patch.pinned ? "pinned" : "unpinned") : "edited"} ${n}`;
     updateActiveBoard((b) => ({
       ...b,
       tasks: b.tasks.map((t) => selectedIds.has(t.id) ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t),
-    }));
+    }), label);
   }
   function bulkRemove() {
     if (selectedIds.size === 0) return;
-    if (!confirm(`Remove ${selectedIds.size} task${selectedIds.size === 1 ? "" : "s"}?`)) return;
-    updateActiveBoard((b) => ({ ...b, tasks: b.tasks.filter((t) => !selectedIds.has(t.id)) }));
+    const n = selectedIds.size;
+    if (!confirm(`Remove ${n} task${n === 1 ? "" : "s"}?`)) return;
+    updateActiveBoard((b) => ({ ...b, tasks: b.tasks.filter((t) => !selectedIds.has(t.id)) }), `Bulk removed ${n}`);
     clearSelection();
   }
 
@@ -364,7 +426,7 @@ export default function AkashTodo() {
     updateActiveBoard((b) => ({
       ...b,
       tasks: [newTask, ...b.tasks.filter((t) => !sourceIds.includes(t.id))],
-    }));
+    }), `Combined ${sourceIds.length} → "${(merged.title || "merged").slice(0, 40)}"`);
     clearCombine();
     setCombineOpen(false);
   }
@@ -462,6 +524,12 @@ export default function AkashTodo() {
         setPaletteOpen((v) => !v);
         return;
       }
+      // ⌘Z / Ctrl+Z undoes the last action even from inside inputs.
+      if ((e.metaKey || e.ctrlKey) && (e.key === "z" || e.key === "Z") && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
       if (e.key === "Escape") {
         if (paletteOpen) { setPaletteOpen(false); return; }
         if (editingTask) { setEditingTask(null); return; }
@@ -480,7 +548,7 @@ export default function AkashTodo() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editingTask, addingMode, boardModalOpen, paletteOpen, selectedIds.size]);
+  }, [editingTask, addingMode, boardModalOpen, paletteOpen, selectedIds.size, history.length]);
 
   // ── Guard ───────────────────────────────────────────────────────
   if (!allowed) {
@@ -635,6 +703,49 @@ export default function AkashTodo() {
           {archive.boards.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>
         <button type="button" onClick={() => setBoardModalOpen(true)} style={ghostBtn}>+ Board</button>
+        <button
+          type="button"
+          onClick={undo}
+          disabled={history.length === 0}
+          title={history.length === 0 ? "Nothing to undo yet" : `Undo "${history[history.length - 1].label}" · ⌘Z`}
+          style={{ ...ghostBtn, padding: "9px 11px", opacity: history.length === 0 ? 0.4 : 1, cursor: history.length === 0 ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
+        >
+          ↶ Undo
+        </button>
+        <div style={{ position: "relative" }}>
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((v) => !v)}
+            title="Clickable activity log — restore any prior state"
+            style={{ ...ghostBtn, padding: "9px 11px", display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            ⏱ History
+            <span style={{ fontFamily: mn, fontSize: 9, color: D.txd, padding: "1px 6px", borderRadius: 3, background: "rgba(255,255,255,0.04)" }}>{history.length}</span>
+          </button>
+          {historyOpen ? (
+            <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, width: 360, maxHeight: 420, overflowY: "auto", background: "#0A0A14", border: `1px solid ${D.border}`, borderRadius: 10, boxShadow: "0 20px 50px rgba(0,0,0,0.5)", zIndex: 200, padding: 6 }}>
+              <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 1.2, textTransform: "uppercase", padding: "6px 10px" }}>Activity · click to restore</div>
+              {history.length === 0 ? (
+                <div style={{ fontFamily: mn, fontSize: 11, color: D.txd, padding: "10px 12px", textAlign: "center" }}>No actions yet</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  {[...history].reverse().map((e, idx) => (
+                    <button
+                      key={e.id}
+                      type="button"
+                      onClick={() => jumpToHistory(e.id)}
+                      title="Restore the board to the state just BEFORE this action"
+                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "7px 10px", background: idx === 0 ? "rgba(247,176,65,0.10)" : "transparent", border: "none", borderLeft: `2px solid ${idx === 0 ? D.amber : "transparent"}`, borderRadius: 4, cursor: "pointer", textAlign: "left", fontFamily: ft, fontSize: 12, color: D.tx }}
+                    >
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.label}</span>
+                      <span style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.4, flexShrink: 0 }}>{new Date(e.ts).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
         <input
           ref={searchRef}
           value={filter}
@@ -3874,9 +3985,56 @@ function CombineModal({ tasks, onCancel, onCommit }: { tasks: Task[]; onCancel: 
   const [dueDate, setDueDate] = useState(defaults.dueDate || "");
   const [tagsStr, setTagsStr] = useState((defaults.tags || []).join(", "));
   const [subtasks, setSubtasks] = useState<Subtask[]>(defaults.subtasks);
+  const [aiState, setAiState] = useState<"idle" | "thinking" | "error">("idle");
+  const [aiError, setAiError] = useState<string | null>(null);
 
   function toggleSub(id: string) { setSubtasks((cur) => cur.map((s) => s.id === id ? { ...s, done: !s.done } : s)); }
   function removeSub(id: string) { setSubtasks((cur) => cur.filter((s) => s.id !== id)); }
+
+  // Smart merge — sends raw source tasks to Claude, replaces every
+  // editable field with the AI proposal. User can still edit before
+  // hitting commit, so the result is a starting point, not a contract.
+  async function aiSmartMerge() {
+    setAiState("thinking");
+    setAiError(null);
+    try {
+      const payload = tasks.map((t) => ({
+        title: t.title,
+        description: t.description,
+        category: t.category,
+        priority: t.priority,
+        assignee: t.assignee,
+        dueDate: t.dueDate,
+        notes: t.notes,
+        tags: t.tags,
+        subtasks: (t.subtasks || []).map((s) => ({ title: s.title, done: !!s.done })),
+      }));
+      const res = await fetch("/api/akash-todo/combine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tasks: payload }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.merged) {
+        setAiError(j.error || "AI merge failed");
+        setAiState("error");
+        return;
+      }
+      const m = j.merged;
+      if (m.title) setTitle(m.title);
+      if (m.description) setDescription(m.description);
+      if (m.notes) setNotes(m.notes);
+      if (m.priority) setPriority(m.priority as Priority);
+      if (m.category) setCategory(m.category);
+      if (m.assignee) setAssignee(m.assignee);
+      if (m.dueDate) setDueDate(m.dueDate);
+      if (Array.isArray(m.subtasks)) setSubtasks(m.subtasks);
+      setAiState("idle");
+    } catch (e) {
+      setAiError(String(e));
+      setAiState("error");
+    }
+  }
 
   function commit() {
     if (!title.trim()) return;
@@ -3899,13 +4057,29 @@ function CombineModal({ tasks, onCancel, onCommit }: { tasks: Task[]; onCancel: 
     <ModalPortal>
       <div style={overlay} onClick={onCancel}>
         <div style={{ ...panel, width: "min(680px, 96vw)" }} onClick={(e) => e.stopPropagation()}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, gap: 8 }}>
             <div>
               <div style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.amber, textTransform: "uppercase", fontWeight: 700 }}>Combine {tasks.length} tasks</div>
               <div style={{ fontFamily: gf, fontSize: 22, fontWeight: 800, color: D.tx, letterSpacing: -0.5, marginTop: 2 }}>Merge preview</div>
             </div>
-            <button type="button" onClick={onCancel} style={ghostBtn}>Cancel</button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button
+                type="button"
+                onClick={aiSmartMerge}
+                disabled={aiState === "thinking"}
+                title="Send the source tasks to Claude and replace this preview with a smart merge"
+                style={{ background: aiState === "thinking" ? "transparent" : "linear-gradient(120deg, #F7B041, #905CCB)", color: aiState === "thinking" ? D.amber : "#060608", border: `1px solid ${D.amber}`, padding: "8px 14px", borderRadius: 8, fontFamily: ft, fontSize: 12, fontWeight: 800, cursor: aiState === "thinking" ? "wait" : "pointer", letterSpacing: 0.3 }}
+              >
+                {aiState === "thinking" ? "✦ Thinking…" : "✦ Smart merge with Claude"}
+              </button>
+              <button type="button" onClick={onCancel} style={ghostBtn}>Cancel</button>
+            </div>
           </div>
+          {aiError ? (
+            <div style={{ fontFamily: mn, fontSize: 11, color: D.coral, padding: "6px 10px", background: "rgba(224,99,71,0.08)", border: `1px solid ${D.coral}55`, borderRadius: 6, marginBottom: 10 }}>
+              {aiError}
+            </div>
+          ) : null}
 
           {/* Source list · tiny strip showing what's being merged. */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 12, padding: "8px 10px", background: D.surface, border: `1px dashed ${D.border}`, borderRadius: 8 }}>
