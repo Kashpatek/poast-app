@@ -1067,9 +1067,10 @@ function ClipCaptions() {
 
 // ═══ INTRO: USER SELECT → BOOT → GLITCH → SPLASH ═══
 // Two-path entry: "Analyst" goes straight to the analyst studio (no password).
-// "Lock" prompts for a password ("marketing") and then shows a picker for
-// the internal team (Akash, Vansh, Michelle) who get the full site.
-var GATE_PASSWORD = "marketing";
+// "Lock" prompts for a password and then shows a picker for the internal
+// team (Akash, Michelle, Vansh, Daksh) who get the full site. The actual
+// password check now lives in /api/auth/gate so the secret isn't baked
+// into the client bundle.
 interface InternalUserInfo { name: string; role: string; color: string; glow: string }
 var INTERNAL_USERS: InternalUserInfo[] = [
   { name: "Akash",    role: "Brand and Creative Director", color: "#0B86D1", glow: "rgba(11,134,209,"  },
@@ -1113,8 +1114,21 @@ function UserSelect({ onSelect }: { onSelect: (name: string, remember?: boolean)
 
   var VIOLET = "#905CCB";
 
-  var submitPw = function() {
-    if (pw.trim().toLowerCase() === GATE_PASSWORD) {
+  var _checking = useState(false), checking = _checking[0], setChecking = _checking[1];
+  var submitPw = async function() {
+    if (checking) return;
+    setChecking(true);
+    var ok = false;
+    try {
+      var res = await fetch("/api/auth/gate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pw }),
+      });
+      ok = res.ok;
+    } catch { /* network fail counts as wrong */ }
+    setChecking(false);
+    if (ok) {
       setPw("");
       setErr(false);
       if (prefill) {
