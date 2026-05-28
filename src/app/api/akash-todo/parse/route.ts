@@ -107,7 +107,10 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 3000,
+        // Bumped from 3000 → 8000. With subtasks the model can need 200-400
+        // tokens PER task, so a 10-item brain-dump hits the ceiling and
+        // gets truncated mid-array. 8000 covers ~20 tasks comfortably.
+        max_tokens: 8000,
         system: SYSTEM,
         messages: [{ role: "user", content }],
       }),
@@ -115,18 +118,19 @@ export async function POST(req: NextRequest) {
     const j = await res.json();
     if (!res.ok) return NextResponse.json({ error: j.error?.message || "Claude call failed" }, { status: res.status });
     const out: string = (j.content || []).map((c: { text?: string }) => c.text || "").join("");
-    let cleaned = out.replace(/```[a-z]*|```/g, "").trim();
+    const cleaned = out.replace(/```[a-z]*|```/g, "").trim();
     // Models sometimes prepend / append prose despite "JSON only"
-    // instructions. Slice from the first '{' to the last '}' to
-    // tolerate that without failing the whole import.
-    const firstBrace = cleaned.indexOf("{");
-    const lastBrace = cleaned.lastIndexOf("}");
-    if (firstBrace > 0 && lastBrace > firstBrace) {
-      cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+    // instructions. Try a sequence of strategies before giving up:
+    //   1. Parse as-is
+    //   2. Slice from first `{` to last `}` (strips preamble/postamble)
+    //   3. If still failing, the response was likely truncated mid-array.
+    //      Peel off the trailing incomplete task object(s) and try again.
+    const parsedTasks = tryParseTasksJson(cleaned);
+    if (parsedTasks === null) {
+      return NextResponse.json({ error: "Model returned non-JSON", raw: cleaned.slice(0, 1200) }, { status: 502 });
     }
-    try {
-      const parsed = JSON.parse(cleaned);
-      const tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+    {
+      const tasks = parsedTasks;
       // Validate / normalize.
       const normalized = tasks.map((t: Record<string, unknown>) => {
         // Subtasks come back as array of { title } (sometimes plain strings) —
@@ -156,10 +160,78 @@ export async function POST(req: NextRequest) {
         };
       });
       return NextResponse.json({ tasks: normalized, ts: Date.now() });
-    } catch {
-      return NextResponse.json({ error: "Model returned non-JSON", raw: cleaned.slice(0, 600) }, { status: 502 });
     }
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
+}
+
+// Best-effort JSON extraction. Returns the tasks array or null if no
+// recoverable structure can be found.
+function tryParseTasksJson(raw: string): Record<string, unknown>[] | null {
+  if (!raw) return null;
+
+  // Strategy 1 + 2: parse directly, then sliced first-{ to last-}.
+  const tryParse = (s: string): Record<string, unknown>[] | null => {
+    try {
+      const j = JSON.parse(s);
+      if (Array.isArray(j?.tasks)) return j.tasks as Record<string, unknown>[];
+      if (Array.isArray(j)) return j as Record<string, unknown>[];
+    } catch { /* ignore */ }
+    return null;
+  };
+
+  let attempt = tryParse(raw);
+  if (attempt) return attempt;
+
+  const firstBrace = raw.indexOf("{");
+  const lastBrace = raw.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    attempt = tryParse(raw.slice(firstBrace, lastBrace + 1));
+    if (attempt) return attempt;
+  }
+
+  // Strategy 3: response was likely truncated mid-array. Find the tasks
+  // array opening, then walk through and extract every complete object.
+  const tasksOpen = raw.search(/"tasks"\s*:\s*\[/);
+  if (tasksOpen < 0) return null;
+  const arrStart = raw.indexOf("[", tasksOpen);
+  if (arrStart < 0) return null;
+
+  const objects: Record<string, unknown>[] = [];
+  let i = arrStart + 1;
+  while (i < raw.length) {
+    // Skip whitespace + commas.
+    while (i < raw.length && (raw[i] === " " || raw[i] === "\n" || raw[i] === "\r" || raw[i] === "\t" || raw[i] === ",")) i++;
+    if (i >= raw.length || raw[i] === "]") break;
+    if (raw[i] !== "{") break;
+    // Walk the object respecting string escapes and nested braces.
+    let depth = 0;
+    let inStr = false;
+    let esc = false;
+    let start = i;
+    for (; i < raw.length; i++) {
+      const ch = raw[i];
+      if (esc) { esc = false; continue; }
+      if (inStr) {
+        if (ch === "\\") { esc = true; continue; }
+        if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"') { inStr = true; continue; }
+      if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          const slice = raw.slice(start, i + 1);
+          const obj = tryParse("[" + slice + "]");
+          if (obj && obj.length) objects.push(obj[0]);
+          i++;
+          break;
+        }
+      }
+    }
+    if (i === start) break; // safety — no progress
+  }
+  return objects.length ? objects : null;
 }

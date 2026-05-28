@@ -23,32 +23,47 @@ const USERS: Record<string, User> = {
 
 interface UserContextValue {
   user: User | null;
-  setUser: (name: string | null) => void;
+  // Set the current user. If `remember=true` we persist to localStorage
+  // (survives browser restarts on this computer). Otherwise we use
+  // sessionStorage (cleared when the tab closes).
+  setUser: (name: string | null, remember?: boolean) => void;
 }
 
 const UserContext = createContext<UserContextValue>({ user: null, setUser: () => {} });
 
+// Same key in both storages — only one will be set at a time. Reads
+// check localStorage first (persistent wins), then sessionStorage.
 const STORAGE_KEY = "poast-current-user";
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<User | null>(null);
 
-  // Hydrate from localStorage on mount
+  // Hydrate on mount: localStorage (persistent) first, then sessionStorage.
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      let stored = localStorage.getItem(STORAGE_KEY);
+      if (!stored) stored = sessionStorage.getItem(STORAGE_KEY);
       if (stored && USERS[stored]) setUserState(USERS[stored]);
     } catch {}
   }, []);
 
-  const setUser = (name: string | null) => {
+  const setUser = (name: string | null, remember = true) => {
     if (!name || !USERS[name]) {
       setUserState(null);
-      try { localStorage.removeItem(STORAGE_KEY); } catch {}
+      try { localStorage.removeItem(STORAGE_KEY); sessionStorage.removeItem(STORAGE_KEY); } catch {}
       return;
     }
     setUserState(USERS[name]);
-    try { localStorage.setItem(STORAGE_KEY, name); } catch {}
+    try {
+      // Always clear the other storage so we don't keep stale identities.
+      if (remember) {
+        localStorage.setItem(STORAGE_KEY, name);
+        sessionStorage.removeItem(STORAGE_KEY);
+      } else {
+        sessionStorage.setItem(STORAGE_KEY, name);
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch {}
   };
 
   return <UserContext.Provider value={{ user, setUser }}>{children}</UserContext.Provider>;

@@ -1077,18 +1077,51 @@ var INTERNAL_USERS: InternalUserInfo[] = [
   { name: "Vansh",    role: "Social Media Manager",        color: "#2EAD8E", glow: "rgba(46,173,142,"  },
   { name: "Daksh",    role: "Intern",                      color: "#905CCB", glow: "rgba(144,92,203,"  },
 ];
-function UserSelect({ onSelect }: { onSelect: (name: string) => void }) {
+function UserSelect({ onSelect }: { onSelect: (name: string, remember?: boolean) => void }) {
   // Stage flow: "choose" (Analyst vs Lock tile) → "password" (if Lock) → "team" (Akash/Vansh/Michelle)
   var _stage = useState<"choose" | "password" | "team">("choose"), stage = _stage[0], setStage = _stage[1];
   var _pw = useState(""), pw = _pw[0], setPw = _pw[1];
   var _err = useState(false), err = _err[0], setErr = _err[1];
   var _hov = useState<string | null>(null), hov = _hov[0], setHov = _hov[1];
+  // "Stay logged in on this computer" — defaults to true. When false we
+  // route the auth into sessionStorage so closing the tab signs out.
+  var _remember = useState(true), remember = _remember[0], setRemember = _remember[1];
+  // If `?user=Akash` (or any valid name) is in the URL, skip the choose
+  // tiles and land directly on the password step. On unlock we'll
+  // auto-select that user without a second click on the team picker.
+  var _prefill = useState<string | null>(null), prefill = _prefill[0], setPrefill = _prefill[1];
+
+  useEffect(function() {
+    try {
+      var qs = new URLSearchParams(window.location.search);
+      var u = qs.get("user");
+      var valid = ["Akash", "Michelle", "Vansh", "Daksh", "Analyst"];
+      if (u && valid.indexOf(u) >= 0) {
+        if (u === "Analyst") {
+          // Analyst path skips password entirely (matches the Analyst
+          // tile on the choose stage).
+          onSelect("Analyst", remember);
+          return;
+        }
+        setPrefill(u);
+        setStage("password");
+        setTimeout(function() { var el = document.getElementById("gate-pw"); el && el.focus(); }, 30);
+      }
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   var VIOLET = "#905CCB";
 
   var submitPw = function() {
     if (pw.trim().toLowerCase() === GATE_PASSWORD) {
       setPw("");
       setErr(false);
+      if (prefill) {
+        // URL pre-fill path: skip the team picker, sign in immediately.
+        onSelect(prefill, remember);
+        return;
+      }
       setStage("team");
     } else {
       setErr(true);
@@ -1193,11 +1226,22 @@ function UserSelect({ onSelect }: { onSelect: (name: string) => void }) {
             </svg>
           </div>
           <input id="gate-pw" type="password" value={pw} onChange={function(e) { setPw(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") submitPw(); if (e.key === "Escape") { setStage("choose"); setPw(""); setErr(false); } }} placeholder="Password" autoFocus style={{ width: "100%", padding: "14px 16px", background: "#0A0A14", border: "1px solid " + (err ? "rgba(224,99,71,0.6)" : "rgba(255,255,255,0.1)"), borderRadius: 10, color: "#E8E4DD", fontFamily: mn, fontSize: 14, letterSpacing: 3, textAlign: "center", outline: "none", boxSizing: "border-box", transition: "border-color 0.2s" }} />
-          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+
+          {/* Stay logged in on this computer */}
+          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, padding: "8px 12px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, cursor: "pointer", userSelect: "none" }}>
+            <input type="checkbox" checked={remember} onChange={function(e) { setRemember(e.target.checked); }} style={{ accentColor: C.amber, cursor: "pointer", flexShrink: 0 }} />
+            <div style={{ flex: 1, textAlign: "left" }}>
+              <div style={{ fontFamily: ft, fontSize: 12, color: "#E8E4DD", fontWeight: 600 }}>Stay logged in on this computer</div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: 0.4, marginTop: 2 }}>{remember ? "Persists across browser restarts" : "Just this session — sign out on tab close"}</div>
+            </div>
+          </label>
+
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             <button onClick={function() { setStage("choose"); setPw(""); setErr(false); }} style={{ flex: 1, padding: "10px 12px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.5)", fontFamily: mn, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", fontWeight: 700 }}>Back</button>
             <button onClick={submitPw} style={{ flex: 2, padding: "10px 12px", background: C.amber, border: "none", borderRadius: 8, color: "#060608", fontFamily: mn, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", fontWeight: 800 }}>Unlock →</button>
           </div>
           {err && <div style={{ fontFamily: mn, fontSize: 10, color: "#E06347", marginTop: 12, textAlign: "center", letterSpacing: 1 }}>Incorrect password</div>}
+          {prefill && <div style={{ fontFamily: mn, fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 14, textAlign: "center", letterSpacing: 0.4 }}>Signing in as <span style={{ color: C.amber, fontWeight: 700 }}>{prefill}</span> after unlock</div>}
         </div>
       </>)}
 
@@ -1218,7 +1262,7 @@ function UserSelect({ onSelect }: { onSelect: (name: string) => void }) {
             var uc = user.color;
             return <div
               key={user.name}
-              onClick={function() { onSelect(user.name); }}
+              onClick={function() { onSelect(user.name, remember); }}
               onMouseEnter={function() { setHov(user.name); }}
               onMouseLeave={function() { setHov(null); }}
               style={{ width: 170, padding: "30px 20px", borderRadius: 14, cursor: "pointer", background: on ? uc + "0F" : "#0A0A14", border: "1px solid " + (on ? uc + "60" : "rgba(255,255,255,0.06)"), textAlign: "center", transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)", boxShadow: on ? "0 0 36px " + uc + "26, 0 16px 40px -10px " + uc + "30" : "0 4px 16px rgba(0,0,0,0.25)", animation: "wpop 0.55s cubic-bezier(0.16, 1, 0.3, 1) " + (0.7 + i * 0.08) + "s forwards", opacity: 0, transform: on ? "translateY(-4px)" : "translateY(0)" }}
@@ -1229,6 +1273,13 @@ function UserSelect({ onSelect }: { onSelect: (name: string) => void }) {
             </div>;
           })}
         </div>
+
+        {/* Stay logged in checkbox — visible here so people landing on the
+            team picker without `?user=` can still opt in/out. */}
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 28, padding: "8px 14px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 999, cursor: "pointer", userSelect: "none" }}>
+          <input type="checkbox" checked={remember} onChange={function(e) { setRemember(e.target.checked); }} style={{ accentColor: C.amber, cursor: "pointer" }} />
+          <span style={{ fontFamily: mn, fontSize: 11, color: "rgba(232,228,221,0.7)", letterSpacing: 0.4 }}>{remember ? "Stay logged in on this computer" : "Just this session (sign out on tab close)"}</span>
+        </label>
       </>)}
 
     </div>
@@ -1676,9 +1727,9 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
   var userCtx = useUser();
   var router = useRouter();
 
-  var handleUserSelect = function(name: string) {
+  var handleUserSelect = function(name: string, remember?: boolean) {
     setUser(name);
-    userCtx.setUser(name);
+    userCtx.setUser(name, remember !== false);
     // Analysts: drop straight into the main app. The main app renders the
     // analyst splash when sec === "home" (default), and the OnboardingHost
     // fires the welcome modal automatically for first-time analysts.
