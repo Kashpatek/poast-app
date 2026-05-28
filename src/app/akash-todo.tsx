@@ -3703,7 +3703,27 @@ function CombineDock({ ids, tasks, onAdd, onRemove, onClear, onOpen }: {
   onOpen: () => void;
 }) {
   const [over, setOver] = useState(false);
-  const [expanded, setExpanded] = useState(ids.size > 0);
+  // Default expanded so the drop target is always obvious. User can
+  // still collapse with the header button if they want it out of the
+  // way; we just don't START hidden.
+  const [expanded, setExpanded] = useState(true);
+  // Whenever a drag is in flight ANYWHERE on the page, flip dragging
+  // on so the dock pulses + force-expands. Listening on the document
+  // (rather than the dock alone) catches all task drags, since they
+  // start on a TaskRow far away from this panel.
+  const [dragging, setDragging] = useState(false);
+  useEffect(() => {
+    const onStart = () => { setDragging(true); setExpanded(true); };
+    const onEnd = () => setDragging(false);
+    document.addEventListener("dragstart", onStart);
+    document.addEventListener("dragend", onEnd);
+    document.addEventListener("drop", onEnd);
+    return () => {
+      document.removeEventListener("dragstart", onStart);
+      document.removeEventListener("dragend", onEnd);
+      document.removeEventListener("drop", onEnd);
+    };
+  }, []);
   useEffect(() => { if (ids.size > 0) setExpanded(true); }, [ids.size]);
 
   return (
@@ -3722,49 +3742,54 @@ function CombineDock({ ids, tasks, onAdd, onRemove, onClear, onOpen }: {
         className="tb-combine"
         style={{
           position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)",
-          width: expanded ? 240 : 52, maxHeight: "70vh",
+          width: expanded ? 260 : 56, maxHeight: "70vh",
           background: "#0A0A14",
-          border: `1px solid ${over ? D.amber : ids.size > 0 ? D.amber + "55" : D.border}`,
+          border: `1px solid ${over ? D.amber : dragging || ids.size > 0 ? D.amber : D.border}`,
           borderRadius: 12,
-          padding: 10,
-          boxShadow: ids.size > 0 ? `0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px ${D.amber}22` : "0 8px 22px rgba(0,0,0,0.4)",
+          padding: 12,
+          boxShadow: over || dragging
+            ? `0 0 0 3px ${D.amber}55, 0 24px 60px rgba(0,0,0,0.5)`
+            : ids.size > 0 ? `0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px ${D.amber}22` : "0 8px 22px rgba(0,0,0,0.4)",
           zIndex: 10800,
           display: "flex", flexDirection: "column", gap: 8,
           transition: "width 0.18s, border-color 0.12s, box-shadow 0.18s",
+          animation: dragging ? "tbDockPulse 1.2s ease-in-out infinite" : undefined,
         }}
       >
+        <style dangerouslySetInnerHTML={{ __html: "@keyframes tbDockPulse{0%,100%{box-shadow:0 0 0 3px rgba(247,176,65,0.40),0 24px 60px rgba(0,0,0,0.5)}50%{box-shadow:0 0 0 6px rgba(247,176,65,0.60),0 24px 60px rgba(0,0,0,0.5)}}" }} />
         {/* Header · always visible, doubles as collapse toggle. */}
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", color: ids.size > 0 ? D.amber : D.txm, cursor: "pointer", padding: 0, fontFamily: mn, fontSize: 10, letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}
+          style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", color: ids.size > 0 || dragging ? D.amber : D.txm, cursor: "pointer", padding: 0, fontFamily: mn, fontSize: 10, letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700 }}
           title={expanded ? "Collapse combine dock" : "Expand combine dock"}
         >
-          <span style={{ width: 18, height: 18, borderRadius: 4, background: ids.size > 0 ? D.amber + "22" : "transparent", border: `1px solid ${ids.size > 0 ? D.amber : D.border}`, color: ids.size > 0 ? D.amber : D.txm, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>
-            {ids.size > 0 ? ids.size : "+"}
+          <span style={{ width: 22, height: 22, borderRadius: 5, background: (ids.size > 0 || dragging) ? D.amber + "33" : "transparent", border: `1.5px solid ${(ids.size > 0 || dragging) ? D.amber : D.border}`, color: (ids.size > 0 || dragging) ? D.amber : D.txm, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900 }}>
+            {ids.size > 0 ? ids.size : "↘"}
           </span>
-          {expanded ? <span>Combine</span> : null}
+          {expanded ? <span>{dragging ? "Drop here to combine" : "Combine bucket"}</span> : null}
         </button>
         {expanded ? (
           <>
-            <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.3, lineHeight: 1.4 }}>
-              {ids.size === 0 ? "Drag duplicates here to merge" : `${ids.size} staged · merge into one`}
+            <div style={{ fontFamily: mn, fontSize: 9.5, color: dragging ? D.amber : D.txd, letterSpacing: 0.3, lineHeight: 1.4 }}>
+              {dragging ? "↓ Drop the task here ↓" : ids.size === 0 ? "Drag duplicate tasks here, then merge into one." : `${ids.size} staged · merge into one`}
             </div>
             <div
               style={{
-                flex: 1, minHeight: ids.size === 0 ? 80 : 0,
+                flex: 1, minHeight: ids.size === 0 ? 140 : 0,
                 overflowY: "auto",
                 display: "flex", flexDirection: "column", gap: 4,
-                padding: 6,
+                padding: 8,
                 borderRadius: 8,
-                background: over ? "rgba(247,176,65,0.10)" : "rgba(255,255,255,0.02)",
-                border: `1px dashed ${over ? D.amber : D.border}`,
+                background: over ? "rgba(247,176,65,0.18)" : dragging ? "rgba(247,176,65,0.08)" : "rgba(255,255,255,0.02)",
+                border: `2px dashed ${over ? D.amber : dragging ? D.amber + "88" : D.border}`,
                 transition: "background 0.12s, border-color 0.12s",
               }}
             >
               {tasks.length === 0 ? (
-                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.3, textAlign: "center", padding: "12px 4px" }}>
-                  Drag &amp; drop tasks here
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: mn, fontSize: 11, color: dragging ? D.amber : D.txd, letterSpacing: 0.4, textAlign: "center", padding: "16px 4px", fontWeight: 700 }}>
+                  <span style={{ fontSize: 22, lineHeight: 1 }}>↘</span>
+                  {dragging ? "Drop to combine" : "Drag duplicates here"}
                 </div>
               ) : tasks.map((t) => {
                 const aSpec = getAssigneeSpec(t.assignee || "Akash");
