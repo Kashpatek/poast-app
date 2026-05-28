@@ -22,7 +22,7 @@ HARD RULES:
 - If the image is a table, output {"kind":"table", "table": {...}}.
 - If neither, output {"kind":"unknown", "reason":"short reason"}.
 - Read every number, axis label, category, and series legend you can see. If a value is illegible, output null for it and include a "notes" string explaining what was unclear.
-- Pick the best chartType from this exact list: stacked, pct, clustered, wfup, wfdn, mekkoPct, combo, line, stackedArea, pctArea, mekkoUnit, pie, doughnut, scatter, bubble, variance, gantt. Choose the closest match — never invent a new type.
+- Pick the best chartType from this exact list: stacked, stackedPosNeg, pct, clustered, wfup, wfdn, mekkoPct, combo, line, stackedArea, pctArea, mekkoUnit, pie, doughnut, scatter, bubble, variance, gantt. Use stackedPosNeg when segments span above AND below a 0 baseline (attribution / contribution charts). Choose the closest match — never invent a new type.
 
 CHART OUTPUT SHAPE:
 {

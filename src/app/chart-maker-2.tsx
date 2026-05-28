@@ -52,7 +52,7 @@ import {
 // ═══════════════════════════════════════════════════════════════════════════
 
 type ChartType =
-  | "stacked" | "pct" | "clustered" | "wfup" | "wfdn"
+  | "stacked" | "stackedPosNeg" | "pct" | "clustered" | "wfup" | "wfdn"
   | "mekkoPct" | "combo" | "line" | "stackedArea" | "pctArea"
   | "mekkoUnit" | "pie" | "doughnut" | "scatter" | "bubble"
   | "variance" | "gantt";
@@ -162,6 +162,27 @@ function samplePerType(type: ChartType): DataSheet {
           { category: "Q3 '25", s1: 184, s2: 48, s3: 115 },
           { category: "Q4 '25", s1: 210, s2: 56, s3: 138 },
           { category: "Q1 '26", s1: 232, s2: 62, s3: 165 },
+        ],
+      };
+    case "stackedPosNeg":
+      // Contribution / attribution chart — each series can swing positive
+      // or negative within a category, stacking up from / down to 0.
+      return {
+        schema: [
+          { key: "category", label: "Category", type: "text" },
+          { key: "s1", label: "In_01", type: "number" },
+          { key: "s2", label: "In_02", type: "number" },
+          { key: "s3", label: "In_03", type: "number" },
+          { key: "s4", label: "In_04", type: "number" },
+          { key: "s5", label: "In_05", type: "number" },
+          { key: "s6", label: "In_06", type: "number" },
+        ],
+        rows: [
+          { category: "Out01", s1: 80, s2: 0,   s3: 0,   s4: -3, s5: 4,  s6: -16 },
+          { category: "Out02", s1: 50, s2: 14,  s3: 5,   s4: 8,  s5: 7,  s6: -16 },
+          { category: "Out03", s1: 0,  s2: 0,   s3: 0,   s4: 0,  s5: 26, s6: 56  },
+          { category: "Out04", s1: 0,  s2: 34,  s3: -25, s4: 0,  s5: 3,  s6: 28  },
+          { category: "Out05", s1: 0,  s2: 38,  s3: -20, s4: -3, s5: 0,  s6: 19  },
         ],
       };
     case "wfup":
@@ -291,6 +312,7 @@ interface TypeSpec { id: ChartType; label: string; Icon: LucideIcon; working: bo
 const TYPES: TypeSpec[][] = [
   [
     { id: "stacked",     label: "Stacked",    Icon: Columns3,                         working: true  },
+    { id: "stackedPosNeg", label: "Stacked +/−", Icon: ArrowDownUp,                    working: true  },
     { id: "pct",         label: "100%",       Icon: AlignVerticalJustifyCenter,       working: true  },
     { id: "clustered",   label: "Clustered",  Icon: AlignVerticalDistributeCenter,    working: true  },
     { id: "wfup",        label: "Waterfall +", Icon: TrendingUp,                      working: true  },
@@ -2339,6 +2361,175 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
         yOf={yOf}
         fmt={cfg.numFmt}
       />
+    </ChartFrame>
+  );
+}
+
+// ─── Stacked +/− (diverging) ──────────────────────────────────────────────
+// Contribution / attribution column chart. Each category has positive
+// segments stacking up from 0 and negative segments stacking down from
+// 0. Same series key keeps the same color on both sides, so the legend
+// reads cleanly. Click a segment to surface the selection toolbar /
+// color wheel like the other column types.
+function StackedPosNegColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, onShowElementMenu, onSelect, onSetSeriesColor, selected, onSelectElement, onOpenWheel }: CatProps) {
+  const [hoverCat, setHoverCat] = useState<number | null>(null);
+  const { categories, series } = getCategoricalSeries(sheet);
+  const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
+  const catKey = sheet.schema[0]?.key || "category";
+  const palette = THEMES[cfg.theme].colors;
+  const colorOf = (key: string, idx: number) => cfg.seriesColors?.[key] || palette[idx % palette.length];
+  const legendSwatchClick = onSetSeriesColor && onShowMenu ? (key: string, e: React.MouseEvent) => onShowMenu(e, [
+    { kind: "swatchRow", colors: palette, current: cfg.seriesColors?.[key], onPick: c => onSetSeriesColor(key, c) },
+  ]) : undefined;
+  void legendSwatchClick;
+  const [editingCat, setEditingCat] = useState<number | null>(null);
+  const cc = chartColors(cfg);
+  const SIDE_LEGEND_W = (cfg.legendPos === "left" || cfg.legendPos === "right") ? 100 : 0;
+  const leftPad = cfg.legendPos === "left" ? 56 + SIDE_LEGEND_W : 56;
+  const rightPad = cfg.legendPos === "right" ? 24 + SIDE_LEGEND_W : 24;
+  const topPad = 70, bottomPad = cfg.legendPos === "top" ? 60 : 48;
+  const chartW = W - leftPad - rightPad;
+  const chartH = H - topPad - bottomPad;
+
+  // Per-category positive / negative totals. Each series contributes to
+  // whichever half its sign points to.
+  const posTotals = categories.map((_, i) => series.reduce((a, s) => a + Math.max(0, s.values[i]), 0));
+  const negTotals = categories.map((_, i) => series.reduce((a, s) => a + Math.min(0, s.values[i]), 0));
+  const maxV = Math.max(0, ...posTotals);
+  const minV = Math.min(0, ...negTotals);
+  const ticks = niceTicks(minV, maxV, 6);
+  const tickMin = cfg.yMin !== undefined ? cfg.yMin : (ticks[0] ?? minV);
+  const tickMax = cfg.yMax !== undefined ? cfg.yMax : (ticks[ticks.length - 1] ?? maxV);
+  const span = (tickMax - tickMin) || 1;
+  const yOf = (v: number) => chartH - ((v - tickMin) / span) * chartH;
+  const zeroY = yOf(0);
+
+  const groupW = chartW / categories.length;
+  const barW = Math.max(2, Math.min(groupW * ((cfg.barWidthPct ?? 65) / 100), groupW * 0.92));
+
+  return (
+    <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
+      {ticks.map(t => (
+        <g key={t}>
+          {cfg.showGridlines !== false && <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke={t === 0 ? cc.text : cc.grid} strokeWidth={t === 0 ? 1.5 : 1} />}
+          {cfg.showTickMarks && <line x1={leftPad - 4} x2={leftPad} y1={yOf(t)} y2={yOf(t)} stroke={cc.muted} strokeWidth="1.5" />}
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
+        </g>
+      ))}
+      {categories.map((cat, i) => {
+        let cumPos = 0;
+        let cumNeg = 0;
+        const isHovered = hoverCat === i;
+        void isHovered;
+        return (
+          <g key={i} style={{ animation: `cm2BarRise 0.6s cubic-bezier(.2,.7,.2,1) both`, animationDelay: `${i * 30}ms`, transformOrigin: `${leftPad + i * groupW + groupW / 2}px ${topPad + zeroY}px`, transformBox: "fill-box" as React.CSSProperties["transformBox"] }}>
+            {series.map((s, si) => {
+              const v = s.values[i];
+              if (v === 0) return null;
+              const key = seriesKeys[si];
+              const color = colorOf(key, si);
+              const segX = leftPad + i * groupW + (groupW - barW) / 2;
+              let y0: number, y1: number;
+              if (v > 0) {
+                y0 = yOf(cumPos);
+                y1 = yOf(cumPos + v);
+                cumPos += v;
+              } else {
+                y0 = yOf(cumNeg);
+                y1 = yOf(cumNeg + v);
+                cumNeg += v;
+              }
+              const segH = Math.abs(y1 - y0);
+              const segY = Math.min(y0, y1);
+              const isSelected = selected?.kind === "segment" && selected.rowIdx === i && selected.key === key;
+              return (
+                <g key={si}>
+                  <rect
+                    x={segX}
+                    y={segY}
+                    width={barW}
+                    height={Math.max(0, segH)}
+                    rx={cfg.roundedCorners ? 3 : 0}
+                    ry={cfg.roundedCorners ? 3 : 0}
+                    fill={color}
+                    stroke={cfg.showBorders ? cc.barBorder : "none"}
+                    strokeWidth={cfg.showBorders ? 1 : 0}
+                    onPointerDown={(e) => {
+                      if (e.button === 2) return;
+                      e.stopPropagation();
+                      if (onSelectElement) onSelectElement({ kind: "segment", rowIdx: i, key, color, anchorX: e.clientX, anchorY: e.clientY });
+                      if (onSelect) onSelect({ kind: "bar", rowIdx: i, key, color, anchorX: e.clientX, anchorY: e.clientY });
+                    }}
+                    onMouseEnter={() => setHoverCat(i)}
+                    onMouseLeave={() => setHoverCat(h => h === i ? null : h)}
+                    onContextMenu={e => {
+                      e.preventDefault(); e.stopPropagation();
+                      if (onSelectElement) onSelectElement({ kind: "segment", rowIdx: i, key, color, anchorX: e.clientX, anchorY: e.clientY });
+                      if (onOpenWheel) { onOpenWheel(e.clientX, e.clientY); return; }
+                      if (onShowElementMenu) {
+                        onShowElementMenu({ x: e.clientX, y: e.clientY, kind: "bar", rowIdx: i, seriesKey: key, currentColor: cfg.seriesColors?.[key] });
+                      } else {
+                        onShowMenu?.(e, [
+                          { label: "Set segment to 0", onClick: () => onUpdateRow?.(i, { [key]: 0 }) },
+                          { label: "Flip sign", onClick: () => onUpdateRow?.(i, { [key]: -v }) },
+                          { label: "", divider: true, onClick: () => {} },
+                          { label: "Delete row", danger: true, onClick: () => onDeleteRow?.(i) },
+                        ]);
+                      }
+                    }}
+                    style={{ cursor: onUpdateRow ? "pointer" : "default" }}
+                  />
+                  {cfg.showSegmentLabels && segH > 18 && barW > 24 && (
+                    <text
+                      x={segX + barW / 2}
+                      y={(y0 + y1) / 2 + 3}
+                      textAnchor="middle"
+                      fill={cc.onBar}
+                      style={{ fontFamily: fontMono, fontSize: 12, fontWeight: 800, pointerEvents: "none" }}
+                    >{fmtVal(v, cfg.numFmt)}</text>
+                  )}
+                  {isSelected && (
+                    <rect x={segX - 2} y={segY - 2} width={barW + 4} height={segH + 4} fill="none" stroke={C.amber} strokeWidth={1.5} pointerEvents="none" rx={cfg.roundedCorners ? 5 : 0} />
+                  )}
+                </g>
+              );
+            })}
+            {/* Net (sum) label — drawn just above the higher of pos/neg edges. */}
+            {cfg.showTotalLabels !== false && (
+              <text
+                x={leftPad + i * groupW + groupW / 2}
+                y={yOf(posTotals[i]) - 6}
+                textAnchor="middle"
+                fill={cc.text}
+                style={{ fontFamily: fontMono, fontSize: 12, fontWeight: 700, pointerEvents: "none" }}
+              >
+                {fmtVal(posTotals[i] + negTotals[i], cfg.numFmt)}
+              </text>
+            )}
+            {/* Category label · always below the chartH baseline, not the 0 line. */}
+            {editingCat === i ? (
+              <foreignObject x={leftPad + i * groupW + 6} y={chartH + 8} width={groupW - 12} height={26}>
+                <input
+                  autoFocus
+                  defaultValue={cat}
+                  onBlur={e => { onUpdateRow?.(i, { [catKey]: (e.target as HTMLInputElement).value }); setEditingCat(null); }}
+                  onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingCat(null); }}
+                  style={{ width: "100%", height: "100%", padding: "0 6px", background: "#0A0A0E", border: "1px solid " + C.amber + "80", borderRadius: 4, color: "#E8E4DD", fontFamily: fontSans, fontSize: 13, outline: "none", boxSizing: "border-box", textAlign: "center" }}
+                />
+              </foreignObject>
+            ) : (
+              <text
+                x={leftPad + i * groupW + groupW / 2}
+                y={zeroY + (negTotals[i] < 0 ? -4 : 18)}
+                textAnchor="middle"
+                fill={cc.muted}
+                onClick={() => onUpdateRow && setEditingCat(i)}
+                style={{ fontFamily: fontSans, fontSize: 12, fontWeight: 600, cursor: onUpdateRow ? "text" : "default" }}
+              >{cat}</text>
+            )}
+          </g>
+        );
+      })}
     </ChartFrame>
   );
 }
@@ -4488,7 +4679,7 @@ function chartColors(cfg: ChartConfig) {
 // Family color tints for the wheel — wedge fills are family color × low alpha
 // so the whole wheel reads at-a-glance even before you read labels.
 function familyForType(t: ChartType): "column" | "line" | "mekko" | "gantt" {
-  if (t === "stacked" || t === "pct" || t === "clustered" || t === "wfup" || t === "wfdn" || t === "variance") return "column";
+  if (t === "stacked" || t === "stackedPosNeg" || t === "pct" || t === "clustered" || t === "wfup" || t === "wfdn" || t === "variance") return "column";
   if (t === "line" || t === "stackedArea" || t === "pctArea" || t === "combo") return "line";
   if (t === "mekkoPct" || t === "mekkoUnit" || t === "pie" || t === "doughnut") return "mekko";
   return "gantt";
@@ -5359,7 +5550,7 @@ function PropertiesPanel({
   const tabs: Array<{ id: "design" | "annotations" | "series"; label: string }> = [
     { id: "design", label: "Design" }, { id: "annotations", label: "Annotate" }, { id: "series", label: "Series" },
   ];
-  const annotApplies = ["stacked", "clustered", "line", "stackedArea", "wfup"].includes(chartType);
+  const annotApplies = ["stacked", "stackedPosNeg", "clustered", "line", "stackedArea", "wfup"].includes(chartType);
   const [refValue, setRefValue] = useState("0");
   const [refLabel, setRefLabel] = useState("");
   const [editingSeries, setEditingSeries] = useState<string | null>(null);
@@ -6239,7 +6430,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
       if (j?.sheet && Array.isArray(j.sheet.schema) && Array.isArray(j.sheet.rows)) {
         // Map the imported chart type onto one we know how to render;
         // fall back to clustered bars for anything unrecognized.
-        const knownTypes: ChartType[] = ["stacked","pct","clustered","wfup","wfdn","mekkoPct","combo","line","stackedArea","pctArea","mekkoUnit","pie","doughnut","scatter","bubble","variance","gantt"];
+        const knownTypes: ChartType[] = ["stacked","stackedPosNeg","pct","clustered","wfup","wfdn","mekkoPct","combo","line","stackedArea","pctArea","mekkoUnit","pie","doughnut","scatter","bubble","variance","gantt"];
         const importedType = (j.chartType && knownTypes.indexOf(j.chartType as ChartType) >= 0 ? j.chartType : "clustered") as ChartType;
         setType(importedType);
         setSheets((p) => ({ ...p, [importedType]: j.sheet as DataSheet }));
@@ -6595,6 +6786,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     const a = { onUpdateRow, onDeleteRow, onShowMenu, onShowElementMenu, annotations, pickMode, onPickBar, onSelect: setSelection, onSetSeriesColor: setSeriesColor, selected, onSelectElement: selectElement, onOpenWheel };
     switch (type) {
       case "stacked": return <StackedColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
+      case "stackedPosNeg": return <StackedPosNegColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
       case "clustered": return <ClusteredColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
       case "pct": return <PercentColumn sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "line": return <LineProfile sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
@@ -7327,7 +7519,7 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
             { id: "themeCore", label: "Palette · SA Core", category: "View", run: () => setTheme("saCore") },
             { id: "themeSpectrum", label: "Palette · SA Spectrum", category: "View", run: () => setTheme("saSpectrum") },
             // Chart type changes
-            ...((["stacked","clustered","pct","line","stackedArea","pctArea","pie","doughnut","scatter","bubble","mekkoPct","mekkoUnit","combo","wfup","wfdn","variance","gantt"] as ChartType[]).map(t => ({
+            ...((["stacked","stackedPosNeg","clustered","pct","line","stackedArea","pctArea","pie","doughnut","scatter","bubble","mekkoPct","mekkoUnit","combo","wfup","wfdn","variance","gantt"] as ChartType[]).map(t => ({
               id: "type-" + t, label: "Chart Type · " + t, category: "Chart" as const, run: () => setType(t),
             }))),
           ]}
@@ -8505,19 +8697,19 @@ function ExportDropdownIcon({ onPNG, onJPG, onSVG, onPPTX, onCopyPNG }: {
 // Each toggle now declares the set of chart types it applies to; renderers
 // gate visibility against this map.
 const TOGGLE_APPLIES: Record<string, ChartType[]> = {
-  gridlines:    ["stacked","clustered","pct","line","stackedArea","pctArea","scatter","bubble","combo","variance","wfup","wfdn","mekkoPct","mekkoUnit"],
-  borders:      ["stacked","clustered","pct","mekkoPct","mekkoUnit","wfup","wfdn","variance","combo","pie","doughnut"],
-  segmentLabels:["stacked","pct","mekkoPct","mekkoUnit"],
-  totalLabels:  ["stacked","clustered","mekkoPct","mekkoUnit"],
+  gridlines:    ["stacked","stackedPosNeg","clustered","pct","line","stackedArea","pctArea","scatter","bubble","combo","variance","wfup","wfdn","mekkoPct","mekkoUnit"],
+  borders:      ["stacked","stackedPosNeg","clustered","pct","mekkoPct","mekkoUnit","wfup","wfdn","variance","combo","pie","doughnut"],
+  segmentLabels:["stacked","stackedPosNeg","pct","mekkoPct","mekkoUnit"],
+  totalLabels:  ["stacked","stackedPosNeg","clustered","mekkoPct","mekkoUnit"],
   logScale:     ["stacked","clustered","line","stackedArea","scatter","bubble","combo","variance","wfup","wfdn"],
-  rounded:      ["stacked","clustered","pct","wfup","wfdn","variance","mekkoPct","mekkoUnit","combo"],
+  rounded:      ["stacked","stackedPosNeg","clustered","pct","wfup","wfdn","variance","mekkoPct","mekkoUnit","combo"],
   endLabels:    ["line","stackedArea","pctArea"],
   markers:      ["line","stackedArea","pctArea","scatter","bubble","combo"],
   hundredIndicator: ["pct","pctArea","mekkoPct"],
   axisBreak:    ["stacked","clustered","line","stackedArea","scatter","bubble","combo","variance","wfup","wfdn"],
-  tickMarks:    ["stacked","clustered","pct","line","stackedArea","pctArea","scatter","bubble","combo","variance","wfup","wfdn","mekkoPct","mekkoUnit"],
-  barWidth:     ["stacked","clustered","pct","wfup","wfdn","variance","mekkoPct","mekkoUnit","combo"],
-  watermark:    ["stacked","clustered","pct","line","stackedArea","pctArea","scatter","bubble","combo","variance","wfup","wfdn","mekkoPct","mekkoUnit","pie","doughnut","gantt"],
+  tickMarks:    ["stacked","stackedPosNeg","clustered","pct","line","stackedArea","pctArea","scatter","bubble","combo","variance","wfup","wfdn","mekkoPct","mekkoUnit"],
+  barWidth:     ["stacked","stackedPosNeg","clustered","pct","wfup","wfdn","variance","mekkoPct","mekkoUnit","combo"],
+  watermark:    ["stacked","stackedPosNeg","clustered","pct","line","stackedArea","pctArea","scatter","bubble","combo","variance","wfup","wfdn","mekkoPct","mekkoUnit","pie","doughnut","gantt"],
   pieOther:     ["pie","doughnut"],
 };
 function toggleApplies(id: string, t: ChartType): boolean {
