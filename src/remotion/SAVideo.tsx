@@ -272,6 +272,10 @@ var Watermark: React.FC = function () {
 };
 
 export var SAVideo: React.FC<Props> = function (props) {
+  // Hoist hooks to component scope. The data-card spring below used to
+  // call useCurrentFrame() inside .map(), which violates Hooks rules and
+  // crashes under React strict mode.
+  var rootFrame = useCurrentFrame();
   var hook = props.hook;
   var scriptSections = props.scriptSections;
   var dataPoints = props.dataPoints;
@@ -504,7 +508,7 @@ export var SAVideo: React.FC<Props> = function (props) {
               </div>
               <div style={{ display: "flex", gap: 24, flexWrap: "wrap", justifyContent: "center", maxWidth: "92%" }}>
                 {dataPoints.slice(0, 3).map(function (dp, di) {
-                  var s = spring({ frame: useCurrentFrame() - di * 10, fps: 30, config: { damping: 14 } });
+                  var s = spring({ frame: rootFrame - di * 10, fps: 30, config: { damping: 14 } });
                   return (
                     <div
                       key={di}
