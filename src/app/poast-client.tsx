@@ -1874,9 +1874,26 @@ export default function App() {
   var _sp = useState<"loading" | "show" | "skip">("loading"), introState = _sp[0], setIntroState = _sp[1];
   var showIntro = introState === "show";
   useEffect(function() {
-    var pathname = typeof window !== "undefined" ? window.location.pathname : "";
-    if (pathname === "/") { setIntroState("show"); return; }
-    var hasUser = typeof window !== "undefined" && !!localStorage.getItem("poast-current-user");
+    // Respect "Stay logged in" everywhere, including on the root path.
+    // Previously `/` always showed the intro picker regardless of saved
+    // session — that's why the checkbox felt broken even though the
+    // user-context was correctly writing localStorage. Now we check
+    // both localStorage and sessionStorage so the session-only path
+    // also skips the picker until the tab closes.
+    var hasUser = false;
+    if (typeof window !== "undefined") {
+      try {
+        hasUser = !!localStorage.getItem("poast-current-user") || !!sessionStorage.getItem("poast-current-user");
+      } catch { /* ignore */ }
+    }
+    // Honor ?user= bookmark even when a session exists — lets a user
+    // override "I'm signed in as X" by visiting ?user=Y explicitly.
+    var qs = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    var explicitUser = qs?.get("user");
+    if (explicitUser && !hasUser) {
+      setIntroState("show");
+      return;
+    }
     setIntroState(hasUser ? "skip" : "show");
   }, []);
   var _askPoast = useState(false), askPoastOpen = _askPoast[0], setAskPoastOpen = _askPoast[1];
