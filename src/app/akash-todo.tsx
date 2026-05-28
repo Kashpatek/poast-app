@@ -3336,7 +3336,7 @@ function CombineDock({ ids, tasks, onAdd, onRemove, onClear, onOpen }: {
   useEffect(() => { if (ids.size > 0) setExpanded(true); }, [ids.size]);
 
   return (
-    <ModalPortal>
+    <BodyPortal>
       <div
         onDragOver={(e) => { e.preventDefault(); if (!over) setOver(true); }}
         onDragLeave={(e) => {
@@ -3422,7 +3422,7 @@ function CombineDock({ ids, tasks, onAdd, onRemove, onClear, onOpen }: {
           </>
         ) : null}
       </div>
-    </ModalPortal>
+    </BodyPortal>
   );
 }
 
@@ -3599,7 +3599,7 @@ function BulkActionBar({ count, onAssign, onPriority, onDone, onPin, onDelete, o
   onClear: () => void;
 }) {
   return (
-    <ModalPortal>
+    <BodyPortal>
       <div style={{ position: "fixed", left: 0, right: 0, bottom: 24, display: "flex", justifyContent: "center", pointerEvents: "none", zIndex: 11000 }}>
         <div style={{ pointerEvents: "auto", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "#0A0A14", border: `1px solid ${D.amber}55`, borderRadius: 12, boxShadow: "0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(247,176,65,0.08)", fontFamily: mn, fontSize: 11, letterSpacing: 0.3 }}>
           <span style={{ color: D.amber, fontWeight: 700, padding: "3px 10px", background: D.amber + "1c", border: `1px solid ${D.amber}55`, borderRadius: 999 }}>
@@ -3640,7 +3640,7 @@ function BulkActionBar({ count, onAssign, onPriority, onDone, onPin, onDelete, o
           <button type="button" onClick={onClear}  style={{ background: "transparent", border: `1px solid ${D.border}`,  color: D.txm,   padding: "5px 10px", borderRadius: 6, fontFamily: mn, fontSize: 10, cursor: "pointer", letterSpacing: 0.4 }}>Esc · Clear</button>
         </div>
       </div>
-    </ModalPortal>
+    </BodyPortal>
   );
 }
 
@@ -3898,20 +3898,27 @@ function AssigneePicker({ value, onChange }: { value: string; onChange: (id: str
   );
 }
 
-// Portal a modal to <body> so ancestor transforms/filters/backdrop-filters
-// can't accidentally turn position:fixed into containing-block-relative.
-// Also locks body scroll so the underlying page can't slide out from
-// under the modal mid-edit.
-function ModalPortal({ children }: { children: React.ReactNode }) {
+// Portal helper without side effects. Use for floating *chrome* that
+// happens to need viewport-anchored positioning (the combine dock, the
+// bulk-action bar) — they live on top of the page but should never
+// stop the page from scrolling.
+function BodyPortal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  if (!mounted) return null;
+  return createPortal(children, document.body);
+}
+
+// Same as BodyPortal but ALSO locks body scroll while mounted. Use for
+// actual modal dialogs (Edit / Add / Board / Focus / Combine / ⌘K) so
+// the underlying page can't slide out from under the modal mid-edit.
+function ModalPortal({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    setMounted(true);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = prev; };
   }, []);
-  if (!mounted) return null;
-  return createPortal(children, document.body);
+  return <BodyPortal>{children}</BodyPortal>;
 }
 
 const lbl: React.CSSProperties = { fontFamily: mn, fontSize: 10, letterSpacing: 1.2, textTransform: "uppercase", color: D.txd, marginBottom: 4 };
