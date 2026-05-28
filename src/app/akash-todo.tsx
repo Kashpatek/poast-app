@@ -28,6 +28,18 @@ interface Subtask {
   done?: boolean;
 }
 
+// Dated comment entry on a task. Used so notes can read as a log
+// instead of one ever-growing freeform text blob — easier to see what
+// happened when, esp. for shared / multi-day work.
+interface NoteEntry {
+  id: string;
+  ts: string;          // ISO datetime when entry was added
+  author?: string;     // optional; we just stamp with current user when known
+  text: string;
+}
+
+type Recurrence = "daily" | "weekly" | "monthly";
+
 interface Task {
   id: string;
   title: string;
@@ -50,9 +62,26 @@ interface Task {
   // Optional estimate in minutes, used by the planner to size the
   // timeline block. Defaults to 30 if not set.
   estimateMins?: number;
-  source?: "manual" | "prompt" | "image" | "quick";
+  source?: "manual" | "prompt" | "image" | "quick" | "recurring";
   addedAt: string;
   updatedAt?: string;
+  // Manual ordering hint inside a group (lower = higher on the list).
+  // Set by drag-reorder; tasks without it sort after manually-ordered
+  // ones, then by addedAt.
+  manualOrder?: number;
+  // Recurring template flag. When set, an unfinished instance gets
+  // auto-spawned each period and the template itself stays "template"
+  // (never displayed). Templates are identified by `isRecurringTemplate`
+  // and the rolling instances reference the template via `recurringFrom`.
+  recurrence?: Recurrence;
+  recurrenceAnchor?: string;     // ISO date — anchor for weekly/monthly cadence
+  isRecurringTemplate?: boolean; // hidden from views; only spawns children
+  recurringFrom?: string;        // child task → parent template id
+  lastSpawnedFor?: string;       // template → last ISO date we minted an instance for
+  // Dated entry list. Lives alongside the legacy `notes` string so
+  // existing data renders unchanged; the modal appends new comments
+  // here so a multi-day task reads as a thread.
+  notesLog?: NoteEntry[];
 }
 
 interface Board {
@@ -193,6 +222,14 @@ export default function AkashTodo() {
       if (!data.activeId || !data.boards.find((b) => b.id === data.activeId)) {
         data.activeId = data.boards[0].id;
       }
+      // Spawn any recurring templates that are due. Walks every board's
+      // task list, finds templates, and mints instances for any period
+      // boundary they've crossed since lastSpawnedFor. Runs before the
+      // initial snapshot so the auto-save effect catches the new tasks.
+      data.boards = data.boards.map((b) => ({
+        ...b,
+        tasks: spawnDueRecurring(b.tasks),
+      }));
       // Snapshot what we loaded so the auto-save effect doesn't fire on the
       // initial render purely from setArchive populating the value.
       lastSavedRef.current = JSON.stringify(data);
@@ -378,6 +415,8 @@ export default function AkashTodo() {
     const today = startOfDay(new Date());
     const weekOut = new Date(today); weekOut.setDate(weekOut.getDate() + 7);
     return activeBoard.tasks.filter((t) => {
+      // Recurring templates aren't real tasks — they only mint instances.
+      if (t.isRecurringTemplate) return false;
       if (!showDone && (t.done || t.priority === "DONE")) return false;
       if (q) {
         const hay = `${t.title} ${t.description || ""} ${t.category} ${t.notes || ""} ${(t.tags || []).join(" ")}`.toLowerCase();
@@ -466,6 +505,33 @@ export default function AkashTodo() {
     isSelected: (id: string) => selectedIds.has(id),
     anySelected: selectedIds.size > 0,
     onToggleSelected: toggleSelected,
+    filterQuery: filter.trim() || undefined,
+    onReorderTo: (droppedId: string, targetId: string) => {
+      if (droppedId === targetId) return;
+      updateActiveBoard((b) => {
+        const dropped = b.tasks.find((t) => t.id === droppedId);
+        const target = b.tasks.find((t) => t.id === targetId);
+        if (!dropped || !target) return b;
+        // Same-group key for the active groupBy. Cross-group drops fall
+        // through (DropGroup handles those).
+        const keyOf = (t: Task) => groupBy === "category" ? t.category
+          : groupBy === "assignee" ? (t.assignee || "Akash")
+          : (t.done ? "DONE" : t.priority);
+        if (keyOf(dropped) !== keyOf(target)) return b;
+        // Build the new order list for the group and re-stamp integer
+        // manualOrder so subsequent saves persist the position.
+        const group = b.tasks.filter((t) => keyOf(t) === keyOf(target)).sort(byManual);
+        const without = group.filter((t) => t.id !== droppedId);
+        const idx = without.findIndex((t) => t.id === targetId);
+        const next = [...without.slice(0, idx), dropped, ...without.slice(idx)];
+        const orderMap = new Map<string, number>();
+        next.forEach((t, i) => orderMap.set(t.id, i));
+        return {
+          ...b,
+          tasks: b.tasks.map((t) => orderMap.has(t.id) ? { ...t, manualOrder: orderMap.get(t.id) } : t),
+        };
+      });
+    },
   };
 
   // Counts per priority on full board (not filtered)
@@ -475,7 +541,7 @@ export default function AkashTodo() {
   }));
 
   return (
-    <div style={{ position: "relative", maxWidth: 1280, margin: "0 auto", padding: "40px 32px" }}>
+    <div className="tb-page" style={{ position: "relative", maxWidth: 1280, margin: "0 auto", padding: "40px 32px" }}>
       {/* Ambient backdrop · two soft radial glows (amber top-right, cobalt
           bottom-left) that breathe through the page. Pointer-events:none
           so they never intercept clicks. Lives behind everything. */}
@@ -483,7 +549,24 @@ export default function AkashTodo() {
         position: "fixed", inset: 0, zIndex: -1, pointerEvents: "none",
         background: "radial-gradient(900px 600px at 85% -10%, rgba(247,176,65,0.10), transparent 60%), radial-gradient(900px 700px at -10% 110%, rgba(11,134,209,0.10), transparent 60%)",
       }} />
-      <style dangerouslySetInnerHTML={{ __html: "@keyframes tbBreathe{0%,100%{opacity:0.55;transform:scale(1)}50%{opacity:1;transform:scale(1.03)}}.tb-chip{transition:transform 0.12s ease, border-color 0.12s ease, background 0.12s ease}.tb-chip:hover{transform:translateY(-1px)}" }} />
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes tbBreathe{0%,100%{opacity:0.55;transform:scale(1)}50%{opacity:1;transform:scale(1.03)}}
+        .tb-chip{transition:transform 0.12s ease, border-color 0.12s ease, background 0.12s ease}
+        .tb-chip:hover{transform:translateY(-1px)}
+        /* Phone layout · the toolbar/counter row scrunches at ≤720px.
+           Stack the title metadata, let the 5 priority cards wrap, and
+           tuck the combine dock to the bottom so it doesn't crowd the
+           right edge of a narrow screen. */
+        @media (max-width: 720px) {
+          .tb-page{padding:20px 14px !important;}
+          .tb-counters{grid-template-columns:repeat(auto-fit,minmax(96px,1fr)) !important;}
+          .tb-title{font-size:32px !important;letter-spacing:-1 !important;}
+          .tb-hint{display:none !important;}
+          .tb-toolbar{flex-direction:column !important;align-items:stretch !important;}
+          .tb-toolbar > *{width:100% !important;}
+          .tb-combine{right:8px !important;bottom:80px !important;top:auto !important;transform:none !important;max-height:50vh !important;}
+        }
+      ` }} />
       {/* ── Header ──────────────────────────────────────────────── */}
       <div style={{ marginBottom: 18 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
@@ -495,7 +578,7 @@ export default function AkashTodo() {
           </div>
           <SaveIndicator state={saveState} error={saveError} onRetry={() => saveArchive(archive)} />
         </div>
-        <h1 style={{ fontFamily: ft, fontSize: 46, fontWeight: 900, letterSpacing: -1.6, margin: 0, marginBottom: 6, color: D.tx, display: "inline-flex", alignItems: "baseline", gap: 12 }}>
+        <h1 className="tb-title" style={{ fontFamily: ft, fontSize: 46, fontWeight: 900, letterSpacing: -1.6, margin: 0, marginBottom: 6, color: D.tx, display: "inline-flex", alignItems: "baseline", gap: 12 }}>
           <span>Task Board</span>
           <span style={{ background: "linear-gradient(120deg,#F7B041 0%,#26C9D8 50%,#F7B041 100%)", backgroundSize: "300% 100%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", animation: "tbShim 14s linear infinite" }}>
             {activeBoard?.name || ""}
@@ -505,7 +588,7 @@ export default function AkashTodo() {
         {/* Thin animated underline · echoes the title gradient and gives
             the header a finished, intentional edge. */}
         <div aria-hidden="true" style={{ width: 96, height: 2, marginBottom: 8, borderRadius: 2, background: "linear-gradient(120deg,#F7B041,#26C9D8,#F7B041)", backgroundSize: "300% 100%", animation: "tbShim 14s linear infinite", opacity: 0.85 }} />
-        <div style={{ fontFamily: ft, fontSize: 13, color: D.txm }}>
+        <div className="tb-hint" style={{ fontFamily: ft, fontSize: 13, color: D.txm }}>
           SemiAnalysis Marketing · Akash Patel · ⌘K palette · ⌘-click multi-select · drag→Combine bucket · 1-6 views · n quick-add · / search · hover row + a/p/t/d/e/f · Esc close
         </div>
       </div>
@@ -543,7 +626,7 @@ export default function AkashTodo() {
       </div>
 
       {/* ── Toolbar ────────────────────────────────────────────── */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 10 }}>
+      <div className="tb-toolbar" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 10 }}>
         <select
           value={archive.activeId}
           onChange={(e) => setArchive((cur) => ({ ...cur, activeId: e.target.value }))}
@@ -746,8 +829,14 @@ export default function AkashTodo() {
         <button type="button" onClick={submitQuickAdd} disabled={!quickAdd.trim()} style={{ ...primaryBtn, opacity: quickAdd.trim() ? 1 : 0.4, padding: "7px 14px" }}>Add</button>
       </div>
 
-      {/* ── Counters ───────────────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 20 }}>
+      {/* ── Today hero ─────────────────────────────────────────── */}
+      <TodayHero
+        tasks={(activeBoard?.tasks || []).filter((t) => !t.isRecurringTemplate)}
+        onStartFocus={(t) => setFocusModeTask(t)}
+        onOpenTask={(t) => setEditingTask(t)}
+      />
+      {/* ── Priority counters (kept as quick legend below the hero) ── */}
+      <div className="tb-counters" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 20 }}>
         {fullCounts.map(({ p, n }) => {
           const color = PRIORITY_COLORS[p];
           return (
@@ -844,6 +933,7 @@ export default function AkashTodo() {
       {editingTask ? (
         <EditTaskModal
           task={editingTask}
+          currentUser={userCtx.user?.name}
           onCancel={() => setEditingTask(null)}
           onSave={(patch) => { updateTask(editingTask.id, patch); setEditingTask(null); }}
           onRemove={() => { if (confirm("Remove this task?")) { removeTask(editingTask.id); setEditingTask(null); } }}
@@ -902,6 +992,13 @@ interface Handlers {
   isSelected: (id: string) => boolean;
   anySelected: boolean;
   onToggleSelected: (id: string) => void;
+  // Drop a row on another row to manually reorder within the same
+  // group (priority / category / assignee, whichever is the active
+  // groupBy). Cross-group drops are still handled by DropGroup.
+  onReorderTo: (droppedId: string, targetId: string) => void;
+  // Live filter text — when set, TaskRow highlights matching substrings
+  // in the title so the user can see why a row matched.
+  filterQuery?: string;
 }
 
 // ── List view ──────────────────────────────────────────────────────
@@ -1145,7 +1242,17 @@ function TaskRow({ task, handlers }: { task: Task; handlers: Handlers }) {
       ) : null}
       <div
         draggable={!renaming}
-        onDragStart={(e) => e.dataTransfer.setData("text/plain", task.id)}
+        onDragStart={(e) => { e.dataTransfer.setData("text/plain", task.id); e.dataTransfer.effectAllowed = "move"; }}
+        onDragOver={(e) => { if (e.dataTransfer.types.includes("text/plain")) e.preventDefault(); }}
+        onDrop={(e) => {
+          const dropped = e.dataTransfer.getData("text/plain");
+          if (!dropped || dropped === task.id) return;
+          // Stop the bubble so DropGroup doesn't also fire and patch
+          // priority/category for what was meant as an in-group reorder.
+          e.preventDefault();
+          e.stopPropagation();
+          handlers.onReorderTo(dropped, task.id);
+        }}
         onClick={(e) => {
           if (renaming) return;
           if ((e.target as HTMLElement).closest("[data-no-row-click]")) return;
@@ -1210,7 +1317,7 @@ function TaskRow({ task, handlers }: { task: Task; handlers: Handlers }) {
                 title="Click to rename"
                 style={{ fontFamily: gf, fontSize: 14, fontWeight: 700, color: D.tx, letterSpacing: -0.3, textDecoration: task.done ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "text", padding: "1px 2px", borderRadius: 3 }}
               >
-                {task.title}
+                <Highlight text={task.title} q={handlers.filterQuery} />
               </span>
             )}
             {(task.tags || []).map((tag) => (
@@ -2365,7 +2472,7 @@ function FocusMode({ task, onClose, onUpdate, onComplete, onSkipToNext }: { task
 // ════════════════════════════════════════════════════════════════════
 
 // ── Edit Task Modal ────────────────────────────────────────────────
-function EditTaskModal({ task, onCancel, onSave, onRemove }: { task: Task; onCancel: () => void; onSave: (patch: Partial<Task>) => void; onRemove: () => void }) {
+function EditTaskModal({ task, currentUser, onCancel, onSave, onRemove }: { task: Task; currentUser?: string; onCancel: () => void; onSave: (patch: Partial<Task>) => void; onRemove: () => void }) {
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description || "");
   const [category, setCategory] = useState(task.category);
@@ -2378,6 +2485,15 @@ function EditTaskModal({ task, onCancel, onSave, onRemove }: { task: Task; onCan
   const [done, setDone] = useState(!!task.done);
   const [subtasks, setSubtasks] = useState<Subtask[]>(task.subtasks || []);
   const [subDraft, setSubDraft] = useState("");
+  // Recurring: "none" or one of Recurrence. Anchor defaults to today
+  // (or task's dueDate if set) so weekly/monthly cadence has a sensible
+  // start day. Save() bakes these onto the task and flips it to a
+  // template so future spawns happen automatically.
+  const [recurrence, setRecurrence] = useState<Recurrence | "none">(task.recurrence || (task.isRecurringTemplate ? "weekly" : "none"));
+  const [recurrenceAnchor, setRecurrenceAnchor] = useState<string>(task.recurrenceAnchor || task.dueDate || isoDate(new Date()));
+  // Threaded notes: keep the existing list and let the user append.
+  const [notesLog, setNotesLog] = useState<NoteEntry[]>(task.notesLog || []);
+  const [logDraft, setLogDraft] = useState("");
 
   function addSub() {
     const t = subDraft.trim();
@@ -2395,8 +2511,17 @@ function EditTaskModal({ task, onCancel, onSave, onRemove }: { task: Task; onCan
     setSubtasks((cur) => cur.map((s) => s.id === id ? { ...s, title: next } : s));
   }
 
+  function addLogEntry() {
+    const text = logDraft.trim();
+    if (!text) return;
+    setNotesLog((cur) => [...cur, { id: "n-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6), ts: new Date().toISOString(), author: currentUser, text }]);
+    setLogDraft("");
+  }
+  function removeLogEntry(id: string) { setNotesLog((cur) => cur.filter((e) => e.id !== id)); }
+
   function save() {
     if (!title.trim()) return;
+    const isTemplate = recurrence !== "none";
     onSave({
       title: title.trim(),
       description: description.trim() || undefined,
@@ -2409,6 +2534,14 @@ function EditTaskModal({ task, onCancel, onSave, onRemove }: { task: Task; onCan
       pinned,
       done,
       subtasks: subtasks.length > 0 ? subtasks.map((s) => ({ ...s, title: s.title.trim() })).filter((s) => s.title) : undefined,
+      // Recurring template flip. Saving the task with recurrence !== "none"
+      // turns it into a hidden template — child instances mint on load.
+      isRecurringTemplate: isTemplate ? true : undefined,
+      recurrence: isTemplate ? (recurrence as Recurrence) : undefined,
+      recurrenceAnchor: isTemplate ? recurrenceAnchor : undefined,
+      // Threaded notes — null out the array when empty so the row never
+      // renders an "Activity (0)" badge.
+      notesLog: notesLog.length > 0 ? notesLog : undefined,
     });
   }
 
@@ -2455,6 +2588,26 @@ function EditTaskModal({ task, onCancel, onSave, onRemove }: { task: Task; onCan
         </div>
         <Field label="Tags (comma separated)" value={tags} onChange={setTags} placeholder="ribbons, q3, hotfix" />
 
+        {/* Recurring schedule. Saving with anything other than "Off"
+            flips this to a template; instances spawn automatically each
+            period. The schedule is hidden from views (so a template
+            never shows up in the list); only its children render. */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div>
+            <div style={lbl}>Repeats</div>
+            <select value={recurrence} onChange={(e) => setRecurrence(e.target.value as Recurrence | "none")} style={inputStyle}>
+              <option value="none">Off · one-time task</option>
+              <option value="daily">Every day</option>
+              <option value="weekly">Every week (same weekday)</option>
+              <option value="monthly">Every month (same day-of-month)</option>
+            </select>
+          </div>
+          <div>
+            <div style={lbl}>Anchor date</div>
+            <input type="date" value={recurrenceAnchor} onChange={(e) => setRecurrenceAnchor(e.target.value)} disabled={recurrence === "none"} style={{ ...inputStyle, opacity: recurrence === "none" ? 0.45 : 1 }} />
+          </div>
+        </div>
+
         {/* Subtasks editor — full add/remove/toggle/rename. */}
         <div style={{ marginBottom: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
@@ -2494,6 +2647,41 @@ function EditTaskModal({ task, onCancel, onSave, onRemove }: { task: Task; onCan
         </div>
 
         <Field label="Notes" value={notes} onChange={setNotes} multi />
+
+        {/* Activity log · dated thread for multi-day / multi-person work. */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+            <div style={lbl}>Activity</div>
+            <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.4 }}>{notesLog.length} {notesLog.length === 1 ? "entry" : "entries"}</div>
+          </div>
+          {notesLog.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 6, maxHeight: 220, overflowY: "auto" }}>
+              {notesLog.map((e) => (
+                <div key={e.id} style={{ padding: "6px 10px", background: D.surface, border: `1px solid ${D.border}`, borderRadius: 6 }}>
+                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 2 }}>
+                    <span style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.4 }}>
+                      {new Date(e.ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                      {e.author ? ` · ${e.author}` : ""}
+                    </span>
+                    <button type="button" onClick={() => removeLogEntry(e.id)} title="Delete entry" style={{ background: "transparent", border: "none", color: D.txd, fontFamily: mn, fontSize: 11, cursor: "pointer", opacity: 0.6 }}>×</button>
+                  </div>
+                  <div style={{ fontFamily: ft, fontSize: 12.5, color: D.tx, lineHeight: 1.4, whiteSpace: "pre-wrap" }}>{e.text}</div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <div style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "6px 8px", background: D.surface, border: `1px dashed ${D.border}`, borderRadius: 6 }}>
+            <textarea
+              value={logDraft}
+              onChange={(e) => setLogDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addLogEntry(); } }}
+              placeholder="Add an entry · ⌘+Enter to post"
+              style={{ flex: 1, minHeight: 32, background: "transparent", color: D.tx, border: "none", outline: "none", fontFamily: ft, fontSize: 12.5, resize: "vertical", padding: "2px 0", lineHeight: 1.4 }}
+            />
+            <button type="button" onClick={addLogEntry} disabled={!logDraft.trim()} style={{ background: D.amber, color: "#060608", border: "none", padding: "4px 10px", borderRadius: 4, fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: logDraft.trim() ? "pointer" : "not-allowed", opacity: logDraft.trim() ? 1 : 0.4, letterSpacing: 0.4 }}>Post</button>
+          </div>
+        </div>
+
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
           <button type="button" onClick={onRemove} style={{ background: "transparent", border: `1px solid ${D.coral}55`, color: D.coral, padding: "9px 14px", borderRadius: 8, fontFamily: ft, fontSize: 12, cursor: "pointer" }}>Delete task</button>
           <div style={{ display: "flex", gap: 8 }}>
@@ -2980,6 +3168,8 @@ function sortTasks(tasks: Task[], by: SortType): Task[] {
     arr.sort((a, b) => (b.addedAt || "").localeCompare(a.addedAt || ""));
   } else if (by === "alpha") {
     arr.sort((a, b) => a.title.localeCompare(b.title));
+  } else if (by === "manual") {
+    arr.sort(byManual);
   }
   return arr;
 }
@@ -3011,6 +3201,79 @@ function formatDue(due?: string): { label: string; urgent: boolean } | null {
 
 function startOfDay(d: Date): Date { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function isoDate(d: Date): string { return d.toISOString().slice(0, 10); }
+
+// Recurrence helpers. A template stores `lastSpawnedFor` (ISO date of
+// the most recent instance we minted). On load we compute the most
+// recent period boundary and, if the template hasn't seen it yet,
+// spawn a new instance whose dueDate is that boundary.
+function periodBoundary(rec: Recurrence, anchor: Date, now: Date): string {
+  const today = startOfDay(now);
+  if (rec === "daily") return isoDate(today);
+  if (rec === "weekly") {
+    // Most recent occurrence whose weekday matches the anchor's weekday.
+    const wantDow = anchor.getDay();
+    const d = new Date(today);
+    const delta = (d.getDay() - wantDow + 7) % 7;
+    d.setDate(d.getDate() - delta);
+    return isoDate(d);
+  }
+  // monthly — most recent occurrence whose day-of-month <= today's.
+  const wantDom = Math.min(anchor.getDate(), 28); // clamp so Feb still works
+  const d = new Date(today);
+  if (d.getDate() < wantDom) d.setMonth(d.getMonth() - 1);
+  d.setDate(wantDom);
+  return isoDate(d);
+}
+function spawnDueRecurring(tasks: Task[]): Task[] {
+  const now = new Date();
+  const out: Task[] = [...tasks];
+  for (let i = 0; i < out.length; i++) {
+    const t = out[i];
+    if (!t.isRecurringTemplate || !t.recurrence) continue;
+    const anchor = t.recurrenceAnchor ? new Date(t.recurrenceAnchor + "T00:00:00") : new Date(t.addedAt);
+    const due = periodBoundary(t.recurrence, anchor, now);
+    if (t.lastSpawnedFor === due) continue;
+    // Mint a new instance from the template.
+    const inst: Task = {
+      ...t,
+      id: "t-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+      addedAt: new Date().toISOString(),
+      isRecurringTemplate: false,
+      recurringFrom: t.id,
+      recurrence: undefined,
+      recurrenceAnchor: undefined,
+      lastSpawnedFor: undefined,
+      done: false,
+      dueDate: due,
+      source: "recurring",
+      // Reset subtask completion so each instance starts fresh.
+      subtasks: (t.subtasks || []).map((s, k) => ({ id: "s-" + Date.now() + "-" + k + "-" + Math.random().toString(36).slice(2, 6), title: s.title, done: false })),
+    };
+    out.push(inst);
+    out[i] = { ...t, lastSpawnedFor: due };
+  }
+  return out;
+}
+// Append an entry to a task's notesLog (creates the array if absent).
+function appendNoteEntry(t: Task, text: string, author?: string): Task {
+  const entry: NoteEntry = {
+    id: "n-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+    ts: new Date().toISOString(),
+    author,
+    text: text.trim(),
+  };
+  return { ...t, notesLog: [...(t.notesLog || []), entry] };
+}
+// Sort tasks by manualOrder (lower first), then addedAt newest-first.
+// Used inside a group when sortBy === "manual".
+function byManual(a: Task, b: Task) {
+  const aHas = typeof a.manualOrder === "number";
+  const bHas = typeof b.manualOrder === "number";
+  if (aHas && bHas) return (a.manualOrder as number) - (b.manualOrder as number);
+  if (aHas) return -1;
+  if (bHas) return 1;
+  return (b.addedAt || "").localeCompare(a.addedAt || "");
+}
 
 // Title similarity — Jaccard on tokens (lowercased, alphanumeric). Used
 // by the import flow to flag "this looks like one we already have." A
@@ -3257,6 +3520,114 @@ function Avatar({ spec, size = 18, glow = false }: { spec: AssigneeSpec; size?: 
   );
 }
 
+// Wraps every occurrence of `q` in `text` with a soft amber-tinted
+// <mark>. Case-insensitive, escapes regex metacharacters. Used in
+// the active filter view and inside ⌘K results so the matched
+// substring lights up.
+function Highlight({ text, q }: { text: string; q?: string }) {
+  if (!q) return <>{text}</>;
+  const needle = q.trim().toLowerCase();
+  if (!needle) return <>{text}</>;
+  const escaped = needle.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
+  return <>{parts.map((p, i) => (i % 2 === 1 ? <mark key={i} style={{ background: D.amber + "33", color: "inherit", padding: 0, borderRadius: 2 }}>{p}</mark> : <span key={i}>{p}</span>))}</>;
+}
+
+// ── Today hero ──────────────────────────────────────────────────────
+// What the user actually needs at 9am: how many things are on for today,
+// what's overdue, and the next 1-3 tasks to actually start. One-click
+// Focus Mode on the top suggestion so the flow from "open the board"
+// to "doing the work" is a single tap.
+function TodayHero({ tasks, onStartFocus, onOpenTask }: { tasks: Task[]; onStartFocus: (t: Task) => void; onOpenTask: (t: Task) => void }) {
+  const today = startOfDay(new Date());
+  const todayIso = isoDate(today);
+  const live = tasks.filter((t) => !t.done && t.priority !== "DONE");
+  const overdue = live.filter((t) => t.dueDate && t.dueDate < todayIso);
+  const dueToday = live.filter((t) => t.dueDate === todayIso);
+  const doneToday = tasks.filter((t) => t.done && (t.updatedAt || t.addedAt || "").slice(0, 10) === todayIso);
+  // Suggestion ranking: HIGH > MEDIUM > THIS WEEK > ONGOING, with overdue
+  // and today-due bumped up. Capped at 3.
+  const pOrder: Record<Priority, number> = { HIGH: 0, MEDIUM: 1, "THIS WEEK": 2, ONGOING: 3, DONE: 9 };
+  const score = (t: Task) => {
+    let s = pOrder[t.priority] * 10;
+    if (t.dueDate && t.dueDate < todayIso) s -= 100;
+    else if (t.dueDate === todayIso) s -= 50;
+    if (t.pinned) s -= 5;
+    return s;
+  };
+  const suggestions = [...live].sort((a, b) => score(a) - score(b)).slice(0, 3);
+
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return "Good morning";
+    if (h < 18) return "Good afternoon";
+    return "Good evening";
+  })();
+
+  return (
+    <div style={{ marginBottom: 16, position: "relative", overflow: "hidden", borderRadius: 14, border: `1px solid ${D.amber}33`, background: `linear-gradient(135deg, rgba(247,176,65,0.10) 0%, rgba(11,134,209,0.06) 60%, transparent 100%), ${D.surface}`, padding: 16 }}>
+      <div aria-hidden="true" style={{ position: "absolute", top: -40, right: -40, width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle, rgba(247,176,65,0.18), transparent 70%)", pointerEvents: "none" }} />
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+        <div>
+          <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 700 }}>{greeting}, Akash</div>
+          <div style={{ fontFamily: gf, fontSize: 18, fontWeight: 800, color: D.tx, letterSpacing: -0.4, marginTop: 2 }}>
+            {dueToday.length === 0 && overdue.length === 0
+              ? "Nothing on the board for today — pick something to push forward."
+              : `${dueToday.length} due today${overdue.length > 0 ? ` · ${overdue.length} overdue` : ""}${doneToday.length > 0 ? ` · ${doneToday.length} done` : ""}`}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <Stat label="OVERDUE" value={overdue.length} color={D.coral} />
+          <Stat label="TODAY"   value={dueToday.length} color={D.amber} />
+          <Stat label="DONE"    value={doneToday.length} color={D.teal}  />
+        </div>
+      </div>
+      {suggestions.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 1.2, textTransform: "uppercase" }}>Start here</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {suggestions.map((t, i) => {
+              const aSpec = getAssigneeSpec(t.assignee || "Akash");
+              const pColor = PRIORITY_COLORS[t.priority] || D.txd;
+              const due = formatDue(t.dueDate);
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => onOpenTask(t)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: i === 0 ? "rgba(247,176,65,0.10)" : "rgba(255,255,255,0.02)", border: `1px solid ${i === 0 ? D.amber + "55" : D.border}`, borderRadius: 8, cursor: "pointer", textAlign: "left", width: "100%" }}
+                >
+                  <span style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 0.5, minWidth: 18, opacity: i === 0 ? 1 : 0.5 }}>#{i + 1}</span>
+                  <Avatar spec={aSpec} size={18} />
+                  <span style={{ fontFamily: mn, fontSize: 8.5, color: pColor, letterSpacing: 0.6, padding: "1px 6px", border: `1px solid ${pColor}55`, borderRadius: 3, textTransform: "uppercase" }}>{t.priority}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontFamily: gf, fontSize: 13, fontWeight: 700, color: D.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
+                  {due ? <span style={{ fontFamily: mn, fontSize: 9.5, color: due.urgent ? D.coral : D.txm, letterSpacing: 0.4 }}>{due.label}</span> : null}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onStartFocus(t); }}
+                    title="Start Focus Mode on this task"
+                    style={{ background: i === 0 ? D.amber : "transparent", color: i === 0 ? "#060608" : D.amber, border: `1px solid ${D.amber}`, padding: "4px 10px", borderRadius: 6, fontFamily: mn, fontSize: 9, letterSpacing: 0.6, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" }}
+                  >
+                    Focus →
+                  </button>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+function Stat({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0, padding: "4px 12px", background: value > 0 ? color + "16" : "transparent", border: `1px solid ${value > 0 ? color + "55" : D.border}`, borderRadius: 8, minWidth: 56 }}>
+      <span style={{ fontFamily: gf, fontSize: 18, fontWeight: 900, color: value > 0 ? color : D.txd, letterSpacing: -0.6, lineHeight: 1 }}>{value}</span>
+      <span style={{ fontFamily: mn, fontSize: 8, color: value > 0 ? color : D.txd, letterSpacing: 0.8 }}>{label}</span>
+    </div>
+  );
+}
+
 // Polished priority counter card · top accent bar in the priority color,
 // huge stat number, and a soft color-tinted glow on hover. Replaces the
 // flat dark cards that read as legend-only at a glance.
@@ -3348,6 +3719,7 @@ function CombineDock({ ids, tasks, onAdd, onRemove, onClear, onOpen }: {
           const id = e.dataTransfer.getData("text/plain");
           if (id) onAdd(id);
         }}
+        className="tb-combine"
         style={{
           position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)",
           width: expanded ? 240 : 52, maxHeight: "70vh",
@@ -3787,7 +4159,7 @@ function CommandPalette({ tasks, onClose, onOpenTask, onStartFocus, onSwitchView
                   <span style={{ width: 18, height: 18, borderRadius: 4, background: r.color + "22", border: `1px solid ${r.color}55`, color: r.color, display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 9, fontWeight: 800, flexShrink: 0 }}>
                     {r.initial || (r.kind === "task" ? "T" : r.kind === "view" ? "V" : r.kind === "filter" ? "F" : r.kind === "assignee" ? "@" : "•")}
                   </span>
-                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><Highlight text={r.label} q={isSlash ? undefined : lcQuery} /></span>
                   <span style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.5, flexShrink: 0 }}>{r.hint}</span>
                 </button>
               );
