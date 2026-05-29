@@ -339,7 +339,14 @@ function TodayHero({ tasks, doneRecent, onFocus }: { tasks: Task[]; doneRecent: 
 // ═══════════════════════════════════════════════════════════════════
 // SUMMARY (the suite)
 // ═══════════════════════════════════════════════════════════════════
-export default function TaskBoardSummary() {
+interface TaskBoardSummaryProps {
+  // "embed" = inside POAST hub (max-width 1500, "Open Studio" link).
+  // "standalone" = full-screen at /board (wider canvas, "POAST hub" backlink, STUDIO eyebrow).
+  mode?: "embed" | "standalone";
+}
+
+export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryProps = {}) {
+  const isStandalone = mode === "standalone";
   const [archive, setArchive] = useState<BoardArchive>({ boards: [], activeId: "" });
   const [loading, setLoading] = useState(true);
   const [quickAdd, setQuickAdd] = useState("");
@@ -720,7 +727,12 @@ export default function TaskBoardSummary() {
 
   return (
     <DragCtx.Provider value={dragCtxValue}>
-    <div style={{ padding: narrow ? "14px 12px 80px" : "20px 26px 60px", fontFamily: ft, color: D.tx, maxWidth: 1500, margin: "0 auto", position: "relative" }}>
+    <div style={{
+      padding: narrow ? "14px 12px 80px" : (isStandalone ? "26px 36px 80px" : "20px 26px 60px"),
+      fontFamily: ft, color: D.tx,
+      maxWidth: isStandalone ? 1820 : 1500,
+      margin: "0 auto", position: "relative",
+    }}>
       <style>{`
         @keyframes tbRowIn { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes tbPulseRed { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
@@ -733,6 +745,8 @@ export default function TaskBoardSummary() {
           .tbq-row .tbq-sub,
           .tbq-row .tbq-pri { display: none !important; }
           .tbq-row .tbq-avatar { display: inline-flex !important; }
+          .tbv-tabs { -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+          .tbv-tabs::-webkit-scrollbar { display: none; }
         }
       `}</style>
       {/* AMBIENT BACKDROP — soft amber + violet glows behind everything */}
@@ -760,7 +774,7 @@ export default function TaskBoardSummary() {
               color: "transparent",
               animation: "tbShimmer 14s linear infinite",
             }}>
-              {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+              {isStandalone ? "Studio · " : ""}{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
             </div>
             <h1 style={{ fontFamily: gf, fontSize: narrow ? 22 : 28, fontWeight: 900, letterSpacing: -0.8, margin: 0, marginBottom: 6, lineHeight: 1.15 }}>{greeting("Akash")}</h1>
             <div style={{ fontSize: 13, color: D.txm }}>
@@ -825,7 +839,21 @@ export default function TaskBoardSummary() {
                 cursor: "pointer",
               }}
             >＋ New task</button>
-            {!narrow && (
+            {!narrow && (isStandalone ? (
+              <a
+                href="/"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 9,
+                  padding: "11px 18px",
+                  background: D.surface, border: "1px solid " + D.border,
+                  color: D.tx, borderRadius: 12,
+                  fontSize: 13, fontWeight: 600, textDecoration: "none",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <span style={{ fontSize: 13 }}>←</span> POAST hub
+              </a>
+            ) : (
               <a
                 href="/board"
                 target="_blank"
@@ -842,7 +870,7 @@ export default function TaskBoardSummary() {
               >
                 <span style={{ fontSize: 16 }}>✦</span> Open Studio <span style={{ fontSize: 11 }}>↗</span>
               </a>
-            )}
+            ))}
           </div>
         </div>
 
@@ -855,6 +883,26 @@ export default function TaskBoardSummary() {
           <PriorityCounter label="Done"      count={priorityCounts.DONE}        color={PRI_COLOR.DONE} />
         </div>
       </div>
+
+      {/* VIEW TABS — primary "shape of view" nav (Plane-style) */}
+      <ViewTabs
+        view={view}
+        setView={setView}
+        groupBy={groupBy}
+        setGroupBy={setGroupBy}
+        counts={{
+          today: hotSeat.length + restOpen.length,
+          schedule: filteredOpen.length,
+          week: filteredOpen.length,
+          calendar: filteredOpen.length,
+          board: filteredOpen.length,
+          category: filteredOpen.length,
+          all: filteredOpen.length,
+          focus: filteredOpen.length,
+          done: doneTasks.length,
+        }}
+        narrow={narrow}
+      />
 
       {/* SUITE — sidebar + content */}
       <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "210px 1fr", gap: 18, alignItems: "flex-start" }}>
@@ -904,30 +952,6 @@ export default function TaskBoardSummary() {
               }}
             >＋ New task</button>
             <SidebarInput value={search} setValue={setSearch} placeholder="Search…" />
-          </SidebarSection>
-
-          <SidebarSection label="Views">
-            {[
-              { k: "today" as ViewKey, l: "Today", icon: "◉", count: hotSeat.length + restOpen.length },
-              { k: "schedule" as ViewKey, l: "Schedule", icon: "▤", count: filteredOpen.length },
-              { k: "week" as ViewKey, l: "Week", icon: "▥", count: filteredOpen.length },
-              { k: "calendar" as ViewKey, l: "Calendar", icon: "▩", count: filteredOpen.length },
-              { k: "board" as ViewKey, l: "Board", icon: "▦", count: filteredOpen.length },
-              { k: "category" as ViewKey, l: "Categories", icon: "◈", count: filteredOpen.length },
-              { k: "all" as ViewKey, l: "All open", icon: "≡", count: filteredOpen.length },
-              { k: "focus" as ViewKey, l: "Focus", icon: "◎", count: filteredOpen.length },
-              { k: "done" as ViewKey, l: "Done", icon: "✓", count: doneTasks.length },
-            ].map((v) => (
-              <SidebarRow
-                key={v.k}
-                active={view === v.k}
-                onClick={() => { setView(v.k); if (narrow) setSidebarOpen(false); }}
-                accent={D.amber}
-                left={<span style={{ fontFamily: mn, fontSize: 11, color: view === v.k ? D.amber : D.txd, width: 14, textAlign: "center" }}>{v.icon}</span>}
-                label={v.l}
-                count={v.count}
-              />
-            ))}
           </SidebarSection>
 
           <SidebarSection label="Categories">
@@ -991,25 +1015,6 @@ export default function TaskBoardSummary() {
               placeholder="Quick add (Enter)…"
               style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: D.tx, fontFamily: ft, fontSize: 13.5 }}
             />
-            {(view === "all" || view === "board") && (
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 4px", border: "1px solid " + D.border, borderRadius: 8 }}>
-                <span style={{ fontFamily: mn, fontSize: 9.5, color: D.txd, padding: "0 6px", letterSpacing: 0.6, textTransform: "uppercase" }}>group</span>
-                {(["priority", "category", "assignee", "due"] as GroupBy[]).map((g) => (
-                  <button
-                    key={g}
-                    onClick={() => setGroupBy(g)}
-                    style={{
-                      padding: "4px 9px",
-                      background: groupBy === g ? D.amber : "transparent",
-                      color: groupBy === g ? "#0A0A0F" : D.txm,
-                      border: "none", borderRadius: 6,
-                      fontFamily: ft, fontSize: 11, fontWeight: groupBy === g ? 700 : 500,
-                      cursor: "pointer",
-                    }}
-                  >{GROUP_LABELS[g]}</button>
-                ))}
-              </div>
-            )}
             {filtersActive && (
               <button
                 onClick={clearAllFilters}
@@ -1230,6 +1235,109 @@ function groupTasks(tasks: Task[], mode: GroupBy): { key: string; color: string;
 }
 
 // ── tiny ui primitives used by the sidebar / chips ──
+
+// Plane-style horizontal view switcher. Lives between the hero and the
+// suite grid; replaces the old Views block inside the sidebar. Each tab
+// = icon + label + count. Group-by selector rides on the right end and
+// only shows for the views where grouping applies (all, board).
+function ViewTabs({
+  view, setView, groupBy, setGroupBy, counts, narrow,
+}: {
+  view: ViewKey;
+  setView: (v: ViewKey) => void;
+  groupBy: GroupBy;
+  setGroupBy: (g: GroupBy) => void;
+  counts: Record<ViewKey, number>;
+  narrow: boolean;
+}) {
+  const tabs: { k: ViewKey; l: string; icon: string }[] = [
+    { k: "today",    l: "Today",      icon: "◉" },
+    { k: "schedule", l: "Schedule",   icon: "▤" },
+    { k: "week",     l: "Week",       icon: "▥" },
+    { k: "calendar", l: "Calendar",   icon: "▩" },
+    { k: "board",    l: "Board",      icon: "▦" },
+    { k: "category", l: "Categories", icon: "◈" },
+    { k: "all",      l: "All",        icon: "≡" },
+    { k: "focus",    l: "Focus",      icon: "◎" },
+    { k: "done",     l: "Done",       icon: "✓" },
+  ];
+  const showGroupBy = view === "all" || view === "board";
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10,
+      marginBottom: 14,
+      flexWrap: narrow ? "nowrap" : "wrap",
+    }}>
+      <div
+        className="tbv-tabs"
+        style={{
+          display: "flex", alignItems: "center", gap: 4,
+          padding: 4,
+          background: D.card, border: "1px solid " + D.border, borderRadius: 12,
+          flex: 1, minWidth: 0,
+          overflowX: narrow ? "auto" : "visible",
+        }}
+      >
+        {tabs.map((t) => {
+          const active = view === t.k;
+          const n = counts[t.k];
+          return (
+            <button
+              key={t.k}
+              onClick={() => setView(t.k)}
+              title={t.l}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 7,
+                padding: "7px 12px",
+                background: active ? D.amber + "1F" : "transparent",
+                border: "1px solid " + (active ? D.amber + "55" : "transparent"),
+                color: active ? D.tx : D.txm,
+                borderRadius: 8,
+                fontFamily: ft, fontSize: 12.5, fontWeight: active ? 700 : 500,
+                cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
+                transition: "background 0.12s, color 0.12s, border-color 0.12s",
+              }}
+            >
+              <span style={{ fontFamily: mn, fontSize: 11, color: active ? D.amber : D.txd, lineHeight: 1 }}>{t.icon}</span>
+              <span>{t.l}</span>
+              {n > 0 && (
+                <span style={{
+                  fontFamily: mn, fontSize: 10, fontWeight: 700,
+                  color: active ? D.amber : D.txd,
+                  padding: "1px 6px", borderRadius: 999,
+                  background: active ? D.amber + "22" : D.surface,
+                }}>{n}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {showGroupBy && (
+        <div style={{
+          display: "inline-flex", alignItems: "center", gap: 4,
+          padding: "4px 5px", background: D.card, border: "1px solid " + D.border, borderRadius: 10,
+          flexShrink: 0,
+        }}>
+          <span style={{ fontFamily: mn, fontSize: 9.5, color: D.txd, padding: "0 6px", letterSpacing: 0.6, textTransform: "uppercase" }}>group</span>
+          {(["priority", "category", "assignee", "due"] as GroupBy[]).map((g) => (
+            <button
+              key={g}
+              onClick={() => setGroupBy(g)}
+              style={{
+                padding: "5px 10px",
+                background: groupBy === g ? D.amber : "transparent",
+                color: groupBy === g ? "#0A0A0F" : D.txm,
+                border: "none", borderRadius: 6,
+                fontFamily: ft, fontSize: 11, fontWeight: groupBy === g ? 700 : 500,
+                cursor: "pointer",
+              }}
+            >{GROUP_LABELS[g]}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SidebarSection({ label, children }: { label: string; children: React.ReactNode }) {
   return (
