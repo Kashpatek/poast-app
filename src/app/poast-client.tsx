@@ -23,6 +23,7 @@ import PerformanceFeedback from "./performance-feedback";
 import ApprovalQueue from "./approval-queue";
 import DistributionPack from "./distribution-pack";
 import TaskBoardSummary from "./board/task-board-summary";
+import HubPalette, { type PaletteItem } from "./hub-palette";
 import { BugButton } from "./bug-report";
 import { trackEvent } from "../lib/poast-track";
 
@@ -1975,6 +1976,22 @@ export default function App() {
   if (introState === "loading") return <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: 9999 }} />;
   if (showIntro) return <><Intro onDone={function(id) { if (id) setSec(id); setIntroState("skip"); }} /></>;
 
+  // Flatten SIDEBAR_CATS into a searchable list for HubPalette. Mirror the
+  // sidebar visibility rules (analyst gate, docu access, tasks=akash-only)
+  // so the palette can never surface a section the user can't actually open.
+  var canDocuPalette = canUseDocuDesign(userCtx.user);
+  var akashPalette = isAkash(userCtx.user);
+  var paletteItems: PaletteItem[] = [];
+  Object.keys(SIDEBAR_CATS).forEach(function(catKey) {
+    var cat = SIDEBAR_CATS[catKey];
+    cat.items.forEach(function(it: SidebarCatItem) {
+      if (analyst && !ANALYST_ALLOWED.includes(it.id)) return;
+      if (it.id === "docu" && !canDocuPalette) return;
+      if (it.id === "tasks" && !akashPalette) return;
+      paletteItems.push({ id: it.id, label: it.l, cat: cat.label, color: cat.color, href: it.href, Icon: it.Icon });
+    });
+  });
+
   return (<div style={{ background: C.bg, minHeight: "100vh", position: "relative" }}>
     {/* Analyst mode accent bar — subtle violet stripe + small label so the user knows they're in the restricted view. */}
     {analyst && <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 10000, pointerEvents: "none" }}>
@@ -2111,6 +2128,8 @@ export default function App() {
       </div>
     </div>
     <OnboardingHost sec={sec} />
+    {/* Global ⌘K palette — suppressed on Task Board which has its own. */}
+    {sec !== "tasks" && <HubPalette items={paletteItems} onSelect={function(id: string) { setSec(id); }} />}
     {/* Floating Chippy — replaces the bulky sidebar widget. Bottom-right,
         proximity-aware opacity, dim by default, lights up near cursor.
         Hidden for analysts (Ask POAST is data-gated). */}
