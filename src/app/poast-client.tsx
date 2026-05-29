@@ -22,7 +22,7 @@ import SavedPromptsLibrary from "./saved-prompts";
 import PerformanceFeedback from "./performance-feedback";
 import ApprovalQueue from "./approval-queue";
 import DistributionPack from "./distribution-pack";
-import AkashTodo from "./akash-todo";
+import TaskBoardSummary from "./board/task-board-summary";
 import { BugButton } from "./bug-report";
 import { trackEvent } from "../lib/poast-track";
 
@@ -2096,7 +2096,7 @@ export default function App() {
         {sec === "perf"     && <PerformanceFeedback />}
         {sec === "approval" && <ApprovalQueue />}
         {sec === "prompts"  && <SavedPromptsLibrary />}
-        {sec === "tasks"    && <AkashTodo />}
+        {sec === "tasks"    && <TaskBoardSummary />}
         </div>
       </div>
     </div>
