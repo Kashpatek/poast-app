@@ -31,8 +31,10 @@ interface Task {
   isRecurringTemplate?: boolean;
   pinned?: boolean;
   source?: string;
+  scheduledFor?: string;
 }
-interface Board { id: string; name: string; tasks: Task[]; createdAt: string }
+interface ActivityEntry { ts: string; action: string; label: string; taskId?: string }
+interface Board { id: string; name: string; tasks: Task[]; createdAt: string; activity?: ActivityEntry[] }
 interface BoardArchive { boards: Board[]; activeId: string }
 
 const PRIORITY_ORDER: Priority[] = ["HIGH", "MEDIUM", "THIS WEEK", "ONGOING"];
@@ -361,6 +363,32 @@ export default function TaskBoardSummary() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [focusTask, setFocusTask] = useState<Task | null>(null);
+  const [activityOpen, setActivityOpen] = useState(false);
+  const [plannerOpen, setPlannerOpen] = useState(false);
+  const [narrow, setNarrow] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // undo stack — last 20 archive snapshots
+  const undoStackRef = useRef<BoardArchive[]>([]);
+  function pushHistory(prev: BoardArchive) {
+    undoStackRef.current = [...undoStackRef.current, prev].slice(-20);
+  }
+  function undo() {
+    const stack = undoStackRef.current;
+    if (stack.length === 0) return;
+    const prev = stack[stack.length - 1];
+    undoStackRef.current = stack.slice(0, -1);
+    setArchive(prev);
+  }
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 860px)");
+    const update = () => setNarrow(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   const lastSavedRef = useRef<string>("");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -421,11 +449,19 @@ export default function TaskBoardSummary() {
   const allTasks = useMemo(() => (activeBoard?.tasks || []).filter((t) => !t.isRecurringTemplate), [activeBoard]);
   const openTasks = useMemo(() => allTasks.filter((t) => !t.done), [allTasks]);
 
-  function updateActiveBoard(patch: (b: Board) => Board) {
+  function recordActivity(b: Board, action: string, label: string, taskId?: string): Board {
+    const entry: ActivityEntry = { ts: new Date().toISOString(), action, label, taskId };
+    const log = [entry, ...(b.activity || [])].slice(0, 100);
+    return { ...b, activity: log };
+  }
+
+  function updateActiveBoard(patch: (b: Board) => Board, log?: { action: string; label: string; taskId?: string }) {
     setArchive((cur) => {
       const id = cur.activeId; if (!id) return cur;
       const idx = cur.boards.findIndex((b) => b.id === id); if (idx < 0) return cur;
-      const next = patch(cur.boards[idx]);
+      pushHistory(cur);
+      let next = patch(cur.boards[idx]);
+      if (log) next = recordActivity(next, log.action, log.label, log.taskId);
       const boards = cur.boards.slice();
       boards[idx] = next;
       return { ...cur, boards };
@@ -433,17 +469,20 @@ export default function TaskBoardSummary() {
   }
 
   function toggleDone(id: string) {
-    updateActiveBoard((b) => ({
-      ...b,
-      tasks: b.tasks.map((t) => t.id === id ? { ...t, done: !t.done, updatedAt: new Date().toISOString() } : t),
-    }));
+    const t = allTasks.find((x) => x.id === id);
+    updateActiveBoard(
+      (b) => ({ ...b, tasks: b.tasks.map((x) => x.id === id ? { ...x, done: !x.done, updatedAt: new Date().toISOString() } : x) }),
+      { action: t?.done ? "reopen" : "done", label: t?.title || "task", taskId: id },
+    );
   }
 
   function applyPatch(id: string, patch: Partial<Task>) {
-    updateActiveBoard((b) => ({
-      ...b,
-      tasks: b.tasks.map((t) => t.id === id ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t),
-    }));
+    const t = allTasks.find((x) => x.id === id);
+    const key = Object.keys(patch)[0] || "edit";
+    updateActiveBoard(
+      (b) => ({ ...b, tasks: b.tasks.map((x) => x.id === id ? { ...x, ...patch, updatedAt: new Date().toISOString() } : x) }),
+      { action: key, label: (t?.title || "task") + " → " + Object.values(patch).join(", "), taskId: id },
+    );
   }
   function toggleCombine(id: string) {
     setCombineIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
@@ -461,22 +500,29 @@ export default function TaskBoardSummary() {
   function clearSelection() { setSelectedIds(new Set()); }
   function bulkPatch(patch: Partial<Task>) {
     if (selectedIds.size === 0) return;
-    updateActiveBoard((b) => ({
-      ...b,
-      tasks: b.tasks.map((t) => selectedIds.has(t.id) ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t),
-    }));
+    const n = selectedIds.size;
+    const key = Object.keys(patch)[0] || "edit";
+    updateActiveBoard(
+      (b) => ({ ...b, tasks: b.tasks.map((t) => selectedIds.has(t.id) ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t) }),
+      { action: "bulk-" + key, label: n + " tasks → " + Object.values(patch).join(", ") },
+    );
   }
   function bulkRemove() {
     if (selectedIds.size === 0) return;
-    updateActiveBoard((b) => ({ ...b, tasks: b.tasks.filter((t) => !selectedIds.has(t.id)) }));
+    const n = selectedIds.size;
+    updateActiveBoard(
+      (b) => ({ ...b, tasks: b.tasks.filter((t) => !selectedIds.has(t.id)) }),
+      { action: "bulk-delete", label: "deleted " + n + " tasks" },
+    );
     clearSelection();
   }
   function bulkDone() {
     if (selectedIds.size === 0) return;
-    updateActiveBoard((b) => ({
-      ...b,
-      tasks: b.tasks.map((t) => selectedIds.has(t.id) ? { ...t, done: true, updatedAt: new Date().toISOString() } : t),
-    }));
+    const n = selectedIds.size;
+    updateActiveBoard(
+      (b) => ({ ...b, tasks: b.tasks.map((t) => selectedIds.has(t.id) ? { ...t, done: true, updatedAt: new Date().toISOString() } : t) }),
+      { action: "bulk-done", label: "completed " + n + " tasks" },
+    );
     clearSelection();
   }
 
@@ -496,15 +542,15 @@ export default function TaskBoardSummary() {
   }), [draggingId, combineIds, selectedIds]);
 
   function commitCombine(merged: Task, sourceIds: string[]) {
-    updateActiveBoard((b) => ({
-      ...b,
-      tasks: [merged, ...b.tasks.filter((t) => !sourceIds.includes(t.id))],
-    }));
+    updateActiveBoard(
+      (b) => ({ ...b, tasks: [merged, ...b.tasks.filter((t) => !sourceIds.includes(t.id))] }),
+      { action: "combine", label: "merged " + sourceIds.length + " → " + merged.title, taskId: merged.id },
+    );
     setCombineIds([]);
     setCombineModalOpen(false);
   }
 
-  // ── global keyboard handlers (⌘K palette, Esc) ──
+  // ── global keyboard handlers (⌘K palette, ⌘Z undo, Esc, F) ──
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const tgt = e.target as HTMLElement | null;
@@ -514,9 +560,16 @@ export default function TaskBoardSummary() {
         setPaletteOpen((o) => !o);
         return;
       }
+      if ((e.metaKey || e.ctrlKey) && (e.key === "z" || e.key === "Z") && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
       if (e.key === "Escape") {
         if (focusTask) { setFocusTask(null); return; }
         if (paletteOpen) { setPaletteOpen(false); return; }
+        if (activityOpen) { setActivityOpen(false); return; }
+        if (sidebarOpen) { setSidebarOpen(false); return; }
         if (combineModalOpen) { setCombineModalOpen(false); return; }
         if (combineIds.length > 0) { clearCombine(); return; }
         if (selectedIds.size > 0) { clearSelection(); return; }
@@ -529,7 +582,7 @@ export default function TaskBoardSummary() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusTask, paletteOpen, combineModalOpen, combineIds.length, selectedIds, openTasks]);
+  }, [focusTask, paletteOpen, activityOpen, sidebarOpen, combineModalOpen, combineIds.length, selectedIds, openTasks]);
 
   function submitQuickAdd() {
     const txt = quickAdd.trim();
@@ -544,12 +597,18 @@ export default function TaskBoardSummary() {
       addedAt: stamp,
       source: "quick",
     };
-    updateActiveBoard((b) => ({ ...b, tasks: [t, ...b.tasks] }));
+    updateActiveBoard(
+      (b) => ({ ...b, tasks: [t, ...b.tasks] }),
+      { action: "add", label: t.title, taskId: t.id },
+    );
     setQuickAdd("");
   }
 
   function addFullTask(t: Task) {
-    updateActiveBoard((b) => ({ ...b, tasks: [t, ...b.tasks] }));
+    updateActiveBoard(
+      (b) => ({ ...b, tasks: [t, ...b.tasks] }),
+      { action: "add", label: t.title, taskId: t.id },
+    );
     setAddOpen(false);
   }
 
@@ -661,12 +720,20 @@ export default function TaskBoardSummary() {
 
   return (
     <DragCtx.Provider value={dragCtxValue}>
-    <div style={{ padding: "20px 26px 60px", fontFamily: ft, color: D.tx, maxWidth: 1500, margin: "0 auto", position: "relative" }}>
+    <div style={{ padding: narrow ? "14px 12px 80px" : "20px 26px 60px", fontFamily: ft, color: D.tx, maxWidth: 1500, margin: "0 auto", position: "relative" }}>
       <style>{`
         @keyframes tbRowIn { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes tbPulseRed { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
         @keyframes tbShimmer { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
         @keyframes tbDockPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(247,176,65,0.45); } 50% { box-shadow: 0 0 0 8px rgba(247,176,65,0); } }
+        @media (max-width: 860px) {
+          .tbq-row { grid-template-columns: 18px 1fr auto auto !important; gap: 8px !important; padding: 10px 12px !important; }
+          .tbq-row .tbq-cat,
+          .tbq-row .tbq-time,
+          .tbq-row .tbq-sub,
+          .tbq-row .tbq-pri { display: none !important; }
+          .tbq-row .tbq-avatar { display: inline-flex !important; }
+        }
       `}</style>
       {/* AMBIENT BACKDROP — soft amber + violet glows behind everything */}
       <div aria-hidden="true" style={{
@@ -675,7 +742,7 @@ export default function TaskBoardSummary() {
       }} />
       {/* HEADER HERO */}
       <div style={{
-        position: "relative", padding: "26px 32px 22px", marginBottom: 18,
+        position: "relative", padding: narrow ? "18px 16px 16px" : "26px 32px 22px", marginBottom: 18,
         background: "linear-gradient(135deg, " + D.card + " 0%, " + D.surface + " 100%)",
         border: "1px solid " + D.border, borderRadius: 18, overflow: "hidden",
       }}>
@@ -695,7 +762,7 @@ export default function TaskBoardSummary() {
             }}>
               {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
             </div>
-            <h1 style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, letterSpacing: -0.8, margin: 0, marginBottom: 6, lineHeight: 1.15 }}>{greeting("Akash")}</h1>
+            <h1 style={{ fontFamily: gf, fontSize: narrow ? 22 : 28, fontWeight: 900, letterSpacing: -0.8, margin: 0, marginBottom: 6, lineHeight: 1.15 }}>{greeting("Akash")}</h1>
             <div style={{ fontSize: 13, color: D.txm }}>
               {stats.overdue.n + stats.today.n === 0
                 ? "Nothing due today. Queue is yours to shape."
@@ -704,6 +771,51 @@ export default function TaskBoardSummary() {
             </div>
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            {narrow && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Open navigation"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "9px 12px", background: D.surface, border: "1px solid " + D.border,
+                  color: D.tx, borderRadius: 10, fontFamily: mn, fontSize: 14, fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >☰</button>
+            )}
+            <button
+              onClick={() => setPaletteOpen(true)}
+              title="Command palette (⌘K)"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "9px 12px", background: D.surface, border: "1px solid " + D.border,
+                color: D.txm, borderRadius: 10, fontFamily: mn, fontSize: 11, fontWeight: 600,
+                cursor: "pointer", letterSpacing: 0.4,
+              }}
+            >⌘K</button>
+            <button
+              onClick={() => setPlannerOpen((o) => !o)}
+              title="Daily planner"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "9px 12px",
+                background: plannerOpen ? D.amber + "22" : D.surface,
+                border: "1px solid " + (plannerOpen ? D.amber + "66" : D.border),
+                color: plannerOpen ? D.amber : D.txm,
+                borderRadius: 10, fontFamily: mn, fontSize: 11, fontWeight: 700,
+                cursor: "pointer", letterSpacing: 0.4,
+              }}
+            >▦ planner</button>
+            <button
+              onClick={() => setActivityOpen(true)}
+              title="Activity log"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "9px 12px", background: D.surface, border: "1px solid " + D.border,
+                color: D.txm, borderRadius: 10, fontFamily: mn, fontSize: 11, fontWeight: 700,
+                cursor: "pointer", letterSpacing: 0.4,
+              }}
+            >⟲ activity</button>
             <button
               onClick={() => setAddOpen(true)}
               style={{
@@ -713,27 +825,29 @@ export default function TaskBoardSummary() {
                 cursor: "pointer",
               }}
             >＋ New task</button>
-            <a
-              href="/board"
-              target="_blank"
-              rel="noopener"
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 9,
-                padding: "11px 18px",
-                background: "linear-gradient(135deg, " + D.amber + ", " + D.coral + ")",
-                color: "#0A0A0F", borderRadius: 12,
-                fontSize: 13, fontWeight: 700, textDecoration: "none",
-                boxShadow: "0 6px 20px rgba(247,176,65,0.25)",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <span style={{ fontSize: 16 }}>✦</span> Open Studio <span style={{ fontSize: 11 }}>↗</span>
-            </a>
+            {!narrow && (
+              <a
+                href="/board"
+                target="_blank"
+                rel="noopener"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 9,
+                  padding: "11px 18px",
+                  background: "linear-gradient(135deg, " + D.amber + ", " + D.coral + ")",
+                  color: "#0A0A0F", borderRadius: 12,
+                  fontSize: 13, fontWeight: 700, textDecoration: "none",
+                  boxShadow: "0 6px 20px rgba(247,176,65,0.25)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <span style={{ fontSize: 16 }}>✦</span> Open Studio <span style={{ fontSize: 11 }}>↗</span>
+              </a>
+            )}
           </div>
         </div>
 
         {/* priority counters */}
-        <div style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+        <div style={{ position: "relative", display: "grid", gridTemplateColumns: narrow ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: 10 }}>
           <PriorityCounter label="High"      count={priorityCounts.HIGH}        color={PRI_COLOR.HIGH} />
           <PriorityCounter label="Medium"    count={priorityCounts.MEDIUM}      color={PRI_COLOR.MEDIUM} />
           <PriorityCounter label="This Week" count={priorityCounts["THIS WEEK"]} color={PRI_COLOR["THIS WEEK"]} />
@@ -743,14 +857,40 @@ export default function TaskBoardSummary() {
       </div>
 
       {/* SUITE — sidebar + content */}
-      <div style={{ display: "grid", gridTemplateColumns: "210px 1fr", gap: 18, alignItems: "flex-start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "210px 1fr", gap: 18, alignItems: "flex-start" }}>
         {/* SIDEBAR */}
-        <aside style={{
+        {narrow && sidebarOpen && (
+          <div
+            onClick={() => setSidebarOpen(false)}
+            style={{
+              position: "fixed", inset: 0, zIndex: 11400,
+              background: "rgba(6,6,12,0.55)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)",
+            }}
+          />
+        )}
+        <aside style={narrow ? {
+          display: sidebarOpen ? "block" : "none",
+          position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 11450,
+          width: "min(280px, 86vw)",
+          background: "#0A0A14", borderRight: "1px solid " + D.border,
+          padding: 16, overflowY: "auto",
+          boxShadow: "10px 0 32px rgba(0,0,0,0.5)",
+        } : {
           position: "sticky", top: 18,
           background: D.card, border: "1px solid " + D.border, borderRadius: 14,
           padding: 14,
           maxHeight: "calc(100vh - 60px)", overflowY: "auto",
         }}>
+          {narrow && (
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 800 }}>menu</span>
+              <button onClick={() => setSidebarOpen(false)} style={{
+                marginLeft: "auto", background: "transparent", border: "1px solid " + D.border,
+                color: D.txm, padding: "3px 8px", borderRadius: 5,
+                fontFamily: mn, fontSize: 10, cursor: "pointer", letterSpacing: 0.4,
+              }}>close</button>
+            </div>
+          )}
           <SidebarSection label="Workspace">
             <button
               onClick={() => setAddOpen(true)}
@@ -781,7 +921,7 @@ export default function TaskBoardSummary() {
               <SidebarRow
                 key={v.k}
                 active={view === v.k}
-                onClick={() => setView(v.k)}
+                onClick={() => { setView(v.k); if (narrow) setSidebarOpen(false); }}
                 accent={D.amber}
                 left={<span style={{ fontFamily: mn, fontSize: 11, color: view === v.k ? D.amber : D.txd, width: 14, textAlign: "center" }}>{v.icon}</span>}
                 label={v.l}
@@ -891,6 +1031,13 @@ export default function TaskBoardSummary() {
           )}
 
           {/* CONTENT BY VIEW */}
+          {view === "today" && plannerOpen && (
+            <DailyPlanner
+              tasks={allTasks}
+              onToggle={toggleDone}
+              onClose={() => setPlannerOpen(false)}
+            />
+          )}
           {view === "today" && (
             <TodayView
               allOpen={filteredOpen}
@@ -1028,6 +1175,13 @@ export default function TaskBoardSummary() {
             setFocusTask(next);
           }}
           onPatch={(p) => applyPatch(focusTask.id, p)}
+        />
+      )}
+
+      {activityOpen && (
+        <ActivityLog
+          entries={activeBoard?.activity || []}
+          onClose={() => setActivityOpen(false)}
         />
       )}
     </div>
@@ -2011,6 +2165,7 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
       onDragEnd={() => drag.endDrag()}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      className="tbq-row"
       style={{
         position: "relative",
         display: "grid",
@@ -2037,7 +2192,7 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
       }}
     >
       <StatusCircle done={task.done} size={16} onClick={onToggle} />
-      <span style={{
+      <span className="tbq-cat" style={{
         fontSize: 9, color: cColor, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase",
         background: cColor + "12", border: "1px solid " + cColor + "44",
         padding: "3px 6px", borderRadius: 4,
@@ -2051,10 +2206,12 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
         textDecoration: task.done ? "line-through" : "none",
         opacity: task.done ? 0.5 : 1, letterSpacing: -0.1,
       }}>{task.title}</div>
-      {subTotal > 0
-        ? <SubtaskRing done={subDone} total={subTotal} color={subDone === subTotal ? D.teal : D.violet} size={20} />
-        : <span style={{ width: 20 }} />}
-      <TimePill mins={estOf(task)} />
+      <span className="tbq-sub">
+        {subTotal > 0
+          ? <SubtaskRing done={subDone} total={subTotal} color={subDone === subTotal ? D.teal : D.violet} size={20} />
+          : <span style={{ width: 20, display: "inline-block" }} />}
+      </span>
+      <span className="tbq-time"><TimePill mins={estOf(task)} /></span>
       <span style={{
         fontFamily: mn, fontSize: 10, color: dueColor,
         padding: "3px 8px",
@@ -2062,8 +2219,8 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
         border: "1px solid " + dueColor + "44", borderRadius: 5,
         whiteSpace: "nowrap", minWidth: 64, textAlign: "center", fontWeight: 600,
       }}>{dueLabel(task.dueDate)}</span>
-      <Avatar name={task.assignee || "Akash"} size={22} />
-      <span style={{
+      <span className="tbq-avatar"><Avatar name={task.assignee || "Akash"} size={22} /></span>
+      <span className="tbq-pri" style={{
         fontSize: 9.5, color: pColor, fontFamily: mn, fontWeight: 700,
         padding: "3px 8px",
         background: pColor + "15",
@@ -2814,6 +2971,7 @@ function BulkActionBar({
         boxShadow: "0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(247,176,65,0.08)",
         fontFamily: mn, fontSize: 11, letterSpacing: 0.3,
         animation: "tbRowIn 0.18s ease both",
+        flexWrap: "wrap", maxWidth: "calc(100vw - 24px)", justifyContent: "center",
       }}>
         <span style={{
           color: D.amber, fontWeight: 700, padding: "3px 10px",
@@ -3061,6 +3219,214 @@ function FocusMode({
       </div>
     </div>,
     document.body,
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ACTIVITY LOG popover (right-side drawer)
+// ═══════════════════════════════════════════════════════════════════
+
+function ActivityLog({ entries, onClose }: { entries: ActivityEntry[]; onClose: () => void }) {
+  if (typeof window === "undefined") return null;
+  function timeAgo(ts: string): string {
+    const ms = Date.now() - new Date(ts).getTime();
+    if (ms < 60_000) return "just now";
+    if (ms < 3_600_000) return Math.floor(ms / 60_000) + "m ago";
+    if (ms < 86_400_000) return Math.floor(ms / 3_600_000) + "h ago";
+    return Math.floor(ms / 86_400_000) + "d ago";
+  }
+  function colorFor(action: string): string {
+    if (action.includes("done")) return D.teal;
+    if (action.includes("delete")) return D.coral;
+    if (action.includes("add")) return D.amber;
+    if (action.includes("combine")) return D.blue;
+    if (action.includes("bulk")) return D.violet;
+    return D.txd;
+  }
+  return createPortal(
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, zIndex: 11500,
+      background: "rgba(6,6,12,0.55)",
+      backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
+      display: "flex", justifyContent: "flex-end",
+    }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        width: "min(420px, 92vw)", height: "100%",
+        background: "#0A0A14", borderLeft: "1px solid " + D.border,
+        display: "flex", flexDirection: "column",
+        boxShadow: "-12px 0 32px rgba(0,0,0,0.5)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", padding: "14px 18px", borderBottom: "1px solid " + D.border }}>
+          <span style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 800 }}>● activity</span>
+          <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9.5, color: D.txd }}>{entries.length} entries</span>
+          <button onClick={onClose} style={{
+            marginLeft: 10, background: "transparent", border: "1px solid " + D.border,
+            color: D.txm, padding: "4px 10px", borderRadius: 5,
+            fontFamily: mn, fontSize: 10, cursor: "pointer", letterSpacing: 0.5,
+          }}>Esc</button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
+          {entries.length === 0 ? (
+            <div style={{ padding: 40, textAlign: "center", fontFamily: mn, fontSize: 11, color: D.txd, letterSpacing: 0.4 }}>
+              Nothing yet. Edits, completes, and merges will show up here.
+            </div>
+          ) : entries.map((e, i) => {
+            const c = colorFor(e.action);
+            return (
+              <div key={i} style={{
+                display: "grid", gridTemplateColumns: "auto 1fr auto",
+                gap: 10, padding: "8px 18px",
+                borderLeft: "2px solid " + c + "55",
+                borderBottom: "1px solid " + D.border,
+                alignItems: "center",
+              }}>
+                <span style={{
+                  fontFamily: mn, fontSize: 8.5, color: c,
+                  background: c + "1c", border: "1px solid " + c + "44",
+                  padding: "2px 6px", borderRadius: 4,
+                  letterSpacing: 0.6, textTransform: "uppercase", fontWeight: 800,
+                }}>{e.action}</span>
+                <span style={{
+                  fontFamily: ft, fontSize: 12, color: D.tx, lineHeight: 1.3,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>{e.label}</span>
+                <span style={{ fontFamily: mn, fontSize: 9.5, color: D.txd, letterSpacing: 0.3 }}>{timeAgo(e.ts)}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DAILY PLANNER — two-pane: unscheduled queue + hour buckets
+// ═══════════════════════════════════════════════════════════════════
+
+function PlannerHourBlock({ hour, tasks, onToggle }: {
+  hour: number;
+  tasks: Task[];
+  onToggle: (id: string) => void;
+}) {
+  const drag = useDrag();
+  const [over, setOver] = useState(false);
+  const hrLabel = hour === 0 ? "12a" : hour === 12 ? "12p" : hour > 12 ? hour - 12 + "p" : hour + "a";
+  const slotIso = todayIso() + "T" + String(hour).padStart(2, "0") + ":00:00";
+  const isTarget = drag.draggingId !== null;
+  return (
+    <div
+      onDragOver={isTarget ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setOver(true); } : undefined}
+      onDragLeave={isTarget ? () => setOver(false) : undefined}
+      onDrop={isTarget ? (e) => {
+        e.preventDefault();
+        const id = e.dataTransfer.getData("text/plain");
+        if (id) drag.applyPatch(id, { scheduledFor: slotIso });
+        setOver(false);
+        drag.endDrag();
+      } : undefined}
+      style={{
+        display: "grid", gridTemplateColumns: "40px 1fr",
+        gap: 8, padding: "6px 8px",
+        borderTop: "1px solid " + D.border,
+        background: over ? D.amber + "15" : "transparent",
+        minHeight: 40,
+        transition: "background 0.12s",
+      }}
+    >
+      <span style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.4, paddingTop: 6 }}>{hrLabel}</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {tasks.map((t) => (
+          <QueueRow key={t.id} task={t} last onToggle={() => onToggle(t.id)} />
+        ))}
+        {tasks.length === 0 && over && (
+          <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 0.4, padding: "8px 4px", border: "1px dashed " + D.amber + "55", borderRadius: 5 }}>
+            drop to schedule for {hrLabel}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DailyPlanner({ tasks, onToggle, onClose }: {
+  tasks: Task[];
+  onToggle: (id: string) => void;
+  onClose: () => void;
+}) {
+  const drag = useDrag();
+  const todayDate = todayIso();
+  const todayTasks = tasks.filter((t) => !t.done && (
+    t.scheduledFor?.startsWith(todayDate) || t.dueDate === todayDate
+  ));
+  const scheduled = todayTasks.filter((t) => !!t.scheduledFor);
+  const unscheduledOpen = tasks.filter((t) => !t.done && !t.scheduledFor);
+
+  const byHour = new Map<number, Task[]>();
+  scheduled.forEach((t) => {
+    const h = t.scheduledFor ? new Date(t.scheduledFor).getHours() : 9;
+    const arr = byHour.get(h) || [];
+    arr.push(t);
+    byHour.set(h, arr);
+  });
+
+  const [unschedOver, setUnschedOver] = useState(false);
+
+  return (
+    <div style={{
+      display: "grid", gridTemplateColumns: "minmax(260px, 1fr) 1.4fr",
+      gap: 12, marginBottom: 18,
+      background: D.card, border: "1px solid " + D.border, borderRadius: 12, overflow: "hidden",
+    }}>
+      <div
+        onDragOver={drag.draggingId ? (e) => { e.preventDefault(); setUnschedOver(true); } : undefined}
+        onDragLeave={drag.draggingId ? () => setUnschedOver(false) : undefined}
+        onDrop={drag.draggingId ? (e) => {
+          e.preventDefault();
+          const id = e.dataTransfer.getData("text/plain");
+          if (id) drag.applyPatch(id, { scheduledFor: undefined });
+          setUnschedOver(false);
+          drag.endDrag();
+        } : undefined}
+        style={{
+          borderRight: "1px solid " + D.border,
+          display: "flex", flexDirection: "column",
+          background: unschedOver ? "rgba(247,176,65,0.06)" : "transparent",
+          transition: "background 0.12s",
+        }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: "1px solid " + D.border }}>
+          <span style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 800 }}>unscheduled</span>
+          <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9.5, color: D.txd }}>{unscheduledOpen.length}</span>
+          <button onClick={onClose} style={{
+            background: "transparent", border: "1px solid " + D.border, color: D.txm,
+            padding: "3px 8px", borderRadius: 5, fontFamily: mn, fontSize: 9.5, cursor: "pointer", letterSpacing: 0.4,
+          }}>close planner</button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", maxHeight: 540 }}>
+          {unscheduledOpen.length === 0 ? (
+            <div style={{ padding: 24, fontFamily: mn, fontSize: 10.5, color: D.txd, letterSpacing: 0.4, textAlign: "center" }}>
+              All tasks scheduled. Nice.
+            </div>
+          ) : unscheduledOpen.map((t, i) => (
+            <QueueRow key={t.id} task={t} last={i === unscheduledOpen.length - 1} onToggle={() => onToggle(t.id)} />
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: "1px solid " + D.border }}>
+          <span style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 800 }}>today · timeline</span>
+          <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9.5, color: D.txd }}>{scheduled.length} scheduled</span>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", maxHeight: 540 }}>
+          {Array.from({ length: 18 }).map((_, i) => {
+            const h = i + 6;
+            return <PlannerHourBlock key={h} hour={h} tasks={byHour.get(h) || []} onToggle={onToggle} />;
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
