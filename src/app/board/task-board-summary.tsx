@@ -567,6 +567,32 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
       { action: "delete", label: t?.title || "task", taskId: id },
     );
   }
+  function duplicateTask(id: string) {
+    const src = allTasks.find((x) => x.id === id);
+    if (!src) return;
+    const stamp = new Date().toISOString();
+    const copy: Task = {
+      ...src,
+      id: "t-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+      title: "Copy of " + src.title,
+      addedAt: stamp,
+      updatedAt: undefined,
+      done: false,
+      pinned: false,
+      isRecurringTemplate: false,
+      source: "duplicate",
+      subtasks: src.subtasks ? src.subtasks.map((s) => ({
+        id: "s-" + Date.now() + "-" + Math.random().toString(36).slice(2, 5),
+        title: s.title,
+        done: false,
+      })) : undefined,
+    };
+    updateActiveBoard(
+      (b) => ({ ...b, tasks: [copy, ...b.tasks] }),
+      { action: "duplicate", label: copy.title, taskId: copy.id },
+    );
+    setEditTaskId(copy.id);
+  }
   function toggleCombine(id: string) {
     setCombineIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
   }
@@ -1430,6 +1456,7 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
             onClose={() => setEditTaskId(null)}
             onPatch={(p) => applyPatch(task.id, p)}
             onDelete={() => { removeTask(task.id); setEditTaskId(null); }}
+            onDuplicate={() => duplicateTask(task.id)}
             onFocus={() => { setFocusTask(task); setEditTaskId(null); }}
             onToggleDone={() => toggleDone(task.id)}
           />
@@ -3727,12 +3754,13 @@ function PlannerHourBlock({ hour, tasks, onToggle }: {
 // while keeping the board visible behind it. Auto-saves on blur.
 
 function EditDrawer({
-  task, onClose, onPatch, onDelete, onFocus, onToggleDone,
+  task, onClose, onPatch, onDelete, onDuplicate, onFocus, onToggleDone,
 }: {
   task: Task;
   onClose: () => void;
   onPatch: (patch: Partial<Task>) => void;
   onDelete: () => void;
+  onDuplicate: () => void;
   onFocus: () => void;
   onToggleDone: () => void;
 }) {
@@ -4106,16 +4134,29 @@ function EditDrawer({
           padding: "12px 18px", borderTop: "1px solid " + D.border,
           display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
         }}>
-          <button
-            type="button"
-            onClick={onDelete}
-            style={{
-              padding: "8px 14px",
-              background: "transparent", border: "1px solid " + D.coral + "55",
-              color: D.coral, fontFamily: mn, fontSize: 11, fontWeight: 700, letterSpacing: 0.6,
-              borderRadius: 7, cursor: "pointer",
-            }}
-          >⌫ Delete</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              onClick={onDelete}
+              style={{
+                padding: "8px 14px",
+                background: "transparent", border: "1px solid " + D.coral + "55",
+                color: D.coral, fontFamily: mn, fontSize: 11, fontWeight: 700, letterSpacing: 0.6,
+                borderRadius: 7, cursor: "pointer",
+              }}
+            >⌫ Delete</button>
+            <button
+              type="button"
+              onClick={onDuplicate}
+              title="Clone this task — same category, priority, assignee, subtasks; opens new copy in drawer"
+              style={{
+                padding: "8px 14px",
+                background: "transparent", border: "1px solid " + D.border,
+                color: D.txm, fontFamily: mn, fontSize: 11, fontWeight: 700, letterSpacing: 0.6,
+                borderRadius: 7, cursor: "pointer",
+              }}
+            >⎘ Duplicate</button>
+          </div>
           <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.4 }}>
             Auto-saved · {task.priority}
           </div>
