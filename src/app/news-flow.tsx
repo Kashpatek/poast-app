@@ -138,6 +138,25 @@ function SmBtn({ children, onClick, color, on }: { children: React.ReactNode; on
   return <span onClick={onClick} style={{ fontFamily: mn, fontSize: 8, color: color || T.accent, cursor: "pointer", padding: "2px 7px", borderRadius: 3, border: "1px solid " + (color || T.accent) + (on ? "60" : "25"), background: on ? (color || T.accent) + "15" : "transparent" }}>{children}</span>;
 }
 
+// Branded loading skeleton — shimmer bar that matches the news/stock row shape.
+// `lines` controls how many placeholder rows render; `dense` shrinks padding for
+// tighter widgets (stocks grid vs. news list).
+function Skel({ lines, dense }: { lines?: number; dense?: boolean }) {
+  var rows = Array.from({ length: lines || 4 });
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: dense ? 6 : 10, padding: dense ? "4px 0" : "6px 0" }}>
+      {rows.map(function(_, i) {
+        return (
+          <div key={i} style={{ display: "flex", flexDirection: "column", gap: 5, opacity: 1 - i * 0.12 }}>
+            <div className="nf-shimmer" style={{ height: dense ? 9 : 11, width: 60 + Math.random() * 35 + "%", borderRadius: 3 }} />
+            <div className="nf-shimmer" style={{ height: 7, width: 30 + Math.random() * 25 + "%", borderRadius: 3, opacity: 0.6 }} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ═══ SEND TO IDEATION ═══
 // Per-destination key so an ideation-nation outbound write (which uses
 // "poast-route-to" with arbitrary section keys nothing reads yet) can't
@@ -185,11 +204,11 @@ function NewsFeed({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fo
           {(data.sources || []).map(function(s) { return <option key={s} value={s}>{s}</option>; })}
         </select>
       </div>
-      {loading && data.items.length === 0 ? <div style={{ color: T.txd, fontFamily: mn, fontSize: 10, padding: 20, textAlign: "center" }}>Loading...</div>
+      {loading && data.items.length === 0 ? <Skel lines={5} />
       : data.items.map(function(item, i) {
         var sc = sourceColor[item.source || ""] || T.txm;
-        return <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid " + T.border, display: "flex", gap: 8 }}>
-          <div style={{ flex: 1 }}>
+        return <div key={i} className="nf-news-row" style={{ padding: "8px 0", borderBottom: "1px solid " + T.border, display: "flex", gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <a href={item.link} target="_blank" rel="noopener noreferrer" style={{ fontFamily: ft, fontSize: 12, fontWeight: 600, color: T.tx, textDecoration: "none", lineHeight: 1.4, display: "block", marginBottom: 3 }}>{item.title}</a>
             <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
               <span style={{ fontFamily: mn, fontSize: 8, color: sc, padding: "1px 5px", borderRadius: 3, background: sc + "15" }}>{item.source}</span>
@@ -197,7 +216,7 @@ function NewsFeed({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fo
               {item.date && <span style={{ fontFamily: mn, fontSize: 8, color: T.txd }}>{new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>}
             </div>
           </div>
-          <div style={{ display: "flex", gap: 4, flexShrink: 0, alignSelf: "center" }}>
+          <div className="nf-row-actions" style={{ display: "flex", gap: 4, flexShrink: 0, alignSelf: "center" }}>
             <span onClick={function() { sendToIdeation(item); }} title="Send to IdeationNation" style={{ fontFamily: mn, fontSize: 8, color: T.accent, cursor: "pointer", padding: "3px 7px", borderRadius: 3, border: "1px solid " + T.accent + "25", transition: "all 0.2s ease", background: "transparent" }} onMouseEnter={function(e) { e.currentTarget.style.background = T.accent + "15"; e.currentTarget.style.boxShadow = "0 0 8px " + T.accent + "30"; }} onMouseLeave={function(e) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.boxShadow = "none"; }}>Ideate</span>
             <span onClick={function() { onDraft(item); }} style={{ fontFamily: mn, fontSize: 8, color: T.accent2, cursor: "pointer", padding: "3px 7px", borderRadius: 3, border: "1px solid " + T.accent2 + "25" }}>Draft</span>
           </div>
@@ -216,14 +235,16 @@ function SAFeed({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, font
   }, []);
   return (
     <W title="SemiAnalysis" icon={"\uD83D\uDD2C"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
-      {items.length === 0 ? <div style={{ color: T.txd, fontFamily: mn, fontSize: 10, padding: 20, textAlign: "center" }}>Loading...</div>
+      {items.length === 0 ? <Skel lines={4} />
       : items.map(function(item, i) {
-        return <div key={i} style={{ padding: "7px 0", borderBottom: "1px solid " + T.border }}>
+        return <div key={i} className="nf-news-row" style={{ padding: "7px 0", borderBottom: "1px solid " + T.border }}>
           <a href={item.link} target="_blank" rel="noopener noreferrer" style={{ fontFamily: ft, fontSize: 11, fontWeight: 600, color: T.accent, textDecoration: "none", lineHeight: 1.4 }}>{item.title}</a>
           <div style={{ display: "flex", gap: 6, marginTop: 2, alignItems: "center" }}>
             {item.date && <span style={{ fontFamily: mn, fontSize: 8, color: T.txd }}>{new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>}
-            <span onClick={function() { sendToIdeation(item); }} title="Send to IdeationNation" style={{ fontFamily: mn, fontSize: 8, color: T.accent, cursor: "pointer", transition: "all 0.2s ease" }} onMouseEnter={function(e) { e.currentTarget.style.textShadow = "0 0 6px " + T.accent + "50"; }} onMouseLeave={function(e) { e.currentTarget.style.textShadow = "none"; }}>Ideate</span>
-            <span onClick={function() { onDraft(item); }} style={{ fontFamily: mn, fontSize: 8, color: T.accent2, cursor: "pointer" }}>Draft</span>
+            <span className="nf-row-actions" style={{ display: "inline-flex", gap: 8 }}>
+              <span onClick={function() { sendToIdeation(item); }} title="Send to IdeationNation" style={{ fontFamily: mn, fontSize: 8, color: T.accent, cursor: "pointer", transition: "all 0.2s ease" }} onMouseEnter={function(e) { e.currentTarget.style.textShadow = "0 0 6px " + T.accent + "50"; }} onMouseLeave={function(e) { e.currentTarget.style.textShadow = "none"; }}>Ideate</span>
+              <span onClick={function() { onDraft(item); }} style={{ fontFamily: mn, fontSize: 8, color: T.accent2, cursor: "pointer" }}>Draft</span>
+            </span>
           </div>
         </div>;
       })}
@@ -241,7 +262,7 @@ function StockTicker({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop,
   }, []);
   return (
     <W title="Stocks" icon={"\uD83D\uDCC8"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize} actions={<SmBtn onClick={function() { setView(view === "ticker" ? "grid" : "ticker"); }}>{view === "ticker" ? "Grid" : "Ticker"}</SmBtn>}>
-      {stocks.length === 0 ? <div style={{ color: T.txd, fontFamily: mn, fontSize: 10, padding: 20, textAlign: "center" }}>Loading stocks...</div>
+      {stocks.length === 0 ? <Skel lines={6} dense />
       : view === "ticker" ? (
         <div style={{ overflow: "hidden" }}>
           <style dangerouslySetInnerHTML={{ __html: "@keyframes stk{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}" }} />
@@ -551,7 +572,7 @@ function ETFWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, f
   }, []);
   return (
     <W title="ETFs" icon={"\uD83C\uDFE6"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
-      {etfs.length === 0 ? <div style={{ color: T.txd, fontFamily: mn, fontSize: 10, padding: 20, textAlign: "center" }}>Loading...</div>
+      {etfs.length === 0 ? <Skel lines={4} dense />
       : <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 5 }}>
         {etfs.map(function(s, i) {
           var up = s.changePct >= 0;
@@ -580,7 +601,7 @@ function CryptoWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop
   var items = view === "crypto" ? crypto : commod;
   return (
     <W title="Crypto & Resources" icon={"\u20BF"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize} actions={<><SmBtn onClick={function() { setView("crypto"); }} on={view === "crypto"}>Crypto</SmBtn><SmBtn onClick={function() { setView("resources"); }} on={view === "resources"}>Resources</SmBtn></>}>
-      {items.length === 0 ? <div style={{ color: T.txd, fontFamily: mn, fontSize: 10, padding: 20, textAlign: "center" }}>Loading...</div>
+      {items.length === 0 ? <Skel lines={4} dense />
       : <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 5 }}>
         {items.map(function(s, i) {
           var up = s.changePct >= 0;
@@ -1048,26 +1069,38 @@ export default function NewsFlow() {
 
   return (
     <div>
-      <style dangerouslySetInnerHTML={{ __html: "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');" }} />
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      <style dangerouslySetInnerHTML={{ __html: "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');@keyframes nfPulse{0%,100%{opacity:.45;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}@keyframes nfShimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}.nf-shimmer{background:linear-gradient(90deg,rgba(255,255,255,.025) 0%,rgba(255,255,255,.07) 50%,rgba(255,255,255,.025) 100%);background-size:200% 100%;animation:nfShimmer 1.6s ease-in-out infinite}.nf-add-row:hover{background:rgba(247,176,65,.10) !important;color:" + T.accent + " !important}.nf-cog:hover{transform:rotate(45deg);border-color:" + T.accent + "40 !important;color:" + T.accent + " !important}.nf-cog{transition:transform .35s ease,border-color .25s ease,color .25s ease}.nf-news-row .nf-row-actions{opacity:0;transition:opacity .18s ease}.nf-news-row:hover .nf-row-actions{opacity:1}@media(hover:none){.nf-news-row .nf-row-actions{opacity:1}}" }} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 16, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontFamily: ft, fontSize: 20, fontWeight: 900, color: T.tx }}>News Flow</div>
-          <div style={{ fontFamily: mn, fontSize: 9, color: T.txm, marginTop: 1 }}>Live feeds, stocks, streams, ideas. Draft from any article.</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: T.green, boxShadow: "0 0 12px " + T.green + "80", animation: "nfPulse 2s ease-in-out infinite" }} />
+            <span style={{ fontFamily: mn, fontSize: 8, fontWeight: 700, color: T.green, letterSpacing: 2 }}>LIVE</span>
+            <span style={{ fontFamily: mn, fontSize: 8, color: T.txd }}>\u00b7</span>
+            <span style={{ fontFamily: mn, fontSize: 8, color: T.txm, letterSpacing: 1 }}>{order.length - disabled.length} WIDGETS \u00b7 {hiddenWidgets.length} HIDDEN</span>
+          </div>
+          <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 900, color: T.tx, background: "linear-gradient(135deg," + T.tx + " 0%," + T.accent + " 140%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>News Flow</div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: T.txm, marginTop: 2 }}>Live feeds, stocks, streams, ideas. Draft from any article.</div>
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", position: "relative" }}>
           <div style={{ position: "relative" }}>
-            <span onClick={function() { setShowAdd(!showAdd); }} style={{ padding: "5px 12px", borderRadius: 6, cursor: "pointer", background: T.accent + "15", border: "1px solid " + T.accent + "30", fontFamily: mn, fontSize: 9, color: T.accent, fontWeight: 700 }}>+ Add Widget</span>
-            {showAdd && <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: T.card, border: "1px solid " + T.border, borderRadius: 8, padding: 6, zIndex: 100, minWidth: 180, boxShadow: T.glowAccent }}>
-              {hiddenWidgets.length === 0 ? <div style={{ fontFamily: mn, fontSize: 9, color: T.txd, padding: 8 }}>All widgets active</div>
-              : hiddenWidgets.map(function(id) {
-                var m = WIDGET_META[id];
-                return <div key={id} onClick={function() { activateWidget(id); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", borderRadius: 4, cursor: "pointer", fontFamily: ft, fontSize: 11, color: T.tx }}>
-                  <span style={{ fontSize: 12 }}>{m.i}</span>{m.l}
-                </div>;
-              })}
-            </div>}
+            <span onClick={function() { setShowAdd(!showAdd); }} style={{ padding: "6px 14px", borderRadius: 6, cursor: "pointer", background: showAdd ? T.accent + "25" : T.accent + "15", border: "1px solid " + T.accent + (showAdd ? "55" : "30"), fontFamily: mn, fontSize: 9, color: T.accent, fontWeight: 700, letterSpacing: 0.5, transition: "all .18s ease" }}>+ ADD WIDGET</span>
+            {showAdd && <>
+              <div onClick={function() { setShowAdd(false); }} style={{ position: "fixed", inset: 0, zIndex: 90 }} />
+              <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, background: T.card, border: "1px solid " + T.border, borderRadius: 10, padding: 6, zIndex: 100, minWidth: 200, boxShadow: "0 12px 36px rgba(0,0,0,.6), " + T.glowAccent }}>
+                {hiddenWidgets.length === 0 ? <div style={{ fontFamily: mn, fontSize: 9, color: T.txd, padding: 10, textAlign: "center" }}>All widgets active</div>
+                : <>
+                  <div style={{ fontFamily: mn, fontSize: 8, color: T.txd, padding: "6px 8px 4px", letterSpacing: 1 }}>HIDDEN \u00b7 {hiddenWidgets.length}</div>
+                  {hiddenWidgets.map(function(id) {
+                    var m = WIDGET_META[id];
+                    return <div key={id} className="nf-add-row" onClick={function() { activateWidget(id); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 9px", borderRadius: 5, cursor: "pointer", fontFamily: ft, fontSize: 11, color: T.tx, transition: "background .12s ease, color .12s ease" }}>
+                      <span style={{ fontSize: 13 }}>{m.i}</span>{m.l}
+                    </div>;
+                  })}
+                </>}
+              </div>
+            </>}
           </div>
-          <span onClick={function() { setShowSettings(true); }} style={{ width: 30, height: 30, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: T.surface, border: "1px solid " + T.border, fontSize: 15, color: T.txm }}>{"\u2699"}</span>
+          <span className="nf-cog" onClick={function() { setShowSettings(true); }} title="Settings" style={{ width: 32, height: 32, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: T.surface, border: "1px solid " + T.border, fontSize: 16, color: T.txm }}>{"\u2699"}</span>
         </div>
       </div>
 
