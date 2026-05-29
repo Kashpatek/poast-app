@@ -1,18 +1,18 @@
 "use client";
 
-// Compact Task Board summary embedded inside POAST under the Tasks tab.
-// Above the fold: gradient hero + stat tiles + hot seat cards.
-// Below the fold: the FULL queue, grouped by priority — every open task,
-// no truncation, mirroring the density of the legacy AkashTodo list view
-// so scrolling shows everything you had before.
+// Task Board Suite — full-on productivity launcher embedded in POAST.
 //
-// Reads/writes the same Supabase row as /board (Studio), so edits in
-// either surface round-trip. Polls every 20s for cross-tab sync.
+// Layout: left sidebar (views, categories, team) + top filter bar +
+// content area that swaps between Today / Schedule / Board / All / Done.
+// Quick-add input top-right, full "New task" modal for everything else.
+//
+// Shares the Supabase row with /board (Studio) so edits round-trip.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { D, ft, mn } from "../shared-constants";
 
-// ─── types (same shape as akash-todo / task-board-studio) ───
+// ─── types (mirror akash-todo schema) ───
 type Priority = "HIGH" | "MEDIUM" | "THIS WEEK" | "ONGOING" | "DONE";
 interface Subtask { id: string; title: string; done?: boolean }
 interface Task {
@@ -37,6 +37,10 @@ interface BoardArchive { boards: Board[]; activeId: string }
 
 const PRIORITY_ORDER: Priority[] = ["HIGH", "MEDIUM", "THIS WEEK", "ONGOING"];
 
+const CATEGORIES = [
+  "GRAPHIC DESIGN", "MARKETING OPS", "VIDEO PRODUCTION", "BRAND / IDENTITY",
+  "DEV / ACCESS", "CONTENT OPS", "PODCAST", "EVENTS", "RESEARCH", "ADMIN", "OTHER",
+];
 const CAT_COLOR: Record<string, string> = {
   "GRAPHIC DESIGN": D.amber, "MARKETING OPS": D.coral, "VIDEO PRODUCTION": D.blue,
   "BRAND / IDENTITY": D.teal, "DEV / ACCESS": D.violet, "CONTENT OPS": D.cyan,
@@ -46,11 +50,15 @@ const CAT_COLOR: Record<string, string> = {
 const PRI_COLOR: Record<Priority, string> = {
   HIGH: D.coral, MEDIUM: D.amber, "THIS WEEK": D.blue, ONGOING: D.txm, DONE: D.teal,
 };
+const ASSIGNEES = ["Akash", "Daksh", "Vansh", "Max", "Michelle", "Unassigned"];
 const ASSIGNEE_COLOR: Record<string, string> = {
   Akash: D.amber, Daksh: D.blue, Vansh: D.teal, Max: D.violet,
   Michelle: D.coral, Unassigned: D.txd,
 };
 
+type ViewKey = "today" | "schedule" | "board" | "all" | "done";
+
+// ─── helpers ───
 function startOfDay(d: Date): Date { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function isoDate(d: Date): string { return d.toISOString().slice(0, 10); }
 function todayIso() { return isoDate(startOfDay(new Date())); }
@@ -78,9 +86,7 @@ function greeting(name: string): string {
   return "Late night, " + name + "?";
 }
 
-// Match the AkashTodo planner default: tasks without an explicit
-// estimate count as 30m so rollups never read "0" when the queue is
-// real but unsized.
+// Match the AkashTodo planner default: unsized tasks count as 30m.
 function estOf(t: Task): number { return Math.max(0, t.estimateMins ?? 30); }
 function sumMins(arr: Task[]): number { return arr.reduce((s, t) => s + estOf(t), 0); }
 function fmtMins(n: number): string {
@@ -122,8 +128,6 @@ function StatusCircle({ done = false, size = 16, onClick }: { done?: boolean; si
   );
 }
 
-// Compact pill used for time estimates throughout — readable on both
-// the dark hot seat cards and the lighter group headers.
 function TimePill({ mins, tone = "muted" }: { mins: number; tone?: "muted" | "warm" | "cool" }) {
   const color = tone === "warm" ? D.amber : tone === "cool" ? D.blue : D.txm;
   return (
@@ -140,13 +144,20 @@ function TimePill({ mins, tone = "muted" }: { mins: number; tone?: "muted" | "wa
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// SUMMARY
+// SUMMARY (the suite)
 // ═══════════════════════════════════════════════════════════════════
 export default function TaskBoardSummary() {
   const [archive, setArchive] = useState<BoardArchive>({ boards: [], activeId: "" });
   const [loading, setLoading] = useState(true);
   const [quickAdd, setQuickAdd] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  // suite state
+  const [view, setView] = useState<ViewKey>("today");
+  const [catFilter, setCatFilter] = useState<string | null>(null);
+  const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
 
   const lastSavedRef = useRef<string>("");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -170,9 +181,6 @@ export default function TaskBoardSummary() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-
-  // Cross-tab sync: refetch every 20s so edits in the full Studio
-  // surface show up here without a manual refresh.
   useEffect(() => {
     if (loading) return;
     const id = setInterval(() => { load(); }, 20000);
@@ -187,13 +195,7 @@ export default function TaskBoardSummary() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           table: "projects",
-          data: {
-            id: "akash-todo-master",
-            name: "Akash Todo",
-            type: "akash-todo",
-            data: next,
-            updated_at: new Date().toISOString(),
-          },
+          data: { id: "akash-todo-master", name: "Akash Todo", type: "akash-todo", data: next, updated_at: new Date().toISOString() },
         }),
       });
       if (!res.ok) { setSaveState("error"); return; }
@@ -241,9 +243,9 @@ export default function TaskBoardSummary() {
     const t: Task = {
       id: "t-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
       title: txt,
-      category: "OTHER",
+      category: catFilter || "OTHER",
       priority: "MEDIUM",
-      assignee: "Akash",
+      assignee: assigneeFilter || "Akash",
       addedAt: stamp,
       source: "quick",
     };
@@ -251,7 +253,26 @@ export default function TaskBoardSummary() {
     setQuickAdd("");
   }
 
-  // ── stats with time rollups ──
+  function addFullTask(t: Task) {
+    updateActiveBoard((b) => ({ ...b, tasks: [t, ...b.tasks] }));
+    setAddOpen(false);
+  }
+
+  // ── filters applied to open tasks ──
+  const filteredOpen = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return openTasks.filter((t) => {
+      if (catFilter && t.category !== catFilter) return false;
+      if (assigneeFilter && (t.assignee || "Akash") !== assigneeFilter) return false;
+      if (q) {
+        const hay = (t.title + " " + (t.description || "") + " " + t.category).toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [openTasks, catFilter, assigneeFilter, search]);
+
+  // ── stats (always whole board, ignore filters so the hero is stable) ──
   const stats = useMemo(() => {
     const weekOutIso = isoDate(new Date(Date.now() + 7 * 86400000));
     const overdue = openTasks.filter(isOverdue);
@@ -267,35 +288,73 @@ export default function TaskBoardSummary() {
     };
   }, [allTasks, openTasks]);
 
-  // ── hot seat: overdue first (oldest first), then today ──
-  const hotSeat = useMemo(() => [
-    ...openTasks.filter(isOverdue).sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || "")),
-    ...openTasks.filter(isToday),
-  ].slice(0, 6), [openTasks]);
-
-  // ── full queue, grouped by priority (HIGH → MEDIUM → THIS WEEK → ONGOING) ──
-  // Within each group: pinned first, then by dueDate ascending (no date last),
-  // then by addedAt newest. Mirrors AkashTodo list-view ordering closely
-  // enough that scrolling here feels like the existing board.
-  const queueGroups = useMemo(() => {
-    const groups: { key: Priority; tasks: Task[] }[] = [];
-    for (const p of PRIORITY_ORDER) {
-      const tasks = openTasks.filter((t) => t.priority === p).sort((a, b) => {
-        if (!!b.pinned !== !!a.pinned) return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
-        const ad = a.dueDate || "9999-12-31";
-        const bd = b.dueDate || "9999-12-31";
-        if (ad !== bd) return ad < bd ? -1 : 1;
-        return (b.addedAt || "").localeCompare(a.addedAt || "");
-      });
-      if (tasks.length) groups.push({ key: p, tasks });
-    }
-    return groups;
+  // ── sidebar counts ──
+  const categoryCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    openTasks.forEach((t) => { m[t.category] = (m[t.category] || 0) + 1; });
+    return m;
+  }, [openTasks]);
+  const assigneeCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    openTasks.forEach((t) => { const a = t.assignee || "Akash"; m[a] = (m[a] || 0) + 1; });
+    return m;
   }, [openTasks]);
 
-  const totalQueue = useMemo(() => ({
-    n: openTasks.length,
-    mins: sumMins(openTasks),
-  }), [openTasks]);
+  // ── view-specific derived data ──
+  // Today: hot seat (overdue + today) + queue (everything else, grouped by priority)
+  const hotSeat = useMemo(() => [
+    ...filteredOpen.filter(isOverdue).sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || "")),
+    ...filteredOpen.filter(isToday),
+  ], [filteredOpen]);
+  const restOpen = useMemo(() => filteredOpen.filter((t) => !isOverdue(t) && !isToday(t)), [filteredOpen]);
+
+  const queueGroups = useMemo(() => groupByPriority(view === "today" ? restOpen : filteredOpen), [view, restOpen, filteredOpen]);
+
+  // Schedule: overdue bucket + 14 day sections + no-date bucket
+  const schedule = useMemo(() => {
+    const days: { iso: string; date: Date; tasks: Task[]; mins: number }[] = [];
+    const start = startOfDay(new Date());
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(start); d.setDate(d.getDate() + i);
+      const iso = isoDate(d);
+      const dayTasks = filteredOpen.filter((t) => t.dueDate === iso)
+        .sort((a, b) => PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority));
+      days.push({ iso, date: d, tasks: dayTasks, mins: sumMins(dayTasks) });
+    }
+    const overdueTasks = filteredOpen.filter(isOverdue).sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
+    const noDateTasks = filteredOpen.filter((t) => !t.dueDate)
+      .sort((a, b) => PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority));
+    const laterTasks = filteredOpen.filter((t) => {
+      if (!t.dueDate || isOverdue(t)) return false;
+      const cutoffIso = isoDate(new Date(Date.now() + 14 * 86400000));
+      return t.dueDate >= cutoffIso;
+    }).sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
+    return { overdueTasks, days, noDateTasks, laterTasks };
+  }, [filteredOpen]);
+
+  // Board: kanban columns by priority
+  const boardCols = useMemo(() => PRIORITY_ORDER.map((p) => ({
+    priority: p,
+    tasks: filteredOpen.filter((t) => t.priority === p).sort((a, b) => {
+      if (!!b.pinned !== !!a.pinned) return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
+      const ad = a.dueDate || "9999-12-31";
+      const bd = b.dueDate || "9999-12-31";
+      if (ad !== bd) return ad < bd ? -1 : 1;
+      return (b.addedAt || "").localeCompare(a.addedAt || "");
+    }),
+  })), [filteredOpen]);
+
+  // Done: recently completed (last 30d), newest first
+  const doneTasks = useMemo(() => {
+    const cutoff = Date.now() - 30 * 86400000;
+    return allTasks.filter((t) => t.done && t.updatedAt && Date.parse(t.updatedAt) > cutoff)
+      .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+  }, [allTasks]);
+
+  const totalQueue = useMemo(() => ({ n: filteredOpen.length, mins: sumMins(filteredOpen) }), [filteredOpen]);
+
+  const filtersActive = !!(catFilter || assigneeFilter || search.trim());
+  function clearAllFilters() { setCatFilter(null); setAssigneeFilter(null); setSearch(""); }
 
   if (loading) {
     return (
@@ -307,10 +366,10 @@ export default function TaskBoardSummary() {
   }
 
   return (
-    <div style={{ padding: "20px 26px 60px", fontFamily: ft, color: D.tx, maxWidth: 1300, margin: "0 auto" }}>
-      {/* HEADER */}
+    <div style={{ padding: "20px 26px 60px", fontFamily: ft, color: D.tx, maxWidth: 1500, margin: "0 auto" }}>
+      {/* HEADER HERO */}
       <div style={{
-        position: "relative", padding: "28px 32px 26px", marginBottom: 22,
+        position: "relative", padding: "26px 32px 22px", marginBottom: 18,
         background: "linear-gradient(135deg, " + D.card + " 0%, " + D.surface + " 100%)",
         border: "1px solid " + D.border, borderRadius: 18, overflow: "hidden",
       }}>
@@ -318,39 +377,50 @@ export default function TaskBoardSummary() {
           position: "absolute", inset: 0, pointerEvents: "none",
           background: "radial-gradient(500px 280px at 90% -10%, rgba(247,176,65,0.12), transparent 60%), radial-gradient(380px 240px at -5% 110%, rgba(144,92,203,0.10), transparent 60%)",
         }} />
-        <div style={{ position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, flexWrap: "wrap", marginBottom: 22 }}>
+        <div style={{ position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, flexWrap: "wrap", marginBottom: 18 }}>
           <div>
             <div style={{ fontSize: 10.5, color: D.amber, letterSpacing: 1.5, fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>
               {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
             </div>
-            <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: -0.8, margin: 0, marginBottom: 6, lineHeight: 1.15 }}>{greeting("Akash")}</h1>
-            <div style={{ fontSize: 13.5, color: D.txm }}>
+            <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.6, margin: 0, marginBottom: 6, lineHeight: 1.15 }}>{greeting("Akash")}</h1>
+            <div style={{ fontSize: 13, color: D.txm }}>
               {stats.overdue.n + stats.today.n === 0
                 ? "Nothing due today. Queue is yours to shape."
                 : `${stats.overdue.n + stats.today.n} thing${stats.overdue.n + stats.today.n === 1 ? "" : "s"} on the hot seat — ~${fmtMins(stats.overdue.mins + stats.today.mins)} of work.`}
               {stats.overdue.n > 0 && <span style={{ color: D.coral }}> {stats.overdue.n} already late.</span>}
             </div>
           </div>
-          <a
-            href="/board"
-            target="_blank"
-            rel="noopener"
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 9,
-              padding: "11px 18px",
-              background: "linear-gradient(135deg, " + D.amber + ", " + D.coral + ")",
-              color: "#0A0A0F", borderRadius: 12,
-              fontSize: 13, fontWeight: 700, textDecoration: "none",
-              boxShadow: "0 6px 20px rgba(247,176,65,0.25)",
-              whiteSpace: "nowrap",
-            }}
-          >
-            <span style={{ fontSize: 16 }}>✦</span> Open full board <span style={{ fontSize: 11 }}>↗</span>
-          </a>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <button
+              onClick={() => setAddOpen(true)}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 8,
+                padding: "10px 16px", background: D.surface, border: "1px solid " + D.border,
+                color: D.tx, borderRadius: 10, fontFamily: ft, fontSize: 13, fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >＋ New task</button>
+            <a
+              href="/board"
+              target="_blank"
+              rel="noopener"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 9,
+                padding: "11px 18px",
+                background: "linear-gradient(135deg, " + D.amber + ", " + D.coral + ")",
+                color: "#0A0A0F", borderRadius: 12,
+                fontSize: 13, fontWeight: 700, textDecoration: "none",
+                boxShadow: "0 6px 20px rgba(247,176,65,0.25)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span style={{ fontSize: 16 }}>✦</span> Open Studio <span style={{ fontSize: 11 }}>↗</span>
+            </a>
+          </div>
         </div>
 
-        {/* stat tiles — each shows count + estimated workload */}
-        <div style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
+        {/* stat tiles */}
+        <div style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
           {[
             { l: "Overdue", v: stats.overdue.n, mins: stats.overdue.mins, c: D.coral },
             { l: "Today",   v: stats.today.n,   mins: stats.today.mins,   c: D.amber },
@@ -358,144 +428,607 @@ export default function TaskBoardSummary() {
             { l: "Open total", v: stats.open.n, mins: stats.open.mins, c: D.teal },
             { l: "Done (7d)", v: stats.doneRecent.n, mins: stats.doneRecent.mins, c: D.violet },
           ].map((s) => (
-            <div key={s.l} style={{ padding: "12px 16px", background: "rgba(255,255,255,0.02)", border: "1px solid " + D.border, borderRadius: 11 }}>
-              <div style={{ fontSize: 10, color: D.txd, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 5 }}>{s.l}</div>
+            <div key={s.l} style={{ padding: "11px 14px", background: "rgba(255,255,255,0.02)", border: "1px solid " + D.border, borderRadius: 10 }}>
+              <div style={{ fontSize: 10, color: D.txd, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 4 }}>{s.l}</div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <div style={{ fontSize: 24, fontWeight: 800, color: s.c, lineHeight: 1, letterSpacing: -0.5 }}>{s.v}</div>
-                <div style={{ fontFamily: mn, fontSize: 10.5, color: D.txd, letterSpacing: 0.3 }}>~{fmtMins(s.mins)}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: s.c, lineHeight: 1, letterSpacing: -0.4 }}>{s.v}</div>
+                <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.3 }}>~{fmtMins(s.mins)}</div>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* QUICK ADD */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: D.card, border: "1px solid " + D.border, borderRadius: 12, marginBottom: 22 }}>
-        <span style={{ fontSize: 17, color: D.amber, fontWeight: 700 }}>+</span>
-        <input
-          value={quickAdd}
-          onChange={(e) => setQuickAdd(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") submitQuickAdd(); }}
-          placeholder="Capture a task… (Enter to add — opens in Studio with full edit)"
-          style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: D.tx, fontFamily: ft, fontSize: 14 }}
+      {/* SUITE — sidebar + content */}
+      <div style={{ display: "grid", gridTemplateColumns: "210px 1fr", gap: 18, alignItems: "flex-start" }}>
+        {/* SIDEBAR */}
+        <aside style={{
+          position: "sticky", top: 18,
+          background: D.card, border: "1px solid " + D.border, borderRadius: 14,
+          padding: 14,
+          maxHeight: "calc(100vh - 60px)", overflowY: "auto",
+        }}>
+          <SidebarSection label="Workspace">
+            <button
+              onClick={() => setAddOpen(true)}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 9,
+                padding: "9px 12px",
+                background: "linear-gradient(135deg, " + D.amber + ", " + D.coral + ")",
+                color: "#0A0A0F", border: "none", borderRadius: 9,
+                fontFamily: ft, fontSize: 12.5, fontWeight: 700,
+                cursor: "pointer", marginBottom: 6,
+              }}
+            >＋ New task</button>
+            <SidebarInput value={search} setValue={setSearch} placeholder="Search…" />
+          </SidebarSection>
+
+          <SidebarSection label="Views">
+            {[
+              { k: "today" as ViewKey, l: "Today", icon: "◉", count: hotSeat.length + restOpen.length },
+              { k: "schedule" as ViewKey, l: "Schedule", icon: "▤", count: filteredOpen.length },
+              { k: "board" as ViewKey, l: "Board", icon: "▦", count: filteredOpen.length },
+              { k: "all" as ViewKey, l: "All open", icon: "≡", count: filteredOpen.length },
+              { k: "done" as ViewKey, l: "Done", icon: "✓", count: doneTasks.length },
+            ].map((v) => (
+              <SidebarRow
+                key={v.k}
+                active={view === v.k}
+                onClick={() => setView(v.k)}
+                accent={D.amber}
+                left={<span style={{ fontFamily: mn, fontSize: 11, color: view === v.k ? D.amber : D.txd, width: 14, textAlign: "center" }}>{v.icon}</span>}
+                label={v.l}
+                count={v.count}
+              />
+            ))}
+          </SidebarSection>
+
+          <SidebarSection label="Categories">
+            {CATEGORIES.filter((c) => categoryCounts[c]).map((c) => (
+              <SidebarRow
+                key={c}
+                active={catFilter === c}
+                onClick={() => setCatFilter(catFilter === c ? null : c)}
+                accent={CAT_COLOR[c] || D.txd}
+                left={<span style={{ width: 8, height: 8, borderRadius: 999, background: CAT_COLOR[c] || D.txd, flexShrink: 0 }} />}
+                label={c.toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase()).replace("/", " / ")}
+                count={categoryCounts[c]}
+              />
+            ))}
+            {CATEGORIES.filter((c) => categoryCounts[c]).length === 0 && (
+              <div style={{ fontSize: 11.5, color: D.txd, padding: "4px 8px" }}>No tasks yet.</div>
+            )}
+          </SidebarSection>
+
+          <SidebarSection label="Team">
+            {ASSIGNEES.filter((a) => assigneeCounts[a]).map((a) => (
+              <SidebarRow
+                key={a}
+                active={assigneeFilter === a}
+                onClick={() => setAssigneeFilter(assigneeFilter === a ? null : a)}
+                accent={ASSIGNEE_COLOR[a] || D.txd}
+                left={<Avatar name={a} size={16} />}
+                label={a}
+                count={assigneeCounts[a]}
+              />
+            ))}
+          </SidebarSection>
+
+          <div style={{
+            marginTop: 12, padding: "10px 12px",
+            fontSize: 10.5, color: D.txd, fontFamily: mn, letterSpacing: 0.3,
+            borderTop: "1px solid " + D.border, paddingTop: 12,
+          }}>
+            {saveState === "saved" ? <span style={{ color: D.teal }}>✓ Synced</span>
+              : saveState === "saving" ? <span style={{ color: D.amber }}>● Saving…</span>
+              : saveState === "error" ? <span style={{ color: D.coral }}>● Sync failed</span>
+              : <span>● Auto-saves to cloud</span>}
+          </div>
+        </aside>
+
+        {/* MAIN */}
+        <main>
+          {/* TOOLBAR — quick add + filter chips */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "10px 14px", background: D.card, border: "1px solid " + D.border,
+            borderRadius: 12, marginBottom: 14,
+          }}>
+            <span style={{ fontSize: 16, color: D.amber, fontWeight: 700 }}>+</span>
+            <input
+              value={quickAdd}
+              onChange={(e) => setQuickAdd(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") submitQuickAdd(); }}
+              placeholder="Quick add (Enter)…"
+              style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: D.tx, fontFamily: ft, fontSize: 13.5 }}
+            />
+            {filtersActive && (
+              <button
+                onClick={clearAllFilters}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "5px 10px", background: "transparent", border: "1px solid " + D.border,
+                  color: D.txm, fontFamily: mn, fontSize: 10.5, borderRadius: 6, cursor: "pointer",
+                }}
+              >clear filters ×</button>
+            )}
+          </div>
+
+          {filtersActive && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+              {catFilter && <Chip label={catFilter} color={CAT_COLOR[catFilter] || D.txd} onClear={() => setCatFilter(null)} />}
+              {assigneeFilter && <Chip label={assigneeFilter} color={ASSIGNEE_COLOR[assigneeFilter] || D.txd} onClear={() => setAssigneeFilter(null)} />}
+              {search.trim() && <Chip label={`"${search.trim()}"`} color={D.violet} onClear={() => setSearch("")} />}
+            </div>
+          )}
+
+          {/* CONTENT BY VIEW */}
+          {view === "today" && (
+            <TodayView
+              hotSeat={hotSeat}
+              queueGroups={queueGroups}
+              totalQueue={totalQueue}
+              onToggle={toggleDone}
+            />
+          )}
+
+          {view === "schedule" && (
+            <ScheduleView
+              schedule={schedule}
+              onToggle={toggleDone}
+            />
+          )}
+
+          {view === "board" && (
+            <BoardKanban
+              columns={boardCols}
+              onToggle={toggleDone}
+            />
+          )}
+
+          {view === "all" && (
+            <AllOpenView
+              queueGroups={queueGroups}
+              totalQueue={totalQueue}
+              onToggle={toggleDone}
+            />
+          )}
+
+          {view === "done" && (
+            <DoneView tasks={doneTasks} onToggle={toggleDone} />
+          )}
+        </main>
+      </div>
+
+      {addOpen && (
+        <AddTaskModal
+          defaultCat={catFilter}
+          defaultAssignee={assigneeFilter}
+          onSubmit={addFullTask}
+          onClose={() => setAddOpen(false)}
         />
-        {saveState !== "idle" && (
-          <span style={{ fontSize: 10.5, color: saveState === "saved" ? D.teal : saveState === "saving" ? D.amber : D.coral, fontFamily: mn, letterSpacing: 0.5 }}>
-            {saveState === "saved" ? "✓ saved" : saveState === "saving" ? "saving…" : "save failed"}
-          </span>
-        )}
-      </div>
-
-      {/* HOT SEAT */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12 }}>
-          <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Hot seat</h2>
-          <span style={{ fontSize: 11, color: D.txd, fontFamily: mn }}>{hotSeat.length} item{hotSeat.length === 1 ? "" : "s"}</span>
-          {hotSeat.length > 0 && <TimePill mins={sumMins(hotSeat)} tone="warm" />}
-          <a href="/board" target="_blank" rel="noopener" style={{ marginLeft: "auto", fontSize: 11.5, color: D.txm, textDecoration: "none" }}>View in Studio →</a>
-        </div>
-
-        {hotSeat.length === 0 ? (
-          <div style={{ padding: 32, background: D.card, border: "1px dashed " + D.border, borderRadius: 12, textAlign: "center", color: D.txm, fontSize: 13.5 }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>✶</div>
-            Nothing on fire. Today is clear.
-          </div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
-            {hotSeat.map((t) => {
-              const overdue = isOverdue(t);
-              const today = isToday(t);
-              return (
-                <a
-                  key={t.id}
-                  href="/board"
-                  target="_blank"
-                  rel="noopener"
-                  style={{
-                    position: "relative", padding: "14px 16px",
-                    background: D.card,
-                    border: "1px solid " + (overdue ? "rgba(224,99,71,0.30)" : D.border),
-                    borderRadius: 12, textDecoration: "none", color: "inherit",
-                    display: "block",
-                  }}
-                >
-                  <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: CAT_COLOR[t.category] || D.txd, borderRadius: "4px 0 0 4px" }} />
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                    <StatusCircle done={t.done} size={14} onClick={() => toggleDone(t.id)} />
-                    <span style={{ fontSize: 10, color: CAT_COLOR[t.category] || D.txd, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase" }}>{t.category}</span>
-                    {overdue && <span style={{ marginLeft: "auto", fontSize: 10, color: D.coral, fontWeight: 700, letterSpacing: 0.5 }}>● {dueLabel(t.dueDate).toUpperCase()}</span>}
-                    {today && !overdue && <span style={{ marginLeft: "auto", fontSize: 10, color: D.amber, fontWeight: 700, letterSpacing: 0.5 }}>● TODAY</span>}
-                  </div>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1.35, color: D.tx, marginBottom: 10, textDecoration: t.done ? "line-through" : "none", opacity: t.done ? 0.6 : 1 }}>{t.title}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 8, borderTop: "1px solid " + D.border }}>
-                    <Avatar name={t.assignee || "Akash"} size={20} />
-                    <span style={{ fontSize: 11.5, color: D.txm }}>{t.assignee || "Akash"}</span>
-                    <TimePill mins={estOf(t)} />
-                    <span style={{ marginLeft: "auto", fontSize: 10, color: PRI_COLOR[t.priority], fontFamily: mn, fontWeight: 600, padding: "2px 7px", border: "1px solid " + PRI_COLOR[t.priority] + "55", borderRadius: 5 }}>{t.priority}</span>
-                  </div>
-                </a>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* FULL QUEUE — grouped by priority, every open task. Scroll the
-          page for everything; mirrors the legacy AkashTodo list view so
-          nothing's hidden behind a "View more". */}
-      <div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14, paddingBottom: 10, borderBottom: "1px solid " + D.border }}>
-          <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Full queue</h2>
-          <span style={{ fontSize: 11, color: D.txd, fontFamily: mn }}>{totalQueue.n} open</span>
-          {totalQueue.n > 0 && <TimePill mins={totalQueue.mins} tone="cool" />}
-          <span style={{ marginLeft: "auto", fontSize: 11, color: D.txd, fontFamily: mn }}>
-            grouped by priority · click a row to edit in Studio
-          </span>
-        </div>
-
-        {queueGroups.length === 0 ? (
-          <div style={{ padding: 36, background: D.card, border: "1px dashed " + D.border, borderRadius: 12, textAlign: "center", color: D.txm, fontSize: 13.5 }}>
-            Queue is empty. Capture something above, or open the Studio board to plan the week.
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-            {queueGroups.map(({ key, tasks }) => {
-              const groupMins = sumMins(tasks);
-              return (
-                <div key={key}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 999, background: PRI_COLOR[key] }} />
-                    <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, textTransform: "uppercase", color: PRI_COLOR[key], fontWeight: 700 }}>{key}</span>
-                    <span style={{ fontFamily: mn, fontSize: 10, color: D.txd }}>{tasks.length}</span>
-                    <TimePill mins={groupMins} />
-                  </div>
-                  <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, overflow: "hidden" }}>
-                    {tasks.map((t, i) => (
-                      <QueueRow
-                        key={t.id}
-                        task={t}
-                        last={i === tasks.length - 1}
-                        onToggle={() => toggleDone(t.id)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
 
-// Single dense row inside the full queue. Whole row is a link to /board
-// so clicking sends you to the Studio with the task in context.
+// Priority grouping (HIGH → MEDIUM → THIS WEEK → ONGOING, pinned first).
+function groupByPriority(tasks: Task[]): { key: Priority; tasks: Task[] }[] {
+  const out: { key: Priority; tasks: Task[] }[] = [];
+  for (const p of PRIORITY_ORDER) {
+    const group = tasks.filter((t) => t.priority === p).sort((a, b) => {
+      if (!!b.pinned !== !!a.pinned) return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
+      const ad = a.dueDate || "9999-12-31";
+      const bd = b.dueDate || "9999-12-31";
+      if (ad !== bd) return ad < bd ? -1 : 1;
+      return (b.addedAt || "").localeCompare(a.addedAt || "");
+    });
+    if (group.length) out.push({ key: p, tasks: group });
+  }
+  return out;
+}
+
+// ── tiny ui primitives used by the sidebar / chips ──
+
+function SidebarSection({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{
+        fontSize: 9.5, color: D.txd, letterSpacing: 1.2, fontWeight: 700,
+        textTransform: "uppercase", padding: "4px 8px", marginBottom: 4,
+      }}>{label}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>{children}</div>
+    </div>
+  );
+}
+
+function SidebarRow({
+  active, onClick, left, label, count, accent,
+}: { active: boolean; onClick: () => void; left: React.ReactNode; label: string; count?: number; accent: string }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: 9,
+        padding: "7px 10px",
+        background: active ? accent + "1A" : "transparent",
+        border: "none", borderLeft: "2px solid " + (active ? accent : "transparent"),
+        color: active ? D.tx : D.txm,
+        fontFamily: ft, fontSize: 12.5, fontWeight: active ? 600 : 500,
+        textAlign: "left", cursor: "pointer", borderRadius: "0 7px 7px 0",
+        width: "100%",
+      }}
+    >
+      {left}
+      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+      {typeof count === "number" && count > 0 && (
+        <span style={{ fontFamily: mn, fontSize: 10, color: active ? accent : D.txd }}>{count}</span>
+      )}
+    </button>
+  );
+}
+
+function SidebarInput({ value, setValue, placeholder }: { value: string; setValue: (v: string) => void; placeholder: string }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 6,
+      padding: "6px 10px", background: D.surface, border: "1px solid " + D.border, borderRadius: 8,
+    }}>
+      <span style={{ color: D.txd, fontSize: 11 }}>⌕</span>
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={placeholder}
+        style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: D.tx, fontFamily: ft, fontSize: 12 }}
+      />
+    </div>
+  );
+}
+
+function Chip({ label, color, onClear }: { label: string; color: string; onClear: () => void }) {
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 6,
+      padding: "4px 9px", borderRadius: 999,
+      background: color + "1A", border: "1px solid " + color + "55",
+      color, fontSize: 11, fontWeight: 600, fontFamily: ft,
+    }}>
+      {label}
+      <button onClick={onClear} style={{ background: "transparent", border: "none", color, cursor: "pointer", padding: 0, fontSize: 13, lineHeight: 1 }}>×</button>
+    </span>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// VIEWS
+// ═══════════════════════════════════════════════════════════════════
+
+function TodayView({ hotSeat, queueGroups, totalQueue, onToggle }: {
+  hotSeat: Task[];
+  queueGroups: { key: Priority; tasks: Task[] }[];
+  totalQueue: { n: number; mins: number };
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div>
+      <SectionHeader label="Hot seat" count={hotSeat.length} mins={sumMins(hotSeat)} tone="warm" />
+      {hotSeat.length === 0 ? (
+        <EmptyState title="Nothing on fire" subtitle="Today is clear. Plan ahead in Schedule view." />
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10, marginBottom: 28 }}>
+          {hotSeat.map((t) => <HotSeatCard key={t.id} task={t} onToggle={() => onToggle(t.id)} />)}
+        </div>
+      )}
+
+      <SectionHeader
+        label="Queue"
+        count={totalQueue.n - hotSeat.length}
+        mins={Math.max(0, totalQueue.mins - sumMins(hotSeat))}
+        right="grouped by priority"
+      />
+      <QueueGrouped groups={queueGroups} onToggle={onToggle} />
+    </div>
+  );
+}
+
+function ScheduleView({ schedule, onToggle }: {
+  schedule: { overdueTasks: Task[]; days: { iso: string; date: Date; tasks: Task[]; mins: number }[]; noDateTasks: Task[]; laterTasks: Task[] };
+  onToggle: (id: string) => void;
+}) {
+  const { overdueTasks, days, noDateTasks, laterTasks } = schedule;
+  const todayStr = todayIso();
+  return (
+    <div>
+      <SectionHeader label="Schedule" count={overdueTasks.length + days.reduce((s, d) => s + d.tasks.length, 0)} mins={sumMins(overdueTasks) + days.reduce((s, d) => s + d.mins, 0)} right="next 14 days" />
+
+      {overdueTasks.length > 0 && (
+        <DaySection
+          title="Overdue"
+          subtitle={`${overdueTasks.length} late`}
+          accent={D.coral}
+          tasks={overdueTasks}
+          onToggle={onToggle}
+        />
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {days.map((d) => {
+          const isThisDay = d.iso === todayStr;
+          const dow = d.date.toLocaleDateString("en-US", { weekday: "short" });
+          const md = d.date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+          const title = isThisDay ? "Today · " + md : d.iso === isoDate(new Date(Date.now() + 86400000)) ? "Tomorrow · " + md : dow + " · " + md;
+          return (
+            <DaySection
+              key={d.iso}
+              title={title}
+              subtitle={d.tasks.length === 0 ? "No tasks" : `${d.tasks.length} · ~${fmtMins(d.mins)}`}
+              accent={isThisDay ? D.amber : d.tasks.length === 0 ? D.txd : D.blue}
+              tasks={d.tasks}
+              onToggle={onToggle}
+              dim={d.tasks.length === 0}
+            />
+          );
+        })}
+      </div>
+
+      {laterTasks.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <DaySection
+            title="Later"
+            subtitle={`${laterTasks.length} · ~${fmtMins(sumMins(laterTasks))}`}
+            accent={D.violet}
+            tasks={laterTasks}
+            onToggle={onToggle}
+          />
+        </div>
+      )}
+
+      {noDateTasks.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <DaySection
+            title="No due date"
+            subtitle={`${noDateTasks.length} · ~${fmtMins(sumMins(noDateTasks))}`}
+            accent={D.txm}
+            tasks={noDateTasks}
+            onToggle={onToggle}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DaySection({ title, subtitle, accent, tasks, onToggle, dim }: {
+  title: string; subtitle: string; accent: string; tasks: Task[]; onToggle: (id: string) => void; dim?: boolean;
+}) {
+  return (
+    <div style={{ opacity: dim ? 0.55 : 1 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6 }}>
+        <span style={{ width: 6, height: 6, borderRadius: 999, background: accent }} />
+        <h3 style={{ fontSize: 13, fontWeight: 700, margin: 0, color: D.tx }}>{title}</h3>
+        <span style={{ fontFamily: mn, fontSize: 10.5, color: D.txd }}>{subtitle}</span>
+      </div>
+      {tasks.length === 0 ? (
+        <div style={{ padding: "10px 14px", background: D.card, border: "1px dashed " + D.border, borderRadius: 10, color: D.txd, fontSize: 12, fontStyle: "italic" }}>
+          — open
+        </div>
+      ) : (
+        <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, overflow: "hidden" }}>
+          {tasks.map((t, i) => (
+            <QueueRow key={t.id} task={t} last={i === tasks.length - 1} onToggle={() => onToggle(t.id)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BoardKanban({ columns, onToggle }: {
+  columns: { priority: Priority; tasks: Task[] }[];
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(4, minmax(220px, 1fr))",
+      gap: 12,
+      overflowX: "auto", paddingBottom: 8,
+    }}>
+      {columns.map((col) => (
+        <div key={col.priority} style={{
+          background: D.card, border: "1px solid " + D.border, borderRadius: 12,
+          padding: 12, display: "flex", flexDirection: "column", gap: 8,
+          minHeight: 200,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 8, borderBottom: "1px solid " + D.border }}>
+            <span style={{ width: 8, height: 8, borderRadius: 999, background: PRI_COLOR[col.priority] }} />
+            <span style={{ fontFamily: mn, fontSize: 10.5, color: PRI_COLOR[col.priority], fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>{col.priority}</span>
+            <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 10, color: D.txd }}>{col.tasks.length}</span>
+            <TimePill mins={sumMins(col.tasks)} />
+          </div>
+          {col.tasks.length === 0 ? (
+            <div style={{ padding: 12, color: D.txd, fontSize: 11.5, fontStyle: "italic", textAlign: "center" }}>—</div>
+          ) : col.tasks.map((t) => <BoardCard key={t.id} task={t} onToggle={() => onToggle(t.id)} />)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BoardCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
+  const overdue = isOverdue(task);
+  return (
+    <a
+      href="/board"
+      target="_blank"
+      rel="noopener"
+      style={{
+        position: "relative", padding: "10px 12px",
+        background: D.surface, border: "1px solid " + (overdue ? "rgba(224,99,71,0.30)" : D.border),
+        borderRadius: 9, textDecoration: "none", color: "inherit", display: "block",
+      }}
+    >
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: CAT_COLOR[task.category] || D.txd, borderRadius: "3px 0 0 3px" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 6 }}>
+        <StatusCircle done={task.done} size={13} onClick={onToggle} />
+        <span style={{ fontSize: 9, color: CAT_COLOR[task.category] || D.txd, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" }}>{task.category}</span>
+      </div>
+      <div style={{
+        fontSize: 12.5, fontWeight: 500, color: D.tx, lineHeight: 1.35,
+        textDecoration: task.done ? "line-through" : "none",
+        opacity: task.done ? 0.5 : 1, marginBottom: 8,
+        display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden",
+      }}>{task.title}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <Avatar name={task.assignee || "Akash"} size={16} />
+        <TimePill mins={estOf(task)} />
+        {task.dueDate && (
+          <span style={{
+            marginLeft: "auto", fontFamily: mn, fontSize: 9.5,
+            color: overdue ? D.coral : isToday(task) ? D.amber : D.txm,
+          }}>{dueLabel(task.dueDate)}</span>
+        )}
+      </div>
+    </a>
+  );
+}
+
+function AllOpenView({ queueGroups, totalQueue, onToggle }: {
+  queueGroups: { key: Priority; tasks: Task[] }[];
+  totalQueue: { n: number; mins: number };
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div>
+      <SectionHeader label="All open" count={totalQueue.n} mins={totalQueue.mins} right="grouped by priority" />
+      <QueueGrouped groups={queueGroups} onToggle={onToggle} />
+    </div>
+  );
+}
+
+function DoneView({ tasks, onToggle }: { tasks: Task[]; onToggle: (id: string) => void }) {
+  return (
+    <div>
+      <SectionHeader label="Recently completed" count={tasks.length} mins={sumMins(tasks)} right="last 30 days" />
+      {tasks.length === 0 ? (
+        <EmptyState title="Nothing completed yet" subtitle="Check off a few items and they'll land here." />
+      ) : (
+        <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, overflow: "hidden" }}>
+          {tasks.map((t, i) => (
+            <QueueRow key={t.id} task={t} last={i === tasks.length - 1} onToggle={() => onToggle(t.id)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QueueGrouped({ groups, onToggle }: { groups: { key: Priority; tasks: Task[] }[]; onToggle: (id: string) => void }) {
+  if (groups.length === 0) {
+    return <EmptyState title="Queue is empty" subtitle="Capture a task above, or open Studio to plan." />;
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      {groups.map(({ key, tasks }) => {
+        const groupMins = sumMins(tasks);
+        return (
+          <div key={key}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 999, background: PRI_COLOR[key] }} />
+              <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, textTransform: "uppercase", color: PRI_COLOR[key], fontWeight: 700 }}>{key}</span>
+              <span style={{ fontFamily: mn, fontSize: 10, color: D.txd }}>{tasks.length}</span>
+              <TimePill mins={groupMins} />
+            </div>
+            <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, overflow: "hidden" }}>
+              {tasks.map((t, i) => (
+                <QueueRow key={t.id} task={t} last={i === tasks.length - 1} onToggle={() => onToggle(t.id)} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Section header used at the top of each view's content area.
+function SectionHeader({ label, count, mins, right, tone = "muted" }: {
+  label: string; count: number; mins: number; right?: string; tone?: "muted" | "warm" | "cool";
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12, paddingBottom: 8, borderBottom: "1px solid " + D.border }}>
+      <h2 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>{label}</h2>
+      <span style={{ fontFamily: mn, fontSize: 11, color: D.txd }}>{count}</span>
+      {mins > 0 && <TimePill mins={mins} tone={tone} />}
+      {right && <span style={{ marginLeft: "auto", fontSize: 11, color: D.txd, fontFamily: mn }}>{right}</span>}
+    </div>
+  );
+}
+
+function EmptyState({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div style={{
+      padding: 40, background: D.card, border: "1px dashed " + D.border, borderRadius: 12,
+      textAlign: "center", color: D.txm, fontSize: 13.5,
+    }}>
+      <div style={{ fontSize: 30, marginBottom: 8, color: D.txd }}>✶</div>
+      <div style={{ color: D.tx, fontWeight: 600, marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 12 }}>{subtitle}</div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// HOT SEAT CARD
+// ═══════════════════════════════════════════════════════════════════
+
+function HotSeatCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
+  const overdue = isOverdue(task);
+  const today = isToday(task);
+  return (
+    <a
+      href="/board"
+      target="_blank"
+      rel="noopener"
+      style={{
+        position: "relative", padding: "14px 16px",
+        background: D.card,
+        border: "1px solid " + (overdue ? "rgba(224,99,71,0.30)" : D.border),
+        borderRadius: 12, textDecoration: "none", color: "inherit", display: "block",
+      }}
+    >
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: CAT_COLOR[task.category] || D.txd, borderRadius: "4px 0 0 4px" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <StatusCircle done={task.done} size={14} onClick={onToggle} />
+        <span style={{ fontSize: 10, color: CAT_COLOR[task.category] || D.txd, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase" }}>{task.category}</span>
+        {overdue && <span style={{ marginLeft: "auto", fontSize: 10, color: D.coral, fontWeight: 700, letterSpacing: 0.5 }}>● {dueLabel(task.dueDate).toUpperCase()}</span>}
+        {today && !overdue && <span style={{ marginLeft: "auto", fontSize: 10, color: D.amber, fontWeight: 700, letterSpacing: 0.5 }}>● TODAY</span>}
+      </div>
+      <div style={{
+        fontSize: 13.5, fontWeight: 600, lineHeight: 1.35, color: D.tx, marginBottom: 10,
+        textDecoration: task.done ? "line-through" : "none", opacity: task.done ? 0.6 : 1,
+      }}>{task.title}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 8, borderTop: "1px solid " + D.border }}>
+        <Avatar name={task.assignee || "Akash"} size={20} />
+        <span style={{ fontSize: 11.5, color: D.txm }}>{task.assignee || "Akash"}</span>
+        <TimePill mins={estOf(task)} />
+        <span style={{
+          marginLeft: "auto", fontSize: 10, color: PRI_COLOR[task.priority], fontFamily: mn,
+          fontWeight: 600, padding: "2px 7px", border: "1px solid " + PRI_COLOR[task.priority] + "55", borderRadius: 5,
+        }}>{task.priority}</span>
+      </div>
+    </a>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// QUEUE ROW (used in Today, All, Schedule day sections, Done)
+// ═══════════════════════════════════════════════════════════════════
+
 function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggle: () => void }) {
   const overdue = isOverdue(task);
   const today = isToday(task);
   const dueColor = overdue ? D.coral : today ? D.amber : D.txm;
-
   return (
     <a
       href="/board"
@@ -504,16 +1037,13 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
       style={{
         display: "grid",
         gridTemplateColumns: "20px 1fr auto auto auto auto",
-        alignItems: "center",
-        gap: 12,
-        padding: "10px 14px",
+        alignItems: "center", gap: 12, padding: "10px 14px",
         borderBottom: last ? "none" : "1px solid " + D.border,
         textDecoration: "none", color: "inherit",
         background: overdue ? "rgba(224,99,71,0.04)" : "transparent",
       }}
     >
       <StatusCircle done={task.done} size={16} onClick={onToggle} />
-
       <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 10 }}>
         <span style={{ width: 3, alignSelf: "stretch", background: CAT_COLOR[task.category] || D.txd, borderRadius: 3, flexShrink: 0 }} />
         <div style={{ minWidth: 0, flex: 1 }}>
@@ -533,27 +1063,208 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
           </div>
         </div>
       </div>
-
       <TimePill mins={estOf(task)} />
-
       <span style={{
         fontFamily: mn, fontSize: 10.5, color: dueColor,
-        padding: "3px 8px",
-        border: "1px solid " + dueColor + "44",
-        borderRadius: 5,
-        whiteSpace: "nowrap",
-        minWidth: 64, textAlign: "center",
+        padding: "3px 8px", border: "1px solid " + dueColor + "44", borderRadius: 5,
+        whiteSpace: "nowrap", minWidth: 64, textAlign: "center",
       }}>{dueLabel(task.dueDate)}</span>
-
       <Avatar name={task.assignee || "Akash"} size={22} />
-
       <span style={{
         fontSize: 9.5, color: PRI_COLOR[task.priority], fontFamily: mn, fontWeight: 700,
-        padding: "3px 8px",
-        border: "1px solid " + PRI_COLOR[task.priority] + "55",
-        borderRadius: 5,
+        padding: "3px 8px", border: "1px solid " + PRI_COLOR[task.priority] + "55", borderRadius: 5,
         whiteSpace: "nowrap",
       }}>{task.priority}</span>
     </a>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ADD TASK MODAL
+// ═══════════════════════════════════════════════════════════════════
+
+function AddTaskModal({ defaultCat, defaultAssignee, onSubmit, onClose }: {
+  defaultCat: string | null;
+  defaultAssignee: string | null;
+  onSubmit: (t: Task) => void;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState(defaultCat || "OTHER");
+  const [priority, setPriority] = useState<Priority>("MEDIUM");
+  const [assignee, setAssignee] = useState(defaultAssignee || "Akash");
+  const [dueDate, setDueDate] = useState("");
+  const [estimateMins, setEstimateMins] = useState(30);
+
+  const titleRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => { titleRef.current?.focus(); }, []);
+
+  // body scroll lock
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  function submit() {
+    const txt = title.trim();
+    if (!txt) return;
+    const t: Task = {
+      id: "t-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+      title: txt,
+      description: description.trim() || undefined,
+      category,
+      priority,
+      assignee,
+      dueDate: dueDate || undefined,
+      estimateMins: estimateMins || undefined,
+      addedAt: new Date().toISOString(),
+      source: "manual",
+    };
+    onSubmit(t);
+  }
+
+  if (typeof window === "undefined") return null;
+
+  return createPortal(
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 24, fontFamily: ft,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "min(560px, 100%)", maxHeight: "90vh", overflowY: "auto",
+          background: D.bg, border: "1px solid " + D.border, borderRadius: 16,
+          boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
+        }}
+      >
+        <div style={{ padding: "20px 22px 14px", borderBottom: "1px solid " + D.border, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 1.4, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>New task</div>
+            <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: D.tx }}>Capture something to do</h3>
+          </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", color: D.txm, fontSize: 22, cursor: "pointer", padding: 4 }}>×</button>
+        </div>
+
+        <div style={{ padding: 22, display: "flex", flexDirection: "column", gap: 14 }}>
+          <ModalField label="Title">
+            <input
+              ref={titleRef}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(); }}
+              placeholder="What needs doing?"
+              style={inputStyle}
+            />
+          </ModalField>
+
+          <ModalField label="Notes (optional)">
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Context, links, acceptance criteria…"
+              rows={3}
+              style={{ ...inputStyle, resize: "vertical", minHeight: 64, fontFamily: ft }}
+            />
+          </ModalField>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <ModalField label="Category">
+              <select value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle}>
+                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </ModalField>
+            <ModalField label="Priority">
+              <select value={priority} onChange={(e) => setPriority(e.target.value as Priority)} style={inputStyle}>
+                {PRIORITY_ORDER.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </ModalField>
+            <ModalField label="Assignee">
+              <select value={assignee} onChange={(e) => setAssignee(e.target.value)} style={inputStyle}>
+                {ASSIGNEES.map((a) => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </ModalField>
+            <ModalField label="Due date">
+              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={inputStyle} />
+            </ModalField>
+            <ModalField label="Estimate (minutes)">
+              <input type="number" min={0} step={15} value={estimateMins} onChange={(e) => setEstimateMins(Number(e.target.value) || 0)} style={inputStyle} />
+            </ModalField>
+            <ModalField label="Quick due">
+              <div style={{ display: "flex", gap: 6 }}>
+                {[
+                  { l: "Today", iso: todayIso() },
+                  { l: "Tomorrow", iso: isoDate(new Date(Date.now() + 86400000)) },
+                  { l: "Next wk", iso: isoDate(new Date(Date.now() + 7 * 86400000)) },
+                ].map((q) => (
+                  <button
+                    key={q.l}
+                    onClick={() => setDueDate(q.iso)}
+                    style={{
+                      flex: 1, padding: "8px 6px", background: dueDate === q.iso ? D.amber + "22" : D.surface,
+                      border: "1px solid " + (dueDate === q.iso ? D.amber : D.border),
+                      color: dueDate === q.iso ? D.amber : D.txm,
+                      fontFamily: ft, fontSize: 11, fontWeight: 600, borderRadius: 7, cursor: "pointer",
+                    }}
+                  >{q.l}</button>
+                ))}
+              </div>
+            </ModalField>
+          </div>
+        </div>
+
+        <div style={{
+          padding: "14px 22px", borderTop: "1px solid " + D.border,
+          display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+        }}>
+          <div style={{ fontFamily: mn, fontSize: 10.5, color: D.txd }}>⌘ + Enter to create</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={onClose}
+              style={{
+                padding: "9px 16px", background: "transparent", border: "1px solid " + D.border,
+                color: D.txm, fontFamily: ft, fontSize: 13, fontWeight: 600, borderRadius: 9, cursor: "pointer",
+              }}
+            >Cancel</button>
+            <button
+              onClick={submit}
+              disabled={!title.trim()}
+              style={{
+                padding: "9px 18px",
+                background: title.trim() ? "linear-gradient(135deg, " + D.amber + ", " + D.coral + ")" : D.surface,
+                border: "1px solid " + (title.trim() ? "transparent" : D.border),
+                color: title.trim() ? "#0A0A0F" : D.txd,
+                fontFamily: ft, fontSize: 13, fontWeight: 700, borderRadius: 9,
+                cursor: title.trim() ? "pointer" : "not-allowed",
+                opacity: title.trim() ? 1 : 0.6,
+              }}
+            >Create task</button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  width: "100%", padding: "9px 12px",
+  background: D.surface, border: "1px solid " + D.border, borderRadius: 8,
+  color: D.tx, fontFamily: ft, fontSize: 13, outline: "none",
+};
+
+function ModalField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label style={{ display: "block" }}>
+      <div style={{ fontSize: 10.5, color: D.txd, letterSpacing: 0.8, fontWeight: 700, textTransform: "uppercase", marginBottom: 5 }}>{label}</div>
+      {children}
+    </label>
   );
 }
