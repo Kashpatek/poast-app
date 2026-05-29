@@ -79,6 +79,9 @@ interface DragCtxValue {
   toggleCombine: (id: string) => void;
   clearCombine: () => void;
   openCombine: () => void;
+  selectedIds: Set<string>;
+  toggleSelected: (id: string) => void;
+  openFocus: (t: Task) => void;
 }
 const DragCtx = React.createContext<DragCtxValue | null>(null);
 function useDrag(): DragCtxValue {
@@ -354,6 +357,11 @@ export default function TaskBoardSummary() {
   const [combineIds, setCombineIds] = useState<string[]>([]);
   const [combineModalOpen, setCombineModalOpen] = useState(false);
 
+  // palette + bulk-select + focus state
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [focusTask, setFocusTask] = useState<Task | null>(null);
+
   const lastSavedRef = useRef<string>("");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -443,6 +451,35 @@ export default function TaskBoardSummary() {
   function clearCombine() { setCombineIds([]); }
   function openCombine() { if (combineIds.length >= 2) setCombineModalOpen(true); }
 
+  function toggleSelected(id: string) {
+    setSelectedIds((p) => {
+      const next = new Set(p);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function clearSelection() { setSelectedIds(new Set()); }
+  function bulkPatch(patch: Partial<Task>) {
+    if (selectedIds.size === 0) return;
+    updateActiveBoard((b) => ({
+      ...b,
+      tasks: b.tasks.map((t) => selectedIds.has(t.id) ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t),
+    }));
+  }
+  function bulkRemove() {
+    if (selectedIds.size === 0) return;
+    updateActiveBoard((b) => ({ ...b, tasks: b.tasks.filter((t) => !selectedIds.has(t.id)) }));
+    clearSelection();
+  }
+  function bulkDone() {
+    if (selectedIds.size === 0) return;
+    updateActiveBoard((b) => ({
+      ...b,
+      tasks: b.tasks.map((t) => selectedIds.has(t.id) ? { ...t, done: true, updatedAt: new Date().toISOString() } : t),
+    }));
+    clearSelection();
+  }
+
   const dragCtxValue = useMemo<DragCtxValue>(() => ({
     draggingId,
     startDrag: setDraggingId,
@@ -452,8 +489,11 @@ export default function TaskBoardSummary() {
     toggleCombine,
     clearCombine,
     openCombine,
+    selectedIds,
+    toggleSelected,
+    openFocus: setFocusTask,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [draggingId, combineIds]);
+  }), [draggingId, combineIds, selectedIds]);
 
   function commitCombine(merged: Task, sourceIds: string[]) {
     updateActiveBoard((b) => ({
@@ -463,6 +503,33 @@ export default function TaskBoardSummary() {
     setCombineIds([]);
     setCombineModalOpen(false);
   }
+
+  // ── global keyboard handlers (⌘K palette, Esc) ──
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tgt = e.target as HTMLElement | null;
+      const typing = tgt && (tgt.tagName === "INPUT" || tgt.tagName === "TEXTAREA" || tgt.isContentEditable);
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+        return;
+      }
+      if (e.key === "Escape") {
+        if (focusTask) { setFocusTask(null); return; }
+        if (paletteOpen) { setPaletteOpen(false); return; }
+        if (combineModalOpen) { setCombineModalOpen(false); return; }
+        if (combineIds.length > 0) { clearCombine(); return; }
+        if (selectedIds.size > 0) { clearSelection(); return; }
+      }
+      if (!typing && e.key === "f" && !e.metaKey && !e.ctrlKey && !e.altKey && !focusTask && !paletteOpen) {
+        const first = openTasks[0];
+        if (first) { e.preventDefault(); setFocusTask(first); }
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusTask, paletteOpen, combineModalOpen, combineIds.length, selectedIds, openTasks]);
 
   function submitQuickAdd() {
     const txt = quickAdd.trim();
@@ -920,6 +987,47 @@ export default function TaskBoardSummary() {
           sources={allTasks.filter((t) => combineIds.includes(t.id))}
           onClose={() => setCombineModalOpen(false)}
           onCommit={commitCombine}
+        />
+      )}
+
+      {paletteOpen && (
+        <CommandPalette
+          tasks={allTasks}
+          onClose={() => setPaletteOpen(false)}
+          setView={setView}
+          setCatFilter={setCatFilter}
+          setAssigneeFilter={setAssigneeFilter}
+          clearFilters={() => { setCatFilter(null); setAssigneeFilter(null); setSearch(""); }}
+          openAddTask={() => setAddOpen(true)}
+          openFocus={(t) => setFocusTask(t)}
+          openTask={(t) => setFocusTask(t)}
+        />
+      )}
+
+      <BulkActionBar
+        count={selectedIds.size}
+        onAssign={(a) => bulkPatch({ assignee: a })}
+        onPriority={(p) => bulkPatch({ priority: p })}
+        onCategory={(c) => bulkPatch({ category: c })}
+        onDone={bulkDone}
+        onDelete={bulkRemove}
+        onClear={clearSelection}
+      />
+
+      {focusTask && (
+        <FocusMode
+          task={focusTask}
+          onClose={() => setFocusTask(null)}
+          onComplete={() => {
+            toggleDone(focusTask.id);
+            const next = openTasks.find((t) => t.id !== focusTask.id) || null;
+            setFocusTask(next);
+          }}
+          onNext={() => {
+            const next = openTasks.find((t) => t.id !== focusTask.id) || null;
+            setFocusTask(next);
+          }}
+          onPatch={(p) => applyPatch(focusTask.id, p)}
         />
       )}
     </div>
@@ -1625,11 +1733,17 @@ function BoardCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
   const drag = useDrag();
   const isDragging = drag.draggingId === task.id;
   const isCombined = drag.combineIds.includes(task.id);
+  const isSelected = drag.selectedIds.has(task.id);
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (e.shiftKey) { e.preventDefault(); drag.toggleSelected(task.id); return; }
     if (e.metaKey || e.ctrlKey || e.altKey) {
       e.preventDefault();
       drag.toggleCombine(task.id);
     }
+  };
+  const handleDouble = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    drag.openFocus(task);
   };
   return (
     <a
@@ -1638,6 +1752,7 @@ function BoardCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
       rel="noopener"
       draggable
       onClick={handleClick}
+      onDoubleClick={handleDouble}
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", task.id);
         e.dataTransfer.effectAllowed = "move";
@@ -1646,8 +1761,8 @@ function BoardCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
       onDragEnd={() => drag.endDrag()}
       style={{
         position: "relative", padding: "10px 12px",
-        background: isCombined ? "rgba(120,162,255,0.08)" : D.surface,
-        border: "1px solid " + (isCombined ? D.blue + "88" : overdue ? "rgba(224,99,71,0.30)" : D.border),
+        background: isSelected ? "rgba(247,176,65,0.12)" : isCombined ? "rgba(120,162,255,0.08)" : D.surface,
+        border: "1px solid " + (isSelected ? D.amber + "88" : isCombined ? D.blue + "88" : overdue ? "rgba(224,99,71,0.30)" : D.border),
         borderRadius: 9, textDecoration: "none", color: "inherit", display: "block",
         opacity: isDragging ? 0.45 : 1,
         transition: "background 0.14s, border-color 0.14s, opacity 0.14s",
@@ -1776,15 +1891,21 @@ function HotSeatCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
   const drag = useDrag();
   const isDragging = drag.draggingId === task.id;
   const isCombined = drag.combineIds.includes(task.id);
+  const isSelected = drag.selectedIds.has(task.id);
   const pColor = PRI_COLOR[task.priority] || D.txd;
   const cColor = CAT_COLOR[task.category] || D.txd;
   const subDone = task.subtasks?.filter((s) => s.done).length || 0;
   const subTotal = task.subtasks?.length || 0;
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (e.shiftKey) { e.preventDefault(); drag.toggleSelected(task.id); return; }
     if (e.metaKey || e.ctrlKey || e.altKey) {
       e.preventDefault();
       drag.toggleCombine(task.id);
     }
+  };
+  const handleDouble = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    drag.openFocus(task);
   };
   return (
     <a
@@ -1793,6 +1914,7 @@ function HotSeatCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
       rel="noopener"
       draggable
       onClick={handleClick}
+      onDoubleClick={handleDouble}
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", task.id);
         e.dataTransfer.effectAllowed = "move";
@@ -1803,8 +1925,8 @@ function HotSeatCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
       onMouseLeave={() => setHover(false)}
       style={{
         position: "relative", padding: "14px 16px 14px 19px",
-        background: isCombined ? "rgba(120,162,255,0.08)" : D.card,
-        border: "1px solid " + (isCombined ? D.blue + "88" : hover ? D.amber + "66" : overdue ? "rgba(224,99,71,0.30)" : D.border),
+        background: isSelected ? "rgba(247,176,65,0.10)" : isCombined ? "rgba(120,162,255,0.08)" : D.card,
+        border: "1px solid " + (isSelected ? D.amber + "88" : isCombined ? D.blue + "88" : hover ? D.amber + "66" : overdue ? "rgba(224,99,71,0.30)" : D.border),
         borderRadius: 12, textDecoration: "none", color: "inherit", display: "block",
         transition: "border-color 0.14s, transform 0.14s, box-shadow 0.14s, opacity 0.14s",
         transform: hover ? "translateY(-1px)" : "translateY(0)",
@@ -1861,11 +1983,17 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
   const drag = useDrag();
   const isDragging = drag.draggingId === task.id;
   const isCombined = drag.combineIds.includes(task.id);
+  const isSelected = drag.selectedIds.has(task.id);
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (e.shiftKey) { e.preventDefault(); drag.toggleSelected(task.id); return; }
     if (e.metaKey || e.ctrlKey || e.altKey) {
       e.preventDefault();
       drag.toggleCombine(task.id);
     }
+  };
+  const handleDouble = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    drag.openFocus(task);
   };
   return (
     <a
@@ -1874,6 +2002,7 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
       rel="noopener"
       draggable
       onClick={handleClick}
+      onDoubleClick={handleDouble}
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", task.id);
         e.dataTransfer.effectAllowed = "move";
@@ -1889,13 +2018,17 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
         alignItems: "center", gap: 10, padding: "9px 14px 9px 17px",
         borderBottom: last ? "none" : "1px solid " + D.border,
         textDecoration: "none", color: "inherit",
-        background: isCombined
+        background: isSelected
+          ? "rgba(247,176,65,0.12)"
+          : isCombined
           ? "rgba(120,162,255,0.10)"
           : hover
           ? "rgba(247,176,65,0.06)"
           : overdue ? "rgba(224,99,71,0.04)" : "transparent",
         transition: "background 0.14s, box-shadow 0.14s, opacity 0.14s",
-        boxShadow: isCombined
+        boxShadow: isSelected
+          ? "inset 2px 0 0 " + D.amber
+          : isCombined
           ? "inset 2px 0 0 " + D.blue
           : hover ? "inset 2px 0 0 " + D.amber : "inset 2px 0 0 " + pColor + "55",
         opacity: isDragging ? 0.45 : 1,
@@ -2448,6 +2581,482 @@ function CombineModal({ sources, onClose, onCommit }: {
             padding: "8px 16px", background: D.amber, color: "#0A0A0F", border: "1px solid " + D.amber,
             borderRadius: 7, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: "pointer",
           }}>Combine {sources.length} → 1</button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ⌘K COMMAND PALETTE
+// ═══════════════════════════════════════════════════════════════════
+
+type PaletteResult = {
+  id: string;
+  kind: "task" | "view" | "filter" | "command" | "assignee";
+  label: string;
+  hint: string;
+  color: string;
+  initial?: string;
+  run: () => void;
+};
+
+function CommandPalette({
+  tasks, onClose, setView, setCatFilter, setAssigneeFilter,
+  clearFilters, openAddTask, openFocus, openTask,
+}: {
+  tasks: Task[];
+  onClose: () => void;
+  setView: (v: ViewKey) => void;
+  setCatFilter: (c: string | null) => void;
+  setAssigneeFilter: (a: string | null) => void;
+  clearFilters: () => void;
+  openAddTask: () => void;
+  openFocus: (t: Task) => void;
+  openTask: (t: Task) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [cursor, setCursor] = useState(0);
+
+  const isSlash = query.startsWith("/");
+  const isAt = query.startsWith("@");
+  const lcQuery = query.toLowerCase().replace(/^[/@]/, "").trim();
+
+  const results = useMemo<PaletteResult[]>(() => {
+    const out: PaletteResult[] = [];
+
+    const views: { k: ViewKey; l: string }[] = [
+      { k: "today", l: "Today" }, { k: "schedule", l: "Schedule" }, { k: "week", l: "Week" },
+      { k: "calendar", l: "Calendar" }, { k: "board", l: "Board" }, { k: "category", l: "Categories" },
+      { k: "all", l: "All open" }, { k: "focus", l: "Focus" }, { k: "done", l: "Done" },
+    ];
+
+    const commands: { id: string; label: string; hint: string; run: () => void }[] = [
+      { id: "cmd-add", label: "New task", hint: "add", run: openAddTask },
+      { id: "cmd-clear-filters", label: "Clear filters", hint: "reset", run: clearFilters },
+    ];
+
+    if (isSlash) {
+      commands.forEach((c) => {
+        if (!lcQuery || c.label.toLowerCase().includes(lcQuery)) {
+          out.push({ id: c.id, kind: "command", label: c.label, hint: c.hint, color: D.amber, initial: "/", run: c.run });
+        }
+      });
+      views.forEach((v) => {
+        if (!lcQuery || v.l.toLowerCase().includes(lcQuery)) {
+          out.push({ id: "view-" + v.k, kind: "view", label: "Go to " + v.l, hint: "view", color: D.blue, initial: "V", run: () => setView(v.k) });
+        }
+      });
+      return out.slice(0, 12);
+    }
+
+    if (isAt) {
+      CATEGORIES.forEach((c) => {
+        if (!lcQuery || c.toLowerCase().includes(lcQuery)) {
+          const color = CAT_COLOR[c] || D.txd;
+          out.push({ id: "cat-" + c, kind: "filter", label: "Filter · " + c, hint: "category", color, initial: c[0], run: () => setCatFilter(c) });
+        }
+      });
+      ASSIGNEES.forEach((a) => {
+        if (!lcQuery || a.toLowerCase().includes(lcQuery)) {
+          out.push({ id: "asn-" + a, kind: "assignee", label: "Filter · " + a, hint: "assignee", color: D.violet, initial: a[0], run: () => setAssigneeFilter(a) });
+        }
+      });
+      return out.slice(0, 14);
+    }
+
+    if (!lcQuery) {
+      tasks.slice(0, 6).forEach((t) => {
+        const c = CAT_COLOR[t.category] || D.txd;
+        out.push({ id: t.id, kind: "task", label: t.title, hint: t.category, color: c, initial: t.category[0], run: () => openTask(t) });
+      });
+      commands.forEach((c) => {
+        out.push({ id: c.id, kind: "command", label: c.label, hint: c.hint, color: D.amber, initial: "/", run: c.run });
+      });
+      out.push({ id: "view-focus", kind: "view", label: "Focus the top task", hint: "F", color: D.amber, initial: "F", run: () => { if (tasks[0]) openFocus(tasks[0]); } });
+      return out.slice(0, 12);
+    }
+
+    tasks.forEach((t) => {
+      const hay = (t.title + " " + (t.description || "") + " " + t.category + " " + (t.assignee || "")).toLowerCase();
+      if (hay.includes(lcQuery)) {
+        const c = CAT_COLOR[t.category] || D.txd;
+        out.push({ id: t.id, kind: "task", label: t.title, hint: t.category, color: c, initial: t.category[0], run: () => openTask(t) });
+      }
+    });
+    views.forEach((v) => {
+      if (v.l.toLowerCase().includes(lcQuery)) {
+        out.push({ id: "view-" + v.k, kind: "view", label: "Go to " + v.l, hint: "view", color: D.blue, initial: "V", run: () => setView(v.k) });
+      }
+    });
+    commands.forEach((c) => {
+      if (c.label.toLowerCase().includes(lcQuery)) {
+        out.push({ id: c.id, kind: "command", label: c.label, hint: c.hint, color: D.amber, initial: "/", run: c.run });
+      }
+    });
+    return out.slice(0, 12);
+  }, [query, tasks, isSlash, isAt, lcQuery, setView, setCatFilter, setAssigneeFilter, openAddTask, clearFilters, openFocus, openTask]);
+
+  const safeCursor = Math.max(0, Math.min(cursor, results.length - 1));
+
+  const fire = useCallback((i: number) => {
+    const r = results[i]; if (!r) return;
+    r.run(); onClose();
+  }, [results, onClose]);
+
+  const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); setCursor((c) => Math.min(c + 1, results.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setCursor((c) => Math.max(0, c - 1)); }
+    else if (e.key === "Enter") { e.preventDefault(); fire(safeCursor); }
+    else if (e.key === "Escape") { e.preventDefault(); onClose(); }
+  };
+
+  if (typeof window === "undefined") return null;
+  return createPortal(
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, background: "rgba(6,6,12,0.72)",
+      backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+      zIndex: 13000, display: "flex", alignItems: "flex-start",
+      justifyContent: "center", paddingTop: "12vh", padding: 24,
+    }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        width: "min(640px, 96vw)", background: "#0A0A14",
+        border: "1px solid rgba(255,255,255,0.10)", borderRadius: 14,
+        boxShadow: "0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(247,176,65,0.08)",
+        overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "70vh",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: "1px solid " + D.border }}>
+          <span style={{ fontFamily: mn, fontSize: 11, color: D.amber, letterSpacing: 0.6, padding: "2px 7px", border: "1px solid " + D.amber + "55", borderRadius: 4 }}>⌘K</span>
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setCursor(0); }}
+            onKeyDown={onKey}
+            placeholder={'Search tasks, "/" for commands, "@" for filters…'}
+            style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: D.tx, fontFamily: ft, fontSize: 16, padding: "2px 0", letterSpacing: -0.1 }}
+          />
+          <span style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.6 }}>↑↓ · Enter · Esc</span>
+        </div>
+        <div style={{ overflowY: "auto", flex: 1, padding: 6 }}>
+          {results.length === 0 ? (
+            <div style={{ padding: 24, textAlign: "center", fontFamily: mn, fontSize: 11, color: D.txd, letterSpacing: 0.4 }}>
+              No matches for &ldquo;{query}&rdquo;
+            </div>
+          ) : results.map((r, i) => {
+            const active = i === safeCursor;
+            return (
+              <button
+                key={r.id + "-" + i} type="button"
+                onMouseEnter={() => setCursor(i)}
+                onClick={() => fire(i)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10, width: "100%",
+                  padding: "9px 12px",
+                  background: active ? "rgba(247,176,65,0.10)" : "transparent",
+                  border: "none",
+                  borderLeft: "2px solid " + (active ? r.color : "transparent"),
+                  borderRadius: 6, cursor: "pointer", textAlign: "left",
+                  fontFamily: ft, fontSize: 13, color: D.tx,
+                }}
+              >
+                <span style={{
+                  width: 18, height: 18, borderRadius: 4,
+                  background: r.color + "22", border: "1px solid " + r.color + "55",
+                  color: r.color, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  fontFamily: mn, fontSize: 9, fontWeight: 800, flexShrink: 0,
+                }}>{r.initial || (r.kind === "task" ? "T" : r.kind === "view" ? "V" : "•")}</span>
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
+                <span style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.5, flexShrink: 0 }}>{r.hint}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div style={{
+          padding: "8px 14px", borderTop: "1px solid " + D.border,
+          fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.4,
+          display: "flex", justifyContent: "space-between",
+        }}>
+          <span>{results.length} result{results.length === 1 ? "" : "s"}</span>
+          <span>Type / for commands · @ for filters</span>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BULK ACTION BAR (floating, appears when selection is non-empty)
+// ═══════════════════════════════════════════════════════════════════
+
+function BulkActionBar({
+  count, onAssign, onPriority, onCategory, onDone, onDelete, onClear,
+}: {
+  count: number;
+  onAssign: (a: string) => void;
+  onPriority: (p: Priority) => void;
+  onCategory: (c: string) => void;
+  onDone: () => void;
+  onDelete: () => void;
+  onClear: () => void;
+}) {
+  if (typeof window === "undefined" || count === 0) return null;
+  return createPortal(
+    <div style={{
+      position: "fixed", left: 0, right: 0, bottom: 24,
+      display: "flex", justifyContent: "center", pointerEvents: "none", zIndex: 11000,
+    }}>
+      <div style={{
+        pointerEvents: "auto", display: "flex", alignItems: "center", gap: 10,
+        padding: "10px 14px", background: "#0A0A14",
+        border: "1px solid " + D.amber + "55", borderRadius: 12,
+        boxShadow: "0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(247,176,65,0.08)",
+        fontFamily: mn, fontSize: 11, letterSpacing: 0.3,
+        animation: "tbRowIn 0.18s ease both",
+      }}>
+        <span style={{
+          color: D.amber, fontWeight: 700, padding: "3px 10px",
+          background: D.amber + "1c", border: "1px solid " + D.amber + "55", borderRadius: 999,
+        }}>{count} selected</span>
+
+        <span style={{ color: D.txd, fontSize: 9 }}>assign</span>
+        {ASSIGNEES.map((a) => (
+          <button key={a} type="button" onClick={() => onAssign(a)} title={"Assign to " + a}
+            style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", display: "inline-flex" }}>
+            <Avatar name={a} size={22} />
+          </button>
+        ))}
+
+        <span style={{ width: 1, height: 18, background: D.border, margin: "0 2px" }} />
+
+        <span style={{ color: D.txd, fontSize: 9 }}>priority</span>
+        {(["HIGH", "MEDIUM", "THIS WEEK", "ONGOING"] as Priority[]).map((p) => {
+          const c = PRI_COLOR[p];
+          return (
+            <button key={p} type="button" onClick={() => onPriority(p)} title={"Priority " + p}
+              style={{
+                background: c + "1c", color: c, border: "1px solid " + c + "55",
+                padding: "3px 8px", borderRadius: 4, fontFamily: mn, fontSize: 9,
+                letterSpacing: 0.6, cursor: "pointer", fontWeight: 700, textTransform: "uppercase",
+              }}>{p}</button>
+          );
+        })}
+
+        <span style={{ width: 1, height: 18, background: D.border, margin: "0 2px" }} />
+
+        <select
+          onChange={(e) => { if (e.target.value) { onCategory(e.target.value); e.target.value = ""; } }}
+          defaultValue=""
+          style={{
+            background: "transparent", color: D.txm, border: "1px solid " + D.border,
+            padding: "4px 8px", borderRadius: 6, fontFamily: mn, fontSize: 10, cursor: "pointer",
+          }}
+        >
+          <option value="" disabled>category…</option>
+          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+
+        <button type="button" onClick={onDone}
+          style={{ background: "transparent", border: "1px solid " + D.teal + "55", color: D.teal,
+                   padding: "5px 10px", borderRadius: 6, fontFamily: mn, fontSize: 10, cursor: "pointer", letterSpacing: 0.4 }}>
+          ✓ Done
+        </button>
+        <button type="button" onClick={onDelete}
+          style={{ background: "transparent", border: "1px solid " + D.coral + "55", color: D.coral,
+                   padding: "5px 10px", borderRadius: 6, fontFamily: mn, fontSize: 10, cursor: "pointer", letterSpacing: 0.4 }}>
+          Delete
+        </button>
+        <button type="button" onClick={onClear}
+          style={{ background: "transparent", border: "1px solid " + D.border, color: D.txm,
+                   padding: "5px 10px", borderRadius: 6, fontFamily: mn, fontSize: 10, cursor: "pointer", letterSpacing: 0.4 }}>
+          Esc · clear
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FOCUS MODE (fullscreen overlay with timer)
+// ═══════════════════════════════════════════════════════════════════
+
+function FocusMode({
+  task, onClose, onComplete, onNext, onPatch,
+}: {
+  task: Task;
+  onClose: () => void;
+  onComplete: () => void;
+  onNext: () => void;
+  onPatch: (patch: Partial<Task>) => void;
+}) {
+  const [secs, setSecs] = useState(25 * 60);
+  const [running, setRunning] = useState(false);
+  const pColor = PRI_COLOR[task.priority] || D.txd;
+  const cColor = CAT_COLOR[task.category] || D.txd;
+  const subtasks = task.subtasks || [];
+  const doneSubs = subtasks.filter((s) => s.done).length;
+  const mm = Math.floor(secs / 60);
+  const ss = secs % 60;
+
+  useEffect(() => {
+    if (!running) return;
+    if (secs <= 0) { setRunning(false); return; }
+    const id = setTimeout(() => setSecs((s) => Math.max(0, s - 1)), 1000);
+    return () => clearTimeout(id);
+  }, [running, secs]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tgt = e.target as HTMLElement | null;
+      if (tgt && (tgt.tagName === "INPUT" || tgt.tagName === "TEXTAREA")) return;
+      if (e.key === " ") { e.preventDefault(); setRunning((r) => !r); }
+      else if (e.key === "Enter") { e.preventDefault(); onComplete(); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onComplete]);
+
+  function toggleSub(idx: number) {
+    const next = subtasks.map((s, i) => i === idx ? { ...s, done: !s.done } : s);
+    onPatch({ subtasks: next });
+  }
+
+  if (typeof window === "undefined") return null;
+  return createPortal(
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 12500, background: "rgba(6,6,12,0.94)",
+      backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+    }}>
+      <div style={{
+        width: "min(720px, 96vw)", maxHeight: "calc(100vh - 48px)",
+        overflowY: "auto", display: "flex", flexDirection: "column", gap: 22,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 1.6, textTransform: "uppercase", fontWeight: 700 }}>
+            Focus mode · <span style={{ color: cColor }}>{task.category}</span>
+          </div>
+          <button type="button" onClick={onClose}
+            style={{ background: "transparent", border: "1px solid " + D.border, color: D.txm,
+                     padding: "5px 12px", borderRadius: 6, fontFamily: mn, fontSize: 10, cursor: "pointer", letterSpacing: 0.6 }}>
+            Esc · exit
+          </button>
+        </div>
+
+        <div>
+          <div style={{
+            fontFamily: gf, fontSize: 36, fontWeight: 900, color: D.tx,
+            letterSpacing: -1.4, lineHeight: 1.15, marginBottom: 8,
+          }}>{task.title}</div>
+          {task.description ? (
+            <div style={{ fontFamily: ft, fontSize: 14.5, color: D.txm, lineHeight: 1.55 }}>{task.description}</div>
+          ) : null}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+            <span style={{
+              fontFamily: mn, fontSize: 10, color: pColor,
+              background: pColor + "22", border: "1px solid " + pColor + "55",
+              padding: "2px 8px", borderRadius: 4, letterSpacing: 0.6, fontWeight: 700, textTransform: "uppercase",
+            }}>{task.priority}</span>
+            {task.dueDate ? (
+              <span style={{ fontFamily: mn, fontSize: 10, color: isOverdue(task) ? D.coral : D.txm, letterSpacing: 0.5 }}>
+                Due {dueLabel(task.dueDate)}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <div style={{
+          display: "flex", alignItems: "center", gap: 18,
+          padding: "12px 16px", background: D.surface, border: "1px solid " + D.border, borderRadius: 12,
+        }}>
+          <div style={{
+            fontFamily: mn, fontSize: 36, fontWeight: 800,
+            color: secs < 60 && running ? D.coral : D.tx,
+            letterSpacing: 1, minWidth: 110,
+          }}>
+            {String(mm).padStart(2, "0")}:{String(ss).padStart(2, "0")}
+          </div>
+          <button type="button" onClick={() => setRunning((r) => !r)}
+            style={{
+              background: running ? D.coral + "22" : D.amber,
+              color: running ? D.coral : "#060608",
+              border: "1px solid " + (running ? D.coral + "55" : D.amber),
+              padding: "9px 18px", borderRadius: 8, fontFamily: ft, fontSize: 13, fontWeight: 800,
+              cursor: "pointer", letterSpacing: 0.3,
+            }}>
+            {running ? "⏸ Pause" : "▶ Start"}
+          </button>
+          <div style={{ display: "flex", gap: 4 }}>
+            {[5, 15, 25, 50].map((m) => (
+              <button key={m} type="button" onClick={() => { setSecs(m * 60); setRunning(false); }}
+                style={{
+                  padding: "5px 10px",
+                  background: secs === m * 60 ? D.amber + "22" : "transparent",
+                  color: secs === m * 60 ? D.amber : D.txm,
+                  border: "1px solid " + (secs === m * 60 ? D.amber + "55" : D.border),
+                  borderRadius: 5, fontFamily: mn, fontSize: 10, cursor: "pointer", letterSpacing: 0.4, fontWeight: 700,
+                }}>{m}m</button>
+            ))}
+          </div>
+          <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.5 }}>
+            Space ▷ toggle · Enter ▷ done
+          </span>
+        </div>
+
+        {subtasks.length > 0 ? (
+          <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: "14px 18px" }}>
+            <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700, marginBottom: 10 }}>
+              Checklist · {doneSubs}/{subtasks.length}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {subtasks.map((s, i) => (
+                <div key={i} onClick={() => toggleSub(i)}
+                  style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+                  <span style={{
+                    width: 18, height: 18, borderRadius: 4,
+                    background: s.done ? D.teal : "transparent",
+                    border: "2px solid " + (s.done ? D.teal : D.border),
+                    flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                    color: "#060608", fontFamily: mn, fontSize: 12, fontWeight: 800,
+                  }}>{s.done ? "✓" : ""}</span>
+                  <span style={{
+                    fontFamily: ft, fontSize: 15,
+                    color: s.done ? D.txd : D.tx,
+                    textDecoration: s.done ? "line-through" : "none", lineHeight: 1.4,
+                  }}>{s.title}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <button type="button" onClick={onComplete}
+            style={{
+              flex: 1, padding: "14px 20px", background: D.teal, color: "#060608",
+              border: "none", borderRadius: 10, fontFamily: ft, fontSize: 15, fontWeight: 800,
+              cursor: "pointer", letterSpacing: 0.4, boxShadow: "0 0 24px " + D.teal + "33",
+            }}>
+            ✓ Done &amp; Next
+          </button>
+          <button type="button" onClick={onNext}
+            style={{
+              padding: "14px 20px", background: "transparent", color: D.tx,
+              border: "1px solid " + D.border, borderRadius: 10,
+              fontFamily: ft, fontSize: 14, cursor: "pointer", letterSpacing: 0.3,
+            }}>
+            Skip
+          </button>
+          <button type="button" onClick={onClose}
+            style={{
+              padding: "14px 20px", background: "transparent", color: D.txm,
+              border: "1px solid " + D.border, borderRadius: 10,
+              fontFamily: ft, fontSize: 14, cursor: "pointer", letterSpacing: 0.3,
+            }}>
+            Exit
+          </button>
         </div>
       </div>
     </div>,
