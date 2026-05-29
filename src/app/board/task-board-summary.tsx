@@ -70,7 +70,29 @@ const ASSIGNEE_COLOR: Record<string, string> = {
 
 type ViewKey = "today" | "schedule" | "board" | "all" | "category" | "week" | "calendar" | "focus" | "done";
 type GroupBy = "priority" | "category" | "assignee" | "due";
+type SmartFilter = "overdue" | "today" | "nodue" | "unassigned" | "recent" | null;
 type TaskGroup = { key: string; color: string; tasks: Task[] };
+
+// Smart filters are live-computed slices that compose on top of catFilter /
+// assigneeFilter / search. They live next to Saved Views in the sidebar so a
+// user can jump to "Overdue" or "Recently added" without writing them down.
+// Counts re-derive from openTasks each render so the chips stay in sync.
+const SMART_FILTERS: { id: NonNullable<SmartFilter>; label: string; icon: string; accentKey: "coral" | "amber" | "blue" | "violet" | "teal" }[] = [
+  { id: "overdue",    label: "Overdue",       icon: "⚠", accentKey: "coral"  },
+  { id: "today",      label: "Due today",     icon: "◐", accentKey: "amber"  },
+  { id: "nodue",      label: "No due date",   icon: "◌", accentKey: "violet" },
+  { id: "unassigned", label: "Unassigned",    icon: "○", accentKey: "blue"   },
+  { id: "recent",     label: "Recently added",icon: "✦", accentKey: "teal"   },
+];
+function matchesSmart(t: Task, sf: SmartFilter): boolean {
+  if (!sf) return true;
+  if (sf === "overdue")    return isOverdue(t);
+  if (sf === "today")      return isToday(t);
+  if (sf === "nodue")      return !t.dueDate && !t.done;
+  if (sf === "unassigned") return (!t.assignee || t.assignee === "Unassigned") && !t.done;
+  if (sf === "recent")     return Date.parse(t.addedAt) > Date.now() - 24 * 60 * 60 * 1000;
+  return true;
+}
 
 const GROUP_LABELS: Record<GroupBy, string> = {
   priority: "Priority",
@@ -383,6 +405,7 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
   const [groupBy, setGroupBy] = useState<GroupBy>("priority");
   const [catFilter, setCatFilter] = useState<string | null>(null);
   const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
+  const [smartFilter, setSmartFilter] = useState<SmartFilter>(null);
   const [search, setSearch] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [focusIdx, setFocusIdx] = useState(0);
@@ -687,13 +710,29 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
     return openTasks.filter((t) => {
       if (catFilter && t.category !== catFilter) return false;
       if (assigneeFilter && (t.assignee || "Akash") !== assigneeFilter) return false;
+      if (smartFilter && !matchesSmart(t, smartFilter)) return false;
       if (q) {
         const hay = (t.title + " " + (t.description || "") + " " + t.category).toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [openTasks, catFilter, assigneeFilter, search]);
+  }, [openTasks, catFilter, assigneeFilter, smartFilter, search]);
+
+  // Per-smart-filter counts for sidebar badges (uses unfiltered openTasks so
+  // counts always show total available items, not items remaining inside the
+  // current cat/assignee selection).
+  const smartCounts = useMemo(() => {
+    const out: Record<string, number> = { overdue: 0, today: 0, nodue: 0, unassigned: 0, recent: 0 };
+    for (const t of openTasks) {
+      if (matchesSmart(t, "overdue"))    out.overdue++;
+      if (matchesSmart(t, "today"))      out.today++;
+      if (matchesSmart(t, "nodue"))      out.nodue++;
+      if (matchesSmart(t, "unassigned")) out.unassigned++;
+      if (matchesSmart(t, "recent"))     out.recent++;
+    }
+    return out;
+  }, [openTasks]);
 
   // ── stats (always whole board, ignore filters so the hero is stable) ──
   const stats = useMemo(() => {
@@ -775,8 +814,8 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
 
   const totalQueue = useMemo(() => ({ n: filteredOpen.length, mins: sumMins(filteredOpen) }), [filteredOpen]);
 
-  const filtersActive = !!(catFilter || assigneeFilter || search.trim());
-  function clearAllFilters() { setCatFilter(null); setAssigneeFilter(null); setSearch(""); }
+  const filtersActive = !!(catFilter || assigneeFilter || smartFilter || search.trim());
+  function clearAllFilters() { setCatFilter(null); setAssigneeFilter(null); setSmartFilter(null); setSearch(""); }
 
   // Compose a default name from the active state if the user just hits
   // Enter at the prompt — "Today · Akash" reads better than "Saved view 1".
@@ -1075,6 +1114,25 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
             <SidebarInput value={search} setValue={setSearch} placeholder="Search…" />
           </SidebarSection>
 
+          <SidebarSection label="Smart filters">
+            {SMART_FILTERS.map((sf) => {
+              const accent = D[sf.accentKey];
+              const count = smartCounts[sf.id];
+              const active = smartFilter === sf.id;
+              return (
+                <SidebarRow
+                  key={sf.id}
+                  active={active}
+                  onClick={() => setSmartFilter(active ? null : sf.id)}
+                  accent={accent}
+                  left={<span style={{ fontFamily: mn, fontSize: 12, color: active ? accent : count > 0 ? accent : D.txd, width: 14, textAlign: "center", flexShrink: 0 }}>{sf.icon}</span>}
+                  label={sf.label}
+                  count={count}
+                />
+              );
+            })}
+          </SidebarSection>
+
           <SidebarSection
             label="Saved views"
             right={
@@ -1204,6 +1262,11 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
 
           {filtersActive && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+              {smartFilter && (() => {
+                const sf = SMART_FILTERS.find((s) => s.id === smartFilter);
+                if (!sf) return null;
+                return <Chip label={sf.icon + "  " + sf.label} color={D[sf.accentKey]} onClear={() => setSmartFilter(null)} />;
+              })()}
               {catFilter && <Chip label={catFilter} color={CAT_COLOR[catFilter] || D.txd} onClear={() => setCatFilter(null)} />}
               {assigneeFilter && <Chip label={assigneeFilter} color={ASSIGNEE_COLOR[assigneeFilter] || D.txd} onClear={() => setAssigneeFilter(null)} />}
               {search.trim() && <Chip label={`"${search.trim()}"`} color={D.violet} onClear={() => setSearch("")} />}
