@@ -659,10 +659,11 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
       {/* Bug report — captures the current sec automatically and lands in
           POAST Settings · Bugs. Analysts use it most; visible for everyone. */}
       <BugButton sec={active} />
-      {/* User badge — click to sign out + return to the entry screen. No native
-          confirm (it looked unbranded). For Analyst the label reads "Lock"; for
-          admins it reads "Switch". A misclick is cheap to recover from. */}
-      {userCtx.user && <div onClick={function() { userCtx.setUser(null); window.location.reload(); }} title={analyst ? "Lock studio" : "Switch user"} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "6px 8px", borderRadius: 6, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}>
+      {/* User badge — click to sign out + return to the picker. Nulling
+          the user context now re-shows the Intro picker via the useEffect
+          in App (no full page reload). For Analyst the label reads "Lock";
+          for admins it reads "Switch". A misclick is cheap to recover from. */}
+      {userCtx.user && <div onClick={function() { userCtx.setUser(null); }} title={analyst ? "Lock studio" : "Switch user"} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "6px 8px", borderRadius: 6, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}>
         <div style={{ width: 22, height: 22, borderRadius: 6, background: analyst ? "#905CCB20" : C.amber + "20", border: "1px solid " + (analyst ? "#905CCB40" : C.amber + "40"), display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 10, fontWeight: 800, color: analyst ? "#905CCB" : C.amber }}>{userCtx.user.name[0]}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 700, color: "#E8E4DD", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userCtx.user.name}</div>
@@ -1947,6 +1948,15 @@ export default function App() {
     window.addEventListener("poast-nav", handler);
     return function() { window.removeEventListener("poast-nav", handler); };
   }, [analyst]);
+
+  // When the user signs out mid-session (sidebar "Switch user" badge),
+  // re-show the picker instead of forcing a full page reload. We only
+  // re-arm when introState is already "skip" — that's our signal that
+  // hydration completed with a user present. Initial mount or explicit
+  // ?user= paths already have their own logic above.
+  useEffect(function() {
+    if (introState === "skip" && !userCtx.user) setIntroState("show");
+  }, [userCtx.user, introState]);
 
   // Analytics · session start fires once per app mount; view fires on every
   // sec change. Wired here so every tool gets tracked without per-tool edits.
