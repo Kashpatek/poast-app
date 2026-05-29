@@ -8,7 +8,7 @@
 //
 // Shares the Supabase row with /board (Studio) so edits round-trip.
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { D, ft, gf, mn } from "../shared-constants";
 
@@ -66,6 +66,26 @@ const GROUP_LABELS: Record<GroupBy, string> = {
   assignee: "Assignee",
   due:      "Due date",
 };
+
+// Drag context — lets deeply-nested rows opt into HTML5 drag without prop
+// drilling. Drop targets (sidebar entries, board columns, combine dock)
+// call applyPatch / addToCombine.
+interface DragCtxValue {
+  draggingId: string | null;
+  startDrag: (id: string) => void;
+  endDrag: () => void;
+  applyPatch: (id: string, patch: Partial<Task>) => void;
+  combineIds: string[];
+  toggleCombine: (id: string) => void;
+  clearCombine: () => void;
+  openCombine: () => void;
+}
+const DragCtx = React.createContext<DragCtxValue | null>(null);
+function useDrag(): DragCtxValue {
+  const v = useContext(DragCtx);
+  if (!v) throw new Error("DragCtx missing");
+  return v;
+}
 
 // ─── helpers ───
 function startOfDay(d: Date): Date { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
@@ -329,6 +349,11 @@ export default function TaskBoardSummary() {
   const [addOpen, setAddOpen] = useState(false);
   const [focusIdx, setFocusIdx] = useState(0);
 
+  // drag + combine state
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [combineIds, setCombineIds] = useState<string[]>([]);
+  const [combineModalOpen, setCombineModalOpen] = useState(false);
+
   const lastSavedRef = useRef<string>("");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -404,6 +429,39 @@ export default function TaskBoardSummary() {
       ...b,
       tasks: b.tasks.map((t) => t.id === id ? { ...t, done: !t.done, updatedAt: new Date().toISOString() } : t),
     }));
+  }
+
+  function applyPatch(id: string, patch: Partial<Task>) {
+    updateActiveBoard((b) => ({
+      ...b,
+      tasks: b.tasks.map((t) => t.id === id ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t),
+    }));
+  }
+  function toggleCombine(id: string) {
+    setCombineIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
+  }
+  function clearCombine() { setCombineIds([]); }
+  function openCombine() { if (combineIds.length >= 2) setCombineModalOpen(true); }
+
+  const dragCtxValue = useMemo<DragCtxValue>(() => ({
+    draggingId,
+    startDrag: setDraggingId,
+    endDrag: () => setDraggingId(null),
+    applyPatch,
+    combineIds,
+    toggleCombine,
+    clearCombine,
+    openCombine,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [draggingId, combineIds]);
+
+  function commitCombine(merged: Task, sourceIds: string[]) {
+    updateActiveBoard((b) => ({
+      ...b,
+      tasks: [merged, ...b.tasks.filter((t) => !sourceIds.includes(t.id))],
+    }));
+    setCombineIds([]);
+    setCombineModalOpen(false);
   }
 
   function submitQuickAdd() {
@@ -535,11 +593,13 @@ export default function TaskBoardSummary() {
   }
 
   return (
+    <DragCtx.Provider value={dragCtxValue}>
     <div style={{ padding: "20px 26px 60px", fontFamily: ft, color: D.tx, maxWidth: 1500, margin: "0 auto", position: "relative" }}>
       <style>{`
         @keyframes tbRowIn { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes tbPulseRed { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
         @keyframes tbShimmer { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+        @keyframes tbDockPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(247,176,65,0.45); } 50% { box-shadow: 0 0 0 8px rgba(247,176,65,0); } }
       `}</style>
       {/* AMBIENT BACKDROP — soft amber + violet glows behind everything */}
       <div aria-hidden="true" style={{
@@ -673,6 +733,7 @@ export default function TaskBoardSummary() {
                 left={<span style={{ width: 8, height: 8, borderRadius: 999, background: CAT_COLOR[c] || D.txd, flexShrink: 0 }} />}
                 label={c.toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase()).replace("/", " / ")}
                 count={categoryCounts[c]}
+                onDropTask={(id) => applyPatch(id, { category: c })}
               />
             ))}
             {CATEGORIES.filter((c) => categoryCounts[c]).length === 0 && (
@@ -690,6 +751,7 @@ export default function TaskBoardSummary() {
                 left={<Avatar name={a} size={16} />}
                 label={a}
                 count={assigneeCounts[a]}
+                onDropTask={(id) => applyPatch(id, { assignee: a })}
               />
             ))}
           </SidebarSection>
@@ -846,7 +908,22 @@ export default function TaskBoardSummary() {
           onClose={() => setAddOpen(false)}
         />
       )}
+
+      {/* Combine Dock — fixed right edge, auto-expands during any drag */}
+      <CombineDock
+        tasks={allTasks.filter((t) => combineIds.includes(t.id))}
+        dragActive={draggingId !== null}
+      />
+
+      {combineModalOpen && (
+        <CombineModal
+          sources={allTasks.filter((t) => combineIds.includes(t.id))}
+          onClose={() => setCombineModalOpen(false)}
+          onCommit={commitCombine}
+        />
+      )}
     </div>
+    </DragCtx.Provider>
   );
 }
 
@@ -905,20 +982,48 @@ function SidebarSection({ label, children }: { label: string; children: React.Re
 }
 
 function SidebarRow({
-  active, onClick, left, label, count, accent,
-}: { active: boolean; onClick: () => void; left: React.ReactNode; label: string; count?: number; accent: string }) {
+  active, onClick, left, label, count, accent, onDropTask,
+}: {
+  active: boolean;
+  onClick: () => void;
+  left: React.ReactNode;
+  label: string;
+  count?: number;
+  accent: string;
+  onDropTask?: (taskId: string) => void;
+}) {
+  const drag = useDrag();
+  const [over, setOver] = useState(false);
+  const isDropTarget = !!onDropTask && drag.draggingId !== null;
   return (
     <button
       onClick={onClick}
+      onDragOver={onDropTask ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setOver(true); } : undefined}
+      onDragLeave={onDropTask ? () => setOver(false) : undefined}
+      onDrop={onDropTask ? (e) => {
+        e.preventDefault();
+        const id = e.dataTransfer.getData("text/plain");
+        if (id) onDropTask(id);
+        setOver(false);
+        drag.endDrag();
+      } : undefined}
       style={{
         display: "flex", alignItems: "center", gap: 9,
         padding: "7px 10px",
-        background: active ? accent + "1A" : "transparent",
-        border: "none", borderLeft: "2px solid " + (active ? accent : "transparent"),
+        background: over
+          ? accent + "33"
+          : isDropTarget
+          ? accent + "0F"
+          : active ? accent + "1A" : "transparent",
+        border: "none",
+        borderLeft: "2px solid " + (over ? accent : active ? accent : "transparent"),
+        outline: over ? "1px dashed " + accent : "none",
+        outlineOffset: -2,
         color: active ? D.tx : D.txm,
         fontFamily: ft, fontSize: 12.5, fontWeight: active ? 600 : 500,
         textAlign: "left", cursor: "pointer", borderRadius: "0 7px 7px 0",
         width: "100%",
+        transition: "background 0.12s, outline-color 0.12s",
       }}
     >
       {left}
@@ -1107,20 +1212,53 @@ function BoardKanban({ groups, groupBy, onToggle }: {
       overflowX: "auto", paddingBottom: 8,
     }}>
       {groups.map((col) => (
-        <div key={col.key} style={{
-          background: D.card, border: "1px solid " + D.border, borderRadius: 12,
-          padding: 12, display: "flex", flexDirection: "column", gap: 8,
-          minHeight: 240,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 8, borderBottom: "1px solid " + D.border }}>
-            <span style={{ width: 8, height: 8, borderRadius: 999, background: col.color }} />
-            <span style={{ fontFamily: mn, fontSize: 10.5, color: col.color, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{col.key}</span>
-            <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 10, color: D.txd }}>{col.tasks.length}</span>
-            <TimePill mins={sumMins(col.tasks)} />
-          </div>
-          {col.tasks.map((t) => <BoardCard key={t.id} task={t} onToggle={() => onToggle(t.id)} />)}
-        </div>
+        <BoardColumn key={col.key} col={col} groupBy={groupBy} onToggle={onToggle} />
       ))}
+    </div>
+  );
+}
+
+function BoardColumn({ col, groupBy, onToggle }: {
+  col: TaskGroup;
+  groupBy: GroupBy;
+  onToggle: (id: string) => void;
+}) {
+  const drag = useDrag();
+  const [over, setOver] = useState(false);
+  const isTarget = drag.draggingId !== null && groupBy !== "due";
+  const onDropHere = (e: React.DragEvent) => {
+    e.preventDefault();
+    setOver(false);
+    const id = e.dataTransfer.getData("text/plain");
+    if (!id) { drag.endDrag(); return; }
+    if (groupBy === "priority") drag.applyPatch(id, { priority: col.key as Priority });
+    else if (groupBy === "category") drag.applyPatch(id, { category: col.key });
+    else if (groupBy === "assignee") drag.applyPatch(id, { assignee: col.key });
+    drag.endDrag();
+  };
+  return (
+    <div
+      onDragOver={isTarget ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setOver(true); } : undefined}
+      onDragLeave={isTarget ? () => setOver(false) : undefined}
+      onDrop={isTarget ? onDropHere : undefined}
+      style={{
+        background: over ? col.color + "14" : D.card,
+        border: "1px solid " + (over ? col.color : isTarget ? col.color + "55" : D.border),
+        borderRadius: 12,
+        padding: 12, display: "flex", flexDirection: "column", gap: 8,
+        minHeight: 240,
+        transition: "background 0.12s, border-color 0.12s",
+        outline: over ? "2px dashed " + col.color : "none",
+        outlineOffset: -4,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 8, borderBottom: "1px solid " + D.border }}>
+        <span style={{ width: 8, height: 8, borderRadius: 999, background: col.color }} />
+        <span style={{ fontFamily: mn, fontSize: 10.5, color: col.color, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{col.key}</span>
+        <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 10, color: D.txd }}>{col.tasks.length}</span>
+        <TimePill mins={sumMins(col.tasks)} />
+      </div>
+      {col.tasks.map((t) => <BoardCard key={t.id} task={t} onToggle={() => onToggle(t.id)} />)}
     </div>
   );
 }
@@ -1484,15 +1622,36 @@ function FocusViewBlock({ tasks, index, setIndex, onToggle }: {
 
 function BoardCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
   const overdue = isOverdue(task);
+  const drag = useDrag();
+  const isDragging = drag.draggingId === task.id;
+  const isCombined = drag.combineIds.includes(task.id);
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) {
+      e.preventDefault();
+      drag.toggleCombine(task.id);
+    }
+  };
   return (
     <a
       href="/board"
       target="_blank"
       rel="noopener"
+      draggable
+      onClick={handleClick}
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/plain", task.id);
+        e.dataTransfer.effectAllowed = "move";
+        drag.startDrag(task.id);
+      }}
+      onDragEnd={() => drag.endDrag()}
       style={{
         position: "relative", padding: "10px 12px",
-        background: D.surface, border: "1px solid " + (overdue ? "rgba(224,99,71,0.30)" : D.border),
+        background: isCombined ? "rgba(120,162,255,0.08)" : D.surface,
+        border: "1px solid " + (isCombined ? D.blue + "88" : overdue ? "rgba(224,99,71,0.30)" : D.border),
         borderRadius: 9, textDecoration: "none", color: "inherit", display: "block",
+        opacity: isDragging ? 0.45 : 1,
+        transition: "background 0.14s, border-color 0.14s, opacity 0.14s",
+        cursor: "grab",
       }}
     >
       <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: CAT_COLOR[task.category] || D.txd, borderRadius: "3px 0 0 3px" }} />
@@ -1614,25 +1773,44 @@ function HotSeatCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
   const overdue = isOverdue(task);
   const today = isToday(task);
   const [hover, setHover] = useState(false);
+  const drag = useDrag();
+  const isDragging = drag.draggingId === task.id;
+  const isCombined = drag.combineIds.includes(task.id);
   const pColor = PRI_COLOR[task.priority] || D.txd;
   const cColor = CAT_COLOR[task.category] || D.txd;
   const subDone = task.subtasks?.filter((s) => s.done).length || 0;
   const subTotal = task.subtasks?.length || 0;
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) {
+      e.preventDefault();
+      drag.toggleCombine(task.id);
+    }
+  };
   return (
     <a
       href="/board"
       target="_blank"
       rel="noopener"
+      draggable
+      onClick={handleClick}
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/plain", task.id);
+        e.dataTransfer.effectAllowed = "move";
+        drag.startDrag(task.id);
+      }}
+      onDragEnd={() => drag.endDrag()}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
         position: "relative", padding: "14px 16px 14px 19px",
-        background: D.card,
-        border: "1px solid " + (hover ? D.amber + "66" : overdue ? "rgba(224,99,71,0.30)" : D.border),
+        background: isCombined ? "rgba(120,162,255,0.08)" : D.card,
+        border: "1px solid " + (isCombined ? D.blue + "88" : hover ? D.amber + "66" : overdue ? "rgba(224,99,71,0.30)" : D.border),
         borderRadius: 12, textDecoration: "none", color: "inherit", display: "block",
-        transition: "border-color 0.14s, transform 0.14s, box-shadow 0.14s",
+        transition: "border-color 0.14s, transform 0.14s, box-shadow 0.14s, opacity 0.14s",
         transform: hover ? "translateY(-1px)" : "translateY(0)",
         boxShadow: hover ? "0 8px 22px rgba(247,176,65,0.18)" : "none",
+        opacity: isDragging ? 0.45 : 1,
+        cursor: "grab",
         animation: "tbRowIn 0.22s ease both",
       }}
     >
@@ -1680,11 +1858,28 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
   const subDone = task.subtasks?.filter((s) => s.done).length || 0;
   const subTotal = task.subtasks?.length || 0;
   const [hover, setHover] = useState(false);
+  const drag = useDrag();
+  const isDragging = drag.draggingId === task.id;
+  const isCombined = drag.combineIds.includes(task.id);
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) {
+      e.preventDefault();
+      drag.toggleCombine(task.id);
+    }
+  };
   return (
     <a
       href="/board"
       target="_blank"
       rel="noopener"
+      draggable
+      onClick={handleClick}
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/plain", task.id);
+        e.dataTransfer.effectAllowed = "move";
+        drag.startDrag(task.id);
+      }}
+      onDragEnd={() => drag.endDrag()}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
@@ -1694,11 +1889,17 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
         alignItems: "center", gap: 10, padding: "9px 14px 9px 17px",
         borderBottom: last ? "none" : "1px solid " + D.border,
         textDecoration: "none", color: "inherit",
-        background: hover
+        background: isCombined
+          ? "rgba(120,162,255,0.10)"
+          : hover
           ? "rgba(247,176,65,0.06)"
           : overdue ? "rgba(224,99,71,0.04)" : "transparent",
-        transition: "background 0.14s, box-shadow 0.14s",
-        boxShadow: hover ? "inset 2px 0 0 " + D.amber : "inset 2px 0 0 " + pColor + "55",
+        transition: "background 0.14s, box-shadow 0.14s, opacity 0.14s",
+        boxShadow: isCombined
+          ? "inset 2px 0 0 " + D.blue
+          : hover ? "inset 2px 0 0 " + D.amber : "inset 2px 0 0 " + pColor + "55",
+        opacity: isDragging ? 0.45 : 1,
+        cursor: "grab",
         animation: "tbRowIn 0.22s ease both",
       }}
     >
@@ -1929,3 +2130,328 @@ function ModalField({ label, children }: { label: string; children: React.ReactN
     </label>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// COMBINE DOCK — floating right-edge drawer
+// ═══════════════════════════════════════════════════════════════════
+// Drop 2+ tasks here to stage them, then hit Combine to ask Claude for a
+// merged proposal. Auto-expands and pulses the moment any drag starts.
+
+function CombineDock({ tasks, dragActive }: { tasks: Task[]; dragActive: boolean }) {
+  const drag = useDrag();
+  const [open, setOpen] = useState(false);
+  const [over, setOver] = useState(false);
+
+  useEffect(() => {
+    if (dragActive) setOpen(true);
+  }, [dragActive]);
+
+  const has = tasks.length > 0;
+  const canCombine = tasks.length >= 2;
+
+  return (
+    <div
+      onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        const id = e.dataTransfer.getData("text/plain");
+        if (id) drag.toggleCombine(id);
+      }}
+      style={{
+        position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)",
+        width: open ? 264 : 56,
+        background: D.card,
+        border: "1px solid " + (over ? D.amber : has ? D.amber + "66" : D.border),
+        borderRadius: 14,
+        boxShadow: over
+          ? "0 0 0 4px " + D.amber + "44, 0 18px 40px rgba(0,0,0,0.5)"
+          : has ? "0 0 0 2px " + D.amber + "22, 0 12px 30px rgba(0,0,0,0.4)" : "0 8px 22px rgba(0,0,0,0.35)",
+        zIndex: 80,
+        padding: open ? 12 : 8,
+        transition: "width 0.18s, border-color 0.14s, box-shadow 0.14s",
+        animation: dragActive && !over ? "tbDockPulse 1.2s infinite" : "none",
+        overflow: "hidden",
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title={open ? "Collapse" : "Expand combine bucket"}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 8,
+          padding: "6px 8px",
+          background: has ? D.amber + "15" : "transparent",
+          border: "1px solid " + (has ? D.amber + "55" : D.border),
+          color: has ? D.amber : D.txm,
+          borderRadius: 8, cursor: "pointer", fontFamily: mn, fontSize: 11, fontWeight: 700, letterSpacing: 0.4,
+        }}
+      >
+        {has ? <span style={{ fontFamily: gf, fontSize: 16, fontWeight: 900, lineHeight: 1 }}>{tasks.length}</span> : <span style={{ fontSize: 14 }}>↘</span>}
+        {open && <span style={{ marginLeft: "auto" }}>COMBINE</span>}
+      </button>
+
+      {open && (
+        <>
+          <div style={{
+            marginTop: 10, padding: "10px 8px",
+            border: "1.5px dashed " + (over ? D.amber : has ? D.amber + "55" : D.border),
+            borderRadius: 8, minHeight: 60,
+            background: over ? D.amber + "12" : "transparent",
+            display: "flex", flexDirection: "column", gap: 4,
+            fontFamily: mn, fontSize: 10, color: D.txd, textAlign: "center",
+            transition: "border-color 0.14s, background 0.14s",
+          }}>
+            {has ? (
+              tasks.map((t) => (
+                <div key={t.id} style={{
+                  display: "flex", alignItems: "center", gap: 6, padding: "4px 6px",
+                  background: "rgba(255,255,255,0.03)", borderRadius: 5,
+                  fontFamily: ft, fontSize: 11.5, color: D.tx, textAlign: "left",
+                }}>
+                  <Avatar name={t.assignee || "Akash"} size={14} />
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
+                  <button
+                    type="button"
+                    onClick={() => drag.toggleCombine(t.id)}
+                    title="Remove"
+                    style={{ background: "transparent", border: "none", color: D.txd, cursor: "pointer", fontSize: 13, padding: 0 }}
+                  >×</button>
+                </div>
+              ))
+            ) : (
+              <span style={{ padding: "10px 0" }}>{dragActive ? "↓ Drop here ↓" : "Drag duplicates here"}</span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={drag.openCombine}
+            disabled={!canCombine}
+            style={{
+              marginTop: 10, width: "100%", padding: "9px 10px",
+              background: canCombine ? D.amber : "transparent",
+              color: canCombine ? "#0A0A0F" : D.txd,
+              border: "1px " + (canCombine ? "solid " + D.amber : "dashed " + D.border),
+              borderRadius: 8, fontFamily: mn, fontSize: 10.5, fontWeight: 800, letterSpacing: 0.6,
+              cursor: canCombine ? "pointer" : "not-allowed",
+              textTransform: "uppercase",
+            }}
+          >
+            ✦ Combine {tasks.length || ""} {canCombine ? "→ 1" : ""}
+          </button>
+          {has && (
+            <button
+              type="button"
+              onClick={drag.clearCombine}
+              style={{
+                marginTop: 6, width: "100%", padding: "6px",
+                background: "transparent", color: D.txd,
+                border: "none", fontFamily: mn, fontSize: 9.5, letterSpacing: 0.5,
+                cursor: "pointer", textTransform: "uppercase",
+              }}
+            >clear</button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// COMBINE MODAL — preview Claude's merge, edit, commit
+// ═══════════════════════════════════════════════════════════════════
+
+interface MergeProposal {
+  title: string;
+  description: string;
+  category: string;
+  priority: Priority;
+  assignee: string;
+  dueDate: string;
+  notes: string;
+  subtasks: { title: string }[];
+}
+
+function CombineModal({ sources, onClose, onCommit }: {
+  sources: Task[];
+  onClose: () => void;
+  onCommit: (merged: Task, sourceIds: string[]) => void;
+}) {
+  const [proposal, setProposal] = useState<MergeProposal>(() => ({
+    title: sources[0]?.title || "",
+    description: sources[0]?.description || "",
+    category: sources[0]?.category || "OTHER",
+    priority: sources[0]?.priority || "MEDIUM",
+    assignee: sources[0]?.assignee || "Akash",
+    dueDate: sources.map((s) => s.dueDate).filter(Boolean).sort()[0] || "",
+    notes: "",
+    subtasks: sources.flatMap((s) => s.subtasks || []).map((s) => ({ title: s.title })),
+  }));
+  const [state, setState] = useState<"idle" | "thinking" | "error">("idle");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  async function smartMerge() {
+    setState("thinking"); setError("");
+    try {
+      const res = await fetch("/api/akash-todo/combine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tasks: sources.map((s) => ({
+            title: s.title,
+            description: s.description,
+            category: s.category,
+            priority: s.priority,
+            assignee: s.assignee,
+            dueDate: s.dueDate,
+            subtasks: (s.subtasks || []).map((st) => ({ title: st.title, done: st.done })),
+          })),
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.title) throw new Error(j.error || "no proposal");
+      setProposal({
+        title: j.title || "",
+        description: j.description || "",
+        category: j.category || "OTHER",
+        priority: (j.priority || "MEDIUM") as Priority,
+        assignee: j.assignee || "Akash",
+        dueDate: j.dueDate || "",
+        notes: j.notes || "",
+        subtasks: Array.isArray(j.subtasks) ? j.subtasks.map((s: { title?: string }) => ({ title: s.title || "" })) : [],
+      });
+      setState("idle");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "merge failed");
+      setState("error");
+    }
+  }
+
+  function commit() {
+    const stamp = new Date().toISOString();
+    const merged: Task = {
+      id: "t-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+      title: proposal.title.trim() || "Combined task",
+      description: proposal.description,
+      category: proposal.category,
+      priority: proposal.priority,
+      assignee: proposal.assignee,
+      dueDate: proposal.dueDate || undefined,
+      subtasks: proposal.subtasks.filter((s) => s.title.trim()).map((s, i) => ({
+        id: "st-" + Date.now() + "-" + i, title: s.title.trim(),
+      })),
+      estimateMins: 30,
+      addedAt: stamp,
+      updatedAt: stamp,
+      source: "combine",
+    };
+    onCommit(merged, sources.map((s) => s.id));
+  }
+
+  return createPortal(
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, background: "rgba(6,6,8,0.7)", backdropFilter: "blur(20px)",
+      WebkitBackdropFilter: "blur(20px)", zIndex: 90,
+      display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "8vh",
+    }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        width: 640, maxWidth: "94vw", maxHeight: "84vh", overflowY: "auto",
+        background: D.card, border: "1px solid " + D.border, borderRadius: 14,
+        padding: "22px 26px", fontFamily: ft, color: D.tx,
+      }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
+          <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 1.4, textTransform: "uppercase" }}>Combine {sources.length} tasks</div>
+          <button onClick={smartMerge} disabled={state === "thinking"} style={{
+            background: D.amber + "22", color: D.amber, border: "1px solid " + D.amber + "66",
+            padding: "5px 11px", borderRadius: 7, fontFamily: mn, fontSize: 10, fontWeight: 700, cursor: "pointer",
+            letterSpacing: 0.4, textTransform: "uppercase",
+          }}>{state === "thinking" ? "✦ Thinking…" : "✦ Smart merge with Claude"}</button>
+        </div>
+        <h2 style={{ fontFamily: gf, fontSize: 22, fontWeight: 900, letterSpacing: -0.5, margin: "0 0 14px" }}>Merge into one</h2>
+
+        {error && (
+          <div style={{ marginBottom: 12, padding: "8px 10px", background: D.coral + "15", border: "1px solid " + D.coral + "55", borderRadius: 6, color: D.coral, fontSize: 12 }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ marginBottom: 12, padding: "8px 10px", background: "rgba(255,255,255,0.02)", border: "1px dashed " + D.border, borderRadius: 8 }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 1, textTransform: "uppercase", marginBottom: 5 }}>sources</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            {sources.map((s) => (
+              <div key={s.id} style={{ fontSize: 11.5, color: D.txm, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>· {s.title}</div>
+            ))}
+          </div>
+        </div>
+
+        <ModalField label="Title">
+          <input value={proposal.title} onChange={(e) => setProposal({ ...proposal, title: e.target.value })}
+            style={inputStyle} />
+        </ModalField>
+        <ModalField label="Description">
+          <textarea value={proposal.description} onChange={(e) => setProposal({ ...proposal, description: e.target.value })}
+            rows={3} style={{ ...inputStyle, minHeight: 64, fontFamily: ft }} />
+        </ModalField>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <ModalField label="Category">
+            <select value={proposal.category} onChange={(e) => setProposal({ ...proposal, category: e.target.value })} style={inputStyle}>
+              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </ModalField>
+          <ModalField label="Priority">
+            <select value={proposal.priority} onChange={(e) => setProposal({ ...proposal, priority: e.target.value as Priority })} style={inputStyle}>
+              {(["HIGH", "MEDIUM", "THIS WEEK", "ONGOING"] as Priority[]).map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </ModalField>
+          <ModalField label="Assignee">
+            <select value={proposal.assignee} onChange={(e) => setProposal({ ...proposal, assignee: e.target.value })} style={inputStyle}>
+              {ASSIGNEES.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </ModalField>
+        </div>
+        <ModalField label="Due date">
+          <input type="date" value={proposal.dueDate} onChange={(e) => setProposal({ ...proposal, dueDate: e.target.value })} style={inputStyle} />
+        </ModalField>
+        <ModalField label={"Subtasks · " + proposal.subtasks.length}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {proposal.subtasks.map((s, i) => (
+              <div key={i} style={{ display: "flex", gap: 6 }}>
+                <input value={s.title} onChange={(e) => {
+                  const next = [...proposal.subtasks]; next[i] = { title: e.target.value };
+                  setProposal({ ...proposal, subtasks: next });
+                }} style={{ ...inputStyle, padding: "5px 8px" }} />
+                <button onClick={() => setProposal({ ...proposal, subtasks: proposal.subtasks.filter((_, j) => j !== i) })}
+                  style={{ background: "transparent", border: "1px solid " + D.border, color: D.txd, padding: "0 8px", borderRadius: 5, cursor: "pointer", fontSize: 12 }}>×</button>
+              </div>
+            ))}
+            <button onClick={() => setProposal({ ...proposal, subtasks: [...proposal.subtasks, { title: "" }] })}
+              style={{ marginTop: 4, padding: "5px 10px", background: "transparent", border: "1px dashed " + D.border, color: D.txd, borderRadius: 5, fontFamily: mn, fontSize: 10.5, cursor: "pointer", letterSpacing: 0.4 }}>
+              + add subtask
+            </button>
+          </div>
+        </ModalField>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+          <button onClick={onClose} style={{
+            padding: "8px 14px", background: "transparent", border: "1px solid " + D.border,
+            color: D.txm, borderRadius: 7, fontFamily: ft, fontSize: 12, cursor: "pointer",
+          }}>Cancel</button>
+          <button onClick={commit} style={{
+            padding: "8px 16px", background: D.amber, color: "#0A0A0F", border: "1px solid " + D.amber,
+            borderRadius: 7, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: "pointer",
+          }}>Combine {sources.length} → 1</button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
