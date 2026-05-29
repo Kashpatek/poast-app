@@ -908,18 +908,40 @@ export default function FabricatedKnowledge() {
   useEffect(function() { if (loaded) ss("fk-episodes", episodes); }, [episodes, loaded]);
   useEffect(function() { if (loaded) ss("fk-archive", archive); }, [archive, loaded]);
 
+  // Pipeline counts per tab so users see at-a-glance how many items sit in
+  // each stage. Mirrors the filter logic inside each tab body.
+  var stageCounts = [
+    prospects.filter(function(p: Prospect) { return !p.devStatus; }).length,
+    prospects.filter(function(p: Prospect) { return p.devStatus && p.devStatus !== ""; }).length,
+    prospects.filter(function(p: Prospect) { return p.devStatus === "Scheduled"; }).length,
+    episodes.filter(function(e: Episode) { return e.status !== "Released"; }).length,
+    archive.length,
+  ];
+  var totalPipeline = stageCounts[0] + stageCounts[1] + stageCounts[3]; // active (not double-counting Scheduled)
+
   return <div style={{ minHeight: "100vh", background: D.bg, color: D.tx, fontFamily: ft, padding: "0 0 60px 0" }}>
     <Toasts />
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes fkLive{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.2)}}.fk-tab:hover{color:" + D.tx + " !important}.fk-tab-badge{transition:background .15s ease, color .15s ease}" }} />
 
     <div style={{ padding: "36px 40px 0 40px" }}>
-      <div style={{ fontFamily: ft, fontSize: 28, fontWeight: 900, color: D.tx, letterSpacing: -1 }}>Fabricated Knowledge</div>
-      <div style={{ fontFamily: mn, fontSize: 10, color: D.txm, letterSpacing: 2, textTransform: "uppercase", marginTop: 4 }}>Doug O'Laughlin // Audio Interview Series</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <span style={{ width: 7, height: 7, borderRadius: "50%", background: D.coral, boxShadow: "0 0 10px " + D.coral + "80", animation: "fkLive 2.2s ease-in-out infinite" }} />
+        <span style={{ fontFamily: mn, fontSize: 9, fontWeight: 700, color: D.coral, letterSpacing: 2 }}>PIPELINE</span>
+        <span style={{ fontFamily: mn, fontSize: 9, color: D.txd }}>·</span>
+        <span style={{ fontFamily: mn, fontSize: 9, color: D.txm, letterSpacing: 1 }}>{archive.length} RELEASED · {totalPipeline} IN FLIGHT</span>
+      </div>
+      <div style={{ fontFamily: ft, fontSize: 30, fontWeight: 900, letterSpacing: -1, background: "linear-gradient(135deg," + D.tx + " 0%," + D.coral + " 140%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", display: "inline-block" }}>Fabricated Knowledge</div>
+      <div style={{ fontFamily: mn, fontSize: 10, color: D.txm, letterSpacing: 2, textTransform: "uppercase", marginTop: 4 }}>{HOST} // Audio Interview Series</div>
     </div>
 
-    <div style={{ display: "flex", gap: 0, padding: "20px 40px 0 40px", borderBottom: "1px solid " + D.border, marginBottom: 28 }}>
+    <div style={{ display: "flex", gap: 0, padding: "22px 40px 0 40px", borderBottom: "1px solid " + D.border, marginBottom: 28, overflowX: "auto" }}>
       {TABS.map(function(t: string, i: number) {
         var active = tab === i;
-        return <div key={t} onClick={function() { setTab(i); }} style={{ padding: "12px 22px", cursor: "pointer", fontFamily: ft, fontSize: 13, fontWeight: active ? 700 : 500, color: active ? D.coral : D.txm, borderBottom: active ? "2px solid " + D.coral : "2px solid transparent", transition: "all 0.15s", marginBottom: -1 }}>{t}</div>;
+        var count = stageCounts[i];
+        return <div key={t} className="fk-tab" onClick={function() { setTab(i); }} style={{ padding: "12px 22px", cursor: "pointer", fontFamily: ft, fontSize: 13, fontWeight: active ? 700 : 500, color: active ? D.coral : D.txm, borderBottom: active ? "2px solid " + D.coral : "2px solid transparent", transition: "all 0.15s", marginBottom: -1, display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
+          <span>{t}</span>
+          <span className="fk-tab-badge" style={{ fontFamily: mn, fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 10, background: active ? D.coral + "22" : D.surface, color: active ? D.coral : D.txd, border: "1px solid " + (active ? D.coral + "40" : D.border) }}>{count}</span>
+        </div>;
       })}
     </div>
 
