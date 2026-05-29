@@ -56,7 +56,16 @@ const ASSIGNEE_COLOR: Record<string, string> = {
   Michelle: D.coral, Unassigned: D.txd,
 };
 
-type ViewKey = "today" | "schedule" | "board" | "all" | "done";
+type ViewKey = "today" | "schedule" | "board" | "all" | "category" | "week" | "calendar" | "focus" | "done";
+type GroupBy = "priority" | "category" | "assignee" | "due";
+type TaskGroup = { key: string; color: string; tasks: Task[] };
+
+const GROUP_LABELS: Record<GroupBy, string> = {
+  priority: "Priority",
+  category: "Category",
+  assignee: "Assignee",
+  due:      "Due date",
+};
 
 // ─── helpers ───
 function startOfDay(d: Date): Date { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
@@ -154,10 +163,12 @@ export default function TaskBoardSummary() {
 
   // suite state
   const [view, setView] = useState<ViewKey>("today");
+  const [groupBy, setGroupBy] = useState<GroupBy>("priority");
   const [catFilter, setCatFilter] = useState<string | null>(null);
   const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+  const [focusIdx, setFocusIdx] = useState(0);
 
   const lastSavedRef = useRef<string>("");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -308,7 +319,12 @@ export default function TaskBoardSummary() {
   ], [filteredOpen]);
   const restOpen = useMemo(() => filteredOpen.filter((t) => !isOverdue(t) && !isToday(t)), [filteredOpen]);
 
-  const queueGroups = useMemo(() => groupByPriority(view === "today" ? restOpen : filteredOpen), [view, restOpen, filteredOpen]);
+  // Today view always groups by priority (the "hot seat then queue" layout
+  // assumes priority). Other views honor the user's GroupBy selector.
+  const queueGroups = useMemo(() => {
+    if (view === "today") return groupTasks(restOpen, "priority");
+    return groupTasks(filteredOpen, groupBy);
+  }, [view, restOpen, filteredOpen, groupBy]);
 
   // Schedule: overdue bucket + 14 day sections + no-date bucket
   const schedule = useMemo(() => {
@@ -331,18 +347,6 @@ export default function TaskBoardSummary() {
     }).sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
     return { overdueTasks, days, noDateTasks, laterTasks };
   }, [filteredOpen]);
-
-  // Board: kanban columns by priority
-  const boardCols = useMemo(() => PRIORITY_ORDER.map((p) => ({
-    priority: p,
-    tasks: filteredOpen.filter((t) => t.priority === p).sort((a, b) => {
-      if (!!b.pinned !== !!a.pinned) return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
-      const ad = a.dueDate || "9999-12-31";
-      const bd = b.dueDate || "9999-12-31";
-      if (ad !== bd) return ad < bd ? -1 : 1;
-      return (b.addedAt || "").localeCompare(a.addedAt || "");
-    }),
-  })), [filteredOpen]);
 
   // Done: recently completed (last 30d), newest first
   const doneTasks = useMemo(() => {
@@ -467,8 +471,12 @@ export default function TaskBoardSummary() {
             {[
               { k: "today" as ViewKey, l: "Today", icon: "◉", count: hotSeat.length + restOpen.length },
               { k: "schedule" as ViewKey, l: "Schedule", icon: "▤", count: filteredOpen.length },
+              { k: "week" as ViewKey, l: "Week", icon: "▥", count: filteredOpen.length },
+              { k: "calendar" as ViewKey, l: "Calendar", icon: "▩", count: filteredOpen.length },
               { k: "board" as ViewKey, l: "Board", icon: "▦", count: filteredOpen.length },
+              { k: "category" as ViewKey, l: "Categories", icon: "◈", count: filteredOpen.length },
               { k: "all" as ViewKey, l: "All open", icon: "≡", count: filteredOpen.length },
+              { k: "focus" as ViewKey, l: "Focus", icon: "◎", count: filteredOpen.length },
               { k: "done" as ViewKey, l: "Done", icon: "✓", count: doneTasks.length },
             ].map((v) => (
               <SidebarRow
@@ -542,6 +550,25 @@ export default function TaskBoardSummary() {
               placeholder="Quick add (Enter)…"
               style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: D.tx, fontFamily: ft, fontSize: 13.5 }}
             />
+            {(view === "all" || view === "board") && (
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 4px", border: "1px solid " + D.border, borderRadius: 8 }}>
+                <span style={{ fontFamily: mn, fontSize: 9.5, color: D.txd, padding: "0 6px", letterSpacing: 0.6, textTransform: "uppercase" }}>group</span>
+                {(["priority", "category", "assignee", "due"] as GroupBy[]).map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setGroupBy(g)}
+                    style={{
+                      padding: "4px 9px",
+                      background: groupBy === g ? D.amber : "transparent",
+                      color: groupBy === g ? "#0A0A0F" : D.txm,
+                      border: "none", borderRadius: 6,
+                      fontFamily: ft, fontSize: 11, fontWeight: groupBy === g ? 700 : 500,
+                      cursor: "pointer",
+                    }}
+                  >{GROUP_LABELS[g]}</button>
+                ))}
+              </div>
+            )}
             {filtersActive && (
               <button
                 onClick={clearAllFilters}
@@ -581,7 +608,8 @@ export default function TaskBoardSummary() {
 
           {view === "board" && (
             <BoardKanban
-              columns={boardCols}
+              groups={groupTasks(filteredOpen, groupBy)}
+              groupBy={groupBy}
               onToggle={toggleDone}
             />
           )}
@@ -590,6 +618,37 @@ export default function TaskBoardSummary() {
             <AllOpenView
               queueGroups={queueGroups}
               totalQueue={totalQueue}
+              groupBy={groupBy}
+              onToggle={toggleDone}
+            />
+          )}
+
+          {view === "category" && (
+            <CategoryView
+              groups={groupTasks(filteredOpen, "category")}
+              onToggle={toggleDone}
+            />
+          )}
+
+          {view === "week" && (
+            <WeekView
+              filteredOpen={filteredOpen}
+              onToggle={toggleDone}
+            />
+          )}
+
+          {view === "calendar" && (
+            <CalendarView
+              filteredOpen={filteredOpen}
+              onToggle={toggleDone}
+            />
+          )}
+
+          {view === "focus" && (
+            <FocusViewBlock
+              tasks={[...hotSeat, ...restOpen]}
+              index={focusIdx}
+              setIndex={setFocusIdx}
               onToggle={toggleDone}
             />
           )}
@@ -612,20 +671,44 @@ export default function TaskBoardSummary() {
   );
 }
 
-// Priority grouping (HIGH → MEDIUM → THIS WEEK → ONGOING, pinned first).
-function groupByPriority(tasks: Task[]): { key: Priority; tasks: Task[] }[] {
-  const out: { key: Priority; tasks: Task[] }[] = [];
-  for (const p of PRIORITY_ORDER) {
-    const group = tasks.filter((t) => t.priority === p).sort((a, b) => {
-      if (!!b.pinned !== !!a.pinned) return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
-      const ad = a.dueDate || "9999-12-31";
-      const bd = b.dueDate || "9999-12-31";
-      if (ad !== bd) return ad < bd ? -1 : 1;
-      return (b.addedAt || "").localeCompare(a.addedAt || "");
-    });
-    if (group.length) out.push({ key: p, tasks: group });
+// Sort comparator shared by every grouping: pinned > earlier due > newer added.
+function sortInGroup(a: Task, b: Task): number {
+  if (!!b.pinned !== !!a.pinned) return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
+  const ad = a.dueDate || "9999-12-31";
+  const bd = b.dueDate || "9999-12-31";
+  if (ad !== bd) return ad < bd ? -1 : 1;
+  return (b.addedAt || "").localeCompare(a.addedAt || "");
+}
+
+// Generalized grouper. Mode = priority | category | assignee | due.
+// Returns groups in display order; empty groups skipped.
+function groupTasks(tasks: Task[], mode: GroupBy): { key: string; color: string; tasks: Task[] }[] {
+  if (mode === "priority") {
+    return PRIORITY_ORDER
+      .map((p) => ({ key: p as string, color: PRI_COLOR[p], tasks: tasks.filter((t) => t.priority === p).sort(sortInGroup) }))
+      .filter((g) => g.tasks.length);
   }
-  return out;
+  if (mode === "category") {
+    return CATEGORIES
+      .map((c) => ({ key: c, color: CAT_COLOR[c] || D.txd, tasks: tasks.filter((t) => t.category === c).sort(sortInGroup) }))
+      .filter((g) => g.tasks.length);
+  }
+  if (mode === "assignee") {
+    return ASSIGNEES
+      .map((a) => ({ key: a, color: ASSIGNEE_COLOR[a] || D.txd, tasks: tasks.filter((t) => (t.assignee || "Akash") === a).sort(sortInGroup) }))
+      .filter((g) => g.tasks.length);
+  }
+  // "due" — Overdue, Today, This week, Later, No date
+  const t = todayIso();
+  const weekIso = isoDate(new Date(Date.now() + 7 * 86400000));
+  const buckets: { key: string; color: string; tasks: Task[] }[] = [
+    { key: "Overdue",   color: D.coral,  tasks: tasks.filter(isOverdue).sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || "")) },
+    { key: "Today",     color: D.amber,  tasks: tasks.filter((x) => x.dueDate === t).sort(sortInGroup) },
+    { key: "This week", color: D.blue,   tasks: tasks.filter((x) => !!x.dueDate && x.dueDate > t && x.dueDate <= weekIso).sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || "")) },
+    { key: "Later",     color: D.violet, tasks: tasks.filter((x) => !!x.dueDate && x.dueDate > weekIso).sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || "")) },
+    { key: "No date",   color: D.txm,    tasks: tasks.filter((x) => !x.dueDate).sort(sortInGroup) },
+  ];
+  return buckets.filter((g) => g.tasks.length);
 }
 
 // ── tiny ui primitives used by the sidebar / chips ──
@@ -705,7 +788,7 @@ function Chip({ label, color, onClear }: { label: string; color: string; onClear
 
 function TodayView({ hotSeat, queueGroups, totalQueue, onToggle }: {
   hotSeat: Task[];
-  queueGroups: { key: Priority; tasks: Task[] }[];
+  queueGroups: TaskGroup[];
   totalQueue: { n: number; mins: number };
   onToggle: (id: string) => void;
 }) {
@@ -823,34 +906,394 @@ function DaySection({ title, subtitle, accent, tasks, onToggle, dim }: {
   );
 }
 
-function BoardKanban({ columns, onToggle }: {
-  columns: { priority: Priority; tasks: Task[] }[];
+function BoardKanban({ groups, groupBy, onToggle }: {
+  groups: TaskGroup[];
+  groupBy: GroupBy;
   onToggle: (id: string) => void;
 }) {
+  if (groups.length === 0) {
+    return <EmptyState title="No tasks" subtitle={"Nothing to show on the " + GROUP_LABELS[groupBy].toLowerCase() + " board."} />;
+  }
   return (
     <div style={{
       display: "grid",
-      gridTemplateColumns: "repeat(4, minmax(220px, 1fr))",
+      gridAutoFlow: "column",
+      gridAutoColumns: "minmax(240px, 1fr)",
       gap: 12,
       overflowX: "auto", paddingBottom: 8,
     }}>
-      {columns.map((col) => (
-        <div key={col.priority} style={{
+      {groups.map((col) => (
+        <div key={col.key} style={{
           background: D.card, border: "1px solid " + D.border, borderRadius: 12,
           padding: 12, display: "flex", flexDirection: "column", gap: 8,
-          minHeight: 200,
+          minHeight: 240,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 8, borderBottom: "1px solid " + D.border }}>
-            <span style={{ width: 8, height: 8, borderRadius: 999, background: PRI_COLOR[col.priority] }} />
-            <span style={{ fontFamily: mn, fontSize: 10.5, color: PRI_COLOR[col.priority], fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>{col.priority}</span>
+            <span style={{ width: 8, height: 8, borderRadius: 999, background: col.color }} />
+            <span style={{ fontFamily: mn, fontSize: 10.5, color: col.color, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{col.key}</span>
             <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 10, color: D.txd }}>{col.tasks.length}</span>
             <TimePill mins={sumMins(col.tasks)} />
           </div>
-          {col.tasks.length === 0 ? (
-            <div style={{ padding: 12, color: D.txd, fontSize: 11.5, fontStyle: "italic", textAlign: "center" }}>—</div>
-          ) : col.tasks.map((t) => <BoardCard key={t.id} task={t} onToggle={() => onToggle(t.id)} />)}
+          {col.tasks.map((t) => <BoardCard key={t.id} task={t} onToggle={() => onToggle(t.id)} />)}
         </div>
       ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CATEGORY VIEW — rich category sections with mini stats
+// ═══════════════════════════════════════════════════════════════════
+
+function CategoryView({ groups, onToggle }: { groups: TaskGroup[]; onToggle: (id: string) => void }) {
+  if (groups.length === 0) {
+    return <EmptyState title="No categories in play" subtitle="Capture a task to start filling categories." />;
+  }
+  const total = groups.reduce((s, g) => s + g.tasks.length, 0);
+  const totalMins = groups.reduce((s, g) => s + sumMins(g.tasks), 0);
+  return (
+    <div>
+      <SectionHeader label="By category" count={total} mins={totalMins} right={`${groups.length} active`} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 14 }}>
+        {groups.map((g) => {
+          const overdue = g.tasks.filter(isOverdue).length;
+          const todayCt = g.tasks.filter(isToday).length;
+          return (
+            <div key={g.key} style={{
+              background: D.card, border: "1px solid " + D.border, borderRadius: 14,
+              overflow: "hidden", display: "flex", flexDirection: "column",
+            }}>
+              <div style={{
+                padding: "14px 16px 12px",
+                borderBottom: "1px solid " + D.border,
+                background: "linear-gradient(180deg, " + g.color + "10, transparent)",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 999, background: g.color }} />
+                  <span style={{ fontFamily: mn, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase", color: g.color, fontWeight: 800 }}>{g.key}</span>
+                  <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 10.5, color: D.txd }}>{g.tasks.length} open</span>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <TimePill mins={sumMins(g.tasks)} />
+                  {overdue > 0 && (
+                    <span style={{ fontSize: 10, color: D.coral, fontFamily: mn, fontWeight: 700, padding: "2px 7px", border: "1px solid " + D.coral + "55", borderRadius: 5 }}>● {overdue} overdue</span>
+                  )}
+                  {todayCt > 0 && (
+                    <span style={{ fontSize: 10, color: D.amber, fontFamily: mn, fontWeight: 700, padding: "2px 7px", border: "1px solid " + D.amber + "55", borderRadius: 5 }}>● {todayCt} today</span>
+                  )}
+                </div>
+              </div>
+              <div style={{ maxHeight: 380, overflowY: "auto" }}>
+                {g.tasks.map((t, i) => (
+                  <QueueRow key={t.id} task={t} last={i === g.tasks.length - 1} onToggle={() => onToggle(t.id)} />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// WEEK VIEW — 7-day columns starting today, tasks stacked per column
+// ═══════════════════════════════════════════════════════════════════
+
+function WeekView({ filteredOpen, onToggle }: { filteredOpen: Task[]; onToggle: (id: string) => void }) {
+  const start = startOfDay(new Date());
+  const days = useMemo(() => {
+    const arr: { date: Date; iso: string; tasks: Task[] }[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start); d.setDate(d.getDate() + i);
+      const iso = isoDate(d);
+      const tasks = filteredOpen.filter((t) => t.dueDate === iso)
+        .sort((a, b) => PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority));
+      arr.push({ date: d, iso, tasks });
+    }
+    return arr;
+  }, [filteredOpen, start]);
+  const overdue = filteredOpen.filter(isOverdue);
+  const todayStr = todayIso();
+
+  return (
+    <div>
+      <SectionHeader label="This week" count={days.reduce((s, d) => s + d.tasks.length, 0)} mins={days.reduce((s, d) => s + sumMins(d.tasks), 0)} right="next 7 days" />
+
+      {overdue.length > 0 && (
+        <div style={{
+          marginBottom: 14, padding: "12px 14px",
+          background: "rgba(224,99,71,0.06)", border: "1px solid rgba(224,99,71,0.30)", borderRadius: 12,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <span style={{ width: 6, height: 6, borderRadius: 999, background: D.coral }} />
+            <span style={{ fontFamily: mn, fontSize: 10.5, letterSpacing: 1.2, color: D.coral, fontWeight: 800, textTransform: "uppercase" }}>Overdue · {overdue.length}</span>
+            <TimePill mins={sumMins(overdue)} />
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {overdue.slice(0, 6).map((t) => (
+              <a key={t.id} href="/board" target="_blank" rel="noopener"
+                style={{
+                  fontSize: 11.5, color: D.tx, textDecoration: "none",
+                  padding: "5px 10px", background: D.surface, border: "1px solid " + D.border, borderRadius: 7,
+                  maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>{t.title}</a>
+            ))}
+            {overdue.length > 6 && <span style={{ fontSize: 11, color: D.txd, alignSelf: "center" }}>+ {overdue.length - 6} more</span>}
+          </div>
+        </div>
+      )}
+
+      <div style={{
+        display: "grid", gridTemplateColumns: "repeat(7, minmax(140px, 1fr))",
+        gap: 8, overflowX: "auto",
+      }}>
+        {days.map((d) => {
+          const isThisDay = d.iso === todayStr;
+          const dow = d.date.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
+          const dn = d.date.getDate();
+          const isWeekend = d.date.getDay() === 0 || d.date.getDay() === 6;
+          return (
+            <div key={d.iso} style={{
+              background: isThisDay ? "rgba(247,176,65,0.06)" : D.card,
+              border: "1px solid " + (isThisDay ? "rgba(247,176,65,0.40)" : D.border),
+              borderRadius: 12, padding: 10, display: "flex", flexDirection: "column", gap: 6,
+              minHeight: 320,
+            }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", paddingBottom: 8, borderBottom: "1px solid " + D.border }}>
+                <span style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: isThisDay ? D.amber : isWeekend ? D.txd : D.txm, letterSpacing: 0.6 }}>{dow}</span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: isThisDay ? D.amber : D.tx }}>{dn}</span>
+              </div>
+              {d.tasks.length === 0 ? (
+                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: D.txd, fontSize: 10.5, fontStyle: "italic" }}>—</div>
+              ) : d.tasks.map((t) => (
+                <a key={t.id} href="/board" target="_blank" rel="noopener" style={{
+                  display: "block", padding: "6px 8px", background: D.surface, border: "1px solid " + D.border,
+                  borderLeft: "3px solid " + (CAT_COLOR[t.category] || D.txd),
+                  borderRadius: 6, textDecoration: "none", color: "inherit",
+                }}>
+                  <div style={{
+                    fontSize: 11.5, fontWeight: 500, color: D.tx, lineHeight: 1.3,
+                    display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+                    textDecoration: t.done ? "line-through" : "none", opacity: t.done ? 0.5 : 1,
+                  }}>{t.title}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 4 }}>
+                    <Avatar name={t.assignee || "Akash"} size={14} />
+                    <span style={{ fontFamily: mn, fontSize: 9, color: PRI_COLOR[t.priority], fontWeight: 700 }}>{t.priority}</span>
+                    <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: D.txd }}>{fmtMins(estOf(t))}</span>
+                    <StatusCircle done={t.done} size={11} onClick={() => onToggle(t.id)} />
+                  </div>
+                </a>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CALENDAR VIEW — month grid (6 rows × 7 cols), tasks chip per day
+// ═══════════════════════════════════════════════════════════════════
+
+function CalendarView({ filteredOpen, onToggle }: { filteredOpen: Task[]; onToggle: (id: string) => void }) {
+  const [cursor, setCursor] = useState(() => {
+    const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d;
+  });
+
+  const monthName = cursor.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const tasksByDate = useMemo(() => {
+    const m: Record<string, Task[]> = {};
+    filteredOpen.forEach((t) => {
+      if (!t.dueDate) return;
+      if (!m[t.dueDate]) m[t.dueDate] = [];
+      m[t.dueDate].push(t);
+    });
+    return m;
+  }, [filteredOpen]);
+
+  // Render a 6×7 grid starting from the Sunday of the week containing day 1
+  const gridStart = useMemo(() => {
+    const d = new Date(cursor);
+    d.setDate(1);
+    d.setDate(d.getDate() - d.getDay());
+    return d;
+  }, [cursor]);
+
+  const cells = useMemo(() => {
+    const arr: { date: Date; iso: string; inMonth: boolean; tasks: Task[] }[] = [];
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(gridStart); d.setDate(d.getDate() + i);
+      const iso = isoDate(d);
+      arr.push({ date: d, iso, inMonth: d.getMonth() === cursor.getMonth(), tasks: tasksByDate[iso] || [] });
+    }
+    return arr;
+  }, [gridStart, cursor, tasksByDate]);
+
+  const todayStr = todayIso();
+  const monthMins = cells.filter((c) => c.inMonth).reduce((s, c) => s + sumMins(c.tasks), 0);
+  const monthCount = cells.filter((c) => c.inMonth).reduce((s, c) => s + c.tasks.length, 0);
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, paddingBottom: 8, borderBottom: "1px solid " + D.border }}>
+        <h2 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>{monthName}</h2>
+        <span style={{ fontFamily: mn, fontSize: 11, color: D.txd }}>{monthCount}</span>
+        {monthMins > 0 && <TimePill mins={monthMins} tone="cool" />}
+        <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+          <CalendarNavBtn label="‹" onClick={() => { const d = new Date(cursor); d.setMonth(d.getMonth() - 1); setCursor(d); }} />
+          <CalendarNavBtn label="Today" onClick={() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); setCursor(d); }} />
+          <CalendarNavBtn label="›" onClick={() => { const d = new Date(cursor); d.setMonth(d.getMonth() + 1); setCursor(d); }} />
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+          <div key={d} style={{ fontFamily: mn, fontSize: 9.5, color: D.txd, letterSpacing: 0.8, textAlign: "center", padding: "4px 0", textTransform: "uppercase", fontWeight: 700 }}>{d}</div>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+        {cells.map((c) => {
+          const isToday = c.iso === todayStr;
+          const overdueHere = c.iso < todayStr;
+          return (
+            <div key={c.iso} style={{
+              minHeight: 96, padding: 6,
+              background: isToday ? "rgba(247,176,65,0.06)" : D.card,
+              border: "1px solid " + (isToday ? "rgba(247,176,65,0.40)" : D.border),
+              borderRadius: 9,
+              opacity: c.inMonth ? 1 : 0.4,
+              display: "flex", flexDirection: "column", gap: 3,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span style={{
+                  fontSize: 11, fontWeight: 700,
+                  color: isToday ? D.amber : c.inMonth ? D.tx : D.txd,
+                }}>{c.date.getDate()}</span>
+                {c.tasks.length > 0 && <span style={{ fontFamily: mn, fontSize: 9, color: overdueHere ? D.coral : D.txd }}>{c.tasks.length}</span>}
+              </div>
+              {c.tasks.slice(0, 3).map((t) => (
+                <a key={t.id} href="/board" target="_blank" rel="noopener" style={{
+                  fontSize: 10, color: D.tx, padding: "2px 5px",
+                  background: D.surface, borderLeft: "2px solid " + (CAT_COLOR[t.category] || D.txd),
+                  borderRadius: 3, textDecoration: "none",
+                  display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  textDecorationLine: t.done ? "line-through" : "none",
+                  opacity: t.done ? 0.5 : 1,
+                }} onClick={(e) => { if ((e.target as HTMLElement).tagName === "INPUT") { e.preventDefault(); onToggle(t.id); } }}>{t.title}</a>
+              ))}
+              {c.tasks.length > 3 && <span style={{ fontFamily: mn, fontSize: 9, color: D.txd }}>+{c.tasks.length - 3} more</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CalendarNavBtn({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: "5px 10px", background: D.surface, border: "1px solid " + D.border,
+      color: D.txm, fontFamily: ft, fontSize: 11, fontWeight: 600, borderRadius: 7, cursor: "pointer",
+    }}>{label}</button>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FOCUS VIEW — single big card, paginate through hot seat then queue
+// ═══════════════════════════════════════════════════════════════════
+
+function FocusViewBlock({ tasks, index, setIndex, onToggle }: {
+  tasks: Task[]; index: number; setIndex: (n: number) => void; onToggle: (id: string) => void;
+}) {
+  if (tasks.length === 0) {
+    return <EmptyState title="Inbox zero" subtitle="No open tasks to focus on. Treat yourself." />;
+  }
+  const idx = Math.max(0, Math.min(index, tasks.length - 1));
+  const t = tasks[idx];
+  const overdue = isOverdue(t);
+  const due = dueLabel(t.dueDate);
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <h2 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>Focus</h2>
+        <span style={{ fontFamily: mn, fontSize: 11, color: D.txd }}>{idx + 1} of {tasks.length}</span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+          <CalendarNavBtn label="‹ Prev" onClick={() => setIndex(Math.max(0, idx - 1))} />
+          <CalendarNavBtn label="Next ›" onClick={() => setIndex(Math.min(tasks.length - 1, idx + 1))} />
+        </div>
+      </div>
+
+      <div style={{
+        position: "relative", padding: "32px 36px",
+        background: D.card,
+        border: "1px solid " + (overdue ? "rgba(224,99,71,0.40)" : D.border),
+        borderRadius: 18,
+        boxShadow: "0 12px 36px rgba(0,0,0,0.25)",
+      }}>
+        <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 5, background: CAT_COLOR[t.category] || D.txd, borderRadius: "5px 0 0 5px" }} />
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+          <span style={{ fontFamily: mn, fontSize: 11, color: CAT_COLOR[t.category] || D.txd, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase" }}>{t.category}</span>
+          <span style={{ fontFamily: mn, fontSize: 11, color: PRI_COLOR[t.priority], fontWeight: 700, padding: "3px 9px", border: "1px solid " + PRI_COLOR[t.priority] + "55", borderRadius: 6 }}>{t.priority}</span>
+          {overdue && <span style={{ fontFamily: mn, fontSize: 11, color: D.coral, fontWeight: 700 }}>● {due.toUpperCase()}</span>}
+          <div style={{ marginLeft: "auto" }}>
+            <TimePill mins={estOf(t)} tone="warm" />
+          </div>
+        </div>
+
+        <h1 style={{
+          fontSize: 28, fontWeight: 800, letterSpacing: -0.6, margin: 0, lineHeight: 1.2,
+          color: D.tx, marginBottom: 14,
+          textDecoration: t.done ? "line-through" : "none", opacity: t.done ? 0.5 : 1,
+        }}>{t.title}</h1>
+
+        {t.description && (
+          <div style={{ fontSize: 13.5, color: D.txm, lineHeight: 1.55, marginBottom: 16, whiteSpace: "pre-wrap" }}>{t.description}</div>
+        )}
+
+        {t.subtasks && t.subtasks.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 10, color: D.txd, letterSpacing: 0.8, fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Subtasks · {t.subtasks.filter((s) => s.done).length}/{t.subtasks.length}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {t.subtasks.map((s) => (
+                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
+                  <StatusCircle done={s.done} size={12} />
+                  <span style={{ fontSize: 13, color: D.tx, textDecoration: s.done ? "line-through" : "none", opacity: s.done ? 0.5 : 1 }}>{s.title}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 16, borderTop: "1px solid " + D.border }}>
+          <Avatar name={t.assignee || "Akash"} size={26} />
+          <div>
+            <div style={{ fontSize: 12, color: D.tx, fontWeight: 600 }}>{t.assignee || "Akash"}</div>
+            <div style={{ fontSize: 11, color: D.txd, fontFamily: mn }}>{due}</div>
+          </div>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+            <button
+              onClick={() => onToggle(t.id)}
+              style={{
+                padding: "9px 16px",
+                background: t.done ? D.surface : "linear-gradient(135deg, " + D.teal + ", " + D.cyan + ")",
+                border: t.done ? "1px solid " + D.border : "none",
+                color: t.done ? D.txm : "#0A0A0F",
+                fontFamily: ft, fontSize: 12.5, fontWeight: 700, borderRadius: 9, cursor: "pointer",
+              }}
+            >{t.done ? "Reopen" : "✓ Mark done"}</button>
+            <a href="/board" target="_blank" rel="noopener" style={{
+              padding: "9px 16px", background: "transparent", border: "1px solid " + D.border,
+              color: D.txm, fontFamily: ft, fontSize: 12.5, fontWeight: 600, borderRadius: 9, textDecoration: "none",
+            }}>Open in Studio ↗</a>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -893,14 +1336,15 @@ function BoardCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
   );
 }
 
-function AllOpenView({ queueGroups, totalQueue, onToggle }: {
-  queueGroups: { key: Priority; tasks: Task[] }[];
+function AllOpenView({ queueGroups, totalQueue, groupBy, onToggle }: {
+  queueGroups: TaskGroup[];
   totalQueue: { n: number; mins: number };
+  groupBy: GroupBy;
   onToggle: (id: string) => void;
 }) {
   return (
     <div>
-      <SectionHeader label="All open" count={totalQueue.n} mins={totalQueue.mins} right="grouped by priority" />
+      <SectionHeader label="All open" count={totalQueue.n} mins={totalQueue.mins} right={"grouped by " + groupBy} />
       <QueueGrouped groups={queueGroups} onToggle={onToggle} />
     </div>
   );
@@ -923,19 +1367,19 @@ function DoneView({ tasks, onToggle }: { tasks: Task[]; onToggle: (id: string) =
   );
 }
 
-function QueueGrouped({ groups, onToggle }: { groups: { key: Priority; tasks: Task[] }[]; onToggle: (id: string) => void }) {
+function QueueGrouped({ groups, onToggle }: { groups: TaskGroup[]; onToggle: (id: string) => void }) {
   if (groups.length === 0) {
     return <EmptyState title="Queue is empty" subtitle="Capture a task above, or open Studio to plan." />;
   }
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      {groups.map(({ key, tasks }) => {
+      {groups.map(({ key, color, tasks }) => {
         const groupMins = sumMins(tasks);
         return (
           <div key={key}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-              <span style={{ width: 8, height: 8, borderRadius: 999, background: PRI_COLOR[key] }} />
-              <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, textTransform: "uppercase", color: PRI_COLOR[key], fontWeight: 700 }}>{key}</span>
+              <span style={{ width: 8, height: 8, borderRadius: 999, background: color }} />
+              <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, textTransform: "uppercase", color, fontWeight: 700 }}>{key}</span>
               <span style={{ fontFamily: mn, fontSize: 10, color: D.txd }}>{tasks.length}</span>
               <TimePill mins={groupMins} />
             </div>
