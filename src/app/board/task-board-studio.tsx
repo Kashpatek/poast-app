@@ -727,7 +727,7 @@ function HotSeatCard({ task, onToggle, onEdit }: { task: Task; onToggle: () => v
         borderRadius: 14, cursor: "pointer", overflow: "hidden",
         transition: "transform 0.15s, border-color 0.15s",
       }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = D.borderStrong || "rgba(255,255,255,0.10)"; }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = D.hover; }}
       onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = overdue ? "rgba(224,99,71,0.30)" : D.border; }}
     >
       <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: CAT_COLOR[task.category] || D.txd }} />
