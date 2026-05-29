@@ -344,9 +344,10 @@ export default function TaskBoardStudio() {
     return allTasks.filter((t) => {
       if (view === "done") { if (!t.done) return false; }
       else { if (t.done) return false; }
-      if (view === "today") {
-        if (!isToday(t) && !isOverdue(t)) return false;
-      } else if (view === "upcoming") {
+      // "today" view = all open tasks; the Hot Seat block above the
+      // Queue picks out today + overdue, the Queue shows everything
+      // else so nothing is hidden by scrolling.
+      if (view === "upcoming") {
         if (!t.dueDate || isOverdue(t)) return false;
       }
       if (catFilter && t.category !== catFilter) return false;
