@@ -84,6 +84,8 @@ interface DragCtxValue {
   selectedIds: Set<string>;
   toggleSelected: (id: string) => void;
   openFocus: (t: Task) => void;
+  openEdit: (t: Task) => void;
+  removeTask: (id: string) => void;
 }
 const DragCtx = React.createContext<DragCtxValue | null>(null);
 function useDrag(): DragCtxValue {
@@ -370,10 +372,12 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [focusTask, setFocusTask] = useState<Task | null>(null);
+  const [editTaskId, setEditTaskId] = useState<string | null>(null);
   const [activityOpen, setActivityOpen] = useState(false);
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [narrow, setNarrow] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   // undo stack — last 20 archive snapshots
   const undoStackRef = useRef<BoardArchive[]>([]);
@@ -491,6 +495,13 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
       { action: key, label: (t?.title || "task") + " → " + Object.values(patch).join(", "), taskId: id },
     );
   }
+  function removeTask(id: string) {
+    const t = allTasks.find((x) => x.id === id);
+    updateActiveBoard(
+      (b) => ({ ...b, tasks: b.tasks.filter((x) => x.id !== id) }),
+      { action: "delete", label: t?.title || "task", taskId: id },
+    );
+  }
   function toggleCombine(id: string) {
     setCombineIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
   }
@@ -545,6 +556,8 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
     selectedIds,
     toggleSelected,
     openFocus: setFocusTask,
+    openEdit: (t: Task) => setEditTaskId(t.id),
+    removeTask,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [draggingId, combineIds, selectedIds]);
 
@@ -573,6 +586,8 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
         return;
       }
       if (e.key === "Escape") {
+        if (shortcutsOpen) { setShortcutsOpen(false); return; }
+        if (editTaskId) { setEditTaskId(null); return; }
         if (focusTask) { setFocusTask(null); return; }
         if (paletteOpen) { setPaletteOpen(false); return; }
         if (activityOpen) { setActivityOpen(false); return; }
@@ -580,6 +595,11 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
         if (combineModalOpen) { setCombineModalOpen(false); return; }
         if (combineIds.length > 0) { clearCombine(); return; }
         if (selectedIds.size > 0) { clearSelection(); return; }
+      }
+      if (!typing && e.key === "?" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setShortcutsOpen((o) => !o);
+        return;
       }
       if (!typing && e.key === "f" && !e.metaKey && !e.ctrlKey && !e.altKey && !focusTask && !paletteOpen) {
         const first = openTasks[0];
@@ -589,7 +609,7 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusTask, paletteOpen, activityOpen, sidebarOpen, combineModalOpen, combineIds.length, selectedIds, openTasks]);
+  }, [focusTask, paletteOpen, activityOpen, sidebarOpen, combineModalOpen, combineIds.length, selectedIds, openTasks, shortcutsOpen, editTaskId]);
 
   function submitQuickAdd() {
     const txt = quickAdd.trim();
@@ -807,6 +827,19 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
                 cursor: "pointer", letterSpacing: 0.4,
               }}
             >⌘K</button>
+            {!narrow && (
+              <button
+                onClick={() => setShortcutsOpen(true)}
+                title="Keyboard shortcuts (?)"
+                style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  width: 32, height: 32,
+                  background: D.surface, border: "1px solid " + D.border,
+                  color: D.txm, borderRadius: 10, fontFamily: mn, fontSize: 13, fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >?</button>
+            )}
             <button
               onClick={() => setPlannerOpen((o) => !o)}
               title="Daily planner"
@@ -1181,6 +1214,25 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
           }}
           onPatch={(p) => applyPatch(focusTask.id, p)}
         />
+      )}
+
+      {editTaskId && (() => {
+        const task = allTasks.find((t) => t.id === editTaskId);
+        if (!task) return null;
+        return (
+          <EditDrawer
+            task={task}
+            onClose={() => setEditTaskId(null)}
+            onPatch={(p) => applyPatch(task.id, p)}
+            onDelete={() => { removeTask(task.id); setEditTaskId(null); }}
+            onFocus={() => { setFocusTask(task); setEditTaskId(null); }}
+            onToggleDone={() => toggleDone(task.id)}
+          />
+        );
+      })()}
+
+      {shortcutsOpen && (
+        <ShortcutsOverlay onClose={() => setShortcutsOpen(false)} />
       )}
 
       {activityOpen && (
@@ -2158,25 +2210,27 @@ function HotSeatCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
   const cColor = CAT_COLOR[task.category] || D.txd;
   const subDone = task.subtasks?.filter((s) => s.done).length || 0;
   const subTotal = task.subtasks?.length || 0;
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.shiftKey) { e.preventDefault(); drag.toggleSelected(task.id); return; }
     if (e.metaKey || e.ctrlKey || e.altKey) {
       e.preventDefault();
       drag.toggleCombine(task.id);
+      return;
     }
+    drag.openEdit(task);
   };
-  const handleDouble = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleDouble = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     drag.openFocus(task);
   };
   return (
-    <a
-      href="/board"
-      target="_blank"
-      rel="noopener"
+    <div
+      role="button"
+      tabIndex={0}
       draggable
       onClick={handleClick}
       onDoubleClick={handleDouble}
+      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); drag.openEdit(task); } }}
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", task.id);
         e.dataTransfer.effectAllowed = "move";
@@ -2225,7 +2279,7 @@ function HotSeatCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
           letterSpacing: 0.5, textTransform: "uppercase",
         }}>{task.priority}</span>
       </div>
-    </a>
+    </div>
   );
 }
 
@@ -2246,25 +2300,27 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
   const isDragging = drag.draggingId === task.id;
   const isCombined = drag.combineIds.includes(task.id);
   const isSelected = drag.selectedIds.has(task.id);
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.shiftKey) { e.preventDefault(); drag.toggleSelected(task.id); return; }
     if (e.metaKey || e.ctrlKey || e.altKey) {
       e.preventDefault();
       drag.toggleCombine(task.id);
+      return;
     }
+    drag.openEdit(task);
   };
-  const handleDouble = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleDouble = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     drag.openFocus(task);
   };
   return (
-    <a
-      href="/board"
-      target="_blank"
-      rel="noopener"
+    <div
+      role="button"
+      tabIndex={0}
       draggable
       onClick={handleClick}
       onDoubleClick={handleDouble}
+      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); drag.openEdit(task); } }}
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", task.id);
         e.dataTransfer.effectAllowed = "move";
@@ -2335,7 +2391,7 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
         border: "1px solid " + pColor + "55", borderRadius: 5,
         whiteSpace: "nowrap", letterSpacing: 0.5, textTransform: "uppercase",
       }}>{task.priority}</span>
-    </a>
+    </div>
   );
 }
 
@@ -3455,6 +3511,535 @@ function PlannerHourBlock({ hour, tasks, onToggle }: {
         )}
       </div>
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// EDIT DRAWER — right-side slide-in task detail panel
+// ═══════════════════════════════════════════════════════════════════
+// Replaces the old "click row → opens /board in a new tab" hop. Plane /
+// Linear / Height all use a right-side drawer for fast in-context edits
+// while keeping the board visible behind it. Auto-saves on blur.
+
+function EditDrawer({
+  task, onClose, onPatch, onDelete, onFocus, onToggleDone,
+}: {
+  task: Task;
+  onClose: () => void;
+  onPatch: (patch: Partial<Task>) => void;
+  onDelete: () => void;
+  onFocus: () => void;
+  onToggleDone: () => void;
+}) {
+  const [title, setTitle] = useState(task.title);
+  const [description, setDescription] = useState(task.description || "");
+  const [newSubtask, setNewSubtask] = useState("");
+  const pColor = PRI_COLOR[task.priority] || D.txd;
+  const cColor = CAT_COLOR[task.category] || D.txd;
+  const aColor = ASSIGNEE_COLOR[task.assignee || "Unassigned"] || D.txd;
+  const subtasks = task.subtasks || [];
+  const doneSubs = subtasks.filter((s) => s.done).length;
+
+  // re-sync local fields when navigating to a different task in the drawer
+  useEffect(() => {
+    setTitle(task.title);
+    setDescription(task.description || "");
+  }, [task.id, task.title, task.description]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tgt = e.target as HTMLElement | null;
+      const typing = tgt && (tgt.tagName === "INPUT" || tgt.tagName === "TEXTAREA" || tgt.isContentEditable);
+      if (e.key === "Escape" && !typing) { e.preventDefault(); onClose(); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function commitTitle() {
+    const next = title.trim();
+    if (next && next !== task.title) onPatch({ title: next });
+    else if (!next) setTitle(task.title);
+  }
+  function commitDescription() {
+    if ((description || "") !== (task.description || "")) {
+      onPatch({ description: description.trim() || undefined });
+    }
+  }
+  function toggleSub(idx: number) {
+    const next = subtasks.map((s, i) => i === idx ? { ...s, done: !s.done } : s);
+    onPatch({ subtasks: next });
+  }
+  function deleteSub(idx: number) {
+    const next = subtasks.filter((_, i) => i !== idx);
+    onPatch({ subtasks: next });
+  }
+  function addSub() {
+    const txt = newSubtask.trim();
+    if (!txt) return;
+    const next = [
+      ...subtasks,
+      { id: "s-" + Date.now() + "-" + Math.random().toString(36).slice(2, 5), title: txt },
+    ];
+    onPatch({ subtasks: next });
+    setNewSubtask("");
+  }
+
+  if (typeof window === "undefined") return null;
+
+  return createPortal(
+    <>
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed", inset: 0, zIndex: 9500,
+          background: "rgba(0,0,0,0.45)", backdropFilter: "blur(2px)",
+          animation: "tbDrawerFade 0.18s ease-out",
+        }}
+      />
+      <div
+        style={{
+          position: "fixed", top: 0, right: 0, bottom: 0,
+          width: "min(520px, 100vw)", zIndex: 9600,
+          background: D.bg, borderLeft: "1px solid " + D.border,
+          boxShadow: "-22px 0 50px rgba(0,0,0,0.55)",
+          display: "flex", flexDirection: "column",
+          fontFamily: ft,
+          animation: "tbDrawerSlide 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
+        }}
+      >
+        <style>{`
+          @keyframes tbDrawerSlide { from { transform: translateX(100%); } to { transform: translateX(0); } }
+          @keyframes tbDrawerFade { from { opacity: 0; } to { opacity: 1; } }
+        `}</style>
+
+        {/* Header */}
+        <div style={{
+          padding: "14px 18px",
+          borderBottom: "1px solid " + D.border,
+          display: "flex", alignItems: "center", gap: 10,
+        }}>
+          <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 1.4, fontWeight: 700, textTransform: "uppercase" }}>
+            Task · <span style={{ color: cColor }}>{task.category}</span>
+          </div>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+            <button
+              type="button"
+              onClick={onFocus}
+              title="Open in Focus mode"
+              style={{
+                padding: "5px 10px", background: D.amber + "18",
+                border: "1px solid " + D.amber + "55", color: D.amber,
+                fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.6,
+                borderRadius: 6, cursor: "pointer",
+              }}
+            >◎ Focus</button>
+            <button
+              type="button"
+              onClick={onClose}
+              title="Close (Esc)"
+              style={{
+                background: "transparent", border: "1px solid " + D.border,
+                color: D.txm, padding: "5px 12px", borderRadius: 6,
+                fontFamily: mn, fontSize: 10, cursor: "pointer", letterSpacing: 0.6,
+              }}
+            >Esc · close</button>
+          </div>
+        </div>
+
+        {/* Scrollable body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "18px 22px", display: "flex", flexDirection: "column", gap: 18 }}>
+          {/* Title + done toggle */}
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <button
+              type="button"
+              onClick={onToggleDone}
+              title={task.done ? "Reopen" : "Mark done"}
+              style={{
+                marginTop: 5, width: 22, height: 22, flexShrink: 0,
+                background: task.done ? D.teal : "transparent",
+                border: "1.5px solid " + (task.done ? D.teal : D.border),
+                borderRadius: 6, cursor: "pointer",
+                color: "#060608", fontFamily: mn, fontSize: 12, fontWeight: 900,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+            >{task.done ? "✓" : ""}</button>
+            <textarea
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={commitTitle}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  (e.target as HTMLTextAreaElement).blur();
+                }
+              }}
+              rows={1}
+              style={{
+                flex: 1, resize: "none",
+                background: "transparent", border: "none", outline: "none",
+                color: D.tx, fontFamily: gf, fontWeight: 900,
+                fontSize: 24, lineHeight: 1.22, letterSpacing: -0.6,
+                padding: 0, textDecoration: task.done ? "line-through" : "none",
+                opacity: task.done ? 0.55 : 1,
+              }}
+            />
+          </div>
+
+          {/* Meta chips row */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <DrawerField label="Priority">
+              <select
+                value={task.priority}
+                onChange={(e) => onPatch({ priority: e.target.value as Priority })}
+                style={{
+                  ...drawerSelectStyle,
+                  color: pColor,
+                  borderColor: pColor + "55",
+                  background: pColor + "12",
+                }}
+              >
+                {PRIORITY_ORDER.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </DrawerField>
+            <DrawerField label="Category">
+              <select
+                value={task.category}
+                onChange={(e) => onPatch({ category: e.target.value })}
+                style={{
+                  ...drawerSelectStyle,
+                  color: cColor,
+                  borderColor: cColor + "55",
+                  background: cColor + "12",
+                }}
+              >
+                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </DrawerField>
+            <DrawerField label="Assignee">
+              <select
+                value={task.assignee || "Unassigned"}
+                onChange={(e) => onPatch({ assignee: e.target.value })}
+                style={{
+                  ...drawerSelectStyle,
+                  color: aColor,
+                  borderColor: aColor + "55",
+                  background: aColor + "12",
+                }}
+              >
+                {ASSIGNEES.map((a) => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </DrawerField>
+            <DrawerField label="Due date">
+              <input
+                type="date"
+                value={task.dueDate || ""}
+                onChange={(e) => onPatch({ dueDate: e.target.value || undefined })}
+                style={drawerSelectStyle}
+              />
+            </DrawerField>
+            <DrawerField label="Estimate (min)">
+              <input
+                type="number"
+                min={0}
+                step={15}
+                value={task.estimateMins ?? 0}
+                onChange={(e) => onPatch({ estimateMins: Number(e.target.value) || undefined })}
+                style={drawerSelectStyle}
+              />
+            </DrawerField>
+            <DrawerField label="Quick due">
+              <div style={{ display: "flex", gap: 4 }}>
+                {[
+                  { l: "Today", iso: todayIso() },
+                  { l: "Tmrw", iso: isoDate(new Date(Date.now() + 86400000)) },
+                  { l: "Wk+", iso: isoDate(new Date(Date.now() + 7 * 86400000)) },
+                ].map((q) => (
+                  <button
+                    key={q.l}
+                    type="button"
+                    onClick={() => onPatch({ dueDate: q.iso })}
+                    style={{
+                      flex: 1, padding: "6px 4px",
+                      background: task.dueDate === q.iso ? D.amber + "22" : D.surface,
+                      border: "1px solid " + (task.dueDate === q.iso ? D.amber : D.border),
+                      color: task.dueDate === q.iso ? D.amber : D.txm,
+                      fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+                      borderRadius: 6, cursor: "pointer",
+                    }}
+                  >{q.l}</button>
+                ))}
+              </div>
+            </DrawerField>
+          </div>
+
+          {/* Description */}
+          <DrawerField label="Notes">
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              onBlur={commitDescription}
+              placeholder="Context, links, acceptance criteria…"
+              rows={4}
+              style={{
+                width: "100%", padding: "10px 12px",
+                background: D.surface, border: "1px solid " + D.border, borderRadius: 8,
+                color: D.tx, fontFamily: ft, fontSize: 13, outline: "none",
+                resize: "vertical", minHeight: 80, lineHeight: 1.5,
+              }}
+            />
+          </DrawerField>
+
+          {/* Subtasks */}
+          <DrawerField label={`Subtasks${subtasks.length ? ` · ${doneSubs}/${subtasks.length}` : ""}`}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {subtasks.map((s, i) => (
+                <div
+                  key={s.id}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "7px 10px",
+                    background: D.surface, border: "1px solid " + D.border,
+                    borderRadius: 7,
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleSub(i)}
+                    style={{
+                      width: 16, height: 16, flexShrink: 0,
+                      background: s.done ? D.teal : "transparent",
+                      border: "1.5px solid " + (s.done ? D.teal : D.border),
+                      borderRadius: 4, cursor: "pointer",
+                      color: "#060608", fontFamily: mn, fontSize: 10, fontWeight: 900,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}
+                  >{s.done ? "✓" : ""}</button>
+                  <span style={{
+                    flex: 1, fontFamily: ft, fontSize: 13, color: D.tx,
+                    textDecoration: s.done ? "line-through" : "none",
+                    opacity: s.done ? 0.55 : 1,
+                  }}>{s.title}</span>
+                  <button
+                    type="button"
+                    onClick={() => deleteSub(i)}
+                    title="Remove subtask"
+                    style={{
+                      background: "transparent", border: "none",
+                      color: D.txd, padding: 2, cursor: "pointer",
+                      fontFamily: mn, fontSize: 13, fontWeight: 700,
+                    }}
+                  >×</button>
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: 6 }}>
+                <input
+                  value={newSubtask}
+                  onChange={(e) => setNewSubtask(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSub(); } }}
+                  placeholder="+ subtask…"
+                  style={{
+                    flex: 1, padding: "7px 10px",
+                    background: D.surface, border: "1px dashed " + D.border, borderRadius: 7,
+                    color: D.tx, fontFamily: ft, fontSize: 13, outline: "none",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={addSub}
+                  disabled={!newSubtask.trim()}
+                  style={{
+                    padding: "7px 12px",
+                    background: newSubtask.trim() ? D.amber + "22" : D.surface,
+                    border: "1px solid " + (newSubtask.trim() ? D.amber + "55" : D.border),
+                    color: newSubtask.trim() ? D.amber : D.txd,
+                    fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.6,
+                    borderRadius: 6, cursor: newSubtask.trim() ? "pointer" : "not-allowed",
+                  }}
+                >ADD</button>
+              </div>
+            </div>
+          </DrawerField>
+
+          {/* Metadata footer */}
+          <div style={{
+            fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.4,
+            display: "flex", flexDirection: "column", gap: 3,
+            padding: "10px 0 0", borderTop: "1px solid " + D.border,
+          }}>
+            <span>Added {new Date(task.addedAt).toLocaleString()}</span>
+            {task.updatedAt && <span>Updated {new Date(task.updatedAt).toLocaleString()}</span>}
+            {task.source && <span>Source · {task.source}</span>}
+          </div>
+        </div>
+
+        {/* Footer actions */}
+        <div style={{
+          padding: "12px 18px", borderTop: "1px solid " + D.border,
+          display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+        }}>
+          <button
+            type="button"
+            onClick={onDelete}
+            style={{
+              padding: "8px 14px",
+              background: "transparent", border: "1px solid " + D.coral + "55",
+              color: D.coral, fontFamily: mn, fontSize: 11, fontWeight: 700, letterSpacing: 0.6,
+              borderRadius: 7, cursor: "pointer",
+            }}
+          >⌫ Delete</button>
+          <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.4 }}>
+            Auto-saved · {task.priority}
+          </div>
+        </div>
+      </div>
+    </>,
+    document.body,
+  );
+}
+
+const drawerSelectStyle: React.CSSProperties = {
+  width: "100%", padding: "8px 10px",
+  background: D.surface, border: "1px solid " + D.border, borderRadius: 7,
+  color: D.tx, fontFamily: mn, fontSize: 11, fontWeight: 700, letterSpacing: 0.4,
+  textTransform: "uppercase", outline: "none", cursor: "pointer",
+};
+
+function DrawerField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label style={{ display: "block" }}>
+      <div style={{
+        fontFamily: mn, fontSize: 9.5, color: D.txd, letterSpacing: 0.8,
+        fontWeight: 700, textTransform: "uppercase", marginBottom: 5,
+      }}>{label}</div>
+      {children}
+    </label>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SHORTCUTS OVERLAY — ? to view all keyboard shortcuts
+// ═══════════════════════════════════════════════════════════════════
+
+function ShortcutsOverlay({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" || e.key === "?") { e.preventDefault(); onClose(); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const groups: { title: string; rows: { keys: string[]; label: string }[] }[] = [
+    {
+      title: "Navigation",
+      rows: [
+        { keys: ["⌘", "K"], label: "Command palette" },
+        { keys: ["?"], label: "This shortcuts panel" },
+        { keys: ["Esc"], label: "Close any overlay" },
+      ],
+    },
+    {
+      title: "Tasks",
+      rows: [
+        { keys: ["Click row"], label: "Open task drawer" },
+        { keys: ["Double-click"], label: "Focus mode" },
+        { keys: ["Shift", "Click"], label: "Bulk-select" },
+        { keys: ["⌘", "Click"], label: "Add to combine bucket" },
+        { keys: ["F"], label: "Focus current task" },
+      ],
+    },
+    {
+      title: "Editing",
+      rows: [
+        { keys: ["⌘", "Z"], label: "Undo last change" },
+        { keys: ["⌘", "Enter"], label: "Submit modal" },
+        { keys: ["Space"], label: "Focus mode · play/pause timer" },
+        { keys: ["Enter"], label: "Focus mode · mark done & next" },
+      ],
+    },
+  ];
+
+  if (typeof window === "undefined") return null;
+  return createPortal(
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 13000,
+        background: "rgba(6,6,12,0.78)", backdropFilter: "blur(8px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 24, fontFamily: ft,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "min(560px, 100%)", maxHeight: "86vh", overflowY: "auto",
+          background: D.bg, border: "1px solid " + D.border, borderRadius: 16,
+          boxShadow: "0 24px 60px rgba(0,0,0,0.55)",
+          padding: "22px 24px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+          <div>
+            <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 1.4, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>
+              Keyboard shortcuts
+            </div>
+            <h3 style={{ fontSize: 20, fontWeight: 800, margin: 0, color: D.tx, fontFamily: gf, letterSpacing: -0.4 }}>
+              Move at terminal speed
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: "transparent", border: "1px solid " + D.border,
+              color: D.txm, padding: "5px 12px", borderRadius: 6,
+              fontFamily: mn, fontSize: 10, cursor: "pointer", letterSpacing: 0.6,
+            }}
+          >Esc · close</button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {groups.map((g) => (
+            <div key={g.title}>
+              <div style={{
+                fontFamily: mn, fontSize: 9.5, color: D.txd, letterSpacing: 0.8,
+                fontWeight: 700, textTransform: "uppercase", marginBottom: 8,
+              }}>{g.title}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {g.rows.map((r, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "7px 10px",
+                      background: D.surface, border: "1px solid " + D.border, borderRadius: 7,
+                    }}
+                  >
+                    <span style={{ fontFamily: ft, fontSize: 13, color: D.tx }}>{r.label}</span>
+                    <span style={{ display: "flex", gap: 4 }}>
+                      {r.keys.map((k, j) => (
+                        <kbd
+                          key={j}
+                          style={{
+                            padding: "3px 8px", background: D.bg,
+                            border: "1px solid " + D.border, borderRadius: 5,
+                            fontFamily: mn, fontSize: 10, fontWeight: 700,
+                            color: D.amber, letterSpacing: 0.4,
+                          }}
+                        >{k}</kbd>
+                      ))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
