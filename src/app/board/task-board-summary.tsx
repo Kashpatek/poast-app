@@ -3955,25 +3955,48 @@ function EditDrawer({
             </DrawerField>
             <DrawerField label="Quick due">
               <div style={{ display: "flex", gap: 4 }}>
-                {[
-                  { l: "Today", iso: todayIso() },
-                  { l: "Tmrw", iso: isoDate(new Date(Date.now() + 86400000)) },
-                  { l: "Wk+", iso: isoDate(new Date(Date.now() + 7 * 86400000)) },
-                ].map((q) => (
+                {(() => {
+                  // Next Monday: 7 days from now if today is Mon, else days until next Mon.
+                  const now = new Date();
+                  const dow = now.getDay(); // 0=Sun, 1=Mon, …
+                  const daysToMon = ((1 - dow + 7) % 7) || 7;
+                  const monIso = isoDate(new Date(Date.now() + daysToMon * 86400000));
+                  return [
+                    { l: "Today", iso: todayIso() },
+                    { l: "Tmrw", iso: isoDate(new Date(Date.now() + 86400000)) },
+                    { l: "Mon", iso: monIso },
+                    { l: "Wk+", iso: isoDate(new Date(Date.now() + 7 * 86400000)) },
+                  ].map((q) => (
+                    <button
+                      key={q.l}
+                      type="button"
+                      onClick={() => onPatch({ dueDate: q.iso })}
+                      style={{
+                        flex: 1, padding: "6px 4px",
+                        background: task.dueDate === q.iso ? D.amber + "22" : D.surface,
+                        border: "1px solid " + (task.dueDate === q.iso ? D.amber : D.border),
+                        color: task.dueDate === q.iso ? D.amber : D.txm,
+                        fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+                        borderRadius: 6, cursor: "pointer",
+                      }}
+                    >{q.l}</button>
+                  ));
+                })()}
+                {task.dueDate && (
                   <button
-                    key={q.l}
                     type="button"
-                    onClick={() => onPatch({ dueDate: q.iso })}
+                    onClick={() => onPatch({ dueDate: undefined })}
+                    title="Clear due date"
                     style={{
-                      flex: 1, padding: "6px 4px",
-                      background: task.dueDate === q.iso ? D.amber + "22" : D.surface,
-                      border: "1px solid " + (task.dueDate === q.iso ? D.amber : D.border),
-                      color: task.dueDate === q.iso ? D.amber : D.txm,
-                      fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+                      flex: "0 0 32px", padding: "6px 4px",
+                      background: "transparent",
+                      border: "1px solid " + D.border,
+                      color: D.txd,
+                      fontFamily: mn, fontSize: 11, fontWeight: 700,
                       borderRadius: 6, cursor: "pointer",
                     }}
-                  >{q.l}</button>
-                ))}
+                  >×</button>
+                )}
               </div>
             </DrawerField>
           </div>
