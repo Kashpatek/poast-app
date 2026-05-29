@@ -8,6 +8,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { D, ft, gf, mn } from "./shared-constants";
 import { useUser } from "./user-context";
+import { confirmDialog } from "./dialog-context";
 
 interface ReviewItem {
   id: string;
@@ -73,7 +74,14 @@ export default function ApprovalQueue() {
   }
 
   async function remove(id: string) {
-    if (!confirm("Remove this from the queue?")) return;
+    const target = items.find((i) => i.id === id);
+    const ok = await confirmDialog({
+      title: "Remove from queue?",
+      body: target ? `"${target.title}" will be removed for everyone.` : "This will be removed for everyone.",
+      cta: "Remove",
+      variant: "danger",
+    });
+    if (!ok) return;
     await persist(items.filter((i) => i.id !== id));
   }
 

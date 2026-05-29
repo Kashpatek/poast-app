@@ -9,6 +9,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { D, ft, mn, getPreferredProvider, setPreferredProvider, type LLMProviderName } from "../shared-constants";
 import { useToast } from "../toast-context";
+import { confirmDialog } from "../dialog-context";
 import type { LLMProvider } from "@/lib/llm-provider";
 import { TONE_LABELS, type Voice, type VoiceTone, type VoiceExample, type VoicesArchive, defaultArchive } from "@/lib/brand-voice";
 import { VoiceLab } from "./voice-lab";
@@ -261,10 +262,16 @@ function VoiceTuner({ onToast }: { onToast: (m: string) => void }) {
     setDirty(true);
   }
 
-  function deleteVoice() {
+  async function deleteVoice() {
     if (!activeVoice) return;
     if (archive.voices.length === 1) { onToast("You need at least one voice."); return; }
-    if (!confirm(`Delete "${activeVoice.name}"?`)) return;
+    const ok = await confirmDialog({
+      title: "Delete voice?",
+      body: `"${activeVoice.name}" and all of its tuning data will be removed.`,
+      cta: "Delete voice",
+      variant: "danger",
+    });
+    if (!ok) return;
     setArchive((cur) => {
       const next = cur.voices.filter((v) => v.id !== activeId);
       const def = cur.defaultId === activeId ? next[0].id : cur.defaultId;

@@ -8,6 +8,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { D, ft, gf, mn } from "./shared-constants";
 import { useUser } from "./user-context";
+import { confirmDialog } from "./dialog-context";
 
 interface SavedPrompt {
   id: string;
@@ -84,7 +85,14 @@ export default function SavedPromptsLibrary() {
   }
 
   async function remove(id: string) {
-    if (!confirm("Remove this prompt? This affects the whole team.")) return;
+    const target = prompts.find((p) => p.id === id);
+    const ok = await confirmDialog({
+      title: "Remove prompt?",
+      body: target ? `"${target.name}" affects the whole team — it will be gone for everyone.` : "This affects the whole team.",
+      cta: "Remove",
+      variant: "danger",
+    });
+    if (!ok) return;
     await persist(prompts.filter((p) => p.id !== id));
   }
 

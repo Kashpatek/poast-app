@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo, Fragment } from "react";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 import { useUser } from "./user-context";
+import { confirmDialog } from "./dialog-context";
 
 // ═══ DOCX HELPERS ═══
 async function downloadDocx(title: string, body: string, filename: string) {
@@ -293,7 +294,7 @@ export default function GTCFlow(){
         <span style={{fontSize:10,color:"#4b5563"}}>{ep.host}</span>
         <span style={{fontSize:9,color:"#374151"}}>{fs(d)}</span>
         <button onClick={function(){markPub(ep.id)}} style={{background:GRN+"20",border:"2px solid "+GRN,borderRadius:6,color:GRN,cursor:"pointer",fontFamily:FONT,fontSize:11,padding:"5px 12px",fontWeight:700}}>Publish</button>
-        <button onClick={function(){if(confirm("Delete "+ep.guest+"?"))deleteEp(ep.id)}} style={{background:RED+"20",border:"1px solid "+RED,borderRadius:6,color:RED,cursor:"pointer",fontFamily:FONT,fontSize:11,padding:"5px 8px",fontWeight:700,lineHeight:1}}>X</button>
+        <button onClick={function(){confirmDialog({title:"Delete episode?",body:ep.guest+(ep.company?" · "+ep.company:""),cta:"Delete",variant:"danger"}).then(function(ok){if(ok)deleteEp(ep.id);});}} style={{background:RED+"20",border:"1px solid "+RED,borderRadius:6,color:RED,cursor:"pointer",fontFamily:FONT,fontSize:11,padding:"5px 8px",fontWeight:700,lineHeight:1}}>X</button>
       </div>})}
     </div>}
 

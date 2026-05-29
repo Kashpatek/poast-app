@@ -14,6 +14,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom";
 import { D, ft, gf, mn } from "./shared-constants";
 import { useUser, isAkash } from "./user-context";
+import { confirmDialog } from "./dialog-context";
 
 type Priority = "HIGH" | "MEDIUM" | "THIS WEEK" | "ONGOING" | "DONE";
 type AddMode = "manual" | "prompt" | "image";
@@ -404,10 +405,16 @@ export default function AkashTodo() {
       tasks: b.tasks.map((t) => selectedIds.has(t.id) ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t),
     }), label);
   }
-  function bulkRemove() {
+  async function bulkRemove() {
     if (selectedIds.size === 0) return;
     const n = selectedIds.size;
-    if (!confirm(`Remove ${n} task${n === 1 ? "" : "s"}?`)) return;
+    const ok = await confirmDialog({
+      title: `Remove ${n} task${n === 1 ? "" : "s"}?`,
+      body: "This can't be undone from here.",
+      cta: "Remove",
+      variant: "danger",
+    });
+    if (!ok) return;
     updateActiveBoard((b) => ({ ...b, tasks: b.tasks.filter((t) => !selectedIds.has(t.id)) }), `Bulk removed ${n}`);
     clearSelection();
   }
@@ -1047,7 +1054,15 @@ export default function AkashTodo() {
           currentUser={userCtx.user?.name}
           onCancel={() => setEditingTask(null)}
           onSave={(patch) => { updateTask(editingTask.id, patch); setEditingTask(null); }}
-          onRemove={() => { if (confirm("Remove this task?")) { removeTask(editingTask.id); setEditingTask(null); } }}
+          onRemove={async () => {
+            const ok = await confirmDialog({
+              title: "Remove this task?",
+              body: editingTask.title,
+              cta: "Remove",
+              variant: "danger",
+            });
+            if (ok) { removeTask(editingTask.id); setEditingTask(null); }
+          }}
         />
       ) : null}
       {focusModeTask ? (
@@ -1291,7 +1306,12 @@ function TaskRow({ task, handlers }: { task: Task; handlers: Handlers }) {
       else if (e.key === "Backspace" || e.key === "Delete") {
         if (anyMenuOpen) return;
         e.preventDefault();
-        if (confirm(`Remove "${task.title}"?`)) handlers.onRemove(task.id);
+        confirmDialog({
+          title: "Remove task?",
+          body: task.title,
+          cta: "Remove",
+          variant: "danger",
+        }).then((ok) => { if (ok) handlers.onRemove(task.id); });
       }
     }
     window.addEventListener("keydown", onKey);
@@ -3177,9 +3197,16 @@ function BoardModal({ archive, onCancel, onSave }: { archive: BoardArchive; onCa
     onSave({ boards: [...archive.boards, next], activeId: next.id });
   }
 
-  function removeBoard(id: string) {
+  async function removeBoard(id: string) {
     if (archive.boards.length === 1) return;
-    if (!confirm("Delete this board and all its tasks?")) return;
+    const board = archive.boards.find((b) => b.id === id);
+    const ok = await confirmDialog({
+      title: "Delete board?",
+      body: `${board?.name || "This board"} and all ${board?.tasks.length ?? 0} tasks will be removed.`,
+      cta: "Delete board",
+      variant: "danger",
+    });
+    if (!ok) return;
     const remaining = archive.boards.filter((b) => b.id !== id);
     onSave({ boards: remaining, activeId: remaining[0].id });
   }

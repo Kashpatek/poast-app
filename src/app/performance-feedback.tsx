@@ -6,6 +6,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { D, ft, gf, mn } from "./shared-constants";
+import { confirmDialog } from "./dialog-context";
 
 interface PerfRow {
   id: string;
@@ -66,7 +67,13 @@ export default function PerformanceFeedback() {
   }
 
   async function remove(id: string) {
-    if (!confirm("Remove this entry?")) return;
+    const ok = await confirmDialog({
+      title: "Remove entry?",
+      body: "This deletes the performance row — the post itself is untouched.",
+      cta: "Remove",
+      variant: "danger",
+    });
+    if (!ok) return;
     await persist(rows.filter((r) => r.id !== id));
   }
 

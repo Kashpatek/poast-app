@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { confirmDialog } from "./dialog-context";
 
 // ═══ INTERFACES ═══
 interface PlatInfo {
@@ -823,11 +824,16 @@ function ComposeModal({ channels, onClose, onRefresh }: { channels: BufferChanne
     // Sprint fix #14: explicit confirm before any immediate publish so a
     // misclick can't blast unscheduled posts to every channel at once.
     if (!isScheduled) {
-      var ok = window.confirm(
-        "Publish " + sel.length + " post" + (sel.length === 1 ? "" : "s") + " IMMEDIATELY to the selected channel" + (sel.length === 1 ? "" : "s") + "?\n\n" +
-        "This bypasses the queue and posts to your followers right now. " +
-        "Switch to Schedule if you wanted a queued release."
-      );
+      var ok = await confirmDialog({
+        title: "Publish IMMEDIATELY?",
+        body:
+          "This bypasses the queue and sends " +
+          sel.length + " post" + (sel.length === 1 ? "" : "s") +
+          " to the selected channel" + (sel.length === 1 ? "" : "s") +
+          " right now. Switch to Schedule if you wanted a queued release.",
+        cta: "Publish now",
+        variant: "danger",
+      });
       if (!ok) return;
     }
     setSending(true);
