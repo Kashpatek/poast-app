@@ -10,7 +10,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { D, ft, mn } from "../shared-constants";
+import { D, ft, gf, mn } from "../shared-constants";
 
 // ─── types (mirror akash-todo schema) ───
 type Priority = "HIGH" | "MEDIUM" | "THIS WEEK" | "ONGOING" | "DONE";
@@ -149,6 +149,165 @@ function TimePill({ mins, tone = "muted" }: { mins: number; tone?: "muted" | "wa
     }}>
       <span style={{ fontSize: 9, opacity: 0.8 }}>◷</span> {fmtMins(mins)}
     </span>
+  );
+}
+
+// ── ported chrome from the original AkashTodo ──
+
+// Small stat tile (OVERDUE / TODAY / DONE) used inside TodayHero.
+function Stat({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 0,
+      padding: "4px 12px",
+      background: value > 0 ? color + "16" : "transparent",
+      border: "1px solid " + (value > 0 ? color + "55" : D.border),
+      borderRadius: 8, minWidth: 56,
+    }}>
+      <span style={{ fontFamily: gf, fontSize: 18, fontWeight: 900, color: value > 0 ? color : D.txd, letterSpacing: -0.6, lineHeight: 1 }}>{value}</span>
+      <span style={{ fontFamily: mn, fontSize: 8, color: value > 0 ? color : D.txd, letterSpacing: 0.8 }}>{label}</span>
+    </div>
+  );
+}
+
+// 5-card priority counter row. Top accent bar + glowing huge number + lift on hover.
+function PriorityCounter({ label, count, color }: { label: string; count: number; color: string }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        position: "relative",
+        background: hover ? "linear-gradient(180deg, " + color + "10, transparent 70%), " + D.surface : D.surface,
+        border: "1px solid " + (hover ? color + "66" : D.border),
+        borderRadius: 10,
+        padding: "12px 14px 10px",
+        overflow: "hidden",
+        transition: "border-color 0.18s, box-shadow 0.18s, background 0.18s, transform 0.18s",
+        transform: hover ? "translateY(-1px)" : "translateY(0)",
+        boxShadow: hover ? "0 8px 22px " + color + "26, inset 0 0 0 1px " + color + "22" : "none",
+      }}
+    >
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, " + color + ", " + color + "66)" }} />
+      <div style={{ fontFamily: mn, fontSize: 9, letterSpacing: 1.2, textTransform: "uppercase", color: hover ? color : D.txd, marginBottom: 4, transition: "color 0.18s" }}>{label}</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+        <span style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, color, letterSpacing: -1, lineHeight: 1, textShadow: hover ? "0 0 14px " + color + "55" : "none", transition: "text-shadow 0.18s" }}>{count}</span>
+      </div>
+    </div>
+  );
+}
+
+// SVG donut for subtask completion — replaces the flat "⊟ 0/3" text.
+function SubtaskRing({ done, total, color, size = 22 }: { done: number; total: number; color: string; size?: number }) {
+  const stroke = 2.2;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const pct = total === 0 ? 0 : done / total;
+  return (
+    <svg width={size} height={size} viewBox={"0 0 " + size + " " + size} style={{ flexShrink: 0, display: "block" }}>
+      <circle cx={size / 2} cy={size / 2} r={r} stroke={color + "33"} strokeWidth={stroke} fill="transparent" />
+      <circle
+        cx={size / 2} cy={size / 2} r={r}
+        stroke={color} strokeWidth={stroke} strokeLinecap="round" fill="transparent"
+        strokeDasharray={(c * pct) + " " + c}
+        transform={"rotate(-90 " + (size / 2) + " " + (size / 2) + ")"}
+        style={{ transition: "stroke-dasharray 0.3s" }}
+      />
+      <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" fill={color} fontFamily="JetBrains Mono, monospace" fontSize={size * 0.36} fontWeight={800}>
+        {done}/{total}
+      </text>
+    </svg>
+  );
+}
+
+// Gradient banner with greeting + OVERDUE/TODAY/DONE stats + 3 numbered "Start here"
+// suggestions. Ranked by priority with overdue/today/pinned boosts.
+function TodayHero({ tasks, doneRecent, onFocus }: { tasks: Task[]; doneRecent: number; onFocus: (t: Task) => void }) {
+  const todayStr = todayIso();
+  const live = tasks.filter((t) => !t.done && t.priority !== "DONE");
+  const overdueN = live.filter(isOverdue).length;
+  const todayN = live.filter(isToday).length;
+  const pOrder: Record<Priority, number> = { HIGH: 0, MEDIUM: 1, "THIS WEEK": 2, ONGOING: 3, DONE: 9 };
+  const score = (t: Task) => {
+    let s = pOrder[t.priority] * 10;
+    if (t.dueDate && t.dueDate < todayStr) s -= 100;
+    else if (t.dueDate === todayStr) s -= 50;
+    if (t.pinned) s -= 5;
+    return s;
+  };
+  const suggestions = [...live].sort((a, b) => score(a) - score(b)).slice(0, 3);
+
+  const hour = new Date().getHours();
+  const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+
+  return (
+    <div style={{
+      marginBottom: 16, position: "relative", overflow: "hidden", borderRadius: 14,
+      border: "1px solid " + D.amber + "33",
+      background: "linear-gradient(135deg, rgba(247,176,65,0.10) 0%, rgba(11,134,209,0.06) 60%, transparent 100%), " + D.surface,
+      padding: 16,
+    }}>
+      <div aria-hidden="true" style={{
+        position: "absolute", top: -40, right: -40, width: 200, height: 200, borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(247,176,65,0.18), transparent 70%)", pointerEvents: "none",
+      }} />
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 10, position: "relative" }}>
+        <div>
+          <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 700 }}>{greet}, Akash</div>
+          <div style={{ fontFamily: gf, fontSize: 18, fontWeight: 800, color: D.tx, letterSpacing: -0.4, marginTop: 2 }}>
+            {todayN === 0 && overdueN === 0
+              ? "Nothing on the board for today — pick something to push forward."
+              : todayN + " due today" + (overdueN > 0 ? " · " + overdueN + " overdue" : "") + (doneRecent > 0 ? " · " + doneRecent + " done" : "")}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <Stat label="OVERDUE" value={overdueN} color={D.coral} />
+          <Stat label="TODAY"   value={todayN}   color={D.amber} />
+          <Stat label="DONE"    value={doneRecent} color={D.teal} />
+        </div>
+      </div>
+      {suggestions.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, position: "relative" }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 1.2, textTransform: "uppercase" }}>Start here</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {suggestions.map((t, i) => {
+              const pColor = PRI_COLOR[t.priority] || D.txd;
+              const due = t.dueDate ? dueLabel(t.dueDate) : null;
+              const urgent = isOverdue(t) || isToday(t);
+              return (
+                <a
+                  key={t.id}
+                  href="/board"
+                  target="_blank"
+                  rel="noopener"
+                  onClick={(e) => { e.preventDefault(); onFocus(t); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
+                    background: i === 0 ? "rgba(247,176,65,0.10)" : "rgba(255,255,255,0.02)",
+                    border: "1px solid " + (i === 0 ? D.amber + "55" : D.border),
+                    borderRadius: 8, cursor: "pointer", textAlign: "left", width: "100%",
+                    textDecoration: "none", color: "inherit",
+                  }}
+                >
+                  <span style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 0.5, minWidth: 18, opacity: i === 0 ? 1 : 0.5 }}>#{i + 1}</span>
+                  <Avatar name={t.assignee || "Akash"} size={18} />
+                  <span style={{ fontFamily: mn, fontSize: 8.5, color: pColor, letterSpacing: 0.6, padding: "1px 6px", border: "1px solid " + pColor + "55", borderRadius: 3, textTransform: "uppercase" }}>{t.priority}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontFamily: gf, fontSize: 13, fontWeight: 700, color: D.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
+                  {due && <span style={{ fontFamily: mn, fontSize: 9.5, color: urgent ? D.coral : D.txm, letterSpacing: 0.4 }}>{due}</span>}
+                  <span style={{
+                    background: i === 0 ? D.amber : "transparent",
+                    color: i === 0 ? "#060608" : D.amber,
+                    border: "1px solid " + D.amber, padding: "4px 10px", borderRadius: 6,
+                    fontFamily: mn, fontSize: 9, letterSpacing: 0.6, fontWeight: 800, textTransform: "uppercase",
+                  }}>Focus →</span>
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -310,6 +469,12 @@ export default function TaskBoardSummary() {
     openTasks.forEach((t) => { const a = t.assignee || "Akash"; m[a] = (m[a] || 0) + 1; });
     return m;
   }, [openTasks]);
+  const priorityCounts = useMemo(() => {
+    const m: Record<Priority, number> = { HIGH: 0, MEDIUM: 0, "THIS WEEK": 0, ONGOING: 0, DONE: 0 };
+    openTasks.forEach((t) => { m[t.priority] = (m[t.priority] || 0) + 1; });
+    m.DONE = allTasks.filter((t) => t.done).length;
+    return m;
+  }, [openTasks, allTasks]);
 
   // ── view-specific derived data ──
   // Today: hot seat (overdue + today) + queue (everything else, grouped by priority)
@@ -370,7 +535,17 @@ export default function TaskBoardSummary() {
   }
 
   return (
-    <div style={{ padding: "20px 26px 60px", fontFamily: ft, color: D.tx, maxWidth: 1500, margin: "0 auto" }}>
+    <div style={{ padding: "20px 26px 60px", fontFamily: ft, color: D.tx, maxWidth: 1500, margin: "0 auto", position: "relative" }}>
+      <style>{`
+        @keyframes tbRowIn { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes tbPulseRed { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+        @keyframes tbShimmer { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+      `}</style>
+      {/* AMBIENT BACKDROP — soft amber + violet glows behind everything */}
+      <div aria-hidden="true" style={{
+        position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0,
+        background: "radial-gradient(700px 400px at 90% 0%, rgba(247,176,65,0.06), transparent 60%), radial-gradient(560px 400px at 0% 100%, rgba(144,92,203,0.05), transparent 60%)",
+      }} />
       {/* HEADER HERO */}
       <div style={{
         position: "relative", padding: "26px 32px 22px", marginBottom: 18,
@@ -383,10 +558,17 @@ export default function TaskBoardSummary() {
         }} />
         <div style={{ position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, flexWrap: "wrap", marginBottom: 18 }}>
           <div>
-            <div style={{ fontSize: 10.5, color: D.amber, letterSpacing: 1.5, fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>
+            <div style={{
+              fontFamily: mn, fontSize: 10.5, letterSpacing: 1.5, fontWeight: 700, textTransform: "uppercase", marginBottom: 6,
+              background: "linear-gradient(90deg, " + D.amber + ", " + D.cyan + ", " + D.amber + ")",
+              backgroundSize: "200% 100%",
+              WebkitBackgroundClip: "text", backgroundClip: "text",
+              color: "transparent",
+              animation: "tbShimmer 14s linear infinite",
+            }}>
               {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
             </div>
-            <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.6, margin: 0, marginBottom: 6, lineHeight: 1.15 }}>{greeting("Akash")}</h1>
+            <h1 style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, letterSpacing: -0.8, margin: 0, marginBottom: 6, lineHeight: 1.15 }}>{greeting("Akash")}</h1>
             <div style={{ fontSize: 13, color: D.txm }}>
               {stats.overdue.n + stats.today.n === 0
                 ? "Nothing due today. Queue is yours to shape."
@@ -423,23 +605,13 @@ export default function TaskBoardSummary() {
           </div>
         </div>
 
-        {/* stat tiles */}
-        <div style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
-          {[
-            { l: "Overdue", v: stats.overdue.n, mins: stats.overdue.mins, c: D.coral },
-            { l: "Today",   v: stats.today.n,   mins: stats.today.mins,   c: D.amber },
-            { l: "This week", v: stats.week.n, mins: stats.week.mins, c: D.blue },
-            { l: "Open total", v: stats.open.n, mins: stats.open.mins, c: D.teal },
-            { l: "Done (7d)", v: stats.doneRecent.n, mins: stats.doneRecent.mins, c: D.violet },
-          ].map((s) => (
-            <div key={s.l} style={{ padding: "11px 14px", background: "rgba(255,255,255,0.02)", border: "1px solid " + D.border, borderRadius: 10 }}>
-              <div style={{ fontSize: 10, color: D.txd, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 4 }}>{s.l}</div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <div style={{ fontSize: 22, fontWeight: 800, color: s.c, lineHeight: 1, letterSpacing: -0.4 }}>{s.v}</div>
-                <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.3 }}>~{fmtMins(s.mins)}</div>
-              </div>
-            </div>
-          ))}
+        {/* priority counters */}
+        <div style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+          <PriorityCounter label="High"      count={priorityCounts.HIGH}        color={PRI_COLOR.HIGH} />
+          <PriorityCounter label="Medium"    count={priorityCounts.MEDIUM}      color={PRI_COLOR.MEDIUM} />
+          <PriorityCounter label="This Week" count={priorityCounts["THIS WEEK"]} color={PRI_COLOR["THIS WEEK"]} />
+          <PriorityCounter label="Ongoing"   count={priorityCounts.ONGOING}     color={PRI_COLOR.ONGOING} />
+          <PriorityCounter label="Done"      count={priorityCounts.DONE}        color={PRI_COLOR.DONE} />
         </div>
       </div>
 
@@ -592,10 +764,17 @@ export default function TaskBoardSummary() {
           {/* CONTENT BY VIEW */}
           {view === "today" && (
             <TodayView
+              allOpen={filteredOpen}
+              doneRecent={stats.doneRecent.n}
               hotSeat={hotSeat}
               queueGroups={queueGroups}
               totalQueue={totalQueue}
               onToggle={toggleDone}
+              onFocus={(t) => {
+                const idx = [...hotSeat, ...restOpen].findIndex((x) => x.id === t.id);
+                if (idx >= 0) setFocusIdx(idx);
+                setView("focus");
+              }}
             />
           )}
 
@@ -786,14 +965,19 @@ function Chip({ label, color, onClear }: { label: string; color: string; onClear
 // VIEWS
 // ═══════════════════════════════════════════════════════════════════
 
-function TodayView({ hotSeat, queueGroups, totalQueue, onToggle }: {
+function TodayView({ allOpen, doneRecent, hotSeat, queueGroups, totalQueue, onToggle, onFocus }: {
+  allOpen: Task[];
+  doneRecent: number;
   hotSeat: Task[];
   queueGroups: TaskGroup[];
   totalQueue: { n: number; mins: number };
   onToggle: (id: string) => void;
+  onFocus: (t: Task) => void;
 }) {
   return (
     <div>
+      <TodayHero tasks={allOpen} doneRecent={doneRecent} onFocus={onFocus} />
+
       <SectionHeader label="Hot seat" count={hotSeat.length} mins={sumMins(hotSeat)} tone="warm" />
       {hotSeat.length === 0 ? (
         <EmptyState title="Nothing on fire" subtitle="Today is clear. Plan ahead in Schedule view." />
@@ -1429,36 +1613,54 @@ function EmptyState({ title, subtitle }: { title: string; subtitle: string }) {
 function HotSeatCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
   const overdue = isOverdue(task);
   const today = isToday(task);
+  const [hover, setHover] = useState(false);
+  const pColor = PRI_COLOR[task.priority] || D.txd;
+  const cColor = CAT_COLOR[task.category] || D.txd;
+  const subDone = task.subtasks?.filter((s) => s.done).length || 0;
+  const subTotal = task.subtasks?.length || 0;
   return (
     <a
       href="/board"
       target="_blank"
       rel="noopener"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
-        position: "relative", padding: "14px 16px",
+        position: "relative", padding: "14px 16px 14px 19px",
         background: D.card,
-        border: "1px solid " + (overdue ? "rgba(224,99,71,0.30)" : D.border),
+        border: "1px solid " + (hover ? D.amber + "66" : overdue ? "rgba(224,99,71,0.30)" : D.border),
         borderRadius: 12, textDecoration: "none", color: "inherit", display: "block",
+        transition: "border-color 0.14s, transform 0.14s, box-shadow 0.14s",
+        transform: hover ? "translateY(-1px)" : "translateY(0)",
+        boxShadow: hover ? "0 8px 22px rgba(247,176,65,0.18)" : "none",
+        animation: "tbRowIn 0.22s ease both",
       }}
     >
-      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: CAT_COLOR[task.category] || D.txd, borderRadius: "4px 0 0 4px" }} />
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: "linear-gradient(180deg, " + pColor + ", " + pColor + "66)", borderRadius: "4px 0 0 4px" }} />
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <StatusCircle done={task.done} size={14} onClick={onToggle} />
-        <span style={{ fontSize: 10, color: CAT_COLOR[task.category] || D.txd, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase" }}>{task.category}</span>
-        {overdue && <span style={{ marginLeft: "auto", fontSize: 10, color: D.coral, fontWeight: 700, letterSpacing: 0.5 }}>● {dueLabel(task.dueDate).toUpperCase()}</span>}
-        {today && !overdue && <span style={{ marginLeft: "auto", fontSize: 10, color: D.amber, fontWeight: 700, letterSpacing: 0.5 }}>● TODAY</span>}
+        <span style={{
+          fontSize: 9, color: cColor, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase",
+          background: cColor + "12", border: "1px solid " + cColor + "44",
+          padding: "2px 7px", borderRadius: 4, whiteSpace: "nowrap",
+        }}>{task.category}</span>
+        {overdue && <span style={{ marginLeft: "auto", fontSize: 9.5, color: D.coral, fontWeight: 700, letterSpacing: 0.5, fontFamily: mn, animation: "tbPulseRed 1.8s infinite" }}>● {dueLabel(task.dueDate).toUpperCase()}</span>}
+        {today && !overdue && <span style={{ marginLeft: "auto", fontSize: 9.5, color: D.amber, fontWeight: 700, letterSpacing: 0.5, fontFamily: mn }}>● TODAY</span>}
       </div>
       <div style={{
-        fontSize: 13.5, fontWeight: 600, lineHeight: 1.35, color: D.tx, marginBottom: 10,
+        fontFamily: gf, fontSize: 14, fontWeight: 700, lineHeight: 1.35, color: D.tx, marginBottom: 10, letterSpacing: -0.2,
         textDecoration: task.done ? "line-through" : "none", opacity: task.done ? 0.6 : 1,
       }}>{task.title}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 8, borderTop: "1px solid " + D.border }}>
         <Avatar name={task.assignee || "Akash"} size={20} />
         <span style={{ fontSize: 11.5, color: D.txm }}>{task.assignee || "Akash"}</span>
         <TimePill mins={estOf(task)} />
+        {subTotal > 0 && <SubtaskRing done={subDone} total={subTotal} color={subDone === subTotal ? D.teal : D.violet} size={20} />}
         <span style={{
-          marginLeft: "auto", fontSize: 10, color: PRI_COLOR[task.priority], fontFamily: mn,
-          fontWeight: 600, padding: "2px 7px", border: "1px solid " + PRI_COLOR[task.priority] + "55", borderRadius: 5,
+          marginLeft: "auto", fontSize: 9.5, color: pColor, fontFamily: mn,
+          fontWeight: 700, padding: "2px 7px",
+          background: pColor + "15", border: "1px solid " + pColor + "55", borderRadius: 5,
+          letterSpacing: 0.5, textTransform: "uppercase",
         }}>{task.priority}</span>
       </div>
     </a>
@@ -1473,51 +1675,66 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
   const overdue = isOverdue(task);
   const today = isToday(task);
   const dueColor = overdue ? D.coral : today ? D.amber : D.txm;
+  const pColor = PRI_COLOR[task.priority] || D.txd;
+  const cColor = CAT_COLOR[task.category] || D.txd;
+  const subDone = task.subtasks?.filter((s) => s.done).length || 0;
+  const subTotal = task.subtasks?.length || 0;
+  const [hover, setHover] = useState(false);
   return (
     <a
       href="/board"
       target="_blank"
       rel="noopener"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
+        position: "relative",
         display: "grid",
-        gridTemplateColumns: "20px 1fr auto auto auto auto",
-        alignItems: "center", gap: 12, padding: "10px 14px",
+        gridTemplateColumns: "20px 110px 1fr auto auto auto auto auto",
+        alignItems: "center", gap: 10, padding: "9px 14px 9px 17px",
         borderBottom: last ? "none" : "1px solid " + D.border,
         textDecoration: "none", color: "inherit",
-        background: overdue ? "rgba(224,99,71,0.04)" : "transparent",
+        background: hover
+          ? "rgba(247,176,65,0.06)"
+          : overdue ? "rgba(224,99,71,0.04)" : "transparent",
+        transition: "background 0.14s, box-shadow 0.14s",
+        boxShadow: hover ? "inset 2px 0 0 " + D.amber : "inset 2px 0 0 " + pColor + "55",
+        animation: "tbRowIn 0.22s ease both",
       }}
     >
       <StatusCircle done={task.done} size={16} onClick={onToggle} />
-      <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ width: 3, alignSelf: "stretch", background: CAT_COLOR[task.category] || D.txd, borderRadius: 3, flexShrink: 0 }} />
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{
-            fontSize: 13.5, fontWeight: 500, color: D.tx, lineHeight: 1.3,
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            textDecoration: task.done ? "line-through" : "none",
-            opacity: task.done ? 0.5 : 1,
-          }}>{task.title}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}>
-            <span style={{ fontSize: 9.5, color: CAT_COLOR[task.category] || D.txd, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase" }}>{task.category}</span>
-            {task.subtasks && task.subtasks.length > 0 && (
-              <span style={{ fontSize: 10, color: D.txd, fontFamily: mn }}>
-                ⊟ {task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
+      <span style={{
+        fontSize: 9, color: cColor, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase",
+        background: cColor + "12", border: "1px solid " + cColor + "44",
+        padding: "3px 6px", borderRadius: 4,
+        textAlign: "center", whiteSpace: "nowrap",
+        overflow: "hidden", textOverflow: "ellipsis",
+      }}>{task.category}</span>
+      <div style={{
+        minWidth: 0,
+        fontFamily: gf, fontSize: 13.5, fontWeight: 600, color: D.tx, lineHeight: 1.3,
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        textDecoration: task.done ? "line-through" : "none",
+        opacity: task.done ? 0.5 : 1, letterSpacing: -0.1,
+      }}>{task.title}</div>
+      {subTotal > 0
+        ? <SubtaskRing done={subDone} total={subTotal} color={subDone === subTotal ? D.teal : D.violet} size={20} />
+        : <span style={{ width: 20 }} />}
       <TimePill mins={estOf(task)} />
       <span style={{
-        fontFamily: mn, fontSize: 10.5, color: dueColor,
-        padding: "3px 8px", border: "1px solid " + dueColor + "44", borderRadius: 5,
-        whiteSpace: "nowrap", minWidth: 64, textAlign: "center",
+        fontFamily: mn, fontSize: 10, color: dueColor,
+        padding: "3px 8px",
+        background: overdue ? "rgba(224,99,71,0.10)" : "transparent",
+        border: "1px solid " + dueColor + "44", borderRadius: 5,
+        whiteSpace: "nowrap", minWidth: 64, textAlign: "center", fontWeight: 600,
       }}>{dueLabel(task.dueDate)}</span>
       <Avatar name={task.assignee || "Akash"} size={22} />
       <span style={{
-        fontSize: 9.5, color: PRI_COLOR[task.priority], fontFamily: mn, fontWeight: 700,
-        padding: "3px 8px", border: "1px solid " + PRI_COLOR[task.priority] + "55", borderRadius: 5,
-        whiteSpace: "nowrap",
+        fontSize: 9.5, color: pColor, fontFamily: mn, fontWeight: 700,
+        padding: "3px 8px",
+        background: pColor + "15",
+        border: "1px solid " + pColor + "55", borderRadius: 5,
+        whiteSpace: "nowrap", letterSpacing: 0.5, textTransform: "uppercase",
       }}>{task.priority}</span>
     </a>
   );
