@@ -11,6 +11,7 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { D, ft, gf, mn } from "../shared-constants";
+import { confirmDialog, promptDialog } from "../dialog-context";
 
 // ─── types (mirror akash-todo schema) ───
 type Priority = "HIGH" | "MEDIUM" | "THIS WEEK" | "ONGOING" | "DONE";
@@ -36,6 +37,15 @@ interface Task {
 interface ActivityEntry { ts: string; action: string; label: string; taskId?: string }
 interface Board { id: string; name: string; tasks: Task[]; createdAt: string; activity?: ActivityEntry[] }
 interface BoardArchive { boards: Board[]; activeId: string }
+interface SavedView {
+  id: string;
+  name: string;
+  view: ViewKey;
+  catFilter: string | null;
+  assigneeFilter: string | null;
+  search: string;
+  groupBy: GroupBy;
+}
 
 const PRIORITY_ORDER: Priority[] = ["HIGH", "MEDIUM", "THIS WEEK", "ONGOING"];
 
@@ -68,6 +78,20 @@ const GROUP_LABELS: Record<GroupBy, string> = {
   assignee: "Assignee",
   due:      "Due date",
 };
+
+const VIEW_META: Record<ViewKey, { label: string; icon: string }> = {
+  today:    { label: "Today",      icon: "◉" },
+  schedule: { label: "Schedule",   icon: "▤" },
+  week:     { label: "Week",       icon: "▥" },
+  calendar: { label: "Calendar",   icon: "▩" },
+  board:    { label: "Board",      icon: "▦" },
+  category: { label: "Categories", icon: "◈" },
+  all:      { label: "All",        icon: "≡" },
+  focus:    { label: "Focus",      icon: "◎" },
+  done:     { label: "Done",       icon: "✓" },
+};
+function viewLabel(v: ViewKey): string { return VIEW_META[v].label; }
+function viewIcon(v: ViewKey): string { return VIEW_META[v].icon; }
 
 // Drag context — lets deeply-nested rows opt into HTML5 drag without prop
 // drilling. Drop targets (sidebar entries, board columns, combine dock)
@@ -362,6 +386,7 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
   const [search, setSearch] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [focusIdx, setFocusIdx] = useState(0);
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
 
   // drag + combine state
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -455,6 +480,23 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
     saveTimerRef.current = setTimeout(() => saveArchive(archive), 400);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [archive, loading, saveArchive]);
+
+  // ── Saved Views — per-user (localStorage). Lets users snapshot a
+  // view + filter + group-by combo as a one-click chip in the sidebar,
+  // Plane-style. Personal to this browser; not synced to Supabase.
+  useEffect(() => {
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem("tb-saved-views") : null;
+      if (raw) setSavedViews(JSON.parse(raw));
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("tb-saved-views", JSON.stringify(savedViews));
+      }
+    } catch {}
+  }, [savedViews]);
 
   const activeBoard = archive.boards.find((b) => b.id === archive.activeId);
   const allTasks = useMemo(() => (activeBoard?.tasks || []).filter((t) => !t.isRecurringTemplate), [activeBoard]);
@@ -736,6 +778,52 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
   const filtersActive = !!(catFilter || assigneeFilter || search.trim());
   function clearAllFilters() { setCatFilter(null); setAssigneeFilter(null); setSearch(""); }
 
+  // Compose a default name from the active state if the user just hits
+  // Enter at the prompt — "Today · Akash" reads better than "Saved view 1".
+  function defaultViewName(): string {
+    const parts: string[] = [];
+    parts.push(viewLabel(view));
+    if (catFilter) parts.push(catFilter.split(" ")[0]);
+    if (assigneeFilter) parts.push(assigneeFilter);
+    if (search.trim()) parts.push(`"${search.trim().slice(0, 14)}"`);
+    return parts.join(" · ");
+  }
+  async function saveCurrentView() {
+    const name = await promptDialog({
+      title: "Save this view",
+      body: "Name a one-click chip that restores the current tab, filters, and grouping.",
+      placeholder: "e.g. Today · Akash",
+      initial: defaultViewName(),
+      cta: "Save view",
+    });
+    if (!name || !name.trim()) return;
+    setSavedViews((cur) => [
+      ...cur,
+      {
+        id: "v-" + Date.now() + "-" + Math.random().toString(36).slice(2, 5),
+        name: name.trim(),
+        view, catFilter, assigneeFilter, search, groupBy,
+      },
+    ]);
+  }
+  function applySavedView(v: SavedView) {
+    setView(v.view);
+    setCatFilter(v.catFilter);
+    setAssigneeFilter(v.assigneeFilter);
+    setSearch(v.search);
+    setGroupBy(v.groupBy);
+  }
+  async function deleteSavedView(id: string) {
+    const target = savedViews.find((v) => v.id === id);
+    const ok = await confirmDialog({
+      title: "Delete saved view?",
+      body: target ? `"${target.name}" — you can recreate it later from the same filters.` : "",
+      cta: "Delete",
+      variant: "danger",
+    });
+    if (ok) setSavedViews((cur) => cur.filter((v) => v.id !== id));
+  }
+
   if (loading) {
     return (
       <div style={{ padding: 60, display: "flex", justifyContent: "center", alignItems: "center", color: D.txm, fontFamily: ft }}>
@@ -985,6 +1073,60 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
               }}
             >＋ New task</button>
             <SidebarInput value={search} setValue={setSearch} placeholder="Search…" />
+          </SidebarSection>
+
+          <SidebarSection
+            label="Saved views"
+            right={
+              <button
+                type="button"
+                onClick={saveCurrentView}
+                title="Save current tab + filters as a one-click chip"
+                style={{
+                  background: "transparent", border: "1px solid " + D.border,
+                  color: D.txm, padding: "2px 6px", borderRadius: 4,
+                  fontFamily: mn, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.5,
+                  cursor: "pointer",
+                }}
+              >+ save</button>
+            }
+          >
+            {savedViews.length === 0 && (
+              <div style={{ fontSize: 11, color: D.txd, padding: "2px 8px 4px", letterSpacing: 0.2 }}>
+                Snapshot a tab + filters with{" "}
+                <span style={{ fontFamily: mn, color: D.txm }}>+ save</span>.
+              </div>
+            )}
+            {savedViews.map((v) => {
+              const active =
+                v.view === view &&
+                v.catFilter === catFilter &&
+                v.assigneeFilter === assigneeFilter &&
+                v.search === search &&
+                v.groupBy === groupBy;
+              return (
+                <SidebarRow
+                  key={v.id}
+                  active={active}
+                  onClick={() => applySavedView(v)}
+                  accent={D.amber}
+                  left={<span style={{ fontFamily: mn, fontSize: 11, color: active ? D.amber : D.txm, width: 14, textAlign: "center", flexShrink: 0 }}>{viewIcon(v.view)}</span>}
+                  label={v.name}
+                  right={
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); deleteSavedView(v.id); }}
+                      title="Delete saved view"
+                      style={{
+                        background: "transparent", border: "none",
+                        color: D.txd, padding: "0 2px", cursor: "pointer",
+                        fontFamily: mn, fontSize: 12, fontWeight: 700,
+                      }}
+                    >×</button>
+                  }
+                />
+              );
+            })}
           </SidebarSection>
 
           <SidebarSection label="Categories">
@@ -1302,17 +1444,9 @@ function ViewTabs({
   counts: Record<ViewKey, number>;
   narrow: boolean;
 }) {
-  const tabs: { k: ViewKey; l: string; icon: string }[] = [
-    { k: "today",    l: "Today",      icon: "◉" },
-    { k: "schedule", l: "Schedule",   icon: "▤" },
-    { k: "week",     l: "Week",       icon: "▥" },
-    { k: "calendar", l: "Calendar",   icon: "▩" },
-    { k: "board",    l: "Board",      icon: "▦" },
-    { k: "category", l: "Categories", icon: "◈" },
-    { k: "all",      l: "All",        icon: "≡" },
-    { k: "focus",    l: "Focus",      icon: "◎" },
-    { k: "done",     l: "Done",       icon: "✓" },
-  ];
+  const tabs: { k: ViewKey; l: string; icon: string }[] = (
+    ["today", "schedule", "week", "calendar", "board", "category", "all", "focus", "done"] as ViewKey[]
+  ).map((k) => ({ k, l: VIEW_META[k].label, icon: VIEW_META[k].icon }));
   const showGroupBy = view === "all" || view === "board";
   return (
     <div style={{
@@ -1391,20 +1525,26 @@ function ViewTabs({
   );
 }
 
-function SidebarSection({ label, children }: { label: string; children: React.ReactNode }) {
+function SidebarSection({ label, children, right }: { label: string; children: React.ReactNode; right?: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{
-        fontSize: 9.5, color: D.txd, letterSpacing: 1.2, fontWeight: 700,
-        textTransform: "uppercase", padding: "4px 8px", marginBottom: 4,
-      }}>{label}</div>
+        display: "flex", alignItems: "center", gap: 6,
+        padding: "4px 8px", marginBottom: 4,
+      }}>
+        <span style={{
+          fontSize: 9.5, color: D.txd, letterSpacing: 1.2, fontWeight: 700,
+          textTransform: "uppercase",
+        }}>{label}</span>
+        {right && <span style={{ marginLeft: "auto" }}>{right}</span>}
+      </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>{children}</div>
     </div>
   );
 }
 
 function SidebarRow({
-  active, onClick, left, label, count, accent, onDropTask,
+  active, onClick, left, label, count, accent, onDropTask, right,
 }: {
   active: boolean;
   onClick: () => void;
@@ -1413,6 +1553,7 @@ function SidebarRow({
   count?: number;
   accent: string;
   onDropTask?: (taskId: string) => void;
+  right?: React.ReactNode;
 }) {
   const drag = useDrag();
   const [over, setOver] = useState(false);
@@ -1453,6 +1594,7 @@ function SidebarRow({
       {typeof count === "number" && count > 0 && (
         <span style={{ fontFamily: mn, fontSize: 10, color: active ? accent : D.txd }}>{count}</span>
       )}
+      {right}
     </button>
   );
 }
