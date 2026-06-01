@@ -69,7 +69,7 @@ const ASSIGNEE_COLOR: Record<string, string> = {
 };
 
 type ViewKey = "today" | "schedule" | "board" | "all" | "category" | "week" | "calendar" | "focus" | "done";
-type GroupBy = "priority" | "category" | "assignee" | "due";
+type GroupBy = "none" | "priority" | "category" | "assignee" | "due";
 type SmartFilter = "overdue" | "today" | "nodue" | "unassigned" | "recent" | null;
 type TaskGroup = { key: string; color: string; tasks: Task[] };
 
@@ -95,6 +95,7 @@ function matchesSmart(t: Task, sf: SmartFilter): boolean {
 }
 
 const GROUP_LABELS: Record<GroupBy, string> = {
+  none:     "Flat",
   priority: "Priority",
   category: "Category",
   assignee: "Assignee",
@@ -427,6 +428,15 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
+  // Brain-dump bucket — paste raw text, hit Claude, get structured Tasks back
+  // with category / priority / assignee / due / subtasks already filled in.
+  // Replaces the "type into Claude → copy back → image-import" workaround.
+  const [dumpOpen, setDumpOpen] = useState(false);
+  const [dumpText, setDumpText] = useState("");
+  const [dumpLoading, setDumpLoading] = useState(false);
+  const [dumpResult, setDumpResult] = useState<Partial<Task>[] | null>(null);
+  const [dumpError, setDumpError] = useState<string | null>(null);
+
   // undo stack — last 20 archive snapshots
   const undoStackRef = useRef<BoardArchive[]>([]);
   function pushHistory(prev: BoardArchive) {
@@ -728,6 +738,87 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
       { action: "add", label: t.title, taskId: t.id },
     );
     setAddOpen(false);
+  }
+
+  // Brain-dump: hit Claude's task parser with whatever the user pasted, then
+  // show the parsed Task[] as a preview list (no commits to the board yet).
+  async function runDump() {
+    const txt = dumpText.trim();
+    if (!txt || dumpLoading) return;
+    setDumpLoading(true);
+    setDumpError(null);
+    setDumpResult(null);
+    try {
+      const res = await fetch("/api/akash-todo/parse", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: txt, today: todayIso() }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Parse failed");
+      const tasks = Array.isArray(j.tasks) ? j.tasks : [];
+      if (tasks.length === 0) throw new Error("No tasks found in that text");
+      setDumpResult(tasks);
+    } catch (e) {
+      setDumpError(String(e instanceof Error ? e.message : e));
+    } finally {
+      setDumpLoading(false);
+    }
+  }
+
+  function materializeDumpTask(p: Partial<Task>): Task {
+    const stamp = new Date().toISOString();
+    return {
+      id: "t-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+      title: (p.title || "Untitled").slice(0, 200),
+      description: p.description,
+      category: p.category || catFilter || "OTHER",
+      priority: (p.priority as Priority) || "MEDIUM",
+      assignee: p.assignee || assigneeFilter || "Akash",
+      dueDate: p.dueDate,
+      subtasks: p.subtasks,
+      addedAt: stamp,
+      source: "dump",
+    };
+  }
+
+  function acceptDumpTask(idx: number) {
+    if (!dumpResult) return;
+    const picked = dumpResult[idx];
+    if (!picked) return;
+    const t = materializeDumpTask(picked);
+    updateActiveBoard(
+      (b) => ({ ...b, tasks: [t, ...b.tasks] }),
+      { action: "add", label: t.title, taskId: t.id },
+    );
+    setDumpResult((cur) => cur ? cur.filter((_, i) => i !== idx) : null);
+  }
+
+  function acceptAllDump() {
+    if (!dumpResult || dumpResult.length === 0) return;
+    const stamp = new Date().toISOString();
+    const newTasks = dumpResult.map((p, i) => ({
+      ...materializeDumpTask(p),
+      id: "t-" + Date.now() + "-" + i + "-" + Math.random().toString(36).slice(2, 6),
+      addedAt: stamp,
+    }));
+    updateActiveBoard(
+      (b) => ({ ...b, tasks: [...newTasks, ...b.tasks] }),
+      { action: "bulk-add", label: "imported " + newTasks.length + " tasks from brain-dump" },
+    );
+    setDumpResult(null);
+    setDumpText("");
+    setDumpOpen(false);
+  }
+
+  function discardDumpTask(idx: number) {
+    setDumpResult((cur) => cur ? cur.filter((_, i) => i !== idx) : null);
+  }
+
+  function clearDump() {
+    setDumpResult(null);
+    setDumpText("");
+    setDumpError(null);
   }
 
   // ── filters applied to open tasks ──
@@ -1260,7 +1351,7 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
 
         {/* MAIN */}
         <main>
-          {/* TOOLBAR — quick add + filter chips */}
+          {/* TOOLBAR — quick add + brain dump + filter chips */}
           <div style={{
             display: "flex", alignItems: "center", gap: 10,
             padding: "10px 14px", background: D.card, border: "1px solid " + D.border,
@@ -1274,6 +1365,22 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
               placeholder="Quick add (Enter)…"
               style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: D.tx, fontFamily: ft, fontSize: 13.5 }}
             />
+            <button
+              type="button"
+              onClick={() => setDumpOpen((o) => !o)}
+              title="Brain dump — paste raw text, Claude turns it into structured tasks"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "5px 11px",
+                background: dumpOpen
+                  ? "linear-gradient(135deg, " + D.amber + ", " + D.coral + ")"
+                  : "transparent",
+                color: dumpOpen ? "#0A0A0F" : D.amber,
+                border: "1px solid " + (dumpOpen ? "transparent" : D.amber + "55"),
+                fontFamily: mn, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5,
+                borderRadius: 6, cursor: "pointer",
+              }}
+            >✦ Brain dump</button>
             {filtersActive && (
               <button
                 onClick={clearAllFilters}
@@ -1285,6 +1392,22 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
               >clear filters ×</button>
             )}
           </div>
+
+          {dumpOpen && (
+            <BrainDumpBucket
+              text={dumpText}
+              setText={setDumpText}
+              loading={dumpLoading}
+              error={dumpError}
+              result={dumpResult}
+              onRun={runDump}
+              onClose={() => { setDumpOpen(false); clearDump(); }}
+              onAcceptOne={acceptDumpTask}
+              onDiscardOne={discardDumpTask}
+              onAcceptAll={acceptAllDump}
+              onClear={clearDump}
+            />
+          )}
 
           {filtersActive && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
@@ -1487,9 +1610,19 @@ function sortInGroup(a: Task, b: Task): number {
   return (b.addedAt || "").localeCompare(a.addedAt || "");
 }
 
-// Generalized grouper. Mode = priority | category | assignee | due.
+// Generalized grouper. Mode = none | priority | category | assignee | due.
+// "none" returns a single bucket sorted like priority order for a flat scannable list.
 // Returns groups in display order; empty groups skipped.
 function groupTasks(tasks: Task[], mode: GroupBy): { key: string; color: string; tasks: Task[] }[] {
+  if (mode === "none") {
+    const sorted = tasks.slice().sort((a, b) => {
+      const ap = PRIORITY_ORDER.indexOf(a.priority);
+      const bp = PRIORITY_ORDER.indexOf(b.priority);
+      if (ap !== bp) return ap - bp;
+      return sortInGroup(a, b);
+    });
+    return sorted.length ? [{ key: "All", color: D.amber, tasks: sorted }] : [];
+  }
   if (mode === "priority") {
     return PRIORITY_ORDER
       .map((p) => ({ key: p as string, color: PRI_COLOR[p], tasks: tasks.filter((t) => t.priority === p).sort(sortInGroup) }))
@@ -1595,7 +1728,7 @@ function ViewTabs({
           flexShrink: 0,
         }}>
           <span style={{ fontFamily: mn, fontSize: 9.5, color: D.txd, padding: "0 6px", letterSpacing: 0.6, textTransform: "uppercase" }}>group</span>
-          {(["priority", "category", "assignee", "due"] as GroupBy[]).map((g) => (
+          {(["none", "priority", "category", "assignee", "due"] as GroupBy[]).map((g) => (
             <button
               key={g}
               onClick={() => setGroupBy(g)}
@@ -1717,6 +1850,271 @@ function Chip({ label, color, onClear }: { label: string; color: string; onClear
       {label}
       <button onClick={onClear} style={{ background: "transparent", border: "none", color, cursor: "pointer", padding: 0, fontSize: 13, lineHeight: 1 }}>×</button>
     </span>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BRAIN DUMP BUCKET — paste raw text, Claude parses it into structured
+// tasks, preview them, accept individually or all at once. Sits inline
+// between the toolbar and the views so the flow stays "fast capture"
+// without context-switching to a modal.
+// ═══════════════════════════════════════════════════════════════════
+
+function BrainDumpBucket({
+  text, setText, loading, error, result,
+  onRun, onClose, onAcceptOne, onDiscardOne, onAcceptAll, onClear,
+}: {
+  text: string;
+  setText: (v: string) => void;
+  loading: boolean;
+  error: string | null;
+  result: Partial<Task>[] | null;
+  onRun: () => void;
+  onClose: () => void;
+  onAcceptOne: (idx: number) => void;
+  onDiscardOne: (idx: number) => void;
+  onAcceptAll: () => void;
+  onClear: () => void;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => { textareaRef.current?.focus(); }, []);
+  const canRun = text.trim().length > 0 && !loading;
+  return (
+    <div style={{
+      background: "linear-gradient(180deg, " + D.card + ", " + D.surface + ")",
+      border: "1px solid " + D.amber + "44",
+      borderRadius: 14, marginBottom: 14, overflow: "hidden",
+      boxShadow: "0 8px 28px rgba(247,176,65,0.10)",
+      animation: "tbRowIn 0.18s ease both",
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "10px 14px", borderBottom: "1px solid " + D.border,
+        background: "rgba(247,176,65,0.05)",
+      }}>
+        <span style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 1.4, fontWeight: 700, textTransform: "uppercase" }}>
+          ✦ Brain dump
+        </span>
+        <span style={{ fontSize: 11.5, color: D.txm, fontFamily: ft }}>
+          Paste a Slack thread, meeting notes, a list, anything. Claude turns it into ready-to-add tasks.
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          title="Close brain dump"
+          style={{
+            marginLeft: "auto",
+            background: "transparent", border: "none", color: D.txm,
+            fontSize: 18, cursor: "pointer", padding: "0 4px", lineHeight: 1,
+          }}
+        >×</button>
+      </div>
+
+      {!result && (
+        <div style={{ padding: 14 }}>
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault();
+                if (canRun) onRun();
+              }
+            }}
+            placeholder={"Things I need to do this week:\n- Redo ClusterMax ribbons (Daksh, by Wed)\n- Ask Vansh to update the AWS slide template\n- Send the Buffer post for Friday\n- ...\n\n⌘Enter to generate"}
+            rows={8}
+            style={{
+              width: "100%", boxSizing: "border-box",
+              background: D.bg, border: "1px solid " + D.border, borderRadius: 9,
+              color: D.tx, fontFamily: ft, fontSize: 13.5, lineHeight: 1.45,
+              padding: "11px 13px", resize: "vertical", outline: "none",
+              minHeight: 140,
+            }}
+          />
+          {error && (
+            <div style={{
+              marginTop: 10, padding: "8px 11px",
+              background: "rgba(224,99,71,0.08)", border: "1px solid " + D.coral + "55",
+              borderRadius: 7, color: D.coral, fontFamily: mn, fontSize: 11.5,
+            }}>● {error}</div>
+          )}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10,
+            marginTop: 12, flexWrap: "wrap",
+          }}>
+            <button
+              type="button"
+              onClick={onRun}
+              disabled={!canRun}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 8,
+                padding: "9px 18px",
+                background: canRun
+                  ? "linear-gradient(135deg, " + D.amber + ", " + D.coral + ")"
+                  : D.surface,
+                color: canRun ? "#0A0A0F" : D.txd,
+                border: canRun ? "none" : "1px solid " + D.border,
+                fontFamily: ft, fontSize: 13, fontWeight: 700, letterSpacing: 0.3,
+                borderRadius: 9, cursor: canRun ? "pointer" : "not-allowed",
+                boxShadow: canRun ? "0 6px 18px rgba(247,176,65,0.25)" : "none",
+              }}
+            >{loading ? "● Generating…" : "✦ Generate tasks"}</button>
+            <span style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.5 }}>⌘ + ↵ to submit</span>
+            {text.trim() && !loading && (
+              <button
+                type="button"
+                onClick={() => setText("")}
+                style={{
+                  marginLeft: "auto",
+                  background: "transparent", border: "1px solid " + D.border,
+                  color: D.txm, padding: "6px 11px",
+                  fontFamily: mn, fontSize: 10.5, borderRadius: 6, cursor: "pointer",
+                  letterSpacing: 0.5,
+                }}
+              >clear input</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {result && (
+        <div style={{ padding: 14 }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10,
+            marginBottom: 12, flexWrap: "wrap",
+          }}>
+            <span style={{ fontFamily: mn, fontSize: 11, color: D.tx, fontWeight: 700, letterSpacing: 0.4 }}>
+              {result.length} task{result.length === 1 ? "" : "s"} parsed
+            </span>
+            <span style={{ fontFamily: ft, fontSize: 11.5, color: D.txm }}>
+              Review, then add what you want.
+            </span>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+              <button
+                type="button"
+                onClick={onClear}
+                style={{
+                  padding: "6px 11px",
+                  background: "transparent", border: "1px solid " + D.border,
+                  color: D.txm, fontFamily: mn, fontSize: 10.5, borderRadius: 6,
+                  cursor: "pointer", letterSpacing: 0.5,
+                }}
+              >start over</button>
+              <button
+                type="button"
+                onClick={onAcceptAll}
+                disabled={result.length === 0}
+                style={{
+                  padding: "6px 14px",
+                  background: result.length === 0
+                    ? D.surface
+                    : "linear-gradient(135deg, " + D.amber + ", " + D.coral + ")",
+                  color: result.length === 0 ? D.txd : "#0A0A0F",
+                  border: "none",
+                  fontFamily: mn, fontSize: 10.5, fontWeight: 700,
+                  letterSpacing: 0.5, borderRadius: 6,
+                  cursor: result.length === 0 ? "not-allowed" : "pointer",
+                }}
+              >+ add all {result.length}</button>
+            </div>
+          </div>
+          {result.length === 0 ? (
+            <div style={{
+              padding: 22, textAlign: "center", color: D.txm, fontSize: 12.5,
+              background: D.bg, border: "1px dashed " + D.border, borderRadius: 9,
+            }}>
+              Nothing left — every task was added or discarded.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {result.map((t, i) => (
+                <DumpPreviewRow
+                  key={i}
+                  task={t}
+                  onAccept={() => onAcceptOne(i)}
+                  onDiscard={() => onDiscardOne(i)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DumpPreviewRow({ task, onAccept, onDiscard }: {
+  task: Partial<Task>;
+  onAccept: () => void;
+  onDiscard: () => void;
+}) {
+  const cColor = CAT_COLOR[task.category || ""] || D.txd;
+  const pColor = PRI_COLOR[(task.priority as Priority) || "MEDIUM"] || D.txd;
+  const subCount = task.subtasks?.length || 0;
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "110px 1fr auto auto auto",
+      alignItems: "center", gap: 10,
+      padding: "10px 13px",
+      background: D.bg, border: "1px solid " + D.border, borderRadius: 9,
+      transition: "border-color 0.12s",
+    }}>
+      <span style={{
+        fontSize: 9, color: cColor, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase",
+        background: cColor + "12", border: "1px solid " + cColor + "44",
+        padding: "3px 6px", borderRadius: 4,
+        textAlign: "center", whiteSpace: "nowrap",
+        overflow: "hidden", textOverflow: "ellipsis",
+        fontFamily: ft,
+      }}>{task.category || "OTHER"}</span>
+      <div style={{ minWidth: 0 }}>
+        <div style={{
+          fontFamily: gf, fontSize: 13, fontWeight: 600, color: D.tx,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          lineHeight: 1.35, letterSpacing: -0.1,
+        }}>{task.title || "Untitled"}</div>
+        <div style={{
+          fontFamily: mn, fontSize: 10, color: D.txd, marginTop: 2,
+          display: "flex", gap: 8, flexWrap: "wrap", letterSpacing: 0.3,
+        }}>
+          <span>{task.assignee || "Akash"}</span>
+          {task.dueDate && <span>· due {task.dueDate}</span>}
+          {subCount > 0 && <span>· {subCount} subtask{subCount === 1 ? "" : "s"}</span>}
+          {task.description && <span style={{ color: D.txm, fontFamily: ft, textTransform: "none", letterSpacing: 0 }}>· {task.description}</span>}
+        </div>
+      </div>
+      <span style={{
+        fontSize: 9.5, color: pColor, fontFamily: mn, fontWeight: 700,
+        padding: "3px 8px",
+        background: pColor + "15",
+        border: "1px solid " + pColor + "55", borderRadius: 5,
+        whiteSpace: "nowrap", letterSpacing: 0.5, textTransform: "uppercase",
+      }}>{task.priority || "MEDIUM"}</span>
+      <button
+        type="button"
+        onClick={onAccept}
+        title="Add to board"
+        style={{
+          padding: "6px 11px",
+          background: D.teal + "22", border: "1px solid " + D.teal + "55",
+          color: D.teal, fontFamily: mn, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5,
+          borderRadius: 6, cursor: "pointer",
+        }}
+      >+ add</button>
+      <button
+        type="button"
+        onClick={onDiscard}
+        title="Discard this one"
+        style={{
+          padding: "6px 9px",
+          background: "transparent", border: "1px solid " + D.border,
+          color: D.txm, fontFamily: mn, fontSize: 12, fontWeight: 700,
+          borderRadius: 6, cursor: "pointer", lineHeight: 1,
+        }}
+      >×</button>
+    </div>
   );
 }
 
@@ -2516,8 +2914,103 @@ function HotSeatCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// QUEUE ROW (used in Today, All, Schedule day sections, Done)
+// INLINE PICKER — portal popover for one-click assignee/category/priority
+// edits without opening the full drawer. Closes on outside click + Escape.
+// Anchored to the cell that triggered it via a captured DOMRect.
 // ═══════════════════════════════════════════════════════════════════
+
+interface PickerItem { value: string; label: string; color: string }
+
+function InlinePicker({
+  items, current, onSelect, onClose, anchorRect, leadingDot = true,
+}: {
+  items: PickerItem[];
+  current: string;
+  onSelect: (value: string) => void;
+  onClose: () => void;
+  anchorRect: DOMRect;
+  leadingDot?: boolean;
+}) {
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      const tgt = e.target as HTMLElement | null;
+      if (tgt && tgt.closest("[data-inline-picker]")) return;
+      onClose();
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") { e.preventDefault(); onClose(); }
+    }
+    const t = setTimeout(() => document.addEventListener("mousedown", onDoc), 0);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+  if (typeof window === "undefined") return null;
+  const width = 196;
+  const top = Math.min(anchorRect.bottom + 6, window.innerHeight - 8 - items.length * 34 - 16);
+  const left = Math.max(8, Math.min(anchorRect.left, window.innerWidth - width - 8));
+  return createPortal(
+    <div
+      data-inline-picker="1"
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        position: "fixed", top, left, zIndex: 12000,
+        background: D.card, border: "1px solid " + D.border, borderRadius: 10,
+        boxShadow: "0 20px 50px rgba(0,0,0,0.55)",
+        padding: 5, width,
+        display: "flex", flexDirection: "column", gap: 2,
+        animation: "tbRowIn 0.14s ease both",
+        maxHeight: "60vh", overflowY: "auto",
+      }}
+    >
+      {items.map((it) => {
+        const active = it.value === current;
+        return (
+          <button
+            key={it.value}
+            type="button"
+            draggable={false}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect(it.value);
+              onClose();
+            }}
+            style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "7px 10px",
+              background: active ? it.color + "22" : "transparent",
+              border: "1px solid " + (active ? it.color + "55" : "transparent"),
+              color: D.tx, textAlign: "left",
+              fontFamily: ft, fontSize: 12.5, fontWeight: active ? 700 : 500,
+              borderRadius: 6, cursor: "pointer",
+              whiteSpace: "nowrap",
+              transition: "background 0.1s",
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = active ? it.color + "33" : "rgba(255,255,255,0.05)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = active ? it.color + "22" : "transparent"; }}
+          >
+            {leadingDot && <span style={{ width: 8, height: 8, borderRadius: 999, background: it.color, flexShrink: 0 }} />}
+            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{it.label}</span>
+            {active && <span style={{ color: it.color, fontFamily: mn, fontSize: 11, fontWeight: 700 }}>✓</span>}
+          </button>
+        );
+      })}
+    </div>,
+    document.body,
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// QUEUE ROW (used in Today, All, Schedule day sections, Done)
+// Category / assignee / priority cells are click-to-edit — they open an
+// InlinePicker without bubbling to the row's "open drawer" click.
+// ═══════════════════════════════════════════════════════════════════
+
+type OpenPicker = null | "category" | "assignee" | "priority";
 
 function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggle: () => void }) {
   const overdue = isOverdue(task);
@@ -2525,13 +3018,24 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
   const dueColor = overdue ? D.coral : today ? D.amber : D.txm;
   const pColor = PRI_COLOR[task.priority] || D.txd;
   const cColor = CAT_COLOR[task.category] || D.txd;
+  const aColor = ASSIGNEE_COLOR[task.assignee || "Akash"] || D.txd;
   const subDone = task.subtasks?.filter((s) => s.done).length || 0;
   const subTotal = task.subtasks?.length || 0;
   const [hover, setHover] = useState(false);
+  const [picker, setPicker] = useState<OpenPicker>(null);
+  const [pickerRect, setPickerRect] = useState<DOMRect | null>(null);
   const drag = useDrag();
   const isDragging = drag.draggingId === task.id;
   const isCombined = drag.combineIds.includes(task.id);
   const isSelected = drag.selectedIds.has(task.id);
+
+  function openPicker(kind: NonNullable<OpenPicker>, e: React.MouseEvent<HTMLElement>) {
+    e.stopPropagation();
+    e.preventDefault();
+    setPickerRect((e.currentTarget as HTMLElement).getBoundingClientRect());
+    setPicker(kind);
+  }
+
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.shiftKey) { e.preventDefault(); drag.toggleSelected(task.id); return; }
     if (e.metaKey || e.ctrlKey || e.altKey) {
@@ -2545,6 +3049,10 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
     e.preventDefault();
     drag.openFocus(task);
   };
+
+  const editableRing = (active: boolean, color: string) =>
+    active ? "0 0 0 2px " + color + "66" : hover ? "0 0 0 1px " + color + "55" : "none";
+
   return (
     <div
       role="button"
@@ -2588,13 +3096,24 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
       }}
     >
       <StatusCircle done={task.done} size={16} onClick={onToggle} />
-      <span className="tbq-cat" style={{
-        fontSize: 9, color: cColor, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase",
-        background: cColor + "12", border: "1px solid " + cColor + "44",
-        padding: "3px 6px", borderRadius: 4,
-        textAlign: "center", whiteSpace: "nowrap",
-        overflow: "hidden", textOverflow: "ellipsis",
-      }}>{task.category}</span>
+      <button
+        type="button"
+        draggable={false}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => openPicker("category", e)}
+        title="Click to change category"
+        className="tbq-cat"
+        style={{
+          fontSize: 9, color: cColor, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase",
+          background: cColor + "12", border: "1px solid " + cColor + "44",
+          padding: "3px 6px", borderRadius: 4,
+          textAlign: "center", whiteSpace: "nowrap",
+          overflow: "hidden", textOverflow: "ellipsis",
+          cursor: "pointer", fontFamily: ft,
+          boxShadow: editableRing(picker === "category", cColor),
+          transition: "box-shadow 0.12s",
+        }}
+      >{task.category}</button>
       <div style={{
         minWidth: 0,
         fontFamily: gf, fontSize: 13.5, fontWeight: 600, color: D.tx, lineHeight: 1.3,
@@ -2615,14 +3134,66 @@ function QueueRow({ task, last, onToggle }: { task: Task; last: boolean; onToggl
         border: "1px solid " + dueColor + "44", borderRadius: 5,
         whiteSpace: "nowrap", minWidth: 64, textAlign: "center", fontWeight: 600,
       }}>{dueLabel(task.dueDate)}</span>
-      <span className="tbq-avatar"><Avatar name={task.assignee || "Akash"} size={22} /></span>
-      <span className="tbq-pri" style={{
-        fontSize: 9.5, color: pColor, fontFamily: mn, fontWeight: 700,
-        padding: "3px 8px",
-        background: pColor + "15",
-        border: "1px solid " + pColor + "55", borderRadius: 5,
-        whiteSpace: "nowrap", letterSpacing: 0.5, textTransform: "uppercase",
-      }}>{task.priority}</span>
+      <button
+        type="button"
+        draggable={false}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => openPicker("assignee", e)}
+        title={"Assigned to " + (task.assignee || "Akash") + " — click to reassign"}
+        className="tbq-avatar"
+        style={{
+          background: "transparent", border: "none", padding: 0,
+          cursor: "pointer", borderRadius: 999,
+          display: "inline-flex", alignItems: "center",
+          boxShadow: editableRing(picker === "assignee", aColor),
+          transition: "box-shadow 0.12s",
+        }}
+      ><Avatar name={task.assignee || "Akash"} size={22} /></button>
+      <button
+        type="button"
+        draggable={false}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => openPicker("priority", e)}
+        title="Click to change priority"
+        className="tbq-pri"
+        style={{
+          fontSize: 9.5, color: pColor, fontFamily: mn, fontWeight: 700,
+          padding: "3px 8px",
+          background: pColor + "15",
+          border: "1px solid " + pColor + "55", borderRadius: 5,
+          whiteSpace: "nowrap", letterSpacing: 0.5, textTransform: "uppercase",
+          cursor: "pointer",
+          boxShadow: editableRing(picker === "priority", pColor),
+          transition: "box-shadow 0.12s",
+        }}
+      >{task.priority}</button>
+      {picker === "category" && pickerRect && (
+        <InlinePicker
+          items={CATEGORIES.map((c) => ({ value: c, label: c, color: CAT_COLOR[c] || D.txd }))}
+          current={task.category}
+          onSelect={(v) => drag.applyPatch(task.id, { category: v })}
+          onClose={() => setPicker(null)}
+          anchorRect={pickerRect}
+        />
+      )}
+      {picker === "assignee" && pickerRect && (
+        <InlinePicker
+          items={ASSIGNEES.map((a) => ({ value: a, label: a, color: ASSIGNEE_COLOR[a] || D.txd }))}
+          current={task.assignee || "Akash"}
+          onSelect={(v) => drag.applyPatch(task.id, { assignee: v })}
+          onClose={() => setPicker(null)}
+          anchorRect={pickerRect}
+        />
+      )}
+      {picker === "priority" && pickerRect && (
+        <InlinePicker
+          items={PRIORITY_ORDER.map((p) => ({ value: p, label: p, color: PRI_COLOR[p] }))}
+          current={task.priority}
+          onSelect={(v) => drag.applyPatch(task.id, { priority: v as Priority })}
+          onClose={() => setPicker(null)}
+          anchorRect={pickerRect}
+        />
+      )}
     </div>
   );
 }

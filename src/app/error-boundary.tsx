@@ -27,8 +27,31 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    // TODO(akash): hook up to Sentry or structured error reporting.
     console.error("ErrorBoundary caught:", error, errorInfo);
+    // Best-effort structured report to the poast-events log. Silent if the
+    // endpoint or Redis isn't reachable — we never want logging to break
+    // the already-broken UI further.
+    if (typeof window !== "undefined" && typeof fetch !== "undefined") {
+      try {
+        fetch("/api/poast-events", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          keepalive: true,
+          body: JSON.stringify({
+            event: "ui-error",
+            user: (window as unknown as { __POAST_USER__?: string }).__POAST_USER__ || "anon",
+            role: (window as unknown as { __POAST_ROLE__?: string }).__POAST_ROLE__ || "anon",
+            payload: {
+              message: error.message,
+              stack: (error.stack || "").split("\n").slice(0, 8).join("\n"),
+              componentStack: (errorInfo.componentStack || "").split("\n").slice(0, 8).join("\n"),
+              url: window.location.href,
+              ua: navigator.userAgent.slice(0, 200),
+            },
+          }),
+        }).catch(() => { /* swallow — log endpoint is best-effort */ });
+      } catch { /* swallow — never throw from a catch handler */ }
+    }
   }
 
   handleReset = (): void => {
