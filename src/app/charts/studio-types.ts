@@ -82,7 +82,67 @@ export interface ChartDocPayload {
   templateId?: string;
 }
 
-// Lightweight stub payloads for table + diagram so studio-shell can mint
-// new docs of those types without the editor wired in yet.
-export interface TablePayloadStub  { kind: "table";   version: 1; templateId?: string }
-export interface DiagramPayloadStub { kind: "diagram"; version: 1; templateId?: string }
+// ─── Table document payload ───────────────────────────────────────────────
+// Independent of chart-maker-2's DataSheet — defined here so editor-table
+// and any future consumer can stand on its own. Shape is intentionally a
+// subset/superset compatible with the chart-maker-2 DataSheet so "build
+// chart from selection" can drop a table sheet straight into a chart doc.
+
+export type TableColumnType = "text" | "number" | "date" | "percent";
+export type TableCellValue  = string | number | null | undefined;
+
+export interface TableColumnSpec {
+  key: string;            // stable column id, never reused after delete
+  label: string;          // header text shown to the user
+  type: TableColumnType;
+}
+
+export interface TableSheet {
+  schema: TableColumnSpec[];
+  rows: Array<Record<string, TableCellValue>>;
+}
+
+export interface TableDocPayload {
+  kind: "table";
+  version: 1;
+  engine: "standard" | "univer";
+  sheet: TableSheet;
+  // Univer roundtrips its full workbook as opaque JSON; we keep it as
+  // unknown so we don't pull Univer types into this leaf module.
+  univerSnapshot?: unknown;
+  templateId?: string;
+}
+
+// ─── Diagram document payload ────────────────────────────────────────────
+
+export type DiagramShapeKind = "rect" | "ellipse" | "text" | "arrow" | "line";
+
+export interface DiagramNode {
+  id: string;
+  kind: DiagramShapeKind;
+  x: number; y: number; w: number; h: number;
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  text?: string;
+  fontSize?: number;
+  rotation?: number;
+}
+
+export interface DiagramEdge {
+  id: string;
+  from: string; to: string;
+  stroke?: string;
+  strokeWidth?: number;
+  dashed?: boolean;
+}
+
+export interface DiagramDocPayload {
+  kind: "diagram";
+  version: 1;
+  nodes: DiagramNode[];
+  edges: DiagramEdge[];
+  canvasW: number;
+  canvasH: number;
+  templateId?: string;
+}

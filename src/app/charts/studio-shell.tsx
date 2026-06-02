@@ -17,7 +17,8 @@ import DiagramEditor from "./editor-diagram";
 import { listDocs, loadDoc, saveDoc, deleteDoc } from "./studio-storage";
 import { D, ft, gf, mn, SAVE_STATE_COLOR } from "./studio-theme";
 import {
-  DocType, SaveState, StudioDoc, StudioView,
+  ChartDocPayload,
+  DocType, SaveState, StudioDoc, StudioView, TableSheet,
   emptyDoc, isAnalystOwner, newDocId,
 } from "./studio-types";
 import WelcomeView from "./views/welcome";
@@ -197,7 +198,27 @@ export default function StudioShell() {
       )}
 
       {view.kind === "editor" && activeDoc && (
-        <EditorHost doc={activeDoc} onChangePayload={(payload) => updateDoc({ ...activeDoc, payload })} />
+        <EditorHost
+          doc={activeDoc}
+          onChangePayload={(payload) => updateDoc({ ...activeDoc, payload })}
+          onBuildChartFromTable={(sheet, sourceName) => {
+            // Mint a chart doc seeded with the table's sheet + a sensible
+            // default chart type, then jump to it. The user is mid-table
+            // flow, so we surface the new chart in the editor immediately.
+            const doc = emptyDoc("chart", owner, "Chart of " + sourceName);
+            const payload: ChartDocPayload = {
+              kind: "chart", version: 1,
+              type: "clustered",
+              title: sourceName,
+              subtitle: "From table",
+              sheet,
+            };
+            doc.payload = payload;
+            setDocs((cur) => [doc, ...cur]);
+            setView({ kind: "editor", docId: doc.id });
+            void saveDoc(doc);
+          }}
+        />
       )}
 
       {view.kind === "editor" && !activeDoc && (
@@ -210,9 +231,13 @@ export default function StudioShell() {
   );
 }
 
-function EditorHost({ doc, onChangePayload }: { doc: StudioDoc; onChangePayload: (payload: unknown) => void }) {
+function EditorHost({ doc, onChangePayload, onBuildChartFromTable }: {
+  doc: StudioDoc;
+  onChangePayload: (payload: unknown) => void;
+  onBuildChartFromTable: (sheet: TableSheet, sourceName: string) => void;
+}) {
   if (doc.type === "chart")   return <ChartEditor   doc={doc} onChangePayload={onChangePayload} />;
-  if (doc.type === "table")   return <TableEditor   doc={doc} onChangePayload={onChangePayload} />;
+  if (doc.type === "table")   return <TableEditor   doc={doc} onChangePayload={onChangePayload} onBuildChart={onBuildChartFromTable} />;
   return <DiagramEditor doc={doc} onChangePayload={onChangePayload} />;
 }
 
