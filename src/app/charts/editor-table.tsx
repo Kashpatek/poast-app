@@ -621,6 +621,13 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
             hint="Add a numbered footnote"
             onClick={() => update({ footnotes: [...state.footnotes, ""] })}
           />
+          <ToolbarBtn
+            Icon={ImageIcon}
+            label={"Logo" + (state.watermark.mode !== "off" ? " + WM" : "")}
+            accent={(state.lettermarkLogo !== "saWordmark" || state.watermark.mode !== "off") ? D.teal : undefined}
+            hint="Swap top-right logo · add a watermark"
+            onClick={() => setRightOpen(true)}
+          />
           {onBuildChart && (
             <>
               <span style={{ marginLeft: "auto" }} />
@@ -1220,6 +1227,30 @@ function ToolbarBtn({ Icon, label, onClick, accent, disabled, hint }: {
   );
 }
 
+// Which feature panels the given chrome variant actually surfaces.
+// The rail uses this to HIDE fields that the renderer would ignore,
+// so the properties sidebar shrinks instead of confusing the user
+// with controls that do nothing.
+interface ChromeCaps {
+  titleBar: boolean;     // amber title bar above the column header
+  keyInsight: boolean;   // KEY INSIGHT block below the table
+  highlightRow: boolean; // single blue-highlighted row + flag cell
+  rowStripe: boolean;    // alternate-row banding (some chromes ignore it)
+  sectionBands: boolean; // surfaces section / band markers
+}
+function chromeCaps(style: TableChromeStyle): ChromeCaps {
+  switch (style) {
+    case "dense":           return { titleBar: false, keyInsight: false, highlightRow: true,  rowStripe: true,  sectionBands: false };
+    case "leaderboard":     return { titleBar: true,  keyInsight: true,  highlightRow: false, rowStripe: true,  sectionBands: false };
+    case "sectioned":       return { titleBar: true,  keyInsight: true,  highlightRow: true,  rowStripe: true,  sectionBands: true  };
+    case "colored-headers": return { titleBar: false, keyInsight: false, highlightRow: true,  rowStripe: true,  sectionBands: false };
+    case "banded-spec":     return { titleBar: false, keyInsight: false, highlightRow: false, rowStripe: false, sectionBands: true  };
+    case "totaled":         return { titleBar: true,  keyInsight: false, highlightRow: true,  rowStripe: true,  sectionBands: false };
+    case "framed":
+    default:                return { titleBar: true,  keyInsight: true,  highlightRow: true,  rowStripe: true,  sectionBands: false };
+  }
+}
+
 // 2×2 grid of chrome variants. Each tile shows a tiny mockup so the
 // user can preview the wrapping decoration before committing.
 function ChromePicker({ value, onChange }: {
@@ -1263,6 +1294,36 @@ function ChromePicker({ value, onChange }: {
           </button>
         );
       })}
+      <ChromeFeatureChips caps={chromeCaps(value)} />
+    </div>
+  );
+}
+
+// Tiny chip strip listing which features the chosen chrome enables.
+// The properties rail hides the corresponding fields when these are
+// off, so this strip doubles as the legend.
+function ChromeFeatureChips({ caps }: { caps: ChromeCaps }) {
+  const features: { label: string; on: boolean }[] = [
+    { label: "Title bar",    on: caps.titleBar },
+    { label: "Key insight",  on: caps.keyInsight },
+    { label: "Highlight row",on: caps.highlightRow },
+    { label: "Section bands",on: caps.sectionBands },
+  ];
+  return (
+    <div style={{ gridColumn: "1 / -1", display: "flex", flexWrap: "wrap", gap: 4, paddingTop: 4 }}>
+      {features.map((f) => (
+        <span key={f.label} style={{
+          padding: "3px 7px",
+          background: f.on ? D.amber + "1A" : "transparent",
+          color: f.on ? D.amber : D.txd,
+          border: "1px solid " + (f.on ? D.amber + "55" : D.border),
+          borderRadius: 999,
+          fontFamily: mn, fontSize: 8.5, fontWeight: 700, letterSpacing: 0.5,
+          textTransform: "uppercase",
+          textDecoration: f.on ? undefined : "line-through",
+          opacity: f.on ? 1 : 0.55,
+        }}>{f.label}</span>
+      ))}
     </div>
   );
 }
@@ -1578,27 +1639,35 @@ function FootnoteEditor({ items, onChange }: {
     <div style={{ padding: "4px 10px 10px" }}>
       <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.4, lineHeight: 1.4, paddingBottom: 8 }}>
         Auto-numbered ⁽¹⁾⁽²⁾⁽³⁾… Renders just above the source line.
-        Use them for caveats like “Estimated” or table-cell asterisks.
+        Drag the corner of any field to resize.
       </div>
       {items.length === 0 && (
         <div style={{
           fontFamily: mn, fontSize: 10, color: D.txd,
-          padding: "8px 10px", borderRadius: 6, border: "1px dashed " + D.border,
+          padding: "10px 12px", borderRadius: 6, border: "1px dashed " + D.border,
           textAlign: "center", marginBottom: 8,
         }}>No footnotes yet.</div>
       )}
       {items.map((text, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 5, marginBottom: 6 }}>
-          <span style={{
-            fontFamily: mn, fontSize: 9.5, color: D.amber, fontWeight: 800,
-            minWidth: 22, paddingTop: 6, textAlign: "right",
-          }}>({i + 1})</span>
-          <TextArea
-            value={text}
-            onChange={(v) => update(i, v)}
-            placeholder="Estimated HD SRAM Cell"
-          />
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <div key={i} style={{
+          display: "grid",
+          gridTemplateColumns: "26px 1fr 26px",
+          gap: 6,
+          marginBottom: 10,
+          padding: 8,
+          borderRadius: 7,
+          background: "rgba(247,176,65,0.04)",
+          border: "1px solid " + D.border,
+        }}>
+          {/* Footnote number tag */}
+          <div style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+            paddingTop: 4,
+          }}>
+            <span style={{
+              fontFamily: mn, fontSize: 11, color: D.amber, fontWeight: 800,
+              textAlign: "center", lineHeight: 1,
+            }}>({i + 1})</span>
             <button onClick={() => move(i, -1)} disabled={i === 0}
               title="Move up"
               style={miniIconBtn(i === 0)}>↑</button>
@@ -1606,21 +1675,39 @@ function FootnoteEditor({ items, onChange }: {
               title="Move down"
               style={miniIconBtn(i === items.length - 1)}>↓</button>
           </div>
-          <button onClick={() => remove(i)}
-            title="Remove footnote"
-            style={{ ...miniIconBtn(false), color: D.coral }}>×</button>
+          {/* The textarea itself — taller default, vertical resize on. */}
+          <textarea
+            value={text}
+            onChange={(e) => update(i, e.target.value)}
+            placeholder={`Footnote ${i + 1}\ne.g. Estimated HD SRAM Cell · Q3'26 figures`}
+            rows={3}
+            style={{
+              width: "100%", boxSizing: "border-box",
+              minHeight: 60,
+              background: D.bg, color: D.tx,
+              border: "1px solid " + D.border, borderRadius: 6,
+              padding: "8px 10px",
+              fontFamily: ft, fontSize: 12, lineHeight: 1.4,
+              outline: "none", resize: "vertical",
+            }}
+          />
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <button onClick={() => remove(i)}
+              title="Remove this footnote"
+              style={{ ...miniIconBtn(false), color: D.coral }}>×</button>
+          </div>
         </div>
       ))}
       <button onClick={add}
         style={{
           marginTop: 4, width: "100%",
-          padding: "7px 10px",
+          padding: "9px 12px",
           background: D.amber + "15", color: D.amber,
           border: "1px dashed " + D.amber + "55", borderRadius: 6,
           cursor: "pointer",
-          fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
+          fontFamily: mn, fontSize: 10.5, fontWeight: 800, letterSpacing: 0.5,
           textTransform: "uppercase",
-        }}>+ Add footnote</button>
+        }}>+ Add another footnote</button>
     </div>
   );
 }
@@ -1884,7 +1971,9 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
   const [typoOpen, setTypoOpen] = useState(false);
   const [footerOpen, setFooterOpen] = useState(false);
   const [footnotesOpen, setFootnotesOpen] = useState(false);
-  const [brandingOpen, setBrandingOpen] = useState(false);
+  // Open by default so the logo / watermark picker is discoverable —
+  // this is one of the top-asked-for surfaces.
+  const [brandingOpen, setBrandingOpen] = useState(true);
   const [headerOpen, setHeaderOpen] = useState(true);
   const [dataModeOpen, setDataModeOpen] = useState(true);
   const [heatmapOpen, setHeatmapOpen] = useState(true);
@@ -1902,6 +1991,15 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
       <PanelSection label="Chrome style" open={chromeOpen} onToggle={() => setChromeOpen(v => !v)}>
         <ChromePicker value={state.chromeStyle} onChange={(v) => update({ chromeStyle: v })} />
       </PanelSection>
+      <PanelSection label="Logo & Watermark" open={brandingOpen} onToggle={() => setBrandingOpen(v => !v)}>
+        <BrandingPanel
+          lettermarkLogo={state.lettermarkLogo}
+          lettermarkCustomSrc={state.lettermarkCustomSrc}
+          watermark={state.watermark}
+          onChangeLettermark={(logo, customSrc) => update({ lettermarkLogo: logo, lettermarkCustomSrc: customSrc ?? state.lettermarkCustomSrc })}
+          onChangeWatermark={(w) => update({ watermark: w })}
+        />
+      </PanelSection>
       <PanelSection label="Decorations" open={styleOpen} onToggle={() => setStyleOpen(v => !v)}>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "6px 10px 10px" }}>
           <FooterToggle
@@ -1909,11 +2007,13 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
             checked={!state.hideTopStripe}
             onChange={(v) => update({ hideTopStripe: !v })}
           />
-          <FooterToggle
-            label="Alternate row stripe"
-            checked={state.showRowStripe}
-            onChange={(v) => update({ showRowStripe: v })}
-          />
+          {chromeCaps(state.chromeStyle).rowStripe && (
+            <FooterToggle
+              label="Alternate row stripe"
+              checked={state.showRowStripe}
+              onChange={(v) => update({ showRowStripe: v })}
+            />
+          )}
           <Field label="Column divider">
             <DividerStylePicker
               value={state.dividerStyle}
@@ -2016,15 +2116,6 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
           onChange={(items) => update({ footnotes: items })}
         />
       </PanelSection>
-      <PanelSection label="Logo & Watermark" open={brandingOpen} onToggle={() => setBrandingOpen(v => !v)}>
-        <BrandingPanel
-          lettermarkLogo={state.lettermarkLogo}
-          lettermarkCustomSrc={state.lettermarkCustomSrc}
-          watermark={state.watermark}
-          onChangeLettermark={(logo, customSrc) => update({ lettermarkLogo: logo, lettermarkCustomSrc: customSrc ?? state.lettermarkCustomSrc })}
-          onChangeWatermark={(w) => update({ watermark: w })}
-        />
-      </PanelSection>
       <PanelSection label="Header" open={headerOpen} onToggle={() => setHeaderOpen(v => !v)}>
         <Field label="Category eyebrow">
           <TextInput value={state.category} onChange={(v) => update({ category: v })} placeholder="SEMIANALYSIS — RESEARCH" />
@@ -2047,37 +2138,48 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
           <TextInput value={state.subtitle} onChange={(v) => update({ subtitle: v })} placeholder="Quarter · year · inputs" />
         </Field>
       </PanelSection>
-      {state.mode === "data" && (
-        <PanelSection label="Data table" open={dataModeOpen} onToggle={() => setDataModeOpen(v => !v)}>
-          <Field label="Table title bar">
-            <TextInput value={state.titleBar} onChange={(v) => update({ titleBar: v })} placeholder="TABLE TITLE" />
-          </Field>
-          <Field label="Highlight row">
-            <RowPicker
-              count={state.sheet.rows.length}
-              value={state.highlightRowIdx}
-              onChange={(v) => update({ highlightRowIdx: v })}
-              sheet={state.sheet}
-            />
-          </Field>
-          {state.highlightRowIdx != null && (
-            <Field label="Flag cell (column)">
-              <RowPicker
-                count={Math.max(0, state.sheet.schema.length - 1)}
-                value={state.highlightFlagCol}
-                onChange={(v) => update({ highlightFlagCol: v })}
-                kind="column"
-                sheet={state.sheet}
-                offset={1}
-              />
-            </Field>
-          )}
-          <Field label="Key insight (paragraph)">
-            <TextArea value={state.keyInsight} onChange={(v) => update({ keyInsight: v })}
-              placeholder="At [condition], [metric] hits $X — within $Y of [threshold]." />
-          </Field>
-        </PanelSection>
-      )}
+      {state.mode === "data" && (() => {
+        const caps = chromeCaps(state.chromeStyle);
+        const hasAny = caps.titleBar || caps.highlightRow || caps.keyInsight;
+        if (!hasAny) return null;
+        return (
+          <PanelSection label="Data table" open={dataModeOpen} onToggle={() => setDataModeOpen(v => !v)}>
+            {caps.titleBar && (
+              <Field label="Table title bar">
+                <TextInput value={state.titleBar} onChange={(v) => update({ titleBar: v })} placeholder="TABLE TITLE" />
+              </Field>
+            )}
+            {caps.highlightRow && (
+              <Field label="Highlight row">
+                <RowPicker
+                  count={state.sheet.rows.length}
+                  value={state.highlightRowIdx}
+                  onChange={(v) => update({ highlightRowIdx: v })}
+                  sheet={state.sheet}
+                />
+              </Field>
+            )}
+            {caps.highlightRow && state.highlightRowIdx != null && (
+              <Field label="Flag cell (column)">
+                <RowPicker
+                  count={Math.max(0, state.sheet.schema.length - 1)}
+                  value={state.highlightFlagCol}
+                  onChange={(v) => update({ highlightFlagCol: v })}
+                  kind="column"
+                  sheet={state.sheet}
+                  offset={1}
+                />
+              </Field>
+            )}
+            {caps.keyInsight && (
+              <Field label="Key insight (paragraph)">
+                <TextArea value={state.keyInsight} onChange={(v) => update({ keyInsight: v })}
+                  placeholder="At [condition], [metric] hits $X — within $Y of [threshold]." />
+              </Field>
+            )}
+          </PanelSection>
+        );
+      })()}
       {state.mode === "data" && (
         <PanelSection label="Aggregate row" open={aggOpen} onToggle={() => setAggOpen(v => !v)}>
           <Field label="Function">
