@@ -54,3 +54,35 @@ export function isAnalystOwner(owner: string): boolean {
   // shallow name check — there's only one Analyst persona today.
   return owner === "Analyst" || owner === "anon" || owner === "";
 }
+
+// ─── Chart document payload ──────────────────────────────────────────────
+// What ChartMaker2 (and editor-chart) read on hydrate + emit on change.
+// Fields are duck-typed (`string` / `unknown`) at this layer to keep the
+// storage + API code decoupled from chart-maker-2.tsx; the editor casts to
+// its strongly-typed internals on the way in/out.
+export interface ChartDocPayload {
+  kind: "chart";
+  version: 1;
+  // ChartType (e.g. "stacked", "stackedPosNeg", "line"). Seeded by Gallery
+  // pick when minting a new doc, then updated as the user changes types.
+  type?: string;
+  title?: string;
+  subtitle?: string;
+  theme?: string;          // ThemeId
+  backdrop?: string;       // BackdropKey
+  backdropMode?: "dark" | "light";
+  // Current-type sheet — i.e. the data being charted. Off-type sheets stay
+  // in ChartMaker2's per-type cache but are not roundtripped here.
+  sheet?: unknown;         // DataSheet
+  annotations?: unknown[]; // Annotation[]
+  chartAspect?: string;    // ChartAspect ("fit" | "free" | "16:9" | …)
+  chartZoom?: "fit" | number;
+  // Set by the Gallery when minting a new doc. ChartMaker2 reads this on
+  // mount to know which chart type to seed; it's not re-emitted after.
+  templateId?: string;
+}
+
+// Lightweight stub payloads for table + diagram so studio-shell can mint
+// new docs of those types without the editor wired in yet.
+export interface TablePayloadStub  { kind: "table";   version: 1; templateId?: string }
+export interface DiagramPayloadStub { kind: "diagram"; version: 1; templateId?: string }

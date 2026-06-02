@@ -22,6 +22,7 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { createPortal } from "react-dom";
 import { D as C, ft, gf, mn } from "./shared-constants";
 import { showToast } from "./toast-context";
+import type { ChartDocPayload } from "./charts/studio-types";
 // Wave 14.2 · Univer (full Excel-grade spreadsheet) · The CSS bundle for the
 // Univer presets ships as a flat ~80 KB stylesheet. We import it eagerly so
 // that when the user toggles EXCEL SUITE in Launch mode, all of Univer's UI
@@ -5792,14 +5793,30 @@ function PropertiesPanel({
   );
 }
 
-export default function ChartMaker2({ standalone = false }: { standalone?: boolean }) {
-  const [type, setType] = useState<ChartType>("stacked");
-  const [title, setTitle] = useState("SemiAnalysis · 2026 Outlook");
-  const [subtitle, setSubtitle] = useState("Quarterly view");
-  const [theme, setTheme] = useState<ThemeId>("saCore");
+// POAST Studio integration props. `initialState` seeds ChartMaker2 from a
+// saved document on mount; `onChange` fires a serialized snapshot of the
+// chart's persistable state whenever it changes (debounced upstream by the
+// Studio shell). When neither is set, ChartMaker2 behaves as before — the
+// existing /charts standalone surface still works unchanged.
+export default function ChartMaker2({
+  standalone = false,
+  initialState,
+  onChange,
+}: {
+  standalone?: boolean;
+  initialState?: ChartDocPayload;
+  onChange?: (payload: ChartDocPayload) => void;
+}) {
+  const seedType = (initialState?.type || initialState?.templateId) as ChartType | undefined;
+  const seedSheet = initialState?.sheet as DataSheet | undefined;
+  const seedAnnots = (initialState?.annotations as Annotation[] | undefined) || undefined;
+  const [type, setType] = useState<ChartType>(seedType || "stacked");
+  const [title, setTitle] = useState(initialState?.title || "SemiAnalysis · 2026 Outlook");
+  const [subtitle, setSubtitle] = useState(initialState?.subtitle || "Quarterly view");
+  const [theme, setTheme] = useState<ThemeId>((initialState?.theme as ThemeId) || "saCore");
   // Backdrop state · base color + glow stops for the chart canvas
-  const [backdrop, setBackdrop] = useState<BackdropKey>("both");
-  const [backdropMode, setBackdropMode] = useState<BackdropMode>("dark");
+  const [backdrop, setBackdrop] = useState<BackdropKey>((initialState?.backdrop as BackdropKey) || "both");
+  const [backdropMode, setBackdropMode] = useState<BackdropMode>(initialState?.backdropMode || "dark");
   // Design panel state — open/closed, plus visual flags
   const [designOpen, setDesignOpen] = useState(false);
   const [showBorders, setShowBorders] = useState(false);
@@ -5853,15 +5870,24 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   const [numFmt, setNumFmt] = useState<NumberFormat>("auto");
 
   // Per-type sheets so switching types doesn't lose data. Wrapped in
-  // history-aware updater so undo/redo can rewind any change.
-  const [sheets, setSheetsRaw] = useState<Partial<Record<ChartType, DataSheet>>>(() => ({}));
+  // history-aware updater so undo/redo can rewind any change. When mounted
+  // via Studio with an initialState.sheet, seed the active type with that
+  // sheet so the editor opens to the saved data instead of the default.
+  const [sheets, setSheetsRaw] = useState<Partial<Record<ChartType, DataSheet>>>(() => {
+    if (seedType && seedSheet) return { [seedType]: seedSheet } as Partial<Record<ChartType, DataSheet>>;
+    return {};
+  });
   // Optional secondary table per chart type — used by the FLOPs Comparison
   // template which has TWO tables (raw values + indexed). The data section
   // shows a [Table 1][Table 2] tab bar when a secondary exists.
   const [secondarySheets, setSecondarySheets] = useState<Partial<Record<ChartType, DataSheet>>>({});
   const [activeDataTab, setActiveDataTab] = useState<"primary" | "secondary">("primary");
-  // Per-type annotations (CAGR, diff, reference lines)
-  const [annotByType, setAnnotByType] = useState<Partial<Record<ChartType, Annotation[]>>>({});
+  // Per-type annotations (CAGR, diff, reference lines). Seeded from
+  // initialState when mounted via Studio so reflines etc. survive reload.
+  const [annotByType, setAnnotByType] = useState<Partial<Record<ChartType, Annotation[]>>>(() => {
+    if (seedType && seedAnnots && seedAnnots.length) return { [seedType]: seedAnnots } as Partial<Record<ChartType, Annotation[]>>;
+    return {};
+  });
   // Multi-step pick mode for CAGR / diff arrows. Null = idle.
   const [pickMode, setPickMode] = useState<PickMode>(null);
   // Single-click placement mode for the ANNOTATE TEXT tool.
@@ -5938,8 +5964,8 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
   // pane (the default — and what we snap back to whenever the layout
   // changes); a numeric percentage scales by that factor and lets the pane
   // scroll if oversized. Presets: 50/75/100/125/150/200/300.
-  const [chartZoom, setChartZoom] = useState<"fit" | number>("fit");
-  const [chartAspect, setChartAspect] = useState<ChartAspect>("fit");
+  const [chartZoom, setChartZoom] = useState<"fit" | number>(initialState?.chartZoom || "fit");
+  const [chartAspect, setChartAspect] = useState<ChartAspect>((initialState?.chartAspect as ChartAspect) || "fit");
   // Wave 15 · pop-out modes for the Launch table pane.
   //   "docked"   — table inside the split layout (default)
   //   "floating" — table is a draggable + resizable floating window over the shell
@@ -6393,6 +6419,32 @@ export default function ChartMaker2({ standalone = false }: { standalone?: boole
     printMode,
     labelFormatOverrides,
   };
+
+  // Studio integration — emit a serialized payload whenever any persistable
+  // state changes. The Studio shell debounces these on the way to disk, so
+  // it's fine to fire on every keystroke. No-op when ChartMaker2 is used
+  // standalone (no onChange prop). We materialize the sheet via samplePerType
+  // fallback so the saved payload always carries the data the user is
+  // actually editing — including the fresh default if they haven't touched
+  // anything yet.
+  useEffect(() => {
+    if (!onChange) return;
+    const payload: ChartDocPayload = {
+      kind: "chart",
+      version: 1,
+      type,
+      title,
+      subtitle,
+      theme,
+      backdrop,
+      backdropMode,
+      sheet: sheets[type] || samplePerType(type),
+      annotations: annotByType[type] || [],
+      chartAspect,
+      chartZoom,
+    };
+    onChange(payload);
+  }, [onChange, type, title, subtitle, theme, backdrop, backdropMode, sheets, annotByType, chartAspect, chartZoom]);
 
   // Pick-mode handler · column-chart renderers call this on bar click.
   // Returns true if the click was consumed (we're in pick mode); the
