@@ -102,15 +102,54 @@ export interface TableSheet {
   rows: Array<Record<string, TableCellValue>>;
 }
 
+// SA-branded table modes:
+//   - "data"    → amber title bar + neutral rows + one blue highlight row
+//                 + KEY INSIGHT block. Best for cost breakdowns, comparisons.
+//   - "heatmap" → color-coded cells (coral / yellow / teal) keyed to a
+//                 threshold, axis labels, optional baseline-cell highlight,
+//                 legend + INPUTS/CAVEATS panel. Best for sensitivity grids.
+export type TableMode = "data" | "heatmap";
+
+// One bullet in the Inputs / Caveats panel below a heatmap.
+export interface TableInputItem {
+  label: string;
+  value?: string;
+}
+
+// Locked-in document metadata for the SA-branded rendering. Anything not
+// here uses sensible defaults from sa-data-tables skill.
 export interface TableDocPayload {
   kind: "table";
   version: 1;
   engine: "standard" | "univer";
   sheet: TableSheet;
-  // Univer roundtrips its full workbook as opaque JSON; we keep it as
-  // unknown so we don't pull Univer types into this leaf module.
   univerSnapshot?: unknown;
   templateId?: string;
+  // SA-style metadata (Wave 19). Optional so existing v1 docs still load.
+  mode?: TableMode;
+  category?: string;           // eyebrow line, e.g. "SEMIANALYSIS — ROBOTICS"
+  titleWhite?: string;         // primary title (white)
+  titleAmber?: string;         // accent title (amber) appended after the white
+  subtitle?: string;           // subtitle below title
+  titleBar?: string;           // amber title bar across the top of the table itself (data mode)
+  // Data mode extras
+  highlightRowIdx?: number;    // row that gets the blue highlight band
+  highlightFlagCol?: number;   // column in the highlight row to flag coral (the "this is the punchline" cell)
+  keyInsight?: string;         // markdown-ish copy for the KEY INSIGHT block
+  // Heatmap mode extras
+  threshold?: number;          // value at which cells transition between teal/yellow/coral
+  yellowBand?: number;         // half-width of the yellow break-even band around the threshold
+  topAxisLabel?: string;       // e.g. "UTILIZATION →"
+  leftAxisLabel?: string;      // rotated 90° on the left side
+  baselineRow?: number;        // 0-based row of the "this is our base case" cell
+  baselineCol?: number;        // 0-based column of the "this is our base case" cell
+  // Panel under heatmap — either model inputs OR explanatory bullets
+  panelKind?: "inputs" | "caveats";
+  panelItems?: TableInputItem[];
+  // Optional formula box at the very bottom of heatmaps
+  formula?: string;
+  formulaBaseline?: string;
+  formulaResult?: string;
 }
 
 // ─── Diagram document payload ────────────────────────────────────────────
