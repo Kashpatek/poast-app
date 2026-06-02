@@ -21,7 +21,7 @@
 
 import { aggregateColumn, formatCell } from "./data-sheet";
 import { EDITABLE_REGIONS, EditableField } from "./sa-table-regions";
-import { TableInputItem, TableSheet } from "../studio-types";
+import { CellGroupAnnotation, LogoChoice, TableInputItem, TableSheet, WatermarkConfig } from "../studio-types";
 
 export const SA_TABLE_WIDTH = 1394;
 export const SA_TABLE_HEIGHT = 861.7;
@@ -67,6 +67,18 @@ export interface SaTableRenderProps {
   // ring around. The renderer doesn't own this state; it just
   // paints what the editor passes in.
   selectedCells?: Set<string>;
+  // Group annotations — each draws a single outline rect around the
+  // bounding box of the listed cells. Rendered above row strokes but
+  // below the selection ring.
+  groupAnnotations?: CellGroupAnnotation[];
+  // Footnotes — auto-numbered ⁽¹⁾⁽²⁾… block below the table data,
+  // above the source line + footer rule.
+  footnotes?: string[];
+  // Top-right lettermark logo + watermark behind the data. Both
+  // default to the legacy SA wordmark / off respectively.
+  lettermarkLogo?: LogoChoice;
+  lettermarkCustomSrc?: string;
+  watermark?: WatermarkConfig;
   // Data mode
   titleBar?: string;
   highlightRowIdx?: number;
@@ -145,14 +157,18 @@ function SaDefs() {
   );
 }
 
-function SaBackdrop({ pageW, pageH, hideTopStripe }: { pageW?: number; pageH?: number; hideTopStripe?: boolean }) {
+function SaBackdrop({ pageW, pageH, hideTopStripe, lettermarkLogo, lettermarkCustomSrc }: {
+  pageW?: number; pageH?: number; hideTopStripe?: boolean;
+  lettermarkLogo?: LogoChoice; lettermarkCustomSrc?: string;
+}) {
   const W = pageW || SA_TABLE_WIDTH;
   const H = pageH || SA_TABLE_HEIGHT;
   // Lettermark sits 12px down from the top, hugged to the right edge
   // with a 32px margin. Width scales lightly with page width so the
-  // wordmark stays legible on smaller frames.
+  // logo stays legible on smaller frames.
   const lmW = Math.max(110, Math.min(170, W * 0.105));
   const lmX = W - lmW - 32;
+  const choice: LogoChoice = lettermarkLogo || "saWordmark";
   return (
     <>
       <rect width={W} height={H} fill="url(#saBgGrad)" />
@@ -161,12 +177,171 @@ function SaBackdrop({ pageW, pageH, hideTopStripe }: { pageW?: number; pageH?: n
       {!hideTopStripe && (
         <rect x={0} y={0} width={W} height={4} fill="url(#saTopStripe)" />
       )}
-      {/* SemiAnalysis wordmark — the real brand lettermark inlined as
-          SVG paths so it survives standalone SVG export (no external
-          <image href>). Sits in the top-right corner, aspect-locked at
-          the source lettermark's 368.82 × 119.02 ratio. */}
-      <SaLettermark x={lmX} y={12} width={lmW} />
+      {choice !== "none" && (
+        <SaBrandLogo
+          choice={choice}
+          customSrc={lettermarkCustomSrc}
+          x={lmX} y={12} maxW={lmW} maxH={56}
+          opacity={1}
+        />
+      )}
     </>
+  );
+}
+
+// Aspect ratios for each brand logo. Used by SaBrandLogo to fit any
+// choice inside a maxW × maxH bounding box without distortion.
+const LOGO_ASPECT: Record<Exclude<LogoChoice, "none" | "custom" | "saWordmark">, number> = {
+  saBoxLetter: 2020 / 507,    // wide rectangular lettermark
+  saFullColor: 290.53 / 172.53,
+  saLogo:      290.53 / 172.53,
+  poast:       236 / 236,
+  box:         444 / 503,
+};
+
+// Resolve a LogoChoice → /public asset href + native aspect ratio.
+function logoAssetFor(choice: LogoChoice, customSrc?: string): { href: string; aspect: number } | null {
+  switch (choice) {
+    case "saBoxLetter": return { href: "/sa-box-lettermark.svg", aspect: LOGO_ASPECT.saBoxLetter };
+    case "saFullColor": return { href: "/sa-logo-full.svg",      aspect: LOGO_ASPECT.saFullColor };
+    case "saLogo":      return { href: "/sa-logo.svg",           aspect: LOGO_ASPECT.saLogo };
+    case "poast":       return { href: "/poast-logo.png",        aspect: LOGO_ASPECT.poast };
+    case "box":         return { href: "/box-logo.png",          aspect: LOGO_ASPECT.box };
+    case "custom":      return customSrc ? { href: customSrc,    aspect: 1 } : null;
+    default: return null;
+  }
+}
+
+// Render any LogoChoice at (x, y) sized to fit (maxW × maxH). The
+// SemiAnalysis wordmark is the only inline-SVG option (so it survives
+// pure SVG export); every other choice routes through <image href>
+// which works for in-app preview + canvas-rasterized PNG export.
+function SaBrandLogo({ choice, customSrc, x, y, maxW, maxH, opacity = 1 }: {
+  choice: LogoChoice; customSrc?: string;
+  x: number; y: number; maxW: number; maxH: number; opacity?: number;
+}) {
+  if (choice === "none") return null;
+  if (choice === "saWordmark") {
+    // The inline wordmark's natural aspect is 368.82 × 119.02 ≈ 3.1:1.
+    // Pick the larger fit so it lands consistently in the same band.
+    const w = Math.min(maxW, maxH * (368.82 / 119.02));
+    return <SaLettermark x={x} y={y} width={w} />;
+  }
+  const asset = logoAssetFor(choice, customSrc);
+  if (!asset) return null;
+  // Fit-inside-the-box: choose the smaller dimension governed by aspect.
+  let w = maxW, h = maxW / asset.aspect;
+  if (h > maxH) { h = maxH; w = maxH * asset.aspect; }
+  return (
+    <image
+      href={asset.href}
+      xlinkHref={asset.href}
+      x={x + (maxW - w) / 2}
+      y={y + (maxH - h) / 2}
+      width={w}
+      height={h}
+      opacity={opacity}
+      preserveAspectRatio="xMidYMid meet"
+      style={{ pointerEvents: "none" }}
+    />
+  );
+}
+
+// Watermark · large semi-transparent logo behind the table data, same
+// idea as ChartMaker's watermark for visual consistency across docs.
+function SaWatermark({ config, pageW, pageH }: {
+  config?: WatermarkConfig; pageW: number; pageH: number;
+}) {
+  if (!config || config.mode === "off" || config.logo === "none") return null;
+  const opacity = typeof config.opacity === "number" ? config.opacity : 0.18;
+  const baseSize = typeof config.size === "number" ? config.size : 280;
+  const positions: Array<{ x: number; y: number; size: number }> = [];
+  if (config.mode === "centered") {
+    positions.push({ x: pageW / 2 - baseSize / 2, y: pageH / 2 - baseSize / 2, size: baseSize });
+  } else if (config.mode === "bottomRight") {
+    const s = baseSize * 0.55;
+    positions.push({ x: pageW - s - 70, y: pageH - s - 70, size: s });
+  } else if (config.mode === "scattered") {
+    // Stable pseudo-hash so the watermark stays put on re-render.
+    const h = Math.abs((pageW * pageH * 0.000131) % 1);
+    const offX = 0.10 + h * 0.20;
+    const offY = 0.10 + ((h * 1.7) % 1) * 0.20;
+    positions.push({
+      x: pageW * (0.5 + offX) - baseSize / 2,
+      y: pageH * (0.5 + offY) - baseSize / 2,
+      size: baseSize,
+    });
+  } else if (config.mode === "tile") {
+    const s = baseSize * 0.45;
+    const stepX = s * 2.0;
+    const stepY = s * 1.6;
+    const offsetX = -stepX / 2;
+    for (let row = 0; row * stepY < pageH; row++) {
+      const shift = row % 2 === 0 ? 0 : stepX / 2;
+      for (let col = 0; col * stepX < pageW + stepX; col++) {
+        positions.push({
+          x: offsetX + col * stepX + shift,
+          y: row * stepY + 20,
+          size: s,
+        });
+      }
+    }
+  }
+  return (
+    <g style={{ pointerEvents: "none" }}>
+      {positions.map((p, i) => (
+        <SaBrandLogo
+          key={i}
+          choice={config.logo}
+          customSrc={config.customSrc}
+          x={p.x} y={p.y}
+          maxW={p.size} maxH={p.size}
+          opacity={opacity}
+        />
+      ))}
+    </g>
+  );
+}
+
+// Footnotes block — sits just above the source line + footer rule.
+// Numbering is auto: ⁽¹⁾ first · ⁽²⁾ second … Long lists wrap onto
+// multiple lines by chunking into rows of two unless one is itself long.
+function SaFootnotes({ items, hasSource, pageW, pageH }: {
+  items?: string[]; hasSource: boolean; pageW: number; pageH: number;
+}) {
+  const list = (items || []).map((s) => s.trim()).filter(Boolean);
+  if (list.length === 0) return null;
+  // Stack each footnote on its own row so long lines stay readable.
+  // Y anchor: above the footer rule (lineY = H - 31.7). Source line,
+  // when present, takes a 22px slot just above the rule, so footnotes
+  // start above that.
+  const W = pageW;
+  const H = pageH;
+  const footerLineY = H - 31.7;
+  const sourceY = hasSource ? footerLineY - 12 : footerLineY;
+  const blockBottomY = sourceY - (hasSource ? 16 : 10);
+  const lineH = 14;
+  const startY = blockBottomY - (list.length - 1) * lineH;
+  return (
+    <g>
+      {list.map((text, i) => {
+        const y = startY + i * lineH;
+        return (
+          <text key={i} x={56} y={y}
+            className="sa-reg" fontSize={10.5}
+            fill="#fff" fillOpacity={0.55} letterSpacing=".02em"
+            fontStyle="italic">
+            <tspan baselineShift="super" fontSize={8} fill="#F7B041" fillOpacity={0.9}>
+              ({i + 1})
+            </tspan>
+            <tspan dx={5}>{text}</tspan>
+          </text>
+        );
+      })}
+      {/* Faint divider tying footnotes to the data block. */}
+      <line x1={56} y1={startY - 10} x2={Math.min(W - 64, 56 + 280)} y2={startY - 10}
+        stroke="#fff" strokeOpacity={0.10} strokeWidth={0.5} />
+    </g>
   );
 }
 
@@ -779,6 +954,48 @@ function SaDataTable(props: SaTableRenderProps) {
         );
       })}
 
+      {/* Group annotations — each draws ONE border around the bounding
+          box of the listed cell keys, useful when the user wants the
+          whole selection lassoed instead of bordering each cell. */}
+      {(() => {
+        const groups = props.groupAnnotations;
+        if (!groups || groups.length === 0) return null;
+        const colIdx: Record<string, number> = {};
+        sheet.schema.forEach((c, i) => { colIdx[c.key] = i; });
+        return groups.map((g, gi) => {
+          let minR = Infinity, maxR = -Infinity;
+          let minC = Infinity, maxC = -Infinity;
+          for (const key of g.cells) {
+            const [rs, cKey] = key.split(":");
+            const r = parseInt(rs, 10);
+            const ci = colIdx[cKey];
+            if (!Number.isFinite(r) || ci === undefined) continue;
+            if (r >= sheet.rows.length) continue;
+            if (r < minR) minR = r;
+            if (r > maxR) maxR = r;
+            if (ci < minC) minC = ci;
+            if (ci > maxC) maxC = ci;
+          }
+          if (minR === Infinity) return null;
+          const x = colX[minC];
+          const y = dataRowsStart + minR * rowH;
+          const w = colX[maxC + 1] - x;
+          const h = (maxR - minR + 1) * rowH;
+          const dash = g.border === "dotted" ? "2 4" : g.border === "dashed" ? "8 6" : undefined;
+          return (
+            <rect key={"groupAnn-" + gi}
+              x={x + 1} y={y + 1}
+              width={w - 2} height={h - 2}
+              rx={4}
+              fill="none"
+              stroke={g.color || "#F7B041"}
+              strokeWidth={2}
+              strokeDasharray={dash}
+              style={{ pointerEvents: "none" }} />
+          );
+        });
+      })()}
+
       {/* Key insight block — hidden when chrome opts out */}
       {chrome.showKeyInsight && keyInsight && (
         <g>
@@ -1044,7 +1261,13 @@ export default function SaTableSvg(props: SaTableRenderProps) {
       style={{ width: "100%", height: "100%", display: "block" }}
     >
       <SaDefs />
-      <SaBackdrop pageW={W} pageH={H} hideTopStripe={props.hideTopStripe} />
+      <SaBackdrop
+        pageW={W} pageH={H}
+        hideTopStripe={props.hideTopStripe}
+        lettermarkLogo={props.lettermarkLogo}
+        lettermarkCustomSrc={props.lettermarkCustomSrc}
+      />
+      <SaWatermark config={props.watermark} pageW={W} pageH={H} />
       <SaHeader
         category={props.category}
         titleWhite={props.titleWhite}
@@ -1054,6 +1277,11 @@ export default function SaTableSvg(props: SaTableRenderProps) {
         fontScale={titleFontScale}
       />
       {props.mode === "data" ? <SaDataTable {...props} /> : <SaHeatmap {...props} />}
+      <SaFootnotes
+        items={props.footnotes}
+        hasSource={!!props.source}
+        pageW={W} pageH={H}
+      />
       <SaFooter
         contextLine={props.subtitle}
         hideWebsite={props.hideWebsite}

@@ -263,6 +263,51 @@ export interface TableDocPayload {
   // Annotate mode in the editor toolbar — supports background tint,
   // text color, border (dotted / dashed / solid), and a bold toggle.
   cellStyles?: Record<string, CellStyle>;
+  // Group annotations — each draws ONE border around the rectangular
+  // bounding box of the listed cells, useful when the user wants to
+  // "lasso" a region instead of bordering each cell individually.
+  groupAnnotations?: CellGroupAnnotation[];
+  // Footnotes — auto-numbered ⁽¹⁾⁽²⁾… rendered just above the source
+  // line at the bottom of the table. Users type the body text;
+  // numbering is handled by the renderer.
+  footnotes?: string[];
+  // Top-right lettermark logo. Defaults to the SemiAnalysis wordmark
+  // (saWordmark). "none" hides it; others swap in one of the brand
+  // assets from /public so the user can pick a look that fits.
+  lettermarkLogo?: LogoChoice;
+  lettermarkCustomSrc?: string;  // data URL when lettermarkLogo === "custom"
+  // Watermark behind the table data — mirrors the ChartMaker watermark
+  // for visual consistency. Off by default.
+  watermark?: WatermarkConfig;
+}
+
+// Available brand logo choices for the lettermark + watermark. Each
+// option maps to either an inline SVG (the default wordmark) or a
+// /public asset rendered via <image href>.
+export type LogoChoice =
+  | "saWordmark"     // default · inline SemiAnalysis wordmark paths
+  | "saBoxLetter"    // /sa-box-lettermark.svg — boxed S+A lettermark
+  | "saFullColor"    // /sa-logo-full.svg — full-color SA logo
+  | "saLogo"         // /sa-logo.svg — monochrome SA logo
+  | "poast"          // /poast-logo.png — POAST mark
+  | "box"            // /box-logo.png — POAST box logo (chart-maker's watermark)
+  | "custom"         // user-uploaded image (customSrc data URL)
+  | "none";
+
+export interface WatermarkConfig {
+  logo: LogoChoice;
+  mode: "off" | "centered" | "scattered" | "bottomRight" | "tile";
+  opacity?: number;  // 0..1, defaults to 0.18
+  size?: number;     // px in viewBox units, defaults to 280
+  customSrc?: string;
+}
+
+// A group annotation outlines the rectangular bounding box of every
+// listed cell with a single border. Multiple groups can coexist.
+export interface CellGroupAnnotation {
+  cells: string[];                       // ["row:colKey", ...]
+  border: "solid" | "dotted" | "dashed"; // border style
+  color: string;                         // stroke color
 }
 
 export interface CellStyle {

@@ -12,7 +12,7 @@ import {
   ChevronDown, ChevronRight, Copy, Download, FileImage, FileText,
   GripHorizontal, Highlighter, Image as ImageIcon, Maximize2, Minus,
   PanelRightClose, PanelRightOpen,
-  Plus, RotateCcw, RotateCw, Sparkles, Upload, Wand2, X,
+  Plus, RotateCcw, RotateCw, Sparkles, StickyNote, Upload, Wand2, X,
 } from "lucide-react";
 import { showToast } from "../toast-context";
 import {
@@ -23,9 +23,10 @@ import { EDITABLE_REGIONS, EditableField } from "./lib/sa-table-regions";
 import SaTableSvg, { SA_TABLE_HEIGHT, SA_TABLE_WIDTH } from "./lib/sa-table-svg";
 import { D, ft, gf, mn } from "./studio-theme";
 import {
+  CellGroupAnnotation, LogoChoice,
   StudioDoc, TableCellValue, TableColumnSpec, TableColumnType,
   TableDocPayload, TableMode, TableNumberFormat, TableInputItem, TableSheet,
-  TableChromeStyle, FieldStyle,
+  TableChromeStyle, FieldStyle, WatermarkConfig,
 } from "./studio-types";
 
 type ExportPreset = NonNullable<TableDocPayload["exportPreset"]>;
@@ -73,7 +74,19 @@ interface TableEditorState {
   autoFontScale: boolean;
   lockTableDimensions: boolean;
   cellStyles: Record<string, import("./studio-types").CellStyle>;
+  groupAnnotations: CellGroupAnnotation[];
+  footnotes: string[];
+  lettermarkLogo: LogoChoice;
+  lettermarkCustomSrc: string;
+  watermark: WatermarkConfig;
 }
+
+const DEFAULT_WATERMARK: WatermarkConfig = {
+  logo: "box",
+  mode: "off",
+  opacity: 0.18,
+  size: 280,
+};
 
 interface TableEditorProps {
   doc: StudioDoc;
@@ -219,6 +232,11 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
       autoFontScale: state.autoFontScale ? true : undefined,
       lockTableDimensions: state.lockTableDimensions ? true : undefined,
       cellStyles: Object.keys(state.cellStyles).length > 0 ? state.cellStyles : undefined,
+      groupAnnotations: state.groupAnnotations.length > 0 ? state.groupAnnotations : undefined,
+      footnotes: state.footnotes.length > 0 ? state.footnotes : undefined,
+      lettermarkLogo: state.lettermarkLogo !== "saWordmark" ? state.lettermarkLogo : undefined,
+      lettermarkCustomSrc: state.lettermarkCustomSrc || undefined,
+      watermark: state.watermark.mode !== "off" ? state.watermark : undefined,
     };
     onChangePayload(payload);
   }, [state, onChangePayload]);
@@ -596,6 +614,13 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
               }
             }}
           />
+          <ToolbarBtn
+            Icon={StickyNote}
+            label={"Footnote" + (state.footnotes.length > 0 ? " · " + state.footnotes.length : "")}
+            accent={state.footnotes.length > 0 ? D.amber : undefined}
+            hint="Add a numbered footnote"
+            onClick={() => update({ footnotes: [...state.footnotes, ""] })}
+          />
           {onBuildChart && (
             <>
               <span style={{ marginLeft: "auto" }} />
@@ -653,6 +678,11 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
             autoFontScale={state.autoFontScale}
             lockTableDimensions={state.lockTableDimensions}
             cellStyles={state.cellStyles}
+            groupAnnotations={state.groupAnnotations.length > 0 ? state.groupAnnotations : undefined}
+            footnotes={state.footnotes.length > 0 ? state.footnotes : undefined}
+            lettermarkLogo={state.lettermarkLogo}
+            lettermarkCustomSrc={state.lettermarkCustomSrc || undefined}
+            watermark={state.watermark.mode !== "off" ? state.watermark : undefined}
             selectedCells={annotateMode ? selectedCells : undefined}
             category={state.category}
             titleWhite={state.titleWhite}
@@ -707,9 +737,8 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
               onCancel={() => setEditingCell(null)}
             />
           )}
-          {annotateMode && selectedCells.size > 0 && previewRef.current && (
+          {annotateMode && (
             <AnnotationToolbar
-              previewEl={previewRef.current}
               selection={selectedCells}
               currentStyles={state.cellStyles}
               onApply={(patch) => {
@@ -747,6 +776,19 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
                   state.sheet.schema.forEach((c) => next.add(row + ":" + c.key));
                 });
                 setSelectedCells(next);
+              }}
+              onBoxSelection={(border, color) => {
+                if (selectedCells.size === 0) return;
+                const cells = Array.from(selectedCells);
+                update({
+                  groupAnnotations: [
+                    ...state.groupAnnotations,
+                    { cells, border, color },
+                  ],
+                });
+                // Auto-clear selection so the next box doesn't overlap
+                // the previous one's still-highlighted cells.
+                setSelectedCells(new Set());
               }}
               onClear={() => setSelectedCells(new Set())}
               onClose={() => {
@@ -876,6 +918,11 @@ function readPayload(payload: unknown, defaultName: string): TableEditorState {
     autoFontScale: true,
     lockTableDimensions: false,
     cellStyles: {},
+    groupAnnotations: [],
+    footnotes: [],
+    lettermarkLogo: "saWordmark",
+    lettermarkCustomSrc: "",
+    watermark: { ...DEFAULT_WATERMARK },
   };
   if (payload && typeof payload === "object") {
     const p = payload as Partial<TableDocPayload>;
@@ -938,8 +985,33 @@ function readPayload(payload: unknown, defaultName: string): TableEditorState {
     if (p.cellStyles && typeof p.cellStyles === "object") {
       seed.cellStyles = p.cellStyles as Record<string, import("./studio-types").CellStyle>;
     }
+    if (Array.isArray(p.groupAnnotations)) {
+      seed.groupAnnotations = p.groupAnnotations as CellGroupAnnotation[];
+    }
+    if (Array.isArray(p.footnotes)) {
+      seed.footnotes = (p.footnotes as unknown[]).filter((s): s is string => typeof s === "string");
+    }
+    if (typeof p.lettermarkLogo === "string" && isLogoChoice(p.lettermarkLogo)) {
+      seed.lettermarkLogo = p.lettermarkLogo;
+    }
+    if (typeof p.lettermarkCustomSrc === "string") seed.lettermarkCustomSrc = p.lettermarkCustomSrc;
+    if (p.watermark && typeof p.watermark === "object") {
+      const w = p.watermark as Partial<WatermarkConfig>;
+      seed.watermark = {
+        logo: isLogoChoice(w.logo) ? w.logo : "box",
+        mode: ["off","centered","scattered","bottomRight","tile"].includes(w.mode as string) ? (w.mode as WatermarkConfig["mode"]) : "off",
+        opacity: typeof w.opacity === "number" ? w.opacity : 0.18,
+        size: typeof w.size === "number" ? w.size : 280,
+        customSrc: typeof w.customSrc === "string" ? w.customSrc : undefined,
+      };
+    }
   }
   return seed;
+}
+
+function isLogoChoice(v: unknown): v is LogoChoice {
+  return v === "saWordmark" || v === "saBoxLetter" || v === "saFullColor" || v === "saLogo"
+      || v === "poast" || v === "box" || v === "custom" || v === "none";
 }
 
 // ─── UI chrome persistence ────────────────────────────────────────────
@@ -1253,6 +1325,7 @@ function autoFitHeight(
   aggregate: "none" | AggregateKind,
   hasSource: boolean,
   fontScale: number,
+  footnoteCount: number = 0,
 ): number {
   // Header block above the table (category + title + subtitle) lives
   // at y ≈ 0..130 and the title bar starts at y = 150 in the legacy
@@ -1272,14 +1345,17 @@ function autoFitHeight(
   // Footer chrome — bottom rule + label baseline + breathing room.
   // Source line lives ABOVE the footer rule, so add room when set.
   const sourceLineH = hasSource ? 22 : 0;
-  const footerChromeH = 50 + sourceLineH;
+  // Footnotes block lives above the source line — 14px per row +
+  // a small divider gap.
+  const footnotesH = footnoteCount > 0 ? footnoteCount * 14 + 14 : 0;
+  const footerChromeH = 50 + sourceLineH + footnotesH;
 
   const rowCount = Math.max(1, sheet.rows.length);
   const tableBlockH = colHeaderH + rowCount * rowH + aggregateRowH + keyInsightH;
   return Math.round(Math.min(4000, titleBarY + titleBarH + tableBlockH + marginBeforeFooter + footerChromeH));
 }
 
-function PageDimensionPicker({ pageW, pageH, sheet, chromeStyle, keyInsight, aggregate, source, fontScale, onChange }: {
+function PageDimensionPicker({ pageW, pageH, sheet, chromeStyle, keyInsight, aggregate, source, fontScale, footnoteCount, onChange }: {
   pageW: number; pageH: number;
   sheet: TableSheet;
   chromeStyle: TableChromeStyle;
@@ -1287,14 +1363,15 @@ function PageDimensionPicker({ pageW, pageH, sheet, chromeStyle, keyInsight, agg
   aggregate: "none" | AggregateKind;
   source: string;
   fontScale: number;
+  footnoteCount: number;
   onChange: (w: number, h: number) => void;
 }) {
   // Fit to margins keeps the user's chosen WIDTH (SA Slide, Compact,
   // Square, etc.) and only crops the height to the table content +
   // breathing room before the footer. Reactive to font scale + rows.
   const fitH = useMemo(
-    () => autoFitHeight(sheet, chromeStyle, !!keyInsight.trim(), aggregate, !!source.trim(), fontScale),
-    [sheet, chromeStyle, keyInsight, aggregate, source, fontScale],
+    () => autoFitHeight(sheet, chromeStyle, !!keyInsight.trim(), aggregate, !!source.trim(), fontScale, footnoteCount),
+    [sheet, chromeStyle, keyInsight, aggregate, source, fontScale, footnoteCount],
   );
   return (
     <div style={{ padding: "6px 10px 10px" }}>
@@ -1476,6 +1553,271 @@ function FooterToggle({ label, checked, onChange }: {
   );
 }
 
+function FootnoteEditor({ items, onChange }: {
+  items: string[];
+  onChange: (items: string[]) => void;
+}) {
+  // Numbered + reorderable. Each row is an inline-editable line with
+  // up/down arrows + delete. Numbering is computed live so the user
+  // sees the (1) / (2) / (3) prefix as it'll render.
+  const update = (i: number, v: string) => {
+    const next = items.slice();
+    next[i] = v;
+    onChange(next);
+  };
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= items.length) return;
+    const next = items.slice();
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+  const remove = (i: number) => onChange(items.filter((_, k) => k !== i));
+  const add = () => onChange([...items, ""]);
+  return (
+    <div style={{ padding: "4px 10px 10px" }}>
+      <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.4, lineHeight: 1.4, paddingBottom: 8 }}>
+        Auto-numbered ⁽¹⁾⁽²⁾⁽³⁾… Renders just above the source line.
+        Use them for caveats like “Estimated” or table-cell asterisks.
+      </div>
+      {items.length === 0 && (
+        <div style={{
+          fontFamily: mn, fontSize: 10, color: D.txd,
+          padding: "8px 10px", borderRadius: 6, border: "1px dashed " + D.border,
+          textAlign: "center", marginBottom: 8,
+        }}>No footnotes yet.</div>
+      )}
+      {items.map((text, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 5, marginBottom: 6 }}>
+          <span style={{
+            fontFamily: mn, fontSize: 9.5, color: D.amber, fontWeight: 800,
+            minWidth: 22, paddingTop: 6, textAlign: "right",
+          }}>({i + 1})</span>
+          <TextArea
+            value={text}
+            onChange={(v) => update(i, v)}
+            placeholder="Estimated HD SRAM Cell"
+          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <button onClick={() => move(i, -1)} disabled={i === 0}
+              title="Move up"
+              style={miniIconBtn(i === 0)}>↑</button>
+            <button onClick={() => move(i, 1)} disabled={i === items.length - 1}
+              title="Move down"
+              style={miniIconBtn(i === items.length - 1)}>↓</button>
+          </div>
+          <button onClick={() => remove(i)}
+            title="Remove footnote"
+            style={{ ...miniIconBtn(false), color: D.coral }}>×</button>
+        </div>
+      ))}
+      <button onClick={add}
+        style={{
+          marginTop: 4, width: "100%",
+          padding: "7px 10px",
+          background: D.amber + "15", color: D.amber,
+          border: "1px dashed " + D.amber + "55", borderRadius: 6,
+          cursor: "pointer",
+          fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
+          textTransform: "uppercase",
+        }}>+ Add footnote</button>
+    </div>
+  );
+}
+
+function miniIconBtn(disabled: boolean): React.CSSProperties {
+  return {
+    width: 20, height: 20,
+    padding: 0,
+    background: "transparent",
+    color: disabled ? D.txd : D.tx,
+    border: "1px solid " + D.border, borderRadius: 4,
+    cursor: disabled ? "not-allowed" : "pointer",
+    fontFamily: mn, fontSize: 11, fontWeight: 700, lineHeight: 1,
+    opacity: disabled ? 0.4 : 1,
+  };
+}
+
+// Logo & Watermark — picker for the top-right lettermark + watermark
+// behind the table. Mirrors the chart-maker watermark pattern so the
+// user has one consistent place to swap brand marks across docs.
+const LOGO_OPTIONS: { value: LogoChoice; label: string; sub: string }[] = [
+  { value: "saWordmark",  label: "SemiAnalysis Wordmark", sub: "Default · inline" },
+  { value: "saBoxLetter", label: "SA Lettermark",         sub: "Boxed S+A" },
+  { value: "saFullColor", label: "SA Logo · Full",        sub: "Color logo" },
+  { value: "saLogo",      label: "SA Logo · Mono",        sub: "Compact mark" },
+  { value: "poast",       label: "POAST",                 sub: "P logo" },
+  { value: "box",         label: "POAST Box",             sub: "Chart-maker watermark" },
+  { value: "custom",      label: "Custom upload",         sub: "PNG / JPG / SVG" },
+  { value: "none",        label: "None",                  sub: "Hide" },
+];
+
+function BrandingPanel({ lettermarkLogo, lettermarkCustomSrc, watermark, onChangeLettermark, onChangeWatermark }: {
+  lettermarkLogo: LogoChoice;
+  lettermarkCustomSrc: string;
+  watermark: WatermarkConfig;
+  onChangeLettermark: (logo: LogoChoice, customSrc?: string) => void;
+  onChangeWatermark: (w: WatermarkConfig) => void;
+}) {
+  const lmFileRef = useRef<HTMLInputElement | null>(null);
+  const wmFileRef = useRef<HTMLInputElement | null>(null);
+
+  const readFile = (file: File, cb: (dataUrl: string) => void) => {
+    const reader = new FileReader();
+    reader.onload = () => { if (typeof reader.result === "string") cb(reader.result); };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div style={{ padding: "4px 10px 10px" }}>
+      {/* ─── Lettermark (top-right) ─────────────────────────────── */}
+      <div style={sectionLabelStyle()}>Top-right lettermark</div>
+      <LogoPicker
+        value={lettermarkLogo}
+        onChange={(v) => {
+          if (v === "custom" && !lettermarkCustomSrc) {
+            lmFileRef.current?.click();
+            return;
+          }
+          onChangeLettermark(v);
+        }}
+      />
+      <input ref={lmFileRef} type="file" accept="image/*" style={{ display: "none" }}
+        onChange={(e) => {
+          const f = e.target.files?.[0]; if (!f) return;
+          readFile(f, (url) => onChangeLettermark("custom", url));
+          e.currentTarget.value = "";
+        }}
+      />
+      {lettermarkLogo === "custom" && (
+        <button onClick={() => lmFileRef.current?.click()}
+          style={smallChipBtn(true)}>
+          {lettermarkCustomSrc ? "Replace upload" : "Upload image"}
+        </button>
+      )}
+
+      {/* ─── Watermark behind the table ─────────────────────────── */}
+      <div style={{ ...sectionLabelStyle(), marginTop: 14 }}>Watermark</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginBottom: 10 }}>
+        {(["off", "centered", "scattered", "bottomRight", "tile"] as const).map((m) => {
+          const on = watermark.mode === m;
+          const label = m === "off" ? "Off"
+            : m === "centered" ? "Centered"
+            : m === "scattered" ? "Scattered"
+            : m === "bottomRight" ? "Bottom-right"
+            : "Tiled";
+          return (
+            <button key={m}
+              onClick={() => onChangeWatermark({ ...watermark, mode: m })}
+              style={{
+                padding: "7px 8px",
+                background: on ? D.amber + "1F" : "transparent",
+                color: on ? D.amber : D.tx,
+                border: "1px solid " + (on ? D.amber + "66" : D.border),
+                borderRadius: 6, cursor: "pointer",
+                fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+                textAlign: "center",
+              }}
+            >{label}</button>
+          );
+        })}
+      </div>
+
+      {watermark.mode !== "off" && (
+        <>
+          <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.4, padding: "0 0 4px" }}>
+            Logo
+          </div>
+          <LogoPicker
+            value={watermark.logo}
+            onChange={(v) => {
+              if (v === "custom" && !watermark.customSrc) {
+                wmFileRef.current?.click();
+                return;
+              }
+              onChangeWatermark({ ...watermark, logo: v });
+            }}
+          />
+          <input ref={wmFileRef} type="file" accept="image/*" style={{ display: "none" }}
+            onChange={(e) => {
+              const f = e.target.files?.[0]; if (!f) return;
+              readFile(f, (url) => onChangeWatermark({ ...watermark, logo: "custom", customSrc: url }));
+              e.currentTarget.value = "";
+            }}
+          />
+          {watermark.logo === "custom" && (
+            <button onClick={() => wmFileRef.current?.click()}
+              style={smallChipBtn(true)}>
+              {watermark.customSrc ? "Replace upload" : "Upload image"}
+            </button>
+          )}
+          <FontScaleSlider
+            label="Opacity"
+            value={(watermark.opacity ?? 0.18) / 0.5}
+            disabled={false}
+            onChange={(v) => onChangeWatermark({ ...watermark, opacity: Math.max(0.02, Math.min(0.5, v * 0.5)) })}
+          />
+          <DimSlider
+            label="Size"
+            value={watermark.size ?? 280}
+            min={80} max={900} step={10}
+            onChange={(v) => onChangeWatermark({ ...watermark, size: v })}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+function LogoPicker({ value, onChange }: {
+  value: LogoChoice;
+  onChange: (v: LogoChoice) => void;
+}) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginBottom: 6 }}>
+      {LOGO_OPTIONS.map((o) => {
+        const on = value === o.value;
+        return (
+          <button key={o.value}
+            onClick={() => onChange(o.value)}
+            style={{
+              padding: "7px 8px",
+              background: on ? D.amber + "1F" : "transparent",
+              color: on ? D.amber : D.tx,
+              border: "1px solid " + (on ? D.amber + "66" : D.border),
+              borderRadius: 6, cursor: "pointer",
+              fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+              textAlign: "left",
+            }}
+          >
+            <div>{o.label}</div>
+            <div style={{ fontSize: 8.5, color: on ? D.amber : D.txd, fontWeight: 600, marginTop: 1 }}>{o.sub}</div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function sectionLabelStyle(): React.CSSProperties {
+  return {
+    fontFamily: mn, fontSize: 9, color: D.txm,
+    fontWeight: 800, letterSpacing: 1.4, textTransform: "uppercase",
+    padding: "2px 0 6px",
+  };
+}
+function smallChipBtn(strong: boolean): React.CSSProperties {
+  return {
+    width: "100%", padding: "6px 10px",
+    background: strong ? D.amber + "15" : "transparent",
+    color: strong ? D.amber : D.tx,
+    border: "1px solid " + (strong ? D.amber + "55" : D.border),
+    borderRadius: 6, cursor: "pointer",
+    fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+    marginBottom: 8,
+  };
+}
+
 function ExportPresetPicker({ value, onChange }: { value: ExportPreset; onChange: (p: ExportPreset) => void }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -1541,6 +1883,8 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
   const [pageOpen, setPageOpen] = useState(false);
   const [typoOpen, setTypoOpen] = useState(false);
   const [footerOpen, setFooterOpen] = useState(false);
+  const [footnotesOpen, setFootnotesOpen] = useState(false);
+  const [brandingOpen, setBrandingOpen] = useState(false);
   const [headerOpen, setHeaderOpen] = useState(true);
   const [dataModeOpen, setDataModeOpen] = useState(true);
   const [heatmapOpen, setHeatmapOpen] = useState(true);
@@ -1576,6 +1920,29 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
               onChange={(v) => update({ dividerStyle: v })}
             />
           </Field>
+          {state.groupAnnotations.length > 0 && (
+            <div style={{ paddingTop: 6, borderTop: "1px solid " + D.border, marginTop: 4 }}>
+              <div style={{ fontFamily: mn, fontSize: 9, color: D.txm, letterSpacing: 1.2, fontWeight: 800, padding: "6px 0 4px" }}>
+                LASSO BOXES · {state.groupAnnotations.length}
+              </div>
+              {state.groupAnnotations.map((g, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 0" }}>
+                  <span style={{
+                    width: 16, height: 14, borderRadius: 3,
+                    border: "2px " + (g.border === "dotted" ? "dotted" : g.border === "dashed" ? "dashed" : "solid") + " " + (g.color || "#F7B041"),
+                  }} />
+                  <span style={{ flex: 1, fontFamily: mn, fontSize: 10, color: D.tx }}>
+                    {g.cells.length} cell{g.cells.length === 1 ? "" : "s"} · {g.border}
+                  </span>
+                  <button
+                    onClick={() => update({ groupAnnotations: state.groupAnnotations.filter((_, k) => k !== i) })}
+                    title="Remove this box"
+                    style={{ ...miniIconBtn(false), color: D.coral }}
+                  >×</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </PanelSection>
       <PanelSection label="Canvas size" open={pageOpen} onToggle={() => setPageOpen(v => !v)}>
@@ -1588,6 +1955,7 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
           aggregate={state.aggregate}
           source={state.source}
           fontScale={state.autoFontScale ? Math.max(0.6, Math.min(1.6, Math.min(state.pageW / SA_TABLE_WIDTH, state.pageH / SA_TABLE_HEIGHT))) : state.fontScale}
+          footnoteCount={state.footnotes.length}
           onChange={(w, h) => update({ pageW: w, pageH: h })}
         />
       </PanelSection>
@@ -1641,6 +2009,21 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
             onChange={(v) => update({ hideConfidential: !v })}
           />
         </div>
+      </PanelSection>
+      <PanelSection label={`Footnotes${state.footnotes.length > 0 ? " · " + state.footnotes.length : ""}`} open={footnotesOpen} onToggle={() => setFootnotesOpen(v => !v)}>
+        <FootnoteEditor
+          items={state.footnotes}
+          onChange={(items) => update({ footnotes: items })}
+        />
+      </PanelSection>
+      <PanelSection label="Logo & Watermark" open={brandingOpen} onToggle={() => setBrandingOpen(v => !v)}>
+        <BrandingPanel
+          lettermarkLogo={state.lettermarkLogo}
+          lettermarkCustomSrc={state.lettermarkCustomSrc}
+          watermark={state.watermark}
+          onChangeLettermark={(logo, customSrc) => update({ lettermarkLogo: logo, lettermarkCustomSrc: customSrc ?? state.lettermarkCustomSrc })}
+          onChangeWatermark={(w) => update({ watermark: w })}
+        />
       </PanelSection>
       <PanelSection label="Header" open={headerOpen} onToggle={() => setHeaderOpen(v => !v)}>
         <Field label="Category eyebrow">
@@ -2800,25 +3183,24 @@ function CellEditOverlay({ previewEl, row, colKey, sheet, onCommit, onCancel }: 
 // leftmost selected cell and reflows as the selection grows. Hovers
 // in front of the preview so it never has to share rail real estate
 // with the right panel.
-function AnnotationToolbar({ previewEl, selection, currentStyles, onApply, onSelectColumn, onSelectRow, onClear, onClose }: {
-  previewEl: HTMLDivElement;
+function AnnotationToolbar({ selection, currentStyles, onApply, onSelectColumn, onSelectRow, onBoxSelection, onClear, onClose }: {
   selection: Set<string>;
   currentStyles: Record<string, import("./studio-types").CellStyle>;
   onApply: (patch: Partial<import("./studio-types").CellStyle>) => void;
   onSelectColumn: () => void;
   onSelectRow: () => void;
+  onBoxSelection: (border: "solid" | "dotted" | "dashed", color: string) => void;
   onClear: () => void;
   onClose: () => void;
 }) {
-  const [pos, setPos] = useState<{ left: number; top: number; width: number }>(() => computeAnchor(previewEl, selection));
+  // Top-anchored slide-in toolbar. Mounted once when annotate mode is
+  // active so it doesn't unmount / re-mount per selection change.
+  // Slides down from above the preview on mount; X closes annotate.
+  const [mounted, setMounted] = useState(false);
   useEffect(() => {
-    const update = () => setPos(computeAnchor(previewEl, selection));
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(previewEl);
-    window.addEventListener("scroll", update, true);
-    return () => { ro.disconnect(); window.removeEventListener("scroll", update, true); };
-  }, [previewEl, selection]);
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   // Best-effort "current style" — what the first selected cell has —
   // so the swatch indicators reflect reality when only one cell is
@@ -2826,6 +3208,7 @@ function AnnotationToolbar({ previewEl, selection, currentStyles, onApply, onSel
   // the user picks.
   const firstKey = selection.values().next().value as string | undefined;
   const cur = firstKey ? currentStyles[firstKey] : undefined;
+  const empty = selection.size === 0;
 
   const swatches = [
     { label: "Amber",  hex: "#F7B041" },
@@ -2836,108 +3219,177 @@ function AnnotationToolbar({ previewEl, selection, currentStyles, onApply, onSel
     { label: "White",  hex: "#FFFFFF" },
   ];
 
-  // Position the toolbar above the selection when there's room, below
-  // when it would overflow the top of the preview.
-  const above = pos.top > 56;
-  const top = above ? pos.top - 50 : pos.top + 36;
-
   return (
     <div
       onMouseDown={(e) => e.stopPropagation()}
       style={{
         position: "absolute",
-        left: Math.max(8, pos.left - 6),
-        top,
-        zIndex: 40,
-        display: "flex", alignItems: "center", gap: 4,
-        padding: "5px 8px",
-        background: "rgba(20,22,28,0.94)",
-        backdropFilter: "blur(8px)",
+        top: 10,
+        left: 10,
+        right: 10,
+        zIndex: 60,
+        display: "flex",
+        flexWrap: "wrap",
+        rowGap: 6,
+        columnGap: 4,
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "8px 12px",
+        background: "rgba(20,22,28,0.96)",
+        backdropFilter: "blur(10px)",
         border: "1px solid " + D.border,
-        borderRadius: 999,
-        boxShadow: "0 12px 28px rgba(0,0,0,0.6)",
+        borderRadius: 14,
+        boxShadow: "0 16px 36px rgba(0,0,0,0.55)",
         fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.3,
         color: D.tx,
-        whiteSpace: "nowrap",
+        transform: mounted ? "translateY(0)" : "translateY(-12px)",
+        opacity: mounted ? 1 : 0,
+        transition: "transform 0.18s ease-out, opacity 0.18s ease-out",
       }}
     >
-      <span style={{ color: D.amber, padding: "0 6px 0 2px", fontSize: 9.5 }}>
-        {selection.size} cell{selection.size === 1 ? "" : "s"}
+      <span style={{ color: empty ? D.txd : D.amber, padding: "0 6px 0 2px", fontSize: 9.5 }}>
+        {empty ? "PICK CELLS →" : selection.size + " cell" + (selection.size === 1 ? "" : "s")}
       </span>
       <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
 
-      <span style={{ color: D.txd, fontSize: 9, padding: "0 4px" }}>FILL</span>
-      {swatches.map((s) => (
-        <button key={"bg" + s.hex}
-          onClick={() => onApply({ bg: cur?.bg === s.hex ? undefined : s.hex })}
-          title={"Fill · " + s.label}
-          style={{
-            width: 16, height: 16, padding: 0,
-            borderRadius: "50%", cursor: "pointer",
-            background: s.hex,
-            border: cur?.bg?.toUpperCase() === s.hex.toUpperCase() ? "2px solid #FFF" : "1px solid rgba(255,255,255,0.25)",
-          }}
-        />
-      ))}
-      <button
-        onClick={() => onApply({ bg: undefined })}
-        title="No fill"
-        style={pillIconBtn()}
-      >∅</button>
+      <ToolGroup label="FILL">
+        {swatches.map((s) => (
+          <TipBtn key={"bg" + s.hex}
+            tip={"Fill · " + s.label}
+            onClick={() => !empty && onApply({ bg: cur?.bg === s.hex ? undefined : s.hex })}
+            disabled={empty}
+            style={{
+              width: 18, height: 18, padding: 0,
+              borderRadius: "50%", cursor: empty ? "not-allowed" : "pointer",
+              background: s.hex,
+              border: cur?.bg?.toUpperCase() === s.hex.toUpperCase() ? "2px solid #FFF" : "1px solid rgba(255,255,255,0.25)",
+              opacity: empty ? 0.4 : 1,
+            }}
+          />
+        ))}
+        <TipBtn tip="No fill" onClick={() => !empty && onApply({ bg: undefined })} disabled={empty}
+          style={pillIconBtn()}>∅</TipBtn>
+      </ToolGroup>
 
-      <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
-      <span style={{ color: D.txd, fontSize: 9, padding: "0 4px" }}>TEXT</span>
-      {swatches.map((s) => (
-        <button key={"tx" + s.hex}
-          onClick={() => onApply({ color: cur?.color === s.hex ? undefined : s.hex })}
-          title={"Text · " + s.label}
-          style={{
-            width: 16, height: 16, padding: 0,
-            borderRadius: 3, cursor: "pointer",
-            background: s.hex,
-            border: cur?.color?.toUpperCase() === s.hex.toUpperCase() ? "2px solid #FFF" : "1px solid rgba(255,255,255,0.25)",
-          }}
-        />
-      ))}
-
-      <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
-      <button onClick={() => onApply({ bold: !cur?.bold })}
-        title="Bold"
-        style={{
-          ...pillIconBtn(),
-          background: cur?.bold ? D.amber + "33" : "transparent",
-          color: cur?.bold ? D.amber : D.tx,
-          fontWeight: 900,
-        }}
-      >B</button>
-
-      <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
-      <span style={{ color: D.txd, fontSize: 9, padding: "0 4px" }}>BORDER</span>
-      {(["solid", "dotted", "dashed"] as const).map((k) => (
-        <button key={k}
-          onClick={() => onApply({ border: cur?.border === k ? undefined : k, borderColor: cur?.borderColor || "#F7B041" })}
-          title={k}
+      <ToolGroup label="TEXT">
+        {swatches.map((s) => (
+          <TipBtn key={"tx" + s.hex}
+            tip={"Text · " + s.label}
+            onClick={() => !empty && onApply({ color: cur?.color === s.hex ? undefined : s.hex })}
+            disabled={empty}
+            style={{
+              width: 18, height: 18, padding: 0,
+              borderRadius: 3, cursor: empty ? "not-allowed" : "pointer",
+              background: s.hex,
+              border: cur?.color?.toUpperCase() === s.hex.toUpperCase() ? "2px solid #FFF" : "1px solid rgba(255,255,255,0.25)",
+              opacity: empty ? 0.4 : 1,
+            }}
+          />
+        ))}
+        <TipBtn tip="Bold"
+          onClick={() => !empty && onApply({ bold: !cur?.bold })}
+          disabled={empty}
           style={{
             ...pillIconBtn(),
-            background: cur?.border === k ? D.amber + "33" : "transparent",
-            color: cur?.border === k ? D.amber : D.tx,
-          }}
-        >{k === "solid" ? "━" : k === "dotted" ? "···" : "- -"}</button>
-      ))}
-      <button onClick={() => onApply({ border: undefined, borderColor: undefined })}
-        title="No border"
-        style={pillIconBtn()}
-      >∅</button>
+            background: cur?.bold ? D.amber + "33" : "transparent",
+            color: cur?.bold ? D.amber : D.tx,
+            fontWeight: 900,
+          }}>B</TipBtn>
+      </ToolGroup>
 
-      <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
-      <button onClick={onSelectRow}    title="Expand to row"    style={pillTextBtn()}>+ Row</button>
-      <button onClick={onSelectColumn} title="Expand to column" style={pillTextBtn()}>+ Col</button>
-      <button onClick={onClear}        title="Clear selection"   style={pillTextBtn()}>Clear</button>
+      <ToolGroup label="PER-CELL BORDER">
+        {(["solid", "dotted", "dashed"] as const).map((k) => (
+          <TipBtn key={k}
+            tip={"Per-cell border · " + k}
+            onClick={() => !empty && onApply({ border: cur?.border === k ? undefined : k, borderColor: cur?.borderColor || "#F7B041" })}
+            disabled={empty}
+            style={{
+              ...pillIconBtn(),
+              background: cur?.border === k ? D.amber + "33" : "transparent",
+              color: cur?.border === k ? D.amber : D.tx,
+            }}>{k === "solid" ? "━" : k === "dotted" ? "···" : "- -"}</TipBtn>
+        ))}
+        <TipBtn tip="No border"
+          onClick={() => !empty && onApply({ border: undefined, borderColor: undefined })}
+          disabled={empty}
+          style={pillIconBtn()}>∅</TipBtn>
+      </ToolGroup>
 
-      <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
-      <button onClick={onClose} title="Exit annotate mode"
-        style={{ ...pillIconBtn(), color: D.coral }}>×</button>
+      <ToolGroup label="LASSO BOX">
+        {(["solid", "dotted", "dashed"] as const).map((k) => (
+          <TipBtn key={"grp" + k}
+            tip={"Box whole selection · " + k}
+            onClick={() => !empty && onBoxSelection(k, "#F7B041")}
+            disabled={empty}
+            style={{ ...pillIconBtn(), color: D.amber, border: "1px solid " + D.amber + "55" }}
+          >{k === "solid" ? "▭" : k === "dotted" ? "⋯▢" : "□"}</TipBtn>
+        ))}
+      </ToolGroup>
+
+      <ToolGroup label="SELECT">
+        <TipBtn tip="Expand selection to whole row"
+          onClick={onSelectRow} disabled={empty} style={pillTextBtn()}>+ Row</TipBtn>
+        <TipBtn tip="Expand selection to whole column"
+          onClick={onSelectColumn} disabled={empty} style={pillTextBtn()}>+ Col</TipBtn>
+        <TipBtn tip="Clear selection"
+          onClick={onClear} disabled={empty} style={pillTextBtn()}>Clear</TipBtn>
+      </ToolGroup>
+
+      <span style={{ flex: 1, minWidth: 6 }} />
+      <TipBtn tip="Exit annotate mode" onClick={onClose}
+        style={{ ...pillIconBtn(), color: D.coral, border: "1px solid " + D.coral + "55" }}>×</TipBtn>
     </div>
+  );
+}
+
+function ToolGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "0 4px",
+      borderRight: "1px solid " + D.border }}>
+      <span style={{ color: D.txd, fontSize: 9, padding: "0 4px 0 0", letterSpacing: 0.5 }}>{label}</span>
+      {children}
+    </div>
+  );
+}
+
+// Tooltip-wrapped button. Native `title` provides the OS tooltip; we
+// also render a small custom tip on hover so the label is visible
+// without waiting for the browser delay.
+function TipBtn({ tip, onClick, disabled, style, children }: {
+  tip: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  style?: React.CSSProperties;
+  children?: React.ReactNode;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <span
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{ position: "relative", display: "inline-flex" }}>
+      <button
+        onClick={() => { if (!disabled && onClick) onClick(); }}
+        disabled={disabled}
+        title={tip}
+        style={style}
+      >{children}</button>
+      {hover && !disabled && (
+        <span style={{
+          position: "absolute",
+          top: "100%", left: "50%",
+          transform: "translate(-50%, 4px)",
+          background: "#0B0C12", color: D.tx,
+          border: "1px solid " + D.border, borderRadius: 4,
+          padding: "3px 6px",
+          fontFamily: mn, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.3,
+          whiteSpace: "nowrap",
+          pointerEvents: "none",
+          zIndex: 70,
+          boxShadow: "0 6px 16px rgba(0,0,0,0.5)",
+        }}>{tip}</span>
+      )}
+    </span>
   );
 }
 
@@ -2958,28 +3410,6 @@ function pillTextBtn(): React.CSSProperties {
     border: "1px solid " + D.border, borderRadius: 999,
     cursor: "pointer", fontFamily: mn, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.4,
     textTransform: "uppercase",
-  };
-}
-
-// Find the bounding box around every selected cell hit-zone and
-// return the anchor point (top-left + width).
-function computeAnchor(previewEl: HTMLDivElement, selection: Set<string>): { left: number; top: number; width: number } {
-  const previewRect = previewEl.getBoundingClientRect();
-  let minLeft = Infinity, minTop = Infinity, maxRight = -Infinity;
-  selection.forEach((key) => {
-    const [row, col] = key.split(":");
-    const el = previewEl.querySelector<SVGRectElement>(`rect[data-cell="${row}:${col}"]`);
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    if (r.left < minLeft) minLeft = r.left;
-    if (r.top  < minTop)  minTop  = r.top;
-    if (r.right > maxRight) maxRight = r.right;
-  });
-  if (minLeft === Infinity) return { left: 12, top: 12, width: 200 };
-  return {
-    left:  minLeft - previewRect.left,
-    top:   minTop  - previewRect.top,
-    width: maxRight - minLeft,
   };
 }
 
