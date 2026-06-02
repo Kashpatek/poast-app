@@ -63,6 +63,10 @@ interface TableEditorState {
   source: string;
   pageW: number;
   pageH: number;
+  hideTopStripe: boolean;
+  showRowStripe: boolean;
+  dividerStyle: "solid" | "dotted" | "none";
+  rowStyles: Record<number, import("./studio-types").TableRowStyle>;
 }
 
 interface TableEditorProps {
@@ -194,6 +198,10 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
       source: state.source || undefined,
       pageW: state.pageW !== SA_TABLE_WIDTH ? state.pageW : undefined,
       pageH: state.pageH !== SA_TABLE_HEIGHT ? state.pageH : undefined,
+      hideTopStripe: state.hideTopStripe || undefined,
+      showRowStripe: state.showRowStripe || undefined,
+      dividerStyle: state.dividerStyle !== "solid" ? state.dividerStyle : undefined,
+      rowStyles: Object.keys(state.rowStyles).length > 0 ? state.rowStyles : undefined,
     };
     onChangePayload(payload);
   }, [state, onChangePayload]);
@@ -281,6 +289,13 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
     updateSheet((cur) => ({
       ...cur,
       schema: cur.schema.map(c => c.key === key ? { ...c, condFmt: mode === "off" ? undefined : mode } : c),
+    }));
+  }, [updateSheet]);
+
+  const setColumnHeaderColor = useCallback((key: string, color: string | undefined) => {
+    updateSheet((cur) => ({
+      ...cur,
+      schema: cur.schema.map(c => c.key === key ? { ...c, headerColor: color } : c),
     }));
   }, [updateSheet]);
 
@@ -595,6 +610,10 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
             source={state.source}
             pageW={state.pageW}
             pageH={state.pageH}
+            hideTopStripe={state.hideTopStripe}
+            showRowStripe={state.showRowStripe}
+            dividerStyle={state.dividerStyle}
+            rowStyles={state.rowStyles}
             category={state.category}
             titleWhite={state.titleWhite}
             titleAmber={state.titleAmber}
@@ -685,6 +704,7 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
             onReorderRow={reorderRow}
             onChangeColumnBadgeMap={setColumnBadgeMap}
             onChangeColumnCondFmt={setColumnCondFmt}
+            onChangeColumnHeaderColor={setColumnHeaderColor}
           />
         </Collapsible>
       </div>
@@ -745,6 +765,10 @@ function readPayload(payload: unknown, defaultName: string): TableEditorState {
     source: "",
     pageW: SA_TABLE_WIDTH,
     pageH: SA_TABLE_HEIGHT,
+    hideTopStripe: false,
+    showRowStripe: false,
+    dividerStyle: "solid",
+    rowStyles: {},
   };
   if (payload && typeof payload === "object") {
     const p = payload as Partial<TableDocPayload>;
@@ -787,6 +811,12 @@ function readPayload(payload: unknown, defaultName: string): TableEditorState {
     if (typeof p.source === "string") seed.source = p.source;
     if (typeof p.pageW === "number" && p.pageW > 200) seed.pageW = p.pageW;
     if (typeof p.pageH === "number" && p.pageH > 200) seed.pageH = p.pageH;
+    if (typeof p.hideTopStripe === "boolean") seed.hideTopStripe = p.hideTopStripe;
+    if (typeof p.showRowStripe === "boolean") seed.showRowStripe = p.showRowStripe;
+    if (p.dividerStyle === "dotted" || p.dividerStyle === "none") seed.dividerStyle = p.dividerStyle;
+    if (p.rowStyles && typeof p.rowStyles === "object") {
+      seed.rowStyles = p.rowStyles as Record<number, import("./studio-types").TableRowStyle>;
+    }
   }
   return seed;
 }
@@ -1004,10 +1034,13 @@ function ChromePicker({ value, onChange }: {
   onChange: (v: TableChromeStyle) => void;
 }) {
   const options: { id: TableChromeStyle; label: string; blurb: string }[] = [
-    { id: "framed",      label: "Framed",      blurb: "Title bar + key insight (default)" },
-    { id: "dense",       label: "Dense",       blurb: "No title bar · more grid space" },
-    { id: "leaderboard", label: "Leaderboard", blurb: "Gold / silver / bronze top 3" },
-    { id: "sectioned",   label: "Sectioned",   blurb: "Section bands from `── X ──` rows" },
+    { id: "framed",          label: "Framed",      blurb: "Title bar + key insight (default)" },
+    { id: "dense",           label: "Dense",       blurb: "No title bar · more grid space" },
+    { id: "leaderboard",     label: "Leaderboard", blurb: "Gold / silver / bronze top 3" },
+    { id: "sectioned",       label: "Sectioned",   blurb: "Section bands from `── X ──` rows" },
+    { id: "colored-headers", label: "Color heads", blurb: "Each column header gets a brand color" },
+    { id: "banded-spec",     label: "Banded spec", blurb: "Section bands rotate brand colors" },
+    { id: "totaled",         label: "Totals",      blurb: "Bold subtotals · amber Grand Total" },
   ];
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, padding: "8px 10px" }}>
@@ -1035,6 +1068,38 @@ function ChromePicker({ value, onChange }: {
               {o.blurb}
             </div>
           </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function DividerStylePicker({ value, onChange }: {
+  value: "solid" | "dotted" | "none";
+  onChange: (v: "solid" | "dotted" | "none") => void;
+}) {
+  const opts: { id: "solid" | "dotted" | "none"; label: string }[] = [
+    { id: "solid",  label: "Solid"  },
+    { id: "dotted", label: "Dotted" },
+    { id: "none",   label: "None"   },
+  ];
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4 }}>
+      {opts.map((o) => {
+        const active = o.id === value;
+        return (
+          <button key={o.id}
+            onClick={() => onChange(o.id)}
+            style={{
+              padding: "5px 6px",
+              background: active ? D.amber + "22" : "transparent",
+              border: "1px solid " + (active ? D.amber + "55" : D.border),
+              borderRadius: 4, cursor: "pointer",
+              color: active ? D.amber : D.tx,
+              fontFamily: mn, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.4,
+              textTransform: "uppercase",
+            }}
+          >{o.label}</button>
         );
       })}
     </div>
@@ -1261,6 +1326,7 @@ function ExportPresetPicker({ value, onChange }: { value: ExportPreset; onChange
 
 function PropertiesRail({ state, update }: { state: TableEditorState; update: (p: Partial<TableEditorState>) => void }) {
   const [chromeOpen, setChromeOpen] = useState(true);
+  const [styleOpen, setStyleOpen] = useState(false);
   const [pageOpen, setPageOpen] = useState(false);
   const [footerOpen, setFooterOpen] = useState(false);
   const [headerOpen, setHeaderOpen] = useState(true);
@@ -1279,6 +1345,26 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
       <SectionTitle label="Properties" />
       <PanelSection label="Chrome style" open={chromeOpen} onToggle={() => setChromeOpen(v => !v)}>
         <ChromePicker value={state.chromeStyle} onChange={(v) => update({ chromeStyle: v })} />
+      </PanelSection>
+      <PanelSection label="Decorations" open={styleOpen} onToggle={() => setStyleOpen(v => !v)}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "6px 10px 10px" }}>
+          <FooterToggle
+            label="Brand stripe at top"
+            checked={!state.hideTopStripe}
+            onChange={(v) => update({ hideTopStripe: !v })}
+          />
+          <FooterToggle
+            label="Alternate row stripe"
+            checked={state.showRowStripe}
+            onChange={(v) => update({ showRowStripe: v })}
+          />
+          <Field label="Column divider">
+            <DividerStylePicker
+              value={state.dividerStyle}
+              onChange={(v) => update({ dividerStyle: v })}
+            />
+          </Field>
+        </div>
       </PanelSection>
       <PanelSection label="Canvas size" open={pageOpen} onToggle={() => setPageOpen(v => !v)}>
         <PageDimensionPicker
@@ -1316,12 +1402,20 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
         <Field label="Category eyebrow">
           <TextInput value={state.category} onChange={(v) => update({ category: v })} placeholder="SEMIANALYSIS — RESEARCH" />
         </Field>
-        <Field label="Title (white)">
+        <ColorTaggedField
+          label="Title (white)"
+          tagColor={state.fieldStyles.titleWhite?.color || "#FFFFFF"}
+          tagText="renders white"
+        >
           <TextInput value={state.titleWhite} onChange={(v) => update({ titleWhite: v })} placeholder="Primary title" />
-        </Field>
-        <Field label="Title (amber accent)">
+        </ColorTaggedField>
+        <ColorTaggedField
+          label="Title (amber accent)"
+          tagColor={state.fieldStyles.titleAmber?.color || "#F7B041"}
+          tagText="renders amber"
+        >
           <TextInput value={state.titleAmber} onChange={(v) => update({ titleAmber: v })} placeholder="appended in amber" />
-        </Field>
+        </ColorTaggedField>
         <Field label="Subtitle">
           <TextInput value={state.subtitle} onChange={(v) => update({ subtitle: v })} placeholder="Quarter · year · inputs" />
         </Field>
@@ -1527,6 +1621,43 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+// Wrapper around Field that renders a small color-chip + label next to
+// the title above the input. Lets the user see at a glance which color
+// the field will render as ("title white" → white chip; amber accent
+// → amber chip). The chip color is sourced from the active field
+// style override so it stays accurate after the user re-colors.
+function ColorTaggedField({ label, tagColor, tagText, children }: {
+  label: string; tagColor: string; tagText: string; children: React.ReactNode;
+}) {
+  return (
+    <div style={{ padding: "6px 10px 0" }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 5, marginBottom: 4,
+        fontFamily: mn, fontSize: 9.5, color: D.txd, letterSpacing: 0.6,
+        fontWeight: 700, textTransform: "uppercase",
+      }}>
+        <span>{label}</span>
+        <span style={{
+          display: "inline-flex", alignItems: "center", gap: 4,
+          padding: "1px 7px",
+          background: tagColor + "22",
+          border: "1px solid " + tagColor + "66",
+          borderRadius: 8,
+          color: tagColor,
+          fontSize: 8.5, fontWeight: 800,
+        }}>
+          <span style={{
+            width: 7, height: 7, borderRadius: "50%",
+            background: tagColor, border: "1px solid rgba(255,255,255,0.4)",
+          }} />
+          {tagText}
+        </span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 function TextInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
   return (
     <input
@@ -1696,6 +1827,7 @@ interface DataGridProps {
   onReorderRow: (fromIdx: number, toIdx: number) => void;
   onChangeColumnBadgeMap: (key: string, map: Record<string, string>) => void;
   onChangeColumnCondFmt: (key: string, mode: import("./studio-types").TableCondFmt) => void;
+  onChangeColumnHeaderColor: (key: string, color: string | undefined) => void;
 }
 
 function DataGrid(p: DataGridProps) {
@@ -1723,6 +1855,7 @@ function DataGrid(p: DataGridProps) {
                 onResize={(w) => p.onResizeColumn(col.key, w)}
                 onChangeBadgeMap={(m) => p.onChangeColumnBadgeMap(col.key, m)}
                 onChangeCondFmt={(m) => p.onChangeColumnCondFmt(col.key, m)}
+                onChangeHeaderColor={(c) => p.onChangeColumnHeaderColor(col.key, c)}
                 onDelete={() => p.onDeleteColumn(col.key)}
               />
             ))}
@@ -1844,6 +1977,7 @@ interface ColumnHeaderProps {
   // Wave 3 — badge column type + conditional formatting.
   onChangeBadgeMap?: (map: Record<string, string>) => void;
   onChangeCondFmt?: (mode: import("./studio-types").TableCondFmt) => void;
+  onChangeHeaderColor?: (color: string | undefined) => void;
 }
 
 const NUMFMT_OPTIONS: { value: TableNumberFormat; label: string }[] = [
@@ -2020,6 +2154,12 @@ function ColumnHeaderCell(p: ColumnHeaderProps) {
                 <CondFmtPicker
                   value={p.col.condFmt || "off"}
                   onChange={p.onChangeCondFmt}
+                />
+              )}
+              {p.onChangeHeaderColor && (
+                <HeaderColorPicker
+                  value={p.col.headerColor}
+                  onChange={p.onChangeHeaderColor}
                 />
               )}
               <ColumnMenuLabel>Number format</ColumnMenuLabel>
@@ -2229,6 +2369,58 @@ function CondFmtPicker({ value, onChange }: {
               }}>{o.label}</button>
           );
         })}
+      </div>
+    </>
+  );
+}
+
+// Per-column header tint. Six brand swatches + a "clear" pill that
+// resets to the chrome default. Used to mimic the GB300 Power Budget
+// look where each column header is its own color.
+function HeaderColorPicker({ value, onChange }: {
+  value: string | undefined;
+  onChange: (color: string | undefined) => void;
+}) {
+  const palette = [
+    { label: "Amber",  hex: "#F7B041" },
+    { label: "Blue",   hex: "#0B86D1" },
+    { label: "Teal",   hex: "#2EAD8E" },
+    { label: "Coral",  hex: "#E06347" },
+    { label: "Violet", hex: "#905CCB" },
+    { label: "Cyan",   hex: "#26C9D8" },
+  ];
+  return (
+    <>
+      <ColumnMenuLabel>Header tint</ColumnMenuLabel>
+      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+        {palette.map((p) => {
+          const active = value?.toUpperCase() === p.hex.toUpperCase();
+          return (
+            <button key={p.hex}
+              onClick={() => onChange(p.hex)}
+              title={p.label}
+              style={{
+                width: 16, height: 16, padding: 0,
+                background: p.hex,
+                border: active ? "2px solid #FFF" : "1px solid rgba(255,255,255,0.25)",
+                borderRadius: "50%", cursor: "pointer",
+                boxShadow: active ? "0 0 0 2px " + D.amber + "AA" : "none",
+              }}
+            />
+          );
+        })}
+        {value && (
+          <button onClick={() => onChange(undefined)}
+            title="Clear"
+            style={{
+              marginLeft: 4, padding: "3px 7px",
+              background: "transparent", color: D.txm,
+              border: "1px solid " + D.border, borderRadius: 4,
+              fontFamily: mn, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.4,
+              cursor: "pointer", textTransform: "uppercase",
+            }}
+          >clear</button>
+        )}
       </div>
     </>
   );

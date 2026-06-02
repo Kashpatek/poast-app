@@ -125,6 +125,20 @@ export interface TableColumnSpec {
   // largest value in green + smallest in red. "highGood" flips when
   // a smaller number is the better outcome (e.g. price).
   condFmt?: TableCondFmt;
+  // Per-column header tint — overrides the default dark header band
+  // for THIS column. Used by colored-header chrome variants (e.g.
+  // GB300 Power Budget where each column header is a different brand
+  // color). Empty / undefined = inherit the chrome default.
+  headerColor?: string;
+}
+
+// Per-row styling overrides keyed by 0-based row index. Lets the user
+// (or a template seed) paint band colors, bold the row text, or apply
+// a subtle alternating tint independently of chrome rules.
+export interface TableRowStyle {
+  band?: string;     // hex color of the row tint (background wash)
+  bold?: boolean;    // render row text in sa-blk weight
+  accent?: string;   // hex color for the LEFT-edge accent bar (3px)
 }
 
 export interface TableSheet {
@@ -209,9 +223,24 @@ export interface TableDocPayload {
   // (e.g. 1080×600) or a square / story preset.
   pageW?: number;
   pageH?: number;
+  // Hide the 4px brand gradient stripe at the top of the frame. The
+  // stripe is the default SA decoration but reads as a stray blue line
+  // when the user just wants the title bar.
+  hideTopStripe?: boolean;
+  // Alternate-row striping (Excel-style). When true, even rows get a
+  // very faint white wash so the eye can track horizontally across
+  // wide tables.
+  showRowStripe?: boolean;
+  // Column divider style — "solid" (legacy default), "dotted" for a
+  // lighter spec-table feel, or "none" to drop the dividers entirely.
+  dividerStyle?: "solid" | "dotted" | "none";
+  // Per-row visual overrides keyed by 0-based row index. Templates
+  // seed this for band rows + bold totals; the user can edit from the
+  // properties rail.
+  rowStyles?: Record<number, TableRowStyle>;
 }
 
-export type TableChromeStyle = "framed" | "dense" | "leaderboard" | "sectioned";
+export type TableChromeStyle = "framed" | "dense" | "leaderboard" | "sectioned" | "colored-headers" | "banded-spec" | "totaled";
 
 export interface FieldStyle {
   color?: string;       // brand-only swatch (#F7B041 amber, #0B86D1 blue, etc.)

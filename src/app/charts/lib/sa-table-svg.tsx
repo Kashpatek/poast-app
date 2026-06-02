@@ -51,6 +51,11 @@ export interface SaTableRenderProps {
   // values keep existing exports byte-identical.
   pageW?: number;
   pageH?: number;
+  // Wave 4 — chrome polish.
+  hideTopStripe?: boolean;
+  showRowStripe?: boolean;
+  dividerStyle?: "solid" | "dotted" | "none";
+  rowStyles?: Record<number, import("../studio-types").TableRowStyle>;
   // Data mode
   titleBar?: string;
   highlightRowIdx?: number;
@@ -129,7 +134,7 @@ function SaDefs() {
   );
 }
 
-function SaBackdrop({ pageW, pageH }: { pageW?: number; pageH?: number }) {
+function SaBackdrop({ pageW, pageH, hideTopStripe }: { pageW?: number; pageH?: number; hideTopStripe?: boolean }) {
   const W = pageW || SA_TABLE_WIDTH;
   const H = pageH || SA_TABLE_HEIGHT;
   // Lettermark sits 12px down from the top, hugged to the right edge
@@ -142,7 +147,9 @@ function SaBackdrop({ pageW, pageH }: { pageW?: number; pageH?: number }) {
       <rect width={W} height={H} fill="url(#saBgGrad)" />
       <rect width={W} height={H} fill="url(#saGlowTL)" />
       <rect width={W} height={H} fill="url(#saGlowBR)" />
-      <rect x={0} y={0} width={W} height={4} fill="url(#saTopStripe)" />
+      {!hideTopStripe && (
+        <rect x={0} y={0} width={W} height={4} fill="url(#saTopStripe)" />
+      )}
       {/* SemiAnalysis wordmark — the real brand lettermark inlined as
           SVG paths so it survives standalone SVG export (no external
           <image href>). Sits in the top-right corner, aspect-locked at
@@ -281,17 +288,46 @@ function SaFooter({ contextLine, hideWebsite, hideConfidential, source, pageW, p
 //   - sectioned: detects "── LABEL ──" rows in column 1 and renders
 //     them as full-width amber bands instead of normal data rows. Use
 //     for BoM / cost-stack tables.
-function resolveChrome(style: import("../studio-types").TableChromeStyle | undefined) {
+interface ChromeConfig {
+  showTitleBar: boolean;
+  showKeyInsight: boolean;
+  medalRows: boolean;
+  sectionRows: boolean;
+  headerStrong: boolean;
+  // Per-column auto-cycled brand colors on the header band. Used by
+  // "colored-headers" chrome to mimic the GB300 Power Budget look.
+  cycleHeaderColors: boolean;
+  // Detect "Sub - Total" rows + an amber "Grand Total" row at the end.
+  // Used by "totaled" chrome — the Switch Demand reconciliation look.
+  totalsRows: boolean;
+  // Treat section-row markers as full-WIDTH colored bands tinted by
+  // brand color rotation. Mimics the Trainium Roadmap section bands.
+  bandedSections: boolean;
+}
+
+function resolveChrome(style: import("../studio-types").TableChromeStyle | undefined): ChromeConfig {
   switch (style) {
     case "dense":
-      return { showTitleBar: false, showKeyInsight: false, medalRows: false, sectionRows: false, headerStrong: true };
+      return { showTitleBar: false, showKeyInsight: false, medalRows: false, sectionRows: false, headerStrong: true,  cycleHeaderColors: false, totalsRows: false, bandedSections: false };
     case "leaderboard":
-      return { showTitleBar: true,  showKeyInsight: true,  medalRows: true,  sectionRows: false, headerStrong: false };
+      return { showTitleBar: true,  showKeyInsight: true,  medalRows: true,  sectionRows: false, headerStrong: false, cycleHeaderColors: false, totalsRows: false, bandedSections: false };
     case "sectioned":
-      return { showTitleBar: true,  showKeyInsight: true,  medalRows: false, sectionRows: true,  headerStrong: false };
+      return { showTitleBar: true,  showKeyInsight: true,  medalRows: false, sectionRows: true,  headerStrong: false, cycleHeaderColors: false, totalsRows: false, bandedSections: false };
+    case "colored-headers":
+      // Per-column branded headers — drops the title bar so the
+      // colored column band reads as the table's anchor.
+      return { showTitleBar: false, showKeyInsight: false, medalRows: false, sectionRows: false, headerStrong: false, cycleHeaderColors: true,  totalsRows: false, bandedSections: false };
+    case "banded-spec":
+      // Trainium Roadmap style — section-marker rows become brand-color
+      // full-width bands; no title bar so the bands carry visual weight.
+      return { showTitleBar: false, showKeyInsight: false, medalRows: false, sectionRows: true,  headerStrong: true,  cycleHeaderColors: false, totalsRows: false, bandedSections: true  };
+    case "totaled":
+      // Switch Demand reconciliation — bold "Sub - Total" rows + amber
+      // Grand Total. The title bar reads as the table anchor.
+      return { showTitleBar: true,  showKeyInsight: false, medalRows: false, sectionRows: false, headerStrong: false, cycleHeaderColors: false, totalsRows: true,  bandedSections: false };
     case "framed":
     default:
-      return { showTitleBar: true,  showKeyInsight: true,  medalRows: false, sectionRows: false, headerStrong: false };
+      return { showTitleBar: true,  showKeyInsight: true,  medalRows: false, sectionRows: false, headerStrong: false, cycleHeaderColors: false, totalsRows: false, bandedSections: false };
   }
 }
 
@@ -400,19 +436,40 @@ function SaDataTable(props: SaTableRenderProps) {
         </>
       )}
 
-      {/* Column header row */}
+      {/* Column header row — base band */}
       <rect x={tableX} y={colHeaderY} width={tableW} height={colHeaderH} fill={chrome.headerStrong ? "#1f2530" : "#1a1f28"} />
+      {/* Per-column header overlays — either from col.headerColor or
+          from chrome.cycleHeaderColors (Power-Budget style). Drawn as
+          tinted rect strips on top of the base header band. */}
+      {sheet.schema.map((c, ci) => {
+        const cycleColors = ["#F7B041", "#0B86D1", "#2EAD8E", "#E06347", "#905CCB"];
+        const tint = c.headerColor || (chrome.cycleHeaderColors && ci > 0 ? cycleColors[(ci - 1) % cycleColors.length] : null);
+        if (!tint) return null;
+        return (
+          <rect key={"hdrtint-" + c.key}
+            x={colX[ci]} y={colHeaderY}
+            width={colWidths[ci]} height={colHeaderH}
+            fill={tint} fillOpacity={chrome.cycleHeaderColors ? 0.85 : 0.45} />
+        );
+      })}
       <line x1={tableX} y1={colHeaderY + colHeaderH} x2={tableX + tableW} y2={colHeaderY + colHeaderH}
         stroke="#fff" strokeOpacity={0.1} strokeWidth={0.5} />
-      {sheet.schema.map((c, ci) => (
-        <text key={"hdr-" + c.key}
-          x={ci === 0 ? tableX + 15 : colCenter(ci)}
-          y={colHeaderY + 28}
-          textAnchor={ci === 0 ? "start" : "middle"}
-          className="sa-bold" fontSize={15} fill="#fff" fillOpacity={0.9}>
-          {c.label}
-        </text>
-      ))}
+      {sheet.schema.map((c, ci) => {
+        // When a column header is tinted with a saturated brand color,
+        // force the label to white-on-color so it reads cleanly.
+        const cycleColors = ["#F7B041", "#0B86D1", "#2EAD8E", "#E06347", "#905CCB"];
+        const tinted = !!c.headerColor || (chrome.cycleHeaderColors && ci > 0);
+        void cycleColors;
+        return (
+          <text key={"hdr-" + c.key}
+            x={ci === 0 ? tableX + 15 : colCenter(ci)}
+            y={colHeaderY + 28}
+            textAnchor={ci === 0 ? "start" : "middle"}
+            className="sa-bold" fontSize={15} fill={tinted ? "#fff" : "#fff"} fillOpacity={tinted ? 1 : 0.9}>
+            {c.label}
+          </text>
+        );
+      })}
 
       {/* Data rows */}
       {sheet.rows.map((row, ri) => {
@@ -420,26 +477,67 @@ function SaDataTable(props: SaTableRenderProps) {
         const isHi = ri === (highlightRowIdx ?? -1);
         const medal = medalFor(ri);
         const isSection = chrome.sectionRows && isSectionRow(row, sheet.schema);
+        const rowStyle = props.rowStyles?.[ri];
+        // Auto-detect "Sub - Total" + "Grand Total" rows when the
+        // chrome opts in. The first column carries the label; we look
+        // for trailing "- Total" / "Grand Total" matches.
+        const labelStr = String(row[sheet.schema[0].key] ?? "");
+        const isSubTotal = chrome.totalsRows && /(\s-\s*Total|Subtotal)\s*$/i.test(labelStr);
+        const isGrandTotal = chrome.totalsRows && /^Grand Total\b|\bWhole-Market.*Demand\s*$/.test(labelStr);
+        // Brand-color rotation for banded section rows.
+        const bandColors = ["#F7B041", "#0B86D1", "#2EAD8E", "#E06347", "#905CCB"];
+        // Count section-row index for the band color cycle.
+        let sectionIdx = 0;
+        if (isSection && chrome.bandedSections) {
+          for (let i = 0; i < ri; i++) {
+            if (isSectionRow(sheet.rows[i], sheet.schema)) sectionIdx++;
+          }
+        }
         // Section rows ignore normal column rendering — paint a full-
         // width amber band with column-1 text centered as the label.
         if (isSection) {
           const labelRaw = String(row[sheet.schema[0].key] ?? "");
           const label = labelRaw.replace(/^[\s\-─—]+/, "").replace(/[\s\-─—]+$/, "").toUpperCase();
+          const bandColor = chrome.bandedSections ? bandColors[sectionIdx % bandColors.length] : "#F7B041";
           return (
             <g key={"row-" + ri}>
-              <rect x={tableX} y={y + 4} width={tableW} height={rowH - 6} fill="#F7B041" fillOpacity={0.16} />
-              <line x1={tableX} y1={y + 4} x2={tableX} y2={y + rowH - 2} stroke="#F7B041" strokeWidth={3} />
+              <rect x={tableX} y={y + 4} width={tableW} height={rowH - 6}
+                fill={bandColor} fillOpacity={chrome.bandedSections ? 0.9 : 0.16} />
+              {!chrome.bandedSections && (
+                <line x1={tableX} y1={y + 4} x2={tableX} y2={y + rowH - 2} stroke={bandColor} strokeWidth={3} />
+              )}
               <text x={tableX + 18} y={y + 28} className="sa-blk" fontSize={13}
-                fill="#F7B041" letterSpacing=".18em">{label}</text>
+                fill={chrome.bandedSections ? "#FFFFFF" : bandColor} letterSpacing=".18em">{label}</text>
             </g>
           );
         }
         return (
           <g key={"row-" + ri}>
+            {/* Alternate-row stripe — applied first so highlight/medal/
+                custom band styles layer cleanly on top. */}
+            {props.showRowStripe && ri % 2 === 1 && !rowStyle?.band && (
+              <rect x={tableX} y={y} width={tableW} height={rowH} fill="#FFFFFF" fillOpacity={0.03} />
+            )}
             {medal && (
               <>
                 <rect x={tableX} y={y} width={tableW} height={rowH} fill={medal.tint} />
                 <rect x={tableX} y={y} width={3} height={rowH} fill={medal.bar} />
+              </>
+            )}
+            {rowStyle?.band && (
+              <rect x={tableX} y={y} width={tableW} height={rowH} fill={rowStyle.band} fillOpacity={0.15} />
+            )}
+            {rowStyle?.accent && (
+              <rect x={tableX} y={y} width={3} height={rowH} fill={rowStyle.accent} />
+            )}
+            {isSubTotal && (
+              <rect x={tableX} y={y} width={tableW} height={rowH} fill="#FFFFFF" fillOpacity={0.06} />
+            )}
+            {isGrandTotal && (
+              <>
+                <rect x={tableX} y={y} width={tableW} height={rowH} fill="#F7B041" fillOpacity={0.18} />
+                <line x1={tableX} y1={y} x2={tableX + tableW} y2={y}
+                  stroke="#F7B041" strokeOpacity={0.6} strokeWidth={1.2} />
               </>
             )}
             {isHi && <rect x={tableX} y={y} width={tableW} height={rowH + 6} fill="url(#saHilightBlue)" />}
@@ -485,10 +583,12 @@ function SaDataTable(props: SaTableRenderProps) {
               }
               const fill = condFill
                 ? condFill
-                : isHi ? (flag ? "#e06347" : ci === 0 ? "#fff" : "#f7b041") : "#fff";
-              const opacity = condFill ? 1 : isHi ? 1 : ci === 0 ? 0.7 : 0.6;
-              const weight = (condFill || isHi) ? "sa-blk" : "sa-reg";
-              const size = isHi ? 16 : 15;
+                : isHi ? (flag ? "#e06347" : ci === 0 ? "#fff" : "#f7b041")
+                : isGrandTotal ? "#F7B041"
+                : "#fff";
+              const opacity = condFill ? 1 : isHi ? 1 : (isGrandTotal || isSubTotal) ? 1 : ci === 0 ? 0.7 : 0.6;
+              const weight = (condFill || isHi || isGrandTotal || isSubTotal || rowStyle?.bold) ? "sa-blk" : "sa-reg";
+              const size = isHi ? 16 : isGrandTotal ? 16 : 15;
               return (
                 <text key={c.key}
                   x={ci === 0 ? tableX + 15 : colCenter(ci)}
@@ -599,16 +699,19 @@ function SaDataTable(props: SaTableRenderProps) {
         );
       })}
 
-      {/* Vertical separators */}
-      {sheet.schema.slice(1).map((_, ci) => {
+      {/* Vertical separators — solid by default, dashed when the user
+          picks the spec-table look, hidden entirely when "none". */}
+      {props.dividerStyle !== "none" && sheet.schema.slice(1).map((_, ci) => {
         const x = colEdge(ci);
         const strong = ci === 0;
+        const dashed = props.dividerStyle === "dotted";
         return (
           <line key={"vsep-" + ci}
             x1={x} y1={colHeaderY} x2={x} y2={tableEndY}
             stroke="#fff"
-            strokeOpacity={strong ? 0.1 : 0.07}
-            strokeWidth={strong ? 0.5 : 0.4} />
+            strokeOpacity={strong ? (dashed ? 0.18 : 0.1) : (dashed ? 0.14 : 0.07)}
+            strokeWidth={strong ? 0.5 : 0.4}
+            strokeDasharray={dashed ? "3 3" : undefined} />
         );
       })}
 
@@ -871,7 +974,7 @@ export default function SaTableSvg(props: SaTableRenderProps) {
       style={{ width: "100%", height: "100%", display: "block" }}
     >
       <SaDefs />
-      <SaBackdrop pageW={W} pageH={H} />
+      <SaBackdrop pageW={W} pageH={H} hideTopStripe={props.hideTopStripe} />
       <SaHeader
         category={props.category}
         titleWhite={props.titleWhite}
