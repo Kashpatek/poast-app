@@ -33,6 +33,15 @@ export interface SaTableRenderProps {
   titleWhite?: string;
   titleAmber?: string;
   subtitle?: string;
+  // Chrome variant (data mode only). Defaults to "framed" — the
+  // category eyebrow + amber title bar + key insight block legacy
+  // look. Other values trim or re-skin the wrapping decoration so
+  // different templates feel visually distinct.
+  chromeStyle?: import("../studio-types").TableChromeStyle;
+  // Per-field style overrides — { fieldKey: { color, align, size } }.
+  // Looked up by SaHeader for category/titleWhite/titleAmber/subtitle
+  // and by the data table for titleBar.
+  fieldStyles?: Record<string, import("../studio-types").FieldStyle>;
   // Data mode
   titleBar?: string;
   highlightRowIdx?: number;
@@ -149,8 +158,9 @@ function SaLettermark({ x, y, size }: { x: number; y: number; size: number }) {
   );
 }
 
-function SaHeader({ category, titleWhite, titleAmber, subtitle }: {
+function SaHeader({ category, titleWhite, titleAmber, subtitle, fieldStyles }: {
   category?: string; titleWhite?: string; titleAmber?: string; subtitle?: string;
+  fieldStyles?: Record<string, import("../studio-types").FieldStyle>;
 }) {
   const eyebrow = (category || "SEMIANALYSIS").toUpperCase();
   const white = titleWhite || "Untitled";
@@ -158,21 +168,32 @@ function SaHeader({ category, titleWhite, titleAmber, subtitle }: {
   const sub = subtitle || "";
   // Approximate kerned width of the white title chunk (sz-32 + letter-spacing -.01em → ~18px/char).
   const whiteWidth = white.length * 18;
+  // Per-field style overrides — color / size, applied when set. Align
+  // overrides shift the anchor point left/center/right within the
+  // 80–1314 content band.
+  const sCat = fieldStyles?.category;
+  const sWhite = fieldStyles?.titleWhite;
+  const sAmber = fieldStyles?.titleAmber;
+  const sSub = fieldStyles?.subtitle;
   return (
     <>
-      <text x={80} y={44} className="sa-bold" fontSize={11} fill="#0b86d1" fillOpacity={0.7} letterSpacing={2}>
+      <text x={80} y={44} className="sa-bold" fontSize={sCat?.size ?? 11}
+        fill={sCat?.color || "#0b86d1"} fillOpacity={0.7} letterSpacing={2}>
         {eyebrow}
       </text>
-      <text x={80} y={80} className="sa-blk" fontSize={32} fill="#fff" letterSpacing="-.01em">
+      <text x={80} y={80} className="sa-blk" fontSize={sWhite?.size ?? 32}
+        fill={sWhite?.color || "#fff"} letterSpacing="-.01em">
         {white}
       </text>
       {amber && (
-        <text x={80 + whiteWidth} y={80} className="sa-blk" fontSize={32} fill="#f7b041" letterSpacing="-.01em">
+        <text x={80 + whiteWidth} y={80} className="sa-blk" fontSize={sAmber?.size ?? 32}
+          fill={sAmber?.color || "#f7b041"} letterSpacing="-.01em">
           {" " + amber}
         </text>
       )}
       {sub && (
-        <text x={80} y={106} className="sa-reg" fontSize={13} fill="#fff" fillOpacity={0.35} letterSpacing=".02em">
+        <text x={80} y={106} className="sa-reg" fontSize={sSub?.size ?? 13}
+          fill={sSub?.color || "#fff"} fillOpacity={sSub?.color ? 1 : 0.35} letterSpacing=".02em">
           {sub}
         </text>
       )}
@@ -193,12 +214,54 @@ function SaFooter({ contextLine }: { contextLine?: string }) {
 
 // ─── Data-table mode ─────────────────────────────────────────────────────
 
+// Chrome variants — pick what wrapping decoration this data table shows.
+//   - framed (default): legacy SA frame · category eyebrow + amber title
+//     bar + key insight block. Use for KPI/COGS/Pricing/Vendor style.
+//   - dense: no amber title bar, no key insight; thinner header, more
+//     vertical space for the grid itself. Use for wide spec/comparison
+//     tables (Spec Comparison, Feature Matrix, Roadmap Timeline).
+//   - leaderboard: same as framed but rows 0/1/2 get gold/silver/bronze
+//     medal tints + a colored bar on the left.
+//   - sectioned: detects "── LABEL ──" rows in column 1 and renders
+//     them as full-width amber bands instead of normal data rows. Use
+//     for BoM / cost-stack tables.
+function resolveChrome(style: import("../studio-types").TableChromeStyle | undefined) {
+  switch (style) {
+    case "dense":
+      return { showTitleBar: false, showKeyInsight: false, medalRows: false, sectionRows: false, headerStrong: true };
+    case "leaderboard":
+      return { showTitleBar: true,  showKeyInsight: true,  medalRows: true,  sectionRows: false, headerStrong: false };
+    case "sectioned":
+      return { showTitleBar: true,  showKeyInsight: true,  medalRows: false, sectionRows: true,  headerStrong: false };
+    case "framed":
+    default:
+      return { showTitleBar: true,  showKeyInsight: true,  medalRows: false, sectionRows: false, headerStrong: false };
+  }
+}
+
+// A row is a "section band" if column 1 is a string that begins/ends
+// with `──` and every other column is zero/empty. BoM-style templates
+// seed these markers.
+function isSectionRow(row: Record<string, unknown>, schema: TableSheet["schema"]): boolean {
+  const first = row[schema[0].key];
+  if (typeof first !== "string") return false;
+  if (!/^\s*[-─—]{2,}/.test(first) && !/[-─—]{2,}\s*$/.test(first)) return false;
+  for (let i = 1; i < schema.length; i++) {
+    const v = row[schema[i].key];
+    if (v != null && v !== "" && v !== 0) return false;
+  }
+  return true;
+}
+
 function SaDataTable(props: SaTableRenderProps) {
   const { sheet, titleBar, highlightRowIdx, highlightFlagCol, keyInsight,
-          aggregate, aggregateLabel } = props;
+          aggregate, aggregateLabel, chromeStyle } = props;
+  const chrome = resolveChrome(chromeStyle);
   const tableX = 33, tableW = 1328;
+  // When the amber title bar is hidden the data area starts higher,
+  // giving spec/comparison tables a denser look.
   const titleBarY = 150;
-  const colHeaderY = titleBarY + 44;
+  const colHeaderY = chrome.showTitleBar ? titleBarY + 44 : titleBarY;
   const colHeaderH = 46;
   const rowH = 42;
   const dataRowsStart = colHeaderY + colHeaderH;
@@ -222,17 +285,31 @@ function SaDataTable(props: SaTableRenderProps) {
   const aggregateRowH = hasAggregate ? 50 : 0;
   const tableEndY = dataRowsStart + rowCount * rowH + aggregateRowH;
 
+  // Medal palette for leaderboard chrome — top 3 rows get a colored
+  // left bar + soft row tint.
+  const medalFor = (ri: number): { tint: string; bar: string } | null => {
+    if (!chrome.medalRows) return null;
+    if (ri === 0) return { tint: "rgba(247,176,65,0.10)", bar: "#F7B041" };  // gold
+    if (ri === 1) return { tint: "rgba(220,220,230,0.08)", bar: "#D0D5DD" }; // silver
+    if (ri === 2) return { tint: "rgba(205,127,50,0.10)",  bar: "#CD7F32" }; // bronze
+    return null;
+  };
+
   return (
     <>
-      {/* Title bar */}
-      <rect x={tableX} y={titleBarY} width={tableW} height={44} rx={6} fill="url(#saHdrAmber)" />
-      <text x={tableX + tableW / 2} y={titleBarY + 30} textAnchor="middle"
-        className="sa-blk" fontSize={18} fill="#fff" letterSpacing=".05em">
-        {(titleBar || props.titleWhite || "DATA").toUpperCase()}
-      </text>
+      {/* Title bar — hidden in dense chrome */}
+      {chrome.showTitleBar && (
+        <>
+          <rect x={tableX} y={titleBarY} width={tableW} height={44} rx={6} fill="url(#saHdrAmber)" />
+          <text x={tableX + tableW / 2} y={titleBarY + 30} textAnchor="middle"
+            className="sa-blk" fontSize={18} fill="#fff" letterSpacing=".05em">
+            {(titleBar || props.titleWhite || "DATA").toUpperCase()}
+          </text>
+        </>
+      )}
 
       {/* Column header row */}
-      <rect x={tableX} y={colHeaderY} width={tableW} height={colHeaderH} fill="#1a1f28" />
+      <rect x={tableX} y={colHeaderY} width={tableW} height={colHeaderH} fill={chrome.headerStrong ? "#1f2530" : "#1a1f28"} />
       <line x1={tableX} y1={colHeaderY + colHeaderH} x2={tableX + tableW} y2={colHeaderY + colHeaderH}
         stroke="#fff" strokeOpacity={0.1} strokeWidth={0.5} />
       {sheet.schema.map((c, ci) => (
@@ -249,8 +326,30 @@ function SaDataTable(props: SaTableRenderProps) {
       {sheet.rows.map((row, ri) => {
         const y = dataRowsStart + ri * rowH;
         const isHi = ri === (highlightRowIdx ?? -1);
+        const medal = medalFor(ri);
+        const isSection = chrome.sectionRows && isSectionRow(row, sheet.schema);
+        // Section rows ignore normal column rendering — paint a full-
+        // width amber band with column-1 text centered as the label.
+        if (isSection) {
+          const labelRaw = String(row[sheet.schema[0].key] ?? "");
+          const label = labelRaw.replace(/^[\s\-─—]+/, "").replace(/[\s\-─—]+$/, "").toUpperCase();
+          return (
+            <g key={"row-" + ri}>
+              <rect x={tableX} y={y + 4} width={tableW} height={rowH - 6} fill="#F7B041" fillOpacity={0.16} />
+              <line x1={tableX} y1={y + 4} x2={tableX} y2={y + rowH - 2} stroke="#F7B041" strokeWidth={3} />
+              <text x={tableX + 18} y={y + 28} className="sa-blk" fontSize={13}
+                fill="#F7B041" letterSpacing=".18em">{label}</text>
+            </g>
+          );
+        }
         return (
           <g key={"row-" + ri}>
+            {medal && (
+              <>
+                <rect x={tableX} y={y} width={tableW} height={rowH} fill={medal.tint} />
+                <rect x={tableX} y={y} width={3} height={rowH} fill={medal.bar} />
+              </>
+            )}
             {isHi && <rect x={tableX} y={y} width={tableW} height={rowH + 6} fill="url(#saHilightBlue)" />}
             {sheet.schema.map((c, ci) => {
               const v = row[c.key];
@@ -334,8 +433,8 @@ function SaDataTable(props: SaTableRenderProps) {
         );
       })}
 
-      {/* Key insight block */}
-      {keyInsight && (
+      {/* Key insight block — hidden when chrome opts out */}
+      {chrome.showKeyInsight && keyInsight && (
         <g>
           <line x1={80} y1={tableEndY + 30} x2={1314} y2={tableEndY + 30}
             stroke="#fff" strokeOpacity={0.1} strokeWidth={0.5} />
@@ -597,6 +696,7 @@ export default function SaTableSvg(props: SaTableRenderProps) {
         titleWhite={props.titleWhite}
         titleAmber={props.titleAmber}
         subtitle={props.subtitle}
+        fieldStyles={props.fieldStyles}
       />
       {props.mode === "data" ? <SaDataTable {...props} /> : <SaHeatmap {...props} />}
       <SaFooter contextLine={props.subtitle} />

@@ -109,6 +109,7 @@ export interface TableColumnSpec {
   numFmt?: TableNumberFormat;
   prefix?: string;        // rendered before the value, e.g. "🚀 " or "≈ "
   suffix?: string;        // rendered after the value, e.g. " /hr" or "x"
+  width?: number;         // grid-editor width in px; set via drag-resize
 }
 
 export interface TableSheet {
@@ -170,6 +171,24 @@ export interface TableDocPayload {
   // Export aspect preset — the live preview is always 1394×861 but the
   // user can stage exports for slides, social, etc. Defaults to "default".
   exportPreset?: "default" | "wide16x9" | "square" | "tall4x5" | "story9x16";
+  // Chrome variant — picks what wrapping decoration the renderer shows
+  // around the data area. "framed" is the legacy / default chrome with
+  // category eyebrow + amber title bar + key-insight block. Others trim
+  // or re-skin that frame so different templates feel visually distinct.
+  chromeStyle?: TableChromeStyle;
+  // Per-editable-field style overrides — wired into the inline-edit
+  // toolbar so users can swap brand colors, alignment, and size on
+  // individual title/subtitle/category fields without affecting the
+  // rest of the chrome.
+  fieldStyles?: Record<string, FieldStyle>;
+}
+
+export type TableChromeStyle = "framed" | "dense" | "leaderboard" | "sectioned";
+
+export interface FieldStyle {
+  color?: string;       // brand-only swatch (#F7B041 amber, #0B86D1 blue, etc.)
+  align?: "left" | "center" | "right";
+  size?: number;        // px override on top of renderer default
 }
 
 // ─── Diagram document payload ────────────────────────────────────────────

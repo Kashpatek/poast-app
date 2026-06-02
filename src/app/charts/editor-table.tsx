@@ -25,6 +25,7 @@ import { D, ft, gf, mn } from "./studio-theme";
 import {
   StudioDoc, TableCellValue, TableColumnSpec, TableColumnType,
   TableDocPayload, TableMode, TableNumberFormat, TableInputItem, TableSheet,
+  TableChromeStyle, FieldStyle,
 } from "./studio-types";
 
 type ExportPreset = NonNullable<TableDocPayload["exportPreset"]>;
@@ -55,6 +56,8 @@ interface TableEditorState {
   aggregate: "none" | AggregateKind;
   aggregateLabel: string;
   exportPreset: ExportPreset;
+  chromeStyle: TableChromeStyle;
+  fieldStyles: Record<string, FieldStyle>;
 }
 
 interface TableEditorProps {
@@ -178,6 +181,8 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
       aggregate: state.aggregate === "none" ? undefined : state.aggregate,
       aggregateLabel: state.aggregateLabel || undefined,
       exportPreset: state.exportPreset,
+      chromeStyle: state.chromeStyle === "framed" ? undefined : state.chromeStyle,
+      fieldStyles: Object.keys(state.fieldStyles).length > 0 ? state.fieldStyles : undefined,
     };
     onChangePayload(payload);
   }, [state, onChangePayload]);
@@ -248,6 +253,24 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
         }
         return dir === "asc" ? as.localeCompare(bs) : bs.localeCompare(as);
       });
+      return { ...cur, rows };
+    });
+  }, [updateSheet]);
+
+  const resizeColumn = useCallback((key: string, width: number) => {
+    updateSheet((cur) => ({
+      ...cur,
+      schema: cur.schema.map(c => c.key === key ? { ...c, width: Math.max(60, Math.round(width)) } : c),
+    }));
+  }, [updateSheet]);
+
+  const reorderRow = useCallback((fromIdx: number, toIdx: number) => {
+    updateSheet((cur) => {
+      if (fromIdx === toIdx || fromIdx < 0 || fromIdx >= cur.rows.length) return cur;
+      const rows = cur.rows.slice();
+      const [moved] = rows.splice(fromIdx, 1);
+      const insertAt = toIdx > fromIdx ? toIdx - 1 : toIdx;
+      rows.splice(Math.max(0, Math.min(rows.length, insertAt)), 0, moved);
       return { ...cur, rows };
     });
   }, [updateSheet]);
@@ -538,6 +561,8 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
           <SaTableSvg
             mode={state.mode}
             sheet={state.sheet}
+            chromeStyle={state.chromeStyle}
+            fieldStyles={state.fieldStyles}
             category={state.category}
             titleWhite={state.titleWhite}
             titleAmber={state.titleAmber}
@@ -567,6 +592,13 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
               field={editingField}
               previewEl={previewRef.current}
               value={editorValueFor(editingField, state)}
+              style={state.fieldStyles[editingField]}
+              onStyleChange={(next) => {
+                const nextStyles = { ...state.fieldStyles };
+                if (next) nextStyles[editingField] = next;
+                else delete nextStyles[editingField];
+                update({ fieldStyles: nextStyles });
+              }}
               onCommit={(v) => {
                 update(editorPatchFor(editingField, v));
                 setEditingField(null);
@@ -597,10 +629,12 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
             onChangeColumnSuffix={setColumnSuffix}
             onSortByColumn={sortByColumn}
             onMoveColumn={moveColumn}
+            onResizeColumn={resizeColumn}
             onAddColumn={addColumn}
             onDeleteColumn={deleteColumn}
             onAddRow={addRow}
             onDeleteRow={deleteRow}
+            onReorderRow={reorderRow}
           />
         </Collapsible>
       </div>
@@ -654,6 +688,8 @@ function readPayload(payload: unknown, defaultName: string): TableEditorState {
     aggregate: "none",
     aggregateLabel: "",
     exportPreset: "default",
+    chromeStyle: "framed",
+    fieldStyles: {},
   };
   if (payload && typeof payload === "object") {
     const p = payload as Partial<TableDocPayload>;
@@ -684,6 +720,12 @@ function readPayload(payload: unknown, defaultName: string): TableEditorState {
     if (p.aggregateLabel != null) seed.aggregateLabel = p.aggregateLabel;
     if (p.exportPreset === "wide16x9" || p.exportPreset === "square" || p.exportPreset === "tall4x5" || p.exportPreset === "story9x16") {
       seed.exportPreset = p.exportPreset;
+    }
+    if (p.chromeStyle === "dense" || p.chromeStyle === "leaderboard" || p.chromeStyle === "sectioned") {
+      seed.chromeStyle = p.chromeStyle;
+    }
+    if (p.fieldStyles && typeof p.fieldStyles === "object") {
+      seed.fieldStyles = p.fieldStyles;
     }
   }
   return seed;
@@ -895,6 +937,50 @@ function ToolbarBtn({ Icon, label, onClick, accent, disabled, hint }: {
   );
 }
 
+// 2×2 grid of chrome variants. Each tile shows a tiny mockup so the
+// user can preview the wrapping decoration before committing.
+function ChromePicker({ value, onChange }: {
+  value: TableChromeStyle;
+  onChange: (v: TableChromeStyle) => void;
+}) {
+  const options: { id: TableChromeStyle; label: string; blurb: string }[] = [
+    { id: "framed",      label: "Framed",      blurb: "Title bar + key insight (default)" },
+    { id: "dense",       label: "Dense",       blurb: "No title bar · more grid space" },
+    { id: "leaderboard", label: "Leaderboard", blurb: "Gold / silver / bronze top 3" },
+    { id: "sectioned",   label: "Sectioned",   blurb: "Section bands from `── X ──` rows" },
+  ];
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, padding: "8px 10px" }}>
+      {options.map((o) => {
+        const active = o.id === value;
+        return (
+          <button
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            style={{
+              textAlign: "left",
+              padding: "8px 10px",
+              background: active ? D.amber + "1A" : "transparent",
+              color: active ? D.amber : D.tx,
+              border: "1px solid " + (active ? D.amber + "66" : D.border),
+              borderRadius: 8, cursor: "pointer",
+              fontFamily: mn, letterSpacing: 0.4,
+              transition: "background 0.12s, color 0.12s, border-color 0.12s",
+            }}
+          >
+            <div style={{ fontSize: 11.5, fontWeight: 800, marginBottom: 2 }}>
+              {o.label}
+            </div>
+            <div style={{ fontSize: 9.5, color: active ? D.amber : D.txd, lineHeight: 1.3 }}>
+              {o.blurb}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function ExportPresetPicker({ value, onChange }: { value: ExportPreset; onChange: (p: ExportPreset) => void }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -955,6 +1041,7 @@ function ExportPresetPicker({ value, onChange }: { value: ExportPreset; onChange
 // ─── Properties rail ───────────────────────────────────────────────────
 
 function PropertiesRail({ state, update }: { state: TableEditorState; update: (p: Partial<TableEditorState>) => void }) {
+  const [chromeOpen, setChromeOpen] = useState(true);
   const [headerOpen, setHeaderOpen] = useState(true);
   const [dataModeOpen, setDataModeOpen] = useState(true);
   const [heatmapOpen, setHeatmapOpen] = useState(true);
@@ -969,6 +1056,9 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
       background: D.card, border: "1px solid " + D.border, borderRadius: 12,
     }}>
       <SectionTitle label="Properties" />
+      <PanelSection label="Chrome style" open={chromeOpen} onToggle={() => setChromeOpen(v => !v)}>
+        <ChromePicker value={state.chromeStyle} onChange={(v) => update({ chromeStyle: v })} />
+      </PanelSection>
       <PanelSection label="Header" open={headerOpen} onToggle={() => setHeaderOpen(v => !v)}>
         <Field label="Category eyebrow">
           <TextInput value={state.category} onChange={(v) => update({ category: v })} placeholder="SEMIANALYSIS — RESEARCH" />
@@ -1345,13 +1435,16 @@ interface DataGridProps {
   onChangeColumnSuffix: (key: string, suffix: string) => void;
   onSortByColumn: (key: string, dir: "asc" | "desc") => void;
   onMoveColumn: (fromKey: string, toIdx: number) => void;
+  onResizeColumn: (key: string, width: number) => void;
   onAddColumn: () => void;
   onDeleteColumn: (key: string) => void;
   onAddRow: () => void;
   onDeleteRow: (rowIdx: number) => void;
+  onReorderRow: (fromIdx: number, toIdx: number) => void;
 }
 
 function DataGrid(p: DataGridProps) {
+  const [dragRow, setDragRow] = useState<number | null>(null);
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={{ borderCollapse: "separate", borderSpacing: 0, width: "100%", minWidth: 600 }}>
@@ -1372,6 +1465,7 @@ function DataGrid(p: DataGridProps) {
                 onSortAsc={() => p.onSortByColumn(col.key, "asc")}
                 onSortDesc={() => p.onSortByColumn(col.key, "desc")}
                 onMoveTo={(toIdx) => p.onMoveColumn(col.key, toIdx)}
+                onResize={(w) => p.onResizeColumn(col.key, w)}
                 onDelete={() => p.onDeleteColumn(col.key)}
               />
             ))}
@@ -1389,13 +1483,51 @@ function DataGrid(p: DataGridProps) {
         </thead>
         <tbody>
           {p.sheet.rows.map((row, ri) => (
-            <tr key={ri}>
+            <tr key={ri}
+              onDragOver={(e) => {
+                if (dragRow == null || dragRow === ri) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+              }}
+              onDrop={(e) => {
+                if (dragRow == null) return;
+                e.preventDefault();
+                // Use cursor Y vs row midpoint to decide whether to land
+                // above or below this row — feels like Notion / Linear.
+                const rect = (e.currentTarget as HTMLTableRowElement).getBoundingClientRect();
+                const below = e.clientY > rect.top + rect.height / 2;
+                p.onReorderRow(dragRow, below ? ri + 1 : ri);
+                setDragRow(null);
+              }}
+              style={{
+                background: dragRow === ri ? D.amber + "11" : undefined,
+                transition: "background 0.12s",
+              }}
+            >
               <td style={{
                 width: 36, padding: "6px 4px",
                 fontFamily: mn, fontSize: 10, color: D.txd,
                 textAlign: "center", borderBottom: "1px solid " + D.border,
                 position: "sticky", left: 0, background: D.card, zIndex: 1,
               }}>
+                <div
+                  draggable
+                  onDragStart={(e) => {
+                    setDragRow(ri);
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", String(ri));
+                  }}
+                  onDragEnd={() => setDragRow(null)}
+                  title="Drag to reorder"
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "grab", color: D.txd, height: 14, marginBottom: 2,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = D.amber; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = D.txd; }}
+                >
+                  <GripHorizontal size={11} strokeWidth={2.2} />
+                </div>
                 <button onClick={() => p.onDeleteRow(ri)} title="Delete row"
                   style={{
                     background: "transparent", border: "none",
@@ -1450,6 +1582,7 @@ interface ColumnHeaderProps {
   onSortAsc: () => void;
   onSortDesc: () => void;
   onMoveTo: (toIdx: number) => void;
+  onResize: (width: number) => void;
   onDelete: () => void;
 }
 
@@ -1505,8 +1638,31 @@ function ColumnHeaderCell(p: ColumnHeaderProps) {
     p.onMoveTo(targetIdx);
   };
 
+  const thRef = useRef<HTMLTableCellElement | null>(null);
+  const onResizeStart = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = thRef.current?.getBoundingClientRect().width || 140;
+    const onMove = (mv: MouseEvent) => {
+      const w = startW + (mv.clientX - startX);
+      p.onResize(w);
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+
   return (
     <th
+      ref={thRef}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
@@ -1515,7 +1671,10 @@ function ColumnHeaderCell(p: ColumnHeaderProps) {
         borderBottom: "1px solid " + D.border,
         borderLeft: dragOver === "before" ? "2px solid " + D.amber : "1px solid " + D.border,
         borderRight: dragOver === "after" ? "2px solid " + D.amber : undefined,
-        textAlign: "left", minWidth: 140, background: D.surface,
+        textAlign: "left",
+        minWidth: 140,
+        width: p.col.width,
+        background: D.surface,
         position: "relative",
       }}>
       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -1648,6 +1807,19 @@ function ColumnHeaderCell(p: ColumnHeaderProps) {
           )}
         </div>
       </div>
+      {/* Width-resize handle on the right edge — 5px hit area, amber
+          on hover. Pulls the column to whatever width the cursor lands
+          at while the mouse is held. */}
+      <div
+        onMouseDown={onResizeStart}
+        title="Drag to resize column"
+        style={{
+          position: "absolute", top: 0, right: -2, width: 5, height: "100%",
+          cursor: "col-resize", zIndex: 3, background: "transparent",
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = D.amber + "55"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+      />
     </th>
   );
 }
@@ -1694,12 +1866,33 @@ function editorPatchFor(field: EditableField, value: string): Partial<TableEdito
   return { [field]: value } as Partial<TableEditorState>;
 }
 
-function InlineEditOverlay({ field, previewEl, value, onCommit, onCancel }: {
+// Brand-only swatch palette for the inline text-format toolbar. Plain
+// white is the default; the other 5 colors are SA spectrum accents.
+const BRAND_SWATCHES: { label: string; value: string }[] = [
+  { label: "white",  value: "#FFFFFF" },
+  { label: "amber",  value: "#F7B041" },
+  { label: "blue",   value: "#0B86D1" },
+  { label: "teal",   value: "#2EAD8E" },
+  { label: "coral",  value: "#E06347" },
+  { label: "violet", value: "#905CCB" },
+];
+
+// Fields whose styling actually flows into the SVG renderer. Other
+// editable fields (titleBar, keyInsight, etc.) accept clicks for inline
+// edit but don't honor per-field color overrides yet — for those we
+// still show the toolbar but flag the swatches as inactive.
+const STYLED_FIELDS: ReadonlySet<EditableField> = new Set([
+  "category", "titleWhite", "titleAmber", "subtitle",
+] as EditableField[]);
+
+function InlineEditOverlay({ field, previewEl, value, style, onCommit, onCancel, onStyleChange }: {
   field: EditableField;
   previewEl: HTMLDivElement;
   value: string;
+  style?: FieldStyle;
   onCommit: (v: string) => void;
   onCancel: () => void;
+  onStyleChange?: (next: FieldStyle | undefined) => void;
 }) {
   const region = EDITABLE_REGIONS[field];
   const [draft, setDraft] = useState(value);
@@ -1725,6 +1918,18 @@ function InlineEditOverlay({ field, previewEl, value, onCommit, onCancel }: {
 
   const commit = () => onCommit(draft);
 
+  const styleable = STYLED_FIELDS.has(field);
+  const applyStyle = (patch: Partial<FieldStyle>) => {
+    if (!onStyleChange) return;
+    const next: FieldStyle = { ...(style || {}), ...patch };
+    // Strip defaults so the saved payload stays minimal.
+    const clean: FieldStyle = {};
+    if (next.color) clean.color = next.color;
+    if (next.size != null) clean.size = next.size;
+    if (next.align) clean.align = next.align;
+    onStyleChange(Object.keys(clean).length ? clean : undefined);
+  };
+
   return (
     <div style={{
       position: "absolute",
@@ -1736,6 +1941,70 @@ function InlineEditOverlay({ field, previewEl, value, onCommit, onCancel }: {
       transform: isLeftAxis ? "rotate(-90deg)" : undefined,
       transformOrigin: isLeftAxis ? "left top" : undefined,
     }}>
+      {/* Format toolbar — floats above the input. Color swatch +
+          size +/-. Only takes effect when the field's renderer
+          honors per-field overrides (currently the header fields). */}
+      {onStyleChange && (
+        <div
+          onMouseDown={(e) => e.preventDefault()}
+          style={{
+            position: "absolute",
+            left: 0, bottom: "100%",
+            marginBottom: 6,
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "5px 8px",
+            background: "#0A0C10",
+            border: "1px solid " + D.border, borderRadius: 999,
+            boxShadow: "0 8px 22px rgba(0,0,0,0.6)",
+            whiteSpace: "nowrap",
+            opacity: styleable ? 1 : 0.55,
+          }}
+          title={styleable ? "" : "This field's renderer doesn't honor per-field color yet"}
+        >
+          {BRAND_SWATCHES.map((s) => {
+            const active = (style?.color || "").toUpperCase() === s.value.toUpperCase();
+            return (
+              <button
+                key={s.value}
+                onClick={(e) => { e.stopPropagation(); applyStyle({ color: s.value }); }}
+                title={s.label}
+                style={{
+                  width: 18, height: 18, padding: 0,
+                  borderRadius: "50%",
+                  background: s.value,
+                  border: active ? "2px solid #FFF" : "1px solid rgba(255,255,255,0.25)",
+                  cursor: "pointer",
+                  outline: "none",
+                }}
+              />
+            );
+          })}
+          <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
+          <button
+            onClick={(e) => { e.stopPropagation(); applyStyle({ size: Math.max(10, (style?.size ?? rect.fontSize) - 2) }); }}
+            style={pillBtn()}
+            title="Smaller"
+          ><Minus size={11} strokeWidth={2.4} /></button>
+          <span style={{ fontFamily: mn, fontSize: 10, color: D.txm, minWidth: 24, textAlign: "center" }}>
+            {Math.round(style?.size ?? rect.fontSize)}
+          </span>
+          <button
+            onClick={(e) => { e.stopPropagation(); applyStyle({ size: Math.min(72, (style?.size ?? rect.fontSize) + 2) }); }}
+            style={pillBtn()}
+            title="Larger"
+          ><Plus size={11} strokeWidth={2.4} /></button>
+          {(style?.color || style?.size != null) && (
+            <>
+              <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
+              <button
+                onClick={(e) => { e.stopPropagation(); if (onStyleChange) onStyleChange(undefined); }}
+                style={pillBtn()}
+                title="Reset to default"
+              ><X size={11} strokeWidth={2.4} /></button>
+            </>
+          )}
+        </div>
+      )}
       {multiline ? (
         <textarea
           autoFocus
@@ -1763,6 +2032,16 @@ function InlineEditOverlay({ field, previewEl, value, onCommit, onCancel }: {
       )}
     </div>
   );
+}
+
+function pillBtn(): React.CSSProperties {
+  return {
+    width: 22, height: 22, padding: 0,
+    display: "inline-flex", alignItems: "center", justifyContent: "center",
+    background: "transparent", color: D.tx,
+    border: "1px solid " + D.border, borderRadius: 999,
+    cursor: "pointer",
+  };
 }
 
 function inlineInputStyle(fontSize: number, multiline: boolean): React.CSSProperties {
