@@ -279,7 +279,14 @@ export interface TableDocPayload {
   // Watermark behind the table data — mirrors the ChartMaker watermark
   // for visual consistency. Off by default.
   watermark?: WatermarkConfig;
+  // Overall theme — "dark" (default) is the legacy near-black backdrop
+  // with white text; "light" flips to the brand light template's white
+  // bg + slate row tints; "capital" is the SemiAnalysis Capital navy
+  // backdrop with cream text + gold accents.
+  theme?: TableTheme;
 }
+
+export type TableTheme = "dark" | "light" | "capital";
 
 // Available brand logo choices for the lettermark + watermark. Each
 // option maps to either an inline SVG (the default wordmark) or a

@@ -21,7 +21,84 @@
 
 import { aggregateColumn, formatCell } from "./data-sheet";
 import { EDITABLE_REGIONS, EditableField } from "./sa-table-regions";
-import { CellGroupAnnotation, LogoChoice, TableInputItem, TableSheet, WatermarkConfig } from "../studio-types";
+import { CellGroupAnnotation, LogoChoice, TableInputItem, TableSheet, TableTheme, WatermarkConfig } from "../studio-types";
+
+// ─── Theme palette ──────────────────────────────────────────────────────
+// Each theme returns the per-pixel colors the renderer needs to swap
+// when the user picks Light / Dark / Capital. Brand accents (amber,
+// blue, teal, coral, violet) stay constant across themes — only the
+// surrounding chrome changes.
+export interface ThemePalette {
+  bg1: string; bg2: string;        // backdrop gradient
+  glowTL: string; glowBR: string;  // soft corner glows
+  text: string;                    // primary body text
+  textMuted: string;               // secondary text
+  textDim: string;                 // tertiary text / labels
+  rowBgEven: string;               // alternate stripe (when enabled)
+  rowDivider: string;              // horizontal row separator
+  colDivider: string;              // vertical column separator
+  headerBg: string;                // column header band
+  headerTxt: string;               // column header text
+  amberHeader: string;             // amber title bar
+  insightBg: string;               // KEY INSIGHT block bg
+  footerLine: string;              // footer rule
+  footerLabel: string;             // CONFIDENTIAL / footer label
+  // The legacy renderer hard-codes "#fff" + opacity for the body text
+  // in many places. The bodyTextOp helper centralizes that mapping so a
+  // light theme can render dark text at the same VISUAL emphasis.
+  bodyTextAt: (opacity: number) => { color: string; opacity: number };
+}
+
+export function themePalette(theme: TableTheme | undefined): ThemePalette {
+  if (theme === "light") {
+    return {
+      bg1: "#FFFFFF", bg2: "#F5F5F7",
+      glowTL: "#0B86D1", glowBR: "#F7B041",
+      text: "#141414", textMuted: "#3D3D3D", textDim: "#6B6B6B",
+      rowBgEven: "rgba(20,20,20,0.04)",
+      rowDivider: "rgba(20,20,20,0.10)",
+      colDivider: "rgba(20,20,20,0.18)",
+      headerBg: "#141414", headerTxt: "#FFFFFF",
+      amberHeader: "#F7B041",
+      insightBg: "rgba(247,176,65,0.10)",
+      footerLine: "rgba(20,20,20,0.18)",
+      footerLabel: "#3D3D3D",
+      bodyTextAt: (op) => ({ color: "#141414", opacity: Math.min(1, op * 1.4) }),
+    };
+  }
+  if (theme === "capital") {
+    return {
+      bg1: "#0D1B2A", bg2: "#162A3F",
+      glowTL: "#D4AF37", glowBR: "#0B86D1",
+      text: "#EFE8DA", textMuted: "#C9C0AE", textDim: "#867D6C",
+      rowBgEven: "rgba(212,175,55,0.06)",
+      rowDivider: "rgba(239,232,218,0.10)",
+      colDivider: "rgba(239,232,218,0.16)",
+      headerBg: "#08111D", headerTxt: "#D4AF37",
+      amberHeader: "#D4AF37",
+      insightBg: "rgba(212,175,55,0.10)",
+      footerLine: "rgba(239,232,218,0.18)",
+      footerLabel: "#D4AF37",
+      bodyTextAt: (op) => ({ color: "#EFE8DA", opacity: op }),
+    };
+  }
+  // Default — dark theme, byte-identical to the legacy renderer so
+  // existing exports don't shift.
+  return {
+    bg1: "#0a0c10", bg2: "#0d1118",
+    glowTL: "#0B86D1", glowBR: "#F7B041",
+    text: "#FFFFFF", textMuted: "rgba(255,255,255,0.7)", textDim: "rgba(255,255,255,0.35)",
+    rowBgEven: "rgba(255,255,255,0.03)",
+    rowDivider: "rgba(255,255,255,0.08)",
+    colDivider: "rgba(255,255,255,0.10)",
+    headerBg: "#1A1F2A", headerTxt: "#F7B041",
+    amberHeader: "#F7B041",
+    insightBg: "rgba(247,176,65,0.08)",
+    footerLine: "rgba(255,255,255,0.08)",
+    footerLabel: "#FFFFFF",
+    bodyTextAt: (op) => ({ color: "#FFFFFF", opacity: op }),
+  };
+}
 
 export const SA_TABLE_WIDTH = 1394;
 export const SA_TABLE_HEIGHT = 861.7;
@@ -79,6 +156,10 @@ export interface SaTableRenderProps {
   lettermarkLogo?: LogoChoice;
   lettermarkCustomSrc?: string;
   watermark?: WatermarkConfig;
+  // Theme — "dark" (default) / "light" / "capital". Drives the
+  // backdrop gradient, body text color, row stripe tones, and
+  // accent shifts. Brand accents (amber, blue) stay consistent.
+  theme?: TableTheme;
   // Data mode
   titleBar?: string;
   highlightRowIdx?: number;
@@ -117,7 +198,7 @@ export interface SaTableRenderProps {
 
 // ─── Shared atoms (defs, header, footer) ─────────────────────────────────
 
-function SaDefs() {
+function SaDefs({ palette }: { palette: ThemePalette }) {
   return (
     <defs>
       <style>{[
@@ -133,16 +214,16 @@ function SaDefs() {
         <stop offset="100%" stopColor="#f7b041" stopOpacity="0.6" />
       </linearGradient>
       <linearGradient id="saBgGrad" x1="0" y1="0" x2="1394" y2="861" gradientUnits="userSpaceOnUse">
-        <stop offset="0%"   stopColor="#0a0c10" />
-        <stop offset="100%" stopColor="#0d1118" />
+        <stop offset="0%"   stopColor={palette.bg1} />
+        <stop offset="100%" stopColor={palette.bg2} />
       </linearGradient>
       <radialGradient id="saGlowTL" cx="0" cy="0" r="600" gradientUnits="userSpaceOnUse">
-        <stop offset="0%"   stopColor="#0B86D1" stopOpacity="0.12" />
-        <stop offset="100%" stopColor="#0B86D1" stopOpacity="0" />
+        <stop offset="0%"   stopColor={palette.glowTL} stopOpacity="0.12" />
+        <stop offset="100%" stopColor={palette.glowTL} stopOpacity="0" />
       </radialGradient>
       <radialGradient id="saGlowBR" cx="1394" cy="862" r="500" gradientUnits="userSpaceOnUse">
-        <stop offset="0%"   stopColor="#F7B041" stopOpacity="0.10" />
-        <stop offset="100%" stopColor="#F7B041" stopOpacity="0" />
+        <stop offset="0%"   stopColor={palette.glowBR} stopOpacity="0.10" />
+        <stop offset="100%" stopColor={palette.glowBR} stopOpacity="0" />
       </radialGradient>
       <linearGradient id="saHdrAmber" x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox">
         <stop offset="0%"   stopColor="#F7B041" stopOpacity="1" />
@@ -306,15 +387,11 @@ function SaWatermark({ config, pageW, pageH }: {
 // Footnotes block — sits just above the source line + footer rule.
 // Numbering is auto: ⁽¹⁾ first · ⁽²⁾ second … Long lists wrap onto
 // multiple lines by chunking into rows of two unless one is itself long.
-function SaFootnotes({ items, hasSource, pageW, pageH }: {
-  items?: string[]; hasSource: boolean; pageW: number; pageH: number;
+function SaFootnotes({ items, hasSource, pageW, pageH, palette }: {
+  items?: string[]; hasSource: boolean; pageW: number; pageH: number; palette: ThemePalette;
 }) {
   const list = (items || []).map((s) => s.trim()).filter(Boolean);
   if (list.length === 0) return null;
-  // Stack each footnote on its own row so long lines stay readable.
-  // Y anchor: above the footer rule (lineY = H - 31.7). Source line,
-  // when present, takes a 22px slot just above the rule, so footnotes
-  // start above that.
   const W = pageW;
   const H = pageH;
   const footerLineY = H - 31.7;
@@ -329,18 +406,17 @@ function SaFootnotes({ items, hasSource, pageW, pageH }: {
         return (
           <text key={i} x={56} y={y}
             className="sa-reg" fontSize={10.5}
-            fill="#fff" fillOpacity={0.55} letterSpacing=".02em"
+            fill={palette.textMuted} letterSpacing=".02em"
             fontStyle="italic">
-            <tspan baselineShift="super" fontSize={8} fill="#F7B041" fillOpacity={0.9}>
+            <tspan baselineShift="super" fontSize={8} fill="#F7B041" fillOpacity={0.95}>
               ({i + 1})
             </tspan>
             <tspan dx={5}>{text}</tspan>
           </text>
         );
       })}
-      {/* Faint divider tying footnotes to the data block. */}
       <line x1={56} y1={startY - 10} x2={Math.min(W - 64, 56 + 280)} y2={startY - 10}
-        stroke="#fff" strokeOpacity={0.10} strokeWidth={0.5} />
+        stroke={palette.footerLine} strokeWidth={0.5} />
     </g>
   );
 }
@@ -376,10 +452,11 @@ function SaLettermark({ x, y, width }: { x: number; y: number; width: number }) 
   );
 }
 
-function SaHeader({ category, titleWhite, titleAmber, subtitle, fieldStyles, fontScale = 1 }: {
+function SaHeader({ category, titleWhite, titleAmber, subtitle, fieldStyles, fontScale = 1, palette }: {
   category?: string; titleWhite?: string; titleAmber?: string; subtitle?: string;
   fieldStyles?: Record<string, import("../studio-types").FieldStyle>;
   fontScale?: number;
+  palette: ThemePalette;
 }) {
   const eyebrow = (category || "SEMIANALYSIS").toUpperCase();
   const white = titleWhite || "Untitled";
@@ -403,7 +480,7 @@ function SaHeader({ category, titleWhite, titleAmber, subtitle, fieldStyles, fon
         {eyebrow}
       </text>
       <text x={80} y={80} className="sa-blk" fontSize={sWhite?.size ?? titleSize}
-        fill={sWhite?.color || "#fff"} letterSpacing="-.01em">
+        fill={sWhite?.color || palette.text} letterSpacing="-.01em">
         {white}
       </text>
       {amber && (
@@ -414,7 +491,7 @@ function SaHeader({ category, titleWhite, titleAmber, subtitle, fieldStyles, fon
       )}
       {sub && (
         <text x={80} y={106} className="sa-reg" fontSize={sSub?.size ?? Math.round(13 * fontScale)}
-          fill={sSub?.color || "#fff"} fillOpacity={sSub?.color ? 1 : 0.35} letterSpacing=".02em">
+          fill={sSub?.color || palette.textDim} fillOpacity={sSub?.color ? 1 : 1} letterSpacing=".02em">
           {sub}
         </text>
       )}
@@ -422,12 +499,13 @@ function SaHeader({ category, titleWhite, titleAmber, subtitle, fieldStyles, fon
   );
 }
 
-function SaFooter({ contextLine, hideWebsite, hideConfidential, source, pageW, pageH }: {
+function SaFooter({ contextLine, hideWebsite, hideConfidential, source, pageW, pageH, palette }: {
   contextLine?: string;
   hideWebsite?: boolean;
   hideConfidential?: boolean;
   source?: string;
   pageW?: number; pageH?: number;
+  palette: ThemePalette;
 }) {
   const W = pageW || SA_TABLE_WIDTH;
   const H = pageH || SA_TABLE_HEIGHT;
@@ -435,19 +513,20 @@ function SaFooter({ contextLine, hideWebsite, hideConfidential, source, pageW, p
   // computed off H so it stays anchored to the bottom edge.
   const lineY = H - 31.7;
   const textY = H - 15.7;
+  const labelColor = palette.footerLabel;
   return (
     <>
-      <line x1={50} y1={lineY} x2={W - 44} y2={lineY} stroke="#fff" strokeOpacity={0.08} strokeWidth={0.4} fill="none" />
+      <line x1={50} y1={lineY} x2={W - 44} y2={lineY} stroke={palette.footerLine} strokeWidth={0.4} fill="none" />
       {!hideWebsite && (
-        <text x={56} y={textY} className="sa-bold" fontSize={10} fill="#f7b041" fillOpacity={0.7} letterSpacing=".1em">SEMIANALYSIS.COM</text>
+        <text x={56} y={textY} className="sa-bold" fontSize={10} fill="#f7b041" fillOpacity={0.85} letterSpacing=".1em">SEMIANALYSIS.COM</text>
       )}
       <text x={W / 2} y={textY} textAnchor="middle"
-        className="sa-bold" fontSize={10} fill="#fff" fillOpacity={0.2} letterSpacing=".1em">
+        className="sa-bold" fontSize={10} fill={labelColor} fillOpacity={0.4} letterSpacing=".1em">
         {(contextLine || "POAST Studio · 2026").toUpperCase()}
       </text>
       {!hideConfidential && (
         <text x={W - 64} y={textY} textAnchor="end"
-          className="sa-bold" fontSize={10} fill="#fff" fillOpacity={0.2} letterSpacing=".1em">
+          className="sa-bold" fontSize={10} fill={labelColor} fillOpacity={0.4} letterSpacing=".1em">
           CONFIDENTIAL
         </text>
       )}
@@ -455,7 +534,7 @@ function SaFooter({ contextLine, hideWebsite, hideConfidential, source, pageW, p
           and dimmed to read as attribution. Only renders when set. */}
       {source && (
         <text x={56} y={lineY - 12}
-          className="sa-reg" fontSize={11} fill="#fff" fillOpacity={0.45}
+          className="sa-reg" fontSize={11} fill={palette.textMuted}
           fontStyle="italic">
           {source}
         </text>
@@ -534,9 +613,9 @@ function isSectionRow(row: Record<string, unknown>, schema: TableSheet["schema"]
   return true;
 }
 
-function SaDataTable(props: SaTableRenderProps) {
+function SaDataTable(props: SaTableRenderProps & { palette: ThemePalette }) {
   const { sheet, titleBar, highlightRowIdx, highlightFlagCol, keyInsight,
-          aggregate, aggregateLabel, chromeStyle, onEditCell, editingCell } = props;
+          aggregate, aggregateLabel, chromeStyle, onEditCell, editingCell, palette } = props;
   const chrome = resolveChrome(chromeStyle);
   // Adjust the chrome to the dynamic page width — the legacy 1394
   // frame had tableX=33 / tableW=1328 (33 + 1328 + 33 = 1394). Scale
@@ -645,7 +724,7 @@ function SaDataTable(props: SaTableRenderProps) {
       )}
 
       {/* Column header row — base band */}
-      <rect x={tableX} y={colHeaderY} width={tableW} height={colHeaderH} fill={chrome.headerStrong ? "#1f2530" : "#1a1f28"} />
+      <rect x={tableX} y={colHeaderY} width={tableW} height={colHeaderH} fill={palette.headerBg} />
       {/* Per-column header overlays — either from col.headerColor or
           from chrome.cycleHeaderColors (Power-Budget style). Drawn as
           tinted rect strips on top of the base header band. */}
@@ -661,19 +740,16 @@ function SaDataTable(props: SaTableRenderProps) {
         );
       })}
       <line x1={tableX} y1={colHeaderY + colHeaderH} x2={tableX + tableW} y2={colHeaderY + colHeaderH}
-        stroke="#fff" strokeOpacity={0.1} strokeWidth={0.5} />
+        stroke={palette.rowDivider} strokeWidth={0.5} />
       {sheet.schema.map((c, ci) => {
-        // When a column header is tinted with a saturated brand color,
-        // force the label to white-on-color so it reads cleanly.
-        const cycleColors = ["#F7B041", "#0B86D1", "#2EAD8E", "#E06347", "#905CCB"];
         const tinted = !!c.headerColor || (chrome.cycleHeaderColors && ci > 0);
-        void cycleColors;
+        const headerFill = tinted ? "#FFFFFF" : palette.headerTxt;
         return (
           <text key={"hdr-" + c.key}
             x={ci === 0 ? tableX + 15 : colCenter(ci)}
             y={colHeaderY + colHeaderH * 0.61}
             textAnchor={ci === 0 ? "start" : "middle"}
-            className="sa-bold" fontSize={Math.round(15 * bodyFontScale)} fill={tinted ? "#fff" : "#fff"} fillOpacity={tinted ? 1 : 0.9}>
+            className="sa-bold" fontSize={Math.round(15 * bodyFontScale)} fill={headerFill} fillOpacity={tinted ? 1 : 0.95}>
             {c.label}
           </text>
         );
@@ -724,7 +800,7 @@ function SaDataTable(props: SaTableRenderProps) {
             {/* Alternate-row stripe — applied first so highlight/medal/
                 custom band styles layer cleanly on top. */}
             {props.showRowStripe && ri % 2 === 1 && !rowStyle?.band && (
-              <rect x={tableX} y={y} width={tableW} height={rowH} fill="#FFFFFF" fillOpacity={0.03} />
+              <rect x={tableX} y={y} width={tableW} height={rowH} fill={palette.rowBgEven} />
             )}
             {medal && (
               <>
@@ -796,13 +872,13 @@ function SaDataTable(props: SaTableRenderProps) {
                 ? cellStyle.color
                 : condFill
                 ? condFill
-                : isHi ? (flag ? "#e06347" : ci === 0 ? "#fff" : "#f7b041")
+                : isHi ? (flag ? "#e06347" : ci === 0 ? palette.text : "#f7b041")
                 : isGrandTotal ? "#F7B041"
-                : "#fff";
+                : palette.text;
               const opacity = (cellStyle?.color || condFill) ? 1
                 : isHi ? 1
                 : (isGrandTotal || isSubTotal) ? 1
-                : ci === 0 ? 0.7 : 0.6;
+                : ci === 0 ? 0.95 : 0.85;
               const weight = (cellStyle?.bold || condFill || isHi || isGrandTotal || isSubTotal || rowStyle?.bold)
                 ? "sa-blk" : "sa-reg";
               const baseSize = isHi ? 16 : isGrandTotal ? 16 : 15;
@@ -833,7 +909,7 @@ function SaDataTable(props: SaTableRenderProps) {
             })}
             {!isHi && (
               <line x1={tableX} y1={y + rowH} x2={tableX + tableW} y2={y + rowH}
-                stroke="#fff" strokeOpacity={0.07} strokeWidth={0.4} />
+                stroke={palette.rowDivider} strokeWidth={0.4} />
             )}
           </g>
         );
@@ -947,8 +1023,8 @@ function SaDataTable(props: SaTableRenderProps) {
         return (
           <line key={"vsep-" + ci}
             x1={x} y1={colHeaderY} x2={x} y2={tableEndY}
-            stroke="#fff"
-            strokeOpacity={strong ? (dashed ? 0.18 : 0.1) : (dashed ? 0.14 : 0.07)}
+            stroke={palette.colDivider}
+            strokeOpacity={strong ? 1 : 0.7}
             strokeWidth={strong ? 0.5 : 0.4}
             strokeDasharray={dashed ? "3 3" : undefined} />
         );
@@ -1000,7 +1076,7 @@ function SaDataTable(props: SaTableRenderProps) {
       {chrome.showKeyInsight && keyInsight && (
         <g>
           <line x1={80} y1={tableEndY + 30} x2={1314} y2={tableEndY + 30}
-            stroke="#fff" strokeOpacity={0.1} strokeWidth={0.5} />
+            stroke={palette.rowDivider} strokeWidth={0.5} />
           <text x={80} y={tableEndY + 54}
             className="sa-blk" fontSize={23.43} fill="#f7b041" letterSpacing=".14em">KEY INSIGHT</text>
           <line x1={80} y1={tableEndY + 62} x2={380} y2={tableEndY + 62}
@@ -1008,7 +1084,7 @@ function SaDataTable(props: SaTableRenderProps) {
           <foreignObject x={80} y={tableEndY + 72} width={1234} height={120}>
             <div style={{
               fontFamily: "'Outfit', sans-serif",
-              fontSize: 15, color: "#fff", opacity: 0.7,
+              fontSize: 15, color: palette.text, opacity: 0.85,
               lineHeight: 1.45,
             }}>{keyInsight}</div>
           </foreignObject>
@@ -1054,7 +1130,7 @@ function textColorFor(band: "R" | "Y" | "G", opacity: number): { fill: string; w
   };
 }
 
-function SaHeatmap(props: SaTableRenderProps) {
+function SaHeatmap(props: SaTableRenderProps & { palette: ThemePalette }) {
   const { sheet, threshold = 0, yellowBand = 0.5, topAxisLabel, leftAxisLabel,
           baselineRow, baselineCol, panelKind = "inputs", panelItems,
           formula, formulaBaseline, formulaResult } = props;
@@ -1254,13 +1330,14 @@ export default function SaTableSvg(props: SaTableRenderProps) {
     ? props.fontScale
     : props.autoFontScale ? Math.max(0.6, Math.min(1.6, autoScale)) : 1;
   const titleFontScale = props.titleFontScale ?? baseScale;
+  const palette = themePalette(props.theme);
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
       xmlns="http://www.w3.org/2000/svg"
       style={{ width: "100%", height: "100%", display: "block" }}
     >
-      <SaDefs />
+      <SaDefs palette={palette} />
       <SaBackdrop
         pageW={W} pageH={H}
         hideTopStripe={props.hideTopStripe}
@@ -1275,12 +1352,14 @@ export default function SaTableSvg(props: SaTableRenderProps) {
         subtitle={props.subtitle}
         fieldStyles={props.fieldStyles}
         fontScale={titleFontScale}
+        palette={palette}
       />
-      {props.mode === "data" ? <SaDataTable {...props} /> : <SaHeatmap {...props} />}
+      {props.mode === "data" ? <SaDataTable {...props} palette={palette} /> : <SaHeatmap {...props} palette={palette} />}
       <SaFootnotes
         items={props.footnotes}
         hasSource={!!props.source}
         pageW={W} pageH={H}
+        palette={palette}
       />
       <SaFooter
         contextLine={props.subtitle}
@@ -1289,6 +1368,7 @@ export default function SaTableSvg(props: SaTableRenderProps) {
         source={props.source}
         pageW={W}
         pageH={H}
+        palette={palette}
       />
       {props.onEditField && <EditHitZones mode={props.mode} editing={props.editingField || null} onEdit={props.onEditField} />}
     </svg>

@@ -62,6 +62,18 @@ export const DIAGRAM_BACKDROPS: DiagramBackdrop[] = [
     overlay: "radial-gradient(circle at 50% 30%, rgba(247,176,65,0.18), transparent 60%)" },
   { id: "sa-teal",   label: "Teal Wash",  bg: "#06181A", isLight: false,
     overlay: "radial-gradient(circle at 60% 40%, rgba(46,173,142,0.22), transparent 60%)" },
+  // Whiteboard — flat warm-white with a barely-there dot grid, mimics
+  // the look of a Miro / Figma whiteboard.
+  { id: "whiteboard", label: "Whiteboard", bg: "#FCFBF7", isLight: true,
+    overlay: "radial-gradient(circle, rgba(20,20,20,0.10) 1.2px, transparent 1.4px)" },
+  // Blueprint — dark cyan with a fine cyan grid, schematic-paper look
+  // for engineering diagrams.
+  { id: "blueprint", label: "Blueprint", bg: "#0E3A5F", isLight: false,
+    overlay: "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)" },
+  // Die sheet — light parchment with a fine reticule, for die-layout /
+  // floorplan / chiplet diagrams.
+  { id: "die-sheet", label: "Die Sheet", bg: "#F2EDDD", isLight: true,
+    overlay: "linear-gradient(rgba(20,20,20,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(20,20,20,0.07) 1px, transparent 1px), radial-gradient(circle at center, rgba(247,176,65,0.05), transparent 60%)" },
 ];
 
 export function backdropById(id: string | undefined): DiagramBackdrop {

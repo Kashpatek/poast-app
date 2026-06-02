@@ -18,7 +18,7 @@ import { templateById as tableTemplateById } from "./lib/table-templates";
 import { listDocs, loadDoc, saveDoc, deleteDoc } from "./studio-storage";
 import { D, ft, gf, mn, SAVE_STATE_COLOR } from "./studio-theme";
 import {
-  ChartDocPayload,
+  ChartDocPayload, TableDocPayload,
   DocType, SaveState, StudioDoc, StudioView, TableSheet,
   emptyDoc, isAnalystOwner, newDocId,
 } from "./studio-types";
@@ -278,6 +278,25 @@ export default function StudioShell() {
             setView({ kind: "editor", docId: doc.id });
             void saveDoc(doc);
           }}
+          onBuildTableFromChart={(sheet, sourceName) => {
+            // Reverse — chart's sheet becomes the seed for a new table
+            // doc. Lands on the framed chrome so it's recognizable as a
+            // sibling of the source chart.
+            const doc = emptyDoc("table", owner, "Table of " + sourceName);
+            const payload: TableDocPayload = {
+              kind: "table", version: 1,
+              engine: "standard",
+              sheet,
+              titleWhite: sourceName,
+              category: "SEMIANALYSIS — DRAFT",
+              subtitle: "From chart",
+              titleBar: sourceName.toUpperCase(),
+            };
+            doc.payload = payload;
+            setDocs((cur) => [doc, ...cur]);
+            setView({ kind: "editor", docId: doc.id });
+            void saveDoc(doc);
+          }}
         />
       )}
 
@@ -291,12 +310,13 @@ export default function StudioShell() {
   );
 }
 
-function EditorHost({ doc, onChangePayload, onBuildChartFromTable }: {
+function EditorHost({ doc, onChangePayload, onBuildChartFromTable, onBuildTableFromChart }: {
   doc: StudioDoc;
   onChangePayload: (payload: unknown) => void;
   onBuildChartFromTable: (sheet: TableSheet, sourceName: string) => void;
+  onBuildTableFromChart: (sheet: TableSheet, sourceName: string) => void;
 }) {
-  if (doc.type === "chart")   return <ChartEditor   doc={doc} onChangePayload={onChangePayload} />;
+  if (doc.type === "chart")   return <ChartEditor   doc={doc} onChangePayload={onChangePayload} onBuildTable={onBuildTableFromChart} />;
   if (doc.type === "table")   return <TableEditor   doc={doc} onChangePayload={onChangePayload} onBuildChart={onBuildChartFromTable} />;
   return <DiagramEditor doc={doc} onChangePayload={onChangePayload} />;
 }

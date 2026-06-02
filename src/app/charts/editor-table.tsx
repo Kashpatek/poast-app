@@ -26,7 +26,7 @@ import {
   CellGroupAnnotation, LogoChoice,
   StudioDoc, TableCellValue, TableColumnSpec, TableColumnType,
   TableDocPayload, TableMode, TableNumberFormat, TableInputItem, TableSheet,
-  TableChromeStyle, FieldStyle, WatermarkConfig,
+  TableChromeStyle, TableTheme, FieldStyle, WatermarkConfig,
 } from "./studio-types";
 
 type ExportPreset = NonNullable<TableDocPayload["exportPreset"]>;
@@ -79,6 +79,7 @@ interface TableEditorState {
   lettermarkLogo: LogoChoice;
   lettermarkCustomSrc: string;
   watermark: WatermarkConfig;
+  theme: TableTheme;
 }
 
 const DEFAULT_WATERMARK: WatermarkConfig = {
@@ -237,6 +238,7 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
       lettermarkLogo: state.lettermarkLogo !== "saWordmark" ? state.lettermarkLogo : undefined,
       lettermarkCustomSrc: state.lettermarkCustomSrc || undefined,
       watermark: state.watermark.mode !== "off" ? state.watermark : undefined,
+      theme: state.theme !== "dark" ? state.theme : undefined,
     };
     onChangePayload(payload);
   }, [state, onChangePayload]);
@@ -690,6 +692,7 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
             lettermarkLogo={state.lettermarkLogo}
             lettermarkCustomSrc={state.lettermarkCustomSrc || undefined}
             watermark={state.watermark.mode !== "off" ? state.watermark : undefined}
+            theme={state.theme}
             selectedCells={annotateMode ? selectedCells : undefined}
             category={state.category}
             titleWhite={state.titleWhite}
@@ -930,6 +933,7 @@ function readPayload(payload: unknown, defaultName: string): TableEditorState {
     lettermarkLogo: "saWordmark",
     lettermarkCustomSrc: "",
     watermark: { ...DEFAULT_WATERMARK },
+    theme: "dark",
   };
   if (payload && typeof payload === "object") {
     const p = payload as Partial<TableDocPayload>;
@@ -1011,6 +1015,9 @@ function readPayload(payload: unknown, defaultName: string): TableEditorState {
         size: typeof w.size === "number" ? w.size : 280,
         customSrc: typeof w.customSrc === "string" ? w.customSrc : undefined,
       };
+    }
+    if (p.theme === "dark" || p.theme === "light" || p.theme === "capital") {
+      seed.theme = p.theme;
     }
   }
   return seed;
@@ -1739,10 +1746,12 @@ const LOGO_OPTIONS: { value: LogoChoice; label: string; sub: string }[] = [
   { value: "none",        label: "None",                  sub: "Hide" },
 ];
 
-function BrandingPanel({ lettermarkLogo, lettermarkCustomSrc, watermark, onChangeLettermark, onChangeWatermark }: {
+function BrandingPanel({ theme, lettermarkLogo, lettermarkCustomSrc, watermark, onChangeTheme, onChangeLettermark, onChangeWatermark }: {
+  theme: TableTheme;
   lettermarkLogo: LogoChoice;
   lettermarkCustomSrc: string;
   watermark: WatermarkConfig;
+  onChangeTheme: (t: TableTheme) => void;
   onChangeLettermark: (logo: LogoChoice, customSrc?: string) => void;
   onChangeWatermark: (w: WatermarkConfig) => void;
 }) {
@@ -1757,8 +1766,12 @@ function BrandingPanel({ lettermarkLogo, lettermarkCustomSrc, watermark, onChang
 
   return (
     <div style={{ padding: "4px 10px 10px" }}>
+      {/* ─── Theme ─────────────────────────────────────────────────── */}
+      <div style={sectionLabelStyle()}>Theme</div>
+      <ThemePicker value={theme} onChange={onChangeTheme} />
+
       {/* ─── Lettermark (top-right) ─────────────────────────────── */}
-      <div style={sectionLabelStyle()}>Top-right lettermark</div>
+      <div style={{ ...sectionLabelStyle(), marginTop: 14 }}>Top-right lettermark</div>
       <LogoPicker
         value={lettermarkLogo}
         onChange={(v) => {
@@ -1852,6 +1865,62 @@ function BrandingPanel({ lettermarkLogo, lettermarkCustomSrc, watermark, onChang
           />
         </>
       )}
+    </div>
+  );
+}
+
+const THEME_SWATCHES: { value: TableTheme; label: string; sub: string; bg: string; text: string; accent: string }[] = [
+  { value: "dark",    label: "Dark",    sub: "Default · slide-ready",    bg: "linear-gradient(135deg, #0a0c10, #0d1118)", text: "#FFFFFF", accent: "#F7B041" },
+  { value: "light",   label: "Light",   sub: "Brand light template",     bg: "linear-gradient(135deg, #FFFFFF, #F5F5F7)", text: "#141414", accent: "#0B86D1" },
+  { value: "capital", label: "Capital", sub: "Navy + cream · long-form", bg: "linear-gradient(135deg, #0D1B2A, #162A3F)", text: "#EFE8DA", accent: "#D4AF37" },
+];
+
+function ThemePicker({ value, onChange }: {
+  value: TableTheme;
+  onChange: (v: TableTheme) => void;
+}) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5, marginBottom: 4 }}>
+      {THEME_SWATCHES.map((t) => {
+        const on = value === t.value;
+        return (
+          <button key={t.value}
+            onClick={() => onChange(t.value)}
+            style={{
+              padding: 0,
+              background: "transparent",
+              color: on ? D.amber : D.tx,
+              border: "1px solid " + (on ? D.amber + "66" : D.border),
+              borderRadius: 8, cursor: "pointer",
+              fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.3,
+              textAlign: "left",
+              overflow: "hidden",
+            }}
+          >
+            <div style={{
+              height: 42,
+              background: t.bg,
+              borderBottom: "1px solid " + D.border,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              position: "relative",
+            }}>
+              <span style={{
+                fontFamily: ft, fontSize: 12, fontWeight: 800,
+                color: t.text, letterSpacing: -0.3,
+              }}>Aa</span>
+              <span style={{
+                position: "absolute", right: 6, top: 6,
+                width: 10, height: 10, borderRadius: "50%",
+                background: t.accent,
+              }} />
+            </div>
+            <div style={{ padding: "5px 7px" }}>
+              <div style={{ fontWeight: 800 }}>{t.label}</div>
+              <div style={{ fontSize: 8.5, color: on ? D.amber : D.txd, fontWeight: 600, marginTop: 1 }}>{t.sub}</div>
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -1991,11 +2060,13 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
       <PanelSection label="Chrome style" open={chromeOpen} onToggle={() => setChromeOpen(v => !v)}>
         <ChromePicker value={state.chromeStyle} onChange={(v) => update({ chromeStyle: v })} />
       </PanelSection>
-      <PanelSection label="Logo & Watermark" open={brandingOpen} onToggle={() => setBrandingOpen(v => !v)}>
+      <PanelSection label="Theme · Logo · Watermark" open={brandingOpen} onToggle={() => setBrandingOpen(v => !v)}>
         <BrandingPanel
+          theme={state.theme}
           lettermarkLogo={state.lettermarkLogo}
           lettermarkCustomSrc={state.lettermarkCustomSrc}
           watermark={state.watermark}
+          onChangeTheme={(t) => update({ theme: t })}
           onChangeLettermark={(logo, customSrc) => update({ lettermarkLogo: logo, lettermarkCustomSrc: customSrc ?? state.lettermarkCustomSrc })}
           onChangeWatermark={(w) => update({ watermark: w })}
         />

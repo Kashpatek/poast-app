@@ -162,6 +162,18 @@ function TemplateTile({ tpl, type, onClick }: { tpl: GalleryTemplate; type: DocT
             <SaTableSvg
               mode={tableBuilt.mode || "data"}
               sheet={tableBuilt.sheet}
+              chromeStyle={tableBuilt.chromeStyle}
+              fieldStyles={tableBuilt.fieldStyles}
+              theme={tableBuilt.theme}
+              hideTopStripe={tableBuilt.hideTopStripe}
+              showRowStripe={tableBuilt.showRowStripe}
+              dividerStyle={tableBuilt.dividerStyle}
+              rowStyles={tableBuilt.rowStyles}
+              hideWebsite={tableBuilt.hideWebsite}
+              hideConfidential={tableBuilt.hideConfidential}
+              source={tableBuilt.source}
+              autoFontScale={true}
+              lettermarkLogo={tableBuilt.lettermarkLogo}
               category={tableBuilt.category}
               titleWhite={tableBuilt.titleWhite}
               titleAmber={tableBuilt.titleAmber}
@@ -170,6 +182,8 @@ function TemplateTile({ tpl, type, onClick }: { tpl: GalleryTemplate; type: DocT
               highlightRowIdx={tableBuilt.highlightRowIdx}
               highlightFlagCol={tableBuilt.highlightFlagCol}
               keyInsight={tableBuilt.keyInsight}
+              aggregate={tableBuilt.aggregate}
+              aggregateLabel={tableBuilt.aggregateLabel}
               threshold={tableBuilt.threshold}
               yellowBand={tableBuilt.yellowBand}
               topAxisLabel={tableBuilt.topAxisLabel}
