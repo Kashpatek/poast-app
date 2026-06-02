@@ -2371,21 +2371,23 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
 // 0. Same series key keeps the same color on both sides, so the legend
 // reads cleanly. Click a segment to surface the selection toolbar /
 // color wheel like the other column types.
-function StackedPosNegColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, onShowElementMenu, onSelect, onSetSeriesColor, selected, onSelectElement, onOpenWheel }: CatProps) {
+function StackedPosNegColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu, onShowElementMenu, annotations, onSelect, onSetSeriesColor, selected, onSelectElement, onOpenWheel }: CatProps) {
+  // Horizontal bar layout — categories run DOWN the Y axis (matching the
+  // Excel sheet row order) and stacked values flow LEFT (negative) / RIGHT
+  // (positive) from a vertical 0-line. Previous version rendered vertically;
+  // X/Y were flipped vs the sheet, which made attribution data hard to read.
   const [hoverCat, setHoverCat] = useState<number | null>(null);
+  void hoverCat;
   const { categories, series } = getCategoricalSeries(sheet);
   const seriesKeys = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent").map(c => c.key);
   const catKey = sheet.schema[0]?.key || "category";
   const palette = THEMES[cfg.theme].colors;
   const colorOf = (key: string, idx: number) => cfg.seriesColors?.[key] || palette[idx % palette.length];
-  const legendSwatchClick = onSetSeriesColor && onShowMenu ? (key: string, e: React.MouseEvent) => onShowMenu(e, [
-    { kind: "swatchRow", colors: palette, current: cfg.seriesColors?.[key], onPick: c => onSetSeriesColor(key, c) },
-  ]) : undefined;
-  void legendSwatchClick;
   const [editingCat, setEditingCat] = useState<number | null>(null);
   const cc = chartColors(cfg);
   const SIDE_LEGEND_W = (cfg.legendPos === "left" || cfg.legendPos === "right") ? 100 : 0;
-  const leftPad = cfg.legendPos === "left" ? 56 + SIDE_LEGEND_W : 56;
+  // Wider left pad to fit category labels on the Y axis.
+  const leftPad = (cfg.legendPos === "left" ? SIDE_LEGEND_W : 0) + 110;
   const rightPad = cfg.legendPos === "right" ? 24 + SIDE_LEGEND_W : 24;
   const topPad = 70, bottomPad = cfg.legendPos === "top" ? 60 : 48;
   const chartW = W - leftPad - rightPad;
@@ -2398,57 +2400,71 @@ function StackedPosNegColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onSho
   const maxV = Math.max(0, ...posTotals);
   const minV = Math.min(0, ...negTotals);
   const ticks = niceTicks(minV, maxV, 6);
+  // Note: cfg.yMin / yMax still refer to the *value* axis, which is now X.
   const tickMin = cfg.yMin !== undefined ? cfg.yMin : (ticks[0] ?? minV);
   const tickMax = cfg.yMax !== undefined ? cfg.yMax : (ticks[ticks.length - 1] ?? maxV);
   const span = (tickMax - tickMin) || 1;
-  const yOf = (v: number) => chartH - ((v - tickMin) / span) * chartH;
-  const zeroY = yOf(0);
+  const xOf = (v: number) => leftPad + ((v - tickMin) / span) * chartW;
+  const zeroX = xOf(0);
 
-  const groupW = chartW / categories.length;
-  const barW = Math.max(2, Math.min(groupW * ((cfg.barWidthPct ?? 65) / 100), groupW * 0.92));
+  const rowH = chartH / Math.max(categories.length, 1);
+  const barH = Math.max(2, Math.min(rowH * ((cfg.barWidthPct ?? 65) / 100), rowH * 0.92));
 
   return (
     <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
+      {/* Value ticks along the X axis (bottom). */}
       {ticks.map(t => (
         <g key={t}>
-          {cfg.showGridlines !== false && <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke={t === 0 ? cc.text : cc.grid} strokeWidth={t === 0 ? 1.5 : 1} />}
-          {cfg.showTickMarks && <line x1={leftPad - 4} x2={leftPad} y1={yOf(t)} y2={yOf(t)} stroke={cc.muted} strokeWidth="1.5" />}
-          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
+          {cfg.showGridlines !== false && (
+            <line
+              x1={xOf(t)} x2={xOf(t)}
+              y1={topPad} y2={topPad + chartH}
+              stroke={t === 0 ? cc.text : cc.grid}
+              strokeWidth={t === 0 ? 1.5 : 1}
+            />
+          )}
+          {cfg.showTickMarks && (
+            <line x1={xOf(t)} x2={xOf(t)} y1={topPad + chartH} y2={topPad + chartH + 4} stroke={cc.muted} strokeWidth="1.5" />
+          )}
+          <text
+            x={xOf(t)} y={topPad + chartH + 16}
+            textAnchor="middle" fill={cc.muted}
+            style={{ fontFamily: fontMono, fontSize: 10 }}
+          >{fmtVal(t, cfg.numFmt)}</text>
         </g>
       ))}
       {categories.map((cat, i) => {
         let cumPos = 0;
         let cumNeg = 0;
-        const isHovered = hoverCat === i;
-        void isHovered;
+        const rowYCenter = topPad + i * rowH + rowH / 2;
+        const segY = rowYCenter - barH / 2;
         return (
-          <g key={i} style={{ animation: `cm2BarRise 0.6s cubic-bezier(.2,.7,.2,1) both`, animationDelay: `${i * 30}ms`, transformOrigin: `${leftPad + i * groupW + groupW / 2}px ${topPad + zeroY}px`, transformBox: "fill-box" as React.CSSProperties["transformBox"] }}>
+          <g key={i} style={{ animation: `cm2BarRise 0.6s cubic-bezier(.2,.7,.2,1) both`, animationDelay: `${i * 30}ms`, transformOrigin: `${zeroX}px ${rowYCenter}px`, transformBox: "fill-box" as React.CSSProperties["transformBox"] }}>
             {series.map((s, si) => {
               const v = s.values[i];
               if (v === 0) return null;
               const key = seriesKeys[si];
               const color = colorOf(key, si);
-              const segX = leftPad + i * groupW + (groupW - barW) / 2;
-              let y0: number, y1: number;
+              let x0: number, x1: number;
               if (v > 0) {
-                y0 = yOf(cumPos);
-                y1 = yOf(cumPos + v);
+                x0 = xOf(cumPos);
+                x1 = xOf(cumPos + v);
                 cumPos += v;
               } else {
-                y0 = yOf(cumNeg);
-                y1 = yOf(cumNeg + v);
+                x0 = xOf(cumNeg);
+                x1 = xOf(cumNeg + v);
                 cumNeg += v;
               }
-              const segH = Math.abs(y1 - y0);
-              const segY = Math.min(y0, y1);
+              const segW = Math.abs(x1 - x0);
+              const segX = Math.min(x0, x1);
               const isSelected = selected?.kind === "segment" && selected.rowIdx === i && selected.key === key;
               return (
                 <g key={si}>
                   <rect
                     x={segX}
                     y={segY}
-                    width={barW}
-                    height={Math.max(0, segH)}
+                    width={Math.max(0, segW)}
+                    height={barH}
                     rx={cfg.roundedCorners ? 3 : 0}
                     ry={cfg.roundedCorners ? 3 : 0}
                     fill={color}
@@ -2479,54 +2495,74 @@ function StackedPosNegColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onSho
                     }}
                     style={{ cursor: onUpdateRow ? "pointer" : "default" }}
                   />
-                  {cfg.showSegmentLabels && segH > 18 && barW > 24 && (
+                  {cfg.showSegmentLabels && segW > 28 && barH > 12 && (
                     <text
-                      x={segX + barW / 2}
-                      y={(y0 + y1) / 2 + 3}
+                      x={(x0 + x1) / 2}
+                      y={rowYCenter + 4}
                       textAnchor="middle"
                       fill={cc.onBar}
-                      style={{ fontFamily: fontMono, fontSize: 12, fontWeight: 800, pointerEvents: "none" }}
+                      style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 800, pointerEvents: "none" }}
                     >{fmtVal(v, cfg.numFmt)}</text>
                   )}
                   {isSelected && (
-                    <rect x={segX - 2} y={segY - 2} width={barW + 4} height={segH + 4} fill="none" stroke={C.amber} strokeWidth={1.5} pointerEvents="none" rx={cfg.roundedCorners ? 5 : 0} />
+                    <rect x={segX - 2} y={segY - 2} width={segW + 4} height={barH + 4} fill="none" stroke={C.amber} strokeWidth={1.5} pointerEvents="none" rx={cfg.roundedCorners ? 5 : 0} />
                   )}
                 </g>
               );
             })}
-            {/* Net (sum) label — drawn just above the higher of pos/neg edges. */}
+            {/* Net (sum) label — sits just right of the positive edge, or
+                left of the negative edge if there's no positive total. */}
             {cfg.showTotalLabels !== false && (
               <text
-                x={leftPad + i * groupW + groupW / 2}
-                y={yOf(posTotals[i]) - 6}
-                textAnchor="middle"
+                x={posTotals[i] > 0 ? xOf(posTotals[i]) + 6 : xOf(negTotals[i]) - 6}
+                y={rowYCenter + 4}
+                textAnchor={posTotals[i] > 0 ? "start" : "end"}
                 fill={cc.text}
                 style={{ fontFamily: fontMono, fontSize: 12, fontWeight: 700, pointerEvents: "none" }}
               >
                 {fmtVal(posTotals[i] + negTotals[i], cfg.numFmt)}
               </text>
             )}
-            {/* Category label · always below the chartH baseline, not the 0 line. */}
+            {/* Category label sits in the gutter to the LEFT of the chart
+                (Y-axis labels) so each row is named the way Excel rows are. */}
             {editingCat === i ? (
-              <foreignObject x={leftPad + i * groupW + 6} y={chartH + 8} width={groupW - 12} height={26}>
+              <foreignObject x={6} y={rowYCenter - 13} width={leftPad - 12} height={26}>
                 <input
                   autoFocus
                   defaultValue={cat}
                   onBlur={e => { onUpdateRow?.(i, { [catKey]: (e.target as HTMLInputElement).value }); setEditingCat(null); }}
                   onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingCat(null); }}
-                  style={{ width: "100%", height: "100%", padding: "0 6px", background: "#0A0A0E", border: "1px solid " + C.amber + "80", borderRadius: 4, color: "#E8E4DD", fontFamily: fontSans, fontSize: 13, outline: "none", boxSizing: "border-box", textAlign: "center" }}
+                  style={{ width: "100%", height: "100%", padding: "0 6px", background: "#0A0A0E", border: "1px solid " + C.amber + "80", borderRadius: 4, color: "#E8E4DD", fontFamily: fontSans, fontSize: 13, outline: "none", boxSizing: "border-box", textAlign: "right" }}
                 />
               </foreignObject>
             ) : (
               <text
-                x={leftPad + i * groupW + groupW / 2}
-                y={zeroY + (negTotals[i] < 0 ? -4 : 18)}
-                textAnchor="middle"
+                x={leftPad - 10}
+                y={rowYCenter + 4}
+                textAnchor="end"
                 fill={cc.muted}
                 onClick={() => onUpdateRow && setEditingCat(i)}
                 style={{ fontFamily: fontSans, fontSize: 12, fontWeight: 600, cursor: onUpdateRow ? "text" : "default" }}
               >{cat}</text>
             )}
+          </g>
+        );
+      })}
+      {/* Reference-line annotations — for a horizontal bar chart the value
+          axis is X, so each refline is a VERTICAL dashed line at xOf(v).
+          Out-of-range values are clipped silently. */}
+      {(annotations || []).map(a => {
+        if (a.kind !== "refline") return null;
+        if (a.value < tickMin || a.value > tickMax) return null;
+        const x = xOf(a.value);
+        const stroke = a.color || "#E06347";
+        const label = a.label || fmtVal(a.value, cfg.numFmt);
+        const labelW = 8 + label.length * 6.6;
+        return (
+          <g key={a.id} pointerEvents="none">
+            <line x1={x} x2={x} y1={topPad} y2={topPad + chartH} stroke={stroke} strokeWidth="1.6" strokeDasharray="4 4" opacity="0.85" />
+            <rect x={x - labelW / 2} y={topPad - 18} width={labelW} height="16" rx="3" fill={stroke} />
+            <text x={x} y={topPad - 6} textAnchor="middle" fill="#fff" style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 800, letterSpacing: 0.4 }}>{label}</text>
           </g>
         );
       })}
