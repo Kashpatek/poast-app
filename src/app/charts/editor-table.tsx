@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown, ChevronRight, Copy, Download, FileImage, FileText,
-  GripHorizontal, Image as ImageIcon, Plus, RotateCcw, RotateCw, Sparkles, X,
+  GripHorizontal, Image as ImageIcon, Plus, RotateCcw, RotateCw, Sparkles, Wand2, X,
 } from "lucide-react";
 import { showToast } from "../toast-context";
 import {
@@ -72,6 +72,7 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
   const settledTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [gridOpen, setGridOpen] = useState(true);
+  const [parseOpen, setParseOpen] = useState(false);
   const previewRef = useRef<HTMLDivElement | null>(null);
 
   // ── Single mutation entry-point ──────────────────────────────────────
@@ -401,6 +402,8 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
           <span style={{ width: 1, height: 18, background: D.border, margin: "0 4px" }} />
           <ToolbarBtn Icon={FileText} label="CSV"      onClick={exportCsv} />
           <ToolbarBtn Icon={Copy}     label="Markdown" onClick={copyMarkdown} />
+          <span style={{ width: 1, height: 18, background: D.border, margin: "0 4px" }} />
+          <ToolbarBtn Icon={Wand2} label="AI parse" accent={D.violet} onClick={() => setParseOpen(true)} />
           {onBuildChart && (
             <>
               <span style={{ marginLeft: "auto" }} />
@@ -469,6 +472,16 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
       </div>
 
       <PropertiesRail state={state} update={update} />
+
+      {parseOpen && (
+        <ParseModal
+          onClose={() => setParseOpen(false)}
+          onApply={(patch) => {
+            update(patch);
+            setParseOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1326,6 +1339,315 @@ function ColumnMenuLabel({ children }: { children: React.ReactNode }) {
       fontWeight: 700, textTransform: "uppercase", marginBottom: 3,
     }}>{children}</div>
   );
+}
+
+// ─── AI parse modal ─────────────────────────────────────────────────────
+// Brain-dump pattern: paste anything (Slack thread, prose paragraph,
+// pasted spreadsheet, list with attributes), hit Parse, the model
+// returns a structured TableSheet + title + insight. User can review
+// and apply, or start over.
+
+interface ParsedResponse {
+  title?: string;
+  subtitle?: string;
+  mode?: "data" | "heatmap";
+  columns?: { label: string; type?: TableColumnType; numFmt?: TableNumberFormat; prefix?: string; suffix?: string }[];
+  rows?: Record<string, string | number | null>[];
+  highlightRowIdx?: number | null;
+  highlightFlagCol?: number | null;
+  keyInsight?: string;
+}
+
+function ParseModal({ onClose, onApply }: {
+  onClose: () => void;
+  onApply: (patch: Partial<TableEditorState>) => void;
+}) {
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [parsed, setParsed] = useState<ParsedResponse | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => { textareaRef.current?.focus(); }, []);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const canRun = text.trim().length > 0 && !loading;
+
+  const runParse = async () => {
+    if (!canRun) return;
+    setLoading(true);
+    setError(null);
+    setParsed(null);
+    try {
+      const res = await fetch("/api/studio-table/parse", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: text.trim() }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Parse failed");
+      if (!j.parsed) throw new Error("Empty response");
+      setParsed(j.parsed as ParsedResponse);
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const applyParsed = () => {
+    if (!parsed) return;
+    const patch = parsedToPatch(parsed);
+    onApply(patch);
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 12000,
+        background: "rgba(6,6,12,0.72)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+        display: "flex", alignItems: "flex-start", justifyContent: "center",
+        paddingTop: "8vh", paddingBottom: "4vh",
+      }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "min(820px, 94vw)",
+          background: "linear-gradient(180deg, " + D.card + ", " + D.surface + ")",
+          border: "1px solid " + D.violet + "55",
+          borderRadius: 14,
+          boxShadow: "0 32px 80px rgba(0,0,0,0.7), 0 0 48px " + D.violet + "22",
+          overflow: "hidden",
+        }}>
+        <div style={{
+          padding: "14px 18px",
+          borderBottom: "1px solid " + D.border,
+          display: "flex", alignItems: "center", gap: 10,
+        }}>
+          <span style={{
+            fontFamily: mn, fontSize: 10, color: D.violet, letterSpacing: 1.5,
+            fontWeight: 800, textTransform: "uppercase",
+          }}>✦ AI parse</span>
+          <span style={{ fontFamily: ft, fontSize: 12.5, color: D.txm }}>
+            Paste anything — spreadsheet block, pasted email, paragraph — Claude turns it into a table.
+          </span>
+          <button onClick={onClose}
+            style={{
+              marginLeft: "auto",
+              background: "transparent", border: "none", color: D.txm,
+              fontSize: 20, cursor: "pointer", padding: "0 4px", lineHeight: 1,
+            }}>×</button>
+        </div>
+
+        {!parsed && (
+          <div style={{ padding: 16 }}>
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                  e.preventDefault();
+                  if (canRun) runParse();
+                }
+              }}
+              placeholder={"Examples Claude can parse:\n\n  Q1\tQ2\tQ3\tQ4\n  Revenue\t18.4\t21.1\t23.6\t26.2\n  Margin\t32\t34\t36\t38\n\n…or a paragraph:\n  \"Anthropic's Sonnet does ~320k tokens per dollar at 240ms p95 with a 200k context. OpenAI's GPT-5 is at 280k tokens/$ and 310ms, also 128k context. Gemini 3 Pro pushes 340k at 280ms with a 1M context.\"\n\n⌘Enter to parse"}
+              rows={9}
+              style={{
+                width: "100%", boxSizing: "border-box",
+                background: D.bg, border: "1px solid " + D.border, borderRadius: 9,
+                color: D.tx, fontFamily: ft, fontSize: 13.5, lineHeight: 1.45,
+                padding: "11px 13px", resize: "vertical", outline: "none",
+                minHeight: 200,
+              }}
+            />
+            {error && (
+              <div style={{
+                marginTop: 10, padding: "8px 11px",
+                background: "rgba(224,99,71,0.08)", border: "1px solid " + D.coral + "55",
+                borderRadius: 7, color: D.coral, fontFamily: mn, fontSize: 11.5,
+              }}>● {error}</div>
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+              <button
+                onClick={runParse}
+                disabled={!canRun}
+                style={{
+                  padding: "9px 18px",
+                  background: canRun
+                    ? "linear-gradient(135deg, " + D.violet + ", " + D.cyan + ")"
+                    : D.surface,
+                  color: canRun ? "#0A0A0F" : D.txd,
+                  border: canRun ? "none" : "1px solid " + D.border,
+                  fontFamily: ft, fontSize: 13, fontWeight: 700, letterSpacing: 0.3,
+                  borderRadius: 9, cursor: canRun ? "pointer" : "not-allowed",
+                  boxShadow: canRun ? "0 6px 18px " + D.violet + "33" : "none",
+                }}>{loading ? "● Parsing…" : "✦ Parse"}</button>
+              <span style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.5 }}>⌘ + ↵ to submit</span>
+            </div>
+          </div>
+        )}
+
+        {parsed && (
+          <div style={{ padding: 16 }}>
+            <ParsedPreview parsed={parsed} />
+            <div style={{ display: "flex", gap: 8, marginTop: 14, justifyContent: "flex-end" }}>
+              <button onClick={() => { setParsed(null); setError(null); }}
+                style={{
+                  padding: "7px 14px",
+                  background: "transparent", border: "1px solid " + D.border,
+                  color: D.txm, fontFamily: mn, fontSize: 11, fontWeight: 700,
+                  letterSpacing: 0.5, borderRadius: 7, cursor: "pointer",
+                }}>start over</button>
+              <button onClick={applyParsed}
+                style={{
+                  padding: "8px 18px",
+                  background: "linear-gradient(135deg, " + D.amber + ", " + D.coral + ")",
+                  color: "#0A0A0F", border: "none",
+                  fontFamily: ft, fontSize: 13, fontWeight: 700, letterSpacing: 0.3,
+                  borderRadius: 9, cursor: "pointer",
+                  boxShadow: "0 6px 18px rgba(247,176,65,0.25)",
+                }}>✦ Replace doc with this</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ParsedPreview({ parsed }: { parsed: ParsedResponse }) {
+  const cols = parsed.columns || [];
+  const rows = parsed.rows || [];
+  return (
+    <div>
+      <div style={{
+        fontFamily: mn, fontSize: 10, color: D.violet, letterSpacing: 1.5,
+        fontWeight: 800, textTransform: "uppercase", marginBottom: 4,
+      }}>{parsed.mode === "heatmap" ? "Heatmap" : "Data table"} · {cols.length} cols × {rows.length} rows</div>
+      {parsed.title && (
+        <div style={{ fontFamily: gf, fontSize: 18, fontWeight: 800, color: D.tx, letterSpacing: -0.2 }}>{parsed.title}</div>
+      )}
+      {parsed.subtitle && (
+        <div style={{ fontFamily: ft, fontSize: 12.5, color: D.txm, marginTop: 2 }}>{parsed.subtitle}</div>
+      )}
+      <div style={{
+        marginTop: 12,
+        background: D.bg, border: "1px solid " + D.border, borderRadius: 9,
+        overflowX: "auto", maxHeight: 260,
+      }}>
+        <table style={{ borderCollapse: "separate", borderSpacing: 0, width: "100%", minWidth: 480 }}>
+          <thead>
+            <tr style={{ background: D.surface }}>
+              {cols.map((c, i) => (
+                <th key={i} style={{
+                  padding: "7px 10px",
+                  borderBottom: "1px solid " + D.border,
+                  borderLeft: i > 0 ? "1px solid " + D.border : "none",
+                  fontFamily: ft, fontSize: 12, fontWeight: 700, color: D.tx,
+                  textAlign: i === 0 ? "left" : "right",
+                }}>{c.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.slice(0, 10).map((r, ri) => (
+              <tr key={ri}>
+                {cols.map((c, ci) => {
+                  const v = r[c.label];
+                  const display = v == null ? "—" : String(v);
+                  return (
+                    <td key={ci} style={{
+                      padding: "6px 10px",
+                      borderBottom: "1px solid " + D.border,
+                      borderLeft: ci > 0 ? "1px solid " + D.border : "none",
+                      fontFamily: ci === 0 ? ft : mn, fontSize: 12, color: D.tx,
+                      textAlign: ci === 0 ? "left" : "right",
+                    }}>{display}</td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {parsed.keyInsight && (
+        <div style={{
+          marginTop: 10, padding: "8px 11px",
+          background: "rgba(247,176,65,0.06)", border: "1px solid " + D.amber + "33",
+          borderRadius: 7,
+          fontFamily: ft, fontSize: 12, color: D.tx, lineHeight: 1.45,
+        }}>
+          <span style={{ color: D.amber, fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 1.2, marginRight: 6 }}>KEY INSIGHT</span>
+          {parsed.keyInsight}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Translate the API response into a Partial<TableEditorState> the
+// editor can absorb directly. Generates fresh column keys so we don't
+// collide with existing schema.
+function parsedToPatch(parsed: ParsedResponse): Partial<TableEditorState> {
+  const cols = parsed.columns || [];
+  const schema = cols.map((c, i) => {
+    const key = "c" + (i + 1);
+    const type: TableColumnType =
+      c.type === "number" || c.type === "percent" || c.type === "date" || c.type === "text"
+        ? c.type
+        : i === 0 ? "text" : "number";
+    const spec: TableColumnSpec = { key, label: c.label, type };
+    if (c.numFmt && c.numFmt !== "default") spec.numFmt = c.numFmt;
+    if (c.prefix) spec.prefix = c.prefix;
+    if (c.suffix) spec.suffix = c.suffix;
+    return spec;
+  });
+  const rows = (parsed.rows || []).map(r => {
+    const out: Record<string, TableCellValue> = {};
+    cols.forEach((c, ci) => {
+      const k = "c" + (ci + 1);
+      const raw = r[c.label];
+      if (raw == null) { out[k] = null; return; }
+      if (typeof raw === "number") { out[k] = raw; return; }
+      const coerced = coerce(String(raw), c.type === "number" || c.type === "percent" ? c.type : "text");
+      out[k] = coerced;
+    });
+    return out;
+  });
+  const sheet: TableSheet = { schema, rows };
+
+  // Split the title into white + amber on a "·" or hyphen separator
+  // when present, so the SA two-color title comes through.
+  const title = parsed.title || "";
+  let titleWhite = title;
+  let titleAmber = "";
+  const sepMatch = title.match(/^(.*?)\s*[·•|]\s*(.+)$/);
+  if (sepMatch) {
+    titleWhite = sepMatch[1].trim();
+    titleAmber = sepMatch[2].trim();
+  }
+
+  const patch: Partial<TableEditorState> = {
+    sheet,
+    mode: parsed.mode === "heatmap" ? "heatmap" : "data",
+    titleWhite,
+    titleAmber,
+    subtitle: parsed.subtitle || "",
+  };
+  if (parsed.highlightRowIdx != null) patch.highlightRowIdx = parsed.highlightRowIdx;
+  if (parsed.highlightFlagCol != null) patch.highlightFlagCol = parsed.highlightFlagCol;
+  if (parsed.keyInsight) patch.keyInsight = parsed.keyInsight;
+  return patch;
 }
 
 function Cell({ value, type, onCommit, onSmartPaste }: {
