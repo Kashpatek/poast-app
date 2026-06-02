@@ -68,7 +68,10 @@ interface TableEditorState {
   dividerStyle: "solid" | "dotted" | "none";
   rowStyles: Record<number, import("./studio-types").TableRowStyle>;
   fontScale: number;
+  titleFontScale: number;
+  bodyFontScale: number;
   autoFontScale: boolean;
+  lockTableDimensions: boolean;
   cellStyles: Record<string, import("./studio-types").CellStyle>;
 }
 
@@ -211,7 +214,10 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
       dividerStyle: state.dividerStyle !== "solid" ? state.dividerStyle : undefined,
       rowStyles: Object.keys(state.rowStyles).length > 0 ? state.rowStyles : undefined,
       fontScale: state.fontScale !== 1 ? state.fontScale : undefined,
+      titleFontScale: state.titleFontScale !== 1 ? state.titleFontScale : undefined,
+      bodyFontScale: state.bodyFontScale !== 1 ? state.bodyFontScale : undefined,
       autoFontScale: state.autoFontScale ? true : undefined,
+      lockTableDimensions: state.lockTableDimensions ? true : undefined,
       cellStyles: Object.keys(state.cellStyles).length > 0 ? state.cellStyles : undefined,
     };
     onChangePayload(payload);
@@ -642,7 +648,10 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
             dividerStyle={state.dividerStyle}
             rowStyles={state.rowStyles}
             fontScale={state.autoFontScale ? undefined : state.fontScale}
+            titleFontScale={state.titleFontScale !== 1 ? state.titleFontScale : undefined}
+            bodyFontScale={state.bodyFontScale !== 1 ? state.bodyFontScale : undefined}
             autoFontScale={state.autoFontScale}
+            lockTableDimensions={state.lockTableDimensions}
             cellStyles={state.cellStyles}
             selectedCells={annotateMode ? selectedCells : undefined}
             category={state.category}
@@ -862,7 +871,10 @@ function readPayload(payload: unknown, defaultName: string): TableEditorState {
     dividerStyle: "solid",
     rowStyles: {},
     fontScale: 1,
+    titleFontScale: 1,
+    bodyFontScale: 1,
     autoFontScale: true,
+    lockTableDimensions: false,
     cellStyles: {},
   };
   if (payload && typeof payload === "object") {
@@ -915,7 +927,14 @@ function readPayload(payload: unknown, defaultName: string): TableEditorState {
     if (typeof p.fontScale === "number" && p.fontScale > 0.3 && p.fontScale < 4) {
       seed.fontScale = p.fontScale;
     }
+    if (typeof p.titleFontScale === "number" && p.titleFontScale > 0.3 && p.titleFontScale < 4) {
+      seed.titleFontScale = p.titleFontScale;
+    }
+    if (typeof p.bodyFontScale === "number" && p.bodyFontScale > 0.3 && p.bodyFontScale < 4) {
+      seed.bodyFontScale = p.bodyFontScale;
+    }
     if (typeof p.autoFontScale === "boolean") seed.autoFontScale = p.autoFontScale;
+    if (typeof p.lockTableDimensions === "boolean") seed.lockTableDimensions = p.lockTableDimensions;
     if (p.cellStyles && typeof p.cellStyles === "object") {
       seed.cellStyles = p.cellStyles as Record<string, import("./studio-types").CellStyle>;
     }
@@ -1331,12 +1350,101 @@ function PageDimensionPicker({ pageW, pageH, sheet, chromeStyle, keyInsight, agg
           );
         })}
       </div>
-      <Field label="Width">
-        <NumberInput value={pageW} onChange={(v) => onChange(Math.max(400, Math.min(8000, Math.round(v))), pageH)} step={10} />
-      </Field>
-      <Field label="Height">
-        <NumberInput value={pageH} onChange={(v) => onChange(pageW, Math.max(300, Math.min(8000, Math.round(v))))} step={10} />
-      </Field>
+      <DimSlider
+        label="Width"
+        value={pageW}
+        min={400} max={4000} step={10}
+        onChange={(v) => onChange(v, pageH)}
+      />
+      <DimSlider
+        label="Height"
+        value={pageH}
+        min={300} max={4000} step={10}
+        onChange={(v) => onChange(pageW, v)}
+      />
+    </div>
+  );
+}
+
+// Width / Height control combining a range slider, a number input,
+// and mouse-wheel scroll-to-tune. Scrolling the slider OR the readout
+// nudges the value by `step`; shift-scroll nudges by 10×.
+function DimSlider({ label, value, min, max, step, onChange }: {
+  label: string;
+  value: number; min: number; max: number; step: number;
+  onChange: (v: number) => void;
+}) {
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const dir = e.deltaY < 0 ? 1 : -1;
+    const mag = e.shiftKey ? step * 10 : step;
+    onChange(Math.max(min, Math.min(max, value + dir * mag)));
+  };
+  return (
+    <div style={{ marginTop: 6 }} onWheel={handleWheel}>
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "baseline",
+        marginBottom: 4,
+        fontFamily: mn, fontSize: 9.5, color: D.txm, letterSpacing: 0.5,
+        textTransform: "uppercase", fontWeight: 700,
+      }}>
+        <span>{label}</span>
+        <input
+          type="number"
+          value={value}
+          min={min}
+          max={max}
+          step={step}
+          onChange={(e) => onChange(Math.max(min, Math.min(max, Number(e.target.value))))}
+          style={{
+            width: 70, padding: "2px 6px",
+            background: D.bg, color: D.tx,
+            border: "1px solid " + D.border, borderRadius: 4,
+            fontFamily: mn, fontSize: 11, fontWeight: 800,
+            textAlign: "right", outline: "none",
+          }}
+        />
+      </div>
+      <input
+        type="range"
+        min={min} max={max} step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        style={{ width: "100%", accentColor: D.amber }}
+      />
+    </div>
+  );
+}
+
+// Labeled range slider with a live percent readout. Goes 60%-200% so
+// "Table text" can grow larger than canvas for a punchier read. Wire-
+// disabled state inherits parent dim when autoFontScale is on.
+function FontScaleSlider({ label, value, disabled, onChange }: {
+  label: string;
+  value: number;
+  disabled?: boolean;
+  onChange: (v: number) => void;
+}) {
+  const pct = Math.round(value * 100);
+  return (
+    <div style={{ marginTop: 8, opacity: disabled ? 0.45 : 1 }}>
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "baseline",
+        marginBottom: 4,
+        fontFamily: mn, fontSize: 9.5, color: D.txm, letterSpacing: 0.5,
+        textTransform: "uppercase", fontWeight: 700,
+      }}>
+        <span>{label}</span>
+        <span style={{ color: D.tx, fontSize: 10, fontWeight: 800 }}>{pct}%</span>
+      </div>
+      <input
+        type="range"
+        min={50} max={220} step={2}
+        value={pct}
+        disabled={disabled}
+        onChange={(e) => onChange(Number(e.target.value) / 100)}
+        style={{ width: "100%", accentColor: D.amber }}
+      />
     </div>
   );
 }
@@ -1486,22 +1594,31 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
       <PanelSection label="Typography" open={typoOpen} onToggle={() => setTypoOpen(v => !v)}>
         <div style={{ padding: "6px 10px 10px" }}>
           <FooterToggle
-            label="Auto-scale text to canvas"
+            label="Auto-scale to canvas"
             checked={state.autoFontScale}
             onChange={(v) => update({ autoFontScale: v })}
           />
-          <Field label={"Font scale · " + (state.autoFontScale
-            ? Math.round(Math.max(0.6, Math.min(1.6, Math.min(state.pageW / SA_TABLE_WIDTH, state.pageH / SA_TABLE_HEIGHT))) * 100) + "% (auto)"
-            : Math.round(state.fontScale * 100) + "%")}>
-            <input
-              type="range"
-              min={60} max={160} step={2}
-              value={Math.round(state.fontScale * 100)}
-              disabled={state.autoFontScale}
-              onChange={(e) => update({ fontScale: Number(e.target.value) / 100 })}
-              style={{ width: "100%", accentColor: D.amber, opacity: state.autoFontScale ? 0.4 : 1 }}
-            />
-          </Field>
+          <FooterToggle
+            label="Lock table dimensions"
+            checked={state.lockTableDimensions}
+            onChange={(v) => update({ lockTableDimensions: v })}
+          />
+          <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, padding: "2px 0 8px", letterSpacing: 0.4 }}>
+            When locked, only text inside the table grows / shrinks —
+            row + header heights stay fixed.
+          </div>
+          <FontScaleSlider
+            label="Title text"
+            value={state.titleFontScale}
+            disabled={state.autoFontScale}
+            onChange={(v) => update({ titleFontScale: v })}
+          />
+          <FontScaleSlider
+            label="Table text"
+            value={state.bodyFontScale}
+            disabled={state.autoFontScale}
+            onChange={(v) => update({ bodyFontScale: v })}
+          />
         </div>
       </PanelSection>
       <PanelSection label="Footer / Source" open={footerOpen} onToggle={() => setFooterOpen(v => !v)}>

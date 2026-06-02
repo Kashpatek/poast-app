@@ -238,15 +238,27 @@ export interface TableDocPayload {
   // seed this for band rows + bold totals; the user can edit from the
   // properties rail.
   rowStyles?: Record<number, TableRowStyle>;
-  // Global font-size multiplier — bumps every text + row height in
-  // lockstep so smaller frames stay readable and larger frames stay
-  // balanced. 1.0 = legacy default.
+  // Legacy unified font scale — still honored when neither of the
+  // new split scales is set. New docs should use titleFontScale /
+  // bodyFontScale instead.
   fontScale?: number;
+  // Title-only scale — affects the SA header block (category eyebrow,
+  // white + amber title, subtitle) and the amber title bar over the
+  // table. Independent of the body.
+  titleFontScale?: number;
+  // Body-only scale — affects the column header text, every data
+  // cell, and the aggregate row. Independent of titles.
+  bodyFontScale?: number;
   // When true, the renderer derives fontScale automatically from the
   // current canvas dimensions (relative to the legacy 1394×861 base)
   // so picking a smaller canvas preset auto-shrinks the typography.
   // User can still override by setting fontScale explicitly.
   autoFontScale?: boolean;
+  // When true, row height + column-header height + title-bar height
+  // stay locked at the legacy 42/46/44 dimensions regardless of the
+  // bodyFontScale slider. Lets the user grow / shrink text without
+  // the surrounding chrome stretching with it.
+  lockTableDimensions?: boolean;
   // Per-cell annotations keyed by `${rowIdx}:${colKey}`. Set via the
   // Annotate mode in the editor toolbar — supports background tint,
   // text color, border (dotted / dashed / solid), and a bold toggle.
