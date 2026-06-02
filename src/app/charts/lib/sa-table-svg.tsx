@@ -109,14 +109,43 @@ function SaBackdrop() {
       <rect width={SA_TABLE_WIDTH} height={SA_TABLE_HEIGHT} fill="url(#saGlowTL)" />
       <rect width={SA_TABLE_WIDTH} height={SA_TABLE_HEIGHT} fill="url(#saGlowBR)" />
       <rect x={0} y={0} width={SA_TABLE_WIDTH} height={4} fill="url(#saTopStripe)" />
-      {/* SA badge */}
-      <rect x={1320} y={18} width={50} height={32} rx={4}
-        fill="#111318" stroke="#f7b041" strokeWidth={1} strokeOpacity={0.5} />
-      <text x={1345} y={40} textAnchor="middle"
-        className="sa-blk"
-        fontSize={15}
-        fill="#f7b041">SA</text>
+      {/* SemiAnalysis lettermark — octagonal brand mark, replaces the
+          previous SA pill. Drawn as a single amber octagon with an inset
+          white-outline ring and "S.A" wordmark, kept small so it sits
+          in the corner without competing with the title. */}
+      <SaLettermark x={1318} y={14} size={44} />
     </>
+  );
+}
+
+function SaLettermark({ x, y, size }: { x: number; y: number; size: number }) {
+  const cx = x + size / 2, cy = y + size / 2;
+  const inset = size * 0.30;
+  // Regular octagon — vertices at ±inset on horizontal/vertical edges.
+  const pts = [
+    [cx - inset, y],
+    [cx + inset, y],
+    [x + size, cy - inset],
+    [x + size, cy + inset],
+    [cx + inset, y + size],
+    [cx - inset, y + size],
+    [x, cy + inset],
+    [x, cy - inset],
+  ];
+  const ringInset = 3;
+  const innerPts = pts.map(([px, py]) => [
+    px + (cx - px) * (ringInset / (size / 2)),
+    py + (cy - py) * (ringInset / (size / 2)),
+  ]);
+  return (
+    <g>
+      <polygon points={pts.map(p => p.join(",")).join(" ")} fill="#F7B041" />
+      <polygon points={innerPts.map(p => p.join(",")).join(" ")}
+        fill="none" stroke="#FFFFFF" strokeWidth={1} strokeOpacity={0.75} />
+      <text x={cx} y={cy + size * 0.16} textAnchor="middle"
+        className="sa-blk" fontSize={size * 0.42} fill="#FFFFFF"
+        letterSpacing=".02em">S.A</text>
+    </g>
   );
 }
 
@@ -155,8 +184,7 @@ function SaFooter({ contextLine }: { contextLine?: string }) {
   return (
     <>
       <line x1={50} y1={830} x2={1350} y2={830} stroke="#fff" strokeOpacity={0.08} strokeWidth={0.4} fill="none" />
-      <circle cx={56} cy={842} r={3.5} fill="#f7b041" fillOpacity={0.7} />
-      <text x={68} y={846} className="sa-bold" fontSize={10} fill="#f7b041" fillOpacity={0.7} letterSpacing=".1em">SEMIANALYSIS.COM</text>
+      <text x={56} y={846} className="sa-bold" fontSize={10} fill="#f7b041" fillOpacity={0.7} letterSpacing=".1em">SEMIANALYSIS.COM</text>
       <text x={579} y={846} className="sa-bold" fontSize={10} fill="#fff" fillOpacity={0.2} letterSpacing=".1em">{(contextLine || "POAST Studio · 2026").toUpperCase()}</text>
       <text x={1240} y={846} className="sa-bold" fontSize={10} fill="#fff" fillOpacity={0.2} letterSpacing=".1em">CONFIDENTIAL</text>
     </>

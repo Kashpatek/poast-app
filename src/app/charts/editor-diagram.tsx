@@ -843,6 +843,209 @@ function seedFromTemplate(templateId: string | undefined): { nodes: DiagramNode[
     return { nodes, edges: [] };
   }
 
+  // Generation Matrix — chip/platform generations × component categories.
+  // Each cell is a rounded card with a bold label + 2-line spec slot.
+  // Adapted from SA's Vera Rubin GPU/CPU deep-dive diagrams.
+  if (templateId === "gen-matrix") {
+    const gens = [
+      { name: "Hopper",     year: "2022", accent: "#2EAD8E" },
+      { name: "Blackwell",  year: "2024", accent: "#0B86D1" },
+      { name: "Rubin",      year: "2026", accent: "#F7B041" },
+      { name: "Feynman",    year: "2028", accent: "#E06347" },
+    ];
+    const rows = [
+      { label: "GPU die",       cells: ["GH100\n814 mm²",      "GB100×2\n2× 800 mm²", "R100×2\n3D-stacked",    "F100\nTBD"] },
+      { label: "HBM",           cells: ["HBM3\n80 GB · 3 TB/s","HBM3e\n192 GB · 8 TB/s","HBM4\n288 GB · 13 TB/s","HBM5\nTBD"] },
+      { label: "CPU",           cells: ["Grace\n72×Neoverse",  "Grace\n72×Neoverse",  "Vera\n88×Olympus",      "Vera Next\nTBD"] },
+      { label: "NVLink switch", cells: ["NVSwitch 3\n900 GB/s","NVSwitch 4\n1.8 TB/s","NVSwitch 5\n3.6 TB/s",  "NVSwitch 6\nTBD"] },
+      { label: "Networking",    cells: ["CX-7\n400 G",          "CX-8\n800 G",         "CX-9\n1.6 T",            "CX-10\nTBD"] },
+      { label: "System",        cells: ["HGX H100\n8-GPU baseboard","GB200 NVL72\n72-GPU rack","NVL144\n144-GPU rack","Feynman rack\nTBD"] },
+    ];
+    const nodes: DiagramNode[] = [];
+    const colW = 200, rowH = 100, gx = 130, gy = 70;
+    // Column headers (year above, name in colored bar)
+    gens.forEach((g, ci) => {
+      nodes.push({ id: "yh" + ci, kind: "text", x: gx + ci * colW, y: 16, w: colW - 12, h: 18, text: g.year, fontSize: 11 });
+      nodes.push({ id: "gh" + ci, kind: "rounded", x: gx + ci * colW, y: 36, w: colW - 12, h: 30, fill: g.accent + "22", stroke: g.accent, text: g.name });
+    });
+    // Rows
+    rows.forEach((r, ri) => {
+      nodes.push({ id: "rl" + ri, kind: "text", x: 14, y: gy + ri * rowH + 36, w: gx - 24, h: 22, text: r.label, fontSize: 13 });
+      r.cells.forEach((cellText, ci) => {
+        const accent = gens[ci].accent;
+        nodes.push({
+          id: "c" + ri + "_" + ci, kind: "rounded",
+          x: gx + ci * colW, y: gy + ri * rowH,
+          w: colW - 12, h: rowH - 14,
+          fill: "#10101C", stroke: accent + "AA",
+          text: cellText, fontSize: 11.5,
+        });
+      });
+    });
+    return { nodes, edges: [] };
+  }
+
+  // Rack Architecture — two rack columns w/ labeled component slots,
+  // connected by NVLink Fabric + Power Bus.
+  if (templateId === "rack-arch") {
+    const racks = [
+      { x: 90,  name: "Rack A" },
+      { x: 410, name: "Rack B" },
+    ];
+    const slots = [
+      { label: "GPU Tray ×8",      accent: "#F7B041" },
+      { label: "NVLink Switch",    accent: "#0B86D1" },
+      { label: "PSU Shelf",        accent: "#E06347" },
+      { label: "Management",       accent: "#2EAD8E" },
+    ];
+    const slotH = 70, slotW = 220, y0 = 80;
+    const nodes: DiagramNode[] = [];
+    racks.forEach((r, ri) => {
+      // Rack outer
+      nodes.push({ id: "rk" + ri, kind: "rect", x: r.x, y: y0 - 30, w: slotW, h: slots.length * (slotH + 8) + 40, fill: "#06060A", stroke: "#FFFFFF44", strokeWidth: 1.5 });
+      nodes.push({ id: "rkt" + ri, kind: "text", x: r.x, y: y0 - 26, w: slotW, h: 22, text: r.name, fontSize: 14 });
+      slots.forEach((s, si) => {
+        nodes.push({
+          id: "sl" + ri + "_" + si, kind: "rounded",
+          x: r.x + 10, y: y0 + si * (slotH + 8),
+          w: slotW - 20, h: slotH,
+          fill: s.accent + "1A", stroke: s.accent, text: s.label,
+        });
+      });
+    });
+    // Bus lines spanning both racks
+    const nvY = y0 + (slots.length * (slotH + 8)) + 60;
+    nodes.push({ id: "nvb", kind: "rect", x: 60, y: nvY, w: 600, h: 38, fill: "#0B86D122", stroke: "#0B86D1", text: "NVLink Fabric — 1.8 TB/s" });
+    nodes.push({ id: "pwb", kind: "rect", x: 60, y: nvY + 60, w: 600, h: 38, fill: "#E0634722", stroke: "#E06347", text: "Power Bus — 800 VDC" });
+    const edges: DiagramEdge[] = [
+      { id: "ea", from: { kind: "node", nodeId: "sl0_1", side: "bottom" }, to: { kind: "node", nodeId: "nvb", side: "top" }, stroke: "#0B86D1", arrowEnd: true },
+      { id: "eb", from: { kind: "node", nodeId: "sl1_1", side: "bottom" }, to: { kind: "node", nodeId: "nvb", side: "top" }, stroke: "#0B86D1", arrowEnd: true },
+      { id: "pa", from: { kind: "node", nodeId: "sl0_2", side: "bottom" }, to: { kind: "node", nodeId: "pwb", side: "top" }, stroke: "#E06347", arrowEnd: true },
+      { id: "pb", from: { kind: "node", nodeId: "sl1_2", side: "bottom" }, to: { kind: "node", nodeId: "pwb", side: "top" }, stroke: "#E06347", arrowEnd: true },
+    ];
+    return { nodes, edges };
+  }
+
+  // Cross-section / Layer Stack — full-width stacked layers w/ left
+  // annotation arrows. Adapted from SA's package-structure cutaways.
+  if (templateId === "layer-stack") {
+    const layers = [
+      { name: "GPU dies",        accent: "#F7B041", desc: "2× Rubin SXM" },
+      { name: "Interposer",      accent: "#0B86D1", desc: "CoWoS-L" },
+      { name: "HBM stacks",      accent: "#2EAD8E", desc: "8× HBM4 12-Hi" },
+      { name: "Package substrate", accent: "#905CCB", desc: "Organic ABF" },
+      { name: "PCB",             accent: "#E06347", desc: "OAM/SXM board" },
+    ];
+    const nodes: DiagramNode[] = [];
+    const x0 = 240, w = 540, layerH = 64, y0 = 80;
+    nodes.push({ id: "title", kind: "text", x: x0, y: 30, w, h: 28, text: "Package Structure", fontSize: 20 });
+    layers.forEach((l, i) => {
+      nodes.push({
+        id: "ly" + i, kind: "rect",
+        x: x0, y: y0 + i * layerH, w, h: layerH - 6,
+        fill: l.accent + "33", stroke: l.accent, text: l.name, fontSize: 14,
+      });
+      nodes.push({ id: "an" + i, kind: "text", x: 30, y: y0 + i * layerH + 14, w: 180, h: 24, text: l.desc, fontSize: 11.5 });
+    });
+    const edges: DiagramEdge[] = layers.map((_l, i) => ({
+      id: "p" + i,
+      from: { kind: "node", nodeId: "an" + i, side: "right" },
+      to:   { kind: "node", nodeId: "ly" + i, side: "left" },
+      stroke: "#FFFFFF77", arrowEnd: true, strokeWidth: 1.2,
+    }));
+    return { nodes, edges };
+  }
+
+  // Die Floorplan — outer die boundary + 3×2 grid of functional blocks.
+  // Adapted from SA's Rubin GPU floorplan diagram.
+  if (templateId === "die-floorplan") {
+    const blocks = [
+      { l: "GPC",        accent: "#F7B041" },
+      { l: "L2 Cache",   accent: "#0B86D1" },
+      { l: "NV-HBI",     accent: "#2EAD8E" },
+      { l: "HBM CTRL",   accent: "#E06347" },
+      { l: "NVLink C2C", accent: "#905CCB" },
+      { l: "PCIe Gen6",  accent: "#FFD166" },
+    ];
+    const nodes: DiagramNode[] = [];
+    const dx = 100, dy = 80, dw = 660, dh = 380;
+    // Outer die boundary
+    nodes.push({ id: "die", kind: "rect", x: dx, y: dy, w: dw, h: dh, fill: "#06060A", stroke: "#FFFFFF", strokeWidth: 3 });
+    nodes.push({ id: "diet", kind: "text", x: dx, y: dy - 26, w: dw, h: 22, text: "GPU Die Floorplan", fontSize: 14 });
+    const cols = 3, rows = 2, pad = 14;
+    const blockW = (dw - pad * (cols + 1)) / cols;
+    const blockH = (dh - pad * (rows + 1)) / rows;
+    blocks.forEach((b, i) => {
+      const r = Math.floor(i / cols), c = i % cols;
+      nodes.push({
+        id: "blk" + i, kind: "rect",
+        x: dx + pad + c * (blockW + pad),
+        y: dy + pad + r * (blockH + pad),
+        w: blockW, h: blockH,
+        fill: b.accent + "22", stroke: b.accent, strokeWidth: 1.5,
+        text: b.l, fontSize: 14,
+      });
+    });
+    return { nodes, edges: [] };
+  }
+
+  // Value/Supply Chain Flow — 5 horizontal nodes connected by arrows,
+  // each with a title + subtitle + % badge.
+  if (templateId === "value-chain") {
+    const steps = [
+      { name: "Wafer",     sub: "TSMC N3P",        pct: "~$12k", accent: "#0B86D1" },
+      { name: "Package",   sub: "CoWoS-L",         pct: "~$8k",  accent: "#2EAD8E" },
+      { name: "System",    sub: "NVL144 rack",     pct: "~$3.5M", accent: "#F7B041" },
+      { name: "Cloud",     sub: "Hyperscaler",     pct: "~$4/hr/GPU", accent: "#905CCB" },
+      { name: "End user",  sub: "Inference / training", pct: "—", accent: "#E06347" },
+    ];
+    const nodes: DiagramNode[] = [];
+    const edges: DiagramEdge[] = [];
+    const nW = 170, gap = 40, y = 180;
+    const totalW = steps.length * nW + (steps.length - 1) * gap;
+    const x0 = (900 - totalW) / 2;
+    steps.forEach((s, i) => {
+      const x = x0 + i * (nW + gap);
+      nodes.push({ id: "n" + i, kind: "rounded", x, y, w: nW, h: 80, fill: s.accent + "22", stroke: s.accent, text: s.name, fontSize: 16 });
+      nodes.push({ id: "ns" + i, kind: "text", x, y: y + 86, w: nW, h: 18, text: s.sub, fontSize: 11.5 });
+      nodes.push({ id: "nb" + i, kind: "rounded", x: x + nW - 70, y: y - 26, w: 70, h: 22, fill: "#000000AA", stroke: s.accent, text: s.pct, fontSize: 10 });
+      if (i > 0) {
+        edges.push({ id: "e" + i, from: { kind: "node", nodeId: "n" + (i - 1), side: "right" }, to: { kind: "node", nodeId: "n" + i, side: "left" }, stroke: "#FFFFFFCC", arrowEnd: true, strokeWidth: 2 });
+      }
+    });
+    return { nodes, edges };
+  }
+
+  // Power Distribution — vertical chain of power stages w/ voltage
+  // arrows. Adapted from SA's 800VDC explainer diagram.
+  if (templateId === "power-dist") {
+    const stages = [
+      { name: "Grid",                accent: "#FFFFFF", v: "" },
+      { name: "Utility Transformer", accent: "#0B86D1", v: "13.8 kV → 480 V" },
+      { name: "On-site Substation",  accent: "#2EAD8E", v: "480 V → 800 VDC" },
+      { name: "PDU",                 accent: "#F7B041", v: "800 VDC bus" },
+      { name: "Power Shelf",         accent: "#905CCB", v: "800 V → 48 V" },
+      { name: "GPU / Accelerator",   accent: "#E06347", v: "48 V → 1.0 V" },
+    ];
+    const nodes: DiagramNode[] = [];
+    const edges: DiagramEdge[] = [];
+    const x = 320, w = 280, h = 56, gap = 38;
+    stages.forEach((s, i) => {
+      const y = 30 + i * (h + gap);
+      nodes.push({ id: "p" + i, kind: "rounded", x, y, w, h, fill: s.accent + "22", stroke: s.accent, text: s.name, fontSize: 14 });
+      if (i > 0) {
+        edges.push({
+          id: "pe" + i,
+          from: { kind: "node", nodeId: "p" + (i - 1), side: "bottom" },
+          to:   { kind: "node", nodeId: "p" + i,       side: "top" },
+          stroke: s.accent, arrowEnd: true, strokeWidth: 2,
+        });
+        nodes.push({ id: "vl" + i, kind: "text", x: x + w + 12, y: y - gap + 4, w: 220, h: 22, text: s.v, fontSize: 11 });
+      }
+    });
+    return { nodes, edges };
+  }
+
   return { nodes: [], edges: [] };
 }
 

@@ -405,6 +405,159 @@ function hourlyCostSheet(): TableSheet {
   );
 }
 
+// Spec Comparison — chip generations across HBM / NVLink / TDP /
+// process / availability. Schema is single-tier for now; the eventual
+// super-header row that groups columns by generation will be a
+// follow-up renderer addition (see Tier 3 column-groups task).
+function specComparisonAdvancedSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Spec",            type: "text"   },
+      { key: "c2", label: "H200 (Hopper)",   type: "text"   },
+      { key: "c3", label: "B200 (Blackwell)",type: "text"   },
+      { key: "c4", label: "R100 (Rubin)",    type: "text"   },
+      { key: "c5", label: "F100 (Feynman)",  type: "text"   },
+    ],
+    rows: [
+      { c1: "Process node",       c2: "TSMC 4N",  c3: "TSMC 4NP", c4: "TSMC N3P", c5: "TSMC N2 (est.)" },
+      { c1: "Die area (mm²)",     c2: "814",      c3: "2×800",    c4: "2×750",    c5: "TBD"            },
+      { c1: "FP8 dense (PFLOPS)", c2: "2.0",      c3: "4.5",      c4: "9.0",      c5: "≥15 (est.)"     },
+      { c1: "HBM (capacity)",     c2: "141 GB",   c3: "192 GB",   c4: "288 GB",   c5: "≥384 GB"        },
+      { c1: "HBM (bandwidth)",    c2: "4.8 TB/s", c3: "8.0 TB/s", c4: "13 TB/s",  c5: "≥18 TB/s"       },
+      { c1: "NVLink (per GPU)",   c2: "900 GB/s", c3: "1.8 TB/s", c4: "3.6 TB/s", c5: "≥7.2 TB/s"      },
+      { c1: "TDP (W)",            c2: "700",      c3: "1200",     c4: "1800",     c5: "≥2400"          },
+      { c1: "Availability",       c2: "GA",       c3: "GA",       c4: "Sampling", c5: "Tape-out"       },
+    ],
+  };
+}
+
+// Feature Matrix — products × attributes with status & badge cells.
+// Until badge column type lands, badges render as text values like
+// "✓ Yes", "Q3 '26", "—". Designed to play well with heatmap mode for
+// the numeric columns (TFLOPS, HBM, TDP).
+function featureMatrixSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Product",       type: "text"   },
+      { key: "c2", label: "FP8 (PFLOPS)",  type: "number" },
+      { key: "c3", label: "HBM (GB)",      type: "number" },
+      { key: "c4", label: "TDP (W)",       type: "number" },
+      { key: "c5", label: "Avail.",        type: "text"   },
+      { key: "c6", label: "FP4 native",    type: "text"   },
+    ],
+    rows: [
+      { c1: "H100 SXM",  c2: 2.0, c3: 80,  c4: 700,  c5: "GA",       c6: "—"     },
+      { c1: "H200 SXM",  c2: 2.0, c3: 141, c4: 700,  c5: "GA",       c6: "—"     },
+      { c1: "B200 SXM",  c2: 4.5, c3: 192, c4: 1000, c5: "GA",       c6: "✓ Yes" },
+      { c1: "GB200 NVL", c2: 5.0, c3: 384, c4: 1200, c5: "GA",       c6: "✓ Yes" },
+      { c1: "R100 SXM",  c2: 9.0, c3: 288, c4: 1800, c5: "Q3 '26",   c6: "✓ Yes" },
+      { c1: "MI355X",    c2: 3.4, c3: 288, c4: 1400, c5: "GA",       c6: "✓ Yes" },
+    ],
+  };
+}
+
+// BoM / Cost Breakdown — section headers as data rows (full-row
+// label, zero values), child rows beneath. Once "section-row" column
+// type lands, these labeled rows will render as colored bands instead
+// of normal cells.
+function bomCostSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Component",     type: "text"   },
+      { key: "c2", label: "Unit cost ($)", type: "number" },
+      { key: "c3", label: "Qty",           type: "number" },
+      { key: "c4", label: "Extended ($)",  type: "number" },
+      { key: "c5", label: "% of total",    type: "percent" },
+    ],
+    rows: [
+      { c1: "── NVIDIA CONTENT ──", c2: 0,     c3: 0,  c4: 0,        c5: 0  },
+      { c1: "Rubin GPU",            c2: 42000, c3: 72, c4: 3024000,  c5: 58 },
+      { c1: "NVLink Switch 5",      c2: 28000, c3: 18, c4: 504000,   c5: 10 },
+      { c1: "CX-9 NIC",             c2: 1900,  c3: 36, c4: 68400,    c5: 1.3 },
+      { c1: "── NON-NVIDIA ──",     c2: 0,     c3: 0,  c4: 0,        c5: 0  },
+      { c1: "HBM4 stacks",          c2: 1200,  c3: 576,c4: 691200,   c5: 13 },
+      { c1: "PCB + substrate",      c2: 9500,  c3: 1,  c4: 9500,     c5: 0.2 },
+      { c1: "Cooling (liquid)",     c2: 18000, c3: 1,  c4: 18000,    c5: 0.4 },
+      { c1: "PSU + busbar",         c2: 25000, c3: 1,  c4: 25000,    c5: 0.5 },
+      { c1: "Total rack BoM",       c2: 0,     c3: 0,  c4: 5200000,  c5: 100 },
+    ],
+  };
+}
+
+// Roadmap Timeline — items × time periods with text status cells
+// ("Sampling", "GA", "EOL"). Status badges + Gantt-style spans are
+// Tier 3 follow-ups; today we ship the data shape.
+function roadmapTimelineSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Product",   type: "text" },
+      { key: "c2", label: "H1 '25",    type: "text" },
+      { key: "c3", label: "H2 '25",    type: "text" },
+      { key: "c4", label: "H1 '26",    type: "text" },
+      { key: "c5", label: "H2 '26",    type: "text" },
+      { key: "c6", label: "2027",      type: "text" },
+      { key: "c7", label: "2028",      type: "text" },
+    ],
+    rows: [
+      { c1: "Hopper (H100/H200)", c2: "GA",        c3: "GA",        c4: "GA",        c5: "Wind-down", c6: "EOL",      c7: "—" },
+      { c1: "Blackwell (B200)",   c2: "Sampling",  c3: "GA ramp",   c4: "GA",        c5: "GA",        c6: "GA",       c7: "Wind-down" },
+      { c1: "Blackwell Ultra",    c2: "—",         c3: "—",         c4: "Sampling",  c5: "GA ramp",   c6: "GA",       c7: "GA" },
+      { c1: "Rubin (R100)",       c2: "—",         c3: "—",         c4: "—",         c5: "Tape-out",  c6: "Sampling", c7: "GA" },
+      { c1: "Rubin Ultra",        c2: "—",         c3: "—",         c4: "—",         c5: "—",         c6: "Tape-out", c7: "Sampling" },
+      { c1: "Feynman",            c2: "—",         c3: "—",         c4: "—",         c5: "—",         c6: "—",        c7: "Tape-out" },
+    ],
+  };
+}
+
+// Leaderboard / Ranking — pre-ranked rows with a score % column.
+// Once "rank-number" auto-fill + bronze/silver/gold borders land we
+// will hide column 1 and decorate rows 0–2; today rank is a number col.
+function leaderboardSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "#",          type: "number"  },
+      { key: "c2", label: "Provider",   type: "text"    },
+      { key: "c3", label: "Score",      type: "number"  },
+      { key: "c4", label: "Share",      type: "percent" },
+      { key: "c5", label: "Δ vs Q1",    type: "text"    },
+    ],
+    rows: [
+      { c1: 1, c2: "CoreWeave",        c3: 94.2, c4: 22, c5: "▲ +3.1" },
+      { c1: 2, c2: "Lambda",           c3: 91.7, c4: 18, c5: "▲ +1.4" },
+      { c1: 3, c2: "Crusoe",           c3: 89.5, c4: 14, c5: "▲ +0.8" },
+      { c1: 4, c2: "Together",         c3: 87.0, c4: 11, c5: "▲ +2.0" },
+      { c1: 5, c2: "Fireworks",        c3: 84.2, c4:  9, c5: "▼ −0.5" },
+      { c1: 6, c2: "OCI",              c3: 82.6, c4:  8, c5: "▲ +0.2" },
+      { c1: 7, c2: "AWS",              c3: 79.4, c4:  9, c5: "▼ −1.6" },
+      { c1: 8, c2: "Azure",            c3: 77.1, c4:  9, c5: "▼ −2.2" },
+    ],
+  };
+}
+
+// TCO / Scenario Comparison — assumption rows × scenarios. Auto-delta
+// column + green/red coloring will follow once conditional formatting
+// lands; today the Δ column is a string with explicit signs.
+function tcoScenarioSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Assumption",  type: "text"   },
+      { key: "c2", label: "Base",        type: "number" },
+      { key: "c3", label: "Bull",        type: "number" },
+      { key: "c4", label: "Bear",        type: "number" },
+      { key: "c5", label: "Δ Bull→Bear", type: "text"   },
+    ],
+    rows: [
+      { c1: "GPU price ($/unit)",    c2: 35000,  c3: 32000, c4: 39000, c5: "+$7,000"  },
+      { c1: "Utilization (%)",       c2: 72,     c3: 85,    c4: 55,    c5: "−30 pts"  },
+      { c1: "Power cost ($/MWh)",    c2: 65,     c3: 50,    c4: 95,    c5: "+$45"     },
+      { c1: "Tokens / GPU-hr (k)",   c2: 480,    c3: 620,   c4: 340,   c5: "−280 k"   },
+      { c1: "Useful life (yrs)",     c2: 4,      c3: 5,     c4: 3,     c5: "−2 yrs"   },
+      { c1: "Cost / 1M tokens ($)",  c2: 0.42,   c3: 0.21,  c4: 1.08,  c5: "+$0.87"   },
+      { c1: "Gross margin (%)",      c2: 58,     c3: 78,    c4: 12,    c5: "−66 pts"  },
+    ],
+  };
+}
+
 // ──────────────────────────────────────────────────────────────────────
 //  Templates
 // ──────────────────────────────────────────────────────────────────────
@@ -862,6 +1015,119 @@ export const TABLE_TEMPLATES: TableTemplate[] = [
       ],
       formula: "robot_hourly = (capex/life + service + energy) / hours_per_yr",
       formulaResult: "$11.40 / hr @ 50% util",
+    }),
+  },
+  // — New: chip/system templates per gap analysis —
+  {
+    id: "spec-compare",
+    label: "Spec comparison",
+    blurb: "Chip generations · 5-col cross-section",
+    accent: SA.blue,
+    glyph: "▤",
+    build: () => ({
+      engine: "standard",
+      sheet: specComparisonAdvancedSheet(),
+      mode: "data",
+      category: "SEMIANALYSIS — HARDWARE",
+      titleWhite: "Datacenter GPU",
+      titleAmber: "Generations",
+      subtitle: "Hopper → Blackwell → Rubin → Feynman · process, HBM, NVLink, TDP",
+      titleBar: "MULTI-GEN SPEC SHEET",
+    }),
+  },
+  {
+    id: "feature-matrix",
+    label: "Feature matrix",
+    blurb: "Products × attributes · status pills",
+    accent: SA.violet,
+    glyph: "▩",
+    build: () => ({
+      engine: "standard",
+      sheet: featureMatrixSheet(),
+      mode: "data",
+      category: "SEMIANALYSIS — COMPETITIVE",
+      titleWhite: "AI Accelerator",
+      titleAmber: "Feature Matrix",
+      subtitle: "FP8 / HBM / TDP / availability across NVIDIA + AMD lineup",
+      titleBar: "ACCELERATOR FEATURE MATRIX",
+      highlightRowIdx: 4,
+      highlightFlagCol: 0,
+    }),
+  },
+  {
+    id: "bom-cost",
+    label: "BoM / cost stack",
+    blurb: "Section headers · component cost rollup",
+    accent: SA.amber,
+    glyph: "Σ",
+    build: () => ({
+      engine: "standard",
+      sheet: bomCostSheet(),
+      mode: "data",
+      category: "SEMIANALYSIS — BoM",
+      titleWhite: "NVL144 Rack",
+      titleAmber: "Bill of Materials",
+      subtitle: "Cost by component · NVIDIA content vs. third-party",
+      titleBar: "RACK BoM · 2026",
+      highlightRowIdx: 9,
+      highlightFlagCol: 3,
+      keyInsight: "**$5.2M / rack** — Rubin GPUs alone account for ~58%; HBM4 supply represents ~13% and remains the second-largest swing factor.",
+    }),
+  },
+  {
+    id: "roadmap-table",
+    label: "Roadmap timeline",
+    blurb: "Items × periods · status per cell",
+    accent: SA.teal,
+    glyph: "▭▭▭",
+    build: () => ({
+      engine: "standard",
+      sheet: roadmapTimelineSheet(),
+      mode: "data",
+      category: "SEMIANALYSIS — ROADMAP",
+      titleWhite: "Datacenter GPU",
+      titleAmber: "Schedule",
+      subtitle: "Hopper through Feynman · sampling, GA, EOL by half-year",
+      titleBar: "GPU PRODUCT ROADMAP",
+    }),
+  },
+  {
+    id: "leaderboard",
+    label: "Leaderboard",
+    blurb: "Ranked rows · share + delta",
+    accent: SA.amber,
+    glyph: "①②③",
+    build: () => ({
+      engine: "standard",
+      sheet: leaderboardSheet(),
+      mode: "data",
+      category: "SEMIANALYSIS — CLUSTERMAX",
+      titleWhite: "Neocloud",
+      titleAmber: "ClusterMAX Rankings",
+      subtitle: "Score · share · QoQ change · Q2 2026",
+      titleBar: "Q2 '26 NEOCLOUD LEADERBOARD",
+      highlightRowIdx: 0,
+      highlightFlagCol: 2,
+    }),
+  },
+  {
+    id: "tco-scenario",
+    label: "TCO scenarios",
+    blurb: "Assumptions × Base / Bull / Bear",
+    accent: SA.coral,
+    glyph: "Δ",
+    build: () => ({
+      engine: "standard",
+      sheet: tcoScenarioSheet(),
+      mode: "data",
+      category: "SEMIANALYSIS — TCO",
+      titleWhite: "AI Cluster",
+      titleAmber: "TCO Scenarios",
+      subtitle: "Driver-level sensitivity · Base / Bull / Bear over 4 yrs",
+      titleBar: "CLUSTER TCO SENSITIVITY",
+      highlightRowIdx: 5,
+      highlightFlagCol: 1,
+      keyInsight: "Cost per **1M tokens** swings from **$0.21** (Bull) to **$1.08** (Bear) — a 5× spread driven primarily by utilization and tokens-per-GPU-hour, not GPU sticker price.",
     }),
   },
 ];

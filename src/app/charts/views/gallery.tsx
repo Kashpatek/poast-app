@@ -62,6 +62,12 @@ const DIAGRAM_TEMPLATES: GalleryTemplate[] = [
   { id: "architecture",    label: "Architecture",   subtitle: "4 stacked blocks w/ sidecar",     accent: "#0B86D1", glyph: "▭▭▭" },
   { id: "mindmap",         label: "Mind map",       subtitle: "Central node + 3 branches × 2",   accent: "#F7B041", glyph: "✺" },
   { id: "sequence",        label: "Sequence",       subtitle: "4 lifelines + horizontal messages", accent: "#0B86D1", glyph: "═══" },
+  { id: "gen-matrix",      label: "Generation Matrix", subtitle: "Chip-gen × component card grid",  accent: "#F7B041", glyph: "▦▦▦" },
+  { id: "rack-arch",       label: "Rack Architecture", subtitle: "Racks + NVLink fabric + power bus", accent: "#0B86D1", glyph: "▮║▮" },
+  { id: "layer-stack",     label: "Layer Stack",       subtitle: "Cross-section w/ side annotations", accent: "#2EAD8E", glyph: "≡≡≡" },
+  { id: "die-floorplan",   label: "Die Floorplan",     subtitle: "Die boundary + functional blocks",  accent: "#F7B041", glyph: "▭▭▭" },
+  { id: "value-chain",     label: "Value Chain",       subtitle: "5-node flow w/ % badges",           accent: "#905CCB", glyph: "→→→" },
+  { id: "power-dist",      label: "Power Distribution", subtitle: "Vertical chain w/ voltage labels", accent: "#E06347", glyph: "↓↓↓" },
 ];
 
 function templatesFor(type: DocType): GalleryTemplate[] {

@@ -112,6 +112,12 @@ export default function StudioShell() {
         architecture:    "System architecture",
         mindmap:          "Mind map",
         sequence:         "Sequence diagram",
+        "gen-matrix":     "Generation Matrix",
+        "rack-arch":      "Rack Architecture",
+        "layer-stack":    "Layer Stack",
+        "die-floorplan":  "Die Floorplan",
+        "value-chain":    "Value Chain",
+        "power-dist":     "Power Distribution",
       };
       if (labelByTpl[templateId]) docName = labelByTpl[templateId];
     }
