@@ -8754,9 +8754,10 @@ function toggleApplies(id: string, t: ChartType): boolean {
 
 // Aspect-ratio choices a user can lock the chart frame to. "fit" tracks the
 // pane shape exactly; the others lock to the named ratio and center inside.
-type ChartAspect = "fit" | "16:9" | "4:3" | "1:1" | "3:4" | "9:16";
+type ChartAspect = "fit" | "free" | "16:9" | "4:3" | "1:1" | "3:4" | "9:16";
 function aspectRatio(a: ChartAspect): number | null {
   if (a === "fit")   return null;
+  if (a === "free")  return null;
   if (a === "16:9")  return 16 / 9;
   if (a === "4:3")   return 4 / 3;
   if (a === "1:1")   return 1;
@@ -8787,6 +8788,27 @@ function ChartPaneInner({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: defaultW, h: defaultH });
+  // Free-form layout: explicit rect within the pane. Persists per browser so
+  // a custom layout survives reloads. Initialized from current size on first
+  // switch into "free". x/y are top-left offsets inside the pane's padding box.
+  const FREE_KEY = "cm2-free-rect";
+  const [freeRect, setFreeRect] = useState<{ x: number; y: number; w: number; h: number } | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem(FREE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.x === "number" && typeof parsed.y === "number" && typeof parsed.w === "number" && typeof parsed.h === "number") {
+          return parsed;
+        }
+      }
+    } catch { /* ignore */ }
+    return null;
+  });
+  useEffect(() => {
+    if (typeof window === "undefined" || !freeRect) return;
+    try { window.localStorage.setItem(FREE_KEY, JSON.stringify(freeRect)); } catch { /* ignore */ }
+  }, [freeRect]);
   useEffect(() => {
     const el = containerRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
@@ -8818,13 +8840,27 @@ function ChartPaneInner({
     ro.observe(el);
     return () => ro.disconnect();
   }, [chartAspect]);
+  // Seed freeRect from the current container size the moment the user picks
+  // "free" so the chart doesn't snap to a tiny default. Once seeded the user
+  // owns the rect — we don't reset on resize.
+  useEffect(() => {
+    if (chartAspect !== "free" || freeRect) return;
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const padX = 60, padY = 60;
+    const w = Math.max(320, rect.width - padX);
+    const h = Math.max(220, rect.height - padY);
+    setFreeRect({ x: padX / 2, y: padY / 2, w, h });
+  }, [chartAspect, freeRect]);
   void defaultW; void defaultH;
-  const W = size.w;
-  const H = size.h;
+  const isFree = chartAspect === "free" && freeRect !== null;
+  const W = isFree && freeRect ? freeRect.w : size.w;
+  const H = isFree && freeRect ? freeRect.h : size.h;
   const scale = chartZoom === "fit" ? 1 : chartZoom / 100;
   // When aspect ratio is locked, the chart is centered horizontally and vertically
   // inside the backdrop card; "fit" lets it fill 100% × 100%.
-  const isLocked = chartAspect !== "fit";
+  const isLocked = chartAspect !== "fit" && chartAspect !== "free";
   return (
     <div ref={containerRef} style={{
       // Fill the containing block exactly (parent must be position:relative).
@@ -8834,33 +8870,47 @@ function ChartPaneInner({
       background: backdropCss(backdropMode === "dark" ? BACKDROPS_DARK[backdrop] : BACKDROPS_LIGHT[backdrop]),
       border: "1px solid rgba(255,255,255,0.08)",
       borderRadius: 16,
-      padding: "26px 30px",
-      overflow: chartZoom === "fit" ? "hidden" : "auto",
+      padding: isFree ? 0 : "26px 30px",
+      overflow: chartZoom === "fit" || isFree ? "hidden" : "auto",
       boxShadow: "0 1px 0 rgba(255,255,255,0.06) inset, 0 32px 64px rgba(0,0,0,0.45)",
-      display: "flex", alignItems: "center", justifyContent: "center",
+      display: isFree ? "block" : "flex", alignItems: "center", justifyContent: "center",
       boxSizing: "border-box",
     }}>
-      <div style={{
-        width: isLocked ? W * scale : (chartZoom === "fit" ? "100%" : W * scale),
-        height: isLocked ? H * scale : (chartZoom === "fit" ? "100%" : H * scale),
-        transformOrigin: "center center",
-        flex: isLocked ? "0 0 auto" : undefined,
-      }}>
-        <svg
-          viewBox={`0 0 ${W} ${H}`}
-          preserveAspectRatio="xMidYMid meet"
-          style={{
-            width: "100%",
-            height: "100%",
-            display: "block",
-            fontFamily: ft,
-            touchAction: "none",
-          }}
-        >
-          <rect x="0" y="0" width={W} height={H} fill="transparent" onPointerDown={() => { if (selected) setSelected(null); }} />
-          {renderChart()}
-        </svg>
-      </div>
+      {isFree && freeRect ? (
+        <FreeFormChart
+          rect={freeRect}
+          onChangeRect={setFreeRect}
+          scale={scale}
+          W={W}
+          H={H}
+          renderChart={renderChart}
+          selected={selected}
+          setSelected={setSelected}
+          containerRef={containerRef}
+        />
+      ) : (
+        <div style={{
+          width: isLocked ? W * scale : (chartZoom === "fit" ? "100%" : W * scale),
+          height: isLocked ? H * scale : (chartZoom === "fit" ? "100%" : H * scale),
+          transformOrigin: "center center",
+          flex: isLocked ? "0 0 auto" : undefined,
+        }}>
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            preserveAspectRatio="xMidYMid meet"
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "block",
+              fontFamily: ft,
+              touchAction: "none",
+            }}
+          >
+            <rect x="0" y="0" width={W} height={H} fill="transparent" onPointerDown={() => { if (selected) setSelected(null); }} />
+            {renderChart()}
+          </svg>
+        </div>
+      )}
       {/* Wave 15.4 · zoom + aspect floating overlay (bottom-right). Lives
           inside the chart pane so any container — docked, FloatingChartWindow,
           or full-screen Launch — gets the same compact widget. Hidden until
@@ -8872,6 +8922,169 @@ function ChartPaneInner({
           aspect={chartAspect}
           onChangeAspect={onChangeChartAspect}
         />
+      )}
+    </div>
+  );
+}
+
+// Free-form chart layer · the chart sits as an absolutely-positioned, drag-
+// to-move and corner-to-resize box inside the pane. Drag-from-anywhere with
+// the alt/option key (or the dotted header strip) repositions; the four
+// corner handles resize. Min size is 240×180 so the chart never collapses
+// out of usefulness. Reset button (top-right) restores the pane-fit default.
+function FreeFormChart({
+  rect, onChangeRect, scale, W, H, renderChart, selected, setSelected, containerRef,
+}: {
+  rect: { x: number; y: number; w: number; h: number };
+  onChangeRect: (r: { x: number; y: number; w: number; h: number } | null) => void;
+  scale: number;
+  W: number;
+  H: number;
+  renderChart: () => React.ReactNode;
+  selected: SelectedElement | null;
+  setSelected: (s: SelectedElement | null) => void;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const dragRef = useRef<null | {
+    kind: "move" | "nw" | "ne" | "sw" | "se";
+    startX: number; startY: number;
+    orig: { x: number; y: number; w: number; h: number };
+  }>(null);
+  const [hover, setHover] = useState(false);
+  const MIN_W = 240;
+  const MIN_H = 180;
+
+  const onPointerDown = (kind: "move" | "nw" | "ne" | "sw" | "se") => (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragRef.current = { kind, startX: e.clientX, startY: e.clientY, orig: { ...rect } };
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const { kind, startX, startY, orig } = dragRef.current;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    const maxX = containerRect ? containerRect.width : 99999;
+    const maxY = containerRect ? containerRect.height : 99999;
+    if (kind === "move") {
+      onChangeRect({
+        ...orig,
+        x: Math.max(0, Math.min(maxX - orig.w, orig.x + dx)),
+        y: Math.max(0, Math.min(maxY - orig.h, orig.y + dy)),
+      });
+    } else {
+      let nx = orig.x, ny = orig.y, nw = orig.w, nh = orig.h;
+      if (kind === "nw") { nx = orig.x + dx; ny = orig.y + dy; nw = orig.w - dx; nh = orig.h - dy; }
+      if (kind === "ne") { ny = orig.y + dy; nw = orig.w + dx; nh = orig.h - dy; }
+      if (kind === "sw") { nx = orig.x + dx; nw = orig.w - dx; nh = orig.h + dy; }
+      if (kind === "se") { nw = orig.w + dx; nh = orig.h + dy; }
+      // Clamp to min size + container bounds.
+      if (nw < MIN_W) { if (kind === "nw" || kind === "sw") nx = orig.x + orig.w - MIN_W; nw = MIN_W; }
+      if (nh < MIN_H) { if (kind === "nw" || kind === "ne") ny = orig.y + orig.h - MIN_H; nh = MIN_H; }
+      if (nx < 0) { nw += nx; nx = 0; }
+      if (ny < 0) { nh += ny; ny = 0; }
+      if (nx + nw > maxX) nw = maxX - nx;
+      if (ny + nh > maxY) nh = maxY - ny;
+      onChangeRect({ x: nx, y: ny, w: nw, h: nh });
+    }
+  };
+  const onPointerUp = () => { dragRef.current = null; };
+
+  const handleStyle: React.CSSProperties = {
+    position: "absolute",
+    width: 14, height: 14,
+    background: C.amber,
+    border: "1.5px solid #0A0A0E",
+    borderRadius: 3,
+    zIndex: 3,
+    opacity: hover ? 1 : 0.55,
+    transition: "opacity 0.15s",
+  };
+
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      style={{
+        position: "absolute",
+        left: rect.x, top: rect.y, width: rect.w, height: rect.h,
+        cursor: dragRef.current?.kind === "move" ? "grabbing" : "default",
+        boxShadow: hover ? "0 0 0 1px " + C.amber + "55, 0 16px 40px rgba(0,0,0,0.45)" : "0 12px 28px rgba(0,0,0,0.35)",
+        borderRadius: 8,
+        background: "rgba(0,0,0,0.0)",
+      }}
+    >
+      {/* Drag strip · top edge, dotted, only visible on hover. Drag from
+          inside the chart also works but the strip is the obvious affordance. */}
+      <div
+        onPointerDown={onPointerDown("move")}
+        title="Drag to reposition"
+        style={{
+          position: "absolute", top: -2, left: 0, right: 0, height: 14,
+          cursor: "grab",
+          background: hover
+            ? "repeating-linear-gradient(90deg, " + C.amber + "88 0 6px, transparent 6px 12px)"
+            : "transparent",
+          opacity: hover ? 0.8 : 0,
+          transition: "opacity 0.15s",
+          zIndex: 2,
+        }}
+      />
+      <div style={{ width: rect.w * scale, height: rect.h * scale, transformOrigin: "top left" }}>
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          preserveAspectRatio="xMidYMid meet"
+          style={{
+            width: "100%", height: "100%", display: "block",
+            fontFamily: ft, touchAction: "none",
+          }}
+        >
+          <rect
+            x="0" y="0" width={W} height={H} fill="transparent"
+            onPointerDown={(e) => {
+              if (e.altKey) {
+                // Alt-drag from the chart background = pan the frame.
+                const evt = e as unknown as React.PointerEvent<HTMLDivElement>;
+                onPointerDown("move")(evt);
+                return;
+              }
+              if (selected) setSelected(null);
+            }}
+            style={{ cursor: "default" }}
+          />
+          {renderChart()}
+        </svg>
+      </div>
+      {/* Four corner handles. */}
+      <div onPointerDown={onPointerDown("nw")} title="Resize" style={{ ...handleStyle, left: -7, top: -7,    cursor: "nwse-resize" }} />
+      <div onPointerDown={onPointerDown("ne")} title="Resize" style={{ ...handleStyle, right: -7, top: -7,   cursor: "nesw-resize" }} />
+      <div onPointerDown={onPointerDown("sw")} title="Resize" style={{ ...handleStyle, left: -7, bottom: -7, cursor: "nesw-resize" }} />
+      <div onPointerDown={onPointerDown("se")} title="Resize" style={{ ...handleStyle, right: -7, bottom: -7,cursor: "nwse-resize" }} />
+      {/* Reset · top-right pill. Only shown on hover so it stays out of the way. */}
+      {hover && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onChangeRect(null); }}
+          title="Reset to pane fit"
+          style={{
+            position: "absolute", top: 8, right: 8,
+            padding: "4px 10px",
+            background: "rgba(13,13,18,0.92)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            color: C.txm,
+            borderRadius: 6,
+            fontFamily: mn, fontSize: 9.5, fontWeight: 800, letterSpacing: 0.6,
+            textTransform: "uppercase",
+            cursor: "pointer",
+            zIndex: 4,
+          }}
+        >↺ Reset</button>
       )}
     </div>
   );
@@ -8902,7 +9115,7 @@ function ChartViewOverlay({
     const next = Math.max(25, Math.min(400, Math.round((cur + delta) / 25) * 25));
     onChangeZoom(next);
   };
-  const aspectOpts: ChartAspect[] = ["fit", "16:9", "4:3", "1:1", "3:4", "9:16"];
+  const aspectOpts: ChartAspect[] = ["fit", "free", "16:9", "4:3", "1:1", "3:4", "9:16"];
   return (
     <div
       onMouseEnter={() => setHover(true)}
@@ -8983,7 +9196,7 @@ function ChartViewOverlay({
               display: "inline-flex", alignItems: "center", gap: 4,
             }}
           >
-            {aspect === "fit" ? "Fit" : aspect}
+            {aspect === "fit" ? "Fit" : aspect === "free" ? "Free" : aspect}
             <ChevronDown size={9} strokeWidth={2.6} style={{ transform: aspectOpen ? "rotate(180deg)" : "none", transition: "transform 0.16s" }} />
           </button>
           {aspectOpen && (
@@ -9006,7 +9219,7 @@ function ChartViewOverlay({
                       fontSize: 10,
                     }}
                   >
-                    <span style={{ flex: 1 }}>{a === "fit" ? "Fit" : a}</span>
+                    <span style={{ flex: 1 }}>{a === "fit" ? "Fit" : a === "free" ? "Free" : a}</span>
                     {on && <Check size={10} strokeWidth={2.4} />}
                   </div>
                 );
@@ -9021,7 +9234,7 @@ function ChartViewOverlay({
 
 // Aspect-ratio picker pill — sits next to the zoom widget in Launch.
 function AspectPicker({ aspect, onChange }: { aspect: ChartAspect; onChange: (a: ChartAspect) => void }) {
-  const opts: ChartAspect[] = ["fit", "16:9", "4:3", "1:1", "3:4", "9:16"];
+  const opts: ChartAspect[] = ["fit", "free", "16:9", "4:3", "1:1", "3:4", "9:16"];
   return (
     <div style={{ display: "inline-flex", padding: 3, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 9, gap: 2 }}>
       {opts.map(a => {
@@ -9030,7 +9243,7 @@ function AspectPicker({ aspect, onChange }: { aspect: ChartAspect; onChange: (a:
           <button
             key={a}
             onClick={() => onChange(a)}
-            title={a === "fit" ? "Fit to pane" : `Lock to ${a}`}
+            title={a === "fit" ? "Fit to pane" : a === "free" ? "Drag to resize + reposition" : `Lock to ${a}`}
             style={{
               padding: "6px 9px", borderRadius: 6, border: "none",
               background: on ? C.amber + "22" : "transparent",
@@ -9038,7 +9251,7 @@ function AspectPicker({ aspect, onChange }: { aspect: ChartAspect; onChange: (a:
               fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
               cursor: "pointer", textTransform: "uppercase",
             }}
-          >{a === "fit" ? "FIT" : a}</button>
+          >{a === "fit" ? "FIT" : a === "free" ? "FREE" : a}</button>
         );
       })}
     </div>
