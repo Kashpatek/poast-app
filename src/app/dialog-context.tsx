@@ -77,9 +77,16 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cs, ps]);
 
-  // Autofocus prompt input
+  // Autofocus prompt input — only on the initial appearance of a given
+  // prompt, NOT on every state change. We were re-selecting on every
+  // keystroke because the ps object identity changed with each onChange,
+  // which clobbered the user's typing after the first character.
+  const lastPromptResolverRef = useRef<((v: string | null) => void) | null>(null);
   useEffect(() => {
-    if (ps) setTimeout(() => inputRef.current?.select(), 20);
+    if (!ps) { lastPromptResolverRef.current = null; return; }
+    if (lastPromptResolverRef.current === ps.resolve) return;
+    lastPromptResolverRef.current = ps.resolve;
+    setTimeout(() => inputRef.current?.select(), 20);
   }, [ps]);
 
   const overlay: React.CSSProperties = {
