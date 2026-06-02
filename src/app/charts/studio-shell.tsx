@@ -14,6 +14,7 @@ import { useUser } from "../user-context";
 import ChartEditor from "./editor-chart";
 import TableEditor from "./editor-table";
 import DiagramEditor from "./editor-diagram";
+import { templateById as tableTemplateById } from "./lib/table-templates";
 import { listDocs, loadDoc, saveDoc, deleteDoc } from "./studio-storage";
 import { D, ft, gf, mn, SAVE_STATE_COLOR } from "./studio-theme";
 import {
@@ -80,13 +81,29 @@ export default function StudioShell() {
   }, [scheduleSave]);
 
   const newDocFromTemplate = useCallback((type: DocType, templateId: string) => {
-    const doc = emptyDoc(type, owner, NEW_DOC_NAMES[type]);
-    // The template id is stored on the payload so the editor knows which
-    // seed to render in Checkpoint 2/3/4. For now it's just a marker.
-    doc.payload = { kind: type, version: 1, templateId };
+    // Tables have rich templates (sheet + branded metadata) defined in
+    // lib/table-templates. If the picked template id matches, expand
+    // its build() output into the payload and use its title as the
+    // doc name so the library card reads as "FY26 KPI Snapshot" etc.
+    let docName = NEW_DOC_NAMES[type];
+    let payload: Record<string, unknown> = { kind: type, version: 1, templateId };
+    if (type === "table") {
+      const t = tableTemplateById(templateId);
+      if (t) {
+        const built = t.build();
+        payload = { kind: "table", version: 1, templateId, ...built };
+        const w = built.titleWhite || "";
+        const a = built.titleAmber || "";
+        const stitched = (w + " " + a).trim().replace(/\s+/g, " ");
+        if (stitched && stitched !== "Untitled") docName = stitched;
+        else docName = t.label;
+      }
+    }
+    const doc = emptyDoc(type, owner, docName);
+    doc.payload = payload;
     setDocs((cur) => [doc, ...cur]);
     setView({ kind: "editor", docId: doc.id });
-    void saveDoc(doc); // first-write happens immediately so a refresh keeps it
+    void saveDoc(doc); // first-write so refresh keeps it
   }, [owner]);
 
   const openDoc = useCallback((id: string) => {

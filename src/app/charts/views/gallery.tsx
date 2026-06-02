@@ -8,6 +8,7 @@
 // Diagram: 3 starter shapes.
 
 import { ArrowLeft } from "lucide-react";
+import { TABLE_TEMPLATES as TABLE_SEEDS } from "../lib/table-templates";
 import { D, ft, gf, mn } from "../studio-theme";
 import { DocType } from "../studio-types";
 
@@ -42,11 +43,11 @@ const CHART_TEMPLATES: GalleryTemplate[] = [
   { id: "gantt",          label: "Gantt",         accent: "#905CCB", glyph: "▭▬▭" },
 ];
 
-const TABLE_TEMPLATES: GalleryTemplate[] = [
-  { id: "blank",   label: "Blank table",    subtitle: "5×3 starter, headers + numbers", accent: "#2EAD8E", glyph: "▦" },
-  { id: "excel",   label: "Excel Suite",    subtitle: "Univer-powered, formulas + sheets", accent: "#2EAD8E", glyph: "Σ" },
-  { id: "kpi",     label: "KPI tracker",    subtitle: "Quarter × metric, ready for charts", accent: "#2EAD8E", glyph: "📊" },
-];
+// Table templates are sourced from lib/table-templates so the Gallery
+// stays in sync with the seed payloads used by editor-table on mount.
+const TABLE_TEMPLATES: GalleryTemplate[] = TABLE_SEEDS.map((t) => ({
+  id: t.id, label: t.label, subtitle: t.blurb, accent: t.accent, glyph: t.glyph,
+}));
 
 const DIAGRAM_TEMPLATES: GalleryTemplate[] = [
   { id: "blank",     label: "Blank canvas",     subtitle: "Empty board, drop any shape", accent: "#0B86D1", glyph: "◇" },
