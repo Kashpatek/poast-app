@@ -218,6 +218,15 @@ export interface DiagramNode {
   text?: string;
   fontSize?: number;
   rotation?: number;
+  // Explicit label color. When unset, the renderer derives a readable
+  // color from the fill luminance so dark shapes get white text and
+  // light shapes get near-black text.
+  textColor?: string;
+  textAlign?: "left" | "center" | "right";
+  // Set on dedicated title/subtitle text nodes added via the Title /
+  // Subtitle toolbar buttons. Lets the renderer pick the right font
+  // size + color scale without inferring from text content.
+  role?: "title" | "subtitle";
 }
 
 // An edge endpoint either attaches to a node's side (and tracks it as the
@@ -249,4 +258,12 @@ export interface DiagramDocPayload {
   // Viewport persisted so reopening lands you where you left off.
   viewport?: { x: number; y: number; scale: number };
   templateId?: string;
+  // SA-brand backdrop applied to the page-frame rectangle. "dark" /
+  // "light" map to the studio backdrop palette; "solid:#xxxxxx" is a
+  // user-picked override. Unset = legacy dark.
+  backdrop?: string;
+  // Optional title + subtitle baked into the document. The toolbar
+  // "Add title" / "Add subtitle" buttons drop dedicated text nodes
+  // whose role is set on the node itself; these payload fields are
+  // reserved for future top-of-page composition.
 }

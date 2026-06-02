@@ -50,6 +50,13 @@ export interface DiagramCanvasProps {
   // Page frame — bounded rect drawn in world coords (Figma-style "page").
   pageW?: number;
   pageH?: number;
+  // Backdrop fill for the page rect. Defaults to the legacy dark slate
+  // when unset. Caller (editor-diagram) resolves the brand-preset id
+  // into a hex color first.
+  pageBg?: string;
+  // Backdrop fill for the Konva Stage itself (the area outside the
+  // page rect). Reads like the desk/whiteboard around the page.
+  canvasBg?: string;
   onSelect: (id: string | null) => void;
   onCreate: (node: DiagramNode) => void;
   onMutate: (id: string, patch: Partial<DiagramNode>) => void;
@@ -61,10 +68,32 @@ export interface DiagramCanvasProps {
 
 const PORT_SIDES: EdgeSide[] = ["top", "right", "bottom", "left"];
 
+// Pick a readable label color for text drawn on top of a given fill.
+// Standard W3C relative-luminance formula, with brand-color overrides
+// (white on amber/coral reads better than the math would suggest — they
+// are mid-luminance but visually saturated). Returns "#fff" or a soft
+// near-black so labels stay anchored to the SA palette.
+export function readableTextOn(fill: string | undefined): string {
+  if (!fill || fill === "transparent" || fill === "none") return "#E8E4DD";
+  let hex = fill.trim();
+  if (hex.startsWith("#")) hex = hex.slice(1);
+  // Strip alpha so a translucent fill like "#F7B04122" still resolves to
+  // its base hue for the luminance calc.
+  if (hex.length === 8) hex = hex.slice(0, 6);
+  if (hex.length === 3) hex = hex.split("").map((c) => c + c).join("");
+  if (hex.length !== 6 || !/^[0-9a-fA-F]+$/.test(hex)) return "#E8E4DD";
+  const r = parseInt(hex.slice(0, 2), 16) / 255;
+  const g = parseInt(hex.slice(2, 4), 16) / 255;
+  const b = parseInt(hex.slice(4, 6), 16) / 255;
+  const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  return L > 0.55 ? "#0A0C10" : "#FFFFFF";
+}
+
 export default function DiagramCanvas(props: DiagramCanvasProps) {
   const {
     width, height, nodes, edges, selectedId, tool, placeKind, viewport,
-    gridSize, fill, stroke, pageW, pageH,
+    gridSize, fill, stroke, pageW, pageH, pageBg, canvasBg,
     onSelect, onCreate, onMutate, onAddEdge, onChangeViewport,
     onEditText, registerExport,
   } = props;
@@ -302,7 +331,7 @@ export default function DiagramCanvas(props: DiagramCanvasProps) {
       onTouchMove={handleStageMouseMove}
       onTouchEnd={handleStageMouseUp}
       onWheel={handleWheel}
-      style={{ cursor, background: "#0A0A14" }}
+      style={{ cursor, background: canvasBg || "#0A0A14" }}
     >
       <Layer listening={false}>
         {/* Page frame — Figma-style "page" rect in world coords. Drawn
@@ -321,7 +350,7 @@ export default function DiagramCanvas(props: DiagramCanvasProps) {
             <KRect
               x={0} y={0}
               width={pageW} height={pageH}
-              fill="#15161D"
+              fill={pageBg || "#15161D"}
               stroke="#FFFFFF"
               strokeWidth={1 / viewport.scale}
               opacity={1}
@@ -493,6 +522,11 @@ function NodeRenderer({ node, selected, gridSize, interactive, onSelect, onMutat
   const fill = node.fill || "#F7B041";
   const stroke = node.stroke || (fill === "transparent" ? "#F7B041" : fill + "AA");
   const strokeWidth = node.strokeWidth ?? 2;
+  // Auto-pick label color from the shape fill's perceived luminance so
+  // text reads against the actual background, not a hard-coded dark.
+  // node.textColor wins when the user has explicitly chosen a color via
+  // the format toolbar.
+  const labelColor = node.textColor || readableTextOn(fill);
 
   // Most shapes share Group-with-text layout so the label sits inside.
   const withLabel = (inner: React.ReactNode) => (
@@ -513,7 +547,7 @@ function NodeRenderer({ node, selected, gridSize, interactive, onSelect, onMutat
           fontFamily="Outfit, sans-serif"
           fontSize={node.fontSize || 14}
           fontStyle="bold"
-          fill="#0A0A14"
+          fill={labelColor}
           listening={false}
         />
       )}

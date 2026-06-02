@@ -8,12 +8,15 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ChevronLeft, ChevronRight, Download, GitBranch, Hand, Maximize2,
-  MousePointer2, PanelRightClose, PanelRightOpen, RotateCcw, RotateCw,
-  Trash2, ZoomIn, ZoomOut,
+  CaseLower, ChevronLeft, ChevronRight, Download, GitBranch, Hand,
+  Image as ImageIcon, Lock, Maximize2, Move, MousePointer2,
+  PanelRightClose, PanelRightOpen, Pin, RotateCcw, RotateCw, Trash2,
+  Type, Unlock, ZoomIn, ZoomOut,
 } from "lucide-react";
 import { SHAPE_LIBRARY } from "./lib/diagram-shapes";
-import { D, DIAGRAM_PALETTE, ft, gf, mn } from "./studio-theme";
+import {
+  backdropById, D, DIAGRAM_BACKDROPS, DIAGRAM_PALETTE, ft, gf, mn,
+} from "./studio-theme";
 import {
   DiagramDocPayload, DiagramEdge, DiagramNode, DiagramShapeKind, StudioDoc,
 } from "./studio-types";
@@ -67,6 +70,23 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
   // right panel; persisted on the payload as canvasW/canvasH.
   const [pageW, setPageW] = useState(() => clamp(initial.canvasW ?? 1200, 200, 8000));
   const [pageH, setPageH] = useState(() => clamp(initial.canvasH ?? 720, 200, 8000));
+  const [backdrop, setBackdrop] = useState<string>(initial.backdrop ?? "sa-dark");
+  const backdropDef = useMemo(() => backdropById(backdrop), [backdrop]);
+  // Pending size change from the bottom-bar preset menu — held while
+  // the user picks "Keep diagram" (lock current node positions) vs
+  // "Expand to fit" (uniform-scale every node into the new bounds).
+  const [pendingResize, setPendingResize] = useState<{ w: number; h: number; label: string } | null>(null);
+
+  // Floating format toolbar — locked-to-top by default; user can
+  // unlock + drag it anywhere over the canvas. Position persists.
+  const [toolbarLocked, setToolbarLocked] = useState(() => readStored("studio-diagram-toolbarLocked", 1) > 0);
+  const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number }>(() => ({
+    x: readStored("studio-diagram-toolbarX", 24),
+    y: readStored("studio-diagram-toolbarY", 80),
+  }));
+  useEffect(() => writeStored("studio-diagram-toolbarLocked", toolbarLocked ? 1 : 0), [toolbarLocked]);
+  useEffect(() => writeStored("studio-diagram-toolbarX", toolbarPos.x), [toolbarPos.x]);
+  useEffect(() => writeStored("studio-diagram-toolbarY", toolbarPos.y), [toolbarPos.y]);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -89,9 +109,10 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
       canvasW: pageW,
       canvasH: pageH,
       viewport,
+      backdrop,
     };
     onChangePayload(payload);
-  }, [nodes, edges, pageW, pageH, viewport, onChangePayload]);
+  }, [nodes, edges, pageW, pageH, viewport, backdrop, onChangePayload]);
 
   const selected = nodes.find(n => n.id === selectedId) || null;
 
@@ -184,6 +205,63 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
     return () => window.removeEventListener("keydown", onKey);
   }, [undo, redo, deleteSelected, selectedId]);
 
+  // Drop a title / subtitle text node centered horizontally on the
+  // page. Re-clicking adds another (the user can move/delete). Color
+  // tracks the active backdrop so light backdrops get dark text.
+  // Apply a new page size. Mode "keep" leaves every node where it is
+  // (matches Figma's "resize page" behavior). Mode "expand" uniform-
+  // scales every node so the visual composition fills the new bounds.
+  const applyResize = useCallback((w: number, h: number, mode: "keep" | "expand") => {
+    if (mode === "expand") {
+      const sx = w / Math.max(1, pageW);
+      const sy = h / Math.max(1, pageH);
+      const s = Math.min(sx, sy);
+      pushHistory();
+      setNodes((cur) => cur.map(n => ({
+        ...n,
+        x: n.x * s, y: n.y * s,
+        w: n.w * s, h: n.h * s,
+        fontSize: n.fontSize ? n.fontSize * s : n.fontSize,
+      })));
+    }
+    setPageW(w);
+    setPageH(h);
+  }, [pageW, pageH, pushHistory]);
+
+  const handlePickSize = useCallback((w: number, h: number, label: string) => {
+    if (w === pageW && h === pageH) return;
+    // No content — apply silently. Adding nodes against a freshly set
+    // size shouldn't trigger a confusing "expand?" prompt on an empty
+    // canvas.
+    if (nodes.length === 0) {
+      applyResize(w, h, "keep");
+      return;
+    }
+    // Smaller (or equal-area) targets keep current positions, which
+    // may clip — surface the prompt either way so the user explicitly
+    // picks. For larger targets the "expand to fit" choice is the
+    // useful one.
+    setPendingResize({ w, h, label });
+  }, [pageW, pageH, nodes.length, applyResize]);
+
+  const addRoleNode = useCallback((role: "title" | "subtitle") => {
+    const isTitle = role === "title";
+    const w = Math.min(800, pageW - 80);
+    const h = isTitle ? 56 : 32;
+    const x = (pageW - w) / 2;
+    const y = isTitle ? 32 : 100;
+    const n: DiagramNode = {
+      id: role + "-" + Date.now().toString(36).slice(-5),
+      kind: "text",
+      x, y, w, h,
+      text: isTitle ? "Title" : "Subtitle",
+      fontSize: isTitle ? 32 : 16,
+      fill: backdropDef.isLight ? "#0A0C10" : "#FFFFFF",
+      role,
+    };
+    createNode(n);
+  }, [pageW, backdropDef.isLight, createNode]);
+
   const exportPng = useCallback(() => {
     const url = exportRef.current?.();
     if (!url) return;
@@ -231,6 +309,9 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
       margin: "0 auto",
       alignItems: "stretch",
       minHeight: "calc(100vh - 140px)",
+      // Keep the editor surface affixed to the viewport — content
+      // overflows are clipped inside each rail's own scroll container.
+      overflowX: "hidden",
     }}>
       <div style={{ width: leftW, minWidth: 140, maxWidth: 360, flexShrink: 0 }}>
         <ShapeLibraryPalette
@@ -252,17 +333,16 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
         marginRight: rightOpen ? 8 : 0,
       }}>
         <TopToolbar
-          tool={tool} setTool={setTool}
           canUndo={history.length > 0}
           canRedo={future.length > 0}
           canDelete={!!selectedId}
           onUndo={undo} onRedo={redo}
           onDelete={deleteSelected}
           onExport={exportPng}
-          zoom={viewport.scale}
-          onZoomIn={() => zoomBy(1.2)}
-          onZoomOut={() => zoomBy(1 / 1.2)}
-          onZoomReset={zoomReset}
+          onAddTitle={() => addRoleNode("title")}
+          onAddSubtitle={() => addRoleNode("subtitle")}
+          backdrop={backdrop}
+          onChangeBackdrop={setBackdrop}
           onToggleRight={() => setRightOpen((v) => !v)}
           rightOpen={rightOpen}
         />
@@ -270,7 +350,7 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
           ref={canvasRef}
           style={{
             flex: "1 1 auto",
-            background: "#0A0A14",
+            background: backdropDef.isLight ? "#EAE6DC" : "#06070A",
             border: "1px solid " + D.border,
             borderRadius: 12,
             overflow: "hidden",
@@ -293,6 +373,8 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
             stroke={stroke}
             pageW={pageW}
             pageH={pageH}
+            pageBg={backdropDef.bg}
+            canvasBg={backdropDef.isLight ? "#EAE6DC" : "#06070A"}
             onSelect={setSelectedId}
             onCreate={createNode}
             onMutate={mutateNode}
@@ -331,6 +413,16 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
               </div>
             </div>
           )}
+          <FloatingFormatToolbar
+            selected={selected}
+            fill={fill} setFill={setFill}
+            stroke={stroke} setStroke={setStroke}
+            onMutate={(patch) => { if (selected) mutateNode(selected.id, patch); }}
+            locked={toolbarLocked}
+            pos={toolbarPos}
+            onSetPos={setToolbarPos}
+            onToggleLock={() => setToolbarLocked(v => !v)}
+          />
         </div>
         <BottomZoomBar
           scale={viewport.scale}
@@ -346,8 +438,20 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
           onReset={zoomReset}
           pageW={pageW}
           pageH={pageH}
+          onPickSize={handlePickSize}
         />
       </div>
+
+      {pendingResize && (
+        <ResizeConfirmModal
+          fromW={pageW} fromH={pageH}
+          toW={pendingResize.w} toH={pendingResize.h}
+          label={pendingResize.label}
+          onCancel={() => setPendingResize(null)}
+          onKeep={() => { applyResize(pendingResize.w, pendingResize.h, "keep"); setPendingResize(null); }}
+          onExpand={() => { applyResize(pendingResize.w, pendingResize.h, "expand"); setPendingResize(null); }}
+        />
+      )}
 
       {rightOpen ? (
         <>
@@ -445,14 +549,309 @@ function CollapsedRightStrip({ onOpen }: { onOpen: () => void }) {
   );
 }
 
+// ─── Floating format toolbar ──────────────────────────────────────────
+// Lives over the canvas. Two modes:
+//   - locked (default): docks to the top of the canvas, full-width.
+//   - free: positioned at (pos.x, pos.y) within the canvas, draggable.
+// Content branches on whether a node is selected:
+//   - selected: shape-format controls (fill / stroke / text color /
+//     size / align)
+//   - none: text-defaults controls that flow into the editor's stored
+//     fill + stroke (the next placed shape inherits them).
+function FloatingFormatToolbar({
+  selected, fill, setFill, stroke, setStroke, onMutate,
+  locked, pos, onSetPos, onToggleLock,
+}: {
+  selected: DiagramNode | null;
+  fill: string; setFill: (c: string) => void;
+  stroke: string; setStroke: (c: string) => void;
+  onMutate: (patch: Partial<DiagramNode>) => void;
+  locked: boolean;
+  pos: { x: number; y: number };
+  onSetPos: (p: { x: number; y: number }) => void;
+  onToggleLock: () => void;
+}) {
+  const drag = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    function move(e: MouseEvent) {
+      if (!drag.current) return;
+      onSetPos({
+        x: Math.max(4, drag.current.x + e.movementX),
+        y: Math.max(4, drag.current.y + e.movementY),
+      });
+      drag.current.x += e.movementX;
+      drag.current.y += e.movementY;
+    }
+    function up() { drag.current = null; document.body.style.userSelect = ""; }
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+  }, [onSetPos]);
+
+  const startDrag = (e: React.MouseEvent) => {
+    if (locked) return;
+    drag.current = { x: pos.x, y: pos.y };
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+  };
+
+  const container: React.CSSProperties = locked
+    ? {
+        position: "absolute",
+        top: 10, left: "50%", transform: "translateX(-50%)",
+        zIndex: 18,
+      }
+    : {
+        position: "absolute",
+        top: pos.y, left: pos.x,
+        zIndex: 18,
+      };
+
+  return (
+    <div
+      style={{
+        ...container,
+        display: "flex", alignItems: "center", gap: 6,
+        padding: "6px 8px 6px 6px",
+        background: "rgba(10,12,18,0.92)",
+        border: "1px solid " + D.border, borderRadius: 999,
+        boxShadow: "0 12px 30px rgba(0,0,0,0.55)",
+        backdropFilter: "blur(6px)",
+      }}
+    >
+      <button
+        onMouseDown={startDrag}
+        title={locked ? "Locked to top — unlock to drag" : "Drag to move"}
+        style={{
+          width: 22, height: 22, padding: 0,
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          background: "transparent",
+          border: "none", color: locked ? D.txd : D.amber,
+          cursor: locked ? "default" : "grab",
+        }}
+      ><Move size={12} strokeWidth={2.2} /></button>
+      <span style={{ width: 1, height: 18, background: D.border }} />
+
+      {selected
+        ? <ShapeFormatRow selected={selected} onMutate={onMutate} />
+        : <DefaultsFormatRow fill={fill} setFill={setFill} stroke={stroke} setStroke={setStroke} />
+      }
+
+      <span style={{ width: 1, height: 18, background: D.border }} />
+      <button
+        onClick={onToggleLock}
+        title={locked ? "Unlock toolbar — make it floating" : "Lock to top of canvas"}
+        style={{
+          width: 22, height: 22, padding: 0,
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          background: "transparent",
+          border: "none", color: locked ? D.amber : D.txm,
+          cursor: "pointer",
+        }}
+      >
+        {locked ? <Lock size={12} strokeWidth={2.2} /> : <Unlock size={12} strokeWidth={2.2} />}
+      </button>
+    </div>
+  );
+}
+
+function ShapeFormatRow({ selected, onMutate }: {
+  selected: DiagramNode; onMutate: (patch: Partial<DiagramNode>) => void;
+}) {
+  const palette = DIAGRAM_PALETTE.concat(["#FFFFFF", "#0A0C10", "transparent"]);
+  return (
+    <>
+      <FormatLabel>Fill</FormatLabel>
+      <Swatches palette={palette} value={selected.fill} onPick={(c) => onMutate({ fill: c })} />
+      <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
+      <FormatLabel>Stroke</FormatLabel>
+      <Swatches palette={palette} value={selected.stroke} onPick={(c) => onMutate({ stroke: c })} />
+      <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
+      <FormatLabel>Text</FormatLabel>
+      <Swatches
+        palette={["#FFFFFF", "#0A0C10", ...DIAGRAM_PALETTE]}
+        value={selected.textColor}
+        onPick={(c) => onMutate({ textColor: c })}
+      />
+      <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
+      <SizeStepper
+        value={selected.fontSize ?? 14}
+        onChange={(v) => onMutate({ fontSize: Math.max(8, Math.min(96, v)) })}
+      />
+    </>
+  );
+}
+
+function DefaultsFormatRow({ fill, setFill, stroke, setStroke }: {
+  fill: string; setFill: (c: string) => void;
+  stroke: string; setStroke: (c: string) => void;
+}) {
+  const palette = DIAGRAM_PALETTE.concat(["#FFFFFF", "#0A0C10", "transparent"]);
+  return (
+    <>
+      <FormatLabel>Default fill</FormatLabel>
+      <Swatches palette={palette} value={fill} onPick={setFill} />
+      <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
+      <FormatLabel>Default stroke</FormatLabel>
+      <Swatches palette={palette} value={stroke} onPick={setStroke} />
+    </>
+  );
+}
+
+function FormatLabel({ children }: { children: React.ReactNode }) {
+  return <span style={{
+    fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.6,
+    textTransform: "uppercase", fontWeight: 700, padding: "0 2px",
+  }}>{children}</span>;
+}
+
+function Swatches({ palette, value, onPick }: {
+  palette: string[]; value?: string; onPick: (c: string) => void;
+}) {
+  return (
+    <div style={{ display: "inline-flex", gap: 3 }}>
+      {palette.map((c) => {
+        const active = (value || "").toUpperCase() === c.toUpperCase();
+        return (
+          <button
+            key={c}
+            onClick={() => onPick(c)}
+            title={c}
+            style={{
+              width: 16, height: 16, padding: 0,
+              borderRadius: "50%",
+              background: c === "transparent"
+                ? "repeating-conic-gradient(#222 0 25%, #444 0 50%) 50% / 8px 8px"
+                : c,
+              border: active ? "2px solid #FFF" : "1px solid rgba(255,255,255,0.25)",
+              cursor: "pointer",
+              boxShadow: active ? "0 0 0 2px " + D.amber + "AA" : "none",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function SizeStepper({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+      <FormatLabel>Size</FormatLabel>
+      <button onClick={() => onChange(value - 2)} style={pillStep()}>−</button>
+      <span style={{
+        fontFamily: mn, fontSize: 10.5, color: D.tx, minWidth: 22, textAlign: "center", fontWeight: 700,
+      }}>{Math.round(value)}</span>
+      <button onClick={() => onChange(value + 2)} style={pillStep()}>+</button>
+    </div>
+  );
+}
+
+function pillStep(): React.CSSProperties {
+  return {
+    width: 18, height: 18, padding: 0,
+    display: "inline-flex", alignItems: "center", justifyContent: "center",
+    background: "transparent", color: D.tx,
+    border: "1px solid " + D.border, borderRadius: 999,
+    cursor: "pointer", fontFamily: mn, fontSize: 11, fontWeight: 700,
+  };
+}
+
+// Confirm dialog raised when the user picks a new canvas size from the
+// bottom bar. Lets them choose between Keep (lock node positions) or
+// Expand (uniform-scale every node so the composition fills the new
+// bounds). Dismissible — clicking the backdrop or hitting Escape
+// cancels the resize.
+function ResizeConfirmModal({ fromW, fromH, toW, toH, label, onCancel, onKeep, onExpand }: {
+  fromW: number; fromH: number;
+  toW: number; toH: number;
+  label: string;
+  onCancel: () => void;
+  onKeep: () => void;
+  onExpand: () => void;
+}) {
+  const grows = toW * toH > fromW * fromH;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: "fixed", inset: 0, zIndex: 200,
+        background: "rgba(0,0,0,0.55)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 24,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%", maxWidth: 460,
+          background: "#0A0C10",
+          border: "1px solid " + D.border, borderRadius: 14,
+          boxShadow: "0 24px 56px rgba(0,0,0,0.7)",
+          padding: "22px 24px 20px",
+          fontFamily: ft,
+        }}
+      >
+        <div style={{
+          fontFamily: mn, fontSize: 9.5, color: D.amber,
+          fontWeight: 800, letterSpacing: 1.5, textTransform: "uppercase",
+          marginBottom: 6,
+        }}>Canvas resize</div>
+        <h2 style={{
+          margin: 0, fontFamily: gf, fontSize: 22, color: D.tx,
+          fontWeight: 900, letterSpacing: -0.5,
+        }}>Resize to {label}?</h2>
+        <p style={{
+          margin: "10px 0 18px",
+          fontFamily: ft, fontSize: 13.5, color: D.txm, lineHeight: 1.5,
+        }}>
+          Going from <strong style={{ color: D.tx }}>{fromW}×{fromH}</strong> to
+          {" "}<strong style={{ color: D.tx }}>{toW}×{toH}</strong>.
+          {" "}{grows
+            ? "Expand will scale every shape so the composition fills the new bounds."
+            : "Keep preserves current positions; some shapes may sit outside the new bounds."}
+        </p>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={onCancel} style={modalBtn(false)}>Cancel</button>
+          <button onClick={onKeep}   style={modalBtn(false)}>Keep diagram</button>
+          <button onClick={onExpand} style={modalBtn(true)}>Expand to fit</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function modalBtn(primary: boolean): React.CSSProperties {
+  return {
+    padding: "9px 14px",
+    background: primary ? D.amber : "transparent",
+    color: primary ? "#0A0C10" : D.tx,
+    border: "1px solid " + (primary ? D.amber : D.border),
+    borderRadius: 8,
+    fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.6,
+    textTransform: "uppercase", cursor: "pointer",
+  };
+}
+
 // ─── Bottom zoom bar — fixed below the canvas ──────────────────────────
-function BottomZoomBar({ scale, onScale, onFit, onReset, pageW, pageH }: {
+function BottomZoomBar({ scale, onScale, onFit, onReset, pageW, pageH, onPickSize }: {
   scale: number;
   onScale: (s: number) => void;
   onFit: () => void;
   onReset: () => void;
   pageW: number;
   pageH: number;
+  onPickSize: (w: number, h: number, label: string) => void;
 }) {
   const pct = Math.round(scale * 100);
   return (
@@ -461,12 +860,7 @@ function BottomZoomBar({ scale, onScale, onFit, onReset, pageW, pageH }: {
       padding: "8px 14px",
       background: D.card, border: "1px solid " + D.border, borderRadius: 10,
     }}>
-      <div style={{
-        fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.6,
-        textTransform: "uppercase", whiteSpace: "nowrap",
-      }}>
-        Page · {pageW} × {pageH}
-      </div>
+      <SizePresetMenu pageW={pageW} pageH={pageH} onPick={onPickSize} />
       <span style={{ width: 1, height: 16, background: D.border }} />
       <button
         onClick={onFit}
@@ -511,6 +905,86 @@ function BottomZoomBar({ scale, onScale, onFit, onReset, pageW, pageH }: {
   );
 }
 
+// Standard canvas size presets — mirror the Page-section presets in
+// the right rail, but accessible from the bottom bar so the user can
+// resize without opening the panel. Clicking a preset emits the
+// requested W/H; the editor pops the keep-or-expand confirm if the
+// new size is larger than the current.
+interface SizePreset { id: string; label: string; w: number; h: number; }
+const SIZE_PRESETS: SizePreset[] = [
+  { id: "hd",     label: "16:9 HD",  w: 1920, h: 1080 },
+  { id: "slide",  label: "Slide",    w: 1394, h: 861  },
+  { id: "square", label: "Square",   w: 1080, h: 1080 },
+  { id: "story",  label: "Story",    w: 1080, h: 1920 },
+  { id: "letter", label: "Letter",   w: 1700, h: 1100 },
+  { id: "a4",     label: "A4",       w: 1240, h: 1754 },
+];
+
+function SizePresetMenu({ pageW, pageH, onPick }: {
+  pageW: number; pageH: number;
+  onPick: (w: number, h: number, label: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    setTimeout(() => document.addEventListener("click", close), 0);
+    return () => document.removeEventListener("click", close);
+  }, [open]);
+  const matched = SIZE_PRESETS.find(p => p.w === pageW && p.h === pageH);
+  return (
+    <div style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="Change canvas size"
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          padding: "5px 10px",
+          background: "transparent", border: "1px solid " + D.border,
+          color: D.txm,
+          fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.6,
+          textTransform: "uppercase", borderRadius: 6, cursor: "pointer",
+        }}
+      >
+        {matched ? matched.label : "Page"} · {pageW}×{pageH}
+        <ChevronRight size={10} strokeWidth={2.2} style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.12s" }} />
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", bottom: "calc(100% + 6px)", left: 0,
+          background: "#0A0C10", border: "1px solid " + D.border, borderRadius: 8,
+          padding: 6, zIndex: 50, minWidth: 200,
+          boxShadow: "0 18px 38px rgba(0,0,0,0.6)",
+        }}>
+          {SIZE_PRESETS.map(p => {
+            const active = matched?.id === p.id;
+            return (
+              <button
+                key={p.id}
+                onClick={() => { onPick(p.w, p.h, p.label); setOpen(false); }}
+                style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  width: "100%", padding: "7px 10px",
+                  background: active ? D.amber + "1A" : "transparent",
+                  color: active ? D.amber : D.tx,
+                  border: "none", borderRadius: 5, cursor: "pointer",
+                  fontFamily: mn, fontSize: 11, fontWeight: 700, letterSpacing: 0.4,
+                  textAlign: "left",
+                }}
+                onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
+              >
+                <span>{p.label}</span>
+                <span style={{ color: D.txd, fontSize: 10 }}>{p.w}×{p.h}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function zoomChipStyle(): React.CSSProperties {
   return {
     display: "inline-flex", alignItems: "center", gap: 4,
@@ -522,7 +996,11 @@ function zoomChipStyle(): React.CSSProperties {
   };
 }
 
-function readPayload(payload: unknown): { nodes: DiagramNode[]; edges: DiagramEdge[]; viewport: { x: number; y: number; scale: number }; canvasW?: number; canvasH?: number } {
+function readPayload(payload: unknown): {
+  nodes: DiagramNode[]; edges: DiagramEdge[];
+  viewport: { x: number; y: number; scale: number };
+  canvasW?: number; canvasH?: number; backdrop?: string;
+} {
   if (payload && typeof payload === "object") {
     const p = payload as Partial<DiagramDocPayload>;
     const tplId = (p as { templateId?: string }).templateId;
@@ -533,6 +1011,7 @@ function readPayload(payload: unknown): { nodes: DiagramNode[]; edges: DiagramEd
       viewport: p.viewport || { x: 0, y: 0, scale: 1 },
       canvasW: typeof p.canvasW === "number" ? p.canvasW : undefined,
       canvasH: typeof p.canvasH === "number" ? p.canvasH : undefined,
+      backdrop: typeof p.backdrop === "string" ? p.backdrop : undefined,
     };
   }
   const seed = seedFromTemplate(undefined);
@@ -1070,8 +1549,15 @@ function ShapeLibraryPalette({ tool, setTool, placeKind, onPickShape }: {
   return (
     <div style={{
       display: "flex", flexDirection: "column", gap: 10,
-      maxHeight: "calc(100vh - 140px)", overflowY: "auto",
+      width: "100%",
+      minWidth: 0,
+      maxHeight: "calc(100vh - 140px)",
+      overflowY: "auto",
+      // Prevent any rogue child from pushing the column wider than its
+      // parent — left rail must stay affixed, items wrap/shrink instead.
+      overflowX: "hidden",
       paddingRight: 4,
+      boxSizing: "border-box",
     }}>
       {/* Pointer tools row */}
       <div style={{
@@ -1197,44 +1683,36 @@ function PaletteGlyph({ kind, accent }: { kind: DiagramShapeKind; accent: string
 // ─── Top toolbar ──────────────────────────────────────────────────────
 
 function TopToolbar({
-  tool, setTool, canUndo, canRedo, canDelete, onUndo, onRedo, onDelete, onExport,
-  zoom, onZoomIn, onZoomOut, onZoomReset, onToggleRight, rightOpen,
+  canUndo, canRedo, canDelete, onUndo, onRedo, onDelete, onExport,
+  onAddTitle, onAddSubtitle,
+  backdrop, onChangeBackdrop,
+  onToggleRight, rightOpen,
 }: {
-  tool: DiagramTool;
-  setTool: (t: DiagramTool) => void;
   canUndo: boolean; canRedo: boolean; canDelete: boolean;
   onUndo: () => void; onRedo: () => void;
   onDelete: () => void; onExport: () => void;
-  zoom: number;
-  onZoomIn: () => void; onZoomOut: () => void; onZoomReset: () => void;
+  onAddTitle: () => void; onAddSubtitle: () => void;
+  backdrop: string;
+  onChangeBackdrop: (id: string) => void;
   onToggleRight: () => void;
   rightOpen: boolean;
 }) {
-  void tool; void setTool;
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: 6,
       padding: "8px 12px",
       background: D.card, border: "1px solid " + D.border, borderRadius: 12,
+      flexWrap: "wrap",
     }}>
       <ToolbarBtn Icon={RotateCcw} label="Undo" disabled={!canUndo} onClick={onUndo} hint="⌘Z" />
       <ToolbarBtn Icon={RotateCw}  label="Redo" disabled={!canRedo} onClick={onRedo} hint="⌘⇧Z" />
       <span style={{ width: 1, height: 18, background: D.border, margin: "0 4px" }} />
+      <ToolbarBtn Icon={Type}       label="Title"    onClick={onAddTitle} />
+      <ToolbarBtn Icon={CaseLower}   label="Subtitle" onClick={onAddSubtitle} />
+      <BackdropMenu value={backdrop} onChange={onChangeBackdrop} />
+      <span style={{ width: 1, height: 18, background: D.border, margin: "0 4px" }} />
       <ToolbarBtn Icon={Trash2}    label="Delete" disabled={!canDelete} onClick={onDelete} hint="⌫" danger />
       <span style={{ marginLeft: "auto" }} />
-      <ToolbarBtn Icon={ZoomOut} label=""  onClick={onZoomOut} hint="−" />
-      <button
-        onClick={onZoomReset}
-        title="Reset zoom"
-        style={{
-          padding: "5px 10px",
-          background: "transparent", border: "1px solid " + D.border,
-          color: D.txm, fontFamily: mn, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5,
-          borderRadius: 6, cursor: "pointer", minWidth: 56, textAlign: "center",
-        }}
-      >{Math.round(zoom * 100)}%</button>
-      <ToolbarBtn Icon={ZoomIn}  label="" onClick={onZoomIn} hint="+" />
-      <span style={{ width: 1, height: 18, background: D.border, margin: "0 4px" }} />
       <ToolbarBtn Icon={Download} label="PNG" onClick={onExport} />
       <span style={{ width: 1, height: 18, background: D.border, margin: "0 4px" }} />
       <ToolbarBtn
@@ -1243,6 +1721,77 @@ function TopToolbar({
         onClick={onToggleRight}
         hint="P"
       />
+    </div>
+  );
+}
+
+// Inline dropdown — solid + brand backdrops shown as colored swatches.
+function BackdropMenu({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    setTimeout(() => document.addEventListener("click", close), 0);
+    return () => document.removeEventListener("click", close);
+  }, [open]);
+  const current = backdropById(value);
+  return (
+    <div style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="Canvas backdrop"
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          padding: "6px 10px",
+          background: "transparent", border: "1px solid " + D.border,
+          color: D.txm,
+          fontFamily: mn, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5,
+          borderRadius: 6, cursor: "pointer",
+        }}
+      >
+        <ImageIcon size={12} strokeWidth={2.2} />
+        <span
+          style={{
+            display: "inline-block", width: 12, height: 12, borderRadius: 3,
+            background: current.bg, border: "1px solid " + D.border,
+          }}
+        />
+        Backdrop
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", left: 0,
+          background: "#0A0C10", border: "1px solid " + D.border, borderRadius: 8,
+          padding: 6, zIndex: 50,
+          boxShadow: "0 18px 38px rgba(0,0,0,0.6)",
+          display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6,
+          minWidth: 260,
+        }}>
+          {DIAGRAM_BACKDROPS.map(b => (
+            <button
+              key={b.id}
+              onClick={() => { onChange(b.id); setOpen(false); }}
+              title={b.label}
+              style={{
+                position: "relative",
+                width: 58, height: 38, padding: 0,
+                background: b.bg,
+                border: "1px solid " + (b.id === value ? D.amber : D.border),
+                outline: b.id === value ? "2px solid " + D.amber + "55" : "none",
+                borderRadius: 5, cursor: "pointer",
+                color: b.isLight ? "#0A0C10" : "#FFFFFF",
+                fontFamily: mn, fontSize: 9, fontWeight: 700, letterSpacing: 0.3,
+                overflow: "hidden",
+              }}
+            >
+              {b.overlay && (
+                <span style={{ position: "absolute", inset: 0, backgroundImage: b.overlay, pointerEvents: "none" }} />
+              )}
+              <span style={{ position: "relative" }}>{b.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
