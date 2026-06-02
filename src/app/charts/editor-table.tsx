@@ -17,6 +17,7 @@ import {
   AggregateKind, blankRow, coerce, newColumnKey,
   parseClipboardTable, templateSheet, toCsv, toMarkdown,
 } from "./lib/data-sheet";
+import { EDITABLE_REGIONS, EditableField } from "./lib/sa-table-regions";
 import SaTableSvg, { SA_TABLE_HEIGHT, SA_TABLE_WIDTH } from "./lib/sa-table-svg";
 import { D, ft, gf, mn } from "./studio-theme";
 import {
@@ -73,6 +74,7 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
 
   const [gridOpen, setGridOpen] = useState(true);
   const [parseOpen, setParseOpen] = useState(false);
+  const [editingField, setEditingField] = useState<EditableField | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
 
   // ── Single mutation entry-point ──────────────────────────────────────
@@ -211,6 +213,40 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
       ...cur,
       schema: cur.schema.map(c => c.key === key ? { ...c, suffix: suffix || undefined } : c),
     }));
+  }, [updateSheet]);
+
+  const sortByColumn = useCallback((key: string, dir: "asc" | "desc") => {
+    updateSheet((cur) => {
+      const rows = cur.rows.slice().sort((a, b) => {
+        const av = a[key], bv = b[key];
+        const ax = av == null ? "" : av;
+        const bx = bv == null ? "" : bv;
+        if (typeof ax === "number" && typeof bx === "number") {
+          return dir === "asc" ? ax - bx : bx - ax;
+        }
+        const as = String(ax);
+        const bs = String(bx);
+        // Try numeric compare for stringified numbers (e.g. "12" vs "5").
+        const an = Number(as.replace(/,/g, ""));
+        const bn = Number(bs.replace(/,/g, ""));
+        if (Number.isFinite(an) && Number.isFinite(bn)) {
+          return dir === "asc" ? an - bn : bn - an;
+        }
+        return dir === "asc" ? as.localeCompare(bs) : bs.localeCompare(as);
+      });
+      return { ...cur, rows };
+    });
+  }, [updateSheet]);
+
+  const moveColumn = useCallback((fromKey: string, toIdx: number) => {
+    updateSheet((cur) => {
+      const fromIdx = cur.schema.findIndex(c => c.key === fromKey);
+      if (fromIdx < 0 || fromIdx === toIdx) return cur;
+      const next = cur.schema.slice();
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx > fromIdx ? toIdx - 1 : toIdx, 0, moved);
+      return { ...cur, schema: next };
+    });
   }, [updateSheet]);
 
   const addColumn = useCallback(() => {
@@ -450,7 +486,21 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
             formulaResult={state.formulaResult}
             aggregate={state.aggregate === "none" ? undefined : state.aggregate}
             aggregateLabel={state.aggregateLabel}
+            onEditField={setEditingField}
+            editingField={editingField}
           />
+          {editingField && previewRef.current && (
+            <InlineEditOverlay
+              field={editingField}
+              previewEl={previewRef.current}
+              value={editorValueFor(editingField, state)}
+              onCommit={(v) => {
+                update(editorPatchFor(editingField, v));
+                setEditingField(null);
+              }}
+              onCancel={() => setEditingField(null)}
+            />
+          )}
         </div>
 
         <Collapsible label="Data" open={gridOpen} onToggle={() => setGridOpen(v => !v)}>
@@ -463,6 +513,8 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
             onChangeColumnNumFmt={setColumnNumFmt}
             onChangeColumnPrefix={setColumnPrefix}
             onChangeColumnSuffix={setColumnSuffix}
+            onSortByColumn={sortByColumn}
+            onMoveColumn={moveColumn}
             onAddColumn={addColumn}
             onDeleteColumn={deleteColumn}
             onAddRow={addRow}
@@ -1074,6 +1126,8 @@ interface DataGridProps {
   onChangeColumnNumFmt: (key: string, fmt: TableNumberFormat | undefined) => void;
   onChangeColumnPrefix: (key: string, prefix: string) => void;
   onChangeColumnSuffix: (key: string, suffix: string) => void;
+  onSortByColumn: (key: string, dir: "asc" | "desc") => void;
+  onMoveColumn: (fromKey: string, toIdx: number) => void;
   onAddColumn: () => void;
   onDeleteColumn: (key: string) => void;
   onAddRow: () => void;
@@ -1098,6 +1152,9 @@ function DataGrid(p: DataGridProps) {
                 onChangeNumFmt={(f) => p.onChangeColumnNumFmt(col.key, f)}
                 onChangePrefix={(s) => p.onChangeColumnPrefix(col.key, s)}
                 onChangeSuffix={(s) => p.onChangeColumnSuffix(col.key, s)}
+                onSortAsc={() => p.onSortByColumn(col.key, "asc")}
+                onSortDesc={() => p.onSortByColumn(col.key, "desc")}
+                onMoveTo={(toIdx) => p.onMoveColumn(col.key, toIdx)}
                 onDelete={() => p.onDeleteColumn(col.key)}
               />
             ))}
@@ -1173,6 +1230,9 @@ interface ColumnHeaderProps {
   onChangeNumFmt: (f: TableNumberFormat | undefined) => void;
   onChangePrefix: (s: string) => void;
   onChangeSuffix: (s: string) => void;
+  onSortAsc: () => void;
+  onSortDesc: () => void;
+  onMoveTo: (toIdx: number) => void;
   onDelete: () => void;
 }
 
@@ -1196,6 +1256,7 @@ function ColumnHeaderCell(p: ColumnHeaderProps) {
   const [draft, setDraft] = useState(p.col.label);
   useEffect(() => setDraft(p.col.label), [p.col.label]);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [dragOver, setDragOver] = useState<null | "before" | "after">(null);
   useEffect(() => {
     if (!menuOpen) return;
     const close = () => setMenuOpen(false);
@@ -1203,16 +1264,51 @@ function ColumnHeaderCell(p: ColumnHeaderProps) {
     return () => document.removeEventListener("click", close);
   }, [menuOpen]);
   const fmtBadge = p.col.numFmt && p.col.numFmt !== "default" ? p.col.numFmt : p.col.type;
+
+  const onDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData("application/x-poast-col-key", p.col.key);
+    e.dataTransfer.effectAllowed = "move";
+  };
+  const onDragOver = (e: React.DragEvent) => {
+    const hasKey = e.dataTransfer.types.includes("application/x-poast-col-key");
+    if (!hasKey) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const isAfter = e.clientX > rect.left + rect.width / 2;
+    setDragOver(isAfter ? "after" : "before");
+  };
+  const onDragLeave = () => setDragOver(null);
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const fromKey = e.dataTransfer.getData("application/x-poast-col-key");
+    setDragOver(null);
+    if (!fromKey || fromKey === p.col.key) return;
+    const targetIdx = dragOver === "after" ? p.colIdx + 1 : p.colIdx;
+    p.onMoveTo(targetIdx);
+  };
+
   return (
-    <th style={{
-      padding: "6px 8px",
-      borderBottom: "1px solid " + D.border,
-      borderLeft: "1px solid " + D.border,
-      textAlign: "left", minWidth: 140, background: D.surface,
-      position: "relative",
-    }}>
+    <th
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      style={{
+        padding: "6px 8px",
+        borderBottom: "1px solid " + D.border,
+        borderLeft: dragOver === "before" ? "2px solid " + D.amber : "1px solid " + D.border,
+        borderRight: dragOver === "after" ? "2px solid " + D.amber : undefined,
+        textAlign: "left", minWidth: 140, background: D.surface,
+        position: "relative",
+      }}>
       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-        <GripHorizontal size={11} strokeWidth={2.0} color={D.txd} style={{ flexShrink: 0 }} />
+        <span
+          draggable
+          onDragStart={onDragStart}
+          title="Drag to reorder"
+          style={{ cursor: "grab", display: "inline-flex", flexShrink: 0 }}>
+          <GripHorizontal size={11} strokeWidth={2.0} color={D.txd} />
+        </span>
         {editing ? (
           <input value={draft} autoFocus
             onChange={(e) => setDraft(e.target.value)}
@@ -1255,6 +1351,13 @@ function ColumnHeaderCell(p: ColumnHeaderProps) {
               boxShadow: "0 20px 36px rgba(0,0,0,0.6)",
               display: "flex", flexDirection: "column", gap: 8,
             }}>
+              <ColumnMenuLabel>Sort by this column</ColumnMenuLabel>
+              <div style={{ display: "flex", gap: 4 }}>
+                <button onClick={() => { p.onSortAsc();  setMenuOpen(false); }}
+                  style={menuOptionBtnStyle()}>↑ Asc</button>
+                <button onClick={() => { p.onSortDesc(); setMenuOpen(false); }}
+                  style={menuOptionBtnStyle()}>↓ Desc</button>
+              </div>
               <ColumnMenuLabel>Type</ColumnMenuLabel>
               <div style={{ display: "flex", gap: 3 }}>
                 {(["text", "number", "percent", "date"] as TableColumnType[]).map((t) => (
@@ -1332,6 +1435,17 @@ function ColumnHeaderCell(p: ColumnHeaderProps) {
   );
 }
 
+function menuOptionBtnStyle(): React.CSSProperties {
+  return {
+    flex: 1,
+    padding: "5px 8px",
+    background: "transparent", border: "1px solid " + D.border,
+    color: D.tx,
+    fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+    borderRadius: 4, cursor: "pointer", textTransform: "uppercase",
+  };
+}
+
 function ColumnMenuLabel({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
@@ -1339,6 +1453,137 @@ function ColumnMenuLabel({ children }: { children: React.ReactNode }) {
       fontWeight: 700, textTransform: "uppercase", marginBottom: 3,
     }}>{children}</div>
   );
+}
+
+// ─── Inline edit overlay ───────────────────────────────────────────────
+// Positions an HTML input/textarea directly over the corresponding text
+// region in the rendered SVG. The SVG's viewBox is 1394×861.7 with
+// preserveAspectRatio="xMidYMid meet", so we compute the displayed
+// scale + letterbox offsets to translate region coords into pixels.
+
+function editorValueFor(field: EditableField, s: TableEditorState): string {
+  if (field === "category")      return s.category;
+  if (field === "titleWhite")    return s.titleWhite;
+  if (field === "titleAmber")    return s.titleAmber;
+  if (field === "subtitle")      return s.subtitle;
+  if (field === "titleBar")      return s.titleBar;
+  if (field === "keyInsight")    return s.keyInsight;
+  if (field === "topAxisLabel")  return s.topAxisLabel;
+  if (field === "leftAxisLabel") return s.leftAxisLabel;
+  return "";
+}
+
+function editorPatchFor(field: EditableField, value: string): Partial<TableEditorState> {
+  return { [field]: value } as Partial<TableEditorState>;
+}
+
+function InlineEditOverlay({ field, previewEl, value, onCommit, onCancel }: {
+  field: EditableField;
+  previewEl: HTMLDivElement;
+  value: string;
+  onCommit: (v: string) => void;
+  onCancel: () => void;
+}) {
+  const region = EDITABLE_REGIONS[field];
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+
+  const [rect, setRect] = useState<{ left: number; top: number; width: number; height: number; fontSize: number; }>(() =>
+    computeRect(previewEl, region));
+
+  useEffect(() => {
+    const update = () => setRect(computeRect(previewEl, region));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(previewEl);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [previewEl, region]);
+
+  const multiline = region.multiline === true;
+  const isLeftAxis = field === "leftAxisLabel";
+
+  const commit = () => onCommit(draft);
+
+  return (
+    <div style={{
+      position: "absolute",
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      zIndex: 30,
+      transform: isLeftAxis ? "rotate(-90deg)" : undefined,
+      transformOrigin: isLeftAxis ? "left top" : undefined,
+    }}>
+      {multiline ? (
+        <textarea
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); commit(); }
+          }}
+          style={inlineInputStyle(rect.fontSize, true)}
+        />
+      ) : (
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+            if (e.key === "Enter")  { e.preventDefault(); commit(); }
+          }}
+          style={inlineInputStyle(rect.fontSize, false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function inlineInputStyle(fontSize: number, multiline: boolean): React.CSSProperties {
+  return {
+    width: "100%", height: "100%", boxSizing: "border-box",
+    background: "rgba(10,12,18,0.92)",
+    border: "1px solid #F7B041",
+    borderRadius: 4,
+    color: "#E8E4DD",
+    fontFamily: "'Outfit', sans-serif",
+    fontWeight: 700,
+    fontSize: Math.max(11, fontSize),
+    lineHeight: multiline ? 1.4 : 1,
+    padding: multiline ? "8px 10px" : "4px 8px",
+    outline: "none",
+    resize: "none",
+    boxShadow: "0 0 0 3px rgba(247,176,65,0.18)",
+  };
+}
+
+// Convert a region in SVG viewBox space to absolute pixel coords inside
+// previewEl (which holds the SVG with preserveAspectRatio="xMidYMid meet").
+function computeRect(previewEl: HTMLDivElement, region: { x: number; y: number; w: number; h: number }) {
+  const pw = previewEl.clientWidth;
+  const ph = previewEl.clientHeight;
+  const svgW = SA_TABLE_WIDTH;
+  const svgH = SA_TABLE_HEIGHT;
+  const scale = Math.min(pw / svgW, ph / svgH);
+  const offsetX = (pw - svgW * scale) / 2;
+  const offsetY = (ph - svgH * scale) / 2;
+  return {
+    left: offsetX + region.x * scale,
+    top:  offsetY + region.y * scale,
+    width: region.w * scale,
+    height: region.h * scale,
+    // Heuristic: scale the input font to roughly match the SVG text size.
+    fontSize: Math.round(region.h * scale * 0.6),
+  };
 }
 
 // ─── AI parse modal ─────────────────────────────────────────────────────

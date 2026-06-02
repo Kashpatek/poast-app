@@ -20,6 +20,7 @@
 // warnings.
 
 import { aggregateColumn, formatCell } from "./data-sheet";
+import { EDITABLE_REGIONS, EditableField } from "./sa-table-regions";
 import { TableInputItem, TableSheet } from "../studio-types";
 
 export const SA_TABLE_WIDTH = 1394;
@@ -39,6 +40,12 @@ export interface SaTableRenderProps {
   keyInsight?: string;
   aggregate?: "none" | "sum" | "avg" | "min" | "max";
   aggregateLabel?: string;
+  // When set, the renderer paints invisible click areas over each
+  // editable text region and forwards clicks to the parent. The parent
+  // (editor-table) overlays an HTML input at the same coords for
+  // in-place editing. No-op when unset (export pipeline is opaque).
+  onEditField?: (field: EditableField) => void;
+  editingField?: EditableField | null;
   // Heatmap mode
   threshold?: number;
   yellowBand?: number;
@@ -565,7 +572,46 @@ export default function SaTableSvg(props: SaTableRenderProps) {
       />
       {props.mode === "data" ? <SaDataTable {...props} /> : <SaHeatmap {...props} />}
       <SaFooter contextLine={props.subtitle} />
+      {props.onEditField && <EditHitZones mode={props.mode} editing={props.editingField || null} onEdit={props.onEditField} />}
     </svg>
+  );
+}
+
+function EditHitZones({ mode, editing, onEdit }: {
+  mode: "data" | "heatmap";
+  editing: EditableField | null;
+  onEdit: (field: EditableField) => void;
+}) {
+  const fields = Object.entries(EDITABLE_REGIONS) as [EditableField, typeof EDITABLE_REGIONS[EditableField]][];
+  return (
+    <g>
+      {fields.map(([field, r]) => {
+        if (r.mode && r.mode !== mode) return null;
+        const isEditing = field === editing;
+        return (
+          <g key={field}
+            className="sa-edit-hit"
+            onClick={(e) => { e.stopPropagation(); onEdit(field); }}
+            style={{ cursor: "text" }}>
+            <rect
+              x={r.x} y={r.y} width={r.w} height={r.h}
+              rx={3}
+              fill={isEditing ? "rgba(247,176,65,0.10)" : "rgba(255,255,255,0.0)"}
+              stroke={isEditing ? "#F7B041" : "rgba(255,255,255,0)"}
+              strokeWidth={isEditing ? 1.5 : 0}
+              strokeDasharray={isEditing ? "4 3" : undefined}
+            >
+              <title>Click to edit</title>
+            </rect>
+          </g>
+        );
+      })}
+      {/* Hover affordance · faint amber dotted outline on the hit rect
+          when the cursor enters its group. */}
+      <style>{
+        ".sa-edit-hit:hover rect { stroke: #F7B04199 !important; stroke-width: 1 !important; stroke-dasharray: 4 3 !important; }"
+      }</style>
+    </g>
   );
 }
 
