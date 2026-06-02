@@ -3,23 +3,40 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import ChartMaker2 from "../chart-maker-2";
 import { D as C, ft, gf, mn } from "../shared-constants";
+import StudioShell from "./studio-shell";
 
-// /charts · Chart Maker 2 standalone. Glass / glow chrome lifted from
-// POAST's splash screen. Auth check mirrors /brand-launch and
-// /asset-library: read user from localStorage (synchronously avoids the
-// parent-effect-fires-after-child hydration race).
+// /charts · Chart Maker 2 today, POAST Studio behind the ?studio=1 preview
+// flag. When Checkpoints 2–4 land we'll flip the default to studio mode and
+// retire the standalone ChartMaker2 shell here.
+//
+// Auth check mirrors /brand-launch and /asset-library: read user from
+// localStorage (synchronously avoids the parent-effect-fires-after-child
+// hydration race).
 export default function ChartsPage() {
   var _o = useState(false), ok = _o[0], setOk = _o[1];
+  var _s = useState(false), studio = _s[0], setStudio = _s[1];
 
   useEffect(function() {
     try {
       var stored = localStorage.getItem("poast-current-user");
-      if (stored) { setOk(true); return; }
+      if (stored) { setOk(true); }
+      else { window.location.href = "/"; return; }
+    } catch (e) { window.location.href = "/"; return; }
+    try {
+      var qs = new URLSearchParams(window.location.search);
+      if (qs.get("studio") === "1") setStudio(true);
     } catch (e) {}
-    window.location.href = "/";
   }, []);
 
   if (!ok) return null;
+
+  if (studio) {
+    return (
+      <div style={{ background: "#06060A", minHeight: "100vh", color: C.tx }}>
+        <StudioShell />
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: "#06060A", minHeight: "100vh", color: C.tx, position: "relative", overflow: "hidden" }}>
@@ -83,6 +100,19 @@ export default function ChartsPage() {
           </div>
         </div>
 
+        <a
+          href="/charts?studio=1"
+          title="Try POAST Studio (preview)"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "6px 12px",
+            background: "linear-gradient(135deg, " + C.amber + "22, " + C.coral + "18)",
+            border: "1px solid " + C.amber + "55",
+            color: C.amber,
+            fontFamily: mn, fontSize: 9.5, fontWeight: 800, letterSpacing: 0.6,
+            textTransform: "uppercase", textDecoration: "none", borderRadius: 5,
+          }}
+        >✦ Try Studio preview</a>
         <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 1.5, padding: "5px 11px", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 4, background: "rgba(255,255,255,0.02)" }}>STANDALONE</span>
       </div>
 
