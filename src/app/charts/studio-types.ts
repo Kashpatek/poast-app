@@ -115,7 +115,20 @@ export interface TableDocPayload {
 
 // ─── Diagram document payload ────────────────────────────────────────────
 
-export type DiagramShapeKind = "rect" | "ellipse" | "text" | "arrow" | "line";
+// Shape kinds available in the diagram editor. Categorized for the palette:
+//   - "rect" / "ellipse" / "text" / "arrow" / "line" : v1 primitives
+//   - "triangle" / "diamond" / "parallelogram" / "rounded" : v2 basics
+//   - "flowStart" / "flowEnd" / "flowDecision" / "flowProcess" /
+//     "flowData" / "flowIO" : Flowchart library
+//   - "gateAnd" / "gateOr" / "gateNot" / "gateNand" / "gateNor" /
+//     "gateXor" / "resistor" / "capacitor" / "battery" / "ground" :
+//     Circuit primitives
+export type DiagramShapeKind =
+  | "rect" | "ellipse" | "text" | "arrow" | "line"
+  | "triangle" | "diamond" | "parallelogram" | "rounded"
+  | "flowStart" | "flowEnd" | "flowDecision" | "flowProcess" | "flowData" | "flowIO"
+  | "gateAnd" | "gateOr" | "gateNot" | "gateNand" | "gateNor" | "gateXor"
+  | "resistor" | "capacitor" | "battery" | "ground";
 
 export interface DiagramNode {
   id: string;
@@ -129,12 +142,23 @@ export interface DiagramNode {
   rotation?: number;
 }
 
+// An edge endpoint either attaches to a node's side (and tracks it as the
+// node moves) or sits at a fixed canvas coordinate. Side is the cardinal
+// edge of the node — center, top, right, bottom, left.
+export type EdgeSide = "top" | "right" | "bottom" | "left" | "center";
+export type EdgeEndpoint =
+  | { kind: "node"; nodeId: string; side: EdgeSide }
+  | { kind: "point"; x: number; y: number };
+
 export interface DiagramEdge {
   id: string;
-  from: string; to: string;
+  from: EdgeEndpoint;
+  to:   EdgeEndpoint;
   stroke?: string;
   strokeWidth?: number;
   dashed?: boolean;
+  arrowEnd?: boolean;   // default true
+  arrowStart?: boolean; // default false
 }
 
 export interface DiagramDocPayload {
@@ -144,5 +168,7 @@ export interface DiagramDocPayload {
   edges: DiagramEdge[];
   canvasW: number;
   canvasH: number;
+  // Viewport persisted so reopening lands you where you left off.
+  viewport?: { x: number; y: number; scale: number };
   templateId?: string;
 }
