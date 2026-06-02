@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown, ChevronRight, Copy, Download, FileImage, FileText,
-  GripHorizontal, Image as ImageIcon, Maximize2, Minus,
+  GripHorizontal, Highlighter, Image as ImageIcon, Maximize2, Minus,
   PanelRightClose, PanelRightOpen,
   Plus, RotateCcw, RotateCw, Sparkles, Upload, Wand2, X,
 } from "lucide-react";
@@ -67,6 +67,9 @@ interface TableEditorState {
   showRowStripe: boolean;
   dividerStyle: "solid" | "dotted" | "none";
   rowStyles: Record<number, import("./studio-types").TableRowStyle>;
+  fontScale: number;
+  autoFontScale: boolean;
+  cellStyles: Record<string, import("./studio-types").CellStyle>;
 }
 
 interface TableEditorProps {
@@ -90,6 +93,11 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
   const [parseOpen, setParseOpen] = useState(false);
   const [editingField, setEditingField] = useState<EditableField | null>(null);
   const [editingCell, setEditingCell] = useState<{ row: number; col: string } | null>(null);
+  // Annotate mode — clicking cells toggles selection instead of opening
+  // the edit overlay. Selected cells accept the styles chosen in the
+  // floating annotation toolbar.
+  const [annotateMode, setAnnotateMode] = useState(false);
+  const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set());
   const previewRef = useRef<HTMLDivElement | null>(null);
   const csvFileRef = useRef<HTMLInputElement | null>(null);
 
@@ -202,6 +210,9 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
       showRowStripe: state.showRowStripe || undefined,
       dividerStyle: state.dividerStyle !== "solid" ? state.dividerStyle : undefined,
       rowStyles: Object.keys(state.rowStyles).length > 0 ? state.rowStyles : undefined,
+      fontScale: state.fontScale !== 1 ? state.fontScale : undefined,
+      autoFontScale: state.autoFontScale ? true : undefined,
+      cellStyles: Object.keys(state.cellStyles).length > 0 ? state.cellStyles : undefined,
     };
     onChangePayload(payload);
   }, [state, onChangePayload]);
@@ -563,6 +574,22 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
           <ToolbarBtn Icon={Copy}     label="Markdown" onClick={copyMarkdown} />
           <span style={{ width: 1, height: 18, background: D.border, margin: "0 4px" }} />
           <ToolbarBtn Icon={Wand2} label="AI parse" accent={D.violet} onClick={() => setParseOpen(true)} />
+          <span style={{ width: 1, height: 18, background: D.border, margin: "0 4px" }} />
+          <ToolbarBtn
+            Icon={Highlighter}
+            label={annotateMode ? "Annotating · " + selectedCells.size : "Annotate"}
+            accent={annotateMode ? D.amber : undefined}
+            onClick={() => {
+              if (annotateMode) {
+                setAnnotateMode(false);
+                setSelectedCells(new Set());
+              } else {
+                setAnnotateMode(true);
+                setEditingField(null);
+                setEditingCell(null);
+              }
+            }}
+          />
           {onBuildChart && (
             <>
               <span style={{ marginLeft: "auto" }} />
@@ -614,6 +641,10 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
             showRowStripe={state.showRowStripe}
             dividerStyle={state.dividerStyle}
             rowStyles={state.rowStyles}
+            fontScale={state.autoFontScale ? undefined : state.fontScale}
+            autoFontScale={state.autoFontScale}
+            cellStyles={state.cellStyles}
+            selectedCells={annotateMode ? selectedCells : undefined}
             category={state.category}
             titleWhite={state.titleWhite}
             titleAmber={state.titleAmber}
@@ -635,9 +666,22 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
             formulaResult={state.formulaResult}
             aggregate={state.aggregate === "none" ? undefined : state.aggregate}
             aggregateLabel={state.aggregateLabel}
-            onEditField={setEditingField}
+            onEditField={annotateMode ? undefined : setEditingField}
             editingField={editingField}
-            onEditCell={(row, col) => { setEditingField(null); setEditingCell({ row, col }); }}
+            onEditCell={(row, col) => {
+              if (annotateMode) {
+                const key = row + ":" + col;
+                setSelectedCells((cur) => {
+                  const next = new Set(cur);
+                  if (next.has(key)) next.delete(key);
+                  else next.add(key);
+                  return next;
+                });
+              } else {
+                setEditingField(null);
+                setEditingCell({ row, col });
+              }
+            }}
             editingCell={editingCell}
             onResizeColumn={resizeColumn}
           />
@@ -652,6 +696,54 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
                 setEditingCell(null);
               }}
               onCancel={() => setEditingCell(null)}
+            />
+          )}
+          {annotateMode && selectedCells.size > 0 && previewRef.current && (
+            <AnnotationToolbar
+              previewEl={previewRef.current}
+              selection={selectedCells}
+              currentStyles={state.cellStyles}
+              onApply={(patch) => {
+                const next = { ...state.cellStyles };
+                selectedCells.forEach((key) => {
+                  const existing = next[key] || {};
+                  const merged = { ...existing, ...patch };
+                  // Strip undefined entries so the saved payload stays small.
+                  if (merged.bg === undefined) delete merged.bg;
+                  if (merged.color === undefined) delete merged.color;
+                  if (merged.border === undefined) delete merged.border;
+                  if (merged.borderColor === undefined) delete merged.borderColor;
+                  if (merged.bold === undefined) delete merged.bold;
+                  if (Object.keys(merged).length === 0) delete next[key];
+                  else next[key] = merged;
+                });
+                update({ cellStyles: next });
+              }}
+              onSelectColumn={() => {
+                // Expand current selection: for every selected cell,
+                // add every other cell in its column.
+                const next = new Set(selectedCells);
+                selectedCells.forEach((key) => {
+                  const [, col] = key.split(":");
+                  for (let ri = 0; ri < state.sheet.rows.length; ri++) {
+                    next.add(ri + ":" + col);
+                  }
+                });
+                setSelectedCells(next);
+              }}
+              onSelectRow={() => {
+                const next = new Set(selectedCells);
+                selectedCells.forEach((key) => {
+                  const [row] = key.split(":");
+                  state.sheet.schema.forEach((c) => next.add(row + ":" + c.key));
+                });
+                setSelectedCells(next);
+              }}
+              onClear={() => setSelectedCells(new Set())}
+              onClose={() => {
+                setAnnotateMode(false);
+                setSelectedCells(new Set());
+              }}
             />
           )}
           {editingField && previewRef.current && (
@@ -769,6 +861,9 @@ function readPayload(payload: unknown, defaultName: string): TableEditorState {
     showRowStripe: false,
     dividerStyle: "solid",
     rowStyles: {},
+    fontScale: 1,
+    autoFontScale: true,
+    cellStyles: {},
   };
   if (payload && typeof payload === "object") {
     const p = payload as Partial<TableDocPayload>;
@@ -816,6 +911,13 @@ function readPayload(payload: unknown, defaultName: string): TableEditorState {
     if (p.dividerStyle === "dotted" || p.dividerStyle === "none") seed.dividerStyle = p.dividerStyle;
     if (p.rowStyles && typeof p.rowStyles === "object") {
       seed.rowStyles = p.rowStyles as Record<number, import("./studio-types").TableRowStyle>;
+    }
+    if (typeof p.fontScale === "number" && p.fontScale > 0.3 && p.fontScale < 4) {
+      seed.fontScale = p.fontScale;
+    }
+    if (typeof p.autoFontScale === "boolean") seed.autoFontScale = p.autoFontScale;
+    if (p.cellStyles && typeof p.cellStyles === "object") {
+      seed.cellStyles = p.cellStyles as Record<string, import("./studio-types").CellStyle>;
     }
   }
   return seed;
@@ -1120,67 +1222,68 @@ const TABLE_PAGE_PRESETS: PageDimPreset[] = [
   { id: "story",   label: "Story 9:16",    w: 1080, h: 1920 },
 ];
 
-// Compute a canvas size that hugs the table content — header chrome
-// + row stack + footer chrome + (key insight block when shown). The
-// numbers mirror the constants inside SaDataTable so the auto-fit
-// matches what the renderer actually paints.
-function autoFitDimensions(
+// Fit to margins — keeps the user's currently chosen canvas WIDTH
+// (SA Slide, Compact, Square, whatever) and only crops the empty
+// space below the table. The natural height = title header + title
+// bar + column header + row stack + aggregate + key insight + a
+// breathing-room margin + footer chrome.
+function autoFitHeight(
   sheet: TableSheet,
   chromeStyle: TableChromeStyle,
   hasKeyInsight: boolean,
   aggregate: "none" | AggregateKind,
-): { w: number; h: number } {
-  const titleBarY = 150;
-  const titleBarH = chromeStyle === "dense" ? 0 : 44;
-  const colHeaderH = 46;
-  const rowH = 42;
-  const aggregateRowH = aggregate !== "none" ? 50 : 0;
+  hasSource: boolean,
+  fontScale: number,
+): number {
+  // Header block above the table (category + title + subtitle) lives
+  // at y ≈ 0..130 and the title bar starts at y = 150 in the legacy
+  // 1394 frame. These offsets are font-relative — when the user
+  // bumps font scale, give more vertical room so titles don't crowd.
+  const headerBlockH = 130 + (fontScale - 1) * 40;
+  const titleBarY = headerBlockH + 20;
+  const titleBarH = chromeStyle === "dense" ? 0 : Math.round(44 * fontScale);
+  const colHeaderH = Math.round(46 * fontScale);
+  const rowH = Math.round(42 * fontScale);
+  const aggregateRowH = aggregate !== "none" ? Math.round(50 * fontScale) : 0;
   const showKeyInsight = chromeStyle !== "dense" && hasKeyInsight;
   const keyInsightH = showKeyInsight ? 180 : 0;
+  // Breathing room between table bottom and the footer rule — this is
+  // the gap the user wants to set.
+  const marginBeforeFooter = 56;
   // Footer chrome — bottom rule + label baseline + breathing room.
-  const footerChromeH = 40;
-  // Add a small bottom margin so the table doesn't kiss the frame.
-  const bottomMargin = 24;
+  // Source line lives ABOVE the footer rule, so add room when set.
+  const sourceLineH = hasSource ? 22 : 0;
+  const footerChromeH = 50 + sourceLineH;
 
   const rowCount = Math.max(1, sheet.rows.length);
-  const naturalH = titleBarY + titleBarH + colHeaderH + rowCount * rowH + aggregateRowH + keyInsightH + footerChromeH + bottomMargin;
-
-  // Width — sum explicit column widths if any are set; otherwise pick
-  // a comfortable default per column (160 numeric / 180 first text col).
-  const explicitTotal = sheet.schema.reduce((s, c) => s + (c.width || 0), 0);
-  const unsetCount = sheet.schema.filter((c) => !c.width).length;
-  const defaultPerCol = (i: number) => (i === 0 ? 180 : 150);
-  const inferredUnset = sheet.schema.reduce((s, c, i) => c.width ? s : s + defaultPerCol(i), 0);
-  const naturalTableW = explicitTotal + (unsetCount > 0 ? inferredUnset : 0);
-  const sideGutter = 33;
-  // Ensure enough horizontal room for the title + lettermark (~640 +
-  // 170) so the header doesn't crowd in narrow frames.
-  const minW = 820;
-  const naturalW = Math.max(minW, naturalTableW + sideGutter * 2);
-
-  return {
-    w: Math.round(Math.min(4000, naturalW)),
-    h: Math.round(Math.min(4000, naturalH)),
-  };
+  const tableBlockH = colHeaderH + rowCount * rowH + aggregateRowH + keyInsightH;
+  return Math.round(Math.min(4000, titleBarY + titleBarH + tableBlockH + marginBeforeFooter + footerChromeH));
 }
 
-function PageDimensionPicker({ pageW, pageH, sheet, chromeStyle, keyInsight, aggregate, onChange }: {
+function PageDimensionPicker({ pageW, pageH, sheet, chromeStyle, keyInsight, aggregate, source, fontScale, onChange }: {
   pageW: number; pageH: number;
   sheet: TableSheet;
   chromeStyle: TableChromeStyle;
   keyInsight: string;
   aggregate: "none" | AggregateKind;
+  source: string;
+  fontScale: number;
   onChange: (w: number, h: number) => void;
 }) {
-  const fit = useMemo(() => autoFitDimensions(sheet, chromeStyle, !!keyInsight.trim(), aggregate),
-    [sheet, chromeStyle, keyInsight, aggregate]);
+  // Fit to margins keeps the user's chosen WIDTH (SA Slide, Compact,
+  // Square, etc.) and only crops the height to the table content +
+  // breathing room before the footer. Reactive to font scale + rows.
+  const fitH = useMemo(
+    () => autoFitHeight(sheet, chromeStyle, !!keyInsight.trim(), aggregate, !!source.trim(), fontScale),
+    [sheet, chromeStyle, keyInsight, aggregate, source, fontScale],
+  );
   return (
     <div style={{ padding: "6px 10px 10px" }}>
       {/* Margin / auto-fit preset — wide tile up top so it's the first
           thing the user sees. Recomputes on every render so it tracks
           row + column changes live. */}
       <button
-        onClick={() => onChange(fit.w, fit.h)}
+        onClick={() => onChange(pageW, fitH)}
         style={{
           width: "100%",
           padding: "9px 11px",
@@ -1193,13 +1296,13 @@ function PageDimensionPicker({ pageW, pageH, sheet, chromeStyle, keyInsight, agg
           marginBottom: 8,
           display: "flex", alignItems: "center", gap: 8,
         }}
-        title="Snap canvas to fit table margins exactly"
+        title="Snap canvas height to the table — keeps current width"
       >
         <Sparkles size={12} strokeWidth={2.2} color={D.violet} />
         <div style={{ flex: 1 }}>
           <div>Fit to margins</div>
           <div style={{ fontSize: 9, color: D.txd, fontWeight: 600, marginTop: 1 }}>
-            Auto · {fit.w}×{fit.h}
+            Crops bottom · {pageW}×{fitH}
           </div>
         </div>
       </button>
@@ -1328,6 +1431,7 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
   const [chromeOpen, setChromeOpen] = useState(true);
   const [styleOpen, setStyleOpen] = useState(false);
   const [pageOpen, setPageOpen] = useState(false);
+  const [typoOpen, setTypoOpen] = useState(false);
   const [footerOpen, setFooterOpen] = useState(false);
   const [headerOpen, setHeaderOpen] = useState(true);
   const [dataModeOpen, setDataModeOpen] = useState(true);
@@ -1374,8 +1478,31 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
           chromeStyle={state.chromeStyle}
           keyInsight={state.keyInsight}
           aggregate={state.aggregate}
+          source={state.source}
+          fontScale={state.autoFontScale ? Math.max(0.6, Math.min(1.6, Math.min(state.pageW / SA_TABLE_WIDTH, state.pageH / SA_TABLE_HEIGHT))) : state.fontScale}
           onChange={(w, h) => update({ pageW: w, pageH: h })}
         />
+      </PanelSection>
+      <PanelSection label="Typography" open={typoOpen} onToggle={() => setTypoOpen(v => !v)}>
+        <div style={{ padding: "6px 10px 10px" }}>
+          <FooterToggle
+            label="Auto-scale text to canvas"
+            checked={state.autoFontScale}
+            onChange={(v) => update({ autoFontScale: v })}
+          />
+          <Field label={"Font scale · " + (state.autoFontScale
+            ? Math.round(Math.max(0.6, Math.min(1.6, Math.min(state.pageW / SA_TABLE_WIDTH, state.pageH / SA_TABLE_HEIGHT))) * 100) + "% (auto)"
+            : Math.round(state.fontScale * 100) + "%")}>
+            <input
+              type="range"
+              min={60} max={160} step={2}
+              value={Math.round(state.fontScale * 100)}
+              disabled={state.autoFontScale}
+              onChange={(e) => update({ fontScale: Number(e.target.value) / 100 })}
+              style={{ width: "100%", accentColor: D.amber, opacity: state.autoFontScale ? 0.4 : 1 }}
+            />
+          </Field>
+        </div>
       </PanelSection>
       <PanelSection label="Footer / Source" open={footerOpen} onToggle={() => setFooterOpen(v => !v)}>
         <Field label="Source line">
@@ -2550,6 +2677,193 @@ function CellEditOverlay({ previewEl, row, colKey, sheet, onCommit, onCancel }: 
       />
     </div>
   );
+}
+
+// Canva-style floating contextual toolbar. Locks above the topmost-
+// leftmost selected cell and reflows as the selection grows. Hovers
+// in front of the preview so it never has to share rail real estate
+// with the right panel.
+function AnnotationToolbar({ previewEl, selection, currentStyles, onApply, onSelectColumn, onSelectRow, onClear, onClose }: {
+  previewEl: HTMLDivElement;
+  selection: Set<string>;
+  currentStyles: Record<string, import("./studio-types").CellStyle>;
+  onApply: (patch: Partial<import("./studio-types").CellStyle>) => void;
+  onSelectColumn: () => void;
+  onSelectRow: () => void;
+  onClear: () => void;
+  onClose: () => void;
+}) {
+  const [pos, setPos] = useState<{ left: number; top: number; width: number }>(() => computeAnchor(previewEl, selection));
+  useEffect(() => {
+    const update = () => setPos(computeAnchor(previewEl, selection));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(previewEl);
+    window.addEventListener("scroll", update, true);
+    return () => { ro.disconnect(); window.removeEventListener("scroll", update, true); };
+  }, [previewEl, selection]);
+
+  // Best-effort "current style" — what the first selected cell has —
+  // so the swatch indicators reflect reality when only one cell is
+  // selected. For multi-select, the toolbar simply applies whatever
+  // the user picks.
+  const firstKey = selection.values().next().value as string | undefined;
+  const cur = firstKey ? currentStyles[firstKey] : undefined;
+
+  const swatches = [
+    { label: "Amber",  hex: "#F7B041" },
+    { label: "Blue",   hex: "#0B86D1" },
+    { label: "Teal",   hex: "#2EAD8E" },
+    { label: "Coral",  hex: "#E06347" },
+    { label: "Violet", hex: "#905CCB" },
+    { label: "White",  hex: "#FFFFFF" },
+  ];
+
+  // Position the toolbar above the selection when there's room, below
+  // when it would overflow the top of the preview.
+  const above = pos.top > 56;
+  const top = above ? pos.top - 50 : pos.top + 36;
+
+  return (
+    <div
+      onMouseDown={(e) => e.stopPropagation()}
+      style={{
+        position: "absolute",
+        left: Math.max(8, pos.left - 6),
+        top,
+        zIndex: 40,
+        display: "flex", alignItems: "center", gap: 4,
+        padding: "5px 8px",
+        background: "rgba(20,22,28,0.94)",
+        backdropFilter: "blur(8px)",
+        border: "1px solid " + D.border,
+        borderRadius: 999,
+        boxShadow: "0 12px 28px rgba(0,0,0,0.6)",
+        fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.3,
+        color: D.tx,
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span style={{ color: D.amber, padding: "0 6px 0 2px", fontSize: 9.5 }}>
+        {selection.size} cell{selection.size === 1 ? "" : "s"}
+      </span>
+      <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
+
+      <span style={{ color: D.txd, fontSize: 9, padding: "0 4px" }}>FILL</span>
+      {swatches.map((s) => (
+        <button key={"bg" + s.hex}
+          onClick={() => onApply({ bg: cur?.bg === s.hex ? undefined : s.hex })}
+          title={"Fill · " + s.label}
+          style={{
+            width: 16, height: 16, padding: 0,
+            borderRadius: "50%", cursor: "pointer",
+            background: s.hex,
+            border: cur?.bg?.toUpperCase() === s.hex.toUpperCase() ? "2px solid #FFF" : "1px solid rgba(255,255,255,0.25)",
+          }}
+        />
+      ))}
+      <button
+        onClick={() => onApply({ bg: undefined })}
+        title="No fill"
+        style={pillIconBtn()}
+      >∅</button>
+
+      <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
+      <span style={{ color: D.txd, fontSize: 9, padding: "0 4px" }}>TEXT</span>
+      {swatches.map((s) => (
+        <button key={"tx" + s.hex}
+          onClick={() => onApply({ color: cur?.color === s.hex ? undefined : s.hex })}
+          title={"Text · " + s.label}
+          style={{
+            width: 16, height: 16, padding: 0,
+            borderRadius: 3, cursor: "pointer",
+            background: s.hex,
+            border: cur?.color?.toUpperCase() === s.hex.toUpperCase() ? "2px solid #FFF" : "1px solid rgba(255,255,255,0.25)",
+          }}
+        />
+      ))}
+
+      <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
+      <button onClick={() => onApply({ bold: !cur?.bold })}
+        title="Bold"
+        style={{
+          ...pillIconBtn(),
+          background: cur?.bold ? D.amber + "33" : "transparent",
+          color: cur?.bold ? D.amber : D.tx,
+          fontWeight: 900,
+        }}
+      >B</button>
+
+      <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
+      <span style={{ color: D.txd, fontSize: 9, padding: "0 4px" }}>BORDER</span>
+      {(["solid", "dotted", "dashed"] as const).map((k) => (
+        <button key={k}
+          onClick={() => onApply({ border: cur?.border === k ? undefined : k, borderColor: cur?.borderColor || "#F7B041" })}
+          title={k}
+          style={{
+            ...pillIconBtn(),
+            background: cur?.border === k ? D.amber + "33" : "transparent",
+            color: cur?.border === k ? D.amber : D.tx,
+          }}
+        >{k === "solid" ? "━" : k === "dotted" ? "···" : "- -"}</button>
+      ))}
+      <button onClick={() => onApply({ border: undefined, borderColor: undefined })}
+        title="No border"
+        style={pillIconBtn()}
+      >∅</button>
+
+      <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
+      <button onClick={onSelectRow}    title="Expand to row"    style={pillTextBtn()}>+ Row</button>
+      <button onClick={onSelectColumn} title="Expand to column" style={pillTextBtn()}>+ Col</button>
+      <button onClick={onClear}        title="Clear selection"   style={pillTextBtn()}>Clear</button>
+
+      <span style={{ width: 1, height: 16, background: D.border, margin: "0 2px" }} />
+      <button onClick={onClose} title="Exit annotate mode"
+        style={{ ...pillIconBtn(), color: D.coral }}>×</button>
+    </div>
+  );
+}
+
+function pillIconBtn(): React.CSSProperties {
+  return {
+    width: 22, height: 22, padding: 0,
+    display: "inline-flex", alignItems: "center", justifyContent: "center",
+    background: "transparent", color: D.tx,
+    border: "1px solid transparent", borderRadius: 999,
+    cursor: "pointer", fontFamily: mn, fontSize: 11, fontWeight: 700,
+  };
+}
+function pillTextBtn(): React.CSSProperties {
+  return {
+    padding: "3px 8px",
+    display: "inline-flex", alignItems: "center",
+    background: "transparent", color: D.txm,
+    border: "1px solid " + D.border, borderRadius: 999,
+    cursor: "pointer", fontFamily: mn, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.4,
+    textTransform: "uppercase",
+  };
+}
+
+// Find the bounding box around every selected cell hit-zone and
+// return the anchor point (top-left + width).
+function computeAnchor(previewEl: HTMLDivElement, selection: Set<string>): { left: number; top: number; width: number } {
+  const previewRect = previewEl.getBoundingClientRect();
+  let minLeft = Infinity, minTop = Infinity, maxRight = -Infinity;
+  selection.forEach((key) => {
+    const [row, col] = key.split(":");
+    const el = previewEl.querySelector<SVGRectElement>(`rect[data-cell="${row}:${col}"]`);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.left < minLeft) minLeft = r.left;
+    if (r.top  < minTop)  minTop  = r.top;
+    if (r.right > maxRight) maxRight = r.right;
+  });
+  if (minLeft === Infinity) return { left: 12, top: 12, width: 200 };
+  return {
+    left:  minLeft - previewRect.left,
+    top:   minTop  - previewRect.top,
+    width: maxRight - minLeft,
+  };
 }
 
 // Find the hit-zone <rect data-cell="row:colKey"> and translate its

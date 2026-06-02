@@ -238,6 +238,27 @@ export interface TableDocPayload {
   // seed this for band rows + bold totals; the user can edit from the
   // properties rail.
   rowStyles?: Record<number, TableRowStyle>;
+  // Global font-size multiplier — bumps every text + row height in
+  // lockstep so smaller frames stay readable and larger frames stay
+  // balanced. 1.0 = legacy default.
+  fontScale?: number;
+  // When true, the renderer derives fontScale automatically from the
+  // current canvas dimensions (relative to the legacy 1394×861 base)
+  // so picking a smaller canvas preset auto-shrinks the typography.
+  // User can still override by setting fontScale explicitly.
+  autoFontScale?: boolean;
+  // Per-cell annotations keyed by `${rowIdx}:${colKey}`. Set via the
+  // Annotate mode in the editor toolbar — supports background tint,
+  // text color, border (dotted / dashed / solid), and a bold toggle.
+  cellStyles?: Record<string, CellStyle>;
+}
+
+export interface CellStyle {
+  bg?: string;          // cell background fill (with alpha applied)
+  color?: string;       // text color override
+  border?: "solid" | "dotted" | "dashed";
+  borderColor?: string; // border stroke color
+  bold?: boolean;
 }
 
 export type TableChromeStyle = "framed" | "dense" | "leaderboard" | "sectioned" | "colored-headers" | "banded-spec" | "totaled";

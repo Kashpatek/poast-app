@@ -56,6 +56,14 @@ export interface SaTableRenderProps {
   showRowStripe?: boolean;
   dividerStyle?: "solid" | "dotted" | "none";
   rowStyles?: Record<number, import("../studio-types").TableRowStyle>;
+  // Wave 5 — font scale + per-cell annotations.
+  fontScale?: number;
+  autoFontScale?: boolean;
+  cellStyles?: Record<string, import("../studio-types").CellStyle>;
+  // Annotate mode — set of "row:colKey" keys to draw a selection
+  // ring around. The renderer doesn't own this state; it just
+  // paints what the editor passes in.
+  selectedCells?: Set<string>;
   // Data mode
   titleBar?: string;
   highlightRowIdx?: number;
@@ -190,16 +198,19 @@ function SaLettermark({ x, y, width }: { x: number; y: number; width: number }) 
   );
 }
 
-function SaHeader({ category, titleWhite, titleAmber, subtitle, fieldStyles }: {
+function SaHeader({ category, titleWhite, titleAmber, subtitle, fieldStyles, fontScale = 1 }: {
   category?: string; titleWhite?: string; titleAmber?: string; subtitle?: string;
   fieldStyles?: Record<string, import("../studio-types").FieldStyle>;
+  fontScale?: number;
 }) {
   const eyebrow = (category || "SEMIANALYSIS").toUpperCase();
   const white = titleWhite || "Untitled";
   const amber = titleAmber || "";
   const sub = subtitle || "";
-  // Approximate kerned width of the white title chunk (sz-32 + letter-spacing -.01em → ~18px/char).
-  const whiteWidth = white.length * 18;
+  // Title font scales with the page font scale; per-char width
+  // estimate stays proportional (~0.56 × size).
+  const titleSize = Math.round(32 * fontScale);
+  const whiteWidth = white.length * (titleSize * 0.56);
   // Per-field style overrides — color / size, applied when set. Align
   // overrides shift the anchor point left/center/right within the
   // 80–1314 content band.
@@ -209,22 +220,22 @@ function SaHeader({ category, titleWhite, titleAmber, subtitle, fieldStyles }: {
   const sSub = fieldStyles?.subtitle;
   return (
     <>
-      <text x={80} y={44} className="sa-bold" fontSize={sCat?.size ?? 11}
+      <text x={80} y={44} className="sa-bold" fontSize={sCat?.size ?? Math.round(11 * fontScale)}
         fill={sCat?.color || "#0b86d1"} fillOpacity={0.7} letterSpacing={2}>
         {eyebrow}
       </text>
-      <text x={80} y={80} className="sa-blk" fontSize={sWhite?.size ?? 32}
+      <text x={80} y={80} className="sa-blk" fontSize={sWhite?.size ?? titleSize}
         fill={sWhite?.color || "#fff"} letterSpacing="-.01em">
         {white}
       </text>
       {amber && (
-        <text x={80 + whiteWidth} y={80} className="sa-blk" fontSize={sAmber?.size ?? 32}
+        <text x={80 + whiteWidth} y={80} className="sa-blk" fontSize={sAmber?.size ?? titleSize}
           fill={sAmber?.color || "#f7b041"} letterSpacing="-.01em">
           {" " + amber}
         </text>
       )}
       {sub && (
-        <text x={80} y={106} className="sa-reg" fontSize={sSub?.size ?? 13}
+        <text x={80} y={106} className="sa-reg" fontSize={sSub?.size ?? Math.round(13 * fontScale)}
           fill={sSub?.color || "#fff"} fillOpacity={sSub?.color ? 1 : 0.35} letterSpacing=".02em">
           {sub}
         </text>
@@ -354,15 +365,24 @@ function SaDataTable(props: SaTableRenderProps) {
   // the side gutters proportionally so smaller frames still look
   // balanced.
   const PAGE_W = props.pageW || SA_TABLE_WIDTH;
+  const PAGE_H = props.pageH || SA_TABLE_HEIGHT;
   const sideGutter = Math.max(20, Math.round(33 * (PAGE_W / SA_TABLE_WIDTH)));
   const tableX = sideGutter;
   const tableW = PAGE_W - sideGutter * 2;
+  // Font scale — manual when set, otherwise auto-derived from canvas
+  // dimensions when the user has opted in. Auto fits the smaller of
+  // the two ratios so wide-but-short frames don't over-scale.
+  const autoScale = Math.min(PAGE_W / SA_TABLE_WIDTH, PAGE_H / SA_TABLE_HEIGHT);
+  const fontScale = props.fontScale != null
+    ? props.fontScale
+    : props.autoFontScale ? Math.max(0.6, Math.min(1.6, autoScale)) : 1;
   // When the amber title bar is hidden the data area starts higher,
   // giving spec/comparison tables a denser look.
   const titleBarY = 150;
-  const colHeaderY = chrome.showTitleBar ? titleBarY + 44 : titleBarY;
-  const colHeaderH = 46;
-  const rowH = 42;
+  const titleBarH = Math.round(44 * fontScale);
+  const colHeaderY = chrome.showTitleBar ? titleBarY + titleBarH : titleBarY;
+  const colHeaderH = Math.round(46 * fontScale);
+  const rowH = Math.round(42 * fontScale);
   const dataRowsStart = colHeaderY + colHeaderH;
   const colCount = Math.max(1, sheet.schema.length);
   // Column widths — honor explicit widths from TableColumnSpec.width
@@ -391,7 +411,7 @@ function SaDataTable(props: SaTableRenderProps) {
   // the end if highlightRowIdx points past the data length.
   const rowCount = Math.max(1, sheet.rows.length);
   const hasAggregate = aggregate && aggregate !== "none";
-  const aggregateRowH = hasAggregate ? 50 : 0;
+  const aggregateRowH = hasAggregate ? Math.round(50 * fontScale) : 0;
   const tableEndY = dataRowsStart + rowCount * rowH + aggregateRowH;
 
   // Medal palette for leaderboard chrome — top 3 rows get a colored
@@ -428,9 +448,9 @@ function SaDataTable(props: SaTableRenderProps) {
       {/* Title bar — hidden in dense chrome */}
       {chrome.showTitleBar && (
         <>
-          <rect x={tableX} y={titleBarY} width={tableW} height={44} rx={6} fill="url(#saHdrAmber)" />
-          <text x={tableX + tableW / 2} y={titleBarY + 30} textAnchor="middle"
-            className="sa-blk" fontSize={18} fill="#fff" letterSpacing=".05em">
+          <rect x={tableX} y={titleBarY} width={tableW} height={titleBarH} rx={6} fill="url(#saHdrAmber)" />
+          <text x={tableX + tableW / 2} y={titleBarY + titleBarH * 0.68} textAnchor="middle"
+            className="sa-blk" fontSize={Math.round(18 * fontScale)} fill="#fff" letterSpacing=".05em">
             {(titleBar || props.titleWhite || "DATA").toUpperCase()}
           </text>
         </>
@@ -463,9 +483,9 @@ function SaDataTable(props: SaTableRenderProps) {
         return (
           <text key={"hdr-" + c.key}
             x={ci === 0 ? tableX + 15 : colCenter(ci)}
-            y={colHeaderY + 28}
+            y={colHeaderY + colHeaderH * 0.61}
             textAnchor={ci === 0 ? "start" : "middle"}
-            className="sa-bold" fontSize={15} fill={tinted ? "#fff" : "#fff"} fillOpacity={tinted ? 1 : 0.9}>
+            className="sa-bold" fontSize={Math.round(15 * fontScale)} fill={tinted ? "#fff" : "#fff"} fillOpacity={tinted ? 1 : 0.9}>
             {c.label}
           </text>
         );
@@ -581,22 +601,46 @@ function SaDataTable(props: SaTableRenderProps) {
                 if (isMax) condFill = ext.mode === "highGood" ? "#e06347" : "#2ead8e";
                 else if (isMin) condFill = ext.mode === "highGood" ? "#2ead8e" : "#e06347";
               }
-              const fill = condFill
+              // Per-cell annotation overrides — look up the cell key
+              // and apply background tint + border + text color/bold.
+              const cellStyle = props.cellStyles?.[ri + ":" + c.key];
+              const fill = cellStyle?.color
+                ? cellStyle.color
+                : condFill
                 ? condFill
                 : isHi ? (flag ? "#e06347" : ci === 0 ? "#fff" : "#f7b041")
                 : isGrandTotal ? "#F7B041"
                 : "#fff";
-              const opacity = condFill ? 1 : isHi ? 1 : (isGrandTotal || isSubTotal) ? 1 : ci === 0 ? 0.7 : 0.6;
-              const weight = (condFill || isHi || isGrandTotal || isSubTotal || rowStyle?.bold) ? "sa-blk" : "sa-reg";
-              const size = isHi ? 16 : isGrandTotal ? 16 : 15;
+              const opacity = (cellStyle?.color || condFill) ? 1
+                : isHi ? 1
+                : (isGrandTotal || isSubTotal) ? 1
+                : ci === 0 ? 0.7 : 0.6;
+              const weight = (cellStyle?.bold || condFill || isHi || isGrandTotal || isSubTotal || rowStyle?.bold)
+                ? "sa-blk" : "sa-reg";
+              const baseSize = isHi ? 16 : isGrandTotal ? 16 : 15;
+              const size = Math.round(baseSize * fontScale);
               return (
-                <text key={c.key}
-                  x={ci === 0 ? tableX + 15 : colCenter(ci)}
-                  y={y + 27}
-                  textAnchor={ci === 0 ? "start" : "middle"}
-                  className={weight} fontSize={size} fill={fill} fillOpacity={opacity}>
-                  {display}
-                </text>
+                <g key={c.key}>
+                  {cellStyle?.bg && (
+                    <rect x={colX[ci]} y={y} width={colWidths[ci]} height={rowH}
+                      fill={cellStyle.bg} fillOpacity={0.35} />
+                  )}
+                  {cellStyle?.border && (
+                    <rect x={colX[ci] + 2} y={y + 2}
+                      width={colWidths[ci] - 4} height={rowH - 4}
+                      fill="none"
+                      stroke={cellStyle.borderColor || "#F7B041"}
+                      strokeWidth={1.5}
+                      strokeDasharray={cellStyle.border === "dotted" ? "2 3" : cellStyle.border === "dashed" ? "5 3" : undefined} />
+                  )}
+                  <text
+                    x={ci === 0 ? tableX + 15 : colCenter(ci)}
+                    y={y + rowH * 0.64}
+                    textAnchor={ci === 0 ? "start" : "middle"}
+                    className={weight} fontSize={size} fill={fill} fillOpacity={opacity}>
+                    {display}
+                  </text>
+                </g>
               );
             })}
             {!isHi && (
@@ -612,6 +656,8 @@ function SaDataTable(props: SaTableRenderProps) {
           user-picked highlight row. */}
       {hasAggregate && (() => {
         const y = dataRowsStart + rowCount * rowH;
+        const aggH = Math.round(50 * fontScale);
+        void aggH;
         const kind = aggregate as "sum" | "avg" | "min" | "max";
         const label = aggregateLabel || kind.toUpperCase();
         return (
@@ -655,7 +701,12 @@ function SaDataTable(props: SaTableRenderProps) {
           {sheet.schema.map((c, ci) => {
             const y = dataRowsStart + ri * rowH;
             const isEditing = editingCell?.row === ri && editingCell?.col === c.key;
+            const isSelected = props.selectedCells?.has(ri + ":" + c.key) || false;
             void row;
+            const stroke = isSelected ? "#F7B041" : isEditing ? "#F7B041" : "rgba(255,255,255,0)";
+            const strokeW = isSelected ? 2 : isEditing ? 1.5 : 0;
+            const dash = isSelected ? undefined : isEditing ? "4 3" : undefined;
+            const tint = isSelected ? "rgba(247,176,65,0.16)" : isEditing ? "rgba(247,176,65,0.10)" : "rgba(255,255,255,0)";
             return (
               <rect
                 key={"hit-" + ri + "-" + c.key}
@@ -663,14 +714,14 @@ function SaDataTable(props: SaTableRenderProps) {
                 data-cell={ri + ":" + c.key}
                 x={colX[ci]} y={y}
                 width={colWidths[ci]} height={rowH}
-                fill={isEditing ? "rgba(247,176,65,0.10)" : "rgba(255,255,255,0)"}
-                stroke={isEditing ? "#F7B041" : "rgba(255,255,255,0)"}
-                strokeWidth={isEditing ? 1.5 : 0}
-                strokeDasharray={isEditing ? "4 3" : undefined}
+                fill={tint}
+                stroke={stroke}
+                strokeWidth={strokeW}
+                strokeDasharray={dash}
                 onClick={(e) => { e.stopPropagation(); onEditCell(ri, c.key); }}
                 style={{ cursor: "text" }}
               >
-                <title>Click to edit</title>
+                <title>{isSelected ? "Selected" : "Click to edit"}</title>
               </rect>
             );
           })}
@@ -967,6 +1018,10 @@ function SaHeatmap(props: SaTableRenderProps) {
 export default function SaTableSvg(props: SaTableRenderProps) {
   const W = props.pageW || SA_TABLE_WIDTH;
   const H = props.pageH || SA_TABLE_HEIGHT;
+  const autoScale = Math.min(W / SA_TABLE_WIDTH, H / SA_TABLE_HEIGHT);
+  const effectiveFontScale = props.fontScale != null
+    ? props.fontScale
+    : props.autoFontScale ? Math.max(0.6, Math.min(1.6, autoScale)) : 1;
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
@@ -981,6 +1036,7 @@ export default function SaTableSvg(props: SaTableRenderProps) {
         titleAmber={props.titleAmber}
         subtitle={props.subtitle}
         fieldStyles={props.fieldStyles}
+        fontScale={effectiveFontScale}
       />
       {props.mode === "data" ? <SaDataTable {...props} /> : <SaHeatmap {...props} />}
       <SaFooter
