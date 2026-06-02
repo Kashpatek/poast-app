@@ -196,6 +196,19 @@ export interface TableDocPayload {
   // individual title/subtitle/category fields without affecting the
   // rest of the chrome.
   fieldStyles?: Record<string, FieldStyle>;
+  // Footer toggles — hide the SEMIANALYSIS.COM website chip or the
+  // CONFIDENTIAL tag when the table is shared externally without those
+  // anchors.
+  hideWebsite?: boolean;
+  hideConfidential?: boolean;
+  // Free-form source attribution line — renders below the table, e.g.
+  // "Source: SemiAnalysis estimates" or "Source: TSMC Q3 '26 earnings".
+  source?: string;
+  // Page (canvas) dimensions in pixels. Defaults to the legacy
+  // 1394×861.7 frame; users can pick a smaller frame for simple tables
+  // (e.g. 1080×600) or a square / story preset.
+  pageW?: number;
+  pageH?: number;
 }
 
 export type TableChromeStyle = "framed" | "dense" | "leaderboard" | "sectioned";

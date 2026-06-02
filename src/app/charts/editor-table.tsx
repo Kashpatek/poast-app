@@ -58,6 +58,11 @@ interface TableEditorState {
   exportPreset: ExportPreset;
   chromeStyle: TableChromeStyle;
   fieldStyles: Record<string, FieldStyle>;
+  hideWebsite: boolean;
+  hideConfidential: boolean;
+  source: string;
+  pageW: number;
+  pageH: number;
 }
 
 interface TableEditorProps {
@@ -80,6 +85,7 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
   const [gridOpen, setGridOpen] = useState(true);
   const [parseOpen, setParseOpen] = useState(false);
   const [editingField, setEditingField] = useState<EditableField | null>(null);
+  const [editingCell, setEditingCell] = useState<{ row: number; col: string } | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const csvFileRef = useRef<HTMLInputElement | null>(null);
 
@@ -183,6 +189,11 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
       exportPreset: state.exportPreset,
       chromeStyle: state.chromeStyle === "framed" ? undefined : state.chromeStyle,
       fieldStyles: Object.keys(state.fieldStyles).length > 0 ? state.fieldStyles : undefined,
+      hideWebsite: state.hideWebsite || undefined,
+      hideConfidential: state.hideConfidential || undefined,
+      source: state.source || undefined,
+      pageW: state.pageW !== SA_TABLE_WIDTH ? state.pageW : undefined,
+      pageH: state.pageH !== SA_TABLE_HEIGHT ? state.pageH : undefined,
     };
     onChangePayload(payload);
   }, [state, onChangePayload]);
@@ -569,7 +580,7 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
                 border: "1px solid " + D.border, borderRadius: 14,
                 overflow: "hidden",
                 boxShadow: "0 18px 44px rgba(0,0,0,0.5)",
-                aspectRatio: fitMode === "locked" ? SA_TABLE_WIDTH + " / " + SA_TABLE_HEIGHT : undefined,
+                aspectRatio: fitMode === "locked" ? state.pageW + " / " + state.pageH : undefined,
                 width: "100%",
                 position: "relative",
               }}
@@ -579,6 +590,11 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
             sheet={state.sheet}
             chromeStyle={state.chromeStyle}
             fieldStyles={state.fieldStyles}
+            hideWebsite={state.hideWebsite}
+            hideConfidential={state.hideConfidential}
+            source={state.source}
+            pageW={state.pageW}
+            pageH={state.pageH}
             category={state.category}
             titleWhite={state.titleWhite}
             titleAmber={state.titleAmber}
@@ -602,7 +618,22 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
             aggregateLabel={state.aggregateLabel}
             onEditField={setEditingField}
             editingField={editingField}
+            onEditCell={(row, col) => { setEditingField(null); setEditingCell({ row, col }); }}
+            editingCell={editingCell}
           />
+          {editingCell && previewRef.current && (
+            <CellEditOverlay
+              previewEl={previewRef.current}
+              row={editingCell.row}
+              colKey={editingCell.col}
+              sheet={state.sheet}
+              onCommit={(value) => {
+                updateCell(editingCell.row, editingCell.col, value);
+                setEditingCell(null);
+              }}
+              onCancel={() => setEditingCell(null)}
+            />
+          )}
           {editingField && previewRef.current && (
             <InlineEditOverlay
               field={editingField}
@@ -708,6 +739,11 @@ function readPayload(payload: unknown, defaultName: string): TableEditorState {
     exportPreset: "default",
     chromeStyle: "framed",
     fieldStyles: {},
+    hideWebsite: false,
+    hideConfidential: false,
+    source: "",
+    pageW: SA_TABLE_WIDTH,
+    pageH: SA_TABLE_HEIGHT,
   };
   if (payload && typeof payload === "object") {
     const p = payload as Partial<TableDocPayload>;
@@ -745,6 +781,11 @@ function readPayload(payload: unknown, defaultName: string): TableEditorState {
     if (p.fieldStyles && typeof p.fieldStyles === "object") {
       seed.fieldStyles = p.fieldStyles;
     }
+    if (typeof p.hideWebsite === "boolean") seed.hideWebsite = p.hideWebsite;
+    if (typeof p.hideConfidential === "boolean") seed.hideConfidential = p.hideConfidential;
+    if (typeof p.source === "string") seed.source = p.source;
+    if (typeof p.pageW === "number" && p.pageW > 200) seed.pageW = p.pageW;
+    if (typeof p.pageH === "number" && p.pageH > 200) seed.pageH = p.pageH;
   }
   return seed;
 }
@@ -999,6 +1040,88 @@ function ChromePicker({ value, onChange }: {
   );
 }
 
+// Page dimension presets — tuned for table layouts. Wide slide-style
+// (the default), square for social, tall A4 / Letter for full-page
+// documents, and a "compact" preset for the small dataset Daksh
+// flagged. Numeric inputs let the user dial in exact bounds.
+interface PageDimPreset { id: string; label: string; w: number; h: number; }
+const TABLE_PAGE_PRESETS: PageDimPreset[] = [
+  { id: "default", label: "SA Slide",      w: SA_TABLE_WIDTH, h: SA_TABLE_HEIGHT },
+  { id: "compact", label: "Compact",       w: 1100, h: 600 },
+  { id: "wide",    label: "16:9 HD",       w: 1920, h: 1080 },
+  { id: "square",  label: "Square",        w: 1080, h: 1080 },
+  { id: "tall",    label: "Tall 4:5",      w: 1080, h: 1350 },
+  { id: "story",   label: "Story 9:16",    w: 1080, h: 1920 },
+];
+
+function PageDimensionPicker({ pageW, pageH, onChange }: {
+  pageW: number; pageH: number;
+  onChange: (w: number, h: number) => void;
+}) {
+  return (
+    <div style={{ padding: "6px 10px 10px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginBottom: 8 }}>
+        {TABLE_PAGE_PRESETS.map((p) => {
+          const active = p.w === pageW && p.h === pageH;
+          return (
+            <button
+              key={p.id}
+              onClick={() => onChange(p.w, p.h)}
+              style={{
+                padding: "7px 9px",
+                background: active ? D.amber + "1F" : "transparent",
+                color: active ? D.amber : D.tx,
+                border: "1px solid " + (active ? D.amber + "66" : D.border),
+                borderRadius: 6, cursor: "pointer",
+                fontFamily: mn, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.4,
+                textAlign: "left",
+              }}
+            >
+              <div style={{ marginBottom: 2 }}>{p.label}</div>
+              <div style={{ fontSize: 9, color: active ? D.amber : D.txd, fontWeight: 600 }}>
+                {p.w}×{p.h}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <Field label="Width">
+        <NumberInput value={pageW} onChange={(v) => onChange(Math.max(400, Math.min(8000, Math.round(v))), pageH)} step={10} />
+      </Field>
+      <Field label="Height">
+        <NumberInput value={pageH} onChange={(v) => onChange(pageW, Math.max(300, Math.min(8000, Math.round(v))))} step={10} />
+      </Field>
+    </div>
+  );
+}
+
+function FooterToggle({ label, checked, onChange }: {
+  label: string; checked: boolean; onChange: (v: boolean) => void;
+}) {
+  return (
+    <label style={{
+      display: "flex", alignItems: "center", gap: 8,
+      padding: "5px 0",
+      cursor: "pointer",
+      fontFamily: mn, fontSize: 10.5, color: D.tx, letterSpacing: 0.3,
+    }}>
+      <span
+        onClick={() => onChange(!checked)}
+        style={{
+          display: "inline-flex", alignItems: "center", justifyContent: checked ? "flex-end" : "flex-start",
+          width: 28, height: 16,
+          background: checked ? D.amber : D.border,
+          borderRadius: 999, padding: 2,
+          transition: "background 0.12s, justify-content 0.12s",
+        }}
+      >
+        <span style={{ width: 12, height: 12, background: "#FFFFFF", borderRadius: "50%" }} />
+      </span>
+      {label}
+    </label>
+  );
+}
+
 function ExportPresetPicker({ value, onChange }: { value: ExportPreset; onChange: (p: ExportPreset) => void }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -1060,6 +1183,8 @@ function ExportPresetPicker({ value, onChange }: { value: ExportPreset; onChange
 
 function PropertiesRail({ state, update }: { state: TableEditorState; update: (p: Partial<TableEditorState>) => void }) {
   const [chromeOpen, setChromeOpen] = useState(true);
+  const [pageOpen, setPageOpen] = useState(false);
+  const [footerOpen, setFooterOpen] = useState(false);
   const [headerOpen, setHeaderOpen] = useState(true);
   const [dataModeOpen, setDataModeOpen] = useState(true);
   const [heatmapOpen, setHeatmapOpen] = useState(true);
@@ -1076,6 +1201,34 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
       <SectionTitle label="Properties" />
       <PanelSection label="Chrome style" open={chromeOpen} onToggle={() => setChromeOpen(v => !v)}>
         <ChromePicker value={state.chromeStyle} onChange={(v) => update({ chromeStyle: v })} />
+      </PanelSection>
+      <PanelSection label="Canvas size" open={pageOpen} onToggle={() => setPageOpen(v => !v)}>
+        <PageDimensionPicker
+          pageW={state.pageW}
+          pageH={state.pageH}
+          onChange={(w, h) => update({ pageW: w, pageH: h })}
+        />
+      </PanelSection>
+      <PanelSection label="Footer / Source" open={footerOpen} onToggle={() => setFooterOpen(v => !v)}>
+        <Field label="Source line">
+          <TextInput
+            value={state.source}
+            onChange={(v) => update({ source: v })}
+            placeholder="Source: SemiAnalysis estimates"
+          />
+        </Field>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "4px 10px 10px" }}>
+          <FooterToggle
+            label="Show SEMIANALYSIS.COM"
+            checked={!state.hideWebsite}
+            onChange={(v) => update({ hideWebsite: !v })}
+          />
+          <FooterToggle
+            label="Show CONFIDENTIAL"
+            checked={!state.hideConfidential}
+            onChange={(v) => update({ hideConfidential: !v })}
+          />
+        </div>
       </PanelSection>
       <PanelSection label="Header" open={headerOpen} onToggle={() => setHeaderOpen(v => !v)}>
         <Field label="Category eyebrow">
@@ -2048,6 +2201,97 @@ const BRAND_SWATCHES: { label: string; value: string }[] = [
 const STYLED_FIELDS: ReadonlySet<EditableField> = new Set([
   "category", "titleWhite", "titleAmber", "subtitle",
 ] as EditableField[]);
+
+// Direct-on-preview cell editor. The renderer emits a transparent
+// <rect data-cell="row:colKey"> over each cell; we look it up by
+// querySelector to compute the pixel rect for our HTML input.
+function CellEditOverlay({ previewEl, row, colKey, sheet, onCommit, onCancel }: {
+  previewEl: HTMLDivElement;
+  row: number;
+  colKey: string;
+  sheet: TableSheet;
+  onCommit: (value: string) => void;
+  onCancel: () => void;
+}) {
+  const col = useMemo(() => sheet.schema.find((c) => c.key === colKey), [sheet.schema, colKey]);
+  const initialValue = useMemo(() => {
+    const v = sheet.rows[row]?.[colKey];
+    return v == null ? "" : String(v);
+  }, [sheet.rows, row, colKey]);
+  const [draft, setDraft] = useState(initialValue);
+  useEffect(() => setDraft(initialValue), [initialValue]);
+
+  const [rect, setRect] = useState<{ left: number; top: number; width: number; height: number }>(() =>
+    computeCellRect(previewEl, row, colKey));
+
+  useEffect(() => {
+    const update = () => setRect(computeCellRect(previewEl, row, colKey));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(previewEl);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [previewEl, row, colKey]);
+
+  const isNumeric = col?.type === "number" || col?.type === "percent";
+  const commit = () => onCommit(draft);
+
+  return (
+    <div style={{
+      position: "absolute",
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      zIndex: 30,
+    }}>
+      <input
+        autoFocus
+        type={isNumeric ? "text" : "text"}
+        inputMode={isNumeric ? "decimal" : "text"}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+          if (e.key === "Enter")  { e.preventDefault(); commit(); }
+        }}
+        style={{
+          width: "100%", height: "100%", boxSizing: "border-box",
+          background: "rgba(10,12,18,0.92)",
+          border: "1px solid #F7B041",
+          borderRadius: 4,
+          color: "#E8E4DD",
+          fontFamily: "'Outfit', sans-serif",
+          fontWeight: 700,
+          fontSize: 15,
+          textAlign: "center",
+          padding: "0 8px",
+          outline: "none",
+          boxShadow: "0 0 0 3px rgba(247,176,65,0.18)",
+        }}
+      />
+    </div>
+  );
+}
+
+// Find the hit-zone <rect data-cell="row:colKey"> and translate its
+// bounding box into pixel coords relative to the preview container.
+function computeCellRect(previewEl: HTMLDivElement, row: number, colKey: string): { left: number; top: number; width: number; height: number } {
+  const el = previewEl.querySelector<SVGRectElement>(`rect[data-cell="${row}:${colKey}"]`);
+  if (!el) return { left: 0, top: 0, width: 0, height: 0 };
+  const elRect = el.getBoundingClientRect();
+  const previewRect = previewEl.getBoundingClientRect();
+  return {
+    left: elRect.left - previewRect.left,
+    top:  elRect.top  - previewRect.top,
+    width: elRect.width,
+    height: elRect.height,
+  };
+}
 
 function InlineEditOverlay({ field, previewEl, value, style, onCommit, onCancel, onStyleChange }: {
   field: EditableField;

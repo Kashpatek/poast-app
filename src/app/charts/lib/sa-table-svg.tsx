@@ -42,6 +42,15 @@ export interface SaTableRenderProps {
   // Looked up by SaHeader for category/titleWhite/titleAmber/subtitle
   // and by the data table for titleBar.
   fieldStyles?: Record<string, import("../studio-types").FieldStyle>;
+  // Footer toggles + free-form source attribution.
+  hideWebsite?: boolean;
+  hideConfidential?: boolean;
+  source?: string;
+  // Page (canvas) dimensions. When provided, the renderer scales every
+  // brand element from the legacy 1394×861.7 frame to fit. Default
+  // values keep existing exports byte-identical.
+  pageW?: number;
+  pageH?: number;
   // Data mode
   titleBar?: string;
   highlightRowIdx?: number;
@@ -55,6 +64,11 @@ export interface SaTableRenderProps {
   // in-place editing. No-op when unset (export pipeline is opaque).
   onEditField?: (field: EditableField) => void;
   editingField?: EditableField | null;
+  // Per-cell click hooks for direct-on-preview editing. The renderer
+  // emits the row index + column key; the parent owns the overlay
+  // input and commits via updateCell.
+  onEditCell?: (row: number, colKey: string) => void;
+  editingCell?: { row: number; col: string } | null;
   // Heatmap mode
   threshold?: number;
   yellowBand?: number;
@@ -111,49 +125,56 @@ function SaDefs() {
   );
 }
 
-function SaBackdrop() {
+function SaBackdrop({ pageW, pageH }: { pageW?: number; pageH?: number }) {
+  const W = pageW || SA_TABLE_WIDTH;
+  const H = pageH || SA_TABLE_HEIGHT;
+  // Lettermark sits 12px down from the top, hugged to the right edge
+  // with a 32px margin. Width scales lightly with page width so the
+  // wordmark stays legible on smaller frames.
+  const lmW = Math.max(110, Math.min(170, W * 0.105));
+  const lmX = W - lmW - 32;
   return (
     <>
-      <rect width={SA_TABLE_WIDTH} height={SA_TABLE_HEIGHT} fill="url(#saBgGrad)" />
-      <rect width={SA_TABLE_WIDTH} height={SA_TABLE_HEIGHT} fill="url(#saGlowTL)" />
-      <rect width={SA_TABLE_WIDTH} height={SA_TABLE_HEIGHT} fill="url(#saGlowBR)" />
-      <rect x={0} y={0} width={SA_TABLE_WIDTH} height={4} fill="url(#saTopStripe)" />
-      {/* SemiAnalysis lettermark — octagonal brand mark, replaces the
-          previous SA pill. Drawn as a single amber octagon with an inset
-          white-outline ring and "S.A" wordmark, kept small so it sits
-          in the corner without competing with the title. */}
-      <SaLettermark x={1318} y={14} size={44} />
+      <rect width={W} height={H} fill="url(#saBgGrad)" />
+      <rect width={W} height={H} fill="url(#saGlowTL)" />
+      <rect width={W} height={H} fill="url(#saGlowBR)" />
+      <rect x={0} y={0} width={W} height={4} fill="url(#saTopStripe)" />
+      {/* SemiAnalysis wordmark — the real brand lettermark inlined as
+          SVG paths so it survives standalone SVG export (no external
+          <image href>). Sits in the top-right corner, aspect-locked at
+          the source lettermark's 368.82 × 119.02 ratio. */}
+      <SaLettermark x={lmX} y={12} width={lmW} />
     </>
   );
 }
 
-function SaLettermark({ x, y, size }: { x: number; y: number; size: number }) {
-  const cx = x + size / 2, cy = y + size / 2;
-  const inset = size * 0.30;
-  // Regular octagon — vertices at ±inset on horizontal/vertical edges.
-  const pts = [
-    [cx - inset, y],
-    [cx + inset, y],
-    [x + size, cy - inset],
-    [x + size, cy + inset],
-    [cx + inset, y + size],
-    [cx - inset, y + size],
-    [x, cy + inset],
-    [x, cy - inset],
-  ];
-  const ringInset = 3;
-  const innerPts = pts.map(([px, py]) => [
-    px + (cx - px) * (ringInset / (size / 2)),
-    py + (cy - py) * (ringInset / (size / 2)),
-  ]);
+// The full SemiAnalysis wordmark. viewBox of the source asset is
+// 368.82 × 119.02; we draw it as a <g transform=translate-scale> so the
+// caller specifies (x, y, width) and we handle the rest. Two colors,
+// drawn from the spec: blue #0B86D1 for "Ss" + first decorative
+// slashes; amber #F7B041 for "EMiAnAlySIs" + the rest of the slashes.
+function SaLettermark({ x, y, width }: { x: number; y: number; width: number }) {
+  const SRC_W = 368.82;
+  const SRC_H = 119.02;
+  const s = width / SRC_W;
   return (
-    <g>
-      <polygon points={pts.map(p => p.join(",")).join(" ")} fill="#F7B041" />
-      <polygon points={innerPts.map(p => p.join(",")).join(" ")}
-        fill="none" stroke="#FFFFFF" strokeWidth={1} strokeOpacity={0.75} />
-      <text x={cx} y={cy + size * 0.16} textAnchor="middle"
-        className="sa-blk" fontSize={size * 0.42} fill="#FFFFFF"
-        letterSpacing=".02em">S.A</text>
+    <g transform={`translate(${x}, ${y}) scale(${s})`}>
+      <polygon fill="#0B86D1" points="231.15 4.94 206.73 29.37 191.63 29.37 216.06 4.94 231.15 4.94" />
+      <path fill="#0B86D1" d="M17.11,56.8c1.47.49,2.82.99,4.04,1.5,1.23.51,2.29,1.13,3.21,1.84.91.71,1.63,1.57,2.14,2.57.51,1,.77,2.2.77,3.58v.07c0,3.39-1.13,6.04-3.38,7.96-2.25,1.92-5.4,2.87-9.46,2.87-2.54,0-5.04-.44-7.49-1.31-2.45-.88-4.75-2.12-6.89-3.74l-.07-.07.07-.07,4.55-7.18.07.07c1.34,1.43,2.85,2.51,4.55,3.24,1.69.74,3.5,1.1,5.42,1.1,2.63,0,3.94-.84,3.94-2.53,0-.8-.42-1.4-1.27-1.8-.85-.4-1.85-.78-3.01-1.13-.22-.09-.43-.14-.64-.17-.2-.02-.41-.08-.64-.17-1.34-.36-2.67-.74-4.01-1.17-1.34-.42-2.54-1-3.61-1.73-1.07-.73-1.95-1.67-2.64-2.8-.69-1.13-1.04-2.59-1.04-4.37v-.13c0-1.56.29-2.98.87-4.27.58-1.29,1.4-2.4,2.47-3.33,1.07-.93,2.36-1.66,3.88-2.17,1.51-.51,3.19-.77,5.01-.77,2.14,0,4.3.32,6.48.97,2.18.65,4.21,1.59,6.08,2.84v.13l-4.08,7.42-.07-.07c-1.03-1.02-2.3-1.84-3.81-2.44-1.52-.6-3.12-.9-4.81-.9-.31,0-.67.02-1.07.07-.4.04-.77.16-1.1.33-.33.18-.61.41-.84.7-.22.29-.33.7-.33,1.24,0,.4.18.77.53,1.1.36.33.81.65,1.37.94.56.29,1.18.57,1.87.84.69.27,1.37.51,2.04.74.13,0,.28.02.43.07.16.04.3.09.43.13Z" />
+      <path fill="#0B86D1" d="M47.33,42.69c2.36,0,4.59.46,6.69,1.37,2.09.91,3.92,2.15,5.48,3.71,1.56,1.56,2.8,3.39,3.71,5.48.91,2.1,1.37,4.35,1.37,6.75,0,1.29-.13,2.54-.4,3.74l-.07.13h-16.98l-4.28-6.82h12.7c-.62-1.87-1.66-3.41-3.11-4.61-1.45-1.2-3.15-1.81-5.11-1.81-1.2,0-2.34.24-3.41.73-1.07.49-2,1.14-2.77,1.96-.78.82-1.39,1.8-1.84,2.93-.45,1.13-.67,2.36-.67,3.7,0,1.02.2,2.08.6,3.16.4,1.09.98,2.08,1.74,2.96.76.89,1.67,1.63,2.74,2.23s2.27.9,3.61.9c1.2,0,2.31-.17,3.31-.5,1-.33,1.95-1.08,2.84-2.24l.07-.07.13.07,7.75,3.41-.13.14c-1.6,2.25-3.64,4-6.12,5.26-2.47,1.26-5.09,1.89-7.86,1.89-2.41,0-4.67-.45-6.79-1.34-2.12-.89-3.96-2.12-5.52-3.68-1.56-1.56-2.8-3.39-3.71-5.48-.91-2.09-1.37-4.32-1.37-6.69s.46-4.66,1.37-6.75c.91-2.09,2.15-3.92,3.71-5.48s3.4-2.8,5.52-3.71c2.12-.91,4.38-1.37,6.79-1.37Z" />
+      <path fill="#0B86D1" d="M67.92,43.23h8.89v33.43h-8.89v-33.43ZM104.16,42.69c2.09,0,3.87.41,5.31,1.24,1.45.83,2.62,1.91,3.51,3.24.89,1.34,1.54,2.84,1.94,4.51s.6,3.35.6,5.05v19.92h-8.89l.07-19.98c0-.71-.13-1.38-.4-2.01-.27-.63-.64-1.18-1.1-1.68-.47-.49-1.03-.88-1.67-1.17-.65-.29-1.33-.44-2.04-.44-1.47,0-2.72.53-3.74,1.58-1.03,1.05-1.54,2.29-1.54,3.72v19.98h-8.89v-19.98c0-.71-.13-1.38-.4-2.01-.27-.63-.65-1.18-1.14-1.68-.49-.49-1.06-.87-1.7-1.14-.65-.27-1.37-.4-2.17-.4-.04,0-.25-.33-.6-.99-.36-.66-.76-1.39-1.2-2.19-.49-.93-1.09-1.99-1.8-3.18l.07-.13c1.92-1.5,4.03-2.26,6.35-2.26,2.5,0,4.52.55,6.08,1.66,1.56,1.11,2.76,2.48,3.61,4.11.18-.31.36-.57.53-.8,1.25-1.64,2.66-2.87,4.25-3.71,1.58-.84,3.24-1.26,4.98-1.26Z" />
+      <path fill="#0B86D1" d="M119.53,29.86h8.89v7.82h-8.89v-7.82ZM119.53,76.65v-33.43h8.89v33.43h-8.89Z" />
+      <path fill="#F7B041" d="M168.33,43.23v33.43h-8.76v-16.76c0-1.3-.25-2.5-.74-3.62-.49-1.12-1.17-2.1-2.04-2.95-.87-.85-1.87-1.51-3.01-1.98s-2.33-.7-3.58-.7-2.5.25-3.61.74c-1.11.49-2.11,1.15-2.97,1.98-.87.83-1.55,1.81-2.04,2.95-.49,1.14-.74,2.36-.74,3.66s.24,2.44.74,3.56c.49,1.12,1.17,2.1,2.04,2.95.87.85,1.86,1.52,2.97,2.01,1.11.49,2.32.74,3.61.74,1.38,0,2.56-.24,3.54-.74h.07v.13l3.34,5.95-.07.07c-2.18,1.69-4.88,2.54-8.09,2.54-2.36,0-4.59-.45-6.69-1.34-2.1-.89-3.92-2.12-5.48-3.68-1.56-1.56-2.8-3.39-3.71-5.48-.91-2.09-1.37-4.32-1.37-6.69s.46-4.66,1.37-6.75c.91-2.09,2.15-3.92,3.71-5.48s3.39-2.8,5.48-3.71c2.09-.91,4.32-1.37,6.69-1.37s4.35.43,6.08,1.29c1.74.86,3.23,2.11,4.48,3.74v-4.5h8.76Z" />
+      <path fill="#F7B041" d="M173.01,43.23h9.09v33.43h-9.09v-33.43ZM203.9,47.1c1.11,1.38,1.92,3.12,2.41,5.21.49,2.1.74,4.68.74,7.75v16.58h-9.09v-16.62c0-1.25-.03-2.45-.1-3.59-.07-1.14-.3-2.14-.7-3.02-.4-.87-1.05-1.55-1.94-2.04-.89-.49-2.16-.74-3.81-.74-1.56,0-3.01.33-4.35,1v.07l-.07-.07-3.28-5.78.07-.07c2.32-2.08,5.21-3.12,8.69-3.12,5.35,0,9.16,1.47,11.43,4.41Z" />
+      <path fill="#F7B041" d="M246.62,43.23v33.43h-8.76v-16.76c0-1.3-.25-2.5-.74-3.62-.49-1.12-1.17-2.1-2.04-2.95-.87-.85-1.87-1.51-3.01-1.98s-2.33-.7-3.58-.7-2.5.25-3.61.74c-1.11.49-2.11,1.15-2.97,1.98-.87.83-1.55,1.81-2.04,2.95-.49,1.14-.74,2.36-.74,3.66s.24,2.44.74,3.56c.49,1.12,1.17,2.1,2.04,2.95.87.85,1.86,1.52,2.97,2.01,1.11.49,2.32.74,3.61.74,1.38,0,2.56-.24,3.54-.74h.07v.13l3.34,5.95-.07.07c-2.18,1.69-4.88,2.54-8.09,2.54-2.36,0-4.59-.45-6.69-1.34-2.1-.89-3.92-2.12-5.48-3.68-1.56-1.56-2.8-3.39-3.71-5.48-.91-2.09-1.37-4.32-1.37-6.69s.46-4.66,1.37-6.75c.91-2.09,2.15-3.92,3.71-5.48s3.39-2.8,5.48-3.71c2.09-.91,4.32-1.37,6.69-1.37s4.35.43,6.08,1.29c1.74.86,3.23,2.11,4.48,3.74v-4.5h8.76Z" />
+      <path fill="#F7B041" d="M260.19,29.86v46.8h-8.89l.07-46.8h8.82Z" />
+      <path fill="#F7B041" d="M274.56,72.11l-11.7-28.88h9.56v.07l8.62,24.27-6.48,4.55ZM300.17,43.23l-.07.13c-.76,2.05-1.49,4.04-2.21,5.98-.71,1.94-1.38,3.76-2.01,5.45-2.23,6.24-4.22,11.6-5.98,16.08-1.76,4.48-3.64,8.12-5.65,10.93-2.01,2.9-4.27,4.99-6.79,6.28-2.52,1.29-5.67,1.94-9.46,1.94h-.13v-9.09h.13c1.16,0,2.19-.04,3.11-.13.91-.09,1.75-.28,2.51-.57.76-.29,1.46-.69,2.11-1.2.65-.51,1.26-1.19,1.84-2.04.58-.8,1.16-1.78,1.74-2.94.58-1.16,1.18-2.54,1.8-4.14.62-1.6,1.31-3.46,2.07-5.58.76-2.12,1.6-4.51,2.54-7.19.71-2.01,1.47-4.14,2.27-6.42.8-2.27,1.67-4.75,2.61-7.42v-.07h9.56Z" />
+      <path fill="#F7B041" d="M315.81,56.8c1.47.49,2.82.99,4.04,1.5,1.23.51,2.29,1.13,3.21,1.84.91.71,1.63,1.57,2.14,2.57.51,1,.77,2.2.77,3.58v.07c0,3.39-1.13,6.04-3.38,7.96-2.25,1.92-5.4,2.87-9.46,2.87-2.54,0-5.04-.44-7.49-1.31-2.45-.88-4.75-2.12-6.89-3.74l-.07-.07.07-.07,4.55-7.18.07.07c1.34,1.43,2.85,2.51,4.55,3.24,1.69.74,3.5,1.1,5.42,1.1,2.63,0,3.94-.84,3.94-2.53,0-.8-.42-1.4-1.27-1.8-.85-.4-1.85-.78-3.01-1.13-.22-.09-.43-.14-.64-.17-.2-.02-.41-.08-.64-.17-1.34-.36-2.67-.74-4.01-1.17-1.34-.42-2.54-1-3.61-1.73-1.07-.73-1.95-1.67-2.64-2.8-.69-1.13-1.04-2.59-1.04-4.37v-.13c0-1.56.29-2.98.87-4.27.58-1.29,1.4-2.4,2.47-3.33,1.07-.93,2.36-1.66,3.88-2.17,1.51-.51,3.19-.77,5.01-.77,2.14,0,4.3.32,6.48.97,2.18.65,4.21,1.59,6.08,2.84v.13l-4.08,7.42-.07-.07c-1.03-1.02-2.3-1.84-3.81-2.44-1.52-.6-3.12-.9-4.81-.9-.31,0-.67.02-1.07.07-.4.04-.77.16-1.1.33-.33.18-.61.41-.84.7-.22.29-.33.7-.33,1.24,0,.4.18.77.53,1.1.36.33.81.65,1.37.94.56.29,1.18.57,1.87.84.69.27,1.37.51,2.04.74.13,0,.28.02.43.07.16.04.3.09.43.13Z" />
+      <path fill="#F7B041" d="M329.31,29.86h8.89v7.82h-8.89v-7.82ZM329.31,76.65v-33.43h8.89v33.43h-8.89Z" />
+      <path fill="#F7B041" d="M358.66,56.8c1.47.49,2.82.99,4.04,1.5,1.23.51,2.29,1.13,3.21,1.84.91.71,1.63,1.57,2.14,2.57.51,1,.77,2.2.77,3.58v.07c0,3.39-1.13,6.04-3.38,7.96-2.25,1.92-5.4,2.87-9.46,2.87-2.54,0-5.04-.44-7.49-1.31-2.45-.88-4.75-2.12-6.89-3.74l-.07-.07.07-.07,4.55-7.18.07.07c1.34,1.43,2.85,2.51,4.55,3.24,1.69.74,3.5,1.1,5.42,1.1,2.63,0,3.94-.84,3.94-2.53,0-.8-.42-1.4-1.27-1.8-.85-.4-1.85-.78-3.01-1.13-.22-.09-.43-.14-.64-.17-.2-.02-.41-.08-.64-.17-1.34-.36-2.67-.74-4.01-1.17-1.34-.42-2.54-1-3.61-1.73-1.07-.73-1.95-1.67-2.64-2.8-.69-1.13-1.04-2.59-1.04-4.37v-.13c0-1.56.29-2.98.87-4.27.58-1.29,1.4-2.4,2.47-3.33,1.07-.93,2.36-1.66,3.88-2.17,1.51-.51,3.19-.77,5.01-.77,2.14,0,4.3.32,6.48.97,2.18.65,4.21,1.59,6.08,2.84v.13l-4.08,7.42-.07-.07c-1.03-1.02-2.3-1.84-3.81-2.44-1.52-.6-3.12-.9-4.81-.9-.31,0-.67.02-1.07.07-.4.04-.77.16-1.1.33-.33.18-.61.41-.84.7-.22.29-.33.7-.33,1.24,0,.4.18.77.53,1.1.36.33.81.65,1.37.94.56.29,1.18.57,1.87.84.69.27,1.37.51,2.04.74.13,0,.28.02.43.07.16.04.3.09.43.13Z" />
+      <polygon fill="#F7B041" points="145.88 90.21 121.35 114.73 106.27 114.73 130.79 90.21 145.88 90.21" />
+      <polygon fill="#0B86D1" points="172.54 90.21 148.03 114.73 132.94 114.73 157.45 90.21 172.54 90.21" />
+      <polygon fill="#F7B041" points="257.98 4.94 233.55 29.37 218.45 29.37 242.88 4.94 257.98 4.94" />
     </g>
   );
 }
@@ -201,13 +222,44 @@ function SaHeader({ category, titleWhite, titleAmber, subtitle, fieldStyles }: {
   );
 }
 
-function SaFooter({ contextLine }: { contextLine?: string }) {
+function SaFooter({ contextLine, hideWebsite, hideConfidential, source, pageW, pageH }: {
+  contextLine?: string;
+  hideWebsite?: boolean;
+  hideConfidential?: boolean;
+  source?: string;
+  pageW?: number; pageH?: number;
+}) {
+  const W = pageW || SA_TABLE_WIDTH;
+  const H = pageH || SA_TABLE_HEIGHT;
+  // Footer sits on the same baseline regardless of frame height —
+  // computed off H so it stays anchored to the bottom edge.
+  const lineY = H - 31.7;
+  const textY = H - 15.7;
   return (
     <>
-      <line x1={50} y1={830} x2={1350} y2={830} stroke="#fff" strokeOpacity={0.08} strokeWidth={0.4} fill="none" />
-      <text x={56} y={846} className="sa-bold" fontSize={10} fill="#f7b041" fillOpacity={0.7} letterSpacing=".1em">SEMIANALYSIS.COM</text>
-      <text x={579} y={846} className="sa-bold" fontSize={10} fill="#fff" fillOpacity={0.2} letterSpacing=".1em">{(contextLine || "POAST Studio · 2026").toUpperCase()}</text>
-      <text x={1240} y={846} className="sa-bold" fontSize={10} fill="#fff" fillOpacity={0.2} letterSpacing=".1em">CONFIDENTIAL</text>
+      <line x1={50} y1={lineY} x2={W - 44} y2={lineY} stroke="#fff" strokeOpacity={0.08} strokeWidth={0.4} fill="none" />
+      {!hideWebsite && (
+        <text x={56} y={textY} className="sa-bold" fontSize={10} fill="#f7b041" fillOpacity={0.7} letterSpacing=".1em">SEMIANALYSIS.COM</text>
+      )}
+      <text x={W / 2} y={textY} textAnchor="middle"
+        className="sa-bold" fontSize={10} fill="#fff" fillOpacity={0.2} letterSpacing=".1em">
+        {(contextLine || "POAST Studio · 2026").toUpperCase()}
+      </text>
+      {!hideConfidential && (
+        <text x={W - 64} y={textY} textAnchor="end"
+          className="sa-bold" fontSize={10} fill="#fff" fillOpacity={0.2} letterSpacing=".1em">
+          CONFIDENTIAL
+        </text>
+      )}
+      {/* Source line — drawn just above the footer rule, italicized
+          and dimmed to read as attribution. Only renders when set. */}
+      {source && (
+        <text x={56} y={lineY - 12}
+          className="sa-reg" fontSize={11} fill="#fff" fillOpacity={0.45}
+          fontStyle="italic">
+          {source}
+        </text>
+      )}
     </>
   );
 }
@@ -255,9 +307,16 @@ function isSectionRow(row: Record<string, unknown>, schema: TableSheet["schema"]
 
 function SaDataTable(props: SaTableRenderProps) {
   const { sheet, titleBar, highlightRowIdx, highlightFlagCol, keyInsight,
-          aggregate, aggregateLabel, chromeStyle } = props;
+          aggregate, aggregateLabel, chromeStyle, onEditCell, editingCell } = props;
   const chrome = resolveChrome(chromeStyle);
-  const tableX = 33, tableW = 1328;
+  // Adjust the chrome to the dynamic page width — the legacy 1394
+  // frame had tableX=33 / tableW=1328 (33 + 1328 + 33 = 1394). Scale
+  // the side gutters proportionally so smaller frames still look
+  // balanced.
+  const PAGE_W = props.pageW || SA_TABLE_WIDTH;
+  const sideGutter = Math.max(20, Math.round(33 * (PAGE_W / SA_TABLE_WIDTH)));
+  const tableX = sideGutter;
+  const tableW = PAGE_W - sideGutter * 2;
   // When the amber title bar is hidden the data area starts higher,
   // giving spec/comparison tables a denser look.
   const titleBarY = 150;
@@ -266,17 +325,27 @@ function SaDataTable(props: SaTableRenderProps) {
   const rowH = 42;
   const dataRowsStart = colHeaderY + colHeaderH;
   const colCount = Math.max(1, sheet.schema.length);
-  // First column gets ~40% of width when there are ≥3 columns; otherwise even split.
-  const firstColW = colCount > 2 ? tableW * 0.42 : tableW / colCount;
-  const restColW = colCount > 1 ? (tableW - firstColW) / (colCount - 1) : tableW;
-  const colCenter = (i: number): number => {
-    if (i === 0) return tableX + firstColW / 2;
-    return tableX + firstColW + (i - 1) * restColW + restColW / 2;
-  };
-  const colEdge = (i: number): number => {
-    if (i === 0) return tableX + firstColW;
-    return tableX + firstColW + i * restColW;
-  };
+  // Column widths — honor explicit widths from TableColumnSpec.width
+  // when set; distribute the remaining budget across unset columns,
+  // preserving the legacy "first column gets 42%" bias when no widths
+  // are user-set.
+  const explicitTotal = sheet.schema.reduce((s, c) => s + (c.width || 0), 0);
+  const unsetCount = sheet.schema.filter(c => !c.width).length;
+  const remaining = Math.max(0, tableW - explicitTotal);
+  const colWidths: number[] = sheet.schema.map((c, i) => {
+    if (c.width) return c.width;
+    if (unsetCount === colCount) {
+      // None set → legacy formula: first col 42% of total, rest equal.
+      if (colCount > 2) return i === 0 ? tableW * 0.42 : (tableW - tableW * 0.42) / (colCount - 1);
+      return tableW / colCount;
+    }
+    return remaining / unsetCount;
+  });
+  // Precompute x-edges so cell math is O(1).
+  const colX: number[] = [tableX];
+  for (let i = 0; i < colCount; i++) colX.push(colX[i] + colWidths[i]);
+  const colCenter = (i: number): number => colX[i] + colWidths[i] / 2;
+  const colEdge   = (i: number): number => colX[i + 1];
 
   // Rows we'll render: every data row, plus a deliberate highlight row at
   // the end if highlightRowIdx points past the data length.
@@ -472,6 +541,40 @@ function SaDataTable(props: SaTableRenderProps) {
           </g>
         );
       })()}
+
+      {/* Click hit-zones over data cells — only active when the
+          parent supplies onEditCell. Editing the first column is
+          enabled too (row labels). Hovering tints the cell amber so
+          the user knows it's interactive. */}
+      {onEditCell && sheet.rows.map((row, ri) => (
+        <g key={"hit-row-" + ri}>
+          {sheet.schema.map((c, ci) => {
+            const y = dataRowsStart + ri * rowH;
+            const isEditing = editingCell?.row === ri && editingCell?.col === c.key;
+            void row;
+            return (
+              <rect
+                key={"hit-" + ri + "-" + c.key}
+                className="sa-cell-hit"
+                data-cell={ri + ":" + c.key}
+                x={colX[ci]} y={y}
+                width={colWidths[ci]} height={rowH}
+                fill={isEditing ? "rgba(247,176,65,0.10)" : "rgba(255,255,255,0)"}
+                stroke={isEditing ? "#F7B041" : "rgba(255,255,255,0)"}
+                strokeWidth={isEditing ? 1.5 : 0}
+                strokeDasharray={isEditing ? "4 3" : undefined}
+                onClick={(e) => { e.stopPropagation(); onEditCell(ri, c.key); }}
+                style={{ cursor: "text" }}
+              >
+                <title>Click to edit</title>
+              </rect>
+            );
+          })}
+        </g>
+      ))}
+      <style>{
+        ".sa-cell-hit:hover { fill: rgba(247,176,65,0.06) !important; stroke: rgba(247,176,65,0.5) !important; stroke-width: 0.75 !important; }"
+      }</style>
 
       {/* Vertical separators */}
       {sheet.schema.slice(1).map((_, ci) => {
@@ -736,14 +839,16 @@ function SaHeatmap(props: SaTableRenderProps) {
 // ─── Top-level render ────────────────────────────────────────────────────
 
 export default function SaTableSvg(props: SaTableRenderProps) {
+  const W = props.pageW || SA_TABLE_WIDTH;
+  const H = props.pageH || SA_TABLE_HEIGHT;
   return (
     <svg
-      viewBox={`0 0 ${SA_TABLE_WIDTH} ${SA_TABLE_HEIGHT}`}
+      viewBox={`0 0 ${W} ${H}`}
       xmlns="http://www.w3.org/2000/svg"
       style={{ width: "100%", height: "100%", display: "block" }}
     >
       <SaDefs />
-      <SaBackdrop />
+      <SaBackdrop pageW={W} pageH={H} />
       <SaHeader
         category={props.category}
         titleWhite={props.titleWhite}
@@ -752,7 +857,14 @@ export default function SaTableSvg(props: SaTableRenderProps) {
         fieldStyles={props.fieldStyles}
       />
       {props.mode === "data" ? <SaDataTable {...props} /> : <SaHeatmap {...props} />}
-      <SaFooter contextLine={props.subtitle} />
+      <SaFooter
+        contextLine={props.subtitle}
+        hideWebsite={props.hideWebsite}
+        hideConfidential={props.hideConfidential}
+        source={props.source}
+        pageW={W}
+        pageH={H}
+      />
       {props.onEditField && <EditHitZones mode={props.mode} editing={props.editingField || null} onEdit={props.onEditField} />}
     </svg>
   );
