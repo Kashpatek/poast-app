@@ -295,6 +295,25 @@ function SaDataTable(props: SaTableRenderProps) {
     return null;
   };
 
+  // Conditional-formatting extremes per column. Only columns with
+  // condFmt !== "off" / undefined participate; their numeric min/max
+  // get green/red text tints in the data row render.
+  const condExtremes: Record<string, { min: number; max: number; mode: "minMax" | "highGood" } | undefined> = {};
+  for (const c of sheet.schema) {
+    if (!c.condFmt || c.condFmt === "off") continue;
+    let mn = Infinity, mx = -Infinity;
+    for (const r of sheet.rows) {
+      const v = r[c.key];
+      if (typeof v === "number" && Number.isFinite(v)) {
+        if (v < mn) mn = v;
+        if (v > mx) mx = v;
+      }
+    }
+    if (mn !== Infinity && mx !== -Infinity && mn !== mx) {
+      condExtremes[c.key] = { min: mn, max: mx, mode: c.condFmt };
+    }
+  }
+
   return (
     <>
       {/* Title bar — hidden in dense chrome */}
@@ -359,9 +378,43 @@ function SaDataTable(props: SaTableRenderProps) {
                 ? (v == null ? "" : String(v))
                 : formatCell(v, c);
               const flag = isHi && ci === (highlightFlagCol ?? -1);
-              const fill = isHi ? (flag ? "#e06347" : ci === 0 ? "#fff" : "#f7b041") : "#fff";
-              const opacity = isHi ? 1 : ci === 0 ? 0.7 : 0.6;
-              const weight = isHi ? "sa-blk" : "sa-reg";
+              // Badge columns render as colored pills instead of plain
+              // text — badgeMap matches the cell value to a hex color.
+              if (c.type === "badge" && ci > 0) {
+                const valStr = v == null ? "" : String(v);
+                const badgeColor = c.badgeMap?.[valStr] || "#5C6370";
+                const cx = colCenter(ci);
+                const pillW = Math.max(58, valStr.length * 8.5 + 24);
+                return (
+                  <g key={c.key}>
+                    <rect
+                      x={cx - pillW / 2} y={y + 11}
+                      width={pillW} height={20}
+                      rx={10}
+                      fill={badgeColor} fillOpacity={0.20}
+                      stroke={badgeColor} strokeOpacity={0.7} strokeWidth={1}
+                    />
+                    <text x={cx} y={y + 25} textAnchor="middle"
+                      className="sa-bold" fontSize={12}
+                      fill={badgeColor}>{valStr.toUpperCase()}</text>
+                  </g>
+                );
+              }
+              // Conditional formatting on numeric columns — min red,
+              // max green (flipped when condFmt === "highGood").
+              let condFill: string | null = null;
+              if (ci > 0 && typeof v === "number" && condExtremes[c.key]) {
+                const ext = condExtremes[c.key]!;
+                const isMax = v === ext.max;
+                const isMin = v === ext.min;
+                if (isMax) condFill = ext.mode === "highGood" ? "#e06347" : "#2ead8e";
+                else if (isMin) condFill = ext.mode === "highGood" ? "#2ead8e" : "#e06347";
+              }
+              const fill = condFill
+                ? condFill
+                : isHi ? (flag ? "#e06347" : ci === 0 ? "#fff" : "#f7b041") : "#fff";
+              const opacity = condFill ? 1 : isHi ? 1 : ci === 0 ? 0.7 : 0.6;
+              const weight = (condFill || isHi) ? "sa-blk" : "sa-reg";
               const size = isHi ? 16 : 15;
               return (
                 <text key={c.key}

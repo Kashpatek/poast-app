@@ -758,6 +758,252 @@ function NodeRenderer({ node, selected, gridSize, interactive, onSelect, onMutat
       </Group>
     );
   }
+
+  // ── Hardware shapes ────────────────────────────────────────────────
+  if (node.kind === "hwRack") {
+    // Tall rectangle with U-slot horizontal lines so it reads as a
+    // standard server rack from the side.
+    const slotCount = Math.max(3, Math.floor(node.h / 22));
+    const slotLines: number[][] = [];
+    for (let i = 1; i < slotCount; i++) {
+      const y = (node.h / slotCount) * i;
+      slotLines.push([6, y, node.w - 6, y]);
+    }
+    return withLabel(
+      <Group>
+        <KRect x={0} y={0} width={node.w} height={node.h}
+          fill={fill} stroke={stroke} strokeWidth={strokeWidth} cornerRadius={3} />
+        {slotLines.map((p, i) => (
+          <KLine key={i} points={p} stroke={stroke} strokeWidth={0.5} opacity={0.4} />
+        ))}
+      </Group>
+    );
+  }
+  if (node.kind === "hwServer" || node.kind === "hwPsu") {
+    // Horizontal blade — thin colored bar with end indicator dots.
+    return withLabel(
+      <Group>
+        <KRect x={0} y={0} width={node.w} height={node.h}
+          fill={fill} stroke={stroke} strokeWidth={strokeWidth} cornerRadius={2} />
+        <KEllipse x={node.w - 10} y={node.h / 2} radiusX={3} radiusY={3} fill={stroke} />
+        <KEllipse x={node.w - 22} y={node.h / 2} radiusX={3} radiusY={3} fill={stroke} opacity={0.55} />
+      </Group>
+    );
+  }
+  if (node.kind === "hwGpu" || node.kind === "hwSwitch") {
+    // Wider colored card with port-row indicator strip along the bottom.
+    const portCount = node.kind === "hwSwitch" ? 12 : 8;
+    const ports: number[][] = [];
+    for (let i = 0; i < portCount; i++) {
+      const x = 10 + ((node.w - 20) / portCount) * (i + 0.5);
+      ports.push([x, node.h - 8, x, node.h - 4]);
+    }
+    return withLabel(
+      <Group>
+        <KRect x={0} y={0} width={node.w} height={node.h}
+          fill={fill} stroke={stroke} strokeWidth={strokeWidth} cornerRadius={4} />
+        {ports.map((p, i) => (
+          <KLine key={i} points={p} stroke={stroke} strokeWidth={1.4} />
+        ))}
+      </Group>
+    );
+  }
+  if (node.kind === "hwCdu") {
+    // CDU / coolant manifold — circular pump symbol inside a rounded
+    // square so it reads like the SA cooling-loop diagrams.
+    return withLabel(
+      <Group>
+        <KRect x={0} y={0} width={node.w} height={node.h}
+          fill={fill} stroke={stroke} strokeWidth={strokeWidth} cornerRadius={6} />
+        <KEllipse x={node.w / 2} y={node.h / 2}
+          radiusX={node.w * 0.28} radiusY={node.h * 0.28}
+          fill="transparent" stroke={stroke} strokeWidth={1.5} />
+        <KLine points={[node.w * 0.3, node.h * 0.3, node.w * 0.7, node.h * 0.7]} stroke={stroke} strokeWidth={1.5} />
+      </Group>
+    );
+  }
+
+  // ── Network shapes ─────────────────────────────────────────────────
+  if (node.kind === "netSwitch" || node.kind === "netRouter") {
+    // Switch = horizontal rect with port stripes; Router = square w/
+    // bidirectional arrows.
+    return withLabel(
+      <Group>
+        <KRect x={0} y={0} width={node.w} height={node.h}
+          fill={fill} stroke={stroke} strokeWidth={strokeWidth} cornerRadius={4} />
+        {node.kind === "netRouter" ? (
+          <>
+            <KArrow points={[node.w * 0.25, node.h * 0.5, node.w * 0.05, node.h * 0.5]}
+              pointerLength={6} pointerWidth={6} fill={stroke} stroke={stroke} strokeWidth={1.4} />
+            <KArrow points={[node.w * 0.75, node.h * 0.5, node.w * 0.95, node.h * 0.5]}
+              pointerLength={6} pointerWidth={6} fill={stroke} stroke={stroke} strokeWidth={1.4} />
+            <KArrow points={[node.w * 0.5, node.h * 0.25, node.w * 0.5, node.h * 0.05]}
+              pointerLength={6} pointerWidth={6} fill={stroke} stroke={stroke} strokeWidth={1.4} />
+            <KArrow points={[node.w * 0.5, node.h * 0.75, node.w * 0.5, node.h * 0.95]}
+              pointerLength={6} pointerWidth={6} fill={stroke} stroke={stroke} strokeWidth={1.4} />
+          </>
+        ) : null}
+      </Group>
+    );
+  }
+  if (node.kind === "netFabric") {
+    // Cloud — overlapping ellipses approximate the SA fabric shape.
+    return withLabel(
+      <Group>
+        <KEllipse x={node.w * 0.5} y={node.h * 0.5} radiusX={node.w * 0.5} radiusY={node.h * 0.5}
+          fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
+        <KEllipse x={node.w * 0.25} y={node.h * 0.4} radiusX={node.w * 0.20} radiusY={node.h * 0.30}
+          fill={fill} stroke={stroke} strokeWidth={strokeWidth * 0.8} />
+        <KEllipse x={node.w * 0.75} y={node.h * 0.4} radiusX={node.w * 0.20} radiusY={node.h * 0.30}
+          fill={fill} stroke={stroke} strokeWidth={strokeWidth * 0.8} />
+      </Group>
+    );
+  }
+  if (node.kind === "netNic") {
+    // NIC — small card with edge connector teeth.
+    return withLabel(
+      <Group>
+        <KRect x={0} y={0} width={node.w} height={node.h}
+          fill={fill} stroke={stroke} strokeWidth={strokeWidth} cornerRadius={3} />
+        <KLine points={[0, node.h - 4, node.w, node.h - 4]} stroke={stroke} strokeWidth={1.2} dash={[3, 2]} />
+      </Group>
+    );
+  }
+
+  // ── Semiconductor / package shapes ─────────────────────────────────
+  if (node.kind === "semiDie") {
+    // Thick-border die boundary — empty interior so the user can drop
+    // chiplets inside.
+    return withLabel(
+      <Group>
+        <KRect x={0} y={0} width={node.w} height={node.h}
+          fill={fill} stroke={stroke} strokeWidth={Math.max(2.5, strokeWidth * 1.5)} cornerRadius={1} />
+        {/* corner ticks for "die" feel */}
+        {[[0,0,12,0],[0,0,0,12],[node.w-12,0,node.w,0],[node.w,0,node.w,12],
+          [0,node.h,12,node.h],[0,node.h-12,0,node.h],
+          [node.w-12,node.h,node.w,node.h],[node.w,node.h-12,node.w,node.h]
+        ].map((pts, i) => (
+          <KLine key={i} points={pts} stroke={stroke} strokeWidth={strokeWidth + 1} />
+        ))}
+      </Group>
+    );
+  }
+  if (node.kind === "semiChiplet") {
+    return withLabel(
+      <KRect x={0} y={0} width={node.w} height={node.h}
+        fill={fill} stroke={stroke} strokeWidth={strokeWidth} cornerRadius={2} />
+    );
+  }
+  if (node.kind === "semiHbm") {
+    // HBM stack — multiple horizontal bands stacked vertically.
+    const layers = 8;
+    const layerH = (node.h - 6) / layers;
+    const lines: number[][] = [];
+    for (let i = 1; i < layers; i++) {
+      const y = 3 + layerH * i;
+      lines.push([4, y, node.w - 4, y]);
+    }
+    return withLabel(
+      <Group>
+        <KRect x={0} y={0} width={node.w} height={node.h}
+          fill={fill} stroke={stroke} strokeWidth={strokeWidth} cornerRadius={2} />
+        {lines.map((p, i) => (
+          <KLine key={i} points={p} stroke={stroke} strokeWidth={0.7} opacity={0.55} />
+        ))}
+      </Group>
+    );
+  }
+  if (node.kind === "semiInterposer" || node.kind === "semiSubstrate") {
+    // Long thin layer w/ TSV-style dots underneath for the interposer.
+    const dotCount = node.kind === "semiInterposer" ? 12 : 6;
+    const dots: { x: number; y: number }[] = [];
+    for (let i = 0; i < dotCount; i++) {
+      const x = 10 + ((node.w - 20) / dotCount) * (i + 0.5);
+      dots.push({ x, y: node.h - 3 });
+    }
+    return withLabel(
+      <Group>
+        <KRect x={0} y={0} width={node.w} height={node.h}
+          fill={fill} stroke={stroke} strokeWidth={strokeWidth} cornerRadius={1.5} />
+        {dots.map((d, i) => (
+          <KEllipse key={i} x={d.x} y={d.y} radiusX={1.5} radiusY={1.5} fill={stroke} />
+        ))}
+      </Group>
+    );
+  }
+
+  // ── Power / electrical shapes ──────────────────────────────────────
+  if (node.kind === "pwrTransformer") {
+    // Two interlocking circles — standard transformer symbol.
+    const r = Math.min(node.h, node.w / 2) * 0.45;
+    return withLabel(
+      <Group>
+        <KEllipse x={node.w * 0.36} y={node.h / 2} radiusX={r} radiusY={r}
+          fill="transparent" stroke={stroke} strokeWidth={strokeWidth + 0.5} />
+        <KEllipse x={node.w * 0.64} y={node.h / 2} radiusX={r} radiusY={r}
+          fill="transparent" stroke={stroke} strokeWidth={strokeWidth + 0.5} />
+      </Group>
+    );
+  }
+  if (node.kind === "pwrBusbar") {
+    // Heavy solid bar with tap marks every quarter.
+    return withLabel(
+      <Group>
+        <KRect x={0} y={0} width={node.w} height={node.h}
+          fill={fill} stroke={stroke} strokeWidth={strokeWidth} cornerRadius={2} />
+        {[0.25, 0.5, 0.75].map((p, i) => (
+          <KLine key={i}
+            points={[node.w * p, -4, node.w * p, node.h + 4]}
+            stroke="#FFFFFF" opacity={0.4} strokeWidth={1.2} />
+        ))}
+      </Group>
+    );
+  }
+  if (node.kind === "pwrPdu") {
+    // Tall narrow rectangle w/ outlet dots running down the front.
+    const dotCount = 8;
+    const dots: { x: number; y: number }[] = [];
+    for (let i = 0; i < dotCount; i++) {
+      const y = 12 + ((node.h - 24) / dotCount) * (i + 0.5);
+      dots.push({ x: node.w / 2, y });
+    }
+    return withLabel(
+      <Group>
+        <KRect x={0} y={0} width={node.w} height={node.h}
+          fill={fill} stroke={stroke} strokeWidth={strokeWidth} cornerRadius={3} />
+        {dots.map((d, i) => (
+          <KEllipse key={i} x={d.x} y={d.y} radiusX={2.5} radiusY={2.5}
+            fill="transparent" stroke={stroke} strokeWidth={1} />
+        ))}
+      </Group>
+    );
+  }
+  if (node.kind === "pwrUps") {
+    // Rectangle with battery cell glyph in the corner.
+    return withLabel(
+      <Group>
+        <KRect x={0} y={0} width={node.w} height={node.h}
+          fill={fill} stroke={stroke} strokeWidth={strokeWidth} cornerRadius={3} />
+        <KRect x={8} y={8} width={20} height={10}
+          fill="transparent" stroke={stroke} strokeWidth={1} cornerRadius={1} />
+        <KRect x={28} y={11} width={2} height={4} fill={stroke} />
+      </Group>
+    );
+  }
+  if (node.kind === "pwrBreaker") {
+    // Box with diagonal switch line — the contacts.
+    return withLabel(
+      <Group>
+        <KRect x={0} y={0} width={node.w} height={node.h}
+          fill={fill} stroke={stroke} strokeWidth={strokeWidth} cornerRadius={2} />
+        <KLine points={[node.w * 0.2, node.h * 0.7, node.w * 0.8, node.h * 0.3]}
+          stroke={stroke} strokeWidth={strokeWidth + 0.5} />
+        <KEllipse x={node.w * 0.2} y={node.h * 0.7} radiusX={3} radiusY={3} fill={stroke} />
+        <KEllipse x={node.w * 0.8} y={node.h * 0.3} radiusX={3} radiusY={3} fill={stroke} />
+      </Group>
+    );
+  }
+
   // Fallback — should not happen because DiagramShapeKind is exhaustive.
   return withLabel(
     <KRect x={0} y={0} width={node.w} height={node.h}

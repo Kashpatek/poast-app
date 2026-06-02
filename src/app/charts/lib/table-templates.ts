@@ -439,11 +439,13 @@ function featureMatrixSheet(): TableSheet {
   return {
     schema: [
       { key: "c1", label: "Product",       type: "text"   },
-      { key: "c2", label: "FP8 (PFLOPS)",  type: "number" },
-      { key: "c3", label: "HBM (GB)",      type: "number" },
-      { key: "c4", label: "TDP (W)",       type: "number" },
-      { key: "c5", label: "Avail.",        type: "text"   },
-      { key: "c6", label: "FP4 native",    type: "text"   },
+      { key: "c2", label: "FP8 (PFLOPS)",  type: "number", condFmt: "minMax"   },
+      { key: "c3", label: "HBM (GB)",      type: "number", condFmt: "minMax"   },
+      { key: "c4", label: "TDP (W)",       type: "number", condFmt: "highGood" },
+      { key: "c5", label: "Avail.",        type: "badge",
+        badgeMap: { "GA": "#2EAD8E", "Q3 '26": "#F7B041", "Q4 '26": "#F7B041", "Sampling": "#0B86D1", "EOL": "#E06347", "—": "#5C6370" } },
+      { key: "c6", label: "FP4 native",    type: "badge",
+        badgeMap: { "Yes": "#2EAD8E", "✓ Yes": "#2EAD8E", "No": "#E06347", "—": "#5C6370" } },
     ],
     rows: [
       { c1: "H100 SXM",  c2: 2.0, c3: 80,  c4: 700,  c5: "GA",       c6: "—"     },
@@ -488,15 +490,20 @@ function bomCostSheet(): TableSheet {
 // ("Sampling", "GA", "EOL"). Status badges + Gantt-style spans are
 // Tier 3 follow-ups; today we ship the data shape.
 function roadmapTimelineSheet(): TableSheet {
+  const statusMap = {
+    "GA": "#2EAD8E", "GA ramp": "#2EAD8E",
+    "Sampling": "#0B86D1", "Tape-out": "#905CCB",
+    "Wind-down": "#F7B041", "EOL": "#E06347", "—": "#5C6370",
+  };
   return {
     schema: [
       { key: "c1", label: "Product",   type: "text" },
-      { key: "c2", label: "H1 '25",    type: "text" },
-      { key: "c3", label: "H2 '25",    type: "text" },
-      { key: "c4", label: "H1 '26",    type: "text" },
-      { key: "c5", label: "H2 '26",    type: "text" },
-      { key: "c6", label: "2027",      type: "text" },
-      { key: "c7", label: "2028",      type: "text" },
+      { key: "c2", label: "H1 '25",    type: "badge", badgeMap: statusMap },
+      { key: "c3", label: "H2 '25",    type: "badge", badgeMap: statusMap },
+      { key: "c4", label: "H1 '26",    type: "badge", badgeMap: statusMap },
+      { key: "c5", label: "H2 '26",    type: "badge", badgeMap: statusMap },
+      { key: "c6", label: "2027",      type: "badge", badgeMap: statusMap },
+      { key: "c7", label: "2028",      type: "badge", badgeMap: statusMap },
     ],
     rows: [
       { c1: "Hopper (H100/H200)", c2: "GA",        c3: "GA",        c4: "GA",        c5: "Wind-down", c6: "EOL",      c7: "—" },
@@ -517,8 +524,8 @@ function leaderboardSheet(): TableSheet {
     schema: [
       { key: "c1", label: "#",          type: "number"  },
       { key: "c2", label: "Provider",   type: "text"    },
-      { key: "c3", label: "Score",      type: "number"  },
-      { key: "c4", label: "Share",      type: "percent" },
+      { key: "c3", label: "Score",      type: "number", condFmt: "minMax" },
+      { key: "c4", label: "Share",      type: "percent", condFmt: "minMax" },
       { key: "c5", label: "Δ vs Q1",    type: "text"    },
     ],
     rows: [

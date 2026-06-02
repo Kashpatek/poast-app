@@ -208,7 +208,9 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
       schema: cur.schema.map(c => c.key === key ? { ...c, type } : c),
       rows: cur.rows.map(r => ({
         ...r,
-        [key]: type === "text" ? (r[key] == null ? "" : String(r[key])) : coerce(String(r[key] ?? ""), type),
+        [key]: (type === "text" || type === "badge")
+          ? (r[key] == null ? "" : String(r[key]))
+          : coerce(String(r[key] ?? ""), type),
       })),
     }));
   }, [updateSheet]);
@@ -255,6 +257,20 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
       });
       return { ...cur, rows };
     });
+  }, [updateSheet]);
+
+  const setColumnBadgeMap = useCallback((key: string, map: Record<string, string>) => {
+    updateSheet((cur) => ({
+      ...cur,
+      schema: cur.schema.map(c => c.key === key ? { ...c, badgeMap: map } : c),
+    }));
+  }, [updateSheet]);
+
+  const setColumnCondFmt = useCallback((key: string, mode: import("./studio-types").TableCondFmt) => {
+    updateSheet((cur) => ({
+      ...cur,
+      schema: cur.schema.map(c => c.key === key ? { ...c, condFmt: mode === "off" ? undefined : mode } : c),
+    }));
   }, [updateSheet]);
 
   const resizeColumn = useCallback((key: string, width: number) => {
@@ -635,6 +651,8 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
             onAddRow={addRow}
             onDeleteRow={deleteRow}
             onReorderRow={reorderRow}
+            onChangeColumnBadgeMap={setColumnBadgeMap}
+            onChangeColumnCondFmt={setColumnCondFmt}
           />
         </Collapsible>
       </div>
@@ -1441,6 +1459,8 @@ interface DataGridProps {
   onAddRow: () => void;
   onDeleteRow: (rowIdx: number) => void;
   onReorderRow: (fromIdx: number, toIdx: number) => void;
+  onChangeColumnBadgeMap: (key: string, map: Record<string, string>) => void;
+  onChangeColumnCondFmt: (key: string, mode: import("./studio-types").TableCondFmt) => void;
 }
 
 function DataGrid(p: DataGridProps) {
@@ -1466,6 +1486,8 @@ function DataGrid(p: DataGridProps) {
                 onSortDesc={() => p.onSortByColumn(col.key, "desc")}
                 onMoveTo={(toIdx) => p.onMoveColumn(col.key, toIdx)}
                 onResize={(w) => p.onResizeColumn(col.key, w)}
+                onChangeBadgeMap={(m) => p.onChangeColumnBadgeMap(col.key, m)}
+                onChangeCondFmt={(m) => p.onChangeColumnCondFmt(col.key, m)}
                 onDelete={() => p.onDeleteColumn(col.key)}
               />
             ))}
@@ -1584,6 +1606,9 @@ interface ColumnHeaderProps {
   onMoveTo: (toIdx: number) => void;
   onResize: (width: number) => void;
   onDelete: () => void;
+  // Wave 3 — badge column type + conditional formatting.
+  onChangeBadgeMap?: (map: Record<string, string>) => void;
+  onChangeCondFmt?: (mode: import("./studio-types").TableCondFmt) => void;
 }
 
 const NUMFMT_OPTIONS: { value: TableNumberFormat; label: string }[] = [
@@ -1735,12 +1760,12 @@ function ColumnHeaderCell(p: ColumnHeaderProps) {
                   style={menuOptionBtnStyle()}>↓ Desc</button>
               </div>
               <ColumnMenuLabel>Type</ColumnMenuLabel>
-              <div style={{ display: "flex", gap: 3 }}>
-                {(["text", "number", "percent", "date"] as TableColumnType[]).map((t) => (
+              <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+                {(["text", "number", "percent", "date", "badge"] as TableColumnType[]).map((t) => (
                   <button key={t}
                     onClick={() => p.onChangeType(t)}
                     style={{
-                      flex: 1, padding: "5px 6px",
+                      flex: "1 1 30%", padding: "5px 6px",
                       background: p.col.type === t ? D.amber + "22" : "transparent",
                       border: "1px solid " + (p.col.type === t ? D.amber + "55" : D.border),
                       borderRadius: 4,
@@ -1750,6 +1775,18 @@ function ColumnHeaderCell(p: ColumnHeaderProps) {
                     }}>{t}</button>
                 ))}
               </div>
+              {p.col.type === "badge" && p.onChangeBadgeMap && (
+                <BadgeMapEditor
+                  value={p.col.badgeMap || {}}
+                  onChange={p.onChangeBadgeMap}
+                />
+              )}
+              {(p.col.type === "number" || p.col.type === "percent") && p.onChangeCondFmt && (
+                <CondFmtPicker
+                  value={p.col.condFmt || "off"}
+                  onChange={p.onChangeCondFmt}
+                />
+              )}
               <ColumnMenuLabel>Number format</ColumnMenuLabel>
               <select
                 value={p.col.numFmt || "default"}
@@ -1833,6 +1870,133 @@ function menuOptionBtnStyle(): React.CSSProperties {
     fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
     borderRadius: 4, cursor: "pointer", textTransform: "uppercase",
   };
+}
+
+// Brand-color picker for badge values. Each row binds a string value
+// (e.g. "GA", "Sampling", "EOL") to a hex color. The renderer uses
+// these to draw colored pills in the table cell.
+function BadgeMapEditor({ value, onChange }: {
+  value: Record<string, string>;
+  onChange: (next: Record<string, string>) => void;
+}) {
+  const palette = [
+    { label: "Amber",  hex: "#F7B041" },
+    { label: "Blue",   hex: "#0B86D1" },
+    { label: "Teal",   hex: "#2EAD8E" },
+    { label: "Coral",  hex: "#E06347" },
+    { label: "Violet", hex: "#905CCB" },
+    { label: "Grey",   hex: "#5C6370" },
+  ];
+  const [newVal, setNewVal] = useState("");
+  const entries = Object.entries(value);
+  return (
+    <>
+      <ColumnMenuLabel>Badge colors</ColumnMenuLabel>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {entries.map(([v, c]) => (
+          <div key={v} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{
+              flex: 1, fontFamily: mn, fontSize: 10.5, color: D.tx, fontWeight: 700,
+              padding: "2px 6px",
+              background: c + "1A", border: "1px solid " + c + "55",
+              borderRadius: 4, letterSpacing: 0.4,
+            }}>{v}</span>
+            <div style={{ display: "flex", gap: 2 }}>
+              {palette.map((p) => (
+                <button key={p.hex}
+                  onClick={() => onChange({ ...value, [v]: p.hex })}
+                  title={p.label}
+                  style={{
+                    width: 14, height: 14, padding: 0,
+                    background: p.hex,
+                    border: p.hex === c ? "2px solid #FFF" : "1px solid rgba(255,255,255,0.25)",
+                    borderRadius: "50%", cursor: "pointer",
+                  }}
+                />
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                const next = { ...value };
+                delete next[v];
+                onChange(next);
+              }}
+              title="Remove mapping"
+              style={{ background: "transparent", border: "none", color: D.txd, cursor: "pointer", padding: 2 }}
+            ><X size={10} strokeWidth={2.4} /></button>
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: 4 }}>
+          <input
+            value={newVal}
+            onChange={(e) => setNewVal(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && newVal.trim()) {
+                onChange({ ...value, [newVal.trim()]: "#5C6370" });
+                setNewVal("");
+              }
+            }}
+            placeholder="New value (e.g. GA)"
+            style={{
+              flex: 1, padding: "4px 7px",
+              background: D.bg, color: D.tx,
+              border: "1px solid " + D.border, borderRadius: 4,
+              fontFamily: mn, fontSize: 10.5, outline: "none",
+            }}
+          />
+          <button
+            onClick={() => {
+              if (newVal.trim()) {
+                onChange({ ...value, [newVal.trim()]: "#5C6370" });
+                setNewVal("");
+              }
+            }}
+            style={{
+              padding: "4px 9px",
+              background: D.amber + "22", color: D.amber,
+              border: "1px solid " + D.amber + "55", borderRadius: 4,
+              fontFamily: mn, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.4,
+              cursor: "pointer", textTransform: "uppercase",
+            }}>Add</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function CondFmtPicker({ value, onChange }: {
+  value: import("./studio-types").TableCondFmt;
+  onChange: (v: import("./studio-types").TableCondFmt) => void;
+}) {
+  const options: { id: import("./studio-types").TableCondFmt; label: string; blurb: string }[] = [
+    { id: "off",      label: "Off",         blurb: "Plain text"                 },
+    { id: "minMax",   label: "High = good", blurb: "Max green · min red"        },
+    { id: "highGood", label: "Low = good",  blurb: "Min green · max red (cost)" },
+  ];
+  return (
+    <>
+      <ColumnMenuLabel>Conditional formatting</ColumnMenuLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 3 }}>
+        {options.map((o) => {
+          const active = o.id === value;
+          return (
+            <button key={o.id}
+              onClick={() => onChange(o.id)}
+              title={o.blurb}
+              style={{
+                padding: "5px 4px",
+                background: active ? D.amber + "22" : "transparent",
+                border: "1px solid " + (active ? D.amber + "55" : D.border),
+                borderRadius: 4,
+                color: active ? D.amber : D.tx,
+                fontFamily: mn, fontSize: 9, fontWeight: 700, letterSpacing: 0.4,
+                cursor: "pointer", textTransform: "uppercase",
+              }}>{o.label}</button>
+          );
+        })}
+      </div>
+    </>
+  );
 }
 
 function ColumnMenuLabel({ children }: { children: React.ReactNode }) {

@@ -77,7 +77,7 @@ export function templateSheet(templateId: string | undefined): TableSheet {
 }
 
 export function coerce(value: string, type: TableColumnType): TableCellValue {
-  if (type === "text") return value;
+  if (type === "text" || type === "badge") return value;
   if (type === "number" || type === "percent") {
     const cleaned = value.replace(/,/g, "").trim();
     if (cleaned === "" || cleaned === "-") return null;

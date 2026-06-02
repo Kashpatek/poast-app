@@ -19,7 +19,7 @@ export interface ShapeLibraryItem {
 }
 
 export interface ShapeLibraryCategory {
-  id: "basic" | "flow" | "circuit";
+  id: "basic" | "flow" | "circuit" | "hardware" | "network" | "semi" | "power";
   label: string;
   items: ShapeLibraryItem[];
 }
@@ -66,6 +66,50 @@ export const SHAPE_LIBRARY: ShapeLibraryCategory[] = [
       { kind: "capacitor", label: "Capacitor", w: 60, h: 40, fill: "transparent", stroke: D.teal },
       { kind: "battery",   label: "Battery",   w: 60, h: 50, fill: "transparent", stroke: D.teal },
       { kind: "ground",    label: "Ground",    w: 50, h: 50, fill: "transparent", stroke: D.teal },
+    ],
+  },
+  {
+    id: "hardware",
+    label: "Hardware",
+    items: [
+      { kind: "hwRack",   label: "Rack",         w: 110, h: 220, fill: "#06060A",       stroke: "#FFFFFF66",      defaultText: "Rack" },
+      { kind: "hwServer", label: "Server blade", w: 180, h: 36,  fill: D.blue + "22",   stroke: D.blue,           defaultText: "Server" },
+      { kind: "hwGpu",    label: "GPU tray",     w: 200, h: 60,  fill: D.amber + "22",  stroke: D.amber,          defaultText: "GPU tray ×8" },
+      { kind: "hwSwitch", label: "NVLink switch",w: 200, h: 50,  fill: D.violet + "22", stroke: D.violet,         defaultText: "NVLink switch" },
+      { kind: "hwPsu",    label: "PSU shelf",    w: 200, h: 36,  fill: D.coral + "22",  stroke: D.coral,          defaultText: "PSU shelf" },
+      { kind: "hwCdu",    label: "Cooling CDU",  w: 90,  h: 90,  fill: D.cyan + "22",   stroke: D.cyan,           defaultText: "CDU" },
+    ],
+  },
+  {
+    id: "network",
+    label: "Network",
+    items: [
+      { kind: "netSwitch", label: "Switch",  w: 130, h: 60,  fill: D.blue + "22",  stroke: D.blue,   defaultText: "Switch" },
+      { kind: "netRouter", label: "Router",  w: 110, h: 110, fill: D.violet + "22",stroke: D.violet, defaultText: "Router" },
+      { kind: "netFabric", label: "Fabric",  w: 200, h: 100, fill: D.teal + "22",  stroke: D.teal,   defaultText: "Fabric" },
+      { kind: "netNic",    label: "NIC",     w: 100, h: 40,  fill: D.amber + "22", stroke: D.amber,  defaultText: "NIC" },
+    ],
+  },
+  {
+    id: "semi",
+    label: "Semi / Package",
+    items: [
+      { kind: "semiDie",        label: "Die boundary", w: 200, h: 200, fill: "#06060A",      stroke: "#FFFFFF",     defaultText: "GPU Die" },
+      { kind: "semiChiplet",    label: "Chiplet",      w: 110, h: 70,  fill: D.amber + "22", stroke: D.amber,       defaultText: "Chiplet" },
+      { kind: "semiHbm",        label: "HBM stack",    w: 70,  h: 110, fill: D.teal + "22",  stroke: D.teal,        defaultText: "HBM" },
+      { kind: "semiInterposer", label: "Interposer",   w: 260, h: 28,  fill: D.violet + "22",stroke: D.violet,      defaultText: "Interposer" },
+      { kind: "semiSubstrate",  label: "Substrate",    w: 280, h: 24,  fill: D.coral + "22", stroke: D.coral,       defaultText: "Substrate" },
+    ],
+  },
+  {
+    id: "power",
+    label: "Power",
+    items: [
+      { kind: "pwrTransformer", label: "Transformer", w: 120, h: 60, fill: D.amber + "22",  stroke: D.amber,  defaultText: "Xfmr" },
+      { kind: "pwrBusbar",      label: "Busbar",      w: 260, h: 24, fill: D.coral,         stroke: D.coral,  defaultText: "Bus 800VDC" },
+      { kind: "pwrPdu",         label: "PDU",         w: 80,  h: 140, fill: D.blue + "22",  stroke: D.blue,   defaultText: "PDU" },
+      { kind: "pwrUps",         label: "UPS",         w: 110, h: 80,  fill: D.violet + "22",stroke: D.violet, defaultText: "UPS" },
+      { kind: "pwrBreaker",     label: "Breaker",     w: 80,  h: 60,  fill: "transparent",  stroke: D.amber,  defaultText: "CB" },
     ],
   },
 ];

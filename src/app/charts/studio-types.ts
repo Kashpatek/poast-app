@@ -88,7 +88,13 @@ export interface ChartDocPayload {
 // subset/superset compatible with the chart-maker-2 DataSheet so "build
 // chart from selection" can drop a table sheet straight into a chart doc.
 
-export type TableColumnType = "text" | "number" | "date" | "percent";
+export type TableColumnType = "text" | "number" | "date" | "percent" | "badge";
+
+// Per-cell color rule applied to numeric columns. "minMax" colors the
+// extreme values green (max) and red (min). "highGood" inverts the
+// red/green for columns where high = good. Renderer reads this on
+// TableColumnSpec.condFmt.
+export type TableCondFmt = "off" | "minMax" | "highGood";
 export type TableCellValue  = string | number | null | undefined;
 
 // Per-column number presentation. Independent of the column type so a
@@ -110,6 +116,15 @@ export interface TableColumnSpec {
   prefix?: string;        // rendered before the value, e.g. "🚀 " or "≈ "
   suffix?: string;        // rendered after the value, e.g. " /hr" or "x"
   width?: number;         // grid-editor width in px; set via drag-resize
+  // Badge column rendering — { value → hex color }. Only honored when
+  // type === "badge"; the renderer draws each cell as a colored pill
+  // with the value as the label. Unmatched values get a neutral grey
+  // pill.
+  badgeMap?: Record<string, string>;
+  // Conditional formatting on numeric columns. "minMax" highlights the
+  // largest value in green + smallest in red. "highGood" flips when
+  // a smaller number is the better outcome (e.g. price).
+  condFmt?: TableCondFmt;
 }
 
 export interface TableSheet {
@@ -206,7 +221,15 @@ export type DiagramShapeKind =
   | "triangle" | "diamond" | "parallelogram" | "rounded"
   | "flowStart" | "flowEnd" | "flowDecision" | "flowProcess" | "flowData" | "flowIO"
   | "gateAnd" | "gateOr" | "gateNot" | "gateNand" | "gateNor" | "gateXor"
-  | "resistor" | "capacitor" | "battery" | "ground";
+  | "resistor" | "capacitor" | "battery" | "ground"
+  // Hardware — physical compute infrastructure
+  | "hwRack" | "hwServer" | "hwGpu" | "hwSwitch" | "hwPsu" | "hwCdu"
+  // Network topology
+  | "netSwitch" | "netRouter" | "netFabric" | "netNic"
+  // Semiconductor / package
+  | "semiDie" | "semiChiplet" | "semiHbm" | "semiInterposer" | "semiSubstrate"
+  // Power / electrical
+  | "pwrTransformer" | "pwrBusbar" | "pwrPdu" | "pwrUps" | "pwrBreaker";
 
 export interface DiagramNode {
   id: string;
