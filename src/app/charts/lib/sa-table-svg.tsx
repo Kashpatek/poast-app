@@ -19,6 +19,7 @@
 // .svg download that Illustrator will open without missing-glyph
 // warnings.
 
+import { aggregateColumn, formatCell } from "./data-sheet";
 import { TableInputItem, TableSheet } from "../studio-types";
 
 export const SA_TABLE_WIDTH = 1394;
@@ -36,6 +37,8 @@ export interface SaTableRenderProps {
   highlightRowIdx?: number;
   highlightFlagCol?: number;
   keyInsight?: string;
+  aggregate?: "none" | "sum" | "avg" | "min" | "max";
+  aggregateLabel?: string;
   // Heatmap mode
   threshold?: number;
   yellowBand?: number;
@@ -156,7 +159,8 @@ function SaFooter({ contextLine }: { contextLine?: string }) {
 // ─── Data-table mode ─────────────────────────────────────────────────────
 
 function SaDataTable(props: SaTableRenderProps) {
-  const { sheet, titleBar, highlightRowIdx, highlightFlagCol, keyInsight } = props;
+  const { sheet, titleBar, highlightRowIdx, highlightFlagCol, keyInsight,
+          aggregate, aggregateLabel } = props;
   const tableX = 33, tableW = 1328;
   const titleBarY = 150;
   const colHeaderY = titleBarY + 44;
@@ -179,7 +183,9 @@ function SaDataTable(props: SaTableRenderProps) {
   // Rows we'll render: every data row, plus a deliberate highlight row at
   // the end if highlightRowIdx points past the data length.
   const rowCount = Math.max(1, sheet.rows.length);
-  const tableEndY = dataRowsStart + rowCount * rowH;
+  const hasAggregate = aggregate && aggregate !== "none";
+  const aggregateRowH = hasAggregate ? 50 : 0;
+  const tableEndY = dataRowsStart + rowCount * rowH + aggregateRowH;
 
   return (
     <>
@@ -213,7 +219,11 @@ function SaDataTable(props: SaTableRenderProps) {
             {isHi && <rect x={tableX} y={y} width={tableW} height={rowH + 6} fill="url(#saHilightBlue)" />}
             {sheet.schema.map((c, ci) => {
               const v = row[c.key];
-              const display = v == null ? "" : c.type === "percent" ? v + "%" : String(v);
+              // First column reads as a label even if it's a number — use
+              // raw string so labels like "Q1 '26" don't get formatted.
+              const display = ci === 0
+                ? (v == null ? "" : String(v))
+                : formatCell(v, c);
               const flag = isHi && ci === (highlightFlagCol ?? -1);
               const fill = isHi ? (flag ? "#e06347" : ci === 0 ? "#fff" : "#f7b041") : "#fff";
               const opacity = isHi ? 1 : ci === 0 ? 0.7 : 0.6;
@@ -236,6 +246,45 @@ function SaDataTable(props: SaTableRenderProps) {
           </g>
         );
       })}
+
+      {/* Auto-aggregate footer row (sum / avg / min / max). Renders in a
+          muted amber band so it reads as a derived row, distinct from the
+          user-picked highlight row. */}
+      {hasAggregate && (() => {
+        const y = dataRowsStart + rowCount * rowH;
+        const kind = aggregate as "sum" | "avg" | "min" | "max";
+        const label = aggregateLabel || kind.toUpperCase();
+        return (
+          <g>
+            <rect x={tableX} y={y} width={tableW} height={aggregateRowH}
+              fill="#f7b041" fillOpacity={0.07} />
+            <line x1={tableX} y1={y} x2={tableX + tableW} y2={y}
+              stroke="#f7b041" strokeOpacity={0.35} strokeWidth={1} />
+            {sheet.schema.map((c, ci) => {
+              if (ci === 0) {
+                return (
+                  <text key="agg-label" x={tableX + 15} y={y + 31}
+                    className="sa-blk" fontSize={14} fill="#f7b041" letterSpacing=".06em">
+                    {label}
+                  </text>
+                );
+              }
+              const result = aggregateColumn(
+                sheet.rows.map(r => r[c.key]),
+                kind,
+              );
+              const display = result == null ? "" : formatCell(result, c);
+              return (
+                <text key={c.key} x={colCenter(ci)} y={y + 31}
+                  textAnchor="middle"
+                  className="sa-blk" fontSize={15} fill="#f7b041">
+                  {display}
+                </text>
+              );
+            })}
+          </g>
+        );
+      })()}
 
       {/* Vertical separators */}
       {sheet.schema.slice(1).map((_, ci) => {
@@ -405,7 +454,7 @@ function SaHeatmap(props: SaTableRenderProps) {
             const color = valid ? heatColor(v, threshold, yellowBand, maxV, minV) : { fill: "#1a1f28", opacity: 1, band: "Y" as const };
             const txt = textColorFor(color.band, color.opacity);
             const isBaseline = ri === (baselineRow ?? -2) && ci === (baselineCol ?? -2);
-            const display = valid ? formatHeatValue(v, c.type === "percent") : "—";
+            const display = valid ? formatCell(v, c) : "—";
             return (
               <g key={c.key}>
                 <rect x={cellX(ci)} y={cellY(ri)} width={cellW} height={cellH} rx={3}
@@ -493,12 +542,9 @@ function SaHeatmap(props: SaTableRenderProps) {
   );
 }
 
-function formatHeatValue(v: number, isPercent: boolean): string {
-  if (isPercent) return Math.round(v) + "%";
-  if (Math.abs(v) >= 1000) return (v / 1000).toFixed(1) + "k";
-  if (Math.abs(v) >= 10) return v.toFixed(0);
-  return v.toFixed(2);
-}
+// formatHeatValue replaced by formatCell from data-sheet for unified
+// per-column formatting (preserves the "default" fallback for unset
+// numFmt — see data-sheet.defaultNum for the magnitude buckets).
 
 // ─── Top-level render ────────────────────────────────────────────────────
 

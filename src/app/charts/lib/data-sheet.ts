@@ -3,7 +3,9 @@
 // Independent of chart-maker-2's internal DataSheet so the Studio
 // surfaces don't have to reach across the boundary for trivial ops.
 
-import { TableSheet, TableColumnSpec, TableCellValue, TableColumnType } from "../studio-types";
+import {
+  TableCellValue, TableColumnSpec, TableColumnType, TableNumberFormat, TableSheet,
+} from "../studio-types";
 
 export function newColumnKey(existing: TableColumnSpec[]): string {
   // Find the smallest n such that c<n> isn't taken. Skipping deleted keys
@@ -96,6 +98,118 @@ export function toCsv(sheet: TableSheet): string {
 function csvCell(s: string): string {
   if (/[,"\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
   return s;
+}
+
+// Format a cell value per its column spec. Used by both the editable
+// grid (so users see what they'll get in the export) and the SVG
+// renderer (so the rendered table matches the grid one-to-one).
+export function formatCell(value: TableCellValue, col: TableColumnSpec): string {
+  if (value == null || value === "") return "";
+  const num = typeof value === "number" ? value : Number(String(value).replace(/,/g, ""));
+  const isNum = Number.isFinite(num);
+  const wrap = (body: string): string => {
+    const pre = col.prefix || "";
+    const suf = col.suffix || "";
+    return pre + body + suf;
+  };
+  if (!isNum) {
+    return wrap(String(value));
+  }
+  const fmt: TableNumberFormat = col.numFmt
+    || (col.type === "percent" ? "pct" : "default");
+  if (fmt === "default") return wrap(defaultNum(num));
+  if (fmt === "int")   return wrap(Math.round(num).toLocaleString());
+  if (fmt === "dec1")  return wrap(num.toFixed(1));
+  if (fmt === "dec2")  return wrap(num.toFixed(2));
+  if (fmt === "pct")   return wrap(formatPercent(num));
+  if (fmt === "usd")   return wrap("$" + defaultNum(num));
+  if (fmt === "usdK")  return wrap("$" + compact(num, 1_000)  + "K");
+  if (fmt === "usdM")  return wrap("$" + compact(num, 1_000_000) + "M");
+  if (fmt === "usdB")  return wrap("$" + compact(num, 1_000_000_000) + "B");
+  if (fmt === "k")     return wrap(compact(num, 1_000)  + "K");
+  if (fmt === "m")     return wrap(compact(num, 1_000_000) + "M");
+  if (fmt === "b")     return wrap(compact(num, 1_000_000_000) + "B");
+  return wrap(defaultNum(num));
+}
+
+function defaultNum(n: number): string {
+  if (Math.abs(n) >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  if (Math.abs(n) >= 10)   return n.toFixed(0);
+  if (Math.abs(n) >= 1)    return n.toFixed(2);
+  return n.toFixed(3);
+}
+
+function formatPercent(n: number): string {
+  // If the value looks like a fraction (0.32 → 32%), scale; otherwise
+  // assume it's already a percent (32 → 32%).
+  const scale = Math.abs(n) > 0 && Math.abs(n) <= 1.5 ? 100 : 1;
+  const v = n * scale;
+  if (Math.abs(v) >= 10) return Math.round(v) + "%";
+  return v.toFixed(1) + "%";
+}
+
+function compact(n: number, divisor: number): string {
+  const scaled = n / divisor;
+  if (Math.abs(scaled) >= 100) return scaled.toFixed(0);
+  if (Math.abs(scaled) >= 10)  return scaled.toFixed(1);
+  return scaled.toFixed(2);
+}
+
+// Aggregate a column of values per the requested kind. Skips
+// non-numeric entries. Returns null when there's no usable input.
+export type AggregateKind = "sum" | "avg" | "min" | "max";
+
+export function aggregateColumn(values: TableCellValue[], kind: AggregateKind): number | null {
+  const nums = values
+    .map(v => typeof v === "number" ? v : Number(String(v ?? "").replace(/,/g, "")))
+    .filter(n => Number.isFinite(n)) as number[];
+  if (nums.length === 0) return null;
+  if (kind === "sum") return nums.reduce((a, b) => a + b, 0);
+  if (kind === "avg") return nums.reduce((a, b) => a + b, 0) / nums.length;
+  if (kind === "min") return Math.min(...nums);
+  if (kind === "max") return Math.max(...nums);
+  return null;
+}
+
+// Parse a clipboard paste (TSV or CSV) into a 2D grid. Auto-detects the
+// delimiter from the first line — tabs win if present (Excel/Sheets),
+// otherwise commas. Returns rows of trimmed strings.
+export function parseClipboardTable(raw: string): string[][] {
+  const text = raw.replace(/\r\n?/g, "\n").replace(/\n+$/, "");
+  if (!text.trim()) return [];
+  const firstLine = text.split("\n", 1)[0];
+  const delim = firstLine.includes("\t") ? "\t"
+              : firstLine.includes(",") ? ","
+              : null;
+  if (!delim) {
+    // Single column — each line is a value.
+    return text.split("\n").map(s => [s]);
+  }
+  if (delim === "\t") {
+    return text.split("\n").map(line => line.split("\t"));
+  }
+  // CSV with naive quote handling — enough for clipboard from Sheets.
+  return text.split("\n").map(parseCsvLine);
+}
+
+function parseCsvLine(line: string): string[] {
+  const cells: string[] = [];
+  let cur = "";
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQ) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; continue; }
+      if (ch === '"') { inQ = false; continue; }
+      cur += ch;
+    } else {
+      if (ch === '"') { inQ = true; continue; }
+      if (ch === ",") { cells.push(cur); cur = ""; continue; }
+      cur += ch;
+    }
+  }
+  cells.push(cur);
+  return cells;
 }
 
 export function toMarkdown(sheet: TableSheet): string {

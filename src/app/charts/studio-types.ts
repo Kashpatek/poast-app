@@ -91,10 +91,24 @@ export interface ChartDocPayload {
 export type TableColumnType = "text" | "number" | "date" | "percent";
 export type TableCellValue  = string | number | null | undefined;
 
+// Per-column number presentation. Independent of the column type so a
+// "number" column can be shown as currency, K/M/B compact, fixed
+// decimals, etc. Free-form prefix/suffix layer on top for "$" / "/hr"
+// kind of decorations.
+export type TableNumberFormat =
+  | "default"
+  | "int" | "dec1" | "dec2"
+  | "pct"
+  | "usd" | "usdK" | "usdM" | "usdB"
+  | "k" | "m" | "b";
+
 export interface TableColumnSpec {
   key: string;            // stable column id, never reused after delete
   label: string;          // header text shown to the user
   type: TableColumnType;
+  numFmt?: TableNumberFormat;
+  prefix?: string;        // rendered before the value, e.g. "🚀 " or "≈ "
+  suffix?: string;        // rendered after the value, e.g. " /hr" or "x"
 }
 
 export interface TableSheet {
@@ -150,6 +164,12 @@ export interface TableDocPayload {
   formula?: string;
   formulaBaseline?: string;
   formulaResult?: string;
+  // Auto-aggregate row appended below the data (data-mode only).
+  aggregate?: "none" | "sum" | "avg" | "min" | "max";
+  aggregateLabel?: string;
+  // Export aspect preset — the live preview is always 1394×861 but the
+  // user can stage exports for slides, social, etc. Defaults to "default".
+  exportPreset?: "default" | "wide16x9" | "square" | "tall4x5" | "story9x16";
 }
 
 // ─── Diagram document payload ────────────────────────────────────────────

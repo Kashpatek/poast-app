@@ -1,26 +1,58 @@
 "use client";
 
-// TableEditor v2 — SA-branded data table / heatmap renderer with live
-// preview, full design controls (ChartMaker-style properties panel), and
-// SVG / PNG / JPEG export. The user edits structured data + metadata, the
-// preview re-renders on every keystroke, and download buttons rasterize
-// the live SVG at 2× pixel density.
+// TableEditor v3 — single-state model with undo/redo, per-column number
+// formatting (default / int / dec1 / dec2 / pct / USD K/M/B / K/M/B
+// suffix + freeform prefix/suffix), smart clipboard paste that expands
+// TSV/CSV into the grid starting from the focused cell, aggregate
+// footer row (sum / avg / min / max), and export aspect presets that
+// crop or letterbox the rendered SVG for slides / square / story.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ChevronDown, ChevronRight, Copy, Download, FileImage, FileText, Image as ImageIcon,
-  Plus, Sparkles, X,
+  ChevronDown, ChevronRight, Copy, Download, FileImage, FileText,
+  GripHorizontal, Image as ImageIcon, Plus, RotateCcw, RotateCw, Sparkles, X,
 } from "lucide-react";
 import { showToast } from "../toast-context";
 import {
-  blankRow, coerce, newColumnKey, templateSheet, toCsv, toMarkdown,
+  AggregateKind, blankRow, coerce, newColumnKey,
+  parseClipboardTable, templateSheet, toCsv, toMarkdown,
 } from "./lib/data-sheet";
 import SaTableSvg, { SA_TABLE_HEIGHT, SA_TABLE_WIDTH } from "./lib/sa-table-svg";
 import { D, ft, gf, mn } from "./studio-theme";
 import {
-  StudioDoc, TableCellValue, TableColumnType, TableDocPayload, TableMode,
-  TableInputItem, TableSheet,
+  StudioDoc, TableCellValue, TableColumnSpec, TableColumnType,
+  TableDocPayload, TableMode, TableNumberFormat, TableInputItem, TableSheet,
 } from "./studio-types";
+
+type ExportPreset = NonNullable<TableDocPayload["exportPreset"]>;
+type PanelKind = "inputs" | "caveats";
+
+interface TableEditorState {
+  sheet: TableSheet;
+  mode: TableMode;
+  category: string;
+  titleWhite: string;
+  titleAmber: string;
+  subtitle: string;
+  titleBar: string;
+  highlightRowIdx?: number;
+  highlightFlagCol?: number;
+  keyInsight: string;
+  threshold: number;
+  yellowBand: number;
+  topAxisLabel: string;
+  leftAxisLabel: string;
+  baselineRow?: number;
+  baselineCol?: number;
+  panelKind: PanelKind;
+  panelItems: TableInputItem[];
+  formula: string;
+  formulaBaseline: string;
+  formulaResult: string;
+  aggregate: "none" | AggregateKind;
+  aggregateLabel: string;
+  exportPreset: ExportPreset;
+}
 
 interface TableEditorProps {
   doc: StudioDoc;
@@ -29,110 +61,236 @@ interface TableEditorProps {
 }
 
 export default function TableEditor({ doc, onChangePayload, onBuildChart }: TableEditorProps) {
-  // ── State ──────────────────────────────────────────────────────────
   const initial = useMemo(() => readPayload(doc.payload, doc.name), [doc.payload, doc.name]);
-  const [sheet, setSheet] = useState<TableSheet>(initial.sheet);
-  const [mode, setMode] = useState<TableMode>(initial.mode);
-  const [category, setCategory] = useState(initial.category);
-  const [titleWhite, setTitleWhite] = useState(initial.titleWhite);
-  const [titleAmber, setTitleAmber] = useState(initial.titleAmber);
-  const [subtitle, setSubtitle] = useState(initial.subtitle);
-  const [titleBar, setTitleBar] = useState(initial.titleBar);
-  const [highlightRowIdx, setHighlightRowIdx] = useState<number | undefined>(initial.highlightRowIdx);
-  const [highlightFlagCol, setHighlightFlagCol] = useState<number | undefined>(initial.highlightFlagCol);
-  const [keyInsight, setKeyInsight] = useState(initial.keyInsight);
-  const [threshold, setThreshold] = useState(initial.threshold);
-  const [yellowBand, setYellowBand] = useState(initial.yellowBand);
-  const [topAxisLabel, setTopAxisLabel] = useState(initial.topAxisLabel);
-  const [leftAxisLabel, setLeftAxisLabel] = useState(initial.leftAxisLabel);
-  const [baselineRow, setBaselineRow] = useState<number | undefined>(initial.baselineRow);
-  const [baselineCol, setBaselineCol] = useState<number | undefined>(initial.baselineCol);
-  const [panelKind, setPanelKind] = useState<"inputs" | "caveats">(initial.panelKind);
-  const [panelItems, setPanelItems] = useState<TableInputItem[]>(initial.panelItems);
-  const [formula, setFormula] = useState(initial.formula);
-  const [formulaBaseline, setFormulaBaseline] = useState(initial.formulaBaseline);
-  const [formulaResult, setFormulaResult] = useState(initial.formulaResult);
+  const [state, setState] = useState<TableEditorState>(initial);
+  const [history, setHistory] = useState<TableEditorState[]>([]);
+  const [future, setFuture] = useState<TableEditorState[]>([]);
+  // settledRef coalesces burst edits (one keystroke per char) into a
+  // single undo step. We only push history on the first mutation of a
+  // ~600 ms quiet window.
+  const settledRef = useRef(true);
+  const settledTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [gridOpen, setGridOpen] = useState(true);
   const previewRef = useRef<HTMLDivElement | null>(null);
 
-  // ── Emit payload upstream ──────────────────────────────────────────
+  // ── Single mutation entry-point ──────────────────────────────────────
+  const update = useCallback((patch: Partial<TableEditorState>) => {
+    if (settledRef.current) {
+      // Capture the *pre-mutation* state so undo lands on what the user
+      // saw before they started this burst of edits.
+      setHistory(h => [...h.slice(-49), state]);
+      setFuture([]);
+      settledRef.current = false;
+      if (settledTimerRef.current) clearTimeout(settledTimerRef.current);
+      settledTimerRef.current = setTimeout(() => { settledRef.current = true; }, 600);
+    }
+    setState(s => ({ ...s, ...patch }));
+  }, [state]);
+
+  // Convenience setter that takes the existing state's sheet and applies
+  // a transformer. Common path for grid mutations.
+  const updateSheet = useCallback((fn: (s: TableSheet) => TableSheet) => {
+    update({ sheet: fn(state.sheet) });
+  }, [update, state.sheet]);
+
+  // ── Undo / redo ─────────────────────────────────────────────────────
+  const undo = useCallback(() => {
+    setHistory((h) => {
+      if (h.length === 0) return h;
+      const prev = h[h.length - 1];
+      setFuture((f) => [state, ...f.slice(0, 49)]);
+      setState(prev);
+      return h.slice(0, -1);
+    });
+    settledRef.current = true;
+  }, [state]);
+
+  const redo = useCallback(() => {
+    setFuture((f) => {
+      if (f.length === 0) return f;
+      const next = f[0];
+      setHistory((h) => [...h.slice(-49), state]);
+      setState(next);
+      return f.slice(1);
+    });
+    settledRef.current = true;
+  }, [state]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tgt = e.target as HTMLElement | null;
+      const typing = tgt && (tgt.tagName === "INPUT" || tgt.tagName === "TEXTAREA" || tgt.isContentEditable);
+      if (typing) return;
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
+
+  // ── Emit payload upstream ───────────────────────────────────────────
   useEffect(() => {
     const payload: TableDocPayload = {
       kind: "table", version: 1,
       engine: "standard",
-      sheet,
-      mode, category, titleWhite, titleAmber, subtitle,
-      titleBar, highlightRowIdx, highlightFlagCol, keyInsight,
-      threshold, yellowBand, topAxisLabel, leftAxisLabel,
-      baselineRow, baselineCol,
-      panelKind, panelItems,
-      formula, formulaBaseline, formulaResult,
+      sheet: state.sheet,
+      mode: state.mode,
+      category: state.category,
+      titleWhite: state.titleWhite,
+      titleAmber: state.titleAmber,
+      subtitle: state.subtitle,
+      titleBar: state.titleBar,
+      highlightRowIdx: state.highlightRowIdx,
+      highlightFlagCol: state.highlightFlagCol,
+      keyInsight: state.keyInsight,
+      threshold: state.threshold,
+      yellowBand: state.yellowBand,
+      topAxisLabel: state.topAxisLabel,
+      leftAxisLabel: state.leftAxisLabel,
+      baselineRow: state.baselineRow,
+      baselineCol: state.baselineCol,
+      panelKind: state.panelKind,
+      panelItems: state.panelItems,
+      formula: state.formula,
+      formulaBaseline: state.formulaBaseline,
+      formulaResult: state.formulaResult,
+      aggregate: state.aggregate === "none" ? undefined : state.aggregate,
+      aggregateLabel: state.aggregateLabel || undefined,
+      exportPreset: state.exportPreset,
     };
     onChangePayload(payload);
-  }, [
-    sheet, mode, category, titleWhite, titleAmber, subtitle,
-    titleBar, highlightRowIdx, highlightFlagCol, keyInsight,
-    threshold, yellowBand, topAxisLabel, leftAxisLabel,
-    baselineRow, baselineCol, panelKind, panelItems,
-    formula, formulaBaseline, formulaResult,
-    onChangePayload,
-  ]);
+  }, [state, onChangePayload]);
 
-  // ── Grid mutations ─────────────────────────────────────────────────
+  // ── Grid mutations ──────────────────────────────────────────────────
   const updateCell = useCallback((rowIdx: number, key: string, value: string) => {
-    setSheet((cur) => {
+    updateSheet((cur) => {
       const col = cur.schema.find(c => c.key === key);
       if (!col) return cur;
       const next = cur.rows.slice();
       next[rowIdx] = { ...next[rowIdx], [key]: coerce(value, col.type) };
       return { ...cur, rows: next };
     });
-  }, []);
+  }, [updateSheet]);
+
   const renameColumn = useCallback((key: string, label: string) => {
-    setSheet((cur) => ({ ...cur, schema: cur.schema.map(c => c.key === key ? { ...c, label } : c) }));
-  }, []);
+    updateSheet((cur) => ({ ...cur, schema: cur.schema.map(c => c.key === key ? { ...c, label } : c) }));
+  }, [updateSheet]);
+
   const setColumnType = useCallback((key: string, type: TableColumnType) => {
-    setSheet((cur) => ({
+    updateSheet((cur) => ({
       ...cur,
       schema: cur.schema.map(c => c.key === key ? { ...c, type } : c),
-      rows: cur.rows.map(r => ({ ...r, [key]: type === "text" ? (r[key] == null ? "" : String(r[key])) : coerce(String(r[key] ?? ""), type) })),
+      rows: cur.rows.map(r => ({
+        ...r,
+        [key]: type === "text" ? (r[key] == null ? "" : String(r[key])) : coerce(String(r[key] ?? ""), type),
+      })),
     }));
-  }, []);
+  }, [updateSheet]);
+
+  const setColumnNumFmt = useCallback((key: string, fmt: TableNumberFormat | undefined) => {
+    updateSheet((cur) => ({
+      ...cur,
+      schema: cur.schema.map(c => c.key === key ? { ...c, numFmt: fmt } : c),
+    }));
+  }, [updateSheet]);
+
+  const setColumnPrefix = useCallback((key: string, prefix: string) => {
+    updateSheet((cur) => ({
+      ...cur,
+      schema: cur.schema.map(c => c.key === key ? { ...c, prefix: prefix || undefined } : c),
+    }));
+  }, [updateSheet]);
+
+  const setColumnSuffix = useCallback((key: string, suffix: string) => {
+    updateSheet((cur) => ({
+      ...cur,
+      schema: cur.schema.map(c => c.key === key ? { ...c, suffix: suffix || undefined } : c),
+    }));
+  }, [updateSheet]);
+
   const addColumn = useCallback(() => {
-    setSheet((cur) => {
+    updateSheet((cur) => {
       const k = newColumnKey(cur.schema);
       return {
         schema: [...cur.schema, { key: k, label: "Column", type: "number" as const }],
         rows: cur.rows.map(r => ({ ...r, [k]: 0 })),
       };
     });
-  }, []);
+  }, [updateSheet]);
+
   const deleteColumn = useCallback((key: string) => {
-    setSheet((cur) => {
+    updateSheet((cur) => {
       if (cur.schema.length <= 1) return cur;
       return {
         schema: cur.schema.filter(c => c.key !== key),
         rows: cur.rows.map(r => { const n = { ...r }; delete n[key]; return n; }),
       };
     });
-  }, []);
-  const addRow = useCallback(() => {
-    setSheet((cur) => ({ ...cur, rows: [...cur.rows, blankRow(cur.schema)] }));
-  }, []);
-  const deleteRow = useCallback((rowIdx: number) => {
-    setSheet((cur) => ({ ...cur, rows: cur.rows.filter((_, i) => i !== rowIdx) }));
-  }, []);
+  }, [updateSheet]);
 
-  // ── Exports ────────────────────────────────────────────────────────
+  const addRow = useCallback(() => {
+    updateSheet((cur) => ({ ...cur, rows: [...cur.rows, blankRow(cur.schema)] }));
+  }, [updateSheet]);
+
+  const deleteRow = useCallback((rowIdx: number) => {
+    updateSheet((cur) => ({ ...cur, rows: cur.rows.filter((_, i) => i !== rowIdx) }));
+  }, [updateSheet]);
+
+  // Smart paste · when the user pastes into a cell, parse the clipboard
+  // as TSV/CSV and expand starting at the focused cell. Extra columns
+  // beyond the schema spawn new columns; extra rows append new rows.
+  const handleSmartPaste = useCallback((rowIdx: number, colIdx: number, raw: string) => {
+    const grid = parseClipboardTable(raw);
+    if (grid.length === 0) return;
+    if (grid.length === 1 && grid[0].length === 1) {
+      // Single value — just commit it like a normal edit.
+      const col = state.sheet.schema[colIdx];
+      if (col) updateCell(rowIdx, col.key, grid[0][0]);
+      return;
+    }
+    updateSheet((cur) => {
+      const schema = cur.schema.slice();
+      const rows = cur.rows.map(r => ({ ...r }));
+      const cols = grid[0].length;
+      // Make sure we have enough columns starting at colIdx.
+      while (schema.length < colIdx + cols) {
+        const k = newColumnKey(schema);
+        schema.push({ key: k, label: "Column", type: "number" });
+        rows.forEach(r => { r[k] = 0; });
+      }
+      // Make sure we have enough rows starting at rowIdx.
+      while (rows.length < rowIdx + grid.length) {
+        rows.push(blankRow(schema));
+      }
+      // Drop values in. If the column happens to be text, store the raw
+      // value; otherwise coerce per the destination column's type.
+      grid.forEach((line, dr) => {
+        line.forEach((cell, dc) => {
+          const targetCol = schema[colIdx + dc];
+          if (!targetCol) return;
+          rows[rowIdx + dr] = {
+            ...rows[rowIdx + dr],
+            [targetCol.key]: coerce(cell, targetCol.type),
+          };
+        });
+      });
+      return { schema, rows };
+    });
+    showToast(`Pasted ${grid.length}×${grid[0].length}`);
+  }, [state.sheet.schema, updateCell, updateSheet]);
+
+  // ── Exports ─────────────────────────────────────────────────────────
+  const exportSize = exportPresetDimensions(state.exportPreset);
+
   const downloadSvg = useCallback(() => {
     const svg = previewRef.current?.querySelector("svg");
     if (!svg) { showToast("Preview not ready"); return; }
     const xml = new XMLSerializer().serializeToString(svg);
-    const blob = new Blob([
-      '<?xml version="1.0" encoding="UTF-8"?>\n',
-      xml,
-    ], { type: "image/svg+xml" });
+    const blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n', xml], { type: "image/svg+xml" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -156,32 +314,49 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
         img.src = url;
       });
       const scale = 2;
+      const targetW = exportSize.width;
+      const targetH = exportSize.height;
       const canvas = document.createElement("canvas");
-      canvas.width = Math.round(SA_TABLE_WIDTH * scale);
-      canvas.height = Math.round(SA_TABLE_HEIGHT * scale);
+      canvas.width = Math.round(targetW * scale);
+      canvas.height = Math.round(targetH * scale);
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("no canvas context");
-      if (format === "jpeg") {
-        // JPEGs can't be transparent — paint the SA dark base first.
-        ctx.fillStyle = "#0A0C10";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Paint SA dark base first so transparent corners + JPEG export
+      // both land on the right color.
+      ctx.fillStyle = "#0A0C10";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Cover-fit the 1394×861 SVG into the target canvas. This crops
+      // the longer dimension when going to square / tall presets, and
+      // letterboxes only if the SVG aspect is taller than the target.
+      const svgAR = SA_TABLE_WIDTH / SA_TABLE_HEIGHT;
+      const targetAR = targetW / targetH;
+      let drawW = canvas.width, drawH = canvas.height, dx = 0, dy = 0;
+      if (svgAR > targetAR) {
+        // SVG is wider — fit by height, crop horizontally.
+        drawH = canvas.height;
+        drawW = drawH * svgAR;
+        dx = (canvas.width - drawW) / 2;
+      } else {
+        drawW = canvas.width;
+        drawH = drawW / svgAR;
+        dy = (canvas.height - drawH) / 2;
       }
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, dx, dy, drawW, drawH);
       URL.revokeObjectURL(url);
       const dataUrl = canvas.toDataURL(format === "jpeg" ? "image/jpeg" : "image/png", 0.94);
       const a = document.createElement("a");
       a.href = dataUrl;
       a.download = (doc.name || "table") + "." + format;
       a.click();
-      showToast(format.toUpperCase() + " downloaded");
+      showToast(format.toUpperCase() + " · " + exportSize.label + " downloaded");
     } catch (e) {
       showToast("Rasterize failed — try SVG");
       void e;
     }
-  }, [doc.name]);
+  }, [doc.name, exportSize]);
 
   const exportCsv = useCallback(() => {
-    const text = toCsv(sheet);
+    const text = toCsv(state.sheet);
     const blob = new Blob([text], { type: "text/csv;charset=utf-8;" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -189,15 +364,16 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     showToast("CSV downloaded");
-  }, [sheet, doc.name]);
+  }, [state.sheet, doc.name]);
+
   const copyMarkdown = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(toMarkdown(sheet));
+      await navigator.clipboard.writeText(toMarkdown(state.sheet));
       showToast("Markdown copied");
     } catch { showToast("Copy failed"); }
-  }, [sheet]);
+  }, [state.sheet]);
 
-  // ── Render ─────────────────────────────────────────────────────────
+  // ── Render ──────────────────────────────────────────────────────────
   return (
     <div style={{
       display: "grid",
@@ -208,29 +384,32 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
       margin: "0 auto",
     }}>
       <div>
-        {/* Toolbar */}
         <div style={{
           display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
           padding: "8px 12px",
           background: D.card, border: "1px solid " + D.border, borderRadius: 11,
         }}>
-          <ModeToggle value={mode} onChange={setMode} />
+          <ModeToggle value={state.mode} onChange={(m) => update({ mode: m })} />
+          <span style={{ width: 1, height: 18, background: D.border, margin: "0 4px" }} />
+          <ToolbarBtn Icon={RotateCcw} label="" hint="⌘Z"  onClick={undo} disabled={history.length === 0} />
+          <ToolbarBtn Icon={RotateCw}  label="" hint="⌘⇧Z" onClick={redo} disabled={future.length === 0} />
           <span style={{ width: 1, height: 18, background: D.border, margin: "0 4px" }} />
           <ToolbarBtn Icon={Download}   label="SVG"  accent={D.amber}  onClick={downloadSvg} />
           <ToolbarBtn Icon={ImageIcon}  label="PNG"  accent={D.teal}   onClick={() => rasterize("png")} />
           <ToolbarBtn Icon={FileImage}  label="JPEG" accent={D.coral}  onClick={() => rasterize("jpeg")} />
+          <ExportPresetPicker value={state.exportPreset} onChange={(p) => update({ exportPreset: p })} />
           <span style={{ width: 1, height: 18, background: D.border, margin: "0 4px" }} />
           <ToolbarBtn Icon={FileText} label="CSV"      onClick={exportCsv} />
           <ToolbarBtn Icon={Copy}     label="Markdown" onClick={copyMarkdown} />
           {onBuildChart && (
             <>
               <span style={{ marginLeft: "auto" }} />
-              <ToolbarBtn Icon={Sparkles} label="Build chart" accent={D.amber} onClick={() => onBuildChart(sheet, titleWhite || doc.name)} />
+              <ToolbarBtn Icon={Sparkles} label="Build chart" accent={D.amber}
+                onClick={() => onBuildChart(state.sheet, state.titleWhite || doc.name)} />
             </>
           )}
         </div>
 
-        {/* Live preview */}
         <div
           ref={previewRef}
           style={{
@@ -245,37 +424,42 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
           }}
         >
           <SaTableSvg
-            mode={mode}
-            sheet={sheet}
-            category={category}
-            titleWhite={titleWhite}
-            titleAmber={titleAmber}
-            subtitle={subtitle}
-            titleBar={titleBar}
-            highlightRowIdx={highlightRowIdx}
-            highlightFlagCol={highlightFlagCol}
-            keyInsight={keyInsight}
-            threshold={threshold}
-            yellowBand={yellowBand}
-            topAxisLabel={topAxisLabel}
-            leftAxisLabel={leftAxisLabel}
-            baselineRow={baselineRow}
-            baselineCol={baselineCol}
-            panelKind={panelKind}
-            panelItems={panelItems}
-            formula={formula}
-            formulaBaseline={formulaBaseline}
-            formulaResult={formulaResult}
+            mode={state.mode}
+            sheet={state.sheet}
+            category={state.category}
+            titleWhite={state.titleWhite}
+            titleAmber={state.titleAmber}
+            subtitle={state.subtitle}
+            titleBar={state.titleBar}
+            highlightRowIdx={state.highlightRowIdx}
+            highlightFlagCol={state.highlightFlagCol}
+            keyInsight={state.keyInsight}
+            threshold={state.threshold}
+            yellowBand={state.yellowBand}
+            topAxisLabel={state.topAxisLabel}
+            leftAxisLabel={state.leftAxisLabel}
+            baselineRow={state.baselineRow}
+            baselineCol={state.baselineCol}
+            panelKind={state.panelKind}
+            panelItems={state.panelItems}
+            formula={state.formula}
+            formulaBaseline={state.formulaBaseline}
+            formulaResult={state.formulaResult}
+            aggregate={state.aggregate === "none" ? undefined : state.aggregate}
+            aggregateLabel={state.aggregateLabel}
           />
         </div>
 
-        {/* Data grid drawer */}
         <Collapsible label="Data" open={gridOpen} onToggle={() => setGridOpen(v => !v)}>
           <DataGrid
-            sheet={sheet}
+            sheet={state.sheet}
             onUpdateCell={updateCell}
+            onSmartPaste={handleSmartPaste}
             onRenameColumn={renameColumn}
             onChangeColumnType={setColumnType}
+            onChangeColumnNumFmt={setColumnNumFmt}
+            onChangeColumnPrefix={setColumnPrefix}
+            onChangeColumnSuffix={setColumnSuffix}
             onAddColumn={addColumn}
             onDeleteColumn={deleteColumn}
             onAddRow={addRow}
@@ -284,59 +468,39 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
         </Collapsible>
       </div>
 
-      {/* Properties rail */}
-      <PropertiesRail
-        mode={mode}
-        sheet={sheet}
-        category={category} setCategory={setCategory}
-        titleWhite={titleWhite} setTitleWhite={setTitleWhite}
-        titleAmber={titleAmber} setTitleAmber={setTitleAmber}
-        subtitle={subtitle} setSubtitle={setSubtitle}
-        titleBar={titleBar} setTitleBar={setTitleBar}
-        highlightRowIdx={highlightRowIdx} setHighlightRowIdx={setHighlightRowIdx}
-        highlightFlagCol={highlightFlagCol} setHighlightFlagCol={setHighlightFlagCol}
-        keyInsight={keyInsight} setKeyInsight={setKeyInsight}
-        threshold={threshold} setThreshold={setThreshold}
-        yellowBand={yellowBand} setYellowBand={setYellowBand}
-        topAxisLabel={topAxisLabel} setTopAxisLabel={setTopAxisLabel}
-        leftAxisLabel={leftAxisLabel} setLeftAxisLabel={setLeftAxisLabel}
-        baselineRow={baselineRow} setBaselineRow={setBaselineRow}
-        baselineCol={baselineCol} setBaselineCol={setBaselineCol}
-        panelKind={panelKind} setPanelKind={setPanelKind}
-        panelItems={panelItems} setPanelItems={setPanelItems}
-        formula={formula} setFormula={setFormula}
-        formulaBaseline={formulaBaseline} setFormulaBaseline={setFormulaBaseline}
-        formulaResult={formulaResult} setFormulaResult={setFormulaResult}
-      />
+      <PropertiesRail state={state} update={update} />
     </div>
   );
 }
 
 // ─── Payload hydration ─────────────────────────────────────────────────
 
-function readPayload(payload: unknown, defaultName: string) {
-  const seed = {
+function readPayload(payload: unknown, defaultName: string): TableEditorState {
+  const seed: TableEditorState = {
     sheet: templateSheet(undefined),
-    mode: "data" as TableMode,
+    mode: "data",
     category: "SEMIANALYSIS — RESEARCH",
     titleWhite: defaultName || "Untitled",
     titleAmber: "",
     subtitle: "Quarterly breakdown · 2026",
     titleBar: "DATA TABLE",
-    highlightRowIdx: undefined as number | undefined,
-    highlightFlagCol: undefined as number | undefined,
+    highlightRowIdx: undefined,
+    highlightFlagCol: undefined,
     keyInsight: "",
     threshold: 30,
     yellowBand: 0.5,
     topAxisLabel: "",
     leftAxisLabel: "",
-    baselineRow: undefined as number | undefined,
-    baselineCol: undefined as number | undefined,
-    panelKind: "inputs" as "inputs" | "caveats",
-    panelItems: [] as TableInputItem[],
+    baselineRow: undefined,
+    baselineCol: undefined,
+    panelKind: "inputs",
+    panelItems: [],
     formula: "",
     formulaBaseline: "",
     formulaResult: "",
+    aggregate: "none",
+    aggregateLabel: "",
+    exportPreset: "default",
   };
   if (payload && typeof payload === "object") {
     const p = payload as Partial<TableDocPayload>;
@@ -362,8 +526,22 @@ function readPayload(payload: unknown, defaultName: string) {
     if (p.formula != null) seed.formula = p.formula;
     if (p.formulaBaseline != null) seed.formulaBaseline = p.formulaBaseline;
     if (p.formulaResult != null) seed.formulaResult = p.formulaResult;
+    if (p.aggregate === "sum" || p.aggregate === "avg" || p.aggregate === "min" || p.aggregate === "max") seed.aggregate = p.aggregate;
+    else if (p.aggregate === "none") seed.aggregate = "none";
+    if (p.aggregateLabel != null) seed.aggregateLabel = p.aggregateLabel;
+    if (p.exportPreset === "wide16x9" || p.exportPreset === "square" || p.exportPreset === "tall4x5" || p.exportPreset === "story9x16") {
+      seed.exportPreset = p.exportPreset;
+    }
   }
   return seed;
+}
+
+function exportPresetDimensions(p: ExportPreset): { width: number; height: number; label: string } {
+  if (p === "wide16x9") return { width: SA_TABLE_WIDTH, height: Math.round(SA_TABLE_WIDTH * 9 / 16), label: "16:9" };
+  if (p === "square")   return { width: SA_TABLE_WIDTH, height: SA_TABLE_WIDTH, label: "Square" };
+  if (p === "tall4x5")  return { width: SA_TABLE_WIDTH, height: Math.round(SA_TABLE_WIDTH * 5 / 4), label: "4:5" };
+  if (p === "story9x16") return { width: SA_TABLE_WIDTH, height: Math.round(SA_TABLE_WIDTH * 16 / 9), label: "9:16" };
+  return { width: SA_TABLE_WIDTH, height: SA_TABLE_HEIGHT, label: "Default" };
 }
 
 // ─── Toolbar bits ──────────────────────────────────────────────────────
@@ -396,70 +574,111 @@ function ModeToggle({ value, onChange }: { value: TableMode; onChange: (m: Table
   );
 }
 
-function ToolbarBtn({ Icon, label, onClick, accent }: {
+function ToolbarBtn({ Icon, label, onClick, accent, disabled, hint }: {
   Icon: React.ComponentType<{ size?: number; strokeWidth?: number; color?: string }>;
   label: string;
   onClick: () => void;
   accent?: string;
+  disabled?: boolean;
+  hint?: string;
 }) {
   const c = accent || D.txm;
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
+      title={hint ? (label ? `${label} (${hint})` : hint) : label}
       style={{
         display: "inline-flex", alignItems: "center", gap: 6,
-        padding: "5px 11px",
+        padding: label ? "5px 11px" : "5px 8px",
         background: accent ? c + "1A" : "transparent",
         border: "1px solid " + (accent ? c + "55" : D.border),
-        color: accent ? c : D.txm,
+        color: disabled ? D.txd : (accent ? c : D.txm),
         fontFamily: mn, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5,
-        borderRadius: 6, cursor: "pointer",
+        borderRadius: 6, cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.45 : 1,
         transition: "background 0.12s, color 0.12s",
       }}
       onMouseEnter={(e) => {
+        if (disabled) return;
         e.currentTarget.style.color = accent ? c : D.tx;
         if (!accent) e.currentTarget.style.background = "rgba(255,255,255,0.04)";
       }}
       onMouseLeave={(e) => {
+        if (disabled) return;
         e.currentTarget.style.color = accent ? c : D.txm;
         if (!accent) e.currentTarget.style.background = "transparent";
       }}
-    ><Icon size={12} strokeWidth={2.2} color={accent || D.txm} /> {label}</button>
+    ><Icon size={12} strokeWidth={2.2} color={disabled ? D.txd : (accent || D.txm)} /> {label}</button>
+  );
+}
+
+function ExportPresetPicker({ value, onChange }: { value: ExportPreset; onChange: (p: ExportPreset) => void }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    setTimeout(() => document.addEventListener("click", close), 0);
+    return () => document.removeEventListener("click", close);
+  }, [open]);
+  const opts: { id: ExportPreset; label: string; sub: string }[] = [
+    { id: "default",   label: "Default",  sub: "1394 × 861 · the SA spec canvas" },
+    { id: "wide16x9",  label: "16:9",     sub: "Slide deck / talk cover" },
+    { id: "square",    label: "1:1",      sub: "Instagram / LinkedIn feed" },
+    { id: "tall4x5",   label: "4:5",      sub: "IG portrait · best feed crop" },
+    { id: "story9x16", label: "9:16",     sub: "Story / vertical video frame" },
+  ];
+  const active = opts.find(o => o.id === value) || opts[0];
+  return (
+    <div style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
+      <button onClick={() => setOpen(v => !v)}
+        title="Export aspect — raster previews resize to this on PNG/JPEG"
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 4,
+          padding: "5px 9px",
+          background: "transparent", border: "1px solid " + D.border,
+          color: D.txm, fontFamily: mn, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5,
+          borderRadius: 6, cursor: "pointer",
+        }}>
+        ◫ {active.label} <ChevronDown size={10} strokeWidth={2.2} />
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", left: 0,
+          background: D.card, border: "1px solid " + D.border, borderRadius: 8,
+          padding: 4, minWidth: 200, zIndex: 50,
+          boxShadow: "0 16px 32px rgba(0,0,0,0.55)",
+        }}>
+          {opts.map((o) => (
+            <button key={o.id}
+              onClick={() => { onChange(o.id); setOpen(false); }}
+              style={{
+                display: "block", width: "100%", textAlign: "left",
+                padding: "7px 10px",
+                background: o.id === value ? D.amber + "22" : "transparent",
+                border: "none", borderRadius: 5,
+                color: o.id === value ? D.amber : D.tx,
+                cursor: "pointer",
+              }}>
+              <div style={{ fontFamily: ft, fontSize: 12.5, fontWeight: 700 }}>{o.label}</div>
+              <div style={{ fontFamily: mn, fontSize: 9.5, color: D.txd, letterSpacing: 0.4, marginTop: 1 }}>{o.sub}</div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
 // ─── Properties rail ───────────────────────────────────────────────────
 
-interface PropsRailProps {
-  mode: TableMode;
-  sheet: TableSheet;
-  category: string; setCategory: (s: string) => void;
-  titleWhite: string; setTitleWhite: (s: string) => void;
-  titleAmber: string; setTitleAmber: (s: string) => void;
-  subtitle: string; setSubtitle: (s: string) => void;
-  titleBar: string; setTitleBar: (s: string) => void;
-  highlightRowIdx?: number; setHighlightRowIdx: (n: number | undefined) => void;
-  highlightFlagCol?: number; setHighlightFlagCol: (n: number | undefined) => void;
-  keyInsight: string; setKeyInsight: (s: string) => void;
-  threshold: number; setThreshold: (n: number) => void;
-  yellowBand: number; setYellowBand: (n: number) => void;
-  topAxisLabel: string; setTopAxisLabel: (s: string) => void;
-  leftAxisLabel: string; setLeftAxisLabel: (s: string) => void;
-  baselineRow?: number; setBaselineRow: (n: number | undefined) => void;
-  baselineCol?: number; setBaselineCol: (n: number | undefined) => void;
-  panelKind: "inputs" | "caveats"; setPanelKind: (k: "inputs" | "caveats") => void;
-  panelItems: TableInputItem[]; setPanelItems: (items: TableInputItem[]) => void;
-  formula: string; setFormula: (s: string) => void;
-  formulaBaseline: string; setFormulaBaseline: (s: string) => void;
-  formulaResult: string; setFormulaResult: (s: string) => void;
-}
-
-function PropertiesRail(p: PropsRailProps) {
+function PropertiesRail({ state, update }: { state: TableEditorState; update: (p: Partial<TableEditorState>) => void }) {
   const [headerOpen, setHeaderOpen] = useState(true);
   const [dataModeOpen, setDataModeOpen] = useState(true);
   const [heatmapOpen, setHeatmapOpen] = useState(true);
   const [panelOpen, setPanelOpen] = useState(false);
   const [formulaOpen, setFormulaOpen] = useState(false);
+  const [aggOpen, setAggOpen] = useState(false);
   return (
     <aside style={{
       alignSelf: "start",
@@ -470,102 +689,116 @@ function PropertiesRail(p: PropsRailProps) {
       <SectionTitle label="Properties" />
       <PanelSection label="Header" open={headerOpen} onToggle={() => setHeaderOpen(v => !v)}>
         <Field label="Category eyebrow">
-          <TextInput value={p.category} onChange={p.setCategory} placeholder="SEMIANALYSIS — RESEARCH" />
+          <TextInput value={state.category} onChange={(v) => update({ category: v })} placeholder="SEMIANALYSIS — RESEARCH" />
         </Field>
         <Field label="Title (white)">
-          <TextInput value={p.titleWhite} onChange={p.setTitleWhite} placeholder="Primary title" />
+          <TextInput value={state.titleWhite} onChange={(v) => update({ titleWhite: v })} placeholder="Primary title" />
         </Field>
         <Field label="Title (amber accent)">
-          <TextInput value={p.titleAmber} onChange={p.setTitleAmber} placeholder="appended in amber" />
+          <TextInput value={state.titleAmber} onChange={(v) => update({ titleAmber: v })} placeholder="appended in amber" />
         </Field>
         <Field label="Subtitle">
-          <TextInput value={p.subtitle} onChange={p.setSubtitle} placeholder="Quarter · year · inputs" />
+          <TextInput value={state.subtitle} onChange={(v) => update({ subtitle: v })} placeholder="Quarter · year · inputs" />
         </Field>
       </PanelSection>
-      {p.mode === "data" && (
+      {state.mode === "data" && (
         <PanelSection label="Data table" open={dataModeOpen} onToggle={() => setDataModeOpen(v => !v)}>
           <Field label="Table title bar">
-            <TextInput value={p.titleBar} onChange={p.setTitleBar} placeholder="TABLE TITLE" />
+            <TextInput value={state.titleBar} onChange={(v) => update({ titleBar: v })} placeholder="TABLE TITLE" />
           </Field>
           <Field label="Highlight row">
             <RowPicker
-              count={p.sheet.rows.length}
-              value={p.highlightRowIdx}
-              onChange={p.setHighlightRowIdx}
-              sheet={p.sheet}
+              count={state.sheet.rows.length}
+              value={state.highlightRowIdx}
+              onChange={(v) => update({ highlightRowIdx: v })}
+              sheet={state.sheet}
             />
           </Field>
-          {p.highlightRowIdx != null && (
+          {state.highlightRowIdx != null && (
             <Field label="Flag cell (column)">
               <RowPicker
-                count={Math.max(0, p.sheet.schema.length - 1)}
-                value={p.highlightFlagCol}
-                onChange={p.setHighlightFlagCol}
+                count={Math.max(0, state.sheet.schema.length - 1)}
+                value={state.highlightFlagCol}
+                onChange={(v) => update({ highlightFlagCol: v })}
                 kind="column"
-                sheet={p.sheet}
+                sheet={state.sheet}
                 offset={1}
               />
             </Field>
           )}
           <Field label="Key insight (paragraph)">
-            <TextArea value={p.keyInsight} onChange={p.setKeyInsight}
+            <TextArea value={state.keyInsight} onChange={(v) => update({ keyInsight: v })}
               placeholder="At [condition], [metric] hits $X — within $Y of [threshold]." />
           </Field>
         </PanelSection>
       )}
-      {p.mode === "heatmap" && (
+      {state.mode === "data" && (
+        <PanelSection label="Aggregate row" open={aggOpen} onToggle={() => setAggOpen(v => !v)}>
+          <Field label="Function">
+            <AggregatePicker value={state.aggregate} onChange={(v) => update({ aggregate: v })} />
+          </Field>
+          {state.aggregate !== "none" && (
+            <Field label="Row label (left of values)">
+              <TextInput value={state.aggregateLabel}
+                onChange={(v) => update({ aggregateLabel: v })}
+                placeholder={(state.aggregate || "").toUpperCase()} />
+            </Field>
+          )}
+        </PanelSection>
+      )}
+      {state.mode === "heatmap" && (
         <PanelSection label="Heatmap" open={heatmapOpen} onToggle={() => setHeatmapOpen(v => !v)}>
           <Field label="Threshold (break-even)">
-            <NumberInput value={p.threshold} onChange={p.setThreshold} />
+            <NumberInput value={state.threshold} onChange={(v) => update({ threshold: v })} />
           </Field>
           <Field label="Yellow band half-width">
-            <NumberInput value={p.yellowBand} onChange={p.setYellowBand} step={0.1} />
+            <NumberInput value={state.yellowBand} onChange={(v) => update({ yellowBand: v })} step={0.1} />
           </Field>
           <Field label="Top axis label">
-            <TextInput value={p.topAxisLabel} onChange={p.setTopAxisLabel} placeholder="UTILIZATION" />
+            <TextInput value={state.topAxisLabel} onChange={(v) => update({ topAxisLabel: v })} placeholder="UTILIZATION" />
           </Field>
           <Field label="Left axis label">
-            <TextInput value={p.leftAxisLabel} onChange={p.setLeftAxisLabel} placeholder="THROUGHPUT" />
+            <TextInput value={state.leftAxisLabel} onChange={(v) => update({ leftAxisLabel: v })} placeholder="THROUGHPUT" />
           </Field>
           <Field label="Baseline cell (row)">
             <RowPicker
-              count={p.sheet.rows.length}
-              value={p.baselineRow}
-              onChange={p.setBaselineRow}
-              sheet={p.sheet}
+              count={state.sheet.rows.length}
+              value={state.baselineRow}
+              onChange={(v) => update({ baselineRow: v })}
+              sheet={state.sheet}
             />
           </Field>
           <Field label="Baseline cell (column)">
             <RowPicker
-              count={Math.max(0, p.sheet.schema.length - 1)}
-              value={p.baselineCol}
-              onChange={p.setBaselineCol}
+              count={Math.max(0, state.sheet.schema.length - 1)}
+              value={state.baselineCol}
+              onChange={(v) => update({ baselineCol: v })}
               kind="column"
-              sheet={p.sheet}
+              sheet={state.sheet}
               offset={1}
             />
           </Field>
         </PanelSection>
       )}
-      {p.mode === "heatmap" && (
+      {state.mode === "heatmap" && (
         <PanelSection label="Inputs / Caveats" open={panelOpen} onToggle={() => setPanelOpen(v => !v)}>
           <Field label="Panel kind">
-            <KindToggle value={p.panelKind} onChange={p.setPanelKind} a="inputs" b="caveats" />
+            <KindToggle value={state.panelKind} onChange={(v) => update({ panelKind: v })} a="inputs" b="caveats" />
           </Field>
-          {p.panelItems.map((it, i) => (
-            <Field key={i} label={p.panelKind === "caveats" ? "Bullet " + (i + 1) : "Input " + (i + 1)}>
+          {state.panelItems.map((it, i) => (
+            <Field key={i} label={state.panelKind === "caveats" ? "Bullet " + (i + 1) : "Input " + (i + 1)}>
               <div style={{ display: "flex", gap: 6 }}>
                 <TextInput value={it.label} onChange={(v) => {
-                  const next = p.panelItems.slice();
+                  const next = state.panelItems.slice();
                   next[i] = { ...next[i], label: v };
-                  p.setPanelItems(next);
+                  update({ panelItems: next });
                 }} placeholder="label" />
                 <TextInput value={it.value || ""} onChange={(v) => {
-                  const next = p.panelItems.slice();
+                  const next = state.panelItems.slice();
                   next[i] = { ...next[i], value: v };
-                  p.setPanelItems(next);
+                  update({ panelItems: next });
                 }} placeholder="value" />
-                <button onClick={() => p.setPanelItems(p.panelItems.filter((_, j) => j !== i))}
+                <button onClick={() => update({ panelItems: state.panelItems.filter((_, j) => j !== i) })}
                   style={{
                     background: "transparent", border: "1px solid " + D.border,
                     color: D.txd, padding: "5px 7px",
@@ -574,32 +807,53 @@ function PropertiesRail(p: PropsRailProps) {
               </div>
             </Field>
           ))}
-          <button onClick={() => p.setPanelItems([...p.panelItems, { label: "", value: "" }])}
-            disabled={p.panelItems.length >= 6}
+          <button onClick={() => update({ panelItems: [...state.panelItems, { label: "", value: "" }] })}
+            disabled={state.panelItems.length >= 6}
             style={{
               padding: "6px 11px",
               background: "transparent", border: "1px dashed " + D.border,
               color: D.txm, fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
-              borderRadius: 6, cursor: p.panelItems.length >= 6 ? "not-allowed" : "pointer",
-              opacity: p.panelItems.length >= 6 ? 0.4 : 1,
+              borderRadius: 6, cursor: state.panelItems.length >= 6 ? "not-allowed" : "pointer",
+              opacity: state.panelItems.length >= 6 ? 0.4 : 1,
               display: "inline-flex", alignItems: "center", gap: 5,
             }}><Plus size={11} strokeWidth={2.2} /> add item</button>
         </PanelSection>
       )}
-      {p.mode === "heatmap" && (
+      {state.mode === "heatmap" && (
         <PanelSection label="Formula box" open={formulaOpen} onToggle={() => setFormulaOpen(v => !v)}>
           <Field label="Formula">
-            <TextInput value={p.formula} onChange={p.setFormula} placeholder="payback = capex / annual_savings" />
+            <TextInput value={state.formula} onChange={(v) => update({ formula: v })} placeholder="payback = capex / annual_savings" />
           </Field>
           <Field label="Baseline calc">
-            <TextInput value={p.formulaBaseline} onChange={p.setFormulaBaseline} placeholder="80000 / 25000 ÷ 12" />
+            <TextInput value={state.formulaBaseline} onChange={(v) => update({ formulaBaseline: v })} placeholder="80000 / 25000 ÷ 12" />
           </Field>
           <Field label="Result">
-            <TextInput value={p.formulaResult} onChange={p.setFormulaResult} placeholder="3.2 yrs" />
+            <TextInput value={state.formulaResult} onChange={(v) => update({ formulaResult: v })} placeholder="3.2 yrs" />
           </Field>
         </PanelSection>
       )}
     </aside>
+  );
+}
+
+function AggregatePicker({ value, onChange }: { value: "none" | AggregateKind; onChange: (v: "none" | AggregateKind) => void }) {
+  const opts: ("none" | AggregateKind)[] = ["none", "sum", "avg", "min", "max"];
+  return (
+    <div style={{ display: "inline-flex", gap: 2, padding: 3, background: "rgba(255,255,255,0.03)", border: "1px solid " + D.border, borderRadius: 6 }}>
+      {opts.map((o) => {
+        const on = o === value;
+        return (
+          <button key={o} onClick={() => onChange(o)}
+            style={{
+              flex: 1, padding: "4px 8px",
+              background: on ? D.amber + "22" : "transparent",
+              border: "none", color: on ? D.amber : D.txm,
+              fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
+              borderRadius: 4, cursor: "pointer", textTransform: "uppercase",
+            }}>{o === "none" ? "off" : o}</button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -787,42 +1041,55 @@ function Collapsible({ label, open, onToggle, children }: {
         }}>
         {open ? <ChevronDown size={12} strokeWidth={2.2} /> : <ChevronRight size={12} strokeWidth={2.2} />}
         {label}
+        <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.5, textTransform: "none" }}>
+          Paste an Excel/Sheets block straight into a cell — it expands.
+        </span>
       </button>
       {open && <div style={{ padding: 0 }}>{children}</div>}
     </div>
   );
 }
 
-// ─── Data grid (in-house lean editor) ──────────────────────────────────
+// ─── Data grid ─────────────────────────────────────────────────────────
 
-function DataGrid({ sheet, onUpdateCell, onRenameColumn, onChangeColumnType, onAddColumn, onDeleteColumn, onAddRow, onDeleteRow }: {
+interface DataGridProps {
   sheet: TableSheet;
   onUpdateCell: (rowIdx: number, key: string, value: string) => void;
+  onSmartPaste: (rowIdx: number, colIdx: number, raw: string) => void;
   onRenameColumn: (key: string, label: string) => void;
   onChangeColumnType: (key: string, t: TableColumnType) => void;
+  onChangeColumnNumFmt: (key: string, fmt: TableNumberFormat | undefined) => void;
+  onChangeColumnPrefix: (key: string, prefix: string) => void;
+  onChangeColumnSuffix: (key: string, suffix: string) => void;
   onAddColumn: () => void;
   onDeleteColumn: (key: string) => void;
   onAddRow: () => void;
   onDeleteRow: (rowIdx: number) => void;
-}) {
+}
+
+function DataGrid(p: DataGridProps) {
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={{ borderCollapse: "separate", borderSpacing: 0, width: "100%", minWidth: 600 }}>
         <thead>
           <tr style={{ background: D.surface }}>
             <th style={{ width: 36, padding: "8px 6px", borderBottom: "1px solid " + D.border, position: "sticky", left: 0, background: D.surface, zIndex: 2 }}></th>
-            {sheet.schema.map((col) => (
+            {p.sheet.schema.map((col, ci) => (
               <ColumnHeaderCell
                 key={col.key}
                 col={col}
-                canDelete={sheet.schema.length > 1}
-                onRename={(label) => onRenameColumn(col.key, label)}
-                onChangeType={(t) => onChangeColumnType(col.key, t)}
-                onDelete={() => onDeleteColumn(col.key)}
+                canDelete={p.sheet.schema.length > 1}
+                colIdx={ci}
+                onRename={(label) => p.onRenameColumn(col.key, label)}
+                onChangeType={(t) => p.onChangeColumnType(col.key, t)}
+                onChangeNumFmt={(f) => p.onChangeColumnNumFmt(col.key, f)}
+                onChangePrefix={(s) => p.onChangeColumnPrefix(col.key, s)}
+                onChangeSuffix={(s) => p.onChangeColumnSuffix(col.key, s)}
+                onDelete={() => p.onDeleteColumn(col.key)}
               />
             ))}
             <th style={{ width: 40, padding: "6px", borderBottom: "1px solid " + D.border, background: D.surface }}>
-              <button onClick={onAddColumn}
+              <button onClick={p.onAddColumn}
                 title="Add column"
                 style={{
                   background: "transparent", border: "1px dashed " + D.border,
@@ -834,7 +1101,7 @@ function DataGrid({ sheet, onUpdateCell, onRenameColumn, onChangeColumnType, onA
           </tr>
         </thead>
         <tbody>
-          {sheet.rows.map((row, ri) => (
+          {p.sheet.rows.map((row, ri) => (
             <tr key={ri}>
               <td style={{
                 width: 36, padding: "6px 4px",
@@ -842,7 +1109,7 @@ function DataGrid({ sheet, onUpdateCell, onRenameColumn, onChangeColumnType, onA
                 textAlign: "center", borderBottom: "1px solid " + D.border,
                 position: "sticky", left: 0, background: D.card, zIndex: 1,
               }}>
-                <button onClick={() => onDeleteRow(ri)} title="Delete row"
+                <button onClick={() => p.onDeleteRow(ri)} title="Delete row"
                   style={{
                     background: "transparent", border: "none",
                     color: D.txd, cursor: "pointer", fontFamily: mn, fontSize: 11, padding: 0,
@@ -852,19 +1119,20 @@ function DataGrid({ sheet, onUpdateCell, onRenameColumn, onChangeColumnType, onA
                 >×</button>
                 <div style={{ fontSize: 9, color: D.txd, lineHeight: 1, marginTop: 2 }}>{ri + 1}</div>
               </td>
-              {sheet.schema.map((col) => (
+              {p.sheet.schema.map((col, ci) => (
                 <Cell key={col.key}
                   value={row[col.key]}
                   type={col.type}
-                  onCommit={(v) => onUpdateCell(ri, col.key, v)}
+                  onCommit={(v) => p.onUpdateCell(ri, col.key, v)}
+                  onSmartPaste={(raw) => p.onSmartPaste(ri, ci, raw)}
                 />
               ))}
               <td style={{ borderBottom: "1px solid " + D.border }}></td>
             </tr>
           ))}
           <tr>
-            <td colSpan={sheet.schema.length + 2} style={{ padding: 0 }}>
-              <button onClick={onAddRow}
+            <td colSpan={p.sheet.schema.length + 2} style={{ padding: 0 }}>
+              <button onClick={p.onAddRow}
                 style={{
                   width: "100%", padding: "10px 12px",
                   background: "transparent", border: "none",
@@ -883,38 +1151,62 @@ function DataGrid({ sheet, onUpdateCell, onRenameColumn, onChangeColumnType, onA
   );
 }
 
-function ColumnHeaderCell({ col, canDelete, onRename, onChangeType, onDelete }: {
-  col: { key: string; label: string; type: TableColumnType };
+interface ColumnHeaderProps {
+  col: TableColumnSpec;
   canDelete: boolean;
+  colIdx: number;
   onRename: (label: string) => void;
   onChangeType: (t: TableColumnType) => void;
+  onChangeNumFmt: (f: TableNumberFormat | undefined) => void;
+  onChangePrefix: (s: string) => void;
+  onChangeSuffix: (s: string) => void;
   onDelete: () => void;
-}) {
+}
+
+const NUMFMT_OPTIONS: { value: TableNumberFormat; label: string }[] = [
+  { value: "default", label: "Default" },
+  { value: "int",     label: "1234 (int)" },
+  { value: "dec1",    label: "1.2 (1 dec)" },
+  { value: "dec2",    label: "1.23 (2 dec)" },
+  { value: "pct",     label: "12% (percent)" },
+  { value: "usd",     label: "$1,234" },
+  { value: "usdK",    label: "$1.2K" },
+  { value: "usdM",    label: "$1.2M" },
+  { value: "usdB",    label: "$1.2B" },
+  { value: "k",       label: "1.2K" },
+  { value: "m",       label: "1.2M" },
+  { value: "b",       label: "1.2B" },
+];
+
+function ColumnHeaderCell(p: ColumnHeaderProps) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(col.label);
-  useEffect(() => setDraft(col.label), [col.label]);
-  const [typeOpen, setTypeOpen] = useState(false);
+  const [draft, setDraft] = useState(p.col.label);
+  useEffect(() => setDraft(p.col.label), [p.col.label]);
+  const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
-    if (!typeOpen) return;
-    const close = () => setTypeOpen(false);
+    if (!menuOpen) return;
+    const close = () => setMenuOpen(false);
     setTimeout(() => document.addEventListener("click", close), 0);
     return () => document.removeEventListener("click", close);
-  }, [typeOpen]);
+  }, [menuOpen]);
+  const fmtBadge = p.col.numFmt && p.col.numFmt !== "default" ? p.col.numFmt : p.col.type;
   return (
     <th style={{
       padding: "6px 8px",
       borderBottom: "1px solid " + D.border,
       borderLeft: "1px solid " + D.border,
-      textAlign: "left", minWidth: 120, background: D.surface,
+      textAlign: "left", minWidth: 140, background: D.surface,
+      position: "relative",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <GripHorizontal size={11} strokeWidth={2.0} color={D.txd} style={{ flexShrink: 0 }} />
         {editing ? (
           <input value={draft} autoFocus
             onChange={(e) => setDraft(e.target.value)}
-            onBlur={() => { onRename(draft.trim() || col.label); setEditing(false); }}
+            onBlur={() => { p.onRename(draft.trim() || p.col.label); setEditing(false); }}
             onKeyDown={(e) => {
               if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-              if (e.key === "Escape") { setDraft(col.label); setEditing(false); }
+              if (e.key === "Escape") { setDraft(p.col.label); setEditing(false); }
             }}
             style={{
               flex: 1, minWidth: 0,
@@ -930,65 +1222,131 @@ function ColumnHeaderCell({ col, canDelete, onRename, onChangeType, onDelete }: 
               fontFamily: ft, fontSize: 12, fontWeight: 700, color: D.tx,
               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               padding: "3px 0",
-            }}>{col.label}</button>
+            }}>{p.col.label}</button>
         )}
         <div style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
-          <button onClick={() => setTypeOpen(v => !v)}
+          <button onClick={() => setMenuOpen(v => !v)}
+            title="Format & options"
             style={{
               padding: "2px 6px",
               background: "transparent", border: "1px solid " + D.border,
               color: D.txm, fontFamily: mn, fontSize: 8.5, fontWeight: 700, letterSpacing: 0.4,
               textTransform: "uppercase", borderRadius: 4, cursor: "pointer",
               display: "inline-flex", alignItems: "center", gap: 3,
-            }}>{col.type}<ChevronDown size={8} strokeWidth={2.4} /></button>
-          {typeOpen && (
+            }}>{fmtBadge}<ChevronDown size={8} strokeWidth={2.4} /></button>
+          {menuOpen && (
             <div style={{
               position: "absolute", top: "calc(100% + 4px)", right: 0,
-              background: D.card, border: "1px solid " + D.border, borderRadius: 6,
-              padding: 3, minWidth: 90, zIndex: 50,
-              boxShadow: "0 16px 32px rgba(0,0,0,0.55)",
+              background: D.card, border: "1px solid " + D.border, borderRadius: 7,
+              padding: 6, minWidth: 230, zIndex: 50,
+              boxShadow: "0 20px 36px rgba(0,0,0,0.6)",
+              display: "flex", flexDirection: "column", gap: 8,
             }}>
-              {(["text", "number", "percent", "date"] as TableColumnType[]).map((t) => (
-                <button key={t}
-                  onClick={() => { onChangeType(t); setTypeOpen(false); }}
+              <ColumnMenuLabel>Type</ColumnMenuLabel>
+              <div style={{ display: "flex", gap: 3 }}>
+                {(["text", "number", "percent", "date"] as TableColumnType[]).map((t) => (
+                  <button key={t}
+                    onClick={() => p.onChangeType(t)}
+                    style={{
+                      flex: 1, padding: "5px 6px",
+                      background: p.col.type === t ? D.amber + "22" : "transparent",
+                      border: "1px solid " + (p.col.type === t ? D.amber + "55" : D.border),
+                      borderRadius: 4,
+                      color: p.col.type === t ? D.amber : D.tx,
+                      fontFamily: mn, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.4,
+                      cursor: "pointer", textTransform: "uppercase",
+                    }}>{t}</button>
+                ))}
+              </div>
+              <ColumnMenuLabel>Number format</ColumnMenuLabel>
+              <select
+                value={p.col.numFmt || "default"}
+                onChange={(e) => p.onChangeNumFmt(e.target.value as TableNumberFormat)}
+                style={{
+                  width: "100%", boxSizing: "border-box",
+                  background: D.bg, color: D.tx,
+                  border: "1px solid " + D.border, borderRadius: 5,
+                  padding: "5px 7px",
+                  fontFamily: mn, fontSize: 10.5, outline: "none", cursor: "pointer",
+                }}>
+                {NUMFMT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                <div>
+                  <ColumnMenuLabel>Prefix</ColumnMenuLabel>
+                  <input
+                    value={p.col.prefix || ""}
+                    onChange={(e) => p.onChangePrefix(e.target.value)}
+                    placeholder="$"
+                    style={{
+                      width: "100%", boxSizing: "border-box",
+                      background: D.bg, color: D.tx,
+                      border: "1px solid " + D.border, borderRadius: 5,
+                      padding: "5px 7px",
+                      fontFamily: mn, fontSize: 10.5, outline: "none",
+                    }}/>
+                </div>
+                <div>
+                  <ColumnMenuLabel>Suffix</ColumnMenuLabel>
+                  <input
+                    value={p.col.suffix || ""}
+                    onChange={(e) => p.onChangeSuffix(e.target.value)}
+                    placeholder="/ hr"
+                    style={{
+                      width: "100%", boxSizing: "border-box",
+                      background: D.bg, color: D.tx,
+                      border: "1px solid " + D.border, borderRadius: 5,
+                      padding: "5px 7px",
+                      fontFamily: mn, fontSize: 10.5, outline: "none",
+                    }}/>
+                </div>
+              </div>
+              {p.canDelete && (
+                <button onClick={() => { p.onDelete(); setMenuOpen(false); }}
                   style={{
-                    width: "100%", textAlign: "left",
-                    padding: "5px 8px",
-                    background: col.type === t ? D.amber + "22" : "transparent",
-                    border: "none", borderRadius: 4,
-                    color: col.type === t ? D.amber : D.tx,
-                    fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
-                    cursor: "pointer", textTransform: "uppercase",
-                  }}>{t}</button>
-              ))}
+                    marginTop: 4, padding: "5px 10px",
+                    background: "transparent", border: "1px solid " + D.coral + "55",
+                    color: D.coral, fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+                    borderRadius: 5, cursor: "pointer",
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                  }}><X size={10} strokeWidth={2.2} /> Delete column</button>
+              )}
             </div>
           )}
         </div>
-        {canDelete && (
-          <button onClick={onDelete} title="Delete column"
-            style={{
-              background: "transparent", border: "none",
-              color: D.txd, padding: "0 2px", cursor: "pointer", lineHeight: 1,
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = D.coral; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = D.txd; }}
-          ><X size={11} strokeWidth={2.4} /></button>
-        )}
       </div>
     </th>
   );
 }
 
-function Cell({ value, type, onCommit }: {
+function ColumnMenuLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      fontFamily: mn, fontSize: 8.5, color: D.txd, letterSpacing: 0.6,
+      fontWeight: 700, textTransform: "uppercase", marginBottom: 3,
+    }}>{children}</div>
+  );
+}
+
+function Cell({ value, type, onCommit, onSmartPaste }: {
   value: TableCellValue;
   type: TableColumnType;
   onCommit: (v: string) => void;
+  onSmartPaste: (raw: string) => void;
 }) {
   const display = value == null ? "" : String(value);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(display);
   useEffect(() => { if (!editing) setDraft(display); }, [display, editing]);
   const numeric = type === "number" || type === "percent";
+  const handlePaste: React.ClipboardEventHandler<HTMLInputElement> = (e) => {
+    const raw = e.clipboardData.getData("text/plain");
+    if (raw.includes("\t") || raw.includes("\n")) {
+      e.preventDefault();
+      onSmartPaste(raw);
+      setEditing(false);
+    }
+  };
   return (
     <td
       onDoubleClick={() => setEditing(true)}
@@ -1001,6 +1359,7 @@ function Cell({ value, type, onCommit }: {
       {editing ? (
         <input value={draft} autoFocus
           onChange={(e) => setDraft(e.target.value)}
+          onPaste={handlePaste}
           onBlur={() => { onCommit(draft); setEditing(false); }}
           onKeyDown={(e) => {
             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
