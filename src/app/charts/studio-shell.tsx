@@ -100,6 +100,21 @@ export default function StudioShell() {
         else docName = t.label;
       }
     }
+    if (type === "diagram") {
+      const labelByTpl: Record<string, string> = {
+        flowchart:        "Untitled flowchart",
+        wireframe:        "Untitled wireframe",
+        "timeline-nodes": "Untitled timeline",
+        "before-after":   "Before / After",
+        topology:         "Network topology",
+        swimlane:         "Swimlane process",
+        "segment-ladder": "Tier ladder",
+        architecture:    "System architecture",
+        mindmap:          "Mind map",
+        sequence:         "Sequence diagram",
+      };
+      if (labelByTpl[templateId]) docName = labelByTpl[templateId];
+    }
     const doc = emptyDoc(type, owner, docName);
     doc.payload = payload;
     setDocs((cur) => [doc, ...cur]);

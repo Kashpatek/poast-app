@@ -136,6 +136,164 @@ function adoptionFunnelSheet(): TableSheet {
   };
 }
 
+function verdictMatrixSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Activity",  type: "text" },
+      { key: "c2", label: "Produced",  type: "text" },
+      { key: "c3", label: "Priced",    type: "text" },
+      { key: "c4", label: "Measured",  type: "text" },
+      { key: "c5", label: "Verdict",   type: "text" },
+    ],
+    rows: [
+      { c1: "AI work inside a flat subscription", c2: "✓", c3: "—", c4: "—", c5: "Inside the gap" },
+      { c1: "Household / unpaid care",            c2: "✓", c3: "—", c4: "—", c5: "Inside the gap" },
+      { c1: "Informal & criminal economy",        c2: "✓", c3: "✓", c4: "—", c5: "Inside the gap" },
+      { c1: "Government services (cost-based)",   c2: "✓", c3: "—", c4: "✓", c5: "Measured at cost" },
+      { c1: "Owner-occupied housing (imputed)",   c2: "—", c3: "—", c4: "✓", c5: "Measured by imputation" },
+      { c1: "Capital gains, transfers, sales",    c2: "—", c3: "✓", c4: "—", c5: "Priced but not output" },
+      { c1: "Ordinary market output",             c2: "✓", c3: "✓", c4: "✓", c5: "Captured by GDP" },
+    ],
+  };
+}
+
+function tierLadderSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Tier",        type: "text" },
+      { key: "c2", label: "Name",        type: "text" },
+      { key: "c3", label: "Description", type: "text" },
+    ],
+    rows: [
+      { c1: "T6", c2: "Insured",               c3: "A professional liability insurer covers AI-generated output for this task class." },
+      { c1: "T5", c2: "Adjudicated",           c3: "The output has been reviewed in a formal dispute or audit process and held up." },
+      { c1: "T4", c2: "Production Deployment", c3: "The AI is performing this task in a real business workflow, generating revenue." },
+      { c1: "T3", c2: "Professional Endorsement", c3: "A credentialed professional in the field confirmed the output meets practice standards." },
+      { c1: "T2", c2: "Adversarial AI Eval",   c3: "A second AI model adversarially reviewed the output against professional standards." },
+      { c1: "T1", c2: "AI Self-Assessment",    c3: "AI model attempted the task and produced output. Lowest confidence." },
+      { c1: "T0", c2: "Unverified",            c3: "No verification evidence." },
+    ],
+  };
+}
+
+function roadmapSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Generation",    type: "text" },
+      { key: "c2", label: "Launch",        type: "text" },
+      { key: "c3", label: "Headline",      type: "text" },
+      { key: "c4", label: "Δ vs prior",    type: "text" },
+    ],
+    rows: [
+      { c1: "Hopper H100",   c2: "Mar '23", c3: "Transformer engine, FP8",      c4: "+3.2× vs A100" },
+      { c1: "Hopper H200",   c2: "Q4 '23",  c3: "141 GB HBM3e",                 c4: "+1.8× memory bandwidth" },
+      { c1: "Blackwell B200", c2: "Q1 '25", c3: "Dual-die, 192 GB HBM3e",      c4: "+2.5× perf / W" },
+      { c1: "Blackwell Ultra", c2: "Q3 '25", c3: "288 GB, NVLink 6th gen",    c4: "+1.5× HBM capacity" },
+      { c1: "Rubin R100",    c2: "Q4 '26",  c3: "HBM4, CPO optical IO",         c4: "+3.4× throughput" },
+    ],
+  };
+}
+
+function bomSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Component", type: "text" },
+      { key: "c2", label: "Unit Cost", type: "number", numFmt: "usd" },
+      { key: "c3", label: "Qty",       type: "number", numFmt: "int" },
+      { key: "c4", label: "Subtotal",  type: "number", numFmt: "usd" },
+    ],
+    rows: [
+      { c1: "GB200 NVL72 superchip", c2: 70_000,  c3: 36, c4: 2_520_000 },
+      { c1: "Blackwell B200 GPU",    c2: 40_000,  c3: 72, c4: 2_880_000 },
+      { c1: "NVLink switch tray",    c2: 12_500,  c3: 9,  c4: 112_500   },
+      { c1: "Rack PSU + busbar",     c2: 8_200,   c3: 6,  c4: 49_200    },
+      { c1: "Liquid cooling loop",   c2: 6_400,   c3: 1,  c4: 6_400     },
+      { c1: "Network + optics",      c2: 24_000,  c3: 1,  c4: 24_000    },
+    ],
+  };
+}
+
+function specComparisonSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Spec",   type: "text" },
+      { key: "c2", label: "Gen 5",  type: "text" },
+      { key: "c3", label: "Gen 6",  type: "text" },
+      { key: "c4", label: "Δ",      type: "text" },
+    ],
+    rows: [
+      { c1: "Process node",          c2: "5N",    c3: "3NE",  c4: "−40% logic area" },
+      { c1: "Transistor count (B)",  c2: "208",   c3: "412",  c4: "+98%" },
+      { c1: "Peak TDP (W)",          c2: "700",   c3: "1,200", c4: "+71%" },
+      { c1: "HBM capacity",          c2: "141 GB", c3: "288 GB", c4: "+104%" },
+      { c1: "HBM bandwidth (TB/s)",  c2: "4.8",   c3: "8.0",  c4: "+67%" },
+      { c1: "NVLink BW (GB/s)",      c2: "900",   c3: "1,800", c4: "+100%" },
+      { c1: "Launch price (kit)",    c2: "$30k",  c3: "$70k", c4: "+133%" },
+    ],
+  };
+}
+
+function capacityLedgerSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Quarter", type: "text" },
+      { key: "c2", label: "Region",  type: "text" },
+      { key: "c3", label: "Wafer Starts", type: "number", numFmt: "k", suffix: "/mo" },
+      { key: "c4", label: "Yield",   type: "percent" },
+    ],
+    rows: [
+      { c1: "Q1 '26", c2: "Hsinchu",    c3: 92_000,  c4: 78 },
+      { c1: "Q2 '26", c2: "Hsinchu",    c3: 98_000,  c4: 81 },
+      { c1: "Q2 '26", c2: "Arizona",    c3: 22_000,  c4: 71 },
+      { c1: "Q3 '26", c2: "Hsinchu",    c3: 105_000, c4: 84 },
+      { c1: "Q3 '26", c2: "Arizona",    c3: 34_000,  c4: 76 },
+      { c1: "Q4 '26", c2: "Hsinchu",    c3: 110_000, c4: 86 },
+      { c1: "Q4 '26", c2: "Arizona",    c3: 48_000,  c4: 79 },
+    ],
+  };
+}
+
+function modelEloSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Model",       type: "text" },
+      { key: "c2", label: "Arena Elo",   type: "number", numFmt: "int" },
+      { key: "c3", label: "30-day Δ",    type: "number", numFmt: "int" },
+      { key: "c4", label: "Win-rate vs field", type: "percent" },
+      { key: "c5", label: "Cost / 1M",   type: "number", numFmt: "usd" },
+    ],
+    rows: [
+      { c1: "Claude Opus 4.7",     c2: 1428, c3: 22,  c4: 71, c5: 15 },
+      { c1: "GPT-5",               c2: 1416, c3: 14,  c4: 69, c5: 12 },
+      { c1: "Gemini 3 Pro",        c2: 1402, c3: 31,  c4: 67, c5: 8  },
+      { c1: "Claude Sonnet 4.6",   c2: 1391, c3: 8,   c4: 65, c5: 3  },
+      { c1: "Llama 4 405B",        c2: 1342, c3: -3,  c4: 59, c5: 1  },
+      { c1: "Grok 4",              c2: 1320, c3: 18,  c4: 56, c5: 5  },
+    ],
+  };
+}
+
+function timelineEventSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Year",        type: "text" },
+      { key: "c2", label: "Milestone",   type: "text" },
+      { key: "c3", label: "Cost / unit", type: "text" },
+      { key: "c4", label: "Volume",      type: "text" },
+    ],
+    rows: [
+      { c1: "1400", c2: "Hand-forged by armorers",       c3: "$15.00", c4: "~hundreds/yr" },
+      { c1: "1700", c2: "Clockmaker blacksmith craft",   c3: "$8.00",  c4: "~thousands/yr" },
+      { c1: "1800", c2: "Maudslay screw-cutting lathe",  c3: "$3.00",  c4: "~millions/yr" },
+      { c1: "1850", c2: "Whitworth · American System",   c3: "$0.60",  c4: "~100s of millions/yr" },
+      { c1: "1900", c2: "Bessemer steel, std parts",     c3: "$0.15",  c4: "~10s of billions/yr" },
+      { c1: "1950", c2: "Post-war manufacturing automation", c3: "$0.05", c4: "~100s of billions/yr" },
+      { c1: "2000", c2: "Global supply chains, containers",  c3: "$0.02", c4: "~1 trillion/yr" },
+      { c1: "2025", c2: "Made in Asia, near-zero margin",    c3: "$0.01", c4: "~1–2 trillion/yr" },
+    ],
+  };
+}
+
 // ──────────────────────────────────────────────────────────────────────
 //  HEATMAPS
 // ──────────────────────────────────────────────────────────────────────
@@ -365,6 +523,168 @@ export const TABLE_TEMPLATES: TableTemplate[] = [
       highlightRowIdx: 4,
       highlightFlagCol: 3,
       keyInsight: "Retention at 30 days is the cliff — only **5%** of landed users stick, with the biggest drop-off (66%) happening between paid signup and 30-day check-in.",
+    }),
+  },
+  {
+    id: "verdict",
+    label: "Verdict matrix",
+    blurb: "Pass/fail gauntlet w/ verdict column",
+    accent: SA.amber,
+    glyph: "✓✗",
+    build: () => ({
+      engine: "standard",
+      sheet: verdictMatrixSheet(),
+      mode: "data",
+      category: "SEMIANALYSIS — MEASUREMENT",
+      titleWhite: "Three tests, one ledger ·",
+      titleAmber: "what GDP sees",
+      subtitle: "Each activity has to clear three columns to land in the headline",
+      titleBar: "GDP TEST GAUNTLET",
+      highlightRowIdx: 6,
+      highlightFlagCol: 4,
+      keyInsight: "Only **ordinary market output** clears all three tests. Everything else gets dropped, imputed at cost, or counted in the wrong sector.",
+    }),
+  },
+  {
+    id: "ladder",
+    label: "Tier ladder",
+    blurb: "Stacked categories w/ description",
+    accent: SA.violet,
+    glyph: "T6",
+    build: () => ({
+      engine: "standard",
+      sheet: tierLadderSheet(),
+      mode: "data",
+      category: "SEMIANALYSIS — TAXONOMY",
+      titleWhite: "Verification",
+      titleAmber: "Ladder",
+      subtitle: "Seven rungs of evidence · the headline counts only T4+",
+      titleBar: "VERIFICATION TIERS",
+      highlightRowIdx: 2,
+      highlightFlagCol: 1,
+      keyInsight: "**T4 — Production Deployment** is the headline floor. Below it the work is unverified or self-graded; above it has external attestation.",
+    }),
+  },
+  {
+    id: "roadmap",
+    label: "Product roadmap",
+    blurb: "Generation-over-generation features",
+    accent: SA.blue,
+    glyph: "→→",
+    build: () => ({
+      engine: "standard",
+      sheet: roadmapSheet(),
+      mode: "data",
+      category: "SEMIANALYSIS — ROADMAP",
+      titleWhite: "Nvidia Datacenter ·",
+      titleAmber: "FY24–FY27",
+      subtitle: "Generation cadence · headline accelerator features and the delta vs prior gen",
+      titleBar: "ACCELERATOR ROADMAP",
+      highlightRowIdx: 4,
+      highlightFlagCol: 3,
+      keyInsight: "Rubin's **+3.4× throughput** is the largest gen-over-gen step since Hopper — but launch slips to Q4 '26 push first-revenue out of FY26 plans.",
+    }),
+  },
+  {
+    id: "bom",
+    label: "Bill of materials",
+    blurb: "Component × cost × qty, w/ total",
+    accent: SA.amber,
+    glyph: "Σ$",
+    build: () => ({
+      engine: "standard",
+      sheet: bomSheet(),
+      mode: "data",
+      category: "SEMIANALYSIS — UNIT ECONOMICS",
+      titleWhite: "GB200 NVL72 ·",
+      titleAmber: "Rack BOM",
+      subtitle: "Per-rack bill of materials · superchip-dominated cost stack",
+      titleBar: "BOM · GB200 NVL72",
+      aggregate: "sum",
+      aggregateLabel: "TOTAL",
+      keyInsight: "Compute (superchip + GPUs) is **~92%** of the rack BOM. The remaining 8% — network, power, cooling — is where Nvidia's competitors get squeezed out.",
+    }),
+  },
+  {
+    id: "specs",
+    label: "Spec comparison",
+    blurb: "Generation Δ side-by-side",
+    accent: SA.blue,
+    glyph: "Δ",
+    build: () => ({
+      engine: "standard",
+      sheet: specComparisonSheet(),
+      mode: "data",
+      category: "SEMIANALYSIS — SPEC SHEET",
+      titleWhite: "Gen 5 → Gen 6 ·",
+      titleAmber: "Spec Delta",
+      subtitle: "Headline silicon, memory, IO, and price changes between successive gens",
+      titleBar: "SPEC DELTA",
+      highlightRowIdx: 6,
+      highlightFlagCol: 3,
+      keyInsight: "Capacity doubled, bandwidth scaled, but launch price moved **+133%** — the per-unit-of-compute price has barely budged.",
+    }),
+  },
+  {
+    id: "capacity",
+    label: "Capacity ledger",
+    blurb: "Quarterly volume × yield, multi-region",
+    accent: SA.teal,
+    glyph: "▭",
+    build: () => ({
+      engine: "standard",
+      sheet: capacityLedgerSheet(),
+      mode: "data",
+      category: "SEMIANALYSIS — CAPACITY",
+      titleWhite: "Leading-edge",
+      titleAmber: "Wafer Starts",
+      subtitle: "Quarter × region · wafer starts and yield trajectory",
+      titleBar: "FOUNDRY CAPACITY · 2026",
+      aggregate: "sum",
+      aggregateLabel: "QUARTERLY",
+      highlightRowIdx: 6,
+      highlightFlagCol: 2,
+      keyInsight: "Arizona ramp accelerates **~2.2×** across FY26, but Hsinchu still carries the floor — and Arizona yield is **7pp** below Hsinchu at every milestone.",
+    }),
+  },
+  {
+    id: "elo",
+    label: "Model leaderboard",
+    blurb: "Elo + Δ + win-rate + cost",
+    accent: SA.violet,
+    glyph: "♛",
+    build: () => ({
+      engine: "standard",
+      sheet: modelEloSheet(),
+      mode: "data",
+      category: "SEMIANALYSIS — MODEL ECONOMY",
+      titleWhite: "Frontier",
+      titleAmber: "Leaderboard",
+      subtitle: "Arena Elo · 30-day delta · win-rate vs field · API cost per million output tokens",
+      titleBar: "ARENA · OUTPUT 1M COST",
+      highlightRowIdx: 0,
+      highlightFlagCol: 4,
+      keyInsight: "**Sonnet 4.6** lands within 37 Elo of the #1 spot at **1/5 the cost** — the price/Elo curve has bent decisively over the last 90 days.",
+    }),
+  },
+  {
+    id: "timeline-events",
+    label: "Timeline events",
+    blurb: "Era-by-era cost + volume",
+    accent: SA.amber,
+    glyph: "│",
+    build: () => ({
+      engine: "standard",
+      sheet: timelineEventSheet(),
+      mode: "data",
+      category: "SEMIANALYSIS — TIMELINE",
+      titleWhite: "The price of a screw,",
+      titleAmber: "1400 → 2025",
+      subtitle: "Eight inventions retire the cost of joining metal · 1,500-fold decline",
+      titleBar: "PRICE × VOLUME · 625 YEARS",
+      highlightRowIdx: 7,
+      highlightFlagCol: 2,
+      keyInsight: "Screws are **~1,500×** cheaper today than in 1400. Each step on the ladder reads as a single invention retiring a labor cost.",
     }),
   },
 

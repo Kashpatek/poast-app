@@ -304,33 +304,308 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
 function readPayload(payload: unknown): { nodes: DiagramNode[]; edges: DiagramEdge[]; viewport: { x: number; y: number; scale: number } } {
   if (payload && typeof payload === "object") {
     const p = payload as Partial<DiagramDocPayload>;
+    const tplId = (p as { templateId?: string }).templateId;
+    const seed = seedFromTemplate(tplId);
     return {
-      nodes: Array.isArray(p.nodes) ? p.nodes : seedFromTemplate((p as { templateId?: string }).templateId),
-      edges: Array.isArray(p.edges) ? p.edges : [],
+      nodes: Array.isArray(p.nodes) ? p.nodes : seed.nodes,
+      edges: Array.isArray(p.edges) ? p.edges : seed.edges,
       viewport: p.viewport || { x: 0, y: 0, scale: 1 },
     };
   }
-  return { nodes: seedFromTemplate(undefined), edges: [], viewport: { x: 0, y: 0, scale: 1 } };
+  const seed = seedFromTemplate(undefined);
+  return { nodes: seed.nodes, edges: seed.edges, viewport: { x: 0, y: 0, scale: 1 } };
 }
 
-function seedFromTemplate(templateId: string | undefined): DiagramNode[] {
+function seedFromTemplate(templateId: string | undefined): { nodes: DiagramNode[]; edges: DiagramEdge[] } {
   if (templateId === "flowchart") {
-    return [
+    const nodes: DiagramNode[] = [
       { id: "n1", kind: "flowStart",    x: 60,  y: 60,  w: 140, h: 60,  text: "Start" },
       { id: "n2", kind: "flowDecision", x: 260, y: 50,  w: 160, h: 100, text: "Decide?" },
       { id: "n3", kind: "flowProcess",  x: 480, y: 30,  w: 160, h: 70,  text: "Process A" },
       { id: "n4", kind: "flowProcess",  x: 480, y: 130, w: 160, h: 70,  text: "Process B" },
       { id: "n5", kind: "flowEnd",      x: 700, y: 80,  w: 140, h: 60,  text: "End" },
     ];
+    const edges: DiagramEdge[] = [
+      { id: "e1", from: { kind: "node", nodeId: "n1", side: "right" }, to: { kind: "node", nodeId: "n2", side: "left" }, arrowEnd: true },
+      { id: "e2", from: { kind: "node", nodeId: "n2", side: "right" }, to: { kind: "node", nodeId: "n3", side: "left" }, arrowEnd: true },
+      { id: "e3", from: { kind: "node", nodeId: "n2", side: "right" }, to: { kind: "node", nodeId: "n4", side: "left" }, arrowEnd: true },
+      { id: "e4", from: { kind: "node", nodeId: "n3", side: "right" }, to: { kind: "node", nodeId: "n5", side: "left" }, arrowEnd: true },
+      { id: "e5", from: { kind: "node", nodeId: "n4", side: "right" }, to: { kind: "node", nodeId: "n5", side: "left" }, arrowEnd: true },
+    ];
+    return { nodes, edges };
   }
   if (templateId === "wireframe") {
-    return [
-      { id: "h", kind: "rect",  x: 60, y: 40,  w: 760, h: 60,  fill: "#1A1A2A", stroke: "#F7B041AA", text: "Header" },
-      { id: "b", kind: "rect",  x: 60, y: 120, w: 760, h: 300, fill: "#10101C", stroke: "#0B86D1AA", text: "Body" },
-      { id: "f", kind: "rect",  x: 60, y: 440, w: 760, h: 60,  fill: "#1A1A2A", stroke: "#2EAD8EAA", text: "Footer" },
-    ];
+    return {
+      nodes: [
+        { id: "h", kind: "rect",  x: 60, y: 40,  w: 760, h: 60,  fill: "#1A1A2A", stroke: "#F7B041AA", text: "Header" },
+        { id: "b", kind: "rect",  x: 60, y: 120, w: 760, h: 300, fill: "#10101C", stroke: "#0B86D1AA", text: "Body" },
+        { id: "f", kind: "rect",  x: 60, y: 440, w: 760, h: 60,  fill: "#1A1A2A", stroke: "#2EAD8EAA", text: "Footer" },
+      ],
+      edges: [],
+    };
   }
-  return [];
+
+  // Timeline — 8 era nodes in a serpentine row, each with a year label
+  // and price callout. Mirrors the "price of a screw" infographic.
+  if (templateId === "timeline-nodes") {
+    const years = [
+      { y: "1400", p: "$15.00", v: "~hundreds/yr" },
+      { y: "1700", p: "$8.00",  v: "~thousands/yr" },
+      { y: "1800", p: "$3.00",  v: "~millions/yr" },
+      { y: "1850", p: "$0.60",  v: "~100Ms/yr" },
+      { y: "1900", p: "$0.15",  v: "~10Bs/yr" },
+      { y: "1950", p: "$0.05",  v: "~100Bs/yr" },
+      { y: "2000", p: "$0.02",  v: "~1T/yr" },
+      { y: "2025", p: "$0.01",  v: "~1–2T/yr" },
+    ];
+    const nodes: DiagramNode[] = [];
+    const edges: DiagramEdge[] = [];
+    const r = 36, gap = 130, startX = 60, baseY = 240;
+    for (let i = 0; i < years.length; i++) {
+      const row = Math.floor(i / 4);
+      const colIdx = row === 0 ? i : 3 - (i - 4);
+      const x = startX + colIdx * gap;
+      const y = baseY + row * 220;
+      const it = years[i];
+      nodes.push({
+        id: "p" + i,
+        kind: "ellipse",
+        x, y, w: r * 2, h: r * 2,
+        fill: "#F7B041",
+        stroke: "#F7B041",
+        strokeWidth: 2,
+        text: it.y,
+        fontSize: 14,
+      });
+      nodes.push({
+        id: "pr" + i, kind: "text",
+        x: x - 14, y: y - 56, w: 110, h: 30,
+        text: it.p, fontSize: 22,
+      });
+      nodes.push({
+        id: "vol" + i, kind: "text",
+        x: x - 24, y: y + r * 2 + 8, w: 140, h: 26,
+        text: it.v, fontSize: 12,
+      });
+      if (i > 0) {
+        edges.push({
+          id: "te" + i,
+          from: { kind: "node", nodeId: "p" + (i - 1), side: row !== Math.floor((i - 1) / 4) ? "bottom" : i % 4 === 0 ? "bottom" : "right" },
+          to:   { kind: "node", nodeId: "p" + i,       side: row !== Math.floor((i - 1) / 4) ? "top"    : i % 4 === 0 ? "top"    : "left"  },
+          stroke: "#F7B041AA", strokeWidth: 2, arrowEnd: false,
+        });
+      }
+    }
+    return { nodes, edges };
+  }
+
+  // Before / after — two horizontal flows stacked. Pattern: rect → arrow
+  // → rect → arrow → rect, twice, with a heading text on top of each row.
+  if (templateId === "before-after") {
+    const nodes: DiagramNode[] = [
+      { id: "bh", kind: "text", x: 80,  y: 40,  w: 760, h: 36, text: "Before AI", fontSize: 22 },
+      { id: "b1", kind: "rect", x: 80,  y: 92,  w: 200, h: 86, fill: "#1A1A2A", stroke: "#FFFFFF55", text: "Patient" },
+      { id: "b2", kind: "rect", x: 360, y: 92,  w: 200, h: 86, fill: "#1A1A2A", stroke: "#FFFFFF55", text: "Physician" },
+      { id: "b3", kind: "rect", x: 640, y: 92,  w: 200, h: 86, fill: "#0B86D122", stroke: "#0B86D1", text: "NAICS 6211\nOffices of Physicians" },
+
+      { id: "ah", kind: "text", x: 80,  y: 240, w: 760, h: 36, text: "With AI scribe", fontSize: 22 },
+      { id: "a1", kind: "rect", x: 40,  y: 292, w: 160, h: 86, fill: "#1A1A2A", stroke: "#FFFFFF55", text: "Patient" },
+      { id: "a2", kind: "rect", x: 248, y: 292, w: 160, h: 86, fill: "#1A1A2A", stroke: "#FFFFFF55", text: "Physician" },
+      { id: "a3", kind: "rect", x: 456, y: 292, w: 160, h: 86, fill: "#F7B04122", stroke: "#F7B041", text: "AI vendor" },
+      { id: "a4", kind: "rect", x: 664, y: 292, w: 200, h: 86, fill: "#F7B04122", stroke: "#F7B041", text: "NAICS 5415\nComputer Systems Design" },
+    ];
+    const edges: DiagramEdge[] = [
+      { id: "be1", from: { kind: "node", nodeId: "b1", side: "right" }, to: { kind: "node", nodeId: "b2", side: "left" }, stroke: "#FFFFFFAA", arrowEnd: true },
+      { id: "be2", from: { kind: "node", nodeId: "b2", side: "right" }, to: { kind: "node", nodeId: "b3", side: "left" }, stroke: "#0B86D1",   arrowEnd: true, strokeWidth: 2 },
+      { id: "ae1", from: { kind: "node", nodeId: "a1", side: "right" }, to: { kind: "node", nodeId: "a2", side: "left" }, stroke: "#FFFFFFAA", arrowEnd: true },
+      { id: "ae2", from: { kind: "node", nodeId: "a2", side: "right" }, to: { kind: "node", nodeId: "a3", side: "left" }, stroke: "#F7B041",   arrowEnd: true, strokeWidth: 2 },
+      { id: "ae3", from: { kind: "node", nodeId: "a3", side: "right" }, to: { kind: "node", nodeId: "a4", side: "left" }, stroke: "#F7B041",   arrowEnd: true, strokeWidth: 2 },
+    ];
+    return { nodes, edges };
+  }
+
+  // Topology — hub-and-spoke. 1 central hub + 6 surrounding endpoints.
+  if (templateId === "topology") {
+    const nodes: DiagramNode[] = [
+      { id: "hub", kind: "rounded", x: 360, y: 200, w: 160, h: 80, fill: "#0B86D122", stroke: "#0B86D1", text: "Core Router" },
+    ];
+    const labels = ["DC-East", "DC-West", "Edge-NYC", "Edge-LAX", "Backbone", "Transit"];
+    const edges: DiagramEdge[] = [];
+    const cx = 440, cy = 240, R = 220;
+    for (let i = 0; i < labels.length; i++) {
+      const a = (Math.PI * 2 * i) / labels.length;
+      const x = cx + Math.cos(a) * R - 60;
+      const y = cy + Math.sin(a) * R - 30;
+      nodes.push({
+        id: "e" + i,
+        kind: "rect",
+        x, y, w: 120, h: 60,
+        fill: "#1A1A2A", stroke: "#2EAD8E", text: labels[i],
+      });
+      edges.push({
+        id: "te" + i,
+        from: { kind: "node", nodeId: "hub", side: "center" },
+        to: { kind: "node", nodeId: "e" + i, side: "center" },
+        stroke: "#2EAD8EAA", strokeWidth: 1.5, arrowEnd: false,
+      });
+    }
+    return { nodes, edges };
+  }
+
+  // Swimlane — 3 horizontal lanes (people / system / data) with a
+  // process flow that crosses them. Lane backgrounds are rect tiles.
+  if (templateId === "swimlane") {
+    const laneW = 880, laneH = 130, x0 = 40, y0 = 40;
+    const nodes: DiagramNode[] = [
+      { id: "l1", kind: "rect", x: x0, y: y0,             w: laneW, h: laneH, fill: "#0B86D110", stroke: "#0B86D155", text: "" },
+      { id: "l2", kind: "rect", x: x0, y: y0 + laneH + 8, w: laneW, h: laneH, fill: "#F7B04110", stroke: "#F7B04155", text: "" },
+      { id: "l3", kind: "rect", x: x0, y: y0 + (laneH + 8) * 2, w: laneW, h: laneH, fill: "#2EAD8E10", stroke: "#2EAD8E55", text: "" },
+      { id: "lt1", kind: "text", x: x0 + 14, y: y0 + 14,             w: 100, h: 22, text: "People",  fontSize: 13 },
+      { id: "lt2", kind: "text", x: x0 + 14, y: y0 + laneH + 22,     w: 100, h: 22, text: "System",  fontSize: 13 },
+      { id: "lt3", kind: "text", x: x0 + 14, y: y0 + (laneH + 8) * 2 + 14, w: 100, h: 22, text: "Data", fontSize: 13 },
+
+      { id: "s1", kind: "flowStart",    x: 140, y: y0 + 50,           w: 130, h: 50, text: "Request" },
+      { id: "s2", kind: "flowProcess",  x: 340, y: y0 + laneH + 50,   w: 150, h: 50, text: "Validate" },
+      { id: "s3", kind: "flowData",     x: 560, y: y0 + (laneH + 8) * 2 + 50, w: 150, h: 50, text: "Query" },
+      { id: "s4", kind: "flowProcess",  x: 560, y: y0 + laneH + 50,   w: 150, h: 50, text: "Compose" },
+      { id: "s5", kind: "flowEnd",      x: 760, y: y0 + 50,           w: 110, h: 50, text: "Reply" },
+    ];
+    const edges: DiagramEdge[] = [
+      { id: "se1", from: { kind: "node", nodeId: "s1", side: "bottom" }, to: { kind: "node", nodeId: "s2", side: "top" },    arrowEnd: true },
+      { id: "se2", from: { kind: "node", nodeId: "s2", side: "bottom" }, to: { kind: "node", nodeId: "s3", side: "top" },    arrowEnd: true },
+      { id: "se3", from: { kind: "node", nodeId: "s3", side: "top" },    to: { kind: "node", nodeId: "s4", side: "bottom" }, arrowEnd: true },
+      { id: "se4", from: { kind: "node", nodeId: "s4", side: "top" },    to: { kind: "node", nodeId: "s5", side: "bottom" }, arrowEnd: true },
+    ];
+    return { nodes, edges };
+  }
+
+  // Segment ladder infographic — vertical stack of 7 colored tier rows,
+  // each with a swatch on the left and a description. Mirrors the
+  // "verification ladder" image (T6 → T0).
+  if (templateId === "segment-ladder") {
+    const tiers = [
+      { tier: "T6", name: "Insured",                color: "#905CCB" },
+      { tier: "T5", name: "Adjudicated",            color: "#3D7EE6" },
+      { tier: "T4", name: "Production Deployment", color: "#2EAD8E" },
+      { tier: "T3", name: "Professional Endorse.",  color: "#F2A02C" },
+      { tier: "T2", name: "Adversarial AI Eval",    color: "#0B86D1" },
+      { tier: "T1", name: "AI Self-Assessment",     color: "#7F8090" },
+      { tier: "T0", name: "Unverified",             color: "#3A3A48" },
+    ];
+    const nodes: DiagramNode[] = [
+      { id: "title", kind: "text", x: 60, y: 24, w: 760, h: 36, text: "The verification ladder", fontSize: 24 },
+    ];
+    const rowH = 64;
+    for (let i = 0; i < tiers.length; i++) {
+      const t = tiers[i];
+      const y = 88 + i * (rowH + 8);
+      nodes.push({
+        id: "sw" + i, kind: "rect",
+        x: 60, y, w: 56, h: rowH,
+        fill: t.color, stroke: t.color, text: "",
+      });
+      nodes.push({
+        id: "ti" + i, kind: "text",
+        x: 134, y: y + 10, w: 200, h: 24,
+        text: t.tier + " · " + t.name, fontSize: 17,
+      });
+      nodes.push({
+        id: "desc" + i, kind: "text",
+        x: 134, y: y + 36, w: 600, h: 22,
+        text: "Description placeholder.", fontSize: 12,
+      });
+    }
+    return { nodes, edges: [] };
+  }
+
+  // System architecture — 4 stacked blocks with downward arrows.
+  if (templateId === "architecture") {
+    const nodes: DiagramNode[] = [
+      { id: "t",  kind: "text", x: 80, y: 24, w: 600, h: 30, text: "System Architecture", fontSize: 20 },
+      { id: "a1", kind: "rounded", x: 200, y: 80,  w: 360, h: 70, fill: "#0B86D122", stroke: "#0B86D1", text: "Client / Browser" },
+      { id: "a2", kind: "rounded", x: 200, y: 200, w: 360, h: 70, fill: "#F7B04122", stroke: "#F7B041", text: "API Gateway / Auth" },
+      { id: "a3", kind: "rounded", x: 200, y: 320, w: 360, h: 70, fill: "#2EAD8E22", stroke: "#2EAD8E", text: "Business Logic" },
+      { id: "a4", kind: "rounded", x: 200, y: 440, w: 360, h: 70, fill: "#905CCB22", stroke: "#905CCB", text: "Datastore + Cache" },
+
+      { id: "side1", kind: "rect", x: 600, y: 200, w: 200, h: 70, fill: "#1A1A2A", stroke: "#FFFFFF55", text: "Observability" },
+      { id: "side2", kind: "rect", x: 600, y: 320, w: 200, h: 70, fill: "#1A1A2A", stroke: "#FFFFFF55", text: "External APIs" },
+    ];
+    const edges: DiagramEdge[] = [
+      { id: "ae1", from: { kind: "node", nodeId: "a1", side: "bottom" }, to: { kind: "node", nodeId: "a2", side: "top" }, arrowEnd: true, strokeWidth: 2 },
+      { id: "ae2", from: { kind: "node", nodeId: "a2", side: "bottom" }, to: { kind: "node", nodeId: "a3", side: "top" }, arrowEnd: true, strokeWidth: 2 },
+      { id: "ae3", from: { kind: "node", nodeId: "a3", side: "bottom" }, to: { kind: "node", nodeId: "a4", side: "top" }, arrowEnd: true, strokeWidth: 2 },
+      { id: "ae4", from: { kind: "node", nodeId: "a2", side: "right" }, to: { kind: "node", nodeId: "side1", side: "left" }, arrowEnd: true, dashed: true },
+      { id: "ae5", from: { kind: "node", nodeId: "a3", side: "right" }, to: { kind: "node", nodeId: "side2", side: "left" }, arrowEnd: true, dashed: true },
+    ];
+    return { nodes, edges };
+  }
+
+  // Mind map — central node with three colored branches each spawning
+  // two leaves. Lightweight brainstorming starter.
+  if (templateId === "mindmap") {
+    const nodes: DiagramNode[] = [
+      { id: "root", kind: "ellipse", x: 380, y: 230, w: 160, h: 80, fill: "#F7B04122", stroke: "#F7B041", text: "Idea" },
+      { id: "b1", kind: "rounded", x: 80,  y: 80,  w: 160, h: 56, fill: "#0B86D122", stroke: "#0B86D1", text: "Branch A" },
+      { id: "b2", kind: "rounded", x: 680, y: 80,  w: 160, h: 56, fill: "#2EAD8E22", stroke: "#2EAD8E", text: "Branch B" },
+      { id: "b3", kind: "rounded", x: 380, y: 460, w: 160, h: 56, fill: "#905CCB22", stroke: "#905CCB", text: "Branch C" },
+      { id: "l1a", kind: "rect", x: 20,  y: 200, w: 130, h: 44, fill: "#0B86D110", stroke: "#0B86D188", text: "Leaf A1" },
+      { id: "l1b", kind: "rect", x: 180, y: 200, w: 130, h: 44, fill: "#0B86D110", stroke: "#0B86D188", text: "Leaf A2" },
+      { id: "l2a", kind: "rect", x: 600, y: 200, w: 130, h: 44, fill: "#2EAD8E10", stroke: "#2EAD8E88", text: "Leaf B1" },
+      { id: "l2b", kind: "rect", x: 760, y: 200, w: 130, h: 44, fill: "#2EAD8E10", stroke: "#2EAD8E88", text: "Leaf B2" },
+      { id: "l3a", kind: "rect", x: 250, y: 540, w: 130, h: 44, fill: "#905CCB10", stroke: "#905CCB88", text: "Leaf C1" },
+      { id: "l3b", kind: "rect", x: 540, y: 540, w: 130, h: 44, fill: "#905CCB10", stroke: "#905CCB88", text: "Leaf C2" },
+    ];
+    const edges: DiagramEdge[] = [
+      { id: "r1", from: { kind: "node", nodeId: "root", side: "left" },  to: { kind: "node", nodeId: "b1", side: "right" }, stroke: "#0B86D1", strokeWidth: 2, arrowEnd: false },
+      { id: "r2", from: { kind: "node", nodeId: "root", side: "right" }, to: { kind: "node", nodeId: "b2", side: "left" },  stroke: "#2EAD8E", strokeWidth: 2, arrowEnd: false },
+      { id: "r3", from: { kind: "node", nodeId: "root", side: "bottom" }, to: { kind: "node", nodeId: "b3", side: "top" },  stroke: "#905CCB", strokeWidth: 2, arrowEnd: false },
+      { id: "l1ae", from: { kind: "node", nodeId: "b1", side: "bottom" }, to: { kind: "node", nodeId: "l1a", side: "top" }, stroke: "#0B86D1AA", arrowEnd: false },
+      { id: "l1be", from: { kind: "node", nodeId: "b1", side: "bottom" }, to: { kind: "node", nodeId: "l1b", side: "top" }, stroke: "#0B86D1AA", arrowEnd: false },
+      { id: "l2ae", from: { kind: "node", nodeId: "b2", side: "bottom" }, to: { kind: "node", nodeId: "l2a", side: "top" }, stroke: "#2EAD8EAA", arrowEnd: false },
+      { id: "l2be", from: { kind: "node", nodeId: "b2", side: "bottom" }, to: { kind: "node", nodeId: "l2b", side: "top" }, stroke: "#2EAD8EAA", arrowEnd: false },
+      { id: "l3ae", from: { kind: "node", nodeId: "b3", side: "bottom" }, to: { kind: "node", nodeId: "l3a", side: "top" }, stroke: "#905CCBAA", arrowEnd: false },
+      { id: "l3be", from: { kind: "node", nodeId: "b3", side: "bottom" }, to: { kind: "node", nodeId: "l3b", side: "top" }, stroke: "#905CCBAA", arrowEnd: false },
+    ];
+    return { nodes, edges };
+  }
+
+  // Sequence diagram — 4 vertical lifelines + horizontal messages.
+  if (templateId === "sequence") {
+    const lanes = ["User", "Edge", "API", "DB"];
+    const y0 = 40, ylane = 60, height = 480;
+    const nodes: DiagramNode[] = [];
+    for (let i = 0; i < lanes.length; i++) {
+      const x = 80 + i * 200;
+      nodes.push({ id: "h" + i, kind: "rect", x, y: y0, w: 140, h: ylane, fill: "#0B86D122", stroke: "#0B86D1", text: lanes[i] });
+      nodes.push({ id: "ll" + i, kind: "line", x: x + 70, y: y0 + ylane, w: 0, h: height - ylane, fill: "#FFFFFF22", stroke: "#FFFFFF55", strokeWidth: 1 });
+    }
+    const msgs = [
+      { from: 0, to: 1, y: 150, text: "request" },
+      { from: 1, to: 2, y: 220, text: "validate" },
+      { from: 2, to: 3, y: 290, text: "query" },
+      { from: 3, to: 2, y: 360, text: "rows" },
+      { from: 2, to: 1, y: 410, text: "compose" },
+      { from: 1, to: 0, y: 470, text: "reply" },
+    ];
+    msgs.forEach((m, idx) => {
+      const x1 = 80 + m.from * 200 + 70;
+      const x2 = 80 + m.to * 200 + 70;
+      nodes.push({
+        id: "msg" + idx, kind: "arrow",
+        x: Math.min(x1, x2), y: m.y, w: Math.abs(x2 - x1), h: 0,
+        stroke: x2 > x1 ? "#F7B041" : "#2EAD8E", strokeWidth: 2,
+        rotation: x2 > x1 ? 0 : 180,
+      });
+      nodes.push({
+        id: "msgT" + idx, kind: "text",
+        x: Math.min(x1, x2) + 10, y: m.y - 22, w: 140, h: 20,
+        text: m.text, fontSize: 12,
+      });
+    });
+    return { nodes, edges: [] };
+  }
+
+  return { nodes: [], edges: [] };
 }
 
 function CanvasFallback() {

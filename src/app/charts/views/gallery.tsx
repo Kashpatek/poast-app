@@ -51,9 +51,17 @@ const TABLE_TEMPLATES: GalleryTemplate[] = TABLE_SEEDS.map((t) => ({
 }));
 
 const DIAGRAM_TEMPLATES: GalleryTemplate[] = [
-  { id: "blank",     label: "Blank canvas",     subtitle: "Empty board, drop any shape", accent: "#0B86D1", glyph: "◇" },
-  { id: "flowchart", label: "Flowchart",        subtitle: "Start node + 2 branches", accent: "#0B86D1", glyph: "→" },
-  { id: "wireframe", label: "Wireframe",        subtitle: "Header + body + footer blocks", accent: "#0B86D1", glyph: "▢" },
+  { id: "blank",           label: "Blank canvas",   subtitle: "Empty board, drop any shape",    accent: "#0B86D1", glyph: "◇" },
+  { id: "flowchart",       label: "Flowchart",      subtitle: "Start + decision + 2 branches",  accent: "#0B86D1", glyph: "→" },
+  { id: "wireframe",       label: "Wireframe",      subtitle: "Header + body + footer blocks",  accent: "#F7B041", glyph: "▢" },
+  { id: "timeline-nodes",  label: "Timeline",       subtitle: "8 era nodes w/ labels above/below", accent: "#F7B041", glyph: "◯─◯" },
+  { id: "before-after",    label: "Before / After", subtitle: "Two stacked horizontal flows",   accent: "#F7B041", glyph: "⇄" },
+  { id: "topology",        label: "Topology",       subtitle: "Hub + 6 spokes",                  accent: "#2EAD8E", glyph: "✦" },
+  { id: "swimlane",        label: "Swimlane",       subtitle: "3 lanes w/ process flow",         accent: "#2EAD8E", glyph: "▤" },
+  { id: "segment-ladder",  label: "Tier ladder",    subtitle: "Stacked colored tiers infographic", accent: "#905CCB", glyph: "▬▬▬" },
+  { id: "architecture",    label: "Architecture",   subtitle: "4 stacked blocks w/ sidecar",     accent: "#0B86D1", glyph: "▭▭▭" },
+  { id: "mindmap",         label: "Mind map",       subtitle: "Central node + 3 branches × 2",   accent: "#F7B041", glyph: "✺" },
+  { id: "sequence",        label: "Sequence",       subtitle: "4 lifelines + horizontal messages", accent: "#0B86D1", glyph: "═══" },
 ];
 
 function templatesFor(type: DocType): GalleryTemplate[] {
