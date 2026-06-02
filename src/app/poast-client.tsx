@@ -1385,7 +1385,7 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
       { id: "p2p",      label: "Press to Premier", sub: "Video production briefs", Icon: Clapperboard },
       { id: "broll",    label: "B-Roll",        sub: "Generated b-roll library", Icon: Film },
       { id: "chart",    label: "Chart Maker",   sub: "Quick charts",            Icon: BarChart3 },
-      { id: "chart2",   label: "Chart Maker 2", sub: "Think-cell, drag, export", Icon: GanttChart, href: "/charts" },
+      { id: "chart2",   label: "POAST Studio",  sub: "Charts, tables, diagrams · saved library", Icon: GanttChart, href: "/charts" },
       { id: "distpack", label: "Distribution Pack", sub: "Launch posts + POAST suite", Icon: Layers },
       { id: "voice",    label: "Voice Scorer",  sub: "Score voiceovers vs brand", Icon: ShieldCheck },
       { id: "headline", label: "Headline Doctor", sub: "Diagnose + rewrite headlines", Icon: Sparkles },
@@ -1590,7 +1590,7 @@ function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
     { id: "sloptop",  label: "Slop Top",    sub: "Brief Gen + arxiv.lol",  Icon: Zap,        color: C.amber },
     { id: "carousel", label: "Carousel",    sub: "Instagram carousels",    Icon: LayoutGrid, color: C.blue },
     { id: "captions", label: "Capper",      sub: "Captions per platform",  Icon: Captions,   color: C.teal },
-    { id: "chart-cm2", label: "Chart Maker 2", sub: "Think-cell · drag · annotate", Icon: GanttChart, color: C.coral, href: "/charts" },
+    { id: "chart-cm2", label: "POAST Studio", sub: "Charts · tables · diagrams · saved library", Icon: GanttChart, color: C.coral, href: "/charts" },
   ];
   // Lifted from whichever tile is currently being hovered. Null when no tile
   // is active → the screen falls back to the resting violet ambient.

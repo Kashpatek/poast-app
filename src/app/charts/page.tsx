@@ -5,16 +5,18 @@ import ChartMaker2 from "../chart-maker-2";
 import { D as C, ft, gf, mn } from "../shared-constants";
 import StudioShell from "./studio-shell";
 
-// /charts · Chart Maker 2 today, POAST Studio behind the ?studio=1 preview
-// flag. When Checkpoints 2–4 land we'll flip the default to studio mode and
-// retire the standalone ChartMaker2 shell here.
+// /charts · POAST Studio by default. The legacy Chart Maker 2 standalone
+// surface is still reachable at ?legacy=1 — useful for QA comparisons and
+// as an escape hatch while analysts get used to the new shell. Once the
+// team has used Studio for a couple weeks, the legacy branch can be
+// removed entirely.
 //
 // Auth check mirrors /brand-launch and /asset-library: read user from
 // localStorage (synchronously avoids the parent-effect-fires-after-child
 // hydration race).
 export default function ChartsPage() {
   var _o = useState(false), ok = _o[0], setOk = _o[1];
-  var _s = useState(false), studio = _s[0], setStudio = _s[1];
+  var _l = useState(false), legacy = _l[0], setLegacy = _l[1];
 
   useEffect(function() {
     try {
@@ -24,13 +26,13 @@ export default function ChartsPage() {
     } catch (e) { window.location.href = "/"; return; }
     try {
       var qs = new URLSearchParams(window.location.search);
-      if (qs.get("studio") === "1") setStudio(true);
+      if (qs.get("legacy") === "1") setLegacy(true);
     } catch (e) {}
   }, []);
 
   if (!ok) return null;
 
-  if (studio) {
+  if (!legacy) {
     return (
       <div style={{ background: "#06060A", minHeight: "100vh", color: C.tx }}>
         <StudioShell />
@@ -101,8 +103,8 @@ export default function ChartsPage() {
         </div>
 
         <a
-          href="/charts?studio=1"
-          title="Try POAST Studio (preview)"
+          href="/charts"
+          title="Back to POAST Studio"
           style={{
             display: "inline-flex", alignItems: "center", gap: 6,
             padding: "6px 12px",
@@ -112,8 +114,8 @@ export default function ChartsPage() {
             fontFamily: mn, fontSize: 9.5, fontWeight: 800, letterSpacing: 0.6,
             textTransform: "uppercase", textDecoration: "none", borderRadius: 5,
           }}
-        >✦ Try Studio preview</a>
-        <span style={{ fontFamily: mn, fontSize: 9, color: C.txd, letterSpacing: 1.5, padding: "5px 11px", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 4, background: "rgba(255,255,255,0.02)" }}>STANDALONE</span>
+        >← POAST Studio</a>
+        <span style={{ fontFamily: mn, fontSize: 9, color: C.coral, letterSpacing: 1.5, padding: "5px 11px", border: "1px solid " + C.coral + "55", borderRadius: 4, background: C.coral + "12" }}>LEGACY</span>
       </div>
 
       <div style={{ padding: "0 26px 80px", position: "relative", zIndex: 1 }}>
