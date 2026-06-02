@@ -99,26 +99,114 @@ export default function LibraryView({
 
       {filtered.length === 0 ? (
         <EmptyState onNew={onNew} hasAny={docs.length > 0} />
+      ) : filter !== "all" ? (
+        // Single-type filter — render one flat grid.
+        <CardGrid
+          docs={filtered}
+          onOpen={onOpen}
+          onRename={onRename}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+        />
       ) : (
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-          gap: 14,
-        }}>
-          {filtered.map((d) => (
-            <LibraryCard
-              key={d.id}
-              doc={d}
-              onOpen={() => onOpen(d.id)}
-              onRename={() => onRename(d.id)}
-              onDuplicate={() => onDuplicate(d.id)}
-              onDelete={() => onDelete(d.id)}
-            />
-          ))}
+        // "All" filter — render one section per type so the library
+        // reads as Charts / Tables / Diagrams instead of one mixed grid.
+        <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+          {(["chart", "table", "diagram"] as DocType[]).map((t) => {
+            const inType = filtered.filter(d => d.type === t);
+            if (inType.length === 0) return null;
+            return (
+              <section key={t}>
+                <SectionHeader type={t} count={inType.length} />
+                <CardGrid
+                  docs={inType}
+                  onOpen={onOpen}
+                  onRename={onRename}
+                  onDuplicate={onDuplicate}
+                  onDelete={onDelete}
+                />
+              </section>
+            );
+          })}
         </div>
       )}
     </div>
   );
+}
+
+function CardGrid({ docs, onOpen, onRename, onDuplicate, onDelete }: {
+  docs: StudioDoc[];
+  onOpen: (id: string) => void;
+  onRename: (id: string) => void;
+  onDuplicate: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+      gap: 14,
+    }}>
+      {docs.map((d) => (
+        <LibraryCard
+          key={d.id}
+          doc={d}
+          onOpen={() => onOpen(d.id)}
+          onRename={() => onRename(d.id)}
+          onDuplicate={() => onDuplicate(d.id)}
+          onDelete={() => onDelete(d.id)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function SectionHeader({ type, count }: { type: DocType; count: number }) {
+  const color = typeColorFor(type);
+  const label = type === "chart" ? "Charts" : type === "table" ? "Tables" : "Diagrams";
+  const sub =
+    type === "chart"   ? "Bars, lines, scatter, gantt — the SemiAnalysis chart set." :
+    type === "table"   ? "Branded SA tables + heatmaps with full SVG / PNG / JPEG export." :
+                         "Wireframes, flowcharts, circuit diagrams.";
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 12,
+      paddingBottom: 10, marginBottom: 12,
+      borderBottom: "1px solid " + D.border,
+    }}>
+      <div style={{
+        width: 6, height: 6, borderRadius: 999, background: color,
+        boxShadow: "0 0 12px " + color + "88",
+      }} />
+      <div>
+        <div style={{ fontFamily: gf, fontSize: 16, fontWeight: 900, color: D.tx, letterSpacing: -0.2 }}>
+          {label} <span style={{ color: D.txd, fontWeight: 700 }}>{count}</span>
+        </div>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.4, marginTop: 1 }}>
+          {sub}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function typeColorFor(t: DocType): string {
+  if (t === "chart") return D.amber;
+  if (t === "table") return D.teal;
+  return D.blue;
+}
+
+// Two-character initials extracted from a doc name. First letter of the
+// first two words wins so "FY26 KPI Snapshot" → "FK" and "G1 Fleet
+// Math" → "GF"; falls back to the first two chars when there's only
+// one word.
+function docInitials(name: string): string {
+  const cleaned = name.trim();
+  if (!cleaned) return "··";
+  const words = cleaned.split(/[\s·•|]+/).filter(Boolean);
+  if (words.length === 0) return cleaned.slice(0, 2).toUpperCase();
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
 }
 
 function FilterChips({ options, value, onChange }: {
@@ -186,7 +274,7 @@ function LibraryCard({ doc, onOpen, onRename, onDuplicate, onDelete }: {
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
-  const typeColor = doc.type === "chart" ? D.amber : doc.type === "table" ? D.teal : D.blue;
+  const typeColor = typeColorFor(doc.type);
   const [hover, setHover] = useState(false);
   return (
     <div
@@ -210,20 +298,17 @@ function LibraryCard({ doc, onOpen, onRename, onDuplicate, onDelete }: {
           cursor: "pointer", textAlign: "left",
         }}
       >
-        <div style={{
-          height: 130,
-          background: D.bg,
-          backgroundImage: doc.thumbnail ? `url(${doc.thumbnail})` : undefined,
-          backgroundSize: "cover", backgroundPosition: "center",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          borderBottom: "1px solid " + D.border,
-        }}>
-          {!doc.thumbnail && (
-            <span style={{ fontFamily: mn, fontSize: 9.5, color: D.txd, letterSpacing: 1.4, textTransform: "uppercase" }}>
-              {doc.type}
-            </span>
-          )}
-        </div>
+        {doc.thumbnail ? (
+          <div style={{
+            height: 130,
+            background: D.bg,
+            backgroundImage: `url(${doc.thumbnail})`,
+            backgroundSize: "cover", backgroundPosition: "center",
+            borderBottom: "1px solid " + D.border,
+          }} />
+        ) : (
+          <InitialsTile name={doc.name} accent={typeColor} />
+        )}
         <div style={{ padding: "10px 12px" }}>
           <div style={{
             fontFamily: ft, fontSize: 13, fontWeight: 700, color: D.tx,
@@ -255,6 +340,42 @@ function LibraryCard({ doc, onOpen, onRename, onDuplicate, onDelete }: {
           <ActionIcon Icon={Trash2}     title="Delete"    onClick={(e) => { e.stopPropagation(); onDelete(); }} danger />
         </div>
       )}
+    </div>
+  );
+}
+
+// Initials tile · brand-colored rounded shape with the first two
+// initials of the doc name. Falls in when there's no thumbnail. Reads
+// like an app icon, so a 30-doc library still feels orderly.
+function InitialsTile({ name, accent }: { name: string; accent: string }) {
+  const initials = docInitials(name);
+  return (
+    <div style={{
+      height: 130,
+      background: D.bg,
+      borderBottom: "1px solid " + D.border,
+      position: "relative",
+      overflow: "hidden",
+      display: "flex", alignItems: "center", justifyContent: "center",
+    }}>
+      {/* Soft accent glow behind the badge */}
+      <div style={{
+        position: "absolute", inset: 0,
+        background: "radial-gradient(circle at 35% 30%, " + accent + "26 0%, transparent 60%)",
+        pointerEvents: "none",
+      }} />
+      {/* The badge itself — rounded square with the gradient + initials */}
+      <div style={{
+        position: "relative",
+        width: 76, height: 76, borderRadius: 18,
+        background: "linear-gradient(140deg, " + accent + " 0%, " + accent + "AA 60%, " + accent + "55 100%)",
+        boxShadow: "0 12px 24px " + accent + "33, inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -2px 0 rgba(0,0,0,0.18)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontFamily: "var(--grift-font, 'Outfit', sans-serif)",
+        fontWeight: 900,
+        fontSize: 30, letterSpacing: -0.5,
+        color: "#0A0A0F",
+      }}>{initials}</div>
     </div>
   );
 }

@@ -49,8 +49,9 @@ export default function StudioShell() {
     listDocs(owner).then((list) => {
       setDocs(list);
       setLoaded(true);
-      // If the library has docs, land on Library; otherwise the Welcome.
-      setView((v) => v.kind === "welcome" && list.length > 0 ? { kind: "library" } : v);
+      // Always land on Welcome — the three "new" tiles + recent rail are
+      // the friendlier entry point than dumping straight into the
+      // library grid. Library is one click away in the header.
     });
   }, [owner]);
 
