@@ -69,6 +69,10 @@ export interface SaTableRenderProps {
   // input and commits via updateCell.
   onEditCell?: (row: number, colKey: string) => void;
   editingCell?: { row: number; col: string } | null;
+  // Column-divider drag-resize on the rendered preview. The handle
+  // lives inside the SVG and computes the new column width in SVG
+  // viewBox units before calling back.
+  onResizeColumn?: (colKey: string, newWidth: number) => void;
   // Heatmap mode
   threshold?: number;
   yellowBand?: number;
@@ -576,6 +580,25 @@ function SaDataTable(props: SaTableRenderProps) {
         ".sa-cell-hit:hover { fill: rgba(247,176,65,0.06) !important; stroke: rgba(247,176,65,0.5) !important; stroke-width: 0.75 !important; }"
       }</style>
 
+      {/* Column-divider resize handles — sit on top of each vertical
+          separator. Drag-anywhere → updates that column's width. The
+          handle paints a faint amber line on hover so the user knows
+          the column is interactive. */}
+      {props.onResizeColumn && sheet.schema.slice(0, -1).map((col, ci) => {
+        const x = colEdge(ci);
+        return (
+          <ColumnResizeHandle
+            key={"resize-" + col.key}
+            x={x}
+            y={colHeaderY}
+            height={tableEndY - colHeaderY}
+            colKey={col.key}
+            colCurrentWidth={colWidths[ci]}
+            onResize={props.onResizeColumn!}
+          />
+        );
+      })}
+
       {/* Vertical separators */}
       {sheet.schema.slice(1).map((_, ci) => {
         const x = colEdge(ci);
@@ -867,6 +890,73 @@ export default function SaTableSvg(props: SaTableRenderProps) {
       />
       {props.onEditField && <EditHitZones mode={props.mode} editing={props.editingField || null} onEdit={props.onEditField} />}
     </svg>
+  );
+}
+
+// Drag handle that lives at a column divider. Tracks the mouse in
+// pixel space, converts the delta into SVG viewBox units by sampling
+// the parent <svg>'s on-screen width, and calls onResize with the
+// new column width. Renders an invisible hit zone with a faint amber
+// line on hover so the user knows the divider is interactive.
+function ColumnResizeHandle({ x, y, height, colKey, colCurrentWidth, onResize }: {
+  x: number; y: number; height: number;
+  colKey: string;
+  colCurrentWidth: number;
+  onResize: (colKey: string, newWidth: number) => void;
+}) {
+  const HIT_WIDTH = 14; // SVG viewBox units, ~7 each side of the line
+  return (
+    <g
+      style={{ cursor: "col-resize" }}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Walk up to the nearest <svg> so we can measure the viewBox →
+        // pixel scale factor without DOM gymnastics.
+        let node: Element | null = e.currentTarget as Element;
+        while (node && node.tagName.toLowerCase() !== "svg") node = node.parentElement;
+        const svgEl = node as SVGSVGElement | null;
+        if (!svgEl) return;
+        const svgRect = svgEl.getBoundingClientRect();
+        const viewBox = svgEl.viewBox?.baseVal;
+        const scale = svgRect.width / (viewBox?.width || svgRect.width);
+        const startX = e.clientX;
+        const startWidth = colCurrentWidth;
+        const onMove = (mv: MouseEvent) => {
+          const deltaPx = mv.clientX - startX;
+          const deltaSvg = deltaPx / scale;
+          // Floor at 60 viewBox units so columns can't collapse.
+          const next = Math.max(60, startWidth + deltaSvg);
+          onResize(colKey, next);
+        };
+        const onUp = () => {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+          document.body.style.cursor = "";
+          document.body.style.userSelect = "";
+        };
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+      }}
+    >
+      <rect
+        className="sa-col-resize"
+        x={x - HIT_WIDTH / 2} y={y}
+        width={HIT_WIDTH} height={height}
+        fill="rgba(255,255,255,0)"
+      />
+      <style>{
+        ".sa-col-resize:hover { fill: rgba(247,176,65,0.10) !important; } .sa-col-resize:hover + rect, .sa-col-resize:hover ~ line { stroke: #F7B041 !important; stroke-opacity: 1 !important; }"
+      }</style>
+      {/* Always-visible thin indicator line so the divider reads as
+          adjustable; brightens on hover via the CSS above. */}
+      <line
+        x1={x} y1={y} x2={x} y2={y + height}
+        stroke="#F7B041" strokeOpacity={0.0} strokeWidth={2}
+      />
+    </g>
   );
 }
 

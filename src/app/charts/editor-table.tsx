@@ -620,6 +620,7 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
             editingField={editingField}
             onEditCell={(row, col) => { setEditingField(null); setEditingCell({ row, col }); }}
             editingCell={editingCell}
+            onResizeColumn={resizeColumn}
           />
           {editingCell && previewRef.current && (
             <CellEditOverlay
@@ -1054,12 +1055,89 @@ const TABLE_PAGE_PRESETS: PageDimPreset[] = [
   { id: "story",   label: "Story 9:16",    w: 1080, h: 1920 },
 ];
 
-function PageDimensionPicker({ pageW, pageH, onChange }: {
+// Compute a canvas size that hugs the table content — header chrome
+// + row stack + footer chrome + (key insight block when shown). The
+// numbers mirror the constants inside SaDataTable so the auto-fit
+// matches what the renderer actually paints.
+function autoFitDimensions(
+  sheet: TableSheet,
+  chromeStyle: TableChromeStyle,
+  hasKeyInsight: boolean,
+  aggregate: "none" | AggregateKind,
+): { w: number; h: number } {
+  const titleBarY = 150;
+  const titleBarH = chromeStyle === "dense" ? 0 : 44;
+  const colHeaderH = 46;
+  const rowH = 42;
+  const aggregateRowH = aggregate !== "none" ? 50 : 0;
+  const showKeyInsight = chromeStyle !== "dense" && hasKeyInsight;
+  const keyInsightH = showKeyInsight ? 180 : 0;
+  // Footer chrome — bottom rule + label baseline + breathing room.
+  const footerChromeH = 40;
+  // Add a small bottom margin so the table doesn't kiss the frame.
+  const bottomMargin = 24;
+
+  const rowCount = Math.max(1, sheet.rows.length);
+  const naturalH = titleBarY + titleBarH + colHeaderH + rowCount * rowH + aggregateRowH + keyInsightH + footerChromeH + bottomMargin;
+
+  // Width — sum explicit column widths if any are set; otherwise pick
+  // a comfortable default per column (160 numeric / 180 first text col).
+  const explicitTotal = sheet.schema.reduce((s, c) => s + (c.width || 0), 0);
+  const unsetCount = sheet.schema.filter((c) => !c.width).length;
+  const defaultPerCol = (i: number) => (i === 0 ? 180 : 150);
+  const inferredUnset = sheet.schema.reduce((s, c, i) => c.width ? s : s + defaultPerCol(i), 0);
+  const naturalTableW = explicitTotal + (unsetCount > 0 ? inferredUnset : 0);
+  const sideGutter = 33;
+  // Ensure enough horizontal room for the title + lettermark (~640 +
+  // 170) so the header doesn't crowd in narrow frames.
+  const minW = 820;
+  const naturalW = Math.max(minW, naturalTableW + sideGutter * 2);
+
+  return {
+    w: Math.round(Math.min(4000, naturalW)),
+    h: Math.round(Math.min(4000, naturalH)),
+  };
+}
+
+function PageDimensionPicker({ pageW, pageH, sheet, chromeStyle, keyInsight, aggregate, onChange }: {
   pageW: number; pageH: number;
+  sheet: TableSheet;
+  chromeStyle: TableChromeStyle;
+  keyInsight: string;
+  aggregate: "none" | AggregateKind;
   onChange: (w: number, h: number) => void;
 }) {
+  const fit = useMemo(() => autoFitDimensions(sheet, chromeStyle, !!keyInsight.trim(), aggregate),
+    [sheet, chromeStyle, keyInsight, aggregate]);
   return (
     <div style={{ padding: "6px 10px 10px" }}>
+      {/* Margin / auto-fit preset — wide tile up top so it's the first
+          thing the user sees. Recomputes on every render so it tracks
+          row + column changes live. */}
+      <button
+        onClick={() => onChange(fit.w, fit.h)}
+        style={{
+          width: "100%",
+          padding: "9px 11px",
+          background: "linear-gradient(120deg, " + D.violet + "1A, " + D.amber + "14)",
+          color: D.tx,
+          border: "1px dashed " + D.violet + "66",
+          borderRadius: 7, cursor: "pointer",
+          fontFamily: mn, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.4,
+          textAlign: "left",
+          marginBottom: 8,
+          display: "flex", alignItems: "center", gap: 8,
+        }}
+        title="Snap canvas to fit table margins exactly"
+      >
+        <Sparkles size={12} strokeWidth={2.2} color={D.violet} />
+        <div style={{ flex: 1 }}>
+          <div>Fit to margins</div>
+          <div style={{ fontSize: 9, color: D.txd, fontWeight: 600, marginTop: 1 }}>
+            Auto · {fit.w}×{fit.h}
+          </div>
+        </div>
+      </button>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginBottom: 8 }}>
         {TABLE_PAGE_PRESETS.map((p) => {
           const active = p.w === pageW && p.h === pageH;
@@ -1206,6 +1284,10 @@ function PropertiesRail({ state, update }: { state: TableEditorState; update: (p
         <PageDimensionPicker
           pageW={state.pageW}
           pageH={state.pageH}
+          sheet={state.sheet}
+          chromeStyle={state.chromeStyle}
+          keyInsight={state.keyInsight}
+          aggregate={state.aggregate}
           onChange={(w, h) => update({ pageW: w, pageH: h })}
         />
       </PanelSection>
