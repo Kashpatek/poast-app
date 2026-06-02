@@ -128,6 +128,26 @@ export default function StudioShell() {
     void saveDoc(doc); // first-write so refresh keeps it
   }, [owner]);
 
+  // Mint a doc from an image-parse response. The parsed shape (table /
+  // chart / diagram) is already validated against the route's JSON
+  // schema; we just need to land it as a fresh doc and route the user
+  // into the editor.
+  const newDocFromParsed = useCallback((parsed: {
+    docType: "chart" | "table" | "diagram";
+    name?: string;
+    payload: Record<string, unknown>;
+  }) => {
+    const type: DocType = parsed.docType === "chart" ? "table" /* chart → table fallback */
+      : parsed.docType === "diagram" ? "diagram"
+      : "table";
+    const name = (parsed.name && parsed.name.trim()) || NEW_DOC_NAMES[type];
+    const doc = emptyDoc(type, owner, name);
+    doc.payload = parsed.payload;
+    setDocs((cur) => [doc, ...cur]);
+    setView({ kind: "editor", docId: doc.id });
+    void saveDoc(doc);
+  }, [owner]);
+
   const openDoc = useCallback((id: string) => {
     setView({ kind: "editor", docId: id });
   }, []);
@@ -214,6 +234,7 @@ export default function StudioShell() {
           onPickType={(t) => setView({ kind: "gallery", type: t })}
           onOpenDoc={(id) => openDoc(id)}
           onOpenLibrary={() => setView({ kind: "library" })}
+          onParsedDoc={newDocFromParsed}
         />
       )}
 
