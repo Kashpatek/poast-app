@@ -47,6 +47,9 @@ export interface DiagramCanvasProps {
   gridSize: number;
   fill: string;
   stroke: string;
+  // Page frame — bounded rect drawn in world coords (Figma-style "page").
+  pageW?: number;
+  pageH?: number;
   onSelect: (id: string | null) => void;
   onCreate: (node: DiagramNode) => void;
   onMutate: (id: string, patch: Partial<DiagramNode>) => void;
@@ -61,7 +64,7 @@ const PORT_SIDES: EdgeSide[] = ["top", "right", "bottom", "left"];
 export default function DiagramCanvas(props: DiagramCanvasProps) {
   const {
     width, height, nodes, edges, selectedId, tool, placeKind, viewport,
-    gridSize, fill, stroke,
+    gridSize, fill, stroke, pageW, pageH,
     onSelect, onCreate, onMutate, onAddEdge, onChangeViewport,
     onEditText, registerExport,
   } = props;
@@ -302,6 +305,30 @@ export default function DiagramCanvas(props: DiagramCanvasProps) {
       style={{ cursor, background: "#0A0A14" }}
     >
       <Layer listening={false}>
+        {/* Page frame — Figma-style "page" rect in world coords. Drawn
+            first so the grid + shapes paint over it. Shadow gives the
+            edge-of-page feel. */}
+        {pageW && pageH && (
+          <>
+            <KRect
+              x={6} y={8}
+              width={pageW} height={pageH}
+              fill="#000000"
+              opacity={0.45}
+              cornerRadius={3}
+              shadowBlur={0}
+            />
+            <KRect
+              x={0} y={0}
+              width={pageW} height={pageH}
+              fill="#15161D"
+              stroke="#FFFFFF"
+              strokeWidth={1 / viewport.scale}
+              opacity={1}
+              cornerRadius={2}
+            />
+          </>
+        )}
         {gridLines.map((pts, i) => (
           <KLine key={i} points={pts} stroke={"#FFFFFF" + (viewport.scale > 0.7 ? "10" : "08")} strokeWidth={1 / viewport.scale} />
         ))}

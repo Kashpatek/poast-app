@@ -8,7 +8,8 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Download, GitBranch, Hand, MousePointer2, RotateCcw, RotateCw,
+  ChevronLeft, ChevronRight, Download, GitBranch, Hand, Maximize2,
+  MousePointer2, PanelRightClose, PanelRightOpen, RotateCcw, RotateCw,
   Trash2, ZoomIn, ZoomOut,
 } from "lucide-react";
 import { SHAPE_LIBRARY } from "./lib/diagram-shapes";
@@ -52,6 +53,21 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
   const [canvasSize, setCanvasSize] = useState({ w: 1200, h: 640 });
   const exportRef = useRef<(() => string) | null>(null);
 
+  // Resizable chrome — Canva-style. Widths persist in localStorage so the
+  // user's preferred layout sticks across sessions.
+  const [leftW, setLeftW] = useState(() => readStored("studio-diagram-leftW", 208));
+  const [rightW, setRightW] = useState(() => readStored("studio-diagram-rightW", 252));
+  const [rightOpen, setRightOpen] = useState(() => readStored("studio-diagram-rightOpen", 1) > 0);
+  useEffect(() => writeStored("studio-diagram-leftW", leftW), [leftW]);
+  useEffect(() => writeStored("studio-diagram-rightW", rightW), [rightW]);
+  useEffect(() => writeStored("studio-diagram-rightOpen", rightOpen ? 1 : 0), [rightOpen]);
+
+  // Page (canvas frame) dimensions — the bounded rectangle inside the
+  // viewport that represents the export surface. User edits W/H from the
+  // right panel; persisted on the payload as canvasW/canvasH.
+  const [pageW, setPageW] = useState(() => clamp(initial.canvasW ?? 1200, 200, 8000));
+  const [pageH, setPageH] = useState(() => clamp(initial.canvasH ?? 720, 200, 8000));
+
   useEffect(() => {
     if (!canvasRef.current) return;
     const update = () => {
@@ -70,12 +86,12 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
       kind: "diagram",
       version: 1,
       nodes, edges,
-      canvasW: canvasSize.w,
-      canvasH: canvasSize.h,
+      canvasW: pageW,
+      canvasH: pageH,
       viewport,
     };
     onChangePayload(payload);
-  }, [nodes, edges, canvasSize.w, canvasSize.h, viewport, onChangePayload]);
+  }, [nodes, edges, pageW, pageH, viewport, onChangePayload]);
 
   const selected = nodes.find(n => n.id === selectedId) || null;
 
@@ -192,23 +208,49 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
     setViewport({ x: 0, y: 0, scale: 1 });
   }, []);
 
+  // Fit page to viewport — centers the page rect with a 24px margin.
+  const fitToViewport = useCallback(() => {
+    const margin = 32;
+    const sx = (canvasSize.w - margin * 2) / pageW;
+    const sy = (canvasSize.h - margin * 2) / pageH;
+    const scale = clamp(Math.min(sx, sy), 0.1, 4);
+    setViewport({
+      scale,
+      x: (canvasSize.w - pageW * scale) / 2,
+      y: (canvasSize.h - pageH * scale) / 2,
+    });
+  }, [canvasSize, pageW, pageH]);
+
   // ─── Render ────────────────────────────────────────────────────────
   return (
     <div style={{
-      display: "grid",
-      gridTemplateColumns: "208px 1fr 252px",
-      gap: 12,
-      padding: "12px 18px 60px",
-      maxWidth: 1640,
+      display: "flex",
+      gap: 0,
+      padding: "12px 14px 14px",
+      maxWidth: "100%",
       margin: "0 auto",
+      alignItems: "stretch",
+      minHeight: "calc(100vh - 140px)",
     }}>
-      <ShapeLibraryPalette
-        tool={tool} setTool={setTool}
-        placeKind={placeKind}
-        onPickShape={(k) => { setPlaceKind(k); setTool("place"); }}
-      />
+      <div style={{ width: leftW, minWidth: 140, maxWidth: 360, flexShrink: 0 }}>
+        <ShapeLibraryPalette
+          tool={tool} setTool={setTool}
+          placeKind={placeKind}
+          onPickShape={(k) => { setPlaceKind(k); setTool("place"); }}
+        />
+      </div>
 
-      <div>
+      <ResizeHandle onDrag={(dx) => setLeftW((w) => clamp(w + dx, 140, 360))} />
+
+      <div style={{
+        flex: "1 1 auto",
+        minWidth: 0,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        marginLeft: 8,
+        marginRight: rightOpen ? 8 : 0,
+      }}>
         <TopToolbar
           tool={tool} setTool={setTool}
           canUndo={history.length > 0}
@@ -221,16 +263,18 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
           onZoomIn={() => zoomBy(1.2)}
           onZoomOut={() => zoomBy(1 / 1.2)}
           onZoomReset={zoomReset}
+          onToggleRight={() => setRightOpen((v) => !v)}
+          rightOpen={rightOpen}
         />
         <div
           ref={canvasRef}
           style={{
-            marginTop: 10,
+            flex: "1 1 auto",
             background: "#0A0A14",
             border: "1px solid " + D.border,
             borderRadius: 12,
             overflow: "hidden",
-            minHeight: 600,
+            minHeight: 520,
             position: "relative",
             boxShadow: "0 16px 38px rgba(0,0,0,0.45)",
           }}
@@ -247,6 +291,8 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
             gridSize={GRID_SIZE}
             fill={fill}
             stroke={stroke}
+            pageW={pageW}
+            pageH={pageH}
             onSelect={setSelectedId}
             onCreate={createNode}
             onMutate={mutateNode}
@@ -286,22 +332,197 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
             </div>
           )}
         </div>
+        <BottomZoomBar
+          scale={viewport.scale}
+          onScale={(s) => {
+            const newScale = clamp(s, 0.2, 4);
+            const cx = canvasSize.w / 2;
+            const cy = canvasSize.h / 2;
+            const wx = (cx - viewport.x) / viewport.scale;
+            const wy = (cy - viewport.y) / viewport.scale;
+            setViewport({ scale: newScale, x: cx - wx * newScale, y: cy - wy * newScale });
+          }}
+          onFit={fitToViewport}
+          onReset={zoomReset}
+          pageW={pageW}
+          pageH={pageH}
+        />
       </div>
 
-      <PropertiesPanel
-        selected={selected}
-        fill={fill} setFill={setFill}
-        stroke={stroke} setStroke={setStroke}
-        onMutate={(patch) => { if (selected) mutateNode(selected.id, patch); }}
-        onDelete={deleteSelected}
-        edgeCount={edges.length}
-        nodeCount={nodes.length}
-      />
+      {rightOpen ? (
+        <>
+          <ResizeHandle onDrag={(dx) => setRightW((w) => clamp(w - dx, 200, 440))} />
+          <div style={{ width: rightW, minWidth: 200, maxWidth: 440, flexShrink: 0 }}>
+            <PropertiesPanel
+              selected={selected}
+              fill={fill} setFill={setFill}
+              stroke={stroke} setStroke={setStroke}
+              onMutate={(patch) => { if (selected) mutateNode(selected.id, patch); }}
+              onDelete={deleteSelected}
+              edgeCount={edges.length}
+              nodeCount={nodes.length}
+              pageW={pageW}
+              pageH={pageH}
+              onChangePage={(w, h) => { setPageW(clamp(w, 200, 8000)); setPageH(clamp(h, 200, 8000)); }}
+              onClose={() => setRightOpen(false)}
+            />
+          </div>
+        </>
+      ) : (
+        <CollapsedRightStrip onOpen={() => setRightOpen(true)} />
+      )}
     </div>
   );
 }
 
-function readPayload(payload: unknown): { nodes: DiagramNode[]; edges: DiagramEdge[]; viewport: { x: number; y: number; scale: number } } {
+// ─── Resizable side-panel handle ────────────────────────────────────────
+// A narrow column with a center grab dot. onDrag fires with the delta-x
+// in screen pixels per movement event.
+function ResizeHandle({ onDrag }: { onDrag: (dx: number) => void }) {
+  const drag = useRef<{ x: number } | null>(null);
+  useEffect(() => {
+    function move(e: MouseEvent) {
+      if (!drag.current) return;
+      onDrag(e.clientX - drag.current.x);
+      drag.current.x = e.clientX;
+    }
+    function up() {
+      drag.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+  }, [onDrag]);
+  return (
+    <div
+      onMouseDown={(e) => {
+        drag.current = { x: e.clientX };
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+      }}
+      style={{
+        width: 6, alignSelf: "stretch",
+        cursor: "col-resize",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        flexShrink: 0,
+      }}
+      title="Drag to resize"
+    >
+      <div style={{
+        width: 2, height: 36,
+        background: D.border,
+        borderRadius: 2,
+      }} />
+    </div>
+  );
+}
+
+// Thin strip shown when the right panel is collapsed; clicking it reopens.
+function CollapsedRightStrip({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      onClick={onOpen}
+      title="Show properties (P)"
+      style={{
+        width: 24, alignSelf: "stretch",
+        marginLeft: 8,
+        background: D.card, border: "1px solid " + D.border, borderRadius: 8,
+        cursor: "pointer",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        flexShrink: 0,
+        color: D.txm,
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.color = D.amber; e.currentTarget.style.borderColor = D.amber + "55"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.color = D.txm; e.currentTarget.style.borderColor = D.border; }}
+    >
+      <ChevronLeft size={14} strokeWidth={2.2} />
+    </button>
+  );
+}
+
+// ─── Bottom zoom bar — fixed below the canvas ──────────────────────────
+function BottomZoomBar({ scale, onScale, onFit, onReset, pageW, pageH }: {
+  scale: number;
+  onScale: (s: number) => void;
+  onFit: () => void;
+  onReset: () => void;
+  pageW: number;
+  pageH: number;
+}) {
+  const pct = Math.round(scale * 100);
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 12,
+      padding: "8px 14px",
+      background: D.card, border: "1px solid " + D.border, borderRadius: 10,
+    }}>
+      <div style={{
+        fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.6,
+        textTransform: "uppercase", whiteSpace: "nowrap",
+      }}>
+        Page · {pageW} × {pageH}
+      </div>
+      <span style={{ width: 1, height: 16, background: D.border }} />
+      <button
+        onClick={onFit}
+        title="Fit page to viewport"
+        style={zoomChipStyle()}
+      >
+        <Maximize2 size={11} strokeWidth={2.2} /> Fit
+      </button>
+      <button
+        onClick={onReset}
+        title="Reset to 100%"
+        style={zoomChipStyle()}
+      >100%</button>
+      <button
+        onClick={() => onScale(scale / 1.2)}
+        title="Zoom out"
+        style={zoomChipStyle()}
+      ><ZoomOut size={11} strokeWidth={2.2} /></button>
+      <input
+        type="range"
+        min={20}
+        max={400}
+        step={1}
+        value={pct}
+        onChange={(e) => onScale(Number(e.target.value) / 100)}
+        style={{
+          flex: 1,
+          accentColor: D.amber,
+          cursor: "pointer",
+        }}
+      />
+      <button
+        onClick={() => onScale(scale * 1.2)}
+        title="Zoom in"
+        style={zoomChipStyle()}
+      ><ZoomIn size={11} strokeWidth={2.2} /></button>
+      <div style={{
+        fontFamily: mn, fontSize: 11, color: D.tx, letterSpacing: 0.4,
+        minWidth: 44, textAlign: "right", fontWeight: 700,
+      }}>{pct}%</div>
+    </div>
+  );
+}
+
+function zoomChipStyle(): React.CSSProperties {
+  return {
+    display: "inline-flex", alignItems: "center", gap: 4,
+    padding: "4px 8px",
+    background: "transparent", border: "1px solid " + D.border,
+    color: D.txm,
+    fontFamily: mn, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.4,
+    borderRadius: 6, cursor: "pointer",
+  };
+}
+
+function readPayload(payload: unknown): { nodes: DiagramNode[]; edges: DiagramEdge[]; viewport: { x: number; y: number; scale: number }; canvasW?: number; canvasH?: number } {
   if (payload && typeof payload === "object") {
     const p = payload as Partial<DiagramDocPayload>;
     const tplId = (p as { templateId?: string }).templateId;
@@ -310,11 +531,28 @@ function readPayload(payload: unknown): { nodes: DiagramNode[]; edges: DiagramEd
       nodes: Array.isArray(p.nodes) ? p.nodes : seed.nodes,
       edges: Array.isArray(p.edges) ? p.edges : seed.edges,
       viewport: p.viewport || { x: 0, y: 0, scale: 1 },
+      canvasW: typeof p.canvasW === "number" ? p.canvasW : undefined,
+      canvasH: typeof p.canvasH === "number" ? p.canvasH : undefined,
     };
   }
   const seed = seedFromTemplate(undefined);
   return { nodes: seed.nodes, edges: seed.edges, viewport: { x: 0, y: 0, scale: 1 } };
 }
+
+function readStored(key: string, fallback: number): number {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const v = window.localStorage.getItem(key);
+    if (v == null) return fallback;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  } catch { return fallback; }
+}
+function writeStored(key: string, value: number) {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(key, String(value)); } catch { /* ignore */ }
+}
+function clamp(v: number, lo: number, hi: number): number { return Math.max(lo, Math.min(hi, v)); }
 
 function seedFromTemplate(templateId: string | undefined): { nodes: DiagramNode[]; edges: DiagramEdge[] } {
   if (templateId === "flowchart") {
@@ -629,9 +867,8 @@ function ShapeLibraryPalette({ tool, setTool, placeKind, onPickShape }: {
   return (
     <div style={{
       display: "flex", flexDirection: "column", gap: 10,
-      alignSelf: "start",
-      position: "sticky", top: 80,
-      maxHeight: "calc(100vh - 100px)", overflowY: "auto",
+      maxHeight: "calc(100vh - 140px)", overflowY: "auto",
+      paddingRight: 4,
     }}>
       {/* Pointer tools row */}
       <div style={{
@@ -758,7 +995,7 @@ function PaletteGlyph({ kind, accent }: { kind: DiagramShapeKind; accent: string
 
 function TopToolbar({
   tool, setTool, canUndo, canRedo, canDelete, onUndo, onRedo, onDelete, onExport,
-  zoom, onZoomIn, onZoomOut, onZoomReset,
+  zoom, onZoomIn, onZoomOut, onZoomReset, onToggleRight, rightOpen,
 }: {
   tool: DiagramTool;
   setTool: (t: DiagramTool) => void;
@@ -767,6 +1004,8 @@ function TopToolbar({
   onDelete: () => void; onExport: () => void;
   zoom: number;
   onZoomIn: () => void; onZoomOut: () => void; onZoomReset: () => void;
+  onToggleRight: () => void;
+  rightOpen: boolean;
 }) {
   void tool; void setTool;
   return (
@@ -794,6 +1033,13 @@ function TopToolbar({
       <ToolbarBtn Icon={ZoomIn}  label="" onClick={onZoomIn} hint="+" />
       <span style={{ width: 1, height: 18, background: D.border, margin: "0 4px" }} />
       <ToolbarBtn Icon={Download} label="PNG" onClick={onExport} />
+      <span style={{ width: 1, height: 18, background: D.border, margin: "0 4px" }} />
+      <ToolbarBtn
+        Icon={rightOpen ? PanelRightClose : PanelRightOpen}
+        label={rightOpen ? "Hide" : "Show"}
+        onClick={onToggleRight}
+        hint="P"
+      />
     </div>
   );
 }
@@ -825,7 +1071,7 @@ function ToolbarBtn({ Icon, label, onClick, disabled, hint, danger }: {
 
 // ─── Properties panel ──────────────────────────────────────────────────
 
-function PropertiesPanel({ selected, fill, setFill, stroke, setStroke, onMutate, onDelete, edgeCount, nodeCount }: {
+function PropertiesPanel({ selected, fill, setFill, stroke, setStroke, onMutate, onDelete, edgeCount, nodeCount, pageW, pageH, onChangePage, onClose }: {
   selected: DiagramNode | null;
   fill: string; setFill: (c: string) => void;
   stroke: string; setStroke: (c: string) => void;
@@ -833,16 +1079,60 @@ function PropertiesPanel({ selected, fill, setFill, stroke, setStroke, onMutate,
   onDelete: () => void;
   edgeCount: number;
   nodeCount: number;
+  pageW: number; pageH: number;
+  onChangePage: (w: number, h: number) => void;
+  onClose: () => void;
 }) {
   return (
     <div style={{
       display: "flex", flexDirection: "column", gap: 14,
       padding: 14,
       background: D.card, border: "1px solid " + D.border, borderRadius: 12,
-      alignSelf: "start",
-      position: "sticky", top: 80,
-      maxHeight: "calc(100vh - 100px)", overflowY: "auto",
+      maxHeight: "calc(100vh - 140px)", overflowY: "auto",
     }}>
+      <div style={{ display: "flex", alignItems: "center" }}>
+        <SectionHeading>Canvas</SectionHeading>
+        <button
+          onClick={onClose}
+          title="Hide panel (P)"
+          style={{
+            marginLeft: "auto",
+            background: "transparent", border: "none",
+            color: D.txd, cursor: "pointer",
+            display: "inline-flex", alignItems: "center", padding: 2,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = D.amber; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = D.txd; }}
+        ><ChevronRight size={14} strokeWidth={2.4} /></button>
+      </div>
+      <Field label="Page width">
+        <NumberInput value={pageW} onChange={(v) => onChangePage(v, pageH)} suffix="px" />
+      </Field>
+      <Field label="Page height">
+        <NumberInput value={pageH} onChange={(v) => onChangePage(pageW, v)} suffix="px" />
+      </Field>
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+        {[
+          { label: "16:9 HD",    w: 1920, h: 1080 },
+          { label: "Slide",      w: 1280, h: 720 },
+          { label: "Square",     w: 1080, h: 1080 },
+          { label: "Story",      w: 1080, h: 1920 },
+          { label: "Letter",     w: 1100, h: 850 },
+        ].map((p) => (
+          <button
+            key={p.label}
+            onClick={() => onChangePage(p.w, p.h)}
+            style={{
+              padding: "4px 8px",
+              background: pageW === p.w && pageH === p.h ? D.amber + "22" : "transparent",
+              border: "1px solid " + (pageW === p.w && pageH === p.h ? D.amber + "55" : D.border),
+              color: pageW === p.w && pageH === p.h ? D.amber : D.txm,
+              fontFamily: mn, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.4,
+              borderRadius: 5, cursor: "pointer",
+            }}
+          >{p.label}</button>
+        ))}
+      </div>
       <SectionHeading>Defaults</SectionHeading>
       <SwatchRow label="Fill"   value={fill}   onChange={setFill} />
       <SwatchRow label="Stroke" value={stroke} onChange={setStroke} />

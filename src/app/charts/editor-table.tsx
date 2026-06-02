@@ -10,7 +10,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown, ChevronRight, Copy, Download, FileImage, FileText,
-  GripHorizontal, Image as ImageIcon, Plus, RotateCcw, RotateCw, Sparkles, Wand2, X,
+  GripHorizontal, Image as ImageIcon, Maximize2, Minus,
+  PanelRightClose, PanelRightOpen,
+  Plus, RotateCcw, RotateCw, Sparkles, Upload, Wand2, X,
 } from "lucide-react";
 import { showToast } from "../toast-context";
 import {
@@ -76,6 +78,18 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
   const [parseOpen, setParseOpen] = useState(false);
   const [editingField, setEditingField] = useState<EditableField | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
+  const csvFileRef = useRef<HTMLInputElement | null>(null);
+
+  // ── Canva-style UI chrome ───────────────────────────────────────────
+  // rightOpen, zoom, fitMode are NOT persisted in the doc payload —
+  // they're per-session UI prefs mirrored to localStorage so layout
+  // sticks across reloads without bloating saved docs.
+  const [rightOpen, setRightOpen] = useState<boolean>(() => readStored("studio.table.rightOpen", true));
+  const [zoom, setZoom] = useState<number>(() => readStored("studio.table.zoom", 1));
+  const [fitMode, setFitMode] = useState<"locked" | "fit-content">(() => readStored("studio.table.fitMode", "locked"));
+  useEffect(() => { writeStored("studio.table.rightOpen", rightOpen); }, [rightOpen]);
+  useEffect(() => { writeStored("studio.table.zoom", zoom); }, [zoom]);
+  useEffect(() => { writeStored("studio.table.fitMode", fitMode); }, [fitMode]);
 
   // ── Single mutation entry-point ──────────────────────────────────────
   const update = useCallback((patch: Partial<TableEditorState>) => {
@@ -320,6 +334,36 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
     showToast(`Pasted ${grid.length}×${grid[0].length}`);
   }, [state.sheet.schema, updateCell, updateSheet]);
 
+  // Import a CSV/TSV file. First row is treated as headers; remaining
+  // rows become data. Column types are auto-detected: numeric if EVERY
+  // non-empty cell parses as a number, text otherwise.
+  const handleCsvFile = useCallback(async (file: File) => {
+    try {
+      const text = await file.text();
+      const grid = parseClipboardTable(text);
+      if (grid.length === 0) { showToast("Empty file"); return; }
+      const headers = grid[0];
+      const body = grid.slice(1);
+      const schema: TableColumnSpec[] = headers.map((h, i) => {
+        const colVals = body.map(r => r[i] ?? "").filter(v => v.trim() !== "");
+        const isNumeric = colVals.length > 0 && colVals.every(v => Number.isFinite(Number(v.replace(/[$,%\s]/g, ""))));
+        return { key: "c" + (i + 1), label: h || ("Column " + (i + 1)), type: isNumeric ? "number" : "text" };
+      });
+      const rows = body.map(line => {
+        const row: Record<string, TableCellValue> = {};
+        schema.forEach((c, i) => {
+          row[c.key] = coerce(line[i] ?? "", c.type);
+        });
+        return row;
+      });
+      update({ sheet: { schema, rows } });
+      showToast(`Imported ${rows.length}×${schema.length}`);
+    } catch (e) {
+      showToast("Import failed");
+      void e;
+    }
+  }, [update]);
+
   // ── Exports ─────────────────────────────────────────────────────────
   const exportSize = exportPresetDimensions(state.exportPreset);
 
@@ -413,14 +457,14 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
   // ── Render ──────────────────────────────────────────────────────────
   return (
     <div style={{
-      display: "grid",
-      gridTemplateColumns: "1fr 300px",
-      gap: 14,
-      padding: "12px 22px 60px",
+      display: "flex",
+      gap: 0,
+      padding: "12px 22px 64px",
       maxWidth: 1680,
       margin: "0 auto",
+      position: "relative",
     }}>
-      <div>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
           padding: "8px 12px",
@@ -430,6 +474,20 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
           <span style={{ width: 1, height: 18, background: D.border, margin: "0 4px" }} />
           <ToolbarBtn Icon={RotateCcw} label="" hint="⌘Z"  onClick={undo} disabled={history.length === 0} />
           <ToolbarBtn Icon={RotateCw}  label="" hint="⌘⇧Z" onClick={redo} disabled={future.length === 0} />
+          <span style={{ width: 1, height: 18, background: D.border, margin: "0 4px" }} />
+          <ToolbarBtn Icon={Upload} label="Import CSV" accent={D.teal}
+            onClick={() => csvFileRef.current?.click()} />
+          <input
+            ref={csvFileRef}
+            type="file"
+            accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleCsvFile(f);
+              e.currentTarget.value = "";
+            }}
+          />
           <span style={{ width: 1, height: 18, background: D.border, margin: "0 4px" }} />
           <ToolbarBtn Icon={Download}   label="SVG"  accent={D.amber}  onClick={downloadSvg} />
           <ToolbarBtn Icon={ImageIcon}  label="PNG"  accent={D.teal}   onClick={() => rasterize("png")} />
@@ -447,21 +505,36 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
                 onClick={() => onBuildChart(state.sheet, state.titleWhite || doc.name)} />
             </>
           )}
+          <span style={{ marginLeft: onBuildChart ? 6 : "auto" }} />
+          <ToolbarBtn
+            Icon={rightOpen ? PanelRightClose : PanelRightOpen}
+            label=""
+            hint={rightOpen ? "Hide panel" : "Show panel"}
+            onClick={() => setRightOpen(v => !v)}
+          />
         </div>
 
-        <div
-          ref={previewRef}
-          style={{
-            marginTop: 14,
-            background: "#06060A",
-            border: "1px solid " + D.border, borderRadius: 14,
-            overflow: "hidden",
-            boxShadow: "0 18px 44px rgba(0,0,0,0.5)",
-            aspectRatio: SA_TABLE_WIDTH + " / " + SA_TABLE_HEIGHT,
-            width: "100%",
-            position: "relative",
-          }}
-        >
+        <div style={{ marginTop: 14, position: "relative" }}>
+          <div
+            style={{
+              transform: "scale(" + zoom + ")",
+              transformOrigin: "top center",
+              transition: "transform 0.12s ease-out",
+              width: "100%",
+            }}
+          >
+            <div
+              ref={previewRef}
+              style={{
+                background: "#06060A",
+                border: "1px solid " + D.border, borderRadius: 14,
+                overflow: "hidden",
+                boxShadow: "0 18px 44px rgba(0,0,0,0.5)",
+                aspectRatio: fitMode === "locked" ? SA_TABLE_WIDTH + " / " + SA_TABLE_HEIGHT : undefined,
+                width: "100%",
+                position: "relative",
+              }}
+            >
           <SaTableSvg
             mode={state.mode}
             sheet={state.sheet}
@@ -501,6 +574,15 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
               onCancel={() => setEditingField(null)}
             />
           )}
+            </div>
+          </div>
+
+          <TableZoomBar
+            zoom={zoom}
+            onZoom={setZoom}
+            fitMode={fitMode}
+            onFitMode={setFitMode}
+          />
         </div>
 
         <Collapsible label="Data" open={gridOpen} onToggle={() => setGridOpen(v => !v)}>
@@ -523,7 +605,13 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
         </Collapsible>
       </div>
 
-      <PropertiesRail state={state} update={update} />
+      {rightOpen ? (
+        <div style={{ width: 312, marginLeft: 14, flexShrink: 0 }}>
+          <PropertiesRail state={state} update={update} />
+        </div>
+      ) : (
+        <CollapsedRightStrip onClick={() => setRightOpen(true)} />
+      )}
 
       {parseOpen && (
         <ParseModal
@@ -599,6 +687,135 @@ function readPayload(payload: unknown, defaultName: string): TableEditorState {
     }
   }
   return seed;
+}
+
+// ─── UI chrome persistence ────────────────────────────────────────────
+// localStorage wrappers for per-session prefs (panel open state, zoom,
+// fit mode). SSR-guarded so they don't blow up during first render.
+function readStored<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (raw == null) return fallback;
+    return JSON.parse(raw) as T;
+  } catch { return fallback; }
+}
+function writeStored<T>(key: string, value: T): void {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { /* full disk, etc. */ }
+}
+
+function clampZoom(z: number): number {
+  return Math.max(0.25, Math.min(2, z));
+}
+
+// Floating zoom + fit bar at the bottom of the preview area. Mirrors
+// the Canva pattern: dimension lock toggle on the left, slider + numeric
+// readout on the right.
+function TableZoomBar({
+  zoom, onZoom, fitMode, onFitMode,
+}: {
+  zoom: number;
+  onZoom: (z: number) => void;
+  fitMode: "locked" | "fit-content";
+  onFitMode: (m: "locked" | "fit-content") => void;
+}) {
+  return (
+    <div style={{
+      position: "sticky", bottom: 8,
+      marginTop: 14,
+      display: "flex", alignItems: "center", gap: 10,
+      padding: "7px 12px",
+      background: D.card, border: "1px solid " + D.border, borderRadius: 999,
+      boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+      zIndex: 5,
+      width: "fit-content",
+      marginLeft: "auto", marginRight: "auto",
+    }}>
+      <button
+        onClick={() => onFitMode(fitMode === "locked" ? "fit-content" : "locked")}
+        title={fitMode === "locked" ? "Locked to 1394×861 — click to fit content" : "Fitting content — click to lock dimensions"}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          padding: "5px 10px",
+          background: fitMode === "locked" ? D.amber + "22" : "transparent",
+          color: fitMode === "locked" ? D.amber : D.txm,
+          border: "1px solid " + (fitMode === "locked" ? D.amber + "55" : D.border),
+          borderRadius: 999,
+          fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.6,
+          textTransform: "uppercase", cursor: "pointer",
+        }}
+      >
+        <Maximize2 size={11} strokeWidth={2.4} />
+        {fitMode === "locked" ? "Locked" : "Fit"}
+      </button>
+      <span style={{ width: 1, height: 18, background: D.border }} />
+      <IconBtn Icon={Minus} onClick={() => onZoom(clampZoom(zoom - 0.1))} disabled={zoom <= 0.25} title="Zoom out" />
+      <input
+        type="range"
+        min={25} max={200} step={5}
+        value={Math.round(zoom * 100)}
+        onChange={(e) => onZoom(clampZoom(Number(e.target.value) / 100))}
+        style={{ width: 180, accentColor: D.amber }}
+      />
+      <IconBtn Icon={Plus} onClick={() => onZoom(clampZoom(zoom + 0.1))} disabled={zoom >= 2} title="Zoom in" />
+      <button
+        onClick={() => onZoom(1)}
+        title="Reset to 100%"
+        style={{
+          padding: "4px 9px",
+          background: "transparent", color: D.tx,
+          border: "1px solid " + D.border, borderRadius: 999,
+          fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+          cursor: "pointer", minWidth: 50, textAlign: "center",
+        }}
+      >{Math.round(zoom * 100)}%</button>
+    </div>
+  );
+}
+
+function IconBtn({ Icon, onClick, disabled, title }: {
+  Icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  onClick: () => void; disabled?: boolean; title?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      style={{
+        width: 24, height: 24, padding: 0,
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        background: "transparent", color: disabled ? D.txd : D.tx,
+        border: "1px solid " + D.border, borderRadius: 999,
+        cursor: disabled ? "default" : "pointer",
+        opacity: disabled ? 0.4 : 1,
+      }}
+    ><Icon size={12} strokeWidth={2.4} /></button>
+  );
+}
+
+// Thin clickable strip shown when the properties panel is hidden, so
+// there's always an obvious way back. Hovering tints the chevron amber
+// to match the Diagram editor's strip.
+function CollapsedRightStrip({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title="Show properties panel"
+      style={{
+        width: 22, marginLeft: 8, flexShrink: 0,
+        background: D.card, border: "1px solid " + D.border, borderLeft: "none",
+        borderRadius: "0 10px 10px 0",
+        cursor: "pointer",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        color: D.txm,
+        transition: "color 0.12s",
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.color = D.amber; }}
+      onMouseLeave={(e) => { e.currentTarget.style.color = D.txm; }}
+    ><PanelRightOpen size={13} strokeWidth={2.2} /></button>
+  );
 }
 
 function exportPresetDimensions(p: ExportPreset): { width: number; height: number; label: string } {
