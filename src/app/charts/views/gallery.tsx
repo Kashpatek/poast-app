@@ -8,7 +8,8 @@
 // Diagram: 3 starter shapes.
 
 import { ArrowLeft } from "lucide-react";
-import { TABLE_TEMPLATES as TABLE_SEEDS } from "../lib/table-templates";
+import SaTableSvg from "../lib/sa-table-svg";
+import { templateById as tableTemplateById, TABLE_TEMPLATES as TABLE_SEEDS } from "../lib/table-templates";
 import { D, ft, gf, mn } from "../studio-theme";
 import { DocType } from "../studio-types";
 
@@ -70,6 +71,10 @@ export default function GalleryView({
 }) {
   const tpls = templatesFor(type);
   const heading = type === "chart" ? "Pick a chart" : type === "table" ? "Pick a table" : "Pick a diagram";
+  // Table tiles render a real SaTableSvg snapshot at thumb size; chart and
+  // diagram fall back to the placeholder glyph until those renderers are
+  // standalone-callable.
+  const widerTiles = type === "table";
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", padding: "36px 28px 80px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 26 }}>
@@ -93,16 +98,22 @@ export default function GalleryView({
       </div>
       <div style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))",
+        gridTemplateColumns: widerTiles
+          ? "repeat(auto-fill, minmax(280px, 1fr))"
+          : "repeat(auto-fill, minmax(190px, 1fr))",
         gap: 14,
       }}>
-        {tpls.map((t) => <TemplateTile key={t.id} tpl={t} onClick={() => onPick(t.id)} />)}
+        {tpls.map((t) => <TemplateTile key={t.id} tpl={t} type={type} onClick={() => onPick(t.id)} />)}
       </div>
     </div>
   );
 }
 
-function TemplateTile({ tpl, onClick }: { tpl: GalleryTemplate; onClick: () => void }) {
+function TemplateTile({ tpl, type, onClick }: { tpl: GalleryTemplate; type: DocType; onClick: () => void }) {
+  // Tables get a real SaTableSvg thumbnail rendered from the same
+  // payload the editor opens to — what you click is what you'll see.
+  const tableSeed = type === "table" ? tableTemplateById(tpl.id) : null;
+  const tableBuilt = tableSeed?.build();
   return (
     <button
       onClick={onClick}
@@ -126,22 +137,52 @@ function TemplateTile({ tpl, onClick }: { tpl: GalleryTemplate; onClick: () => v
       }}
     >
       <div style={{
-        height: 120,
+        height: tableBuilt ? 160 : 120,
         background: "linear-gradient(135deg, " + D.bg + ", " + D.surface + ")",
         borderBottom: "1px solid " + D.border,
         display: "flex", alignItems: "center", justifyContent: "center",
         position: "relative", overflow: "hidden",
       }}>
-        <div style={{
-          position: "absolute", inset: 0,
-          background: "radial-gradient(circle at 70% 30%, " + tpl.accent + "22, transparent 60%)",
-          pointerEvents: "none",
-        }} />
-        <span style={{
-          position: "relative",
-          fontFamily: mn, fontSize: 24, fontWeight: 800,
-          color: tpl.accent, letterSpacing: 1.5, opacity: 0.85,
-        }}>{tpl.glyph || "·"}</span>
+        {tableBuilt ? (
+          <div style={{ position: "absolute", inset: 0 }}>
+            <SaTableSvg
+              mode={tableBuilt.mode || "data"}
+              sheet={tableBuilt.sheet}
+              category={tableBuilt.category}
+              titleWhite={tableBuilt.titleWhite}
+              titleAmber={tableBuilt.titleAmber}
+              subtitle={tableBuilt.subtitle}
+              titleBar={tableBuilt.titleBar}
+              highlightRowIdx={tableBuilt.highlightRowIdx}
+              highlightFlagCol={tableBuilt.highlightFlagCol}
+              keyInsight={tableBuilt.keyInsight}
+              threshold={tableBuilt.threshold}
+              yellowBand={tableBuilt.yellowBand}
+              topAxisLabel={tableBuilt.topAxisLabel}
+              leftAxisLabel={tableBuilt.leftAxisLabel}
+              baselineRow={tableBuilt.baselineRow}
+              baselineCol={tableBuilt.baselineCol}
+              panelKind={tableBuilt.panelKind}
+              panelItems={tableBuilt.panelItems}
+              formula={tableBuilt.formula}
+              formulaBaseline={tableBuilt.formulaBaseline}
+              formulaResult={tableBuilt.formulaResult}
+            />
+          </div>
+        ) : (
+          <>
+            <div style={{
+              position: "absolute", inset: 0,
+              background: "radial-gradient(circle at 70% 30%, " + tpl.accent + "22, transparent 60%)",
+              pointerEvents: "none",
+            }} />
+            <span style={{
+              position: "relative",
+              fontFamily: mn, fontSize: 24, fontWeight: 800,
+              color: tpl.accent, letterSpacing: 1.5, opacity: 0.85,
+            }}>{tpl.glyph || "·"}</span>
+          </>
+        )}
       </div>
       <div style={{ padding: "10px 12px" }}>
         <div style={{
