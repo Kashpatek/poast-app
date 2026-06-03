@@ -648,7 +648,11 @@ function SaDataTable(props: SaTableRenderProps & { palette: ThemePalette }) {
   // unless the user locked the dimensions).
   const titleBarH = Math.round(44 * (props.lockTableDimensions ? 1 : titleFontScale));
   const colHeaderY = chrome.showTitleBar ? titleBarY + titleBarH : titleBarY;
-  const colHeaderH = Math.round(46 * dimScale);
+  // Multi-line column header detection: when any column label contains
+  // a "\n", grow the header band so the second line fits without
+  // overlapping the first data row.
+  const hasMultilineHeader = sheet.schema.some((c) => /\n/.test(c.label));
+  const colHeaderH = Math.round((hasMultilineHeader ? 64 : 46) * dimScale);
   const rowH = Math.round(42 * dimScale);
   const dataRowsStart = colHeaderY + colHeaderH;
   const colCount = Math.max(1, sheet.schema.length);
@@ -723,7 +727,6 @@ function SaDataTable(props: SaTableRenderProps & { palette: ThemePalette }) {
         </>
       )}
 
-      {/* Column header row — base band */}
       <rect x={tableX} y={colHeaderY} width={tableW} height={colHeaderH} fill={palette.headerBg} />
       {/* Per-column header overlays — either from col.headerColor or
           from chrome.cycleHeaderColors (Power-Budget style). Drawn as
@@ -744,13 +747,25 @@ function SaDataTable(props: SaTableRenderProps & { palette: ThemePalette }) {
       {sheet.schema.map((c, ci) => {
         const tinted = !!c.headerColor || (chrome.cycleHeaderColors && ci > 0);
         const headerFill = tinted ? "#FFFFFF" : palette.headerTxt;
+        const labelLines = c.label.split(/\n/);
+        const fontSize = Math.round((labelLines.length > 1 ? 13 : 15) * bodyFontScale);
+        const lineH = fontSize * 1.15;
+        // Center the multi-line block vertically inside colHeaderH.
+        const blockH = lineH * labelLines.length;
+        const firstBaseline = colHeaderY + (colHeaderH - blockH) / 2 + fontSize;
         return (
           <text key={"hdr-" + c.key}
             x={ci === 0 ? tableX + 15 : colCenter(ci)}
-            y={colHeaderY + colHeaderH * 0.61}
+            y={firstBaseline}
             textAnchor={ci === 0 ? "start" : "middle"}
-            className="sa-bold" fontSize={Math.round(15 * bodyFontScale)} fill={headerFill} fillOpacity={tinted ? 1 : 0.95}>
-            {c.label}
+            className="sa-bold" fontSize={fontSize} fill={headerFill} fillOpacity={tinted ? 1 : 0.95}>
+            {labelLines.map((ln, li) => (
+              <tspan key={li}
+                x={ci === 0 ? tableX + 15 : colCenter(ci)}
+                dy={li === 0 ? 0 : lineH}>
+                {ln}
+              </tspan>
+            ))}
           </text>
         );
       })}
@@ -778,20 +793,21 @@ function SaDataTable(props: SaTableRenderProps & { palette: ThemePalette }) {
           }
         }
         // Section rows ignore normal column rendering — paint a full-
-        // width amber band with column-1 text centered as the label.
+        // width band with column-1 text as the label. The "sectioned"
+        // chrome (non-banded) draws a SOLID amber band edge-to-edge to
+        // match the brand Excel template; "banded-spec" rotates per
+        // section through brand colors.
         if (isSection) {
           const labelRaw = String(row[sheet.schema[0].key] ?? "");
           const label = labelRaw.replace(/^[\s\-─—]+/, "").replace(/[\s\-─—]+$/, "").toUpperCase();
           const bandColor = chrome.bandedSections ? bandColors[sectionIdx % bandColors.length] : "#F7B041";
           return (
             <g key={"row-" + ri}>
-              <rect x={tableX} y={y + 4} width={tableW} height={rowH - 6}
-                fill={bandColor} fillOpacity={chrome.bandedSections ? 0.9 : 0.16} />
-              {!chrome.bandedSections && (
-                <line x1={tableX} y1={y + 4} x2={tableX} y2={y + rowH - 2} stroke={bandColor} strokeWidth={3} />
-              )}
-              <text x={tableX + 18} y={y + 28} className="sa-blk" fontSize={13}
-                fill={chrome.bandedSections ? "#FFFFFF" : bandColor} letterSpacing=".18em">{label}</text>
+              <rect x={tableX} y={y + 2} width={tableW} height={rowH - 4}
+                fill={bandColor} fillOpacity={chrome.bandedSections ? 1 : 1} />
+              <text x={tableX + 18} y={y + rowH * 0.64} className="sa-blk"
+                fontSize={Math.round(14 * bodyFontScale)}
+                fill="#FFFFFF" letterSpacing=".22em">{label}</text>
             </g>
           );
         }

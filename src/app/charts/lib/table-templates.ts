@@ -328,83 +328,6 @@ function fleetMathSheet(): TableSheet {
   );
 }
 
-function paybackMatrixSheet(): TableSheet {
-  return buildHeatSheet(
-    "Annual savings",
-    ["$8k", "$16k", "$24k", "$32k", "$40k"],
-    ["$40k", "$80k", "$120k", "$160k", "$200k"],
-    [
-      [ 5.0, 10.0, 15.0, 20.0, 25.0 ],
-      [ 2.5,  5.0,  7.5, 10.0, 12.5 ],
-      [ 1.7,  3.3,  5.0,  6.7,  8.3 ],
-      [ 1.3,  2.5,  3.8,  5.0,  6.3 ],
-      [ 1.0,  2.0,  3.0,  4.0,  5.0 ],
-    ],
-  );
-}
-
-function savingsMatrixSheet(): TableSheet {
-  // Two-color (negative coral / positive teal) sensitivity grid.
-  return buildHeatSheet(
-    "Adoption rate",
-    ["10%", "25%", "50%", "75%", "100%"],
-    ["$5/mo", "$10/mo", "$20/mo", "$40/mo", "$80/mo"],
-    [
-      [-12.4, -9.8, -4.6, 3.2, 14.8 ],
-      [-9.6,  -5.8,  0.8, 11.0, 28.4 ],
-      [-5.2,   0.4,  9.2, 22.4, 49.6 ],
-      [-2.0,   4.8, 16.8, 35.2, 72.4 ],
-      [ 1.2,   9.4, 24.6, 48.4, 96.0 ],
-    ],
-  );
-}
-
-function riskMatrixSheet(): TableSheet {
-  return buildHeatSheet(
-    "Probability",
-    ["≥80%", "60–80%", "40–60%", "20–40%", "<20%"],
-    ["Trivial", "Low", "Moderate", "High", "Critical"],
-    [
-      [ 4,  8, 12, 18, 25 ],
-      [ 3,  6,  9, 14, 20 ],
-      [ 2,  4,  6, 10, 15 ],
-      [ 1,  3,  5,  8, 12 ],
-      [ 1,  2,  3,  5,  8 ],
-    ],
-  );
-}
-
-function scoreMatrixSheet(): TableSheet {
-  return buildHeatSheet(
-    "Initiative",
-    ["G1 fleet pilot", "Inference shrink", "Brand refresh", "API v3", "Voice SDK"],
-    ["Strategic Fit", "Effort", "Time to Win", "Revenue", "Risk"],
-    [
-      [9, 4, 7, 8, 3],
-      [7, 3, 8, 6, 4],
-      [6, 5, 5, 4, 2],
-      [8, 6, 6, 9, 5],
-      [5, 7, 4, 7, 6],
-    ],
-  );
-}
-
-function hourlyCostSheet(): TableSheet {
-  return buildHeatSheet(
-    "Utilization",
-    ["20%", "33%", "50%", "67%", "83%", "100%"],
-    ["$40/hr", "$30/hr", "$22/hr", "$15/hr", "$10/hr"],
-    [
-      [ 92, 70, 56, 42, 32 ],
-      [ 56, 42, 33, 25, 19 ],
-      [ 36, 27, 22, 16, 12 ],
-      [ 28, 21, 16, 12,  9 ],
-      [ 22, 17, 13, 10,  7 ],
-      [ 19, 14, 11,  8,  6 ],
-    ],
-  );
-}
-
 // Spec Comparison — chip generations across HBM / NVLink / TDP /
 // process / availability. Schema is single-tier for now; the eventual
 // super-header row that groups columns by generation will be a
@@ -568,6 +491,151 @@ function tcoScenarioSheet(): TableSheet {
 // ──────────────────────────────────────────────────────────────────────
 //  Templates
 // ──────────────────────────────────────────────────────────────────────
+
+// ─── Excel-derived sheets (from /Users/akashpatel/Desktop/SEMIANALYSIS/
+// Brand/Brand 2026 Launch/Excel Templates/Template - Light and Dark -
+// Outfit.xlsx — pulled with openpyxl and transcribed faithfully so the
+// gallery starters match the actual brand-template shapes).
+
+// Switch Demand Reconciliation — Fundamental AI Scale-Up Switch Demand
+// by vendor with subtotal + Grand Total rows. Drives the "totaled"
+// chrome which auto-detects "- Total" / "Grand Total" labels.
+function switchDemandSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Switch ASIC",       type: "text"   },
+      { key: "c2", label: "2024",              type: "number", numFmt: "k" },
+      { key: "c3", label: "2025",              type: "number", numFmt: "k" },
+      { key: "c4", label: "2026",              type: "number", numFmt: "k" },
+      { key: "c5", label: "2027",              type: "number", numFmt: "k" },
+    ],
+    rows: [
+      { c1: "Tomahawk 6 102.4T ASIC",      c2: 0,        c3: 0,        c4: 9778,     c5: 59726   },
+      { c1: "Tomahawk Ultra 51.2T ASIC",   c2: 0,        c3: 333,      c4: 48551,    c5: 2500    },
+      { c1: "Broadcom - Total",            c2: 0,        c3: 333,      c4: 58329,    c5: 62226   },
+      { c1: "Scorpio X 320-lane PCIe 6",   c2: 0,        c3: 0,        c4: 18450,    c5: 715390  },
+      { c1: "Scorpio X 160-lane PCIe 6",   c2: 0,        c3: 0,        c4: 164828,   c5: 209743  },
+      { c1: "Astera Labs - Total",         c2: 0,        c3: 0,        c4: 183278,   c5: 925133  },
+      { c1: "Nvidia NVSwitch 6.0 (NVL 6)", c2: 0,        c3: 5832,     c4: 403797,   c5: 6369659 },
+      { c1: "Nvidia NVSwitch 5.0 (NVL 5)", c2: 7500,     c3: 479986,   c4: 1955265,  c5: 597077  },
+      { c1: "Nvidia NVSwitch 3.0 (NVL 4)", c2: 1684640,  c3: 1321832,  c4: 0,        c5: 0       },
+      { c1: "Nvidia NVSwitch 2.0 (NVL 3)", c2: 217500,   c3: 0,        c4: 0,        c5: 0       },
+      { c1: "Nvidia - Total",              c2: 1909640,  c3: 1807650,  c4: 2359062,  c5: 6966735 },
+      { c1: "Grand Total",                 c2: 1909640,  c3: 1807983,  c4: 2600668,  c5: 7954094 },
+    ],
+  };
+}
+
+// Trainium Chip Roadmap Spec Sheet — 6 product columns × ~24 spec
+// rows with 5 section bands. Multi-line column headers (Excel uses
+// "\n" to break product names into two lines).
+function trainiumRoadmapSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Spec",                       type: "text" },
+      { key: "c2", label: "Trainium",                   type: "text" },
+      { key: "c3", label: "Trainium2 NL16\n2D Torus",   type: "text" },
+      { key: "c4", label: "Trainium2 NL32\n3D Torus",   type: "text" },
+      { key: "c5", label: "Trainium3 (Air)",            type: "text" },
+      { key: "c6", label: "Trainium3",                  type: "text" },
+      { key: "c7", label: "Trainium4",                  type: "text" },
+    ],
+    rows: [
+      { c1: "── DENSE FLOPs PER PACKAGE ──" },
+      { c1: "Foundry Node",             c2: "N7",  c3: "N5",   c4: "N5",   c5: "N3P",  c6: "N3P",  c7: "N2"    },
+      { c1: "FP4 Dense (TFLOPS)",       c2: "—",   c3: "—",    c4: "—",    c5: "2517", c6: "2517", c7: "15102" },
+      { c1: "FP8 Dense (TFLOPS)",       c2: "191", c3: "1299", c4: "1299", c5: "2517", c6: "2517", c7: "TBD"   },
+      { c1: "BF16 Dense (TFLOPS)",      c2: "191", c3: "667",  c4: "667",  c5: "671",  c6: "671",  c7: "TBD"   },
+      { c1: "FP32 Dense (TFLOPS)",      c2: "48",  c3: "181",  c4: "181",  c5: "183",  c6: "183",  c7: "TBD"   },
+      { c1: "── MEMORY CAPACITY + BW ──" },
+      { c1: "HBM Type",                 c2: "HBM2E",  c3: "HBM3E",  c4: "HBM3E",  c5: "HBM3E",  c6: "HBM3E",  c7: "HBM4"  },
+      { c1: "HBM Stacks",               c2: "2",      c3: "4",      c4: "4",      c5: "4",      c6: "4",      c7: "8"     },
+      { c1: "HBM Capacity (GB)",        c2: "32",     c3: "96",     c4: "96",     c5: "144",    c6: "144",    c7: "288"   },
+      { c1: "Pin speed (Gb/s)",         c2: "3.2",    c3: "5.66",   c4: "5.66",   c5: "9.57",   c6: "9.57",   c7: "9.57"  },
+      { c1: "Memory BW (TB/s)",         c2: "0.82",   c3: "2.90",   c4: "2.90",   c5: "4.90",   c6: "4.90",   c7: "19.60" },
+      { c1: "── PACKAGING + COOLING ──" },
+      { c1: "Packaging",                c2: "CoWoS-S", c3: "CoWoS-R", c4: "CoWoS-R", c5: "CoWoS-R", c6: "CoWoS-R", c7: "TBD" },
+      { c1: "XPU TDP (W)",              c2: "—",       c3: "~500",    c4: "~500",    c5: "~700",    c6: "~700",    c7: "TBD" },
+      { c1: "Cooling",                  c2: "Air",     c3: "Air",     c4: "Air",     c5: "Air",     c6: "Air / Liquid", c7: "TBD" },
+      { c1: "── SCALE-UP NETWORKING ──" },
+      { c1: "Scale-Up Tech",            c2: "NeuronLink v2", c3: "NeuronLink v3", c4: "NeuronLink v3", c5: "NeuronLink v4", c6: "NeuronLink v4", c7: "TBD" },
+      { c1: "Lane Speed (Gb/s)",        c2: "—",       c3: "32",      c4: "32",      c5: "64",      c6: "64",      c7: "TBD" },
+      { c1: "Scale-Up BW (TB/s)",       c2: "—",       c3: "0.51",    c4: "0.64",    c5: "1.15",    c6: "1.20",    c7: "TBD" },
+      { c1: "World Size (chips)",       c2: "—",       c3: "16",      c4: "64",      c5: "64",      c6: "144",     c7: "TBD" },
+      { c1: "── SCALE-OUT NETWORKING ──" },
+      { c1: "Scale-Out Tech",           c2: "EFAv2",   c3: "EFAv3",   c4: "EFAv3",   c5: "EFAv4",   c6: "EFAv4",   c7: "TBD" },
+      { c1: "Scale-Out BW (Gb/s/chip)", c2: "170",     c3: "800",     c4: "200",     c5: "400",     c6: "400",     c7: "TBD" },
+    ],
+  };
+}
+
+// GB300 NVL72 Cluster Power Budget — comparison across 4 networking
+// configurations (DSP / LPO / CPO 3-Layer / CPO 2-Layer). Real Excel
+// values, rounded to W. The "Total Power (W)" row triggers the
+// "totaled" chrome's amber Grand Total band.
+function powerBudgetSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Item",            type: "text"   },
+      { key: "c2", label: "DSP\n3-Layer",    type: "number", numFmt: "int" },
+      { key: "c3", label: "LPO\n3-Layer",    type: "number", numFmt: "int" },
+      { key: "c4", label: "CPO\n3-Layer",    type: "number", numFmt: "int" },
+      { key: "c5", label: "CPO\n2-Layer",    type: "number", numFmt: "int", condFmt: "highGood" },
+    ],
+    rows: [
+      { c1: "Server",                c2: 142000, c3: 142000, c4: 142000, c5: 142000 },
+      { c1: "Optical Transceivers",  c2: 6199,   c3: 3945,   c4: 2239,   c5: 1015   },
+      { c1: "Switches",              c2: 8014,   c3: 8014,   c4: 9884,   c5: 6336   },
+      { c1: "Networking",            c2: 14213,  c3: 11959,  c4: 12123,  c5: 7351   },
+      { c1: "All Others",            c2: 281,    c3: 281,    c4: 281,    c5: 281    },
+      { c1: "Total Power (W)",       c2: 156494, c3: 154240, c4: 154404, c5: 149632 },
+    ],
+  };
+}
+
+// TCO per Effective Training PFLOP — multi-config comparison across
+// B300 / GB300 / TPU v7 at 5 MFU levels. From the Bar Chart sheet.
+function tcoPflopSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Metric",                  type: "text" },
+      { key: "c2", label: "B300\n30% MFU",           type: "text" },
+      { key: "c3", label: "GB300 NVL72\n30% MFU",    type: "text" },
+      { key: "c4", label: "TPU v7\n20% MFU",         type: "text" },
+      { key: "c5", label: "TPU v7\n40% MFU",         type: "text" },
+      { key: "c6", label: "TPU v7\n60% MFU",         type: "text" },
+    ],
+    rows: [
+      { c1: "Total Cost ($/hr/GPU)",       c2: "$2.67",  c3: "$2.73",  c4: "$1.60",  c5: "$1.60",  c6: "$1.60"  },
+      { c1: "Marketed FP8 (TFLOPS)",       c2: "4500",   c3: "5000",   c4: "4614",   c5: "4614",   c6: "4614"   },
+      { c1: "Effective FP8 (TFLOPS)",      c2: "1350",   c3: "1500",   c4: "923",    c5: "1846",   c6: "2768"   },
+      { c1: "HBM Capacity (GB)",           c2: "288",    c3: "288",    c4: "192",    c5: "192",    c6: "192"    },
+      { c1: "HBM Bandwidth (TB/s)",        c2: "8.0",    c3: "8.0",    c4: "7.3",    c5: "7.3",    c6: "7.3"    },
+      { c1: "TCO / PFLOP ($/hr)",          c2: "$0.59",  c3: "$0.55",  c4: "$0.35",  c5: "$0.35",  c6: "$0.35"  },
+      { c1: "TCO / Eff PFLOP ($/hr)",      c2: "$1.98",  c3: "$1.82",  c4: "$1.73",  c5: "$0.87",  c6: "$0.58"  },
+    ],
+  };
+}
+
+// Compact normalized FLOPs comparison — 5 specs × 3 GPUs. Numbers
+// represent ratios vs TPU v6 = 1.0. Useful as a small inline accent.
+function flopsNormalizedSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1", label: "Spec",          type: "text"   },
+      { key: "c2", label: "TPU v6",        type: "number", numFmt: "dec1" },
+      { key: "c3", label: "H100 (SXM)",    type: "number", numFmt: "dec1", condFmt: "minMax" },
+      { key: "c4", label: "H200 (SXM)",    type: "number", numFmt: "dec1", condFmt: "minMax" },
+    ],
+    rows: [
+      { c1: "FP8 TFLOPs",      c2: 1.0, c3: 2.16, c4: 2.16 },
+      { c1: "INT8 TFLOPs",     c2: 1.0, c3: 1.08, c4: 1.08 },
+      { c1: "BF16 TFLOPs",     c2: 1.0, c3: 1.08, c4: 1.08 },
+      { c1: "HBM Capacity",    c2: 1.0, c3: 2.50, c4: 4.41 },
+      { c1: "HBM Bandwidth",   c2: 1.0, c3: 2.04, c4: 2.93 },
+    ],
+  };
+}
 
 export const TABLE_TEMPLATES: TableTemplate[] = [
   // — Data tables —
@@ -901,151 +969,114 @@ export const TABLE_TEMPLATES: TableTemplate[] = [
       ],
     }),
   },
+  // — Excel-derived starters (from the brand 2026 template) —
   {
-    id: "payback",
-    label: "Payback matrix",
-    blurb: "Years to break even, w/ formula",
-    accent: SA.teal,
-    glyph: "⏳",
-    build: () => ({
-      engine: "standard",
-      sheet: paybackMatrixSheet(),
-      mode: "heatmap",
-      category: "SEMIANALYSIS — UNIT ECONOMICS",
-      titleWhite: "Fleet Payback ·",
-      titleAmber: "Years to Break Even",
-      subtitle: "Capex × annual savings · baseline scenario shown",
-      threshold: 3,
-      yellowBand: 0.4,
-      topAxisLabel: "CAPEX PER UNIT",
-      leftAxisLabel: "ANNUAL SAVINGS",
-      baselineRow: 2,
-      baselineCol: 2,
-      panelKind: "inputs",
-      panelItems: [
-        { label: "Service cost:",  value: "$8k/yr" },
-        { label: "Discount rate:", value: "8%" },
-        { label: "Useful life:",   value: "7 yrs" },
-        { label: "Tax shield:",    value: "21%" },
-      ],
-      formula: "payback = capex / (annual_savings − service_cost)",
-      formulaBaseline: "120k / (24k − 8k)",
-      formulaResult: "5.0 yrs",
-    }),
-  },
-  {
-    id: "savings",
-    label: "Savings matrix",
-    blurb: "Two-color: gain/loss vs status quo",
-    accent: SA.coral,
-    glyph: "±",
-    build: () => ({
-      engine: "standard",
-      sheet: savingsMatrixSheet(),
-      mode: "heatmap",
-      category: "SEMIANALYSIS — PRICING",
-      titleWhite: "Cash Savings ·",
-      titleAmber: "Adoption × Plan",
-      subtitle: "Coral = loss vs status quo · teal = gain · break-even band in yellow",
-      threshold: 0,
-      yellowBand: 1.5,
-      topAxisLabel: "PRICE TIER",
-      leftAxisLabel: "ADOPTION",
-      panelKind: "caveats",
-      panelItems: [
-        { label: "Status quo:",    value: "all users on $10/mo, 50% adoption" },
-        { label: "Adoption gain:",  value: "linear assumption — no churn modelled" },
-        { label: "Margin:",         value: "62% blended, constant across tiers" },
-        { label: "Sensitivity:",    value: "results assume no competitive response" },
-      ],
-    }),
-  },
-  {
-    id: "risk",
-    label: "Risk matrix",
-    blurb: "Probability × impact, w/ caveats",
-    accent: SA.coral,
-    glyph: "⚠",
-    build: () => ({
-      engine: "standard",
-      sheet: riskMatrixSheet(),
-      mode: "heatmap",
-      category: "SEMIANALYSIS — OPS",
-      titleWhite: "Launch Risk ·",
-      titleAmber: "Probability × Impact",
-      subtitle: "Pre-launch risk register · score = expected loss in $M",
-      threshold: 10,
-      yellowBand: 2,
-      topAxisLabel: "IMPACT",
-      leftAxisLabel: "PROBABILITY",
-      panelKind: "caveats",
-      panelItems: [
-        { label: "Score = ",     value: "probability midpoint × impact dollars" },
-        { label: "Above 15:",     value: "trigger a war-room before launch" },
-        { label: "Yellow band:",  value: "watch list — review weekly" },
-        { label: "Under 5:",      value: "log only — no active mitigation" },
-      ],
-    }),
-  },
-  {
-    id: "score",
-    label: "Score matrix",
-    blurb: "Initiative scoring 1–10",
-    accent: SA.violet,
-    glyph: "◆",
-    build: () => ({
-      engine: "standard",
-      sheet: scoreMatrixSheet(),
-      mode: "heatmap",
-      category: "SEMIANALYSIS — STRATEGY",
-      titleWhite: "FY26 Initiatives ·",
-      titleAmber: "Score Matrix",
-      subtitle: "1–10 across five dimensions · 7+ is a green light",
-      threshold: 6,
-      yellowBand: 0.5,
-      topAxisLabel: "DIMENSION",
-      leftAxisLabel: "INITIATIVE",
-      panelKind: "inputs",
-      panelItems: [
-        { label: "Scorers:",     value: "Akash, Michelle, Vansh" },
-        { label: "Cycle:",       value: "Q1 '26 portfolio review" },
-        { label: "Greenlight:",  value: "≥ 7 on Strategic Fit + Revenue" },
-      ],
-    }),
-  },
-  {
-    id: "hourly",
-    label: "Cost grid (6×5)",
-    blurb: "Wider heatmap, 6 rows",
+    id: "switch-demand",
+    label: "Switch demand",
+    blurb: "Vendor subtotals · Grand Total",
     accent: SA.blue,
-    glyph: "⏱",
+    glyph: "Σ",
     build: () => ({
       engine: "standard",
-      sheet: hourlyCostSheet(),
-      mode: "heatmap",
-      category: "SEMIANALYSIS — ROBOTICS",
-      titleWhite: "Hourly Cost ·",
-      titleAmber: "Robot vs Labor",
-      subtitle: "Labor wage × utilization · break-even band in yellow at $30/hr labor",
-      threshold: 30,
-      yellowBand: 4,
-      topAxisLabel: "LABOR WAGE",
-      leftAxisLabel: "UTILIZATION",
-      baselineRow: 2,
-      baselineCol: 2,
-      panelKind: "inputs",
-      panelItems: [
-        { label: "Bot capex:",    value: "$140k" },
-        { label: "Useful life:",  value: "5 yrs" },
-        { label: "Service:",      value: "$8k/yr" },
-        { label: "Energy:",       value: "$0.20/kWh" },
-        { label: "Loaded labor:", value: "1.42× wage" },
-      ],
-      formula: "robot_hourly = (capex/life + service + energy) / hours_per_yr",
-      formulaResult: "$11.40 / hr @ 50% util",
+      sheet: switchDemandSheet(),
+      mode: "data",
+      chromeStyle: "totaled",
+      showRowStripe: true,
+      category: "SEMIANALYSIS — NETWORKING",
+      titleWhite: "AI Scale-Up Switch",
+      titleAmber: "Demand Reconciliation",
+      subtitle: "Switch ASIC demand by vendor · 2024–2027",
+      titleBar: "SWITCH DEMAND · 2024–2027",
+      source: "Source: SemiAnalysis Networking Model",
     }),
   },
-  // — New: chip/system templates per gap analysis —
+  {
+    id: "trainium-roadmap",
+    label: "Spec sheet — Trainium",
+    blurb: "Sectioned · 6 product cols · multi-line headers",
+    accent: SA.amber,
+    glyph: "▤▤",
+    build: () => ({
+      engine: "standard",
+      sheet: trainiumRoadmapSheet(),
+      mode: "data",
+      chromeStyle: "sectioned",
+      showRowStripe: true,
+      dividerStyle: "dotted",
+      category: "SEMIANALYSIS — HARDWARE",
+      titleWhite: "Trainium",
+      titleAmber: "Chip Roadmap",
+      subtitle: "Trainium → Trainium4 · process, memory, packaging, networking",
+      source: "Source: SemiAnalysis estimates",
+    }),
+  },
+  {
+    id: "power-budget",
+    label: "Power budget",
+    blurb: "DSP / LPO / CPO compare · totaled",
+    accent: SA.coral,
+    glyph: "⚡",
+    build: () => ({
+      engine: "standard",
+      sheet: powerBudgetSheet(),
+      mode: "data",
+      chromeStyle: "totaled",
+      showRowStripe: true,
+      category: "SEMIANALYSIS — POWER",
+      titleWhite: "GB300 NVL72",
+      titleAmber: "Power Budget",
+      subtitle: "Traditional DSP vs LPO vs CPO · 2 / 3-Layer networks",
+      titleBar: "CLUSTER POWER BY OPTICS",
+      keyInsight: "**2-Layer CPO** lowers cluster power by **~4.4%** vs the DSP baseline — Optical Transceiver power drops 84%; switch overhead falls because two layers replace three.",
+      source: "Source: SemiAnalysis Networking Model",
+    }),
+  },
+  {
+    id: "tco-pflop",
+    label: "TCO per PFLOP",
+    blurb: "B300 vs GB300 vs TPU v7 by MFU",
+    accent: SA.teal,
+    glyph: "$Σ",
+    build: () => ({
+      engine: "standard",
+      sheet: tcoPflopSheet(),
+      mode: "data",
+      chromeStyle: "framed",
+      showRowStripe: true,
+      category: "SEMIANALYSIS — TCO",
+      titleWhite: "Effective Training",
+      titleAmber: "TCO per PFLOP",
+      subtitle: "$ / hr at varying Model FLOPs Utilization",
+      titleBar: "TCO PER EFFECTIVE PFLOP",
+      highlightRowIdx: 6,
+      highlightFlagCol: 5,
+      keyInsight: "At **60% MFU**, TPU v7 lands at **$0.58 / Eff PFLOP-hr** — under a third of the GB300 NVL72 at 30% MFU. The MFU lever beats the sticker-price lever.",
+      source: "Source: SemiAnalysis",
+    }),
+  },
+  {
+    id: "flops-norm",
+    label: "Normalized FLOPs",
+    blurb: "Compact 5×3 ratio · light theme",
+    accent: SA.violet,
+    glyph: "÷",
+    build: () => ({
+      engine: "standard",
+      sheet: flopsNormalizedSheet(),
+      mode: "data",
+      chromeStyle: "dense",
+      hideTopStripe: true,
+      showRowStripe: true,
+      dividerStyle: "dotted",
+      theme: "light",
+      category: "SEMIANALYSIS — RATIO",
+      titleWhite: "FLOPs ÷",
+      titleAmber: "TPU v6 = 1.0",
+      subtitle: "Specs normalized to Trillium for fast scan",
+      source: "Source: SemiAnalysis",
+    }),
+  },
+  // — Chip/system templates per gap analysis —
   {
     id: "spec-compare",
     label: "Spec comparison",
