@@ -836,6 +836,18 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
   var _tcnt = useState<number>(3), thumbCount = _tcnt[0], setThumbCount = _tcnt[1];
   var _tpr = useState<string>(""), thumbPrompt = _tpr[0], setThumbPrompt = _tpr[1];
   var _topen = useState<boolean>(false), thumbAdv = _topen[0], setThumbAdv = _topen[1];
+  // New thumbnail controls — style preset, aspect ratio, negative prompt,
+  // reference image. Default to cinematic + 16:9 (YouTube thumbnail).
+  var _tsty = useState<string>("cinematic"), thumbStyle = _tsty[0], setThumbStyle = _tsty[1];
+  var _tar  = useState<"16:9" | "1:1" | "9:16">("16:9"), thumbAspect = _tar[0], setThumbAspect = _tar[1];
+  var _tneg = useState<string>(""), thumbNeg = _tneg[0], setThumbNeg = _tneg[1];
+  var _tref = useState<string | null>(null), thumbRef = _tref[0], setThumbRef = _tref[1];
+  // Provider that actually generated the current variants. Set from the
+  // /api/generate-thumbnail response so the variant cards + toasts
+  // reflect reality (Imagen often refuses brand-y prompts and silently
+  // falls back to Grok — without this tracking the user would think
+  // they used Imagen when Grok ran).
+  var _tactual = useState<"imagen" | "grok" | null>(null), thumbActualProvider = _tactual[0], setThumbActualProvider = _tactual[1];
 
   // Per-image cost estimates. Adjust if pricing shifts; the user sees
   // the running total live next to the Generate button.
@@ -949,6 +961,7 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
     var usingCustomPrompt = thumbAdv && thumbPrompt.trim().length > 0;
     setThumbGenL(true);
     setThumbVariants(null);
+    setThumbActualProvider(null);
     try {
       var r = await fetch("/api/generate-thumbnail", {
         method: "POST",
@@ -958,7 +971,10 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
           textOverlay: usingCustomPrompt ? "" : textOverlay,
           mood: usingCustomPrompt ? "" : mood,
           title: curFin.title,
-          style: "cinematic",
+          style: thumbStyle,
+          aspectRatio: thumbAspect,
+          negativePrompt: thumbNeg.trim() || undefined,
+          referenceImageUrl: thumbRef || undefined,
           count: thumbCount,
           provider: thumbProvider,
         }),
@@ -966,8 +982,12 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
       var d = await r.json();
       if (!r.ok) { showToast(d.error || "Image generation failed"); return; }
       setThumbVariants((d.images as string[]) || []);
+      // Track the actual provider that ran (may differ from requested
+      // when Imagen refuses and the route silently falls back to Grok).
+      var actual = (d.provider === "grok" || d.provider === "imagen") ? d.provider : null;
+      setThumbActualProvider(actual);
       if (d.fellBackTo) {
-        showToast("Imagen refused → fell back to " + d.fellBackTo);
+        showToast("Imagen refused the prompt → used " + d.fellBackTo + " instead");
       }
     } catch (e) {
       showToast("Network error: " + String(e));
@@ -982,9 +1002,14 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
   var useGeneratedThumb = async function(imgUrl: string, idx: number) {
     if (uploadingIdx !== null) return;
     setUploadingIdx(idx);
+    var providerLabel = thumbActualProvider === "grok" ? "Grok" : thumbActualProvider === "imagen" ? "Imagen" : "AI";
     try {
       var dataUrl = imgUrl;
-      if (!imgUrl.startsWith("data:")) {
+      var isAlreadyDataUrl = imgUrl.startsWith("data:");
+      if (!isAlreadyDataUrl) {
+        // Provider returned a remote URL (Grok always; Imagen never).
+        // Fetch + base64 it so we can ship to Vercel Blob for a
+        // permanent URL that survives the provider's expiry.
         try {
           var fres = await fetch(imgUrl);
           var blob = await fres.blob();
@@ -995,12 +1020,16 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
             fr.readAsDataURL(blob);
           });
         } catch (e) {
-          // CORS or transient network error — use the URL as-is.
+          // CORS or transient network error — use the URL as-is. The
+          // image still renders in-app; it just may expire from the
+          // provider's CDN. User sees what actually happened.
           setThumb(imgUrl);
-          showToast("Thumbnail set (couldn't persist — Grok URL only).");
+          showToast("Thumbnail set · " + providerLabel + " URL (may expire — try Save Episode now)");
           return;
         }
       }
+      // We now have a data URL — try to persist to Vercel Blob so the
+      // export pipeline can reference a permanent URL.
       try {
         var up = await fetch("/api/upload-asset", {
           method: "POST",
@@ -1014,12 +1043,19 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
         var upJ = await up.json();
         if (up.ok && upJ.url) {
           setThumb(upJ.url as string);
-          showToast("Thumbnail saved.");
+          showToast("Thumbnail saved to Blob · " + providerLabel);
+          return;
+        }
+        // Non-2xx → fall through to local fallback below. Surface the
+        // server reason so the user knows it wasn't a network issue.
+        if (upJ && upJ.error) {
+          showToast("Thumbnail set locally · Blob upload error: " + upJ.error);
+          setThumb(dataUrl);
           return;
         }
       } catch (e) { /* fall through to local fallback */ }
       setThumb(dataUrl);
-      showToast("Thumbnail set (local only — Blob upload failed).");
+      showToast("Thumbnail set locally · " + providerLabel + " (Blob upload failed — image still embedded)");
     } finally {
       setUploadingIdx(null);
     }
@@ -1098,8 +1134,8 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
             </div>;
           })}
         </div>
-        {/* Variant count */}
-        <div style={{ display: "flex", gap: 4, marginBottom: 12, alignItems: "center" }}>
+        {/* Variant count + aspect ratio on one row */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ fontFamily: mn, fontSize: 9.5, color: D.txb, letterSpacing: 1, marginRight: 8, fontWeight: 700 }}>Variants:</div>
           {[1, 2, 3, 4].map(function(n) {
             var on = thumbCount === n;
@@ -1113,6 +1149,44 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
           <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 10.5, color: D.amber, fontWeight: 800 }}>
             ~${thumbCostUSD(thumbProvider, thumbCount).toFixed(2)} / run
           </span>
+        </div>
+        {/* Aspect ratio + style preset row */}
+        <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <div style={{ fontFamily: mn, fontSize: 9.5, color: D.txb, letterSpacing: 1, fontWeight: 700, marginBottom: 5 }}>Aspect</div>
+            <div style={{ display: "flex", gap: 4 }}>
+              {([
+                { id: "16:9" as const, label: "16:9",  sub: "YT" },
+                { id: "1:1"  as const, label: "1:1",   sub: "Sq" },
+                { id: "9:16" as const, label: "9:16",  sub: "Shorts" },
+              ]).map(function(a) {
+                var on = thumbAspect === a.id;
+                return <span key={a.id} onClick={function() { setThumbAspect(a.id); }}
+                  style={{ flex: 1, padding: "6px 8px", borderRadius: 8, cursor: "pointer", textAlign: "center",
+                    background: on ? D.amber + "20" : D.surface,
+                    border: "1px solid " + (on ? D.amber + "60" : D.border),
+                    color: on ? D.amber : D.tx,
+                    fontFamily: mn, fontSize: 11, fontWeight: 700 }}>
+                  {a.label}
+                  <div style={{ fontSize: 8.5, color: on ? D.amber : D.txl, marginTop: 1, fontWeight: 600 }}>{a.sub}</div>
+                </span>;
+              })}
+            </div>
+          </div>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontFamily: mn, fontSize: 9.5, color: D.txb, letterSpacing: 1, fontWeight: 700, marginBottom: 5 }}>Style</div>
+            <select
+              value={thumbStyle}
+              onChange={function(e) { setThumbStyle(e.target.value); }}
+              style={{ width: "100%", padding: "7px 10px", background: D.surface, border: "1px solid " + D.border, borderRadius: 8, color: D.tx, fontFamily: mn, fontSize: 11.5, fontWeight: 700, outline: "none", cursor: "pointer", appearance: "none", WebkitAppearance: "none" }}
+            >
+              <option value="cinematic">Cinematic · film-frame</option>
+              <option value="photorealistic">Photorealistic · studio</option>
+              <option value="editorial">Editorial · magazine cover</option>
+              <option value="dataviz">Data Viz · infographic</option>
+              <option value="abstract">Abstract · particle / neon</option>
+            </select>
+          </div>
         </div>
         {/* Editable prompt */}
         <div style={{ fontFamily: mn, fontSize: 9.5, color: D.txb, letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>
@@ -1139,23 +1213,81 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
             setThumbPrompt(seed);
           }} style={{ cursor: "pointer", color: D.amber }}>Reset to concept</span>
         </div>
+        {/* Negative prompt — things the model should avoid. */}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontFamily: mn, fontSize: 9.5, color: D.txb, letterSpacing: 1, fontWeight: 700, marginBottom: 5 }}>
+            Avoid / Negative prompt {thumbNeg ? "· " + thumbNeg.length + " chars" : "· optional"}
+          </div>
+          <input
+            value={thumbNeg}
+            onChange={function(e) { setThumbNeg(e.target.value); }}
+            placeholder="e.g. people, faces, cluttered desk, neon signs, anime, low contrast"
+            style={{ width: "100%", padding: "9px 11px", background: D.surface, border: "1px solid " + D.border, borderRadius: 8, color: D.tx, fontFamily: mn, fontSize: 12, outline: "none", boxSizing: "border-box", transition: "border-color 0.15s ease" }}
+            onFocus={function(e) { e.target.style.borderColor = D.amber; }}
+            onBlur={function(e) { e.target.style.borderColor = D.border; }}
+          />
+        </div>
+        {/* Reference image — anchor the model to an existing style. */}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+            <div style={{ fontFamily: mn, fontSize: 9.5, color: D.txb, letterSpacing: 1, fontWeight: 700 }}>
+              Reference image {thumbRef ? "· set" : "· optional"}
+            </div>
+            {thumbRef && <span onClick={function() { setThumbRef(null); }} style={{ fontFamily: mn, fontSize: 9.5, color: D.coral, cursor: "pointer" }}>Clear</span>}
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <label style={{ flex: 1, padding: "10px 12px", borderRadius: 8, background: D.surface, border: "1px dashed " + D.border, cursor: "pointer", fontFamily: mn, fontSize: 11, color: D.tx, textAlign: "center" }}>
+              {thumbRef ? "Replace" : "Upload PNG / JPG"}
+              <input type="file" accept="image/*" style={{ display: "none" }} onChange={function(e) {
+                var f = e.target.files && e.target.files[0];
+                if (!f) return;
+                var r = new FileReader();
+                r.onload = function(ev) { setThumbRef(ev.target?.result as string); };
+                r.readAsDataURL(f);
+                e.target.value = "";
+              }} />
+            </label>
+            {thumbRef && <div style={{ width: 56, height: 32, borderRadius: 6, border: "1px solid " + D.border, overflow: "hidden", flexShrink: 0 }}>
+              { /* eslint-disable-next-line @next/next/no-img-element */ }
+              <img src={thumbRef} alt="ref" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            </div>}
+          </div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: D.txl, marginTop: 5, letterSpacing: 0.3 }}>
+            Lock the model to an existing thumbnail&apos;s style. Imagen and Grok both honor this when supported.
+          </div>
+        </div>
       </div>}
     </div>
 
     {thumbGenL && <ProgressBar label={"Generating with " + thumbModelLabel(thumbProvider)} />}
 
     {thumbVariants && thumbVariants.length > 0 && <div style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 16, marginBottom: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <div style={{ fontFamily: mn, fontSize: 11, color: D.amber, textTransform: "uppercase", letterSpacing: "2px", fontWeight: 700 }}>Generated · pick one</div>
+        {thumbActualProvider && <span style={{
+          fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
+          padding: "3px 8px", borderRadius: 999,
+          background: (thumbActualProvider === "imagen" ? D.blue : D.violet) + "1A",
+          color: thumbActualProvider === "imagen" ? D.blue : D.violet,
+          border: "1px solid " + (thumbActualProvider === "imagen" ? D.blue : D.violet) + "55",
+          textTransform: "uppercase",
+        }}>
+          {thumbActualProvider === "imagen" ? "Imagen" : "Grok"}
+          {thumbActualProvider !== thumbProvider && " · fallback"}
+        </span>}
+        <span style={{ fontFamily: mn, fontSize: 9, color: D.txl, letterSpacing: 0.5 }}>
+          {thumbStyle} · {thumbAspect}
+        </span>
         <span onClick={generateThumbImages} style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: D.txl, padding: "4px 10px", borderRadius: 8, border: "1px solid " + D.border, cursor: thumbGenL ? "wait" : "pointer", letterSpacing: 1 }}>↻ Re-roll all</span>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(" + Math.min(3, thumbVariants.length) + ", 1fr)", gap: 10 }}>
         {thumbVariants.map(function(url, i) {
           var picked = thumb === url;
           var uploading = uploadingIdx === i;
+          var aspectCss = thumbAspect === "16:9" ? "16/9" : thumbAspect === "9:16" ? "9/16" : "1/1";
           return <div key={i} style={{ background: D.surface, border: "1px solid " + (picked ? D.amber : D.border), borderRadius: 10, overflow: "hidden", position: "relative" }}>
             { /* eslint-disable-next-line @next/next/no-img-element */ }
-            <img src={url} alt={"variant " + (i + 1)} style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", display: "block" }} />
+            <img src={url} alt={"variant " + (i + 1)} style={{ width: "100%", aspectRatio: aspectCss, objectFit: "cover", display: "block" }} />
             <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontFamily: mn, fontSize: 9, color: D.txl, letterSpacing: 1 }}>{"Var. " + (i + 1)}</span>
               <button type="button" disabled={uploading} onClick={function() { useGeneratedThumb(url, i); }} style={{ marginLeft: "auto", padding: "5px 12px", background: picked ? D.teal + "15" : D.amber, color: picked ? D.teal : "#060608", border: picked ? "1px solid " + D.teal + "60" : "none", borderRadius: 6, fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: uploading ? "wait" : "pointer", letterSpacing: 0.5 }}>{uploading ? "Saving…" : picked ? "✓ In use" : "Use this"}</button>

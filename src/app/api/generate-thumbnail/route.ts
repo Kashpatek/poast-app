@@ -9,6 +9,8 @@ import { generateImagenImages, ImagenError } from "@/lib/imagen";
 
 export const maxDuration = 60;
 
+type AspectRatio = "16:9" | "1:1" | "9:16" | "4:3" | "3:4";
+
 export async function POST(req: NextRequest) {
   let body: {
     concept?: string;
@@ -19,6 +21,8 @@ export async function POST(req: NextRequest) {
     referenceImageUrl?: string;
     count?: number;
     provider?: "imagen" | "grok";
+    aspectRatio?: AspectRatio;
+    negativePrompt?: string;
   };
   try {
     body = await req.json();
@@ -26,7 +30,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body", detail: String(err) }, { status: 400 });
   }
 
-  const { concept, style, textOverlay, mood, title, referenceImageUrl, count, provider: requestedProvider } = body;
+  const { concept, style, textOverlay, mood, title, referenceImageUrl, count, provider: requestedProvider, aspectRatio: requestedAspect, negativePrompt } = body;
   if (!concept || typeof concept !== "string") {
     return NextResponse.json({ error: "Missing concept" }, { status: 400 });
   }
@@ -41,6 +45,27 @@ export async function POST(req: NextRequest) {
     ? ` Reserve a clear region with strong negative space where headline text could be placed (do not render text in the image): "${textOverlay}".`
     : " No text overlays in the image.";
 
+  // Aspect ratio default = 16:9 (YouTube thumbnail). Imagen accepts it
+  // natively; Grok ignores the parameter but the composition hint gets
+  // baked into the prompt so it leans the right direction.
+  const validAspects: AspectRatio[] = ["16:9", "1:1", "9:16", "4:3", "3:4"];
+  const aspectRatio: AspectRatio = requestedAspect && validAspects.includes(requestedAspect)
+    ? requestedAspect
+    : "16:9";
+  const aspectHint = aspectRatio === "1:1"
+    ? "Square 1:1 composition"
+    : aspectRatio === "9:16"
+    ? "Vertical 9:16 composition for Shorts / Reels / TikTok"
+    : aspectRatio === "4:3"
+    ? "4:3 composition"
+    : aspectRatio === "3:4"
+    ? "3:4 portrait composition"
+    : "16:9 widescreen composition";
+
+  const negativeLine = negativePrompt && negativePrompt.trim()
+    ? ` Avoid: ${negativePrompt.trim()}.`
+    : "";
+
   const fullPrompt = [
     stylePrompt,
     concept,
@@ -48,7 +73,8 @@ export async function POST(req: NextRequest) {
     moodLine,
     overlayLine,
     SA_BRAND_CUES,
-    "16:9 composition, no watermarks, no captions baked into the image.",
+    `${aspectHint}, no watermarks, no captions baked into the image.`,
+    negativeLine,
   ]
     .filter(Boolean)
     .join(" ");
@@ -59,25 +85,25 @@ export async function POST(req: NextRequest) {
   try {
     if (provider === "imagen") {
       try {
-        const images = await generateImagenImages({ prompt: fullPrompt, count: sampleCount, aspectRatio: "16:9", referenceImageUrl });
-        if (images.length) return NextResponse.json({ images, provider: "imagen", ts: Date.now() });
+        const images = await generateImagenImages({ prompt: fullPrompt, count: sampleCount, aspectRatio, referenceImageUrl });
+        if (images.length) return NextResponse.json({ images, provider: "imagen", aspectRatio, ts: Date.now() });
       } catch (e) {
         // Silent fall-back to Grok on Imagen policy refusals (4xx).
         if (e instanceof ImagenError && e.status >= 400 && e.status < 500) {
           const images = await generateGrokImages({ prompt: fullPrompt, count: sampleCount, referenceImageUrl });
           if (!images.length) return NextResponse.json({ error: "No images generated", provider: "grok" }, { status: 502 });
-          return NextResponse.json({ images, provider: "grok", fellBackTo: "grok", imagenError: e.message, ts: Date.now() });
+          return NextResponse.json({ images, provider: "grok", fellBackTo: "grok", imagenError: e.message, aspectRatio, ts: Date.now() });
         }
         throw e;
       }
       // Imagen returned empty without throwing — try Grok.
       const images = await generateGrokImages({ prompt: fullPrompt, count: sampleCount, referenceImageUrl });
       if (!images.length) return NextResponse.json({ error: "No images generated", provider: "grok" }, { status: 502 });
-      return NextResponse.json({ images, provider: "grok", fellBackTo: "grok", ts: Date.now() });
+      return NextResponse.json({ images, provider: "grok", fellBackTo: "grok", aspectRatio, ts: Date.now() });
     }
     const images = await generateGrokImages({ prompt: fullPrompt, count: sampleCount, referenceImageUrl });
     if (!images.length) return NextResponse.json({ error: "No images generated", provider: "grok" }, { status: 502 });
-    return NextResponse.json({ images, provider: "grok", ts: Date.now() });
+    return NextResponse.json({ images, provider: "grok", aspectRatio, ts: Date.now() });
   } catch (err) {
     if (err instanceof GrokImageError) {
       return NextResponse.json({ error: err.message, provider }, { status: err.status });
