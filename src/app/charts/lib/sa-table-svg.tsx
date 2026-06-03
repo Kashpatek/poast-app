@@ -34,7 +34,12 @@ export interface ThemePalette {
   text: string;                    // primary body text
   textMuted: string;               // secondary text
   textDim: string;                 // tertiary text / labels
-  rowBgEven: string;               // alternate stripe (when enabled)
+  // Row banding — 3 tones cycled for Excel-style alternation. tone0 is
+  // the base row (no overlay), tone1 + tone2 are stripes layered over
+  // it. Legacy `rowBgEven` falls back to tone1 for callers that still
+  // expect a 2-tone stripe.
+  rowBgEven: string;               // (legacy alias for rowBandTones[1])
+  rowBandTones: [string, string, string];
   rowDivider: string;              // horizontal row separator
   colDivider: string;              // vertical column separator
   headerBg: string;                // column header band
@@ -51,11 +56,20 @@ export interface ThemePalette {
 
 export function themePalette(theme: TableTheme | undefined): ThemePalette {
   if (theme === "light") {
+    // Excel brand template tones: #FFFFFF base + #FAFAFA / #F5F5F5
+    // alternation. Translated into transparent overlays so the gradient
+    // backdrop still shows through.
+    const lightTones: [string, string, string] = [
+      "transparent",
+      "rgba(20,20,20,0.035)",
+      "rgba(20,20,20,0.065)",
+    ];
     return {
       bg1: "#FFFFFF", bg2: "#F5F5F7",
       glowTL: "#0B86D1", glowBR: "#F7B041",
       text: "#141414", textMuted: "#3D3D3D", textDim: "#6B6B6B",
-      rowBgEven: "rgba(20,20,20,0.04)",
+      rowBgEven: lightTones[1],
+      rowBandTones: lightTones,
       rowDivider: "rgba(20,20,20,0.10)",
       colDivider: "rgba(20,20,20,0.18)",
       headerBg: "#141414", headerTxt: "#FFFFFF",
@@ -67,11 +81,17 @@ export function themePalette(theme: TableTheme | undefined): ThemePalette {
     };
   }
   if (theme === "capital") {
+    const capTones: [string, string, string] = [
+      "transparent",
+      "rgba(212,175,55,0.05)",
+      "rgba(212,175,55,0.10)",
+    ];
     return {
       bg1: "#0D1B2A", bg2: "#162A3F",
       glowTL: "#D4AF37", glowBR: "#0B86D1",
       text: "#EFE8DA", textMuted: "#C9C0AE", textDim: "#867D6C",
-      rowBgEven: "rgba(212,175,55,0.06)",
+      rowBgEven: capTones[1],
+      rowBandTones: capTones,
       rowDivider: "rgba(239,232,218,0.10)",
       colDivider: "rgba(239,232,218,0.16)",
       headerBg: "#08111D", headerTxt: "#D4AF37",
@@ -82,13 +102,20 @@ export function themePalette(theme: TableTheme | undefined): ThemePalette {
       bodyTextAt: (op) => ({ color: "#EFE8DA", opacity: op }),
     };
   }
-  // Default — dark theme, byte-identical to the legacy renderer so
-  // existing exports don't shift.
+  // Default — dark theme. Brand Excel tones #1C1C1C / #212121 are
+  // translated to thin white overlays so the legacy gradient backdrop
+  // continues to show through; tone-0 stays transparent.
+  const darkTones: [string, string, string] = [
+    "transparent",
+    "rgba(255,255,255,0.025)",
+    "rgba(255,255,255,0.055)",
+  ];
   return {
     bg1: "#0a0c10", bg2: "#0d1118",
     glowTL: "#0B86D1", glowBR: "#F7B041",
     text: "#FFFFFF", textMuted: "rgba(255,255,255,0.7)", textDim: "rgba(255,255,255,0.35)",
-    rowBgEven: "rgba(255,255,255,0.03)",
+    rowBgEven: darkTones[1],
+    rowBandTones: darkTones,
     rowDivider: "rgba(255,255,255,0.08)",
     colDivider: "rgba(255,255,255,0.10)",
     headerBg: "#1A1F2A", headerTxt: "#F7B041",
@@ -647,12 +674,34 @@ function SaDataTable(props: SaTableRenderProps & { palette: ThemePalette }) {
   // Col header + row heights track the dimScale (which is bodyFontScale
   // unless the user locked the dimensions).
   const titleBarH = Math.round(44 * (props.lockTableDimensions ? 1 : titleFontScale));
-  const colHeaderY = chrome.showTitleBar ? titleBarY + titleBarH : titleBarY;
   // Multi-line column header detection: when any column label contains
   // a "\n", grow the header band so the second line fits without
   // overlapping the first data row.
   const hasMultilineHeader = sheet.schema.some((c) => /\n/.test(c.label));
   const colHeaderH = Math.round((hasMultilineHeader ? 64 : 46) * dimScale);
+  // Grouped column headers — when any column has a `group`, paint a
+  // super-header band above the regular header row that spans every
+  // contiguous run of same-group columns. Excel uses merged cells for
+  // this (DSP Transceivers / LPO Transceivers / CPO etc.); we mimic
+  // the effect by computing contiguous-run spans.
+  const hasGroupedHeader = sheet.schema.some((c) => c.group && c.group.trim());
+  const groupBandH = hasGroupedHeader ? Math.round(36 * (hasMultilineHeader ? 1.2 : 1) * dimScale) : 0;
+  const groupHeaderY = chrome.showTitleBar ? titleBarY + titleBarH : titleBarY;
+  const colHeaderY = groupHeaderY + groupBandH;
+  // Compute contiguous-run spans: [{ group, start, end }, ...]
+  type GroupSpan = { group: string; start: number; end: number };
+  const groupSpans: GroupSpan[] = [];
+  if (hasGroupedHeader) {
+    let i = 0;
+    while (i < sheet.schema.length) {
+      const g = sheet.schema[i].group || "";
+      if (!g) { i++; continue; }
+      let j = i;
+      while (j < sheet.schema.length && (sheet.schema[j].group || "") === g) j++;
+      groupSpans.push({ group: g, start: i, end: j - 1 });
+      i = j;
+    }
+  }
   const rowH = Math.round(42 * dimScale);
   const dataRowsStart = colHeaderY + colHeaderH;
   const colCount = Math.max(1, sheet.schema.length);
@@ -727,6 +776,32 @@ function SaDataTable(props: SaTableRenderProps & { palette: ThemePalette }) {
         </>
       )}
 
+      {/* Super-header group bands — each span cycles through brand
+          colors so multi-scenario tables (DSP / LPO / CPO / CPO) read
+          as visually distinct groups above their shared sub-headers. */}
+      {hasGroupedHeader && groupSpans.map((sp, i) => {
+        const cycleColors = ["#0B86D1", "#F7B041", "#2EAD8E", "#E06347", "#905CCB"];
+        const tint = cycleColors[i % cycleColors.length];
+        const x = colX[sp.start];
+        const w = colX[sp.end + 1] - x;
+        const gLines = sp.group.split(/\n/);
+        const gFontSize = Math.round((gLines.length > 1 ? 11 : 12) * bodyFontScale);
+        const gLineH = gFontSize * 1.2;
+        const gBlockH = gLineH * gLines.length;
+        const gFirstY = groupHeaderY + (groupBandH - gBlockH) / 2 + gFontSize;
+        return (
+          <g key={"grpband-" + i}>
+            <rect x={x} y={groupHeaderY + 2} width={w - 2} height={groupBandH - 4}
+              rx={3} fill={tint} fillOpacity={0.90} />
+            <text x={x + w / 2} y={gFirstY} textAnchor="middle"
+              className="sa-bold" fontSize={gFontSize} fill="#FFFFFF" letterSpacing=".06em">
+              {gLines.map((ln, li) => (
+                <tspan key={li} x={x + w / 2} dy={li === 0 ? 0 : gLineH}>{ln}</tspan>
+              ))}
+            </text>
+          </g>
+        );
+      })}
       <rect x={tableX} y={colHeaderY} width={tableW} height={colHeaderH} fill={palette.headerBg} />
       {/* Per-column header overlays — either from col.headerColor or
           from chrome.cycleHeaderColors (Power-Budget style). Drawn as
@@ -782,7 +857,12 @@ function SaDataTable(props: SaTableRenderProps & { palette: ThemePalette }) {
         // for trailing "- Total" / "Grand Total" matches.
         const labelStr = String(row[sheet.schema[0].key] ?? "");
         const isSubTotal = chrome.totalsRows && /(\s-\s*Total|Subtotal)\s*$/i.test(labelStr);
-        const isGrandTotal = chrome.totalsRows && /^Grand Total\b|\bWhole-Market.*Demand\s*$/.test(labelStr);
+        const isLastRow = ri === sheet.rows.length - 1;
+        const isGrandTotal = chrome.totalsRows && (
+          /^Grand Total\b/i.test(labelStr) ||
+          /\bWhole-Market.*Demand\s*$/.test(labelStr) ||
+          (isLastRow && /^Total\b/i.test(labelStr))
+        );
         // Brand-color rotation for banded section rows.
         const bandColors = ["#F7B041", "#0B86D1", "#2EAD8E", "#E06347", "#905CCB"];
         // Count section-row index for the band color cycle.
@@ -813,11 +893,14 @@ function SaDataTable(props: SaTableRenderProps & { palette: ThemePalette }) {
         }
         return (
           <g key={"row-" + ri}>
-            {/* Alternate-row stripe — applied first so highlight/medal/
-                custom band styles layer cleanly on top. */}
-            {props.showRowStripe && ri % 2 === 1 && !rowStyle?.band && (
-              <rect x={tableX} y={y} width={tableW} height={rowH} fill={palette.rowBgEven} />
-            )}
+            {/* Alternate-row banding — 3-tone cycle matching the brand
+                Excel template. Tone 0 stays transparent so the gradient
+                shows through; tones 1 + 2 paint thin overlays. */}
+            {props.showRowStripe && !rowStyle?.band && (() => {
+              const tone = palette.rowBandTones[ri % 3];
+              if (tone === "transparent") return null;
+              return <rect x={tableX} y={y} width={tableW} height={rowH} fill={tone} />;
+            })()}
             {medal && (
               <>
                 <rect x={tableX} y={y} width={tableW} height={rowH} fill={medal.tint} />

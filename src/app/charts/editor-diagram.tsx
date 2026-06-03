@@ -413,6 +413,16 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
               </div>
             </div>
           )}
+          {/* Floating tool HUD — top-center pill showing the current
+              tool + keyboard shortcuts. Helps with discoverability of
+              Pan / Connector / Esc-to-Select. */}
+          <ToolHUD
+            tool={tool}
+            onPickTool={(t) => {
+              setTool(t);
+              if (t !== "place") setPlaceKind(null);
+            }}
+          />
           <FloatingFormatToolbar
             selected={selected}
             fill={fill} setFill={setFill}
@@ -1539,6 +1549,63 @@ function CanvasFallback() {
 }
 
 // ─── Shape library palette ─────────────────────────────────────────────
+
+// Floating HUD anchored to the top-center of the canvas. Shows the
+// active tool with its keyboard shortcut and lets the user one-click
+// swap. Stays visible at all times so the pan tool (and Esc-to-Select)
+// is discoverable without diving into the left rail.
+function ToolHUD({ tool, onPickTool }: {
+  tool: DiagramTool;
+  onPickTool: (t: DiagramTool) => void;
+}) {
+  const tools: { value: DiagramTool; label: string; shortcut: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number; color?: string }> }[] = [
+    { value: "select",    label: "Select",    shortcut: "V",     Icon: MousePointer2 },
+    { value: "pan",       label: "Pan",       shortcut: "H · ␣", Icon: Hand },
+    { value: "connector", label: "Connector", shortcut: "C",     Icon: GitBranch },
+  ];
+  return (
+    <div style={{
+      position: "absolute", top: 10, left: "50%",
+      transform: "translateX(-50%)",
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: "4px 6px",
+      background: "rgba(20,22,28,0.94)",
+      backdropFilter: "blur(8px)",
+      border: "1px solid " + D.border,
+      borderRadius: 999,
+      boxShadow: "0 10px 24px rgba(0,0,0,0.5)",
+      zIndex: 35,
+      pointerEvents: "auto",
+    }}>
+      {tools.map((t) => {
+        const on = tool === t.value;
+        return (
+          <button
+            key={t.value}
+            onClick={() => onPickTool(t.value)}
+            title={t.label + " (" + t.shortcut + ")"}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "5px 9px",
+              background: on ? D.amber + "22" : "transparent",
+              color: on ? D.amber : D.tx,
+              border: "1px solid " + (on ? D.amber + "55" : "transparent"),
+              borderRadius: 999, cursor: "pointer",
+              fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.3,
+              transition: "background 0.12s, color 0.12s",
+            }}
+          >
+            <t.Icon size={12} strokeWidth={2.2} color={on ? D.amber : D.txm} />
+            {t.label}
+            <span style={{ fontSize: 8.5, color: on ? D.amber : D.txd, opacity: 0.8, letterSpacing: 0.5 }}>
+              {t.shortcut}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function ShapeLibraryPalette({ tool, setTool, placeKind, onPickShape }: {
   tool: DiagramTool;

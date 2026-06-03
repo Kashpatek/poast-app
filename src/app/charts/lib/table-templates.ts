@@ -570,49 +570,108 @@ function trainiumRoadmapSheet(): TableSheet {
 }
 
 // GB300 NVL72 Cluster Power Budget — comparison across 4 networking
-// configurations (DSP / LPO / CPO 3-Layer / CPO 2-Layer). Real Excel
-// values, rounded to W. The "Total Power (W)" row triggers the
-// "totaled" chrome's amber Grand Total band.
+// configurations × (Power W | Δ Power %). The Excel template uses
+// merged super-header cells (DSP Transceivers / LPO Transceivers /
+// CPO etc.) above the two-column Power/Δ sub-headers; we mirror that
+// with the `group` field on each column spec.
 function powerBudgetSheet(): TableSheet {
   return {
     schema: [
-      { key: "c1", label: "Item",            type: "text"   },
-      { key: "c2", label: "DSP\n3-Layer",    type: "number", numFmt: "int" },
-      { key: "c3", label: "LPO\n3-Layer",    type: "number", numFmt: "int" },
-      { key: "c4", label: "CPO\n3-Layer",    type: "number", numFmt: "int" },
-      { key: "c5", label: "CPO\n2-Layer",    type: "number", numFmt: "int", condFmt: "highGood" },
+      { key: "c1",  label: "Item",            type: "text"   },
+      { key: "p_dsp",  label: "Power (W)",  type: "number", numFmt: "int", group: "DSP Transceivers\n(3-Layer Network)" },
+      { key: "d_dsp",  label: "Δ Power",    type: "percent",                  group: "DSP Transceivers\n(3-Layer Network)" },
+      { key: "p_lpo",  label: "Power (W)",  type: "number", numFmt: "int", group: "LPO Transceivers\n(3-Layer Network)" },
+      { key: "d_lpo",  label: "Δ Power",    type: "percent",                  group: "LPO Transceivers\n(3-Layer Network)" },
+      { key: "p_cpo3", label: "Power (W)",  type: "number", numFmt: "int", group: "CPO\n(3-Layer Network)" },
+      { key: "d_cpo3", label: "Δ Power",    type: "percent",                  group: "CPO\n(3-Layer Network)" },
+      { key: "p_cpo2", label: "Power (W)",  type: "number", numFmt: "int", group: "CPO\n(2-Layer Network)" },
+      { key: "d_cpo2", label: "Δ Power",    type: "percent",                  group: "CPO\n(2-Layer Network)" },
     ],
     rows: [
-      { c1: "Server",                c2: 142000, c3: 142000, c4: 142000, c5: 142000 },
-      { c1: "Optical Transceivers",  c2: 6199,   c3: 3945,   c4: 2239,   c5: 1015   },
-      { c1: "Switches",              c2: 8014,   c3: 8014,   c4: 9884,   c5: 6336   },
-      { c1: "Networking",            c2: 14213,  c3: 11959,  c4: 12123,  c5: 7351   },
-      { c1: "All Others",            c2: 281,    c3: 281,    c4: 281,    c5: 281    },
-      { c1: "Total Power (W)",       c2: 156494, c3: 154240, c4: 154404, c5: 149632 },
+      { c1: "Server",               p_dsp: 142000, d_dsp: 0,      p_lpo: 142000, d_lpo: 0,        p_cpo3: 142000, d_cpo3: 0,        p_cpo2: 142000, d_cpo2: 0 },
+      { c1: "Optical Transceivers", p_dsp: 6199,   d_dsp: 0,      p_lpo: 3945,   d_lpo: -0.36,    p_cpo3: 2239,   d_cpo3: -0.64,    p_cpo2: 1015,   d_cpo2: -0.84 },
+      { c1: "Switches",             p_dsp: 8014,   d_dsp: 0,      p_lpo: 8014,   d_lpo: 0,        p_cpo3: 9884,   d_cpo3: 0.23,     p_cpo2: 6336,   d_cpo2: -0.21 },
+      { c1: "Networking",           p_dsp: 14213,  d_dsp: 0,      p_lpo: 11959,  d_lpo: -0.16,    p_cpo3: 12123,  d_cpo3: -0.15,    p_cpo2: 7351,   d_cpo2: -0.48 },
+      { c1: "All Others",           p_dsp: 281,    d_dsp: 0,      p_lpo: 281,    d_lpo: 0,        p_cpo3: 281,    d_cpo3: 0,        p_cpo2: 281,    d_cpo2: 0 },
+      { c1: "Total Power",          p_dsp: 156494, d_dsp: 0,      p_lpo: 154240, d_lpo: -0.014,   p_cpo3: 154404, d_cpo3: -0.013,   p_cpo2: 149632, d_cpo2: -0.044 },
     ],
   };
 }
 
 // TCO per Effective Training PFLOP — multi-config comparison across
 // B300 / GB300 / TPU v7 at 5 MFU levels. From the Bar Chart sheet.
+// Groups Nvidia + Google TPU as super-headers.
 function tcoPflopSheet(): TableSheet {
   return {
     schema: [
-      { key: "c1", label: "Metric",                  type: "text" },
-      { key: "c2", label: "B300\n30% MFU",           type: "text" },
-      { key: "c3", label: "GB300 NVL72\n30% MFU",    type: "text" },
-      { key: "c4", label: "TPU v7\n20% MFU",         type: "text" },
-      { key: "c5", label: "TPU v7\n40% MFU",         type: "text" },
-      { key: "c6", label: "TPU v7\n60% MFU",         type: "text" },
+      { key: "c1",  label: "Metric",            type: "text" },
+      { key: "b300",  label: "B300\n30% MFU",        type: "text", group: "NVIDIA" },
+      { key: "gb300", label: "GB300 NVL72\n30% MFU", type: "text", group: "NVIDIA" },
+      { key: "t20",   label: "TPU v7\n20% MFU",      type: "text", group: "Google TPU" },
+      { key: "t40",   label: "TPU v7\n40% MFU",      type: "text", group: "Google TPU" },
+      { key: "t60",   label: "TPU v7\n60% MFU",      type: "text", group: "Google TPU" },
     ],
     rows: [
-      { c1: "Total Cost ($/hr/GPU)",       c2: "$2.67",  c3: "$2.73",  c4: "$1.60",  c5: "$1.60",  c6: "$1.60"  },
-      { c1: "Marketed FP8 (TFLOPS)",       c2: "4500",   c3: "5000",   c4: "4614",   c5: "4614",   c6: "4614"   },
-      { c1: "Effective FP8 (TFLOPS)",      c2: "1350",   c3: "1500",   c4: "923",    c5: "1846",   c6: "2768"   },
-      { c1: "HBM Capacity (GB)",           c2: "288",    c3: "288",    c4: "192",    c5: "192",    c6: "192"    },
-      { c1: "HBM Bandwidth (TB/s)",        c2: "8.0",    c3: "8.0",    c4: "7.3",    c5: "7.3",    c6: "7.3"    },
-      { c1: "TCO / PFLOP ($/hr)",          c2: "$0.59",  c3: "$0.55",  c4: "$0.35",  c5: "$0.35",  c6: "$0.35"  },
-      { c1: "TCO / Eff PFLOP ($/hr)",      c2: "$1.98",  c3: "$1.82",  c4: "$1.73",  c5: "$0.87",  c6: "$0.58"  },
+      { c1: "Total Cost ($/hr/GPU)",     b300: "$2.67", gb300: "$2.73", t20: "$1.60", t40: "$1.60", t60: "$1.60" },
+      { c1: "Marketed FP8 (TFLOPS)",     b300: "4500",  gb300: "5000",  t20: "4614",  t40: "4614",  t60: "4614"  },
+      { c1: "Effective FP8 (TFLOPS)",    b300: "1350",  gb300: "1500",  t20: "923",   t40: "1846",  t60: "2768"  },
+      { c1: "HBM Capacity (GB)",         b300: "288",   gb300: "288",   t20: "192",   t40: "192",   t60: "192"   },
+      { c1: "HBM Bandwidth (TB/s)",      b300: "8.0",   gb300: "8.0",   t20: "7.3",   t40: "7.3",   t60: "7.3"   },
+      { c1: "TCO / PFLOP ($/hr)",        b300: "$0.59", gb300: "$0.55", t20: "$0.35", t40: "$0.35", t60: "$0.35" },
+      { c1: "TCO / Eff PFLOP ($/hr)",    b300: "$1.98", gb300: "$1.82", t20: "$1.73", t40: "$0.87", t60: "$0.58" },
+    ],
+  };
+}
+
+// FLOPs Availability over time — NVIDIA vs TPU launch sequences,
+// each as a group spanning its product columns. Excel template stacks
+// 2 mini-tables; ours uses ONE table with vendor super-headers.
+function flopsAvailabilitySheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1",  label: "Metric",         type: "text"   },
+      { key: "a100", label: "A100\n2Q20",    type: "number", numFmt: "int", group: "NVIDIA" },
+      { key: "h100", label: "H100\n4Q22",    type: "number", numFmt: "int", group: "NVIDIA" },
+      { key: "gb200",label: "GB200\n2Q25",   type: "number", numFmt: "int", group: "NVIDIA" },
+      { key: "tpu4", label: "TPU v4\n2Q22",  type: "number", numFmt: "int", group: "Google TPU" },
+      { key: "tpu5e",label: "TPU v5e\n4Q23", type: "number", numFmt: "int", group: "Google TPU" },
+      { key: "tpu5p",label: "TPU v5p\n1Q24", type: "number", numFmt: "int", group: "Google TPU" },
+      { key: "tpu6", label: "TPU v6\n4Q24",  type: "number", numFmt: "int", group: "Google TPU" },
+      { key: "tpu7", label: "TPU v7\n4Q25",  type: "number", numFmt: "int", group: "Google TPU" },
+    ],
+    rows: [
+      { c1: "TFLOPS (BF16)", a100: 312, h100: 990, gb200: 2500, tpu4: 275, tpu5e: 197, tpu5p: 459, tpu6: 918, tpu7: 2307 },
+    ],
+  };
+}
+
+// Roadmap Timeline — 3-year × 12-quarter horizontal calendar with
+// year super-headers and quarter sub-headers. Empty cells by default;
+// users drop status text per cell.
+function roadmapTimelineLongSheet(): TableSheet {
+  return {
+    schema: [
+      { key: "c1",  label: "Product",  type: "text" },
+      { key: "q23_1", label: "Q1", type: "text", group: "2023" },
+      { key: "q23_2", label: "Q2", type: "text", group: "2023" },
+      { key: "q23_3", label: "Q3", type: "text", group: "2023" },
+      { key: "q23_4", label: "Q4", type: "text", group: "2023" },
+      { key: "q24_1", label: "Q1", type: "text", group: "2024" },
+      { key: "q24_2", label: "Q2", type: "text", group: "2024" },
+      { key: "q24_3", label: "Q3", type: "text", group: "2024" },
+      { key: "q24_4", label: "Q4", type: "text", group: "2024" },
+      { key: "q25_1", label: "Q1", type: "text", group: "2025" },
+      { key: "q25_2", label: "Q2", type: "text", group: "2025" },
+      { key: "q25_3", label: "Q3", type: "text", group: "2025" },
+      { key: "q25_4", label: "Q4", type: "text", group: "2025" },
+    ],
+    rows: [
+      { c1: "Hopper",    q23_1: "GA",       q24_4: "EOL" },
+      { c1: "Blackwell", q24_2: "Sampling", q24_3: "Sampling", q24_4: "Ramp",     q25_1: "GA" },
+      { c1: "Rubin",                                                                            q25_3: "Sampling", q25_4: "Ramp" },
+      { c1: "TPU v5p",   q23_4: "GA",       q24_1: "GA",       q24_2: "GA",       q24_3: "Ramp" },
+      { c1: "TPU v6",                                          q24_3: "Sampling", q24_4: "Ramp",  q25_1: "GA",       q25_2: "GA" },
+      { c1: "TPU v7",                                                                            q25_3: "Sampling", q25_4: "Ramp" },
     ],
   };
 }
@@ -1051,6 +1110,47 @@ export const TABLE_TEMPLATES: TableTemplate[] = [
       highlightRowIdx: 6,
       highlightFlagCol: 5,
       keyInsight: "At **60% MFU**, TPU v7 lands at **$0.58 / Eff PFLOP-hr** — under a third of the GB300 NVL72 at 30% MFU. The MFU lever beats the sticker-price lever.",
+      source: "Source: SemiAnalysis",
+    }),
+  },
+  {
+    id: "flops-avail",
+    label: "FLOPs availability",
+    blurb: "NV + TPU launch sequence · grouped",
+    accent: SA.blue,
+    glyph: "🕒",
+    build: () => ({
+      engine: "standard",
+      sheet: flopsAvailabilitySheet(),
+      mode: "data",
+      chromeStyle: "dense",
+      showRowStripe: true,
+      dividerStyle: "dotted",
+      category: "SEMIANALYSIS — HARDWARE",
+      titleWhite: "AI Accelerator",
+      titleAmber: "FLOPs Availability",
+      subtitle: "BF16 TFLOPS at launch · NVIDIA vs Google TPU",
+      source: "Source: SemiAnalysis Accelerator Model",
+    }),
+  },
+  {
+    id: "roadmap-long",
+    label: "Roadmap · 3-year",
+    blurb: "Year groups × 12 quarters",
+    accent: SA.teal,
+    glyph: "▭▭▭",
+    build: () => ({
+      engine: "standard",
+      sheet: roadmapTimelineLongSheet(),
+      mode: "data",
+      chromeStyle: "dense",
+      hideTopStripe: true,
+      showRowStripe: true,
+      dividerStyle: "dotted",
+      category: "SEMIANALYSIS — ROADMAP",
+      titleWhite: "Datacenter GPU",
+      titleAmber: "Roadmap",
+      subtitle: "Hopper / Blackwell / Rubin · TPU v5p / v6 / v7",
       source: "Source: SemiAnalysis",
     }),
   },

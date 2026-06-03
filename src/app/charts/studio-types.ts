@@ -130,6 +130,12 @@ export interface TableColumnSpec {
   // GB300 Power Budget where each column header is a different brand
   // color). Empty / undefined = inherit the chrome default.
   headerColor?: string;
+  // Group label — when set, contiguous columns sharing the same group
+  // string get a super-header band painted above their column headers
+  // (e.g. "DSP Transceivers (3-Layer)" spanning Power(W) + Δ Power(%)).
+  // Mimics merged header cells in Excel without changing the row data
+  // shape. Unset = no super-header for this column.
+  group?: string;
 }
 
 // Per-row styling overrides keyed by 0-based row index. Lets the user
