@@ -198,6 +198,50 @@ async function ask(sys: string, prompt: string): Promise<Record<string, unknown>
 
 function buildPrompt(parts: (string | null | undefined | false)[]): string { return parts.filter(Boolean).join("\n\n"); }
 
+// Next episode number = max(log entries) + 1, zero-padded to 3 digits.
+// Empty log → "001". Used to seed Setup with the obvious next-up so
+// the user doesn't have to remember "what was the last one".
+function nextEpisodeNumber(log: LogEntry[]): string {
+  var max = 0;
+  for (var i = 0; i < log.length; i++) {
+    var raw = String(log[i] && log[i].episode || "").replace(/\D/g, "");
+    var n = parseInt(raw, 10);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return String(max + 1).padStart(3, "0");
+}
+
+// Frequent SemiAnalysis Weekly guests. Quick-add chips in the Guest
+// Manager skip the typing dance for the regulars. Edit handles here
+// when someone changes theirs — single source of truth.
+var FREQUENT_GUESTS: Guest[] = [
+  { name: "Dylan Patel",            handle: "@dylan522p"        },
+  { name: "Doug O'Laughlin",        handle: "@Doug_OLaughlin"   },
+  { name: "Jeremie Eliahou Ontiveros", handle: "@JeremieEli"    },
+  { name: "Jordan Nanos",           handle: "@JordanNanos"      },
+  { name: "Daniel Nishball",        handle: "@dnishball"        },
+  { name: "George Cozma",           handle: "@GeorgeCozma"      },
+  { name: "Tanj Bennett",           handle: "@tanjbennett"      },
+  { name: "Wei Zhou",               handle: "@weizhou"          },
+];
+
+// Compose the final YouTube description by deterministically appending
+// the user's timestamps (if any) as a "Chapters:" block. Guards against
+// double-append in case the AI already included them. Used by the
+// Export step + launch-kit DOCX + "Copy all" so timestamps never get
+// dropped at the finish line.
+function composeDescription(description: string, timestamps: string | undefined): string {
+  var desc = (description || "").trim();
+  var ts = (timestamps || "").trim();
+  if (!ts) return desc;
+  // If the description already contains the chapter block (AI included
+  // it during Generate), don't duplicate. We check on the FIRST 20
+  // chars of the timestamps block to be tolerant of light edits.
+  var probe = ts.slice(0, 20);
+  if (probe && desc.indexOf(probe) >= 0) return desc;
+  return desc + "\n\nChapters:\n" + ts;
+}
+
 function copyText(str: string): boolean {
   try { var ta = document.createElement("textarea"); ta.value = str; ta.style.position = "fixed"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); return true; } catch (e) { try { navigator.clipboard.writeText(str); return true; } catch (e2) { return false; } }
 }
@@ -425,14 +469,54 @@ function GuestManager({ guests, setGuests }: { guests: Guest[]; setGuests: (g: G
     return (p.name || "").toLowerCase().indexOf(q) > -1 || (p.company || "").toLowerCase().indexOf(q) > -1;
   });
 
+  // Quick-pick popup state for SemiAnalysis Weekly's frequent guests.
+  var _quick = useState<boolean>(false), quickOpen = _quick[0], setQuickOpen = _quick[1];
+  function addFrequent(g: Guest) {
+    // Skip if guest is already in the list (case-insensitive name match).
+    var already = guests.some(function(x) { return (x.name || "").toLowerCase().trim() === (g.name || "").toLowerCase().trim(); });
+    if (already) { showToast(g.name + " is already added"); return; }
+    setGuests(guests.concat([{ name: g.name, handle: g.handle }]));
+    showToast("Added " + g.name);
+  }
   return (<div style={{ marginBottom: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
       <Label>Guests</Label>
       <div style={{ display: "flex", gap: 6 }}>
+        <span onClick={function() { setQuickOpen(function(v) { return !v; }); }} style={{ fontFamily: mn, fontSize: 10, color: quickOpen ? D.amber : D.txb, cursor: "pointer", padding: "4px 10px", borderRadius: 8, border: "1px solid " + (quickOpen ? D.amber + "60" : D.border), background: quickOpen ? D.amber + "0A" : "transparent", transition: "all 0.2s ease" }}>Frequent</span>
         <span onClick={toggleBrowse} style={{ fontFamily: mn, fontSize: 10, color: guestBrowseOpen ? D.teal : D.txb, cursor: "pointer", padding: "4px 10px", borderRadius: 8, border: "1px solid " + (guestBrowseOpen ? D.teal + "60" : D.border), background: guestBrowseOpen ? D.teal + "0A" : "transparent", transition: "all 0.2s ease" }}>Browse FK</span>
         <span onClick={function() { setGuests(guests.concat([{ name: "", handle: "" }])); }} style={{ fontFamily: mn, fontSize: 10, color: ACC, cursor: "pointer", padding: "4px 10px", borderRadius: 8, border: "1px solid " + D.border, transition: "all 0.2s ease" }}>+ Add</span>
       </div>
     </div>
+    {/* Frequent guests quick-pick. Click a chip → adds (with handle). */}
+    {quickOpen && <div style={{ background: D.elevated, border: "1px solid " + D.amber + "30", borderRadius: 12, padding: 14, marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+        <div style={{ fontFamily: mn, fontSize: 9.5, color: D.amber, letterSpacing: "1.5px", fontWeight: 700, textTransform: "uppercase" }}>Frequent · click to add</div>
+        <span onClick={function() { setQuickOpen(false); }} style={{ fontFamily: mn, fontSize: 10, color: D.txl, cursor: "pointer" }}>Close</span>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {FREQUENT_GUESTS.map(function(g) {
+          var added = guests.some(function(x) { return (x.name || "").toLowerCase().trim() === g.name.toLowerCase().trim(); });
+          return <span key={g.name}
+            onClick={function() { addFrequent(g); }}
+            style={{
+              padding: "6px 11px",
+              background: added ? D.teal + "12" : D.surface,
+              border: "1px solid " + (added ? D.teal + "50" : D.border),
+              color: added ? D.teal : D.tx,
+              borderRadius: 999,
+              cursor: added ? "default" : "pointer",
+              fontFamily: ft, fontSize: 12, fontWeight: 700,
+              display: "inline-flex", alignItems: "center", gap: 6,
+              transition: "background 0.15s ease, border-color 0.15s ease",
+            }}
+            title={added ? "Already added" : "Add " + g.name + " " + g.handle}
+          >
+            {added ? "✓ " : "+ "}{g.name}
+            <span style={{ fontFamily: mn, fontSize: 9.5, color: added ? D.teal : D.txl }}>{g.handle}</span>
+          </span>;
+        })}
+      </div>
+    </div>}
     {/* FK Prospects Browse Panel */}
     {guestBrowseOpen && <div style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 14, marginBottom: 12, maxHeight: 280, overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <input value={fkSearch} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { setFkSearch(e.target.value); }} placeholder="Search FK prospects..." style={{ width: "100%", padding: "8px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 8, color: D.tx, fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box", marginBottom: 8, transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
@@ -734,6 +818,42 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
   var _tgl = useState<boolean>(false), thumbGenL = _tgl[0], setThumbGenL = _tgl[1];
   var _tgv = useState<string[] | null>(null), thumbVariants = _tgv[0], setThumbVariants = _tgv[1];
   var _tgu = useState<number | null>(null), uploadingIdx = _tgu[0], setUploadingIdx = _tgu[1];
+  // Thumbnail provider + editable prompt + count. Defaults to Imagen
+  // (cheaper, brand-safe) at 3 variants. Prompt textarea is seeded from
+  // the picked concept the first time it opens and then becomes the
+  // user's free-form edit surface.
+  var _tprov = useState<"imagen" | "grok">("imagen"), thumbProvider = _tprov[0], setThumbProvider = _tprov[1];
+  var _tcnt = useState<number>(3), thumbCount = _tcnt[0], setThumbCount = _tcnt[1];
+  var _tpr = useState<string>(""), thumbPrompt = _tpr[0], setThumbPrompt = _tpr[1];
+  var _topen = useState<boolean>(false), thumbAdv = _topen[0], setThumbAdv = _topen[1];
+
+  // Per-image cost estimates. Adjust if pricing shifts; the user sees
+  // the running total live next to the Generate button.
+  // Imagen 3.0 generate: $0.04 / image · Grok 2 image: ~$0.07 / image.
+  function thumbCostUSD(provider: "imagen" | "grok", count: number): number {
+    var per = provider === "imagen" ? 0.04 : 0.07;
+    return per * count;
+  }
+  function thumbModelLabel(provider: "imagen" | "grok"): string {
+    return provider === "imagen" ? "imagen-3.0-generate-002" : "grok-2-image";
+  }
+  // Seed the editable prompt from the picked concept the first time
+  // the advanced panel opens (or when the user switches concept).
+  React.useEffect(function() {
+    if (!opts) return;
+    var picked = opts.thumbnails[sel.thumb];
+    if (!picked) return;
+    var concept = typeof picked === "string" ? picked : (picked && picked.concept) || "";
+    var textOverlay = typeof picked === "string" ? "" : (picked && picked.text_overlay) || "";
+    var mood = typeof picked === "string" ? "" : (picked && picked.mood) || "";
+    var seed = [
+      concept,
+      textOverlay ? "Text-overlay region (do not render text): \"" + textOverlay + "\"" : "",
+      mood ? "Mood: " + mood : "",
+    ].filter(Boolean).join(" · ");
+    setThumbPrompt(seed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel.thumb, opts]);
 
   if (!opts) return <div style={{ textAlign: "center", padding: 80, color: D.txb, fontFamily: ft }}>Generate options first.</div>;
 
@@ -809,9 +929,14 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
     if (thumbGenL || !opts) return;
     var picked = opts.thumbnails[sel.thumb];
     var concept = typeof picked === "string" ? picked : (picked && picked.concept) || "";
-    if (!concept) { showToast("Pick or generate a thumbnail concept first."); return; }
+    if (!concept && !thumbPrompt.trim()) { showToast("Pick or generate a thumbnail concept first."); return; }
     var textOverlay = typeof picked === "string" ? "" : (picked && picked.text_overlay) || "";
     var mood = typeof picked === "string" ? "" : (picked && picked.mood) || "";
+    // When the advanced panel is open + the user has edited the prompt,
+    // the prompt replaces the concept (concept+textOverlay+mood get
+    // folded into the user's free-form text). Otherwise the legacy
+    // concept-driven path stays the default.
+    var usingCustomPrompt = thumbAdv && thumbPrompt.trim().length > 0;
     setThumbGenL(true);
     setThumbVariants(null);
     try {
@@ -819,17 +944,21 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          concept: concept,
-          textOverlay: textOverlay,
-          mood: mood,
+          concept: usingCustomPrompt ? thumbPrompt.trim() : concept,
+          textOverlay: usingCustomPrompt ? "" : textOverlay,
+          mood: usingCustomPrompt ? "" : mood,
           title: curFin.title,
           style: "cinematic",
-          count: 3,
+          count: thumbCount,
+          provider: thumbProvider,
         }),
       });
       var d = await r.json();
       if (!r.ok) { showToast(d.error || "Image generation failed"); return; }
       setThumbVariants((d.images as string[]) || []);
+      if (d.fellBackTo) {
+        showToast("Imagen refused → fell back to " + d.fellBackTo);
+      }
     } catch (e) {
       showToast("Network error: " + String(e));
     } finally {
@@ -920,12 +1049,90 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
       <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, background: D.surface, border: "2px dashed " + D.border, borderRadius: 12, cursor: "pointer", transition: "border-color 0.2s ease" }}><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: ACC, marginBottom: 4 }}>Upload Thumbnail</div><div style={{ fontFamily: mn, fontSize: 10, color: D.txl }}>PNG, JPG, 1280x720</div><input type="file" accept="image/*" style={{ display: "none" }} onChange={function(e) { var f = e.target.files && e.target.files[0]; if (!f) return; var r = new FileReader(); r.onload = function(ev: ProgressEvent<FileReader>) { setThumb(ev.target?.result as string); }; r.readAsDataURL(f); e.target.value = ""; }} /></label>
       <div onClick={generateThumbImages} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, background: thumbGenL ? "rgba(247,176,65,0.06)" : D.surface, border: "2px dashed " + (thumbGenL ? D.amber : D.border), borderRadius: 12, cursor: thumbGenL ? "wait" : "pointer", transition: "all 0.2s ease", opacity: thumbGenL ? 0.85 : 1 }}>
-        <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: D.amber, marginBottom: 4 }}>{thumbGenL ? "Generating with Grok…" : "Get One Prompted"}</div>
-        <div style={{ fontFamily: mn, fontSize: 10, color: D.txl, textAlign: "center" }}>{thumbGenL ? "About 10–20 seconds" : "AI generates 3 thumbnail options"}</div>
+        <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: D.amber, marginBottom: 4 }}>{thumbGenL ? "Generating…" : "Generate Thumbnails"}</div>
+        <div style={{ fontFamily: mn, fontSize: 10, color: D.txl, textAlign: "center" }}>
+          {thumbGenL ? "About 10–20 seconds" : (
+            <span>
+              {thumbProvider === "imagen" ? "Imagen" : "Grok"} · {thumbCount} variant{thumbCount === 1 ? "" : "s"} · ~${thumbCostUSD(thumbProvider, thumbCount).toFixed(2)}
+            </span>
+          )}
+        </div>
       </div>
     </div>
 
-    {thumbGenL && <ProgressBar label="Generating thumbnail variants" />}
+    {/* Advanced thumbnail controls — platform / model / prompt / cost. */}
+    <div style={{ background: D.elevated, border: "1px solid " + (thumbAdv ? D.amber + "40" : D.border), borderRadius: 12, padding: thumbAdv ? "14px 16px 18px" : "10px 16px", marginBottom: 16, transition: "all 0.2s ease" }}>
+      <div onClick={function() { setThumbAdv(function(v) { return !v; }); }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: thumbAdv ? D.amber : D.txb, letterSpacing: "1.5px", fontWeight: 800, textTransform: "uppercase" }}>
+          {thumbAdv ? "▾" : "▸"} Thumbnail Settings
+        </div>
+        <div style={{ fontFamily: mn, fontSize: 9.5, color: D.txl }}>
+          {thumbModelLabel(thumbProvider)} · ${thumbCostUSD(thumbProvider, thumbCount).toFixed(2)} / run
+        </div>
+      </div>
+      {thumbAdv && <div style={{ marginTop: 14 }}>
+        {/* Provider picker */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+          {([
+            { id: "imagen" as const, label: "Imagen 3.0", sub: "Google · $0.04 / img" },
+            { id: "grok"   as const, label: "Grok 2 Image", sub: "xAI · $0.07 / img" },
+          ]).map(function(p) {
+            var on = thumbProvider === p.id;
+            return <div key={p.id} onClick={function() { setThumbProvider(p.id); }}
+              style={{ flex: 1, padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+                background: on ? D.amber + "12" : D.surface,
+                border: "1px solid " + (on ? D.amber + "60" : D.border),
+                textAlign: "left", transition: "all 0.15s ease" }}>
+              <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 800, color: on ? D.amber : D.tx }}>{p.label}</div>
+              <div style={{ fontFamily: mn, fontSize: 9.5, color: on ? D.amber : D.txl, marginTop: 2 }}>{p.sub}</div>
+            </div>;
+          })}
+        </div>
+        {/* Variant count */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 12, alignItems: "center" }}>
+          <div style={{ fontFamily: mn, fontSize: 9.5, color: D.txb, letterSpacing: 1, marginRight: 8, fontWeight: 700 }}>Variants:</div>
+          {[1, 2, 3, 4].map(function(n) {
+            var on = thumbCount === n;
+            return <span key={n} onClick={function() { setThumbCount(n); }}
+              style={{ padding: "5px 11px", borderRadius: 999, cursor: "pointer",
+                background: on ? D.amber + "20" : D.surface,
+                border: "1px solid " + (on ? D.amber + "60" : D.border),
+                color: on ? D.amber : D.tx,
+                fontFamily: mn, fontSize: 11, fontWeight: 700 }}>{n}</span>;
+          })}
+          <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 10.5, color: D.amber, fontWeight: 800 }}>
+            ~${thumbCostUSD(thumbProvider, thumbCount).toFixed(2)} / run
+          </span>
+        </div>
+        {/* Editable prompt */}
+        <div style={{ fontFamily: mn, fontSize: 9.5, color: D.txb, letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>
+          Prompt {thumbPrompt ? "· " + thumbPrompt.length + " chars" : ""}
+        </div>
+        <textarea
+          value={thumbPrompt}
+          onChange={function(e) { setThumbPrompt(e.target.value); }}
+          rows={4}
+          placeholder="Edit the prompt before generating — concept, mood, composition, text-overlay region..."
+          style={{ width: "100%", padding: "10px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, color: D.tx, fontFamily: mn, fontSize: 12, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.55, transition: "border-color 0.15s ease" }}
+          onFocus={function(e) { e.target.style.borderColor = D.amber; }}
+          onBlur={function(e) { e.target.style.borderColor = D.border; }}
+        />
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontFamily: mn, fontSize: 9.5, color: D.txl }}>
+          <span>Empty = use the picked concept as-is.</span>
+          <span onClick={function() {
+            if (!opts) return;
+            var picked = opts.thumbnails[sel.thumb];
+            var c2 = typeof picked === "string" ? picked : (picked && picked.concept) || "";
+            var t2 = typeof picked === "string" ? "" : (picked && picked.text_overlay) || "";
+            var m2 = typeof picked === "string" ? "" : (picked && picked.mood) || "";
+            var seed = [c2, t2 ? "Text-overlay region: \"" + t2 + "\"" : "", m2 ? "Mood: " + m2 : ""].filter(Boolean).join(" · ");
+            setThumbPrompt(seed);
+          }} style={{ cursor: "pointer", color: D.amber }}>Reset to concept</span>
+        </div>
+      </div>}
+    </div>
+
+    {thumbGenL && <ProgressBar label={"Generating with " + thumbModelLabel(thumbProvider)} />}
 
     {thumbVariants && thumbVariants.length > 0 && <div style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 16, marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
@@ -1299,6 +1506,7 @@ function StepExport({ ep, guests, fin, socialRes, clips, onComplete }: { ep: EpS
     { key: "tiktok_caption", label: "TikTok" },
   ];
 
+  var fullDescription = composeDescription(fin.description, ep.timestamps);
   var doExport = function() {
     if (!socialRes) return;
     var spotifyTitle = buildSpotifyTitle(fin.title, guests);
@@ -1306,7 +1514,7 @@ function StepExport({ ep, guests, fin, socialRes, clips, onComplete }: { ep: EpS
       { heading: "Episode Info", items: [
         { label: "YouTube Title", content: fin.title + "  (" + fin.title.length + "/100)" },
         { label: "Spotify Title", content: spotifyTitle + "  (" + spotifyTitle.length + "/200)" },
-        { label: "Description", content: fin.description || "" },
+        { label: "YouTube Description (with chapters)", content: fullDescription },
         { label: "Guests", content: gs },
       ]},
       { heading: "Horizontal (X, LinkedIn, Facebook)", items: FIELDS.slice(0, 6).map(function(f) { return { label: f.label, content: socialRes[f.key] || "" }; }) },
@@ -1329,7 +1537,7 @@ function StepExport({ ep, guests, fin, socialRes, clips, onComplete }: { ep: EpS
 
   var copyAll = function() {
     if (!socialRes) return;
-    var parts = ["EPISODE #" + ep.number + " - " + fin.title, "Guests: " + gs, "", "DESCRIPTION:", fin.description || "", ""];
+    var parts = ["EPISODE #" + ep.number + " - " + fin.title, "Guests: " + gs, "", "DESCRIPTION:", fullDescription, ""];
     FIELDS.forEach(function(f) {
       if (socialRes[f.key]) { parts.push(f.label.toUpperCase() + ":"); parts.push(socialRes[f.key]!); parts.push(""); }
     });
@@ -1337,9 +1545,14 @@ function StepExport({ ep, guests, fin, socialRes, clips, onComplete }: { ep: EpS
     showToast("All content copied to clipboard");
   };
 
+  var copyYoutubeDescription = function() {
+    copyText(fullDescription);
+    showToast(ep.timestamps ? "YouTube description with chapters copied" : "Description copied");
+  };
+
   var doComplete = function() {
     setDone(true); setShowModal(true);
-    if (onComplete) onComplete({ title: fin.title, description: fin.description, social: socialRes });
+    if (onComplete) onComplete({ title: fin.title, description: fullDescription, social: socialRes });
   };
 
   return (<div>
@@ -1351,7 +1564,15 @@ function StepExport({ ep, guests, fin, socialRes, clips, onComplete }: { ep: EpS
       <div style={{ fontFamily: mn, fontSize: 11, color: ACC, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 8 }}>{"Episode #" + ep.number}</div>
       <div style={{ fontFamily: ft, fontSize: 24, fontWeight: 900, color: D.tx, letterSpacing: -1, marginBottom: 6 }}>{fin.title}</div>
       <div style={{ fontFamily: ft, fontSize: 13, color: D.txb }}>{gs}</div>
-      <div style={{ fontFamily: ft, fontSize: 14, color: D.txb, lineHeight: 1.7, whiteSpace: "pre-wrap", marginTop: 12, maxHeight: 120, overflow: "auto" }}>{fin.description}</div>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginTop: 12 }}>
+        <div style={{ fontFamily: mn, fontSize: 9, color: D.txb, letterSpacing: "1.5px", fontWeight: 700, textTransform: "uppercase" }}>
+          YouTube Description {ep.timestamps ? "· chapters appended" : ""}
+        </div>
+        <span onClick={copyYoutubeDescription} style={{ fontFamily: mn, fontSize: 10, color: ACC, cursor: "pointer", padding: "4px 10px", borderRadius: 6, border: "1px solid " + ACC + "30", letterSpacing: 0.5 }}>
+          Copy
+        </span>
+      </div>
+      <div style={{ fontFamily: ft, fontSize: 14, color: D.txb, lineHeight: 1.7, whiteSpace: "pre-wrap", marginTop: 6, maxHeight: 200, overflow: "auto", padding: "10px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 8 }}>{fullDescription}</div>
     </div>
 
     {socialRes && <div style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 20, marginBottom: 24 }}>
@@ -1388,10 +1609,24 @@ function StepExport({ ep, guests, fin, socialRes, clips, onComplete }: { ep: EpS
 }
 
 // ═══ STEP 7: LOG ═══
-function StepLog({ logData, setLogData, onDevelopClips }: { logData: LogEntry[]; setLogData: React.Dispatch<React.SetStateAction<LogEntry[]>>; onDevelopClips: (entry: LogEntry) => void }) {
+function StepLog({ logData, setLogData, onDevelopClips, current, onSaveCurrent }: {
+  logData: LogEntry[];
+  setLogData: React.Dispatch<React.SetStateAction<LogEntry[]>>;
+  onDevelopClips: (entry: LogEntry) => void;
+  current: { ep: EpState; guests: Guest[]; fin: FinalizedState | null; socialRes: SocialResult | null; clips: ClipResult[]; editingLogId: string | null };
+  onSaveCurrent: () => void;
+}) {
   var _ed = useState<boolean>(false), editing = _ed[0], setEditing = _ed[1];
   var _view = useState<number | null>(null), viewIdx = _view[0], setViewIdx = _view[1];
   var _viewClips = useState<number | null>(null), viewClipsIdx = _viewClips[0], setViewClipsIdx = _viewClips[1];
+
+  // Is there a current draft that's NOT yet in the log? Only show the
+  // save panel when there's actually something meaningful to save.
+  var alreadyLogged = !!current.editingLogId && logData.some(function(e) { return e.id === current.editingLogId; });
+  var hasDraftToSave = !!current.fin && !alreadyLogged && (current.ep.transcript || current.fin.title);
+  var draftEpInLog = !!current.ep.number && logData.some(function(e) {
+    return String(e.episode || "").replace(/\D/g, "") === String(current.ep.number || "").replace(/\D/g, "");
+  });
 
   var removeEntry = function(idx: number) { setLogData(function(prev: LogEntry[]) { return prev.filter(function(_: LogEntry, j: number) { return j !== idx; }); }); };
 
@@ -1470,6 +1705,31 @@ function StepLog({ logData, setLogData, onDevelopClips }: { logData: LogEntry[];
   return (<div>
     <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Activity Log</div>
     <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 32 }}>View and manage completed episodes.</div>
+
+    {/* Save current draft → log (without going through the full Export
+        flow). When the user is mid-episode and wants to bookmark progress. */}
+    {hasDraftToSave && <div style={{
+      background: D.elevated, border: "1px solid " + D.teal + "40", borderRadius: 12,
+      padding: 18, marginBottom: 22,
+      boxShadow: "0 0 24px rgba(46,173,142,0.06)",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: mn, fontSize: 10, color: D.teal, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 6, fontWeight: 800 }}>
+            Current draft · not in log yet
+          </div>
+          <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 800, color: D.tx, lineHeight: 1.35, marginBottom: 4 }}>
+            Ep #{current.ep.number} · {current.fin?.title || "(untitled)"}
+          </div>
+          <div style={{ fontFamily: mn, fontSize: 10, color: D.txl }}>
+            {gStr(current.guests)} · {current.clips.length} clip{current.clips.length === 1 ? "" : "s"}
+            {current.socialRes ? " · social done" : " · no social yet"}
+            {draftEpInLog ? " · note: an episode with this number already exists in log" : ""}
+          </div>
+        </div>
+        <Btn onClick={onSaveCurrent} sm>Save to Log</Btn>
+      </div>
+    </div>}
 
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
       <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: D.tx, letterSpacing: -0.5 }}>{logData.length} Episode{logData.length !== 1 ? "s" : ""}</div>
@@ -1587,7 +1847,18 @@ export default function SAWeekly() {
   useEffect(function() {
     var settled = false;
     var applyData = function(d: { state?: Record<string, unknown> | null; log?: LogEntry[] }) {
-      if (d.log && Array.isArray(d.log)) setLogData(d.log);
+      if (d.log && Array.isArray(d.log)) {
+        setLogData(d.log);
+        // Auto-bump episode number to (latest_in_log + 1) on fresh load,
+        // unless an in-flight draft is going to be loaded (in which case
+        // the draft's number wins). The user can still type a different
+        // number — this is just a sensible default so step 0 doesn't
+        // anchor on "008" forever.
+        var draftHasContent = d.state && ((d.state.ep && (d.state.ep as Record<string, unknown>).transcript) || d.state.opts || d.state.fin);
+        if (!draftHasContent) {
+          setEp(function(prev) { return Object.assign({}, prev, { number: nextEpisodeNumber(d.log!) }); });
+        }
+      }
       if (d.state && ((d.state.ep && (d.state.ep as Record<string, unknown>).transcript) || d.state.opts || d.state.fin)) {
         draftRef.current = d.state;
         setHasDraft(true);
@@ -1734,6 +2005,28 @@ export default function SAWeekly() {
     setStep(6); // go to log
   };
 
+  // Save current draft as a log entry without going through the full
+  // Export → Complete Launch Kit flow. Used by the "Save to Log" button
+  // on Step 7. Mirrors handleComplete but doesn't flip `launched` and
+  // bakes the chapters into the saved description deterministically.
+  var saveCurrentToLog = function() {
+    if (!fin) { showToast("Finalize selections first (Step 3 Review)"); return; }
+    var newId = "log-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+    var entry: LogEntry = {
+      id: newId,
+      episode: ep.number,
+      title: fin.title,
+      description: composeDescription(fin.description, ep.timestamps),
+      guests: gn,
+      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      social: socialRes,
+      clips: clips.length ? clips : undefined,
+    };
+    setLogData(function(prev) { return [entry].concat(prev); });
+    setEditingLogId(newId);
+    showToast("Episode #" + ep.number + " saved to log");
+  };
+
   // Step navigation logic
   var canNavigate = function(targetStep: number): boolean {
     if (targetStep === 0) return true; // always can go to setup
@@ -1775,7 +2068,13 @@ export default function SAWeekly() {
       {step === 3 && <StepSocial ep={ep} guests={guests} fin={fin} socialRes={socialRes} setSocialRes={setSocialRes} />}
       {step === 4 && <StepClips ep={ep} guests={guests} fin={fin} clips={clips} setClips={setClips} editingLogId={editingLogId} onSavedToLog={function() { setStep(6); }} />}
       {step === 5 && <StepExport ep={ep} guests={guests} fin={fin} socialRes={socialRes} clips={clips} onComplete={handleComplete} />}
-      {step === 6 && <StepLog logData={logData} setLogData={setLogData} onDevelopClips={openClipsForLogEntry} />}
+      {step === 6 && <StepLog
+        logData={logData}
+        setLogData={setLogData}
+        onDevelopClips={openClipsForLogEntry}
+        current={{ ep: ep, guests: guests, fin: fin, socialRes: socialRes, clips: clips, editingLogId: editingLogId }}
+        onSaveCurrent={saveCurrentToLog}
+      />}
     </div>
 
     {/* Step navigation buttons */}
