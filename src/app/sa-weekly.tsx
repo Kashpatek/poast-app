@@ -103,6 +103,16 @@ interface LogEntry {
   // when the user clicks "Develop Clips" on a past episode.
   id?: string;
   clips?: ClipResult[];
+  // Full editor snapshot — saved going forward so "Edit" can re-open
+  // the suite hydrated with the EXACT state from when the episode was
+  // saved. Older entries without these fields fall back to a best-
+  // effort parse of `guests` + the stored title/description/social.
+  ep?: EpState;
+  guestList?: Guest[];
+  opts?: GeneratedOptions | null;
+  sel?: SelectionState;
+  thumb?: string | null;
+  descLen?: string;
 }
 
 interface ConfettiPiece {
@@ -1609,10 +1619,11 @@ function StepExport({ ep, guests, fin, socialRes, clips, onComplete }: { ep: EpS
 }
 
 // ═══ STEP 7: LOG ═══
-function StepLog({ logData, setLogData, onDevelopClips, current, onSaveCurrent }: {
+function StepLog({ logData, setLogData, onDevelopClips, onEditEntry, current, onSaveCurrent }: {
   logData: LogEntry[];
   setLogData: React.Dispatch<React.SetStateAction<LogEntry[]>>;
   onDevelopClips: (entry: LogEntry) => void;
+  onEditEntry: (entry: LogEntry) => void;
   current: { ep: EpState; guests: Guest[]; fin: FinalizedState | null; socialRes: SocialResult | null; clips: ClipResult[]; editingLogId: string | null };
   onSaveCurrent: () => void;
 }) {
@@ -1744,6 +1755,12 @@ function StepLog({ logData, setLogData, onDevelopClips, current, onSaveCurrent }
           <div style={{ fontFamily: mn, fontSize: 9, color: D.txl }}>{e.date}</div>
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+          {/* Edit Episode — re-opens the whole suite hydrated with this
+              entry. Subsequent saves write back to the same log entry. */}
+          <span onClick={function() { onEditEntry(e); }} style={{ fontFamily: mn, fontSize: 9, color: D.amber, cursor: "pointer", padding: "4px 12px", background: "linear-gradient(135deg, " + D.amber + "1A, " + D.amber + "08)", borderRadius: 6, border: "1px solid " + D.amber + "55", fontWeight: 700 }}
+            title={e.ep && e.guestList ? "Reopen with full hydrated state" : "Reopen with best-effort hydration (transcript blank — older entry)"}>
+            ✎ Edit Episode{e.ep && e.guestList ? "" : " ·"}
+          </span>
           <span onClick={function() { setViewIdx(i); }} style={{ fontFamily: mn, fontSize: 9, color: D.teal, padding: "4px 12px", background: D.teal + "0A", borderRadius: 6, cursor: "pointer", border: "1px solid " + D.teal + "30" }}>View Launch Kit</span>
           <span onClick={function() { downloadLaunchKit(e); }} style={{ fontFamily: mn, fontSize: 9, color: ACC, cursor: "pointer", padding: "4px 12px", background: ACC + "0A", borderRadius: 6, border: "1px solid " + ACC + "30" }}>Download Launch Kit</span>
           {e.social && <span onClick={function() { downloadSocialKit(e); }} style={{ fontFamily: mn, fontSize: 9, color: D.blue, cursor: "pointer", padding: "4px 12px", background: D.blue + "0A", borderRadius: 6, border: "1px solid " + D.blue + "30" }}>Download Social Kit</span>}
@@ -1773,7 +1790,8 @@ function StepLog({ logData, setLogData, onDevelopClips, current, onSaveCurrent }
             <div style={{ fontFamily: ft, fontSize: 13, color: D.txb, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{viewEntry!.social![k]}</div>
           </div>; })}
         </div>}
-        <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+        <div style={{ display: "flex", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
+          <Btn onClick={function() { onEditEntry(viewEntry!); setViewIdx(null); }} sm>✎ Edit Episode</Btn>
           <Btn onClick={function() { downloadLaunchKit(viewEntry!); }} sm sec>Download Launch Kit</Btn>
           {viewEntry.social && <Btn onClick={function() { downloadSocialKit(viewEntry!); }} sm sec>Download Social Kit</Btn>}
           {hasClips(viewEntry) && <Btn onClick={function() { downloadClipKit(viewEntry!); }} sm sec>Download Clip Kit</Btn>}
@@ -1987,21 +2005,43 @@ export default function SAWeekly() {
 
   var gn = guests.filter(function(g) { return g.name; }).map(function(g) { return g.name; }).join(", ");
 
+  // Snapshot the full editor state into the optional LogEntry fields
+  // so future "Edit" round-trips can rehydrate without loss. Centralized
+  // so handleComplete + saveCurrentToLog stay in sync.
+  var fullEditorSnapshot = function(): Pick<LogEntry, "ep" | "guestList" | "opts" | "sel" | "thumb" | "descLen"> {
+    return {
+      ep: ep,
+      guestList: guests,
+      opts: opts,
+      sel: sel,
+      thumb: thumb,
+      descLen: descLen,
+    };
+  };
+
   var handleComplete = function(data: { title: string; description: string; social: SocialResult | null }) {
     setLaunched(true);
-    var newId = "log-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
-    var entry: LogEntry = {
-      id: newId,
+    // If this episode was opened from an existing log entry (editingLogId
+    // is set and the entry is in the log), UPDATE that entry in place so
+    // Edit-Save-Edit doesn't duplicate. Otherwise mint a new entry.
+    var existing = editingLogId ? logData.find(function(e) { return e.id === editingLogId; }) : null;
+    var entryId = existing ? existing.id! : "log-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+    var entry: LogEntry = Object.assign({}, fullEditorSnapshot(), {
+      id: entryId,
       episode: ep.number,
       title: data.title,
       description: data.description,
       guests: gn,
-      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      date: existing ? existing.date : new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       social: data.social,
       clips: clips.length ? clips : undefined,
-    };
-    setLogData(function(prev) { return [entry].concat(prev); });
-    setEditingLogId(newId); // any subsequent clip work flows back here
+    });
+    if (existing) {
+      setLogData(function(prev) { return prev.map(function(e) { return e.id === entryId ? entry : e; }); });
+    } else {
+      setLogData(function(prev) { return [entry].concat(prev); });
+    }
+    setEditingLogId(entryId);
     setStep(6); // go to log
   };
 
@@ -2011,20 +2051,82 @@ export default function SAWeekly() {
   // bakes the chapters into the saved description deterministically.
   var saveCurrentToLog = function() {
     if (!fin) { showToast("Finalize selections first (Step 3 Review)"); return; }
-    var newId = "log-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
-    var entry: LogEntry = {
-      id: newId,
+    var existing = editingLogId ? logData.find(function(e) { return e.id === editingLogId; }) : null;
+    var entryId = existing ? existing.id! : "log-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+    var entry: LogEntry = Object.assign({}, fullEditorSnapshot(), {
+      id: entryId,
       episode: ep.number,
       title: fin.title,
       description: composeDescription(fin.description, ep.timestamps),
       guests: gn,
-      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      date: existing ? existing.date : new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       social: socialRes,
       clips: clips.length ? clips : undefined,
-    };
-    setLogData(function(prev) { return [entry].concat(prev); });
-    setEditingLogId(newId);
-    showToast("Episode #" + ep.number + " saved to log");
+    });
+    if (existing) {
+      setLogData(function(prev) { return prev.map(function(e) { return e.id === entryId ? entry : e; }); });
+      showToast("Episode #" + ep.number + " updated in log");
+    } else {
+      setLogData(function(prev) { return [entry].concat(prev); });
+      showToast("Episode #" + ep.number + " saved to log");
+    }
+    setEditingLogId(entryId);
+  };
+
+  // Best-effort parse of a stored "Dylan Patel, Doug O'Laughlin" string
+  // back into Guest[] for legacy log entries that didn't snapshot the
+  // structured list. The handle is left blank — the user can fill it in
+  // from the Frequent quick-pick if needed.
+  var parseGuestString = function(s: string): Guest[] {
+    if (!s) return [];
+    return s.split(/[,;]/).map(function(part: string) {
+      var name = part.trim();
+      if (!name) return null;
+      // Match against the canonical FREQUENT_GUESTS list so handles come
+      // back automatically for the regulars.
+      var match = FREQUENT_GUESTS.find(function(g) {
+        return g.name.toLowerCase() === name.toLowerCase();
+      });
+      return match ? { name: match.name, handle: match.handle } : { name: name, handle: "" };
+    }).filter(Boolean) as Guest[];
+  };
+
+  // Full edit handler — load a past log entry into the working editor
+  // state and jump back into the suite. Uses the full snapshot when
+  // present; falls back to a best-effort hydration for older entries.
+  // Lands the user at Setup (step 0) so they can review/edit from the
+  // start without missing anything.
+  var editLogEntry = function(entry: LogEntry) {
+    if (!entry.id) {
+      // Backfill an id so subsequent saves match.
+      var newId = "log-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+      var withId = Object.assign({}, entry, { id: newId });
+      setLogData(function(prev) { return prev.map(function(e) { return e === entry ? withId : e; }); });
+      entry = withId;
+    }
+    // Hydrate everything we can. Missing pieces use sensible defaults so
+    // the editor doesn't crash on partial-shape legacy entries.
+    var hydratedEp: EpState = entry.ep
+      ? entry.ep
+      : { number: entry.episode, link: "", transcript: "", timestamps: "", extra: "" };
+    var hydratedGuests: Guest[] = entry.guestList && entry.guestList.length > 0
+      ? entry.guestList
+      : parseGuestString(entry.guests);
+    var hydratedFin: FinalizedState = { title: entry.title, description: entry.description, thumbnail: "" };
+    setEp(hydratedEp);
+    setGuests(hydratedGuests);
+    setOpts(entry.opts || null);
+    setSel(entry.sel || { title: 0, desc: 0, thumb: 0 });
+    setFin(hydratedFin);
+    setThumb(entry.thumb || null);
+    setSocialRes(entry.social);
+    setClips(entry.clips || []);
+    if (entry.descLen) setDescLen(entry.descLen);
+    setEditingLogId(entry.id || null);
+    setLaunched(false); // re-enter edit mode; flip back on Complete
+    setStep(0);         // start at Setup so user can review/edit from the top
+    setInteracted(true);
+    showToast("Editing Ep #" + entry.episode + " · changes save back to this entry");
   };
 
   // Step navigation logic
@@ -2072,6 +2174,7 @@ export default function SAWeekly() {
         logData={logData}
         setLogData={setLogData}
         onDevelopClips={openClipsForLogEntry}
+        onEditEntry={editLogEntry}
         current={{ ep: ep, guests: guests, fin: fin, socialRes: socialRes, clips: clips, editingLogId: editingLogId }}
         onSaveCurrent={saveCurrentToLog}
       />}
