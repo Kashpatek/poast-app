@@ -131,6 +131,35 @@ interface CapperLength {
   thread: boolean;
 }
 
+// Source type for the clip — drives the caption's framing (first-person
+// vs commentary, attribution patterns, hook style). Each type pairs
+// with a `voicePrompt` that gets injected into the system prompt so
+// the model knows whose story it's telling. Separate from Tone (which
+// is a person/persona) and Audience (which is a vibe).
+interface CapperSource {
+  key: string;
+  label: string;
+  desc: string;
+  // Short hint baked into the system prompt — must drive a concrete
+  // voice shift (attribution, pronouns, hook patterns).
+  voicePrompt: string;
+  color: string;
+}
+
+// LLM provider for caption generation. Different providers naturally
+// produce different voices on top of the explicit tone picker:
+//   - Claude: sharpest, brand-safe, best for SA Research / Doug tones.
+//   - Gemini: more direct, less hedging, faster takes.
+//   - Grok: willing to be edgier, more memorable, less brand-safe.
+type CapperProvider = "claude" | "gemini" | "grok";
+
+interface CapperProviderOption {
+  key: CapperProvider;
+  label: string;
+  sub: string;
+  color: string;
+}
+
 interface CapperAudience {
   key: string;
   label: string;
@@ -151,15 +180,27 @@ interface SplashItem {
   id: string;
 }
 
-async function ask(sys: string, prompt: string): Promise<CapperResult | null> {
+async function ask(sys: string, prompt: string, provider?: CapperProvider): Promise<CapperResult | null> {
   try {
+    var body: Record<string, unknown> = { system: sys, prompt: prompt };
+    if (provider && provider !== "claude") body.provider = provider;
     var r = await fetch("/api/generate", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ system: sys, prompt: prompt }),
+      body: JSON.stringify(body),
     });
     var d = (await r.json()) as APIResponse;
-    if (d.error) { showToast("API Error: " + (typeof d.error === "object" && d.error !== null ? (d.error as { message?: string }).message || d.error : d.error)); return null; }
-    if (!d.content) { showToast("API returned empty response. Check your ANTHROPIC_API_KEY in Vercel env vars."); return null; }
+    if (d.error) {
+      var prov = provider || "claude";
+      var hint = prov === "gemini" ? " (check GEMINI_API_KEY)" : prov === "grok" ? " (check XAI_API_KEY)" : " (check ANTHROPIC_API_KEY)";
+      showToast("API Error: " + (typeof d.error === "object" && d.error !== null ? (d.error as { message?: string }).message || d.error : d.error) + hint);
+      return null;
+    }
+    if (!d.content) {
+      var prov2 = provider || "claude";
+      var key2 = prov2 === "gemini" ? "GEMINI_API_KEY" : prov2 === "grok" ? "XAI_API_KEY" : "ANTHROPIC_API_KEY";
+      showToast("API returned empty response. Check your " + key2 + " in Vercel env vars.");
+      return null;
+    }
     var t = (d.content || []).map(function(c: APIContentBlock) { return c.text || ""; }).join("");
     try {
       return JSON.parse(t.replace(/```json|```/g, "").trim());
@@ -702,6 +743,42 @@ var CAPPER_LENGTHS: CapperLength[] = [
   { key: "epic", label: "Epic Thread", desc: "6-10 posts", thread: true },
 ];
 
+// Source type — where the clip came from. Drives the framing (first-
+// person vs commentary, attribution, hook patterns). Pick the one
+// that matches reality; the system prompt adjusts the voice to suit.
+var CAPPER_SOURCES: CapperSource[] = [
+  { key: "sa_podcast",  label: "SA Weekly",       desc: "Clip from SemiAnalysis Weekly — Dylan & guests",
+    color: "#F7B041",
+    voicePrompt: "SOURCE: A clip from SemiAnalysis Weekly, OUR podcast. Use first-person 'we' or name guests directly (e.g. \"Dylan and Jordan got into\"). The hook should grab the most provocative thing said. Don't add insights that weren't on the show — sharpen what was actually said. Reference the conversation directly. OK to mention 'on Weekly' for context." },
+  { key: "sa_article",  label: "SA Article / Research", desc: "Clip-style caption from a SA written piece",
+    color: "#0B86D1",
+    voicePrompt: "SOURCE: A SemiAnalysis written research piece (article, deep dive, model). Use confident first-person 'we' framing ('we modeled', 'our data shows', 'we dug into'). Drive readers toward the full article — caption should tease the punchline without giving it all away. Cite methodology when it sharpens the point. Authoritative register." },
+  { key: "sa_video",    label: "SA Own Video",    desc: "Internal video — Datacloud, Cannes, panels",
+    color: "#2EAD8E",
+    voicePrompt: "SOURCE: An internal SemiAnalysis video (Datacloud, Cannes panel, internal event — NOT the podcast). Hybrid voice: insider first-person but more polished than podcast banter. Include event/venue context ('at Datacloud', 'on the Cannes panel'). Less casual than Weekly, more analytical." },
+  { key: "external_podcast", label: "External Podcast", desc: "Bg2, Acquired, Dwarkesh — 3rd-party show",
+    color: "#905CCB",
+    voicePrompt: "SOURCE: A 3rd-party podcast clip (Bg2, Acquired, Dwarkesh, BG2, etc.). Use third-person attribution ('X told [host] on [show]'). Frame the caption as COMMENTARY on someone else's analysis — SA adds the angle. The hook can be a hot take ON the take ('Here's why he's missing the bigger story...' / 'This is the part nobody's caught...'). Never claim their insights as ours. Credit the show + guest." },
+  { key: "external_video", label: "External Video", desc: "NVIDIA keynote, AMD analyst day, GTC",
+    color: "#E06347",
+    voicePrompt: "SOURCE: A 3rd-party video clip (NVIDIA keynote, AMD analyst day, vendor event). Event/news framing ('Jensen said at GTC', '[Co] confirmed at analyst day'). Time-sensitive — feels like reporting. Often pair the quote with a SA take ('What this actually means:'). Cite company + event clearly." },
+  { key: "conference_talk", label: "Conference Talk", desc: "GTC, Hot Chips, ISSCC, Computex",
+    color: "#26C9D8",
+    voicePrompt: "SOURCE: A conference-talk clip (GTC, Hot Chips, ISSCC, Computex, MICRO). Strong on venue + speaker provenance ('At Hot Chips, [Co] showed...'). Often technical — assume the audience knows the conference. Quote-heavy framing. SA voice adds analyst context ('This is a big deal because...')." },
+  { key: "interview",   label: "Long-form Interview", desc: "Cut from a longer interview, external or own",
+    color: "#7ACFBA",
+    voicePrompt: "SOURCE: A cut from a longer interview (NOT the podcast feed). Quote-heavy framing — lift a notable line. Third-person attribution ('[X] told [Y] in an interview'). Caption should make the quote stand alone — context-set in one sentence, then the line lands." },
+];
+
+// LLM provider picker. Each provider produces a different natural voice
+// on top of the explicit Tone choice; user can swap mid-batch if a
+// generation feels off-brand.
+var CAPPER_PROVIDERS: CapperProviderOption[] = [
+  { key: "claude", label: "Claude",  sub: "Sharpest · brand-safe",         color: "#F7B041" },
+  { key: "gemini", label: "Gemini",  sub: "Direct · less hedge",           color: "#4285F4" },
+  { key: "grok",   label: "Grok",    sub: "Edgier · memorable",            color: "#905CCB" },
+];
+
 var CAPPER_AUDIENCES: CapperAudience[] = [
   { key: "meme", label: "Meme-coded", desc: "Internet brain, irony-pilled, chronically online. Think tech twitter memes.", color: "#00FF88" },
   { key: "genz", label: "Gen Z", desc: "Lowercase, no punctuation, absurdist humor, unhinged but smart.", color: "#FF6BFF" },
@@ -726,6 +803,13 @@ function ClipCaptions() {
   var _length = useState("medium"), length = _length[0], setLength = _length[1];
   var _tone = useState("sa_research"), tone = _tone[0], setTone = _tone[1];
   var _audience = useState("techtwitter"), audience = _audience[0], setAudience = _audience[1];
+  // Where the clip came from. Defaults to SA Weekly (the most common
+  // source) — drives first-person vs commentary framing in the prompt.
+  var _source = useState("sa_podcast"), sourceType = _source[0], setSourceType = _source[1];
+  // LLM provider. Claude is the default (sharpest + brand-safe); Gemini
+  // and Grok produce different natural voices on top of the explicit
+  // Tone picker.
+  var _provider = useState<CapperProvider>("claude"), provider = _provider[0], setProvider = _provider[1];
   // If an analyst somehow has a restricted audience selected (e.g. from a
   // stale state), snap it back to the default.
   useEffect(function() {
@@ -793,7 +877,12 @@ function ClipCaptions() {
 
   var buildCapperPrompt = function(platKey: string, variationNote?: string): string {
     var platObj = CAPPER_PLATFORMS.find(function(p) { return p.key === platKey; }) || CAPPER_PLATFORMS[0];
+    var srcObj = CAPPER_SOURCES.find(function(s) { return s.key === sourceType; }) || CAPPER_SOURCES[0];
     var parts = [];
+    // Source framing comes FIRST so the model anchors the voice before
+    // anything else lands. Treats podcast / commentary / event clips
+    // as fundamentally different speaking positions.
+    parts.push(srcObj.voicePrompt);
     if (isThread) {
       var postCount = length === "epic" ? "6-10" : "3-5";
       parts.push("Generate a " + platObj.label + " thread/multi-post series (" + postCount + " connected posts) for this clip.");
@@ -832,7 +921,7 @@ function ClipCaptions() {
         "This is variation 3 of 3. Take the most creative or unexpected approach.",
       ];
       variations.forEach(function(v, vi) {
-        allPromises.push(ask(SYS_CAPPER, buildCapperPrompt(platKey, v)));
+        allPromises.push(ask(SYS_CAPPER, buildCapperPrompt(platKey, v), provider));
         promiseMap.push({ platform: platKey, variation: vi });
       });
     });
@@ -852,7 +941,7 @@ function ClipCaptions() {
     setRegenL(function(p) { var o = Object.assign({}, p); o[regenKey] = true; return o; });
     var cur = results && results[platKey] && results[platKey][idx];
     var curText = isThread ? (cur && cur.posts ? cur.posts.map(function(p: { number: number; text: string }) { return p.text; }).join(" ") : "") : (cur && cur.caption || "");
-    var data = await ask(SYS_CAPPER, buildCapperPrompt(platKey, "Regenerate this caption. Be DIFFERENT from: " + curText));
+    var data = await ask(SYS_CAPPER, buildCapperPrompt(platKey, "Regenerate this caption. Be DIFFERENT from: " + curText), provider);
     if (data) {
       var captured = data;
       setResults(function(p) {
@@ -883,7 +972,15 @@ function ClipCaptions() {
     {/* Standardized header — matches Carousel + SlopTop */}
     <div style={{ marginBottom: 28 }}>
       <div style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.5 }}>Capper</div>
-      <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 4, letterSpacing: 1 }}>CLIP CAPTION MAKER // 3 VARIATIONS PER PLATFORM</div>
+      <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 4, letterSpacing: 1 }}>
+        CLIP CAPTION MAKER // 3 VARIATIONS PER PLATFORM //
+        <span style={{ color: (CAPPER_PROVIDERS.find(function(p) { return p.key === provider; }) || CAPPER_PROVIDERS[0]).color, marginLeft: 6 }}>
+          {(CAPPER_PROVIDERS.find(function(p) { return p.key === provider; }) || CAPPER_PROVIDERS[0]).label.toUpperCase()}
+        </span>
+        <span style={{ color: (CAPPER_SOURCES.find(function(s) { return s.key === sourceType; }) || CAPPER_SOURCES[0]).color, marginLeft: 6 }}>
+          // {(CAPPER_SOURCES.find(function(s) { return s.key === sourceType; }) || CAPPER_SOURCES[0]).label.toUpperCase()}
+        </span>
+      </div>
     </div>
 
     {/* Clip Content */}
@@ -922,6 +1019,49 @@ function ClipCaptions() {
         })}
       </div>
       {isThread && <div style={{ fontFamily: mn, fontSize: 9, color: C.violet, marginTop: 6 }}>Thread mode: each variation will be a series of connected posts forming a narrative.</div>}
+    </div>
+
+    {/* Source type — where the clip came from. Drives the framing
+        (first-person vs commentary, attribution patterns, hook style). */}
+    <div style={{ marginBottom: 20 }}>
+      <Label>Clip Source</Label>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {CAPPER_SOURCES.map(function(s) {
+          var on = sourceType === s.key;
+          return <div key={s.key} onClick={function() { setSourceType(s.key); }}
+            style={{ padding: "8px 14px", borderRadius: 8, cursor: "pointer",
+              background: on ? s.color + "18" : cardBg,
+              border: "1px solid " + (on ? s.color + "60" : borderC),
+              fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500,
+              color: on ? s.color : C.txd,
+              transition: "all 0.2s ease",
+              display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1 }}
+            onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!on) e.currentTarget.style.borderColor = s.color + "30"; }}
+            onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!on) e.currentTarget.style.borderColor = borderC; }}>
+            <span>{s.label}</span>
+            <span style={{ fontFamily: mn, fontSize: 9, color: on ? s.color : C.txd, opacity: 0.8, fontWeight: 500 }}>{s.desc}</span>
+          </div>;
+        })}
+      </div>
+    </div>
+
+    {/* LLM Provider — Claude / Gemini / Grok. Each produces a different
+        natural voice on top of the explicit Tone choice. */}
+    <div style={{ marginBottom: 20 }}>
+      <Label>Generator</Label>
+      <div style={{ display: "flex", gap: 6 }}>
+        {CAPPER_PROVIDERS.map(function(p) {
+          var on = provider === p.key;
+          return <div key={p.key} onClick={function() { setProvider(p.key); }}
+            style={{ flex: 1, padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+              background: on ? p.color + "15" : cardBg,
+              border: "1px solid " + (on ? p.color + "60" : borderC),
+              textAlign: "left", transition: "all 0.2s ease" }}>
+            <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 800, color: on ? p.color : C.tx }}>{p.label}</div>
+            <div style={{ fontFamily: mn, fontSize: 10, color: on ? p.color : C.txm, marginTop: 2 }}>{p.sub}</div>
+          </div>;
+        })}
+      </div>
     </div>
 
     {/* Tone */}
@@ -975,7 +1115,7 @@ function ClipCaptions() {
       <Btn onClick={generate} loading={loading} off={!content}>Generate Captions</Btn>
       {!content && <span style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>Paste clip content first</span>}
     </div>
-    {loading && <ProgressBar label={"Generating " + (isThread ? "threads" : "captions") + " for " + platLabels + " (" + toneObj.label + " tone)"} />}
+    {loading && <ProgressBar label={"Generating " + (isThread ? "threads" : "captions") + " for " + platLabels + " · " + (CAPPER_PROVIDERS.find(function(p) { return p.key === provider; }) || CAPPER_PROVIDERS[0]).label + " · " + toneObj.label + " tone · " + (CAPPER_SOURCES.find(function(s) { return s.key === sourceType; }) || CAPPER_SOURCES[0]).label + " source"} />}
 
     {/* Output -- grouped by platform */}
     {results && <div style={{ marginTop: 28 }}>
