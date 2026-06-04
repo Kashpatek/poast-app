@@ -74,6 +74,15 @@ export function getPreferredProvider(): LLMProviderName {
 export function setPreferredProvider(p: LLMProviderName): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem("poast-llm-provider", p);
+  // Dispatch a storage event manually so the Zustand store (which
+  // listens for cross-tab storage events) refreshes in the same tab too.
+  // Native localStorage.setItem doesn't fire `storage` in the originating
+  // tab — only in OTHER tabs — so this nudge keeps state reactive.
+  try {
+    window.dispatchEvent(new StorageEvent("storage", {
+      key: "poast-llm-provider", newValue: p, storageArea: window.localStorage,
+    }));
+  } catch { /* ignore — old browsers without StorageEvent constructor */ }
 }
 
 // Per-surface override on top of the global default. Set to "auto" (or
@@ -90,6 +99,12 @@ export function setSurfaceProvider(surface: string, p: LLMProviderName | "auto")
   const key = "poast-llm-provider:" + surface;
   if (p === "auto") window.localStorage.removeItem(key);
   else window.localStorage.setItem(key, p);
+  // Nudge the in-tab Zustand store cache the same way setPreferredProvider does.
+  try {
+    window.dispatchEvent(new StorageEvent("storage", {
+      key, newValue: p === "auto" ? null : p, storageArea: window.localStorage,
+    }));
+  } catch { /* ignore */ }
 }
 
 interface AskOptions {

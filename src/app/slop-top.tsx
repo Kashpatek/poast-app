@@ -1,6 +1,10 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useUser, isAnalyst } from "./user-context";
+import { ProviderChips } from "./provider-chips";
+import { getSurfaceProvider, getPreferredProvider } from "./shared-constants";
+
+const SLOP_SURFACE = "slop-top";
 
 // ═══ TYPES ═══
 interface VisualStructureItem {
@@ -754,10 +758,11 @@ export default function SlopTop() {
   ];
 
   var factoryAsk = function(systemPrompt: string, userPrompt: string): Promise<string> {
+    var provider = getSurfaceProvider(SLOP_SURFACE) || getPreferredProvider();
     return fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ system: systemPrompt, prompt: userPrompt }),
+      body: JSON.stringify({ system: systemPrompt, prompt: userPrompt, provider: provider, applyBrandVoice: true }),
     }).then(function(r) { return r.json(); }).then(function(d: { error?: { message?: string } | string; content?: Array<{ text?: string }>; text?: string }) {
       if (d.error) throw new Error(typeof d.error === "object" ? d.error.message || "API ERROR" : String(d.error) || "API ERROR");
       var text = (d.content || []).map(function(c) { return c.text || ""; }).join("");
@@ -1096,6 +1101,9 @@ export default function SlopTop() {
       </div>
       <div style={{ fontFamily: mn, fontSize: 10, color: D.txm, marginTop: 4, letterSpacing: 1 }}>
         CERTIFIED BRAINROT FACTORY // {ROTATING_PHRASES[phraseIdx]}
+      </div>
+      <div style={{ marginTop: 8 }}>
+        <ProviderChips surface={SLOP_SURFACE} compact />
       </div>
     </div>
 

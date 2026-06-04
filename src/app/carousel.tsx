@@ -1,10 +1,20 @@
 "use client";
 import { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
-import { D as C, ft, mn, gf } from "./shared-constants";
+import { D as C, ft, mn, gf, getSurfaceProvider, getPreferredProvider } from "./shared-constants";
 import { useUser } from "./user-context";
 import { showToast } from "./toast-context";
 import { confirmDialog, promptDialog } from "./dialog-context";
+import { ProviderChips } from "./provider-chips";
+
+const CAROUSEL_SURFACE = "carousel";
+
+// Resolved provider for every /api/carousel POST. Reads localStorage so
+// it stays in sync with the ProviderChips chip selection without each
+// call site needing to subscribe to React state.
+function carouselProvider(): "claude" | "gemini" | "grok" {
+  return getSurfaceProvider(CAROUSEL_SURFACE) || getPreferredProvider();
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    SA CAROUSEL v3.1 -- Visual Slide Editor with Real Branded Backgrounds
@@ -1505,7 +1515,7 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: {
                 var curr = currentSlide.title || "";
                 if (!curr.trim()) return;
                 setRegenTitleBusy(true);
-                fetch("/api/carousel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "rewrite", text: curr, direction: "regenerate-title", targetLength: "punchy" }) })
+                fetch("/api/carousel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "rewrite", text: curr, direction: "regenerate-title", targetLength: "punchy", provider: carouselProvider() }) })
                   .then(function(r) { return r.json(); })
                   .then(function(d) { if (d.text) updateSlide(Object.assign({}, currentSlide, { title: d.text })); })
                   .catch(function() {})
@@ -1535,7 +1545,7 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: {
                 var curr = currentSlide.subtitle || "";
                 if (!curr.trim()) return;
                 var labels: Record<number, string> = { 1: "1 short sentence, under 15 words", 2: "2 sentences, under 30 words", 3: "3 sentences, 40-50 words", 4: "3-4 sentences, 50-65 words", 5: "4-5 sentences, 65-80 words, fill the space" };
-                fetch("/api/carousel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "rewrite", text: curr, direction: target < 3 ? "shorten" : "lengthen", targetLength: labels[target] }) }).then(function(r) { return r.json(); }).then(function(d) { if (d.text) updateSlide(Object.assign({}, currentSlide, { subtitle: d.text, subtitleLength: target })); }).catch(function() {});
+                fetch("/api/carousel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "rewrite", text: curr, direction: target < 3 ? "shorten" : "lengthen", targetLength: labels[target], provider: carouselProvider() }) }).then(function(r) { return r.json(); }).then(function(d) { if (d.text) updateSlide(Object.assign({}, currentSlide, { subtitle: d.text, subtitleLength: target })); }).catch(function() {});
               }} style={{ flex: 1, accentColor: C.amber }} />
               <span style={{ fontFamily: mn, fontSize: 8, color: C.teal }}>Long</span>
             </div>
@@ -1699,6 +1709,7 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
         variantLabel: variantLabel || "",
         theme: theme,
         extraContext: extraContext || "",
+        provider: carouselProvider(),
       }),
     }).then(function(r) { return r.json(); }).then(function(d) {
       if (d.captionOptions && Array.isArray(d.captionOptions) && d.captionOptions.length > 0) {
@@ -2773,6 +2784,7 @@ export default function Carousel() {
           mode: state.mode,
           pageCount: state.pageCount || 4,
           imageUrls: (state.articleImages || []).filter(function(u) { return u && !u.startsWith("data:"); }),
+          provider: carouselProvider(),
         }),
       });
       var d = await r.json();
@@ -2814,6 +2826,7 @@ export default function Carousel() {
       <div>
         <div style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.5 }}>Carousel</div>
         <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 2 }}>SA Branded // 1080x1350 // Real Backgrounds</div>
+        <div style={{ marginTop: 8 }}><ProviderChips surface={CAROUSEL_SURFACE} compact /></div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         {step === 0 && <button onClick={function() { setShowArchive(!showArchive); if (!showArchive) loadArchive(); }} style={{ padding: "6px 14px", background: showArchive ? C.violet + "15" : C.surface, border: "1px solid " + (showArchive ? C.violet + "40" : C.border), borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, color: showArchive ? C.violet : C.txm, cursor: "pointer", transition: "all 0.2s" }}>Archive</button>}

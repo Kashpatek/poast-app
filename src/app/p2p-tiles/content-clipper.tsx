@@ -5,8 +5,11 @@
 // to render. Transcription kicks off when the user clicks "Find clips."
 
 import React, { useState } from "react";
-import { D, ft, gf, mn } from "../shared-constants";
+import { D, ft, gf, mn, getSurfaceProvider, getPreferredProvider } from "../shared-constants";
+import { ProviderChips } from "../provider-chips";
 import { TileShell, type TileProps } from "./index";
+
+const SURFACE = "content-clipper";
 
 interface ClipCandidate {
   start: string;
@@ -37,6 +40,7 @@ export function ContentClipperView({ onBack }: TileProps) {
     setScanning(true);
     setCandidates([]);
     try {
+      const provider = getSurfaceProvider(SURFACE) || getPreferredProvider();
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -48,6 +52,8 @@ export function ContentClipperView({ onBack }: TileProps) {
             "Prefer self-contained ideas with a clear payoff. Skip filler, intros, sponsor reads.\n\n" +
             "Transcript (first 20000 chars):\n" + inputText.slice(0, 20000) + "\n\n" +
             "Return JSON: { \"clips\": [{ \"start\": \"02:14\", \"end\": \"02:42\", \"hook\": \"...\", \"caption\": \"...\", \"suggestedAspect\": \"9:16\", \"hookScore\": 8 }] }",
+          provider,
+          applyBrandVoice: true,
         }),
       });
       const j = await res.json() as { content?: Array<{ text?: string }> };
@@ -146,25 +152,28 @@ export function ContentClipperView({ onBack }: TileProps) {
         })}
       </div>
 
-      <button
-        type="button"
-        onClick={findClips}
-        disabled={scanning}
-        style={{
-          background: D.amber,
-          color: "#060608",
-          border: "none",
-          padding: "10px 18px",
-          borderRadius: 8,
-          fontFamily: ft,
-          fontSize: 13,
-          fontWeight: 800,
-          cursor: scanning ? "wait" : "pointer",
-          opacity: scanning ? 0.6 : 1,
-        }}
-      >
-        {scanning ? "Scanning for clip moments…" : "Find clips"}
-      </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          onClick={findClips}
+          disabled={scanning}
+          style={{
+            background: D.amber,
+            color: "#060608",
+            border: "none",
+            padding: "10px 18px",
+            borderRadius: 8,
+            fontFamily: ft,
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: scanning ? "wait" : "pointer",
+            opacity: scanning ? 0.6 : 1,
+          }}
+        >
+          {scanning ? "Scanning for clip moments…" : "Find clips"}
+        </button>
+        <ProviderChips surface={SURFACE} compact />
+      </div>
       {error ? <div style={{ marginTop: 12, fontFamily: mn, fontSize: 11, color: D.coral }}>{error}</div> : null}
 
       {candidates.length > 0 && (

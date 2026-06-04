@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, Fragment } from "react";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 import { useUser } from "./user-context";
 import { confirmDialog } from "./dialog-context";
+import { ProviderChips } from "./provider-chips";
 
 // ═══ DOCX HELPERS ═══
 async function downloadDocx(title: string, body: string, filename: string) {
@@ -247,6 +248,7 @@ export default function GTCFlow(){
       <div>
         <div style={{fontSize:28,fontWeight:900,color:"#E8E4DD",letterSpacing:-1}}>GTC Flow</div>
         <div style={{fontFamily:MONO,fontSize:10,fontWeight:600,color:"rgba(255,255,255,0.25)",letterSpacing:2,marginTop:2}}>WED 8AM PST // CLIPS THU+TUE 10AM PST</div>
+        <div style={{marginTop:8}}><ProviderChips surface="gtc-flow" compact /></div>
       </div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         <Btn on={subV==="timeline"} onClick={function(){setSubV("timeline")}}>Timeline</Btn>
@@ -857,4 +859,11 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
   </div></div>
 }
 
-async function callAPI(sys: string, usr: string): Promise<string>{try{var r=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:sys,prompt:usr})});var d=await r.json();return(d.content||[]).map(function(b: { text?: string }){return b.text||""}).join("\n")||"Failed.";}catch(e){return"Error: "+(e instanceof Error ? e.message : String(e))}}
+async function callAPI(sys: string, usr: string): Promise<string>{try{
+  var provider: "claude"|"gemini"|"grok" = "claude";
+  if (typeof window !== "undefined") {
+    var v = window.localStorage.getItem("poast-llm-provider:gtc-flow") || window.localStorage.getItem("poast-llm-provider");
+    if (v === "gemini" || v === "grok") provider = v;
+  }
+  var r=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:sys,prompt:usr,provider:provider,applyBrandVoice:true})});
+  var d=await r.json();return(d.content||[]).map(function(b: { text?: string }){return b.text||""}).join("\n")||"Failed.";}catch(e){return"Error: "+(e instanceof Error ? e.message : String(e))}}

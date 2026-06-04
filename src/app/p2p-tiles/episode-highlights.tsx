@@ -5,8 +5,11 @@
 // /api/render-video pipeline.
 
 import React, { useEffect, useState } from "react";
-import { D, ft, gf, mn } from "../shared-constants";
+import { D, ft, gf, mn, getSurfaceProvider, getPreferredProvider } from "../shared-constants";
+import { ProviderChips } from "../provider-chips";
 import { TileShell, type TileProps } from "./index";
+
+const SURFACE = "episode-highlights";
 
 interface Episode {
   id: string;
@@ -58,6 +61,7 @@ export function EpisodeHighlightsView({ onBack }: TileProps) {
     setGenerating(true);
     setMoments([]);
     try {
+      const provider = getSurfaceProvider(SURFACE) || getPreferredProvider();
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -70,6 +74,8 @@ export function EpisodeHighlightsView({ onBack }: TileProps) {
             "Episode: " + (ep.title || "") + "\n\n" +
             "Transcript (first 14000 chars):\n" + (ep.transcript || "").slice(0, 14000) + "\n\n" +
             "Return: { \"moments\": [{ \"start\": \"03:42\", \"end\": \"04:08\", \"caption\": \"...\", \"hookScore\": 8 }] }",
+          provider,
+          applyBrandVoice: true,
         }),
       });
       const j = await res.json() as { content?: Array<{ text?: string }> };
@@ -130,7 +136,7 @@ export function EpisodeHighlightsView({ onBack }: TileProps) {
           </div>
 
           {ep ? (
-            <div style={{ marginBottom: 18 }}>
+            <div style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <button
                 type="button"
                 onClick={findMoments}
@@ -150,7 +156,8 @@ export function EpisodeHighlightsView({ onBack }: TileProps) {
               >
                 {generating ? "Finding moments…" : "Find clip-worthy moments"}
               </button>
-              {error ? <div style={{ marginTop: 10, fontFamily: mn, fontSize: 11, color: D.coral }}>{error}</div> : null}
+              <ProviderChips surface={SURFACE} compact />
+              {error ? <div style={{ marginTop: 10, fontFamily: mn, fontSize: 11, color: D.coral, width: "100%" }}>{error}</div> : null}
             </div>
           ) : null}
 

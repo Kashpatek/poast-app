@@ -5,6 +5,29 @@ import { stripHTML, extractImages } from "@/lib/html";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { generateGrokImages, GrokImageError, SA_BRAND_CUES, STYLE_PRESETS } from "@/lib/grok-image";
 import { generateImagenImages, ImagenError } from "@/lib/imagen";
+import { callLLM, type LLMProvider } from "@/lib/llm-provider";
+
+// Provider-aware text helpers — when caller asks for gemini/grok, route
+// through `callLLM`; otherwise stay on the existing Claude path so the
+// many call sites in this route don't all need to branch.
+async function genText(opts: { system: string; prompt: string; maxTokens?: number; provider?: LLMProvider }): Promise<string> {
+  const provider = opts.provider || "claude";
+  if (provider === "claude") {
+    return generateWithClaude({ system: opts.system, prompt: opts.prompt, maxTokens: opts.maxTokens });
+  }
+  const r = await callLLM({ provider, system: opts.system, prompt: opts.prompt, maxTokens: opts.maxTokens || 4000 });
+  return (r.content || []).map((c) => c.text || "").join("");
+}
+
+async function genJSON<T>(opts: { system: string; prompt: string; maxTokens?: number; provider?: LLMProvider }): Promise<T> {
+  const provider = opts.provider || "claude";
+  if (provider === "claude") {
+    return generateJSON<T>({ system: opts.system, prompt: opts.prompt, maxTokens: opts.maxTokens });
+  }
+  const text = await genText(opts);
+  const cleaned = text.replace(/```json|```/g, "").trim();
+  return JSON.parse(cleaned) as T;
+}
 
 // SA Carousel Schema v1.0
 const TEMPLATE_IDS: Record<string, string> = {
@@ -52,6 +75,7 @@ const CarouselSchema = z.object({
   mode: z.string().optional(),
   pageCount: z.number().optional(),
   imageUrls: z.array(z.string()).optional(),
+  provider: z.enum(["claude", "gemini", "grok"]).optional(),
 }).passthrough();
 
 export async function POST(req: NextRequest) {
@@ -74,6 +98,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { action, text, url, category, mode, pageCount, imageUrls } = body;
+    const provider: LLMProvider = body.provider === "gemini" || body.provider === "grok" ? body.provider : "claude";
 
     if (action === "fetchImages") {
       // Scrape images from article URL, then use Claude to pick relevant ones
@@ -146,9 +171,10 @@ export async function POST(req: NextRequest) {
 Don't pad with filler. Every slide must earn its place. Bias TOWARD 5 (a complete narrative) UNLESS the content genuinely demands fewer or more. Range: 1-7 slides. Do not default to 3 — 3 often feels thin.`;
 
       try {
-        const variants = await generateJSON<Record<string, { slides: { type: string }[] }>>({
+        const variants = await genJSON<Record<string, { slides: { type: string }[] }>>({
           system: CAROUSEL_SYS,
           maxTokens: 6000,
+          provider,
           prompt: `Analyze this article and produce 3 STRUCTURALLY DIFFERENT carousel variants (A, B, C).
 
 Category: ${category || "general"}
@@ -252,9 +278,10 @@ Rules:
       const themeInfo = captionTheme ? (THEMES_MAP[captionTheme] || captionTheme) : "general";
 
       try {
-        const parsed = await generateJSON({
+        const parsed = await genJSON({
           system: CAROUSEL_SYS,
           maxTokens: 2000,
+          provider,
           prompt: `Generate 3 caption OPTIONS for this carousel. Each option should take a different angle on presenting this content.
 
 Source: ${sourceUrl || "N/A"}
@@ -305,9 +332,10 @@ Style rules:
       // (max 8 words) for the same idea. Uses a tighter system prompt so
       // it doesn't bleed into subtitle territory.
       if (direction === "regenerate-title") {
-        const titleText = await generateWithClaude({
+        const titleText = await genText({
           system: "You write SemiAnalysis carousel cover titles. Output ONLY the new title — no quotes, no preamble, no trailing punctuation. SA institutional, confident, technical tone. No em dashes, no emojis. Max 8 words. Punchy and concrete.",
           maxTokens: 60,
+          provider,
           prompt: `Rewrite this carousel cover title with a fresh angle, keeping the same core thesis. The new title should land harder than the original.\n\nOriginal: ${rewriteText}`,
         });
         return NextResponse.json({ text: titleText.trim().replace(/^["']|["']$/g, ""), ts: Date.now() });
@@ -319,9 +347,10 @@ Style rules:
         ? "Make this subtitle shorter. Maximum 1 sentence, under 15 words. Keep the SA institutional tone. No em dashes."
         : "Expand this subtitle to 3-4 sentences, 50-70 words total. SA institutional, confident, technical tone. No em dashes, no emojis.";
 
-      const rawText = await generateWithClaude({
+      const rawText = await genText({
         system: "You rewrite text for SemiAnalysis carousel subtitles. Respond with ONLY the rewritten text, no quotes, no preamble.",
         maxTokens: 300,
+        provider,
         prompt: `${dirPrompt}\n\nOriginal: ${rewriteText}`,
       });
       return NextResponse.json({ text: rawText.trim(), ts: Date.now() });
