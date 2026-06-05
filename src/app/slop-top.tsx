@@ -52,6 +52,16 @@ interface FactoryFormat {
   videoSystem: string;
 }
 
+interface HistoryEntry {
+  id: string;
+  text: string;
+  provider: "auto" | "claude" | "gemini" | "grok";
+  createdAt: number;
+}
+
+var HISTORY_KEY = "poast-sloptop-history";
+var HISTORY_CAP = 20;
+
 // ═══ DESIGN ═══
 var D = {
   bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)",
@@ -198,6 +208,38 @@ function readPersisted(key: string, fallback: string): string {
 function writePersisted(key: string, value: string): void {
   if (typeof window === "undefined") return;
   try { window.localStorage.setItem(key, value); } catch { /* ignore */ }
+}
+
+function readHistory(): HistoryEntry[] {
+  if (typeof window === "undefined") return [];
+  try {
+    var raw = window.localStorage.getItem(HISTORY_KEY);
+    if (!raw) return [];
+    var parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.slice(0, HISTORY_CAP) : [];
+  } catch { return []; }
+}
+
+function writeHistory(entries: HistoryEntry[]): void {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, HISTORY_CAP))); } catch { /* ignore */ }
+}
+
+function relativeTime(ts: number): string {
+  var diff = Math.max(0, Date.now() - ts);
+  var s = Math.floor(diff / 1000);
+  if (s < 60) return s + "s ago";
+  var m = Math.floor(s / 60);
+  if (m < 60) return m + "m ago";
+  var h = Math.floor(m / 60);
+  if (h < 24) return h + "h ago";
+  var d = Math.floor(h / 24);
+  return d + "d ago";
+}
+
+function previewOf(text: string): string {
+  var clean = text.replace(/\s+/g, " ").trim();
+  return clean.length > 60 ? clean.slice(0, 60) + "…" : clean;
 }
 
 // ═══ COPY HELPER ═══
@@ -492,6 +534,37 @@ export default function SlopTop() {
   useEffect(function() { writePersisted("sloptop-host", host); }, [host]);
   useEffect(function() { writePersisted("sloptop-slopUrl", slopUrl); }, [slopUrl]);
 
+  // Output history sidebar — last 20 generations across slop + brief flows.
+  var _history = useState<HistoryEntry[]>(function() { return readHistory(); }), history = _history[0], setHistory = _history[1];
+  var _historyOpen = useState(function() { return readHistory().length > 0; }), historyOpen = _historyOpen[0], setHistoryOpen = _historyOpen[1];
+  var _historyHoverId = useState<string | null>(null), historyHoverId = _historyHoverId[0], setHistoryHoverId = _historyHoverId[1];
+  // Re-render relative timestamps on a slow tick so "2m ago" stays fresh.
+  var _historyTick = useState(0), setHistoryTick = _historyTick[1];
+  useEffect(function() {
+    var iv = setInterval(function() { setHistoryTick(function(t) { return t + 1; }); }, 30000);
+    return function() { clearInterval(iv); };
+  }, []);
+  useEffect(function() { writeHistory(history); }, [history]);
+
+  function pushHistory(text: string) {
+    var trimmed = text.replace(/\s+/g, " ").trim();
+    if (!trimmed) return;
+    var entry: HistoryEntry = {
+      id: String(Date.now()) + "-" + Math.random().toString(36).slice(2, 7),
+      text: trimmed,
+      provider: provider,
+      createdAt: Date.now(),
+    };
+    setHistory(function(prev) { return [entry].concat(prev).slice(0, HISTORY_CAP); });
+    setHistoryOpen(true);
+  }
+
+  function restoreHistory(entry: HistoryEntry) {
+    setTopic(entry.text);
+    setTab("brief");
+    flashToast("✨ Restored to editor draft");
+  }
+
   // Output state
   var _briefs = useState<Record<string, Brief> | null>(null), briefs = _briefs[0], setBriefs = _briefs[1];
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
@@ -530,6 +603,11 @@ export default function SlopTop() {
         setSlopError(data.error + (data.raw ? " // " + data.raw : ""));
       } else if (data.results) {
         setSlopResults(data.results);
+        var firstCap = data.results.meme_captions && data.results.meme_captions[0];
+        var firstHook = data.results.video_hooks && data.results.video_hooks[0];
+        var thread = data.results.thread_idea;
+        var threadText = Array.isArray(thread) ? thread.join(" ") : (thread || "");
+        pushHistory(firstCap || firstHook || threadText || data.results.image_prompt || slopUrl);
       } else {
         setSlopError("Unexpected response format");
       }
@@ -568,6 +646,10 @@ export default function SlopTop() {
         setError(data.error + (data.raw ? " // " + data.raw : ""));
       } else if (data.briefs) {
         setBriefs(data.briefs);
+        var keys = Object.keys(data.briefs);
+        var firstBrief = keys.length > 0 ? data.briefs[keys[0]] : null;
+        var briefText = firstBrief ? (firstBrief.hook || firstBrief.core_message || "") : "";
+        pushHistory(briefText || topic);
       } else {
         setError("Unexpected response format");
       }
@@ -1078,8 +1160,99 @@ export default function SlopTop() {
   return <div style={{
     padding: "32px 0 0", maxWidth: 1200, margin: "0 auto",
     fontFamily: ft, color: D.tx,
+    paddingRight: historyOpen ? 296 : 56,
+    transition: "padding-right 0.2s",
   }}>
     <style dangerouslySetInnerHTML={{ __html: globalStyles }} />
+
+    {/* History sidebar — last 20 outputs this session, persisted to localStorage. */}
+    <div style={{
+      position: "fixed", top: 72, right: 12, bottom: 12, zIndex: 50,
+      width: historyOpen ? 272 : 36,
+      background: D.card, border: "1px solid " + D.border, borderRadius: 12,
+      display: "flex", flexDirection: "column", overflow: "hidden",
+      transition: "width 0.2s",
+      boxShadow: "0 8px 32px rgba(0,0,0,0.35)",
+    }}>
+      {!historyOpen && <div onClick={function() { setHistoryOpen(true); }} title="Show history" style={{
+        flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
+        paddingTop: 14, gap: 10, cursor: "pointer", color: D.txm,
+      }}>
+        <span style={{ fontSize: 18 }}>{"📜"}</span>
+        {history.length > 0 && <span style={{
+          fontFamily: mn, fontSize: 9, fontWeight: 700, color: D.amber,
+          padding: "2px 5px", borderRadius: 4, background: D.amber + "18",
+          border: "1px solid " + D.amber + "40",
+        }}>{history.length}</span>}
+        <span style={{
+          fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 2, fontWeight: 700,
+          writingMode: "vertical-rl", textOrientation: "mixed", marginTop: 6,
+          textTransform: "uppercase",
+        }}>History</span>
+      </div>}
+      {historyOpen && <>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "12px 14px", borderBottom: "1px solid " + D.border,
+        }}>
+          <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.amber, letterSpacing: 2, textTransform: "uppercase" }}>
+            {"📜 History"} <span style={{ color: D.txd, fontWeight: 500, marginLeft: 4 }}>{history.length + "/" + HISTORY_CAP}</span>
+          </div>
+          <span onClick={function() { setHistoryOpen(false); }} title="Collapse" style={{
+            cursor: "pointer", color: D.txd, fontFamily: mn, fontSize: 14, padding: "0 4px",
+          }}>{"›"}</span>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: 8 }}>
+          {history.length === 0 && <div style={{
+            padding: "24px 12px", textAlign: "center",
+            fontFamily: mn, fontSize: 10, color: D.txd, lineHeight: 1.6,
+          }}>
+            No outputs yet.<br />Generate something to start.
+          </div>}
+          {history.map(function(h) {
+            var hov = historyHoverId === h.id;
+            var chipColor = h.provider === "claude" ? D.amber : h.provider === "gemini" ? D.blue : h.provider === "grok" ? D.violet : D.txm;
+            return <div key={h.id}
+              onMouseEnter={function() { setHistoryHoverId(h.id); }}
+              onMouseLeave={function() { setHistoryHoverId(null); }}
+              onClick={function() { restoreHistory(h); }}
+              style={{
+                padding: "10px 10px", marginBottom: 6, borderRadius: 8, cursor: "pointer",
+                background: hov ? D.surface : "transparent",
+                border: "1px solid " + (hov ? D.border : "transparent"),
+                transition: "background 0.15s, border 0.15s",
+              }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <span style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.5 }}>{relativeTime(h.createdAt)}</span>
+                <span style={{
+                  fontFamily: mn, fontSize: 8.5, fontWeight: 700, letterSpacing: 0.5,
+                  padding: "1px 6px", borderRadius: 3, textTransform: "uppercase",
+                  color: chipColor, background: chipColor + "18", border: "1px solid " + chipColor + "40",
+                }}>{h.provider === "auto" ? "Auto" : h.provider.charAt(0).toUpperCase() + h.provider.slice(1)}</span>
+              </div>
+              <div style={{ fontFamily: ft, fontSize: 12, color: D.tx, lineHeight: 1.45 }}>{previewOf(h.text)}</div>
+              {hov && <div style={{ marginTop: 6, display: "flex", justifyContent: "flex-end" }}>
+                <span style={{
+                  fontFamily: mn, fontSize: 9, fontWeight: 700, letterSpacing: 0.5,
+                  padding: "3px 8px", borderRadius: 4,
+                  color: D.amber, background: D.amber + "14", border: "1px solid " + D.amber + "40",
+                }}>Restore →</span>
+              </div>}
+            </div>;
+          })}
+        </div>
+        {history.length > 0 && <div style={{
+          padding: "8px 12px", borderTop: "1px solid " + D.border,
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <span style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.5 }}>session</span>
+          <span onClick={function() { if (window.confirm("Clear history?")) setHistory([]); }} style={{
+            cursor: "pointer", fontFamily: mn, fontSize: 9, fontWeight: 700,
+            color: D.txd, letterSpacing: 1, textTransform: "uppercase",
+          }}>Clear</span>
+        </div>}
+      </>}
+    </div>
 
     {/* Standardized header — matches Carousel + Capper */}
     <div style={{ marginBottom: 28 }}>
