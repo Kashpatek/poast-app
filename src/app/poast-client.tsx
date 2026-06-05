@@ -893,9 +893,6 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "chart",    l: "Chart Maker",      Icon: GanttChart, href: "/charts", badge: "NEW" },
     { id: "docu",     l: "DesignStudio",     Icon: Wand,       href: "/design-studio", badge: "NEW" },
     { id: "copy-studio", l: "CopySTUDIO",   Icon: Type,       href: "/copy-studio", badge: "NEW" },
-    { id: "distpack", l: "Distribution Pack",Icon: Layers,     badge: "NEW" },
-    { id: "voice",    l: "Voice Scorer",     Icon: ShieldCheck,badge: "NEW" },
-    { id: "headline", l: "Headline Doctor",  Icon: Sparkles,   badge: "NEW" },
     { id: "assets",   l: "Asset Library",    Icon: Library },
   ]},
   podcast: { label: "PODCAST", color: C.coral, glow: "rgba(224,99,71,", items: [
@@ -1849,9 +1846,7 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
       { id: "broll",    label: "B-Roll",        sub: "Generated b-roll library", Icon: Film },
       { id: "chart",    label: "Chart Maker",   sub: "Quick charts",            Icon: BarChart3 },
       { id: "chart2",   label: "POAST Studio",  sub: "Charts, tables, diagrams · saved library", Icon: GanttChart, href: "/charts" },
-      { id: "distpack", label: "Distribution Pack", sub: "Launch posts + POAST suite", Icon: Layers },
-      { id: "voice",    label: "Voice Scorer",  sub: "Score voiceovers vs brand", Icon: ShieldCheck },
-      { id: "headline", label: "Headline Doctor", sub: "Diagnose + rewrite headlines", Icon: Sparkles },
+      { id: "copy-studio", label: "CopySTUDIO", sub: "Draft · voice · headline · distribution", Icon: Type, href: "/copy-studio" },
     ] },
     { key: "podcast", label: "Podcast", sub: "SA Weekly + FK", color: C.coral, tiles: [
       { id: "fk",       label: "Fab Knowledge", sub: "Doug's interview prep",   Icon: Headphones },
