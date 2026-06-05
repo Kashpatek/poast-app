@@ -18,7 +18,7 @@ import {
   Trash2,
   RotateCcw,
 } from "lucide-react";
-import { listProjects, softDeleteProject, restoreProject, type ProjectRecord } from "./projects-store";
+import { listProjects, softDeleteProject, restoreProject, type ProjectRecord, type ProjectKind } from "./projects-store";
 import { DocuShell } from "./docu-shell";
 import { D, ft, gf, mn } from "../shared-constants";
 import { useToast } from "../toast-context";
@@ -110,6 +110,13 @@ export default function DesignStudioHubPage() {
   const [focused, setFocused] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  // ── Recent Projects strip controls ──────────────────────────────
+  type SortMode = "recent" | "title" | "category";
+  type FilterMode = "all" | "canvas" | "doc" | "image";
+  const [sortMode, setSortMode] = useState<SortMode>("recent");
+  const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [recentQuery, setRecentQuery] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -347,6 +354,57 @@ export default function DesignStudioHubPage() {
     else if (t.action === "custom") createProject("other");
     else if (t.action === "rebuild") setRebuildWizardOpen(true);
   }
+
+  // ── Recent Projects: filtered + sorted views ────────────────────
+  const filteredLocal = useMemo(() => {
+    const q = recentQuery.trim().toLowerCase();
+    let rows = localProjects.slice();
+    if (filterMode !== "all") {
+      rows = rows.filter((p) => {
+        if (filterMode === "canvas") return p.kind === "canvas";
+        if (filterMode === "doc") return p.kind === "doc";
+        if (filterMode === "image") {
+          if (p.kind === "excalidraw") return true;
+          if (p.category && /image|photo|graphic/i.test(p.category)) return true;
+          return false;
+        }
+        return true;
+      });
+    }
+    if (q) rows = rows.filter((p) => (p.title || "Untitled").toLowerCase().includes(q));
+    rows.sort((a, b) => {
+      if (sortMode === "title") {
+        return (a.title || "Untitled").localeCompare(b.title || "Untitled");
+      }
+      if (sortMode === "category") {
+        const ca = a.category || a.kind || "";
+        const cb = b.category || b.kind || "";
+        return ca.localeCompare(cb);
+      }
+      return b.updatedAt - a.updatedAt;
+    });
+    return rows;
+  }, [localProjects, sortMode, filterMode, recentQuery]);
+
+  const filteredRemote = useMemo(() => {
+    const q = recentQuery.trim().toLowerCase();
+    let rows = projects.slice();
+    // Remote summaries map to doc/other → respect Doc filter when set.
+    if (filterMode === "doc") rows = rows.filter((p) => p.type === "document");
+    else if (filterMode === "canvas" || filterMode === "image") rows = [];
+    if (q) rows = rows.filter((p) => p.name.toLowerCase().includes(q));
+    rows.sort((a, b) => {
+      if (sortMode === "title") return a.name.localeCompare(b.name);
+      if (sortMode === "category") return (a.type || "").localeCompare(b.type || "");
+      const at = a.updated_at ? Date.parse(a.updated_at) : 0;
+      const bt = b.updated_at ? Date.parse(b.updated_at) : 0;
+      return bt - at;
+    });
+    return rows;
+  }, [projects, sortMode, filterMode, recentQuery]);
+
+  const totalVisible = filteredLocal.length + filteredRemote.length;
+  const isEmpty = !loading && projects.length === 0 && localProjects.length === 0 && !tablesMissing;
 
   async function deleteProject(p: ProjectSummary) {
     const ok = await confirm({
@@ -610,6 +668,13 @@ export default function DesignStudioHubPage() {
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
             <div style={sectionLabel}>Recent projects</div>
+            <Link
+              href="/design-studio/doc-editor"
+              style={docsLink}
+              title="Open a fresh document"
+            >
+              <FileText size={11} color={D.teal} strokeWidth={2} /> New document
+            </Link>
             <div style={{ color: D.txd, fontFamily: mn, fontSize: 11, marginLeft: "auto" }}>
               {loading ? "loading…" : `${projects.length + localProjects.length} total`}
             </div>
@@ -633,110 +698,231 @@ export default function DesignStudioHubPage() {
             </button>
           </div>
 
-          {!loading && projects.length === 0 && localProjects.length === 0 && !tablesMissing ? (
-            <div style={emptyBox}>
-              <div style={{ fontFamily: gf, fontSize: 16, marginBottom: 6 }}>No projects yet</div>
-              <div style={{ color: D.txm, lineHeight: 1.5, fontSize: 13 }}>
-                Pick a tile above to start something. Documents and Custom canvas are wired in — the rest ship over the next few phases.
+          {isEmpty ? (
+            <div style={emptyStateCard}>
+              <Wand size={64} color={D.teal} strokeWidth={1.6} style={{ opacity: 0.4, marginBottom: 16 }} />
+              <h2 style={{ fontFamily: gf, fontSize: 22, fontWeight: 800, margin: 0, marginBottom: 8, color: D.tx, letterSpacing: -0.3 }}>
+                Start your first design.
+              </h2>
+              <div style={{ fontFamily: ft, fontSize: 14, color: D.txm, marginBottom: 20, maxWidth: 380, lineHeight: 1.5 }}>
+                Pick a tool above, or jump straight into a fresh canvas. Everything autosaves.
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setGraphicWizardOpen(true)}
+                  style={emptyCtaPrimary}
+                >
+                  + New project
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toast("Tour coming soon.")}
+                  style={emptyCtaGhost}
+                >
+                  Take a tour
+                </button>
               </div>
             </div>
           ) : null}
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-              gap: 12,
-            }}
-          >
-            {localProjects.slice(0, 12).map((p) => {
-              const isDeleted = !!p.deletedAt;
-              return (
-                <div
-                  key={`local-${p.id}`}
-                  style={{ ...projectCard, opacity: isDeleted ? 0.55 : 1 }}
+          {!isEmpty ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+              {/* Filter chips */}
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {(["all", "canvas", "doc", "image"] as FilterMode[]).map((f) => {
+                  const active = filterMode === f;
+                  return (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => setFilterMode(f)}
+                      style={{
+                        ...filterChip,
+                        background: active ? `${D.teal}1f` : "transparent",
+                        borderColor: active ? `${D.teal}88` : D.border,
+                        color: active ? D.teal : D.txm,
+                      }}
+                    >
+                      {f === "all" ? "All" : f === "canvas" ? "Canvas" : f === "doc" ? "Doc" : "Image"}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Sort dropdown */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 1.4, textTransform: "uppercase" }}>
+                  Sort
+                </span>
+                <select
+                  value={sortMode}
+                  onChange={(e) => setSortMode(e.target.value as SortMode)}
+                  style={sortSelect}
                 >
-                  <button
-                    type="button"
-                    onClick={() => router.push(`/design-studio/canvas-editor?id=${encodeURIComponent(p.id)}`)}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      textAlign: "left",
-                      color: "inherit",
-                      flex: 1,
-                      padding: 14,
-                      cursor: "pointer",
-                      fontFamily: ft,
-                    }}
+                  <option value="recent">Recent</option>
+                  <option value="title">Title</option>
+                  <option value="category">Category</option>
+                </select>
+              </div>
+
+              {/* Search input */}
+              <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, background: D.surface, border: `1px solid ${D.border}`, borderRadius: 8, padding: "5px 10px", minWidth: 200 }}>
+                <Search size={12} color={D.txd} strokeWidth={2} />
+                <input
+                  value={recentQuery}
+                  onChange={(e) => setRecentQuery(e.target.value)}
+                  placeholder="Filter by title…"
+                  style={{
+                    flex: 1,
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    color: D.tx,
+                    fontFamily: ft,
+                    fontSize: 12,
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {!isEmpty && totalVisible === 0 ? (
+            <div style={emptyBox}>
+              <div style={{ fontFamily: gf, fontSize: 16, marginBottom: 6 }}>No matches</div>
+              <div style={{ color: D.txm, lineHeight: 1.5, fontSize: 13 }}>
+                Try clearing the search or switching the filter to All.
+              </div>
+            </div>
+          ) : null}
+
+          {!isEmpty ? (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+                gap: 12,
+              }}
+            >
+              {filteredLocal.slice(0, 12).map((p) => {
+                const isDeleted = !!p.deletedAt;
+                const thumb = p.pages?.[0]?.thumb;
+                return (
+                  <div
+                    key={`local-${p.id}`}
+                    style={{ ...projectCard, opacity: isDeleted ? 0.55 : 1 }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const dest = p.kind === "doc" ? "/design-studio/doc-editor" : "/design-studio/canvas-editor";
+                        router.push(`${dest}?id=${encodeURIComponent(p.id)}`);
+                      }}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        textAlign: "left",
+                        color: "inherit",
+                        flex: 1,
+                        padding: 12,
+                        cursor: "pointer",
+                        fontFamily: ft,
+                        display: "flex",
+                        alignItems: "stretch",
+                        gap: 12,
+                      }}
+                    >
+                      {thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={thumb}
+                          alt={p.title || "Untitled"}
+                          style={{
+                            width: 80,
+                            height: 80,
+                            objectFit: "cover",
+                            borderRadius: 8,
+                            border: `1px solid ${D.border}`,
+                            flexShrink: 0,
+                            background: D.surface,
+                          }}
+                        />
+                      ) : (
+                        <div style={thumbPlaceholder(p.kind, p.category)}>
+                          {thumbGlyph(p.kind)}
+                        </div>
+                      )}
+                      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+                          <div style={kindPill(p.kind)}>{kindShort(p.kind)}</div>
+                          {p.category ? <div style={fidelityPill}>{p.category.toUpperCase().slice(0, 12)}</div> : null}
+                        </div>
+                        <div style={{ fontFamily: gf, fontSize: 14, marginBottom: 4, color: D.tx, lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {p.title || "Untitled"}
+                        </div>
+                        <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginTop: "auto" }}>
+                          {p.updatedAt ? new Date(p.updatedAt).toLocaleString() : ""}
+                        </div>
+                      </div>
+                    </button>
+                    <div style={{ borderTop: `1px solid ${D.border}`, padding: "6px 14px", display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                      {isDeleted ? (
+                        <button
+                          type="button"
+                          onClick={async () => { await restoreProject(p.id); await refreshLocal(); }}
+                          style={restoreBtn}
+                        >
+                          <RotateCcw size={11} /> Restore
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: "Move to trash?",
+                              body: `"${p.title || "Untitled"}" will be hidden until you restore it.`,
+                              cta: "Trash",
+                              variant: "danger",
+                            });
+                            if (!ok) return;
+                            await softDeleteProject(p.id);
+                            await refreshLocal();
+                          }}
+                          style={dangerBtn}
+                        >
+                          <Trash2 size={11} /> Trash
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {filteredRemote.slice(0, 12).map((p) => (
+                <div key={p.id} style={projectCard}>
+                  <Link
+                    href={`/design-studio/p/${p.id}`}
+                    style={{ textDecoration: "none", color: "inherit", flex: 1, padding: 14 }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                      <div style={canvasPill}>CANVAS</div>
+                      <div style={typePill(p.type)}>{p.type === "document" ? "DOC" : "GFX"}</div>
+                      {p.fidelity === "wireframe" ? <div style={fidelityPill}>WIREFRAME</div> : null}
                     </div>
-                    <div style={{ fontFamily: gf, fontSize: 15, marginBottom: 4, color: D.tx, lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {p.title || "Untitled"}
+                    <div style={{ fontFamily: gf, fontSize: 15, marginBottom: 4, color: D.tx, lineHeight: 1.25 }}>
+                      {p.name}
                     </div>
                     <div style={{ fontFamily: mn, fontSize: 10, color: D.txd }}>
-                      {p.updatedAt ? new Date(p.updatedAt).toLocaleString() : ""}
+                      {p.updated_at ? new Date(p.updated_at).toLocaleString() : ""}
                     </div>
-                  </button>
-                  <div style={{ borderTop: `1px solid ${D.border}`, padding: "6px 14px", display: "flex", justifyContent: "flex-end", gap: 6 }}>
-                    {isDeleted ? (
-                      <button
-                        type="button"
-                        onClick={async () => { await restoreProject(p.id); await refreshLocal(); }}
-                        style={restoreBtn}
-                      >
-                        <RotateCcw size={11} /> Restore
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const ok = await confirm({
-                            title: "Move to trash?",
-                            body: `"${p.title || "Untitled"}" will be hidden until you restore it.`,
-                            cta: "Trash",
-                            variant: "danger",
-                          });
-                          if (!ok) return;
-                          await softDeleteProject(p.id);
-                          await refreshLocal();
-                        }}
-                        style={dangerBtn}
-                      >
-                        <Trash2 size={11} /> Trash
-                      </button>
-                    )}
+                  </Link>
+                  <div style={{ borderTop: `1px solid ${D.border}`, padding: "6px 14px", display: "flex", justifyContent: "flex-end" }}>
+                    <button type="button" onClick={() => deleteProject(p)} style={dangerBtn}>
+                      Delete
+                    </button>
                   </div>
                 </div>
-              );
-            })}
-            {projects.slice(0, 12).map((p) => (
-              <div key={p.id} style={projectCard}>
-                <Link
-                  href={`/design-studio/p/${p.id}`}
-                  style={{ textDecoration: "none", color: "inherit", flex: 1, padding: 14 }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                    <div style={typePill(p.type)}>{p.type === "document" ? "DOC" : "GFX"}</div>
-                    {p.fidelity === "wireframe" ? <div style={fidelityPill}>WIREFRAME</div> : null}
-                  </div>
-                  <div style={{ fontFamily: gf, fontSize: 15, marginBottom: 4, color: D.tx, lineHeight: 1.25 }}>
-                    {p.name}
-                  </div>
-                  <div style={{ fontFamily: mn, fontSize: 10, color: D.txd }}>
-                    {p.updated_at ? new Date(p.updated_at).toLocaleString() : ""}
-                  </div>
-                </Link>
-                <div style={{ borderTop: `1px solid ${D.border}`, padding: "6px 14px", display: "flex", justifyContent: "flex-end" }}>
-                  <button type="button" onClick={() => deleteProject(p)} style={dangerBtn}>
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -843,6 +1029,22 @@ const ghostLink: React.CSSProperties = {
   textDecoration: "none",
   padding: "6px 10px",
   border: `1px solid ${D.border}`,
+  borderRadius: 6,
+};
+
+const docsLink: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 5,
+  fontFamily: mn,
+  fontSize: 10,
+  letterSpacing: 1.2,
+  textTransform: "uppercase",
+  color: D.teal,
+  textDecoration: "none",
+  padding: "4px 9px",
+  background: `${D.teal}14`,
+  border: `1px solid ${D.teal}55`,
   borderRadius: 6,
 };
 
@@ -991,3 +1193,124 @@ const fidelityPill: React.CSSProperties = {
   color: D.txm,
   border: `1px solid ${D.border}`,
 };
+
+const filterChip: React.CSSProperties = {
+  fontFamily: mn,
+  fontSize: 11,
+  letterSpacing: 0.6,
+  padding: "5px 12px",
+  borderRadius: 999,
+  border: `1px solid ${D.border}`,
+  background: "transparent",
+  color: D.txm,
+  cursor: "pointer",
+  textTransform: "uppercase",
+};
+
+const sortSelect: React.CSSProperties = {
+  background: D.surface,
+  border: `1px solid ${D.border}`,
+  borderRadius: 8,
+  color: D.tx,
+  fontFamily: mn,
+  fontSize: 11,
+  padding: "5px 8px",
+  cursor: "pointer",
+  outline: "none",
+};
+
+const emptyStateCard: React.CSSProperties = {
+  border: `1px solid ${D.border}`,
+  background: D.card,
+  borderRadius: 16,
+  padding: "48px 32px",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  textAlign: "center",
+  marginBottom: 16,
+};
+
+const emptyCtaPrimary: React.CSSProperties = {
+  background: D.teal,
+  color: "#06060C",
+  border: "none",
+  borderRadius: 8,
+  padding: "9px 18px",
+  fontFamily: mn,
+  fontSize: 12,
+  fontWeight: 700,
+  letterSpacing: 0.8,
+  textTransform: "uppercase",
+  cursor: "pointer",
+};
+
+const emptyCtaGhost: React.CSSProperties = {
+  background: "transparent",
+  color: D.txm,
+  border: `1px solid ${D.border}`,
+  borderRadius: 8,
+  padding: "9px 18px",
+  fontFamily: mn,
+  fontSize: 12,
+  letterSpacing: 0.8,
+  textTransform: "uppercase",
+  cursor: "pointer",
+};
+
+const KIND_COLOR: Record<ProjectKind, string> = {
+  canvas: D.teal,
+  doc: D.blue,
+  excalidraw: D.amber,
+  motion: D.violet,
+  programmatic: D.cyan,
+};
+
+function kindShort(k: ProjectKind): string {
+  if (k === "canvas") return "CANVAS";
+  if (k === "doc") return "DOC";
+  if (k === "excalidraw") return "SKETCH";
+  if (k === "motion") return "MOTION";
+  if (k === "programmatic") return "CODE";
+  return "PROJECT";
+}
+
+function kindPill(k: ProjectKind): React.CSSProperties {
+  const c = KIND_COLOR[k] || D.txm;
+  return {
+    fontFamily: mn,
+    fontSize: 10,
+    letterSpacing: 0.6,
+    padding: "2px 6px",
+    borderRadius: 4,
+    background: `${c}1f`,
+    color: c,
+    border: `1px solid ${c}55`,
+  };
+}
+
+function thumbPlaceholder(k: ProjectKind, category?: string): React.CSSProperties {
+  const c = KIND_COLOR[k] || D.txm;
+  void category;
+  return {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    border: `1px solid ${c}44`,
+    background: `linear-gradient(135deg, ${c}1a 0%, ${c}08 100%)`,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    color: c,
+  };
+}
+
+function thumbGlyph(k: ProjectKind): React.ReactNode {
+  if (k === "doc") return <FileText size={26} strokeWidth={1.5} />;
+  if (k === "excalidraw") return <PenTool size={26} strokeWidth={1.5} />;
+  if (k === "motion") return <Play size={26} strokeWidth={1.5} />;
+  if (k === "programmatic") return <Code size={26} strokeWidth={1.5} />;
+  return <LayoutGrid size={26} strokeWidth={1.5} />;
+}

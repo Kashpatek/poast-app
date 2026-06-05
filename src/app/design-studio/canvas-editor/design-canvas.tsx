@@ -15,11 +15,14 @@ import {
   AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal,
   AlignStartVertical, AlignCenterVertical, AlignEndVertical,
   Download, Save, Lock, Unlock, Eye, EyeOff, GripVertical, Plus,
+  History as HistoryIcon, Files as FilesIcon,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { D, ft, gf, mn, uid } from "../../shared-constants";
-import { saveProject, snapshotProject, useAutosave, type ProjectRecord } from "../projects-store";
+import { getProject, saveProject, snapshotProject, useAutosave, type ProjectRecord, type ProjectSnapshot } from "../projects-store";
 import { exportFabricPNG, exportFabricJPG, exportFabricSVG, exportFabricPDF, exportFabricZip } from "../export";
 import { showToast } from "../../toast-context";
+import { useShortcuts } from "../../keyboard-shortcuts";
 import { TEMPLATES, templatesByCategory, type DesignTemplate } from "./templates";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import type { DragEndEvent } from "@dnd-kit/core";
@@ -79,6 +82,10 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
   const tick = useCallback(() => force(x => x + 1), []);
   const [title, setTitle] = useState(project.title);
   const [exportOpen, setExportOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [snapshots, setSnapshots] = useState<ProjectSnapshot[]>(project.snapshots || []);
+
+  const router = useRouter();
 
   const stateRef = useRef<PageState[]>([]);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -329,6 +336,176 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
     setExportOpen(false);
   }
 
+  // ── version history ──
+  const refreshSnapshots = useCallback(async () => {
+    const fresh = await getProject(project.id);
+    if (fresh) setSnapshots(fresh.snapshots || []);
+  }, [project.id]);
+
+  const takeSnapshotNow = useCallback(async () => {
+    // Ensure the latest payload is persisted before snapshotting.
+    await captureAllPages();
+    await autosave.saveNow();
+    const updated = await snapshotProject(project.id);
+    if (updated) setSnapshots(updated.snapshots || []);
+    showToast("Snapshot saved.", "success");
+  }, [autosave, captureAllPages, project.id]);
+
+  async function restoreSnapshot(snap: ProjectSnapshot) {
+    const snapPages = (snap.payload as ProjectRecord["pages"]) || [];
+    if (!Array.isArray(snapPages) || snapPages.length === 0) {
+      showToast("Snapshot empty — nothing to restore.", "info");
+      return;
+    }
+    // Resize stateRef to match snapshot length, disposing extras.
+    while (stateRef.current.length > snapPages.length) {
+      const last = stateRef.current.pop();
+      if (last?.canvas) { try { last.canvas.dispose(); } catch {} }
+    }
+    while (stateRef.current.length < snapPages.length) {
+      stateRef.current.push({ id: snapPages[stateRef.current.length].id, el: null, canvas: null, history: [], historyIdx: -1 });
+    }
+    // Load JSON onto each existing canvas; pages without a bound canvas yet
+    // (e.g. newly-added pages) will hydrate from `pages[i].payload` once bind
+    // runs on mount.
+    for (let i = 0; i < snapPages.length; i++) {
+      const slot = stateRef.current[i];
+      const payload = snapPages[i]?.payload;
+      if (slot?.canvas && payload && typeof payload === "object") {
+        try {
+          await slot.canvas.loadFromJSON(payload as Record<string, unknown>);
+          slot.canvas.renderAll();
+          seedHistory(i);
+        } catch {}
+      }
+    }
+    setPages(snapPages);
+    onUpdatePages(snapPages);
+    setActiveIdx(0);
+    setHistoryOpen(false);
+    await autosave.saveNow();
+    showToast("Snapshot restored.", "success");
+  }
+
+  // ── duplicate project ──
+  async function duplicateProject() {
+    // captureAllPages returns the freshly-serialized pages. Use that
+    // directly — relying on project.pages (the parent's closure-captured
+    // prop) would persist the pre-edit payloads if React hasn't committed
+    // the setState the parent uses to mirror our pages yet.
+    const nextPages = await captureAllPages();
+    await autosave.saveNow();
+    const dup = await saveProject({
+      title: project.title + " · copy",
+      kind: project.kind,
+      pages: nextPages,
+      category: project.category,
+      preset: project.preset,
+      templateId: project.templateId,
+    });
+    showToast("Project duplicated.", "success");
+    router.push(`/design-studio/canvas-editor?id=${encodeURIComponent(dup.id)}`);
+  }
+
+  // ── keyboard shortcuts — composable bindings via useShortcuts ──
+  // Route handlers through a ref so the bound closures always see the latest
+  // state (tinykeys captures handlers at registration time).
+  const shortcutsRef = useRef({
+    undo, redo, duplicateActive, bringForward, sendBackward,
+    saveNow: async () => { await autosave.saveNow(); await takeSnapshotNow(); },
+    selectAll: () => {
+      const c = activeCanvas(); if (!c) return;
+      const objs = c.getObjects().filter(o => o.selectable !== false);
+      if (objs.length === 0) return;
+      const sel = new fabric.ActiveSelection(objs, { canvas: c });
+      c.setActiveObject(sel);
+      c.requestRenderAll();
+    },
+  });
+  shortcutsRef.current.undo = undo;
+  shortcutsRef.current.redo = redo;
+  shortcutsRef.current.duplicateActive = duplicateActive;
+  shortcutsRef.current.bringForward = bringForward;
+  shortcutsRef.current.sendBackward = sendBackward;
+  shortcutsRef.current.saveNow = async () => { await autosave.saveNow(); await takeSnapshotNow(); };
+  // selectAll must also re-bind every render — it reads activeCanvas /
+  // activeIdx via closure, and the initial useRef value snapshots the
+  // first-render values, which would always target page 0 on multi-page.
+  shortcutsRef.current.selectAll = () => {
+    const c = activeCanvas(); if (!c) return;
+    const objs = c.getObjects().filter(o => o.selectable !== false);
+    if (objs.length === 0) return;
+    const sel = new fabric.ActiveSelection(objs, { canvas: c });
+    c.setActiveObject(sel);
+    c.requestRenderAll();
+  };
+
+  useShortcuts({
+    "$mod+z":        { description: "Undo",            handler: () => shortcutsRef.current.undo() },
+    "$mod+Shift+z":  { description: "Redo",            handler: () => shortcutsRef.current.redo() },
+    "$mod+y":        { description: "Redo",            handler: () => shortcutsRef.current.redo() },
+    "$mod+d":        { description: "Duplicate object", handler: () => shortcutsRef.current.duplicateActive() },
+    "$mod+]":        { description: "Bring forward",   handler: () => shortcutsRef.current.bringForward() },
+    "$mod+[":        { description: "Send backward",   handler: () => shortcutsRef.current.sendBackward() },
+    "$mod+a":        { description: "Select all",      handler: () => shortcutsRef.current.selectAll() },
+    "$mod+s":        { description: "Save snapshot",   handler: () => { void shortcutsRef.current.saveNow(); } },
+  }, { scope: "DesignStudio Canvas" });
+
+  // Arrow nudge + Delete/Backspace need direct access to live selection state
+  // and don't compose well with tinykeys' string bindings — use a plain
+  // window keydown listener with the same input-focus guard.
+  useEffect(() => {
+    function isEditableTarget(t: EventTarget | null): boolean {
+      if (!t || !(t as HTMLElement).tagName) return false;
+      const el = t as HTMLElement;
+      const tag = el.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+      if (el.isContentEditable) return true;
+      return false;
+    }
+    function isTextboxEditing(c: fabric.Canvas | null): boolean {
+      const a = c?.getActiveObject();
+      if (!a) return false;
+      // Fabric Textbox / IText expose `isEditing` while user is typing inline.
+      return Boolean((a as unknown as { isEditing?: boolean }).isEditing);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (isEditableTarget(e.target)) return;
+      const c = activeCanvas();
+      if (isTextboxEditing(c)) return;
+
+      // Delete / Backspace — only when an object is selected.
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (!c) return;
+        const obj = c.getActiveObject();
+        if (!obj) return;
+        e.preventDefault();
+        deleteActive();
+        return;
+      }
+
+      // Arrow nudge (no modifier keys other than Shift).
+      const arrows: Record<string, [number, number]> = {
+        ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
+      };
+      const v = arrows[e.key];
+      if (v && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (!c) return;
+        const obj = c.getActiveObject();
+        if (!obj) return;
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : 1;
+        obj.set({ left: (obj.left || 0) + v[0] * step, top: (obj.top || 0) + v[1] * step });
+        obj.setCoords();
+        c.requestRenderAll();
+        tick();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIdx]);
+
   // ── render ──
   return (
     <div ref={wrapperRef} style={{ display: "grid", gridTemplateRows: "56px 1fr " + (isMultiPage ? "120px" : "auto"), gridTemplateColumns: "240px 1fr 280px", height: "calc(100vh - 56px)", background: D.bg }}>
@@ -374,6 +551,46 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
           <IconBtn onClick={() => setZoom(z => Math.min(2, z + 0.1))} title="Zoom in" Icon={ZoomIn} />
 
           <button onClick={() => autosave.saveNow()} style={pillStyle(D.teal)}><Save size={11} /> Save</button>
+
+          <div style={{ position: "relative" }}>
+            <button onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) void refreshSnapshots(); }} style={pillStyle(D.txm)}>
+              <HistoryIcon size={11} /> History <ChevronDown size={11} />
+            </button>
+            {historyOpen && (
+              <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, background: "#0D0D12", border: "1px solid " + D.border, borderRadius: 8, padding: 8, minWidth: 260, maxHeight: 360, overflowY: "auto", zIndex: 20, boxShadow: "0 12px 28px rgba(0,0,0,0.5)" }}>
+                <button onClick={() => { void takeSnapshotNow(); }} style={{
+                  width: "100%", padding: "8px 10px", background: D.teal + "16", border: "1px solid " + D.teal + "44",
+                  borderRadius: 6, color: D.teal, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 1,
+                  cursor: "pointer", textTransform: "uppercase", marginBottom: 8, display: "inline-flex",
+                  alignItems: "center", justifyContent: "center", gap: 6,
+                }}><Save size={10} /> Snapshot now</button>
+                {snapshots.length === 0 ? (
+                  <div style={{ fontFamily: ft, fontSize: 12, color: D.txd, padding: "10px 4px", textAlign: "center" }}>No snapshots yet.</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {snapshots.slice().reverse().map((s, i) => (
+                      <div key={s.at + "-" + i} style={{
+                        display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
+                        background: "rgba(255,255,255,0.03)", border: "1px solid " + D.border, borderRadius: 6,
+                      }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: mn, fontSize: 10, color: D.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title || "Untitled"}</div>
+                          <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, marginTop: 2 }}>{relTime(s.at)}</div>
+                        </div>
+                        <button onClick={() => { void restoreSnapshot(s); }} style={{
+                          padding: "4px 8px", background: "transparent", border: "1px solid " + D.border, borderRadius: 4,
+                          color: D.amber, fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.8, cursor: "pointer", textTransform: "uppercase",
+                        }}>Restore</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <button onClick={() => { void duplicateProject(); }} style={pillStyle(D.txm)} title="Duplicate project"><FilesIcon size={11} /> Duplicate</button>
+
           <div style={{ position: "relative" }}>
             <button onClick={() => setExportOpen(o => !o)} style={pillStyle(D.amber)}><Download size={11} /> Export</button>
             {exportOpen && (
