@@ -42,6 +42,7 @@ import { SaveToLibrary } from "./components/save-to-library";
 import { Command } from "cmdk";
 import { useStore, type ToolOutput } from "./lib/store";
 import { AssetLibraryView } from "./asset-library/asset-library-view";
+import { ShortcutsProvider, useShortcuts } from "./keyboard-shortcuts";
 
 // ═══ INTERFACES ═══
 interface BufferChannel {
@@ -2299,27 +2300,27 @@ export default function App() {
     return function() { window.removeEventListener("poast-nav", handler); };
   }, [analyst]);
 
-  // Phase 11A: ⌘K / Ctrl+K toggles the Chippy command palette globally.
-  // Analysts don't get the palette (Ask POAST gates on data they shouldn't
-  // see). We deliberately swallow the event even when the user is focused
-  // inside an <input> / <textarea> / contentEditable — ⌘K isn't a default
-  // browser/OS shortcut on either platform (Safari's location-bar Cmd+L is
-  // a different key), so capturing it everywhere is safe and matches every
-  // other command-palette UX (Linear, Raycast, Notion, etc.).
+  // Phase 12A: ⌘K palette toggle is now registered via useShortcuts so it
+  // appears in the cheat-sheet alongside everything else. This effect
+  // handles only Esc-to-close (useShortcuts has its own input-focus guard,
+  // but we still want Esc to close the open palette even mid-typing).
   useEffect(function() {
     if (analyst) return;
     var onKey = function(e: KeyboardEvent) {
-      var meta = e.metaKey || e.ctrlKey;
-      if (meta && (e.key === "k" || e.key === "K")) {
-        e.preventDefault();
-        setAskPoastOpen(function(o) { return !o; });
-      } else if (e.key === "Escape" && askPoastOpen) {
+      if (e.key === "Escape" && askPoastOpen) {
         setAskPoastOpen(false);
       }
     };
     window.addEventListener("keydown", onKey);
     return function() { window.removeEventListener("keydown", onKey); };
   }, [analyst, askPoastOpen]);
+
+  useShortcuts(
+    analyst ? {} : {
+      "$mod+k": { description: "Open command palette", handler: function() { setAskPoastOpen(function(o) { return !o; }); } },
+    },
+    { scope: "Global" }
+  );
 
   // When the user signs out mid-session (sidebar "Switch user" badge),
   // re-show the picker instead of forcing a full page reload. We only
@@ -2363,7 +2364,7 @@ export default function App() {
     });
   });
 
-  return (<div style={{ background: C.bg, minHeight: "100vh", position: "relative" }}>
+  return (<ShortcutsProvider><div style={{ background: C.bg, minHeight: "100vh", position: "relative" }}>
     {/* Analyst mode accent bar — subtle violet stripe + small label so the user knows they're in the restricted view. */}
     {analyst && <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 10000, pointerEvents: "none" }}>
       <div style={{ height: 2, background: "linear-gradient(90deg, transparent, #905CCB, transparent)", boxShadow: "0 0 12px rgba(144,92,203,0.5)" }} />
@@ -2523,5 +2524,5 @@ export default function App() {
       <img src="/poast-logo.png" style={{ width: 28, height: 28, borderRadius: 6 }} />
       <div><div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: C.tx }}>POAST works best on desktop</div><div style={{ fontFamily: ft, fontSize: 11, color: "rgba(255,255,255,0.4)" }}>For the full experience, switch to a larger screen.</div></div>
     </div>
-  </div>);
+  </div></ShortcutsProvider>);
 }
