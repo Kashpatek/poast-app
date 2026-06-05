@@ -1,11 +1,16 @@
 "use client";
-import { useEffect, useState } from "react";
-import HubLanding from "./hub-landing";
 
-// /intelligence-suite · Phase 7A hub shell. Auth gate mirrors
+// /intelligence-suite · Phase 7B HUB landing. Auth gate mirrors
 // /asset-library (sync localStorage read; redirect to / when the
 // poast-current-user key is absent) to avoid the hydration race that
-// flickered fresh tabs in earlier hub experiments.
+// flickered fresh tabs in earlier hub experiments. The HubLanding
+// component renders inside CommandCenterShell so the sticky tab bar
+// stays consistent with the other 7 IntelligenceSUITE apps.
+
+import { useEffect, useState } from "react";
+import CommandCenterShell from "./shell";
+import { HubLanding } from "./hub-landing";
+
 export default function IntelligenceSuitePage() {
   const [ok, setOk] = useState(false);
 
@@ -22,5 +27,9 @@ export default function IntelligenceSuitePage() {
 
   if (!ok) return null;
 
-  return <HubLanding />;
+  return (
+    <CommandCenterShell activeId="hub">
+      <HubLanding />
+    </CommandCenterShell>
+  );
 }
