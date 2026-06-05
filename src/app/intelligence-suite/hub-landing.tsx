@@ -2,24 +2,14 @@
 
 // HUB home for /intelligence-suite. Two stacked sections under the
 // shell's sticky tab bar: an APP LAUNCHER grid (one large card per
-// non-HUB app, accent-tinted) and a NEWS FLOW grid hydrated from
-// /api/news. The shell owns the wordmark + eyebrow + tabs — this
-// component only renders body content.
+// non-HUB app, accent-tinted) and the customizable HUB WIDGET DECK
+// (see ./widget-deck). The shell owns the wordmark + eyebrow + tabs
+// — this component only renders body content.
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ExternalLink, Radio, Sparkles } from "lucide-react";
-import { D, ft, gf, mn } from "../shared-constants";
+import { D, ft, gf } from "../shared-constants";
 import { apps as APPS } from "./shell";
-
-interface NewsItem {
-  title: string;
-  link: string;
-  date: string;
-  source: string;
-  category: string;
-  snippet: string;
-}
+import { WidgetDeck } from "./widget-deck";
 
 // Per-app accent overrides (the shell APPS list doesn't carry colors).
 const ACCENT: Record<string, string> = {
@@ -42,47 +32,7 @@ const SUBTITLE: Record<string, string> = {
   notes: "Pinned research capture.",
 };
 
-function relativeTime(iso: string): string {
-  if (!iso) return "—";
-  const t = new Date(iso).getTime();
-  if (!t || isNaN(t)) return "—";
-  const diff = Math.max(0, Date.now() - t);
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return mins + "m ago";
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return hrs + "h ago";
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return days + "d ago";
-  return new Date(t).toLocaleDateString();
-}
-
 export function HubLanding() {
-  const [news, setNews] = useState<NewsItem[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [errored, setErrored] = useState(false);
-
-  useEffect(function () {
-    let cancelled = false;
-    async function load() {
-      try {
-        const r = await fetch("/api/news");
-        if (!r.ok) throw new Error("status " + r.status);
-        const d = await r.json();
-        if (cancelled) return;
-        setNews(Array.isArray(d.items) ? d.items.slice(0, 18) : []);
-      } catch (e) {
-        if (cancelled) return;
-        setErrored(true);
-        setNews([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return function () { cancelled = true; };
-  }, []);
-
   // Drop HUB itself from the launcher grid — we're already on HUB.
   const launcherApps = APPS.filter(function (a) { return a.id !== "hub"; });
 
@@ -154,52 +104,8 @@ export function HubLanding() {
         })}
       </div>
 
-      {/* ── Section divider ────────────────────────────────────── */}
-      <div style={{ marginTop: 48, marginBottom: 18 }}>
-        <div style={{
-          fontFamily: mn, fontSize: 11, fontWeight: 800, color: D.amber,
-          letterSpacing: 2.4, textTransform: "uppercase",
-        }}>News Flow</div>
-        <div style={{
-          fontFamily: ft, fontSize: 14, color: D.txm,
-          marginTop: 6,
-        }}>Latest signals from across our coverage.</div>
-      </div>
-
-      {/* ── News flow grid ─────────────────────────────────────── */}
-      {loading ? (
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-          gap: 12,
-        }}>
-          {[0, 1, 2].map(function (i) {
-            return <NewsSkeleton key={i} />;
-          })}
-        </div>
-      ) : !news || news.length === 0 ? (
-        <div style={{
-          padding: "32px",
-          border: "1px dashed " + D.border,
-          borderRadius: 12,
-          background: D.card,
-          color: D.txm,
-          fontFamily: ft, fontSize: 13,
-          textAlign: "center",
-        }}>
-          {errored ? "Couldn't load news right now. Try again shortly." : "No news available."}
-        </div>
-      ) : (
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-          gap: 12,
-        }}>
-          {news.map(function (item, idx) {
-            return <NewsCard key={item.link || idx} item={item} />;
-          })}
-        </div>
-      )}
+      {/* ── Widget deck ────────────────────────────────────────── */}
+      <WidgetDeck />
     </div>
   );
 }
@@ -207,136 +113,3 @@ export function HubLanding() {
 // Default export keeps backward compatibility with anything still
 // importing the file's default (e.g. older page.tsx variants).
 export default HubLanding;
-
-function NewsCard({ item }: { item: NewsItem }) {
-  return (
-    <div
-      style={{
-        background: D.card,
-        border: "1px solid " + D.border,
-        borderRadius: 12,
-        padding: "14px 16px 12px",
-        display: "flex", flexDirection: "column", gap: 10,
-        transition: "border-color 140ms ease, background 140ms ease",
-      }}
-      onMouseEnter={function (e: React.MouseEvent<HTMLDivElement>) {
-        e.currentTarget.style.borderColor = "rgba(247,176,65,0.30)";
-        e.currentTarget.style.background = D.hover;
-      }}
-      onMouseLeave={function (e: React.MouseEvent<HTMLDivElement>) {
-        e.currentTarget.style.borderColor = D.border;
-        e.currentTarget.style.background = D.card;
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <span style={{
-          fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.txm,
-          letterSpacing: 1.2, textTransform: "uppercase",
-        }}>{item.source}</span>
-        <span style={{
-          fontFamily: mn, fontSize: 10, fontWeight: 600, color: D.txd,
-          letterSpacing: 0.4,
-        }}>{relativeTime(item.date)}</span>
-      </div>
-
-      <div style={{
-        fontFamily: ft, fontSize: 14, color: D.tx,
-        lineHeight: 1.4,
-        display: "-webkit-box",
-        WebkitLineClamp: 3,
-        WebkitBoxOrient: "vertical",
-        overflow: "hidden",
-      }}>{item.title}</div>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 2 }}>
-        <NewsAction icon={<Sparkles size={11} strokeWidth={2.4} />} label="Draft Post" color={D.amber} />
-        <NewsAction icon={<Radio size={11} strokeWidth={2.4} />} label="Add to Signals" color={D.cyan} />
-        <a
-          href={item.link || "#"}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            marginLeft: "auto",
-            display: "inline-flex", alignItems: "center", gap: 5,
-            fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.8,
-            color: D.txm,
-            textTransform: "uppercase",
-            textDecoration: "none",
-          }}
-        >
-          Open <ExternalLink size={10} strokeWidth={2.4} />
-        </a>
-      </div>
-    </div>
-  );
-}
-
-function NewsAction({ icon, label, color }: { icon: React.ReactNode; label: string; color: string }) {
-  return (
-    <button
-      type="button"
-      style={{
-        background: "transparent",
-        border: "none",
-        padding: 0,
-        display: "inline-flex", alignItems: "center", gap: 5,
-        fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.8,
-        color: color,
-        textTransform: "uppercase",
-        cursor: "pointer",
-      }}
-    >
-      <span style={{ display: "inline-flex" }}>{icon}</span>
-      <span>{label}</span>
-    </button>
-  );
-}
-
-function NewsSkeleton() {
-  return (
-    <div style={{
-      background: D.card,
-      border: "1px solid " + D.border,
-      borderRadius: 12,
-      padding: "14px 16px 12px",
-      display: "flex", flexDirection: "column", gap: 10,
-      minHeight: 132,
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <Bar w={60} />
-        <Bar w={40} />
-      </div>
-      <Bar w="100%" h={12} />
-      <Bar w="86%" h={12} />
-      <Bar w="64%" h={12} />
-      <div style={{ marginTop: "auto", display: "flex", gap: 10 }}>
-        <Bar w={56} />
-        <Bar w={70} />
-      </div>
-    </div>
-  );
-}
-
-function Bar({ w, h }: { w: number | string; h?: number }) {
-  return (
-    <span style={{
-      display: "block",
-      width: typeof w === "number" ? w + "px" : w,
-      height: (h || 8) + "px",
-      borderRadius: 4,
-      background: "linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.10), rgba(255,255,255,0.04))",
-      backgroundSize: "200% 100%",
-      animation: "hub-skeleton 1.6s linear infinite",
-    }} />
-  );
-}
-
-// Inline keyframes once. Re-mount is cheap and doesn't conflict because
-// the @keyframes name is globally unique.
-if (typeof document !== "undefined" && !document.getElementById("hub-skeleton-kf")) {
-  const style = document.createElement("style");
-  style.id = "hub-skeleton-kf";
-  style.textContent = "@keyframes hub-skeleton { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }";
-  document.head.appendChild(style);
-}
-

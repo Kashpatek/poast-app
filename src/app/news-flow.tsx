@@ -177,7 +177,7 @@ function sendToIdeation(item: NewsItem) {
 }
 
 // ═══ NEWS FEED ═══
-function NewsFeed({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize, onDraft }: WidgetBaseProps & { onDraft: (item: NewsItem) => void }) {
+export function NewsFeed({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize, onDraft }: WidgetBaseProps & { onDraft: (item: NewsItem) => void }) {
   var _d = useState<{ items: NewsItem[]; categories: string[]; sources: string[] }>({ items: [], categories: [], sources: [] }), data = _d[0], setData = _d[1];
   var _cat = useState<string>("All"), cat = _cat[0], setCat = _cat[1];
   var _src = useState<string>("All"), src = _src[0], setSrc = _src[1];
@@ -227,7 +227,7 @@ function NewsFeed({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fo
 }
 
 // ═══ SEMIANALYSIS RSS ═══
-function SAFeed({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize, onDraft }: WidgetBaseProps & { onDraft: (item: NewsItem) => void }) {
+export function SAFeed({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize, onDraft }: WidgetBaseProps & { onDraft: (item: NewsItem) => void }) {
   var _items = useState<NewsItem[]>([]), items = _items[0], setItems = _items[1];
   useEffect(function() {
     var load = function() { fetch("/api/news?type=semianalysis").then(function(r) { return r.json(); }).then(function(d) { if (d.items) setItems(d.items); }); };
@@ -253,7 +253,7 @@ function SAFeed({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, font
 }
 
 // ═══ STOCK TICKER ═══
-function StockTicker({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
+export function StockTicker({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
   var _stocks = useState<StockData[]>([]), stocks = _stocks[0], setStocks = _stocks[1];
   var _view = useState<string>("grid"), view = _view[0], setView = _view[1];
   useEffect(function() {
@@ -294,7 +294,7 @@ function StockTicker({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop,
 }
 
 // ═══ EARNINGS CALENDAR ═══
-function EarningsCalendar({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
+export function EarningsCalendar({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
   var _earn = useState<EarningsData[]>([]), earn = _earn[0], setEarn = _earn[1];
   useEffect(function() {
     fetch("/api/news?type=earnings").then(function(r) { return r.json(); }).then(function(d) { if (d.earnings) setEarn(d.earnings); });
@@ -327,7 +327,7 @@ var STREAMS = [
   { id: "france24", name: "France 24", url: "https://www.youtube.com/watch?v=ULDJLFMzekc", embed: "https://www.youtube.com/embed/ULDJLFMzekc", schedule: "24/7", icon: "\uD83C\uDDEB\uD83C\uDDF7" },
 ];
 
-function LiveStreams({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
+export function LiveStreams({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
   var _active = useState<string | null>(null), active = _active[0], setActive = _active[1];
   return (
     <W title="LIVE!" icon={"\uD83D\uDD34"} id={id} gw={gw} gh={gh} onCycleSize={onCycleSize} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} fontSize={fontSize}>
@@ -358,7 +358,7 @@ function LiveStreams({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop,
 }
 
 // ═══ NOTES ═══
-function Notes({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
+export function Notes({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
   var _notes = useState<string>(""), notes = _notes[0], setNotes = _notes[1];
   useEffect(function() { try { var s = localStorage.getItem("poast-notes"); if (s) setNotes(s); } catch (e) {} }, []);
   var save = function(v: string) { setNotes(v); try { localStorage.setItem("poast-notes", v); } catch (e) {} };
@@ -370,7 +370,7 @@ function Notes({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontS
 }
 
 // ═══ TO-DO LIST ═══
-function TodoList({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
+export function TodoList({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
   var _todos = useState<TodoItem[]>([]), todos = _todos[0], setTodos = _todos[1];
   var _input = useState<string>(""), input = _input[0], setInput = _input[1];
   var _deadline = useState<string>(""), deadline = _deadline[0], setDeadline = _deadline[1];
@@ -416,7 +416,7 @@ function TodoList({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fo
 }
 
 // ═══ AI IDEAS ═══
-function AIIdeas({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize, onDraft }: WidgetBaseProps & { onDraft: (item: NewsItem) => void }) {
+export function AIIdeas({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize, onDraft }: WidgetBaseProps & { onDraft: (item: NewsItem) => void }) {
   var _ideas = useState<AIIdea[]>([]), ideas = _ideas[0], setIdeas = _ideas[1];
   var _loading = useState<boolean>(false), loading = _loading[0], setLoading = _loading[1];
   var _topic = useState<string>(""), topic = _topic[0], setTopic = _topic[1];
@@ -469,7 +469,7 @@ function AIIdeas({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fon
 }
 
 // ═══ WATCHLIST ═══
-function Watchlist({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
+export function Watchlist({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
   var _items = useState([
     { name: "NVIDIA", ticker: "NVDA", note: "Blackwell ramp, H200 demand" },
     { name: "TSMC", ticker: "TSM", note: "Arizona fab, CoWoS capacity" },
@@ -564,7 +564,7 @@ function DraftModal({ item, onClose }: { item: NewsItem; onClose: () => void }) 
 }
 
 // ═══ ETF WIDGET ═══
-function ETFWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
+export function ETFWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
   var _etfs = useState<StockData[]>([]), etfs = _etfs[0], setEtfs = _etfs[1];
   useEffect(function() {
     var load = function() { fetch("/api/news?type=etfs").then(function(r) { return r.json(); }).then(function(d) { if (d.etfs) setEtfs(d.etfs); }).catch(function() {}); };
@@ -589,7 +589,7 @@ function ETFWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, f
 }
 
 // ═══ CRYPTO + COMMODITIES ═══
-function CryptoWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
+export function CryptoWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
   var _crypto = useState<StockData[]>([]), crypto = _crypto[0], setCrypto = _crypto[1];
   var _commod = useState<StockData[]>([]), commod = _commod[0], setCommod = _commod[1];
   var _view = useState<string>("crypto"), view = _view[0], setView = _view[1];
@@ -617,7 +617,7 @@ function CryptoWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop
 }
 
 // ═══ POMODORO ═══
-function Pomodoro({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
+export function Pomodoro({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
   var _time = useState<number>(25 * 60), time = _time[0], setTime = _time[1];
   var _running = useState<boolean>(false), running = _running[0], setRunning = _running[1];
   var _mode = useState<string>("work"), mode = _mode[0], setMode = _mode[1];
@@ -667,7 +667,7 @@ function Pomodoro({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fo
 // ═══ CHIP-KUN (Tamagotchi) ═══
 var CHIP_FACES = ["\u25A0\u203F\u25A0", "\u00B0\u25E1\u00B0", ">\u203F<", "\u00B0o\u00B0", "^\u203F^", "-\u203F-", "\u00D7\u203F\u00D7"];
 var CHIP_MOODS = ["happy", "curious", "excited", "sleepy", "focused"];
-function ChipKun({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
+export function ChipKun({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
   var _mood = useState<number>(0), mood = _mood[0], setMood = _mood[1];
   var _face = useState<number>(0), face = _face[0], setFace = _face[1];
   var _msg = useState<string>("Click me!"), msg = _msg[0], setMsg = _msg[1];
@@ -710,7 +710,7 @@ function ChipKun({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fon
 }
 
 // ═══ BOOKMARKS ═══
-function Bookmarks({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
+export function Bookmarks({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
   var _bm = useState<BookmarkItem[]>([]), bm = _bm[0], setBm = _bm[1];
   var _input = useState<string>(""), input = _input[0], setInput = _input[1];
   useEffect(function() { try { var s = localStorage.getItem("poast-bookmarks"); if (s) setBm(JSON.parse(s)); } catch (e) {} }, []);
@@ -736,7 +736,7 @@ function Bookmarks({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, f
 }
 
 // ═══ CALCULATOR ═══
-function CalcWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
+export function CalcWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
   var _expr = useState<string>(""), expr = _expr[0], setExpr = _expr[1];
   var _result = useState<string>(""), result = _result[0], setResult = _result[1];
   var calc = function() { try { setResult(String(Function('"use strict";return (' + expr + ')')())); } catch (e) { setResult("Error"); } };
@@ -752,7 +752,7 @@ function CalcWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, 
 }
 
 // ═══ COUNTDOWN ═══
-function Countdown({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
+export function Countdown({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
   var _events = useState([
     { name: "ASML Earnings", date: "2026-04-16T06:00:00" },
     { name: "TSMC Earnings", date: "2026-04-17T06:00:00" },
@@ -780,7 +780,7 @@ function Countdown({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, f
 }
 
 // ═══ MINI BUFFER CALENDAR HEATMAP ═══
-function BufferCalWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
+export function BufferCalWidget({ id, gw, gh, onCycleSize, onDragStart, onDragOver, onDrop, fontSize }: WidgetBaseProps) {
   var _posts = useState<{ dueAt?: string }[]>([]), posts = _posts[0], setPosts = _posts[1];
   useEffect(function() {
     fetch("/api/buffer").then(function(r) { return r.json(); }).then(function(d) {
@@ -865,7 +865,7 @@ function Walkthrough({ onDismiss }: { onDismiss: () => void }) {
 
 // ═══ SETTINGS ═══
 var WIDGET_IDS = ["news", "semianalysis", "stocks", "etfs", "crypto", "earnings", "live", "watchlist", "ideas", "notes", "todos", "bufcal", "pomodoro", "chipkun", "bookmarks", "calc", "countdown"];
-var WIDGET_META: Record<string, WidgetMeta> = { news: { l: "News Feed", i: "\uD83D\uDCF0" }, semianalysis: { l: "SemiAnalysis", i: "\uD83D\uDD2C" }, stocks: { l: "Stocks", i: "\uD83D\uDCC8" }, etfs: { l: "ETFs", i: "\uD83C\uDFE6" }, crypto: { l: "Crypto & Resources", i: "\u20BF" }, earnings: { l: "Earnings", i: "\uD83D\uDCC5" }, live: { l: "LIVE!", i: "\uD83D\uDD34" }, watchlist: { l: "Watchlist", i: "\uD83D\uDC41" }, ideas: { l: "AI Ideas", i: "\uD83D\uDCA1" }, notes: { l: "Notes", i: "\uD83D\uDCDD" }, todos: { l: "To-Do", i: "\u2705" }, bufcal: { l: "Post Calendar", i: "\uD83D\uDDD3" }, pomodoro: { l: "Pomodoro", i: "\uD83C\uDF45" }, chipkun: { l: "Chip-kun", i: "\uD83E\uDEAB" }, bookmarks: { l: "Bookmarks", i: "\uD83D\uDD16" }, calc: { l: "Calculator", i: "\uD83E\uDDEE" }, countdown: { l: "Countdown", i: "\u23F3" } };
+export var WIDGET_META: Record<string, WidgetMeta> = { news: { l: "News Feed", i: "\uD83D\uDCF0" }, semianalysis: { l: "SemiAnalysis", i: "\uD83D\uDD2C" }, stocks: { l: "Stocks", i: "\uD83D\uDCC8" }, etfs: { l: "ETFs", i: "\uD83C\uDFE6" }, crypto: { l: "Crypto & Resources", i: "\u20BF" }, earnings: { l: "Earnings", i: "\uD83D\uDCC5" }, live: { l: "LIVE!", i: "\uD83D\uDD34" }, watchlist: { l: "Watchlist", i: "\uD83D\uDC41" }, ideas: { l: "AI Ideas", i: "\uD83D\uDCA1" }, notes: { l: "Notes", i: "\uD83D\uDCDD" }, todos: { l: "To-Do", i: "\u2705" }, bufcal: { l: "Post Calendar", i: "\uD83D\uDDD3" }, pomodoro: { l: "Pomodoro", i: "\uD83C\uDF45" }, chipkun: { l: "Chip-kun", i: "\uD83E\uDEAB" }, bookmarks: { l: "Bookmarks", i: "\uD83D\uDD16" }, calc: { l: "Calculator", i: "\uD83E\uDDEE" }, countdown: { l: "Countdown", i: "\u23F3" } };
 // Preloaded: news, stocks, semianalysis, bufcal, todos, notes. Rest hidden until user adds them.
 var DEFAULT_DISABLED = ["etfs", "crypto", "earnings", "live", "watchlist", "ideas", "pomodoro", "chipkun", "bookmarks", "calc", "countdown"];
 
