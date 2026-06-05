@@ -890,7 +890,6 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "captions", l: "Capper",           Icon: Captions },
     { id: "brainstorm", l: "Brainstorm",     Icon: Brain,      badge: "NEW" },
     { id: "p2p",      l: "Press to Premier (legacy)", Icon: Clapperboard },
-    { id: "broll",    l: "B-Roll Library (legacy)",   Icon: Film },
     { id: "chart",    l: "Chart Maker",      Icon: GanttChart, href: "/charts", badge: "NEW" },
     { id: "docu",     l: "DesignStudio",     Icon: Wand,       href: "/design-studio", badge: "NEW" },
     { id: "distpack", l: "Distribution Pack",Icon: Layers,     badge: "NEW" },
@@ -918,7 +917,6 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
   admin:   { label: "ADMIN",   color: C.violet, glow: "rgba(144,92,203,", items: [
     { id: "training", l: "AI Training",      Icon: Brain,          href: "/ai-training", badge: "NEW" },
     { id: "tasks",    l: "Task Board",       Icon: CheckSquare,    badge: "AKASH" },
-    { id: "prompts",  l: "Saved Prompts",    Icon: BookmarkCheck,  badge: "NEW" },
     { id: "settings", l: "POAST Settings",   Icon: Settings },
   ]},
 };

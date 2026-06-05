@@ -13,8 +13,9 @@ import { confirmDialog } from "../dialog-context";
 import type { LLMProvider } from "@/lib/llm-provider";
 import { TONE_LABELS, type Voice, type VoiceTone, type VoiceExample, type VoicesArchive, defaultArchive } from "@/lib/brand-voice";
 import { VoiceLab } from "./voice-lab";
+import SavedPromptsLibrary from "../saved-prompts";
 
-type Tab = "voice" | "lab" | "playground";
+type Tab = "voice" | "lab" | "playground" | "prompts";
 
 export default function AITrainingPage() {
   const { showToast } = useToast();
@@ -58,6 +59,7 @@ export default function AITrainingPage() {
           { id: "voice",      label: "Brand voice" },
           { id: "lab",        label: "Voice Lab" },
           { id: "playground", label: "Playground" },
+          { id: "prompts",    label: "Saved Prompts" },
         ] as Array<{ id: Tab; label: string }>).map((t) => {
           const active = tab === t.id;
           return (
@@ -69,6 +71,7 @@ export default function AITrainingPage() {
       {tab === "voice" ? <VoiceTuner onToast={showToast} /> : null}
       {tab === "lab" ? <VoiceLabTab onToast={showToast} /> : null}
       {tab === "playground" ? <Playground onToast={showToast} /> : null}
+      {tab === "prompts" ? <SavedPromptsLibrary /> : null}
     </div>
   );
 }
