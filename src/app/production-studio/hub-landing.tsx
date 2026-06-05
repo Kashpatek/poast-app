@@ -47,7 +47,8 @@ const VIDEO_CARDS: HubCard[] = [
     sub: "Multi-track cuts, transitions, captions",
     Icon: Film,
     accent: D.blue,
-    status: "placeholder",
+    status: "live",
+    href: "/production-studio/timeline",
   },
   {
     id: "auto-caption",
@@ -55,7 +56,8 @@ const VIDEO_CARDS: HubCard[] = [
     sub: "Whisper-driven captions with style presets",
     Icon: Captions,
     accent: D.teal,
-    status: "placeholder",
+    status: "live",
+    href: "/production-studio/auto-caption",
   },
   {
     id: "shorts-formatter",
@@ -63,7 +65,8 @@ const VIDEO_CARDS: HubCard[] = [
     sub: "Reframe + repack horizontal cuts to 9:16",
     Icon: Smartphone,
     accent: D.violet,
-    status: "placeholder",
+    status: "live",
+    href: "/production-studio/shorts-formatter",
   },
   {
     id: "chapter-generator",
@@ -110,7 +113,8 @@ const AUDIO_CARDS: HubCard[] = [
     sub: "Multi-track remote recording with backups",
     Icon: Mic,
     accent: D.coral,
-    status: "placeholder",
+    status: "live",
+    href: "/production-studio/recording-room",
   },
   {
     id: "audio-editor",
@@ -118,7 +122,8 @@ const AUDIO_CARDS: HubCard[] = [
     sub: "Trim, level, noise-reduce in browser",
     Icon: AudioLines,
     accent: D.violet,
-    status: "placeholder",
+    status: "live",
+    href: "/production-studio/audio-editor",
   },
   {
     id: "transcript-cleaner",
@@ -135,7 +140,8 @@ const AUDIO_CARDS: HubCard[] = [
     sub: "Publish + sync podcast feed metadata",
     Icon: Rss,
     accent: D.cyan,
-    status: "placeholder",
+    status: "live",
+    href: "/production-studio/rss-manager",
   },
 ];
 
