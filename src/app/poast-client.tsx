@@ -42,7 +42,6 @@ import { SaveToLibrary } from "./components/save-to-library";
 import { SendToChip } from "./components/send-to-chip";
 import { Command } from "cmdk";
 import { useStore, type ToolOutput } from "./lib/store";
-import { AssetLibraryView } from "./asset-library/asset-library-view";
 import { ShortcutsProvider, useShortcuts } from "./keyboard-shortcuts";
 
 // ═══ INTERFACES ═══
@@ -2248,6 +2247,95 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
   </div>;
 }
 
+// Asset Library embedded inside POAST. Fetches the standalone HTML
+// from /public, drops it inline into POAST's DOM via dangerouslySetInnerHTML,
+// then re-creates the inline <script> nodes so the slide's IIFE wires up
+// the tree-click → preview swap behavior. (React doesn't execute scripts
+// inserted via dangerouslySetInnerHTML — we have to re-attach them.)
+// CSS variables the slide depends on are declared on the wrapper so the
+// scoped rules resolve to the right brand colors.
+function AssetLibraryEmbed() {
+  var _h = useState<string>(""), html = _h[0], setHtml = _h[1];
+  var hostRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(function() {
+    fetch("/asset-library-content.html")
+      .then(function(r) { return r.text(); })
+      .then(function(text) {
+        var m = text.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+        setHtml(m ? m[1] : text);
+      })
+      .catch(function() { setHtml(""); });
+  }, []);
+
+  useEffect(function() {
+    var host = hostRef.current;
+    if (!host || !html) return;
+    var scripts = host.querySelectorAll("script");
+    scripts.forEach(function(oldScript) {
+      var newScript = document.createElement("script");
+      if (oldScript.src) newScript.src = oldScript.src;
+      if (oldScript.textContent) newScript.textContent = oldScript.textContent;
+      oldScript.parentNode && oldScript.parentNode.replaceChild(newScript, oldScript);
+    });
+  }, [html]);
+
+  return (
+    <div style={Object.assign({
+      position: "fixed", top: 0, left: 240, right: 0, bottom: 0,
+      background: "#06060A", zIndex: 50,
+      display: "flex", flexDirection: "column",
+      overflow: "hidden",
+    }, {
+      ["--amber" as string]: "#F7B041",
+      ["--amber-dim" as string]: "rgba(247,176,65,0.15)",
+      ["--border2" as string]: "rgba(255,255,255,0.12)",
+      ["--text" as string]: "#F2F2F2",
+      ["--muted" as string]: "rgba(242,242,242,0.45)",
+      ["--muted2" as string]: "rgba(242,242,242,0.22)",
+      ["--black" as string]: "#06060A",
+      ["--font" as string]: "'Outfit', sans-serif",
+    }) as React.CSSProperties}>
+      <div style={{ padding: "12px 22px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10, background: "#0A0A14", flexShrink: 0 }}>
+        <Library size={18} strokeWidth={1.8} color={C.blue} />
+        <span style={{ fontFamily: gf, fontSize: 14, fontWeight: 800, color: "#E8E4DD", letterSpacing: 0.3 }}>Asset Library</span>
+        <span style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.35)", letterSpacing: 1.5, marginLeft: 6 }}>// SEMIANALYSIS BRAND</span>
+        <a href="/asset-library-content.html" target="_blank" rel="noopener" style={{ marginLeft: "auto", fontFamily: mn, fontSize: 10, color: C.blue, textDecoration: "none", padding: "4px 10px", border: "1px solid " + C.blue + "55", borderRadius: 6, fontWeight: 700, letterSpacing: 0.5 }}>Open ↗</a>
+      </div>
+      <style>{`
+        .al-host .slide { display: flex; flex-direction: column; padding: 24px 32px 28px; height: 100%; min-height: 0; max-height: 100%; box-sizing: border-box; opacity: 1 !important; pointer-events: auto !important; transform: none !important; position: static !important; inset: auto !important; overflow: hidden !important; }
+        .al-host .sa-stars, .al-host .sa-orb, .al-host .sa-flare { display: none !important; }
+        .al-host .eyebrow { font-size: 13px; letter-spacing: 0.2em; font-weight: 700; color: var(--amber); text-transform: uppercase; margin-bottom: 10px; display: block; }
+        .al-host .slide-title { font-size: 38px; font-weight: 800; letter-spacing: -0.025em; color: #fff; line-height: 1.05; margin: 0 0 6px; display: block; }
+        .al-host .slide-sub { font-size: 14px; color: var(--muted); font-weight: 400; max-width: 880px; line-height: 1.5; margin-bottom: 14px; display: block; }
+        .al-host .hl { color: var(--amber); }
+        .al-host a { color: inherit; text-decoration: none; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-body { min-height: 0 !important; grid-template-rows: minmax(0, 1fr) !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-tree,
+        .al-host [data-sa-scope="sa-al0aldn"] .al-dir { min-height: 0; max-height: 100%; overflow: auto; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-card { max-width: min(640px, 96%) !important; width: 100%; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-thumb:not(.mini) { height: clamp(140px, 24vh, 280px) !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-folder { max-width: min(820px, 96%) !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-thumb.mini { height: clamp(120px, 20vh, 200px) !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-tree-title { font-size: 12px !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] details > summary .al-name { font-size: 15px !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] details > summary .al-count { font-size: 11px !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-leaf { font-size: 13px !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-leaf .al-pill { font-size: 9.5px !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-mini-name { font-size: 13px !important; padding: 9px 11px !important; }
+        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-mini-ext { font-size: 9.5px !important; padding: 0 11px 10px !important; }
+      `}</style>
+      <div
+        ref={hostRef}
+        className="al-host"
+        dangerouslySetInnerHTML={{ __html: html }}
+        style={{ flex: 1, overflow: "auto", color: "#F2F2F2", fontFamily: "'Outfit', sans-serif", minHeight: 0 }}
+      />
+      {!html && <div style={{ padding: 40, textAlign: "center", fontFamily: mn, fontSize: 11, color: "rgba(255,255,255,0.4)" }}>Loading asset library...</div>}
+    </div>
+  );
+}
+
 // ═══ APP ═══
 var ANALYST_ALLOWED = ["home", "sloptop", "carousel", "captions", "brainstorm", "chart", "chart2", "assets"];
 
@@ -2480,11 +2568,7 @@ export default function App() {
     {/* Asset Library renders as a sibling of the wrapped tree so its
         position:fixed resolves to the viewport, not the .poast-fadein
         transform's containing block. */}
-    {sec === "assets" && (
-      <div style={{ position: "fixed", top: 0, left: 240, right: 0, bottom: 0, background: "#06060A", zIndex: 50, overflow: "auto" }}>
-        <AssetLibraryView />
-      </div>
-    )}
+    {sec === "assets" && <AssetLibraryEmbed />}
     <div style={{ marginLeft: 240, position: "relative", zIndex: 1, display: sec === "assets" ? "none" : "block" }} className="poast-fadein">
       <div style={{ margin: "0 auto", padding: "0 32px" }}>
         <div key={sec} className="poast-section" style={{ paddingBottom: 60 }}>
