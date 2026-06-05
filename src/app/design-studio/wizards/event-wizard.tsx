@@ -150,9 +150,20 @@ export function EventWizard({ open, onClose, initialEventId, initialCategoryId, 
         return;
       }
       const id = j.data?.id;
+      const w = preset?.w ?? 1080;
+      const h = preset?.h ?? 1350;
+      const name = `${event.label} · ${category?.label ?? "one-pager"}`;
       reset();
       onClose();
-      if (id) router.push(`/design-studio/p/${id}`);
+      const params = new URLSearchParams({
+        category: "event",
+        w: String(w),
+        h: String(h),
+        name,
+        template: categoryId === "sponsor-slide" ? "event-agenda-strip" : "event-headliner",
+      });
+      if (id) params.set("project", id);
+      router.push(`/design-studio/canvas-editor?${params.toString()}`);
     } catch (e) {
       showToast(String(e));
       setSubmitting(false);

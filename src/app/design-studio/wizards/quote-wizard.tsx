@@ -143,7 +143,15 @@ export function QuoteWizard({ open, onClose, initialCategoryId, initialPresetId,
       const id = j.data?.id;
       reset();
       onClose();
-      if (id) router.push(`/design-studio/p/${id}`);
+      const params = new URLSearchParams({
+        category: "quote",
+        w: String(preset.w),
+        h: String(preset.h),
+        name: quote.trim().slice(0, 60) || "Quote card",
+        template: preset.w === preset.h ? "quote-minimal" : "quote-big-text",
+      });
+      if (id) params.set("project", id);
+      router.push(`/design-studio/canvas-editor?${params.toString()}`);
     } catch (e) {
       showToast(String(e));
       setSubmitting(false);

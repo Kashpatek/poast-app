@@ -103,9 +103,19 @@ export function GraphicWizard({ open, onClose, initialCategoryId, initialPresetI
         return;
       }
       const id = j.data?.id;
+      const w = preset?.w ?? 1080;
+      const h = preset?.h ?? 1080;
       reset();
       onClose();
-      if (id) router.push(`/design-studio/graphics/${id}`);
+      const params = new URLSearchParams({
+        category: "graphics",
+        w: String(w),
+        h: String(h),
+        name: name.trim(),
+        template: "graphic-bold-quote",
+      });
+      if (id) params.set("project", id);
+      router.push(`/design-studio/canvas-editor?${params.toString()}`);
     } catch (e) {
       showToast(String(e));
       setSubmitting(false);

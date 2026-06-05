@@ -1,0 +1,754 @@
+"use client";
+
+// DesignCanvas — Fabric.js v7 editor mounted by /design-studio/canvas-editor.
+// Four zones (top bar / left panel / center canvas / right panel) plus a
+// bottom pages strip for multi-page carousel sets. Fabric init runs only
+// inside useEffect so the editor stays out of the SSR pass (page.tsx mounts
+// us via next/dynamic with ssr:false anyway).
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as fabric from "fabric";
+import {
+  Type as TypeIcon, Image as ImageIcon, Shapes, Layout, Palette,
+  Undo2, Redo2, ChevronUp, ChevronDown, ArrowUpToLine, ArrowDownToLine,
+  Copy as CopyIcon, Trash2, ZoomIn, ZoomOut,
+  AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal,
+  AlignStartVertical, AlignCenterVertical, AlignEndVertical,
+  Download, Save, Lock, Unlock, Eye, EyeOff, GripVertical, Plus,
+} from "lucide-react";
+import { D, ft, gf, mn, uid } from "../../shared-constants";
+import { saveProject, snapshotProject, useAutosave, type ProjectRecord } from "../projects-store";
+import { exportFabricPNG, exportFabricJPG, exportFabricSVG, exportFabricPDF, exportFabricZip } from "../export";
+import { showToast } from "../../toast-context";
+import { TEMPLATES, templatesByCategory, type DesignTemplate } from "./templates";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/core";
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+// ─── Brand palette + presets ───────────────────────────────────────
+const BRAND_PALETTE = ["#F7B041", "#2EAD8E", "#E06347", "#905CCB", "#0B86D1", "#26C9D8", "#EDEDED", "#0D0D12"];
+const SHAPE_PRESETS = [
+  { id: "rect",     label: "Rect",     Icon: Layout },
+  { id: "circle",   label: "Circle",   Icon: Layout },
+  { id: "triangle", label: "Triangle", Icon: Shapes },
+  { id: "line",     label: "Line",     Icon: Shapes },
+  { id: "star",     label: "Star",     Icon: Shapes },
+];
+const TEXT_PRESETS = [
+  { id: "h",  label: "Heading",  fontSize: 64, fontWeight: 900, fontFamily: "Grift,Outfit,sans-serif" },
+  { id: "s",  label: "Subhead",  fontSize: 32, fontWeight: 700, fontFamily: "Grift,Outfit,sans-serif" },
+  { id: "b",  label: "Body",     fontSize: 18, fontWeight: 400, fontFamily: "Arial, Helvetica, sans-serif" },
+];
+
+const SA_LOGOS = [
+  { src: "/sa-lettermark-text.svg", label: "Wordmark" },
+  { src: "/sa-box-lettermark.svg",  label: "Lettermark" },
+  { src: "/sa-logo-full.svg",       label: "Full logo" },
+  { src: "/sa-logo.svg",            label: "Mono" },
+];
+
+const HIST_CAP = 30;
+
+interface Props {
+  project: ProjectRecord;
+  onUpdatePages: (pages: ProjectRecord["pages"]) => void;
+  onUpdateTitle: (title: string) => void;
+}
+
+// ─── Page state — one Fabric canvas per page ────────────────────────
+interface PageState {
+  id: string;
+  el: HTMLCanvasElement | null;
+  canvas: fabric.Canvas | null;
+  history: string[];      // JSON snapshots
+  historyIdx: number;     // pointer into history
+}
+
+export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
+  const w = project.preset?.width || 1080;
+  const h = project.preset?.height || 1080;
+  const isMultiPage = (project.category || "") === "carousel";
+
+  const [pages, setPages] = useState<ProjectRecord["pages"]>(project.pages);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [zoom, setZoom] = useState(0.6);
+  const [leftTab, setLeftTab] = useState<"templates" | "elements" | "text" | "uploads" | "brand">("templates");
+  const [selected, setSelected] = useState<fabric.Object | null>(null);
+  const [, force] = useState(0);
+  const tick = useCallback(() => force(x => x + 1), []);
+  const [title, setTitle] = useState(project.title);
+  const [exportOpen, setExportOpen] = useState(false);
+
+  const stateRef = useRef<PageState[]>([]);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  // ── lifecycle: bind canvases for each page ──
+  useEffect(() => {
+    // Ensure stateRef tracks pages.
+    while (stateRef.current.length < pages.length) {
+      stateRef.current.push({ id: pages[stateRef.current.length].id, el: null, canvas: null, history: [], historyIdx: -1 });
+    }
+    while (stateRef.current.length > pages.length) {
+      const last = stateRef.current.pop();
+      if (last?.canvas) { try { last.canvas.dispose(); } catch {} }
+    }
+    return () => {
+      stateRef.current.forEach(s => { if (s.canvas) { try { s.canvas.dispose(); } catch {} } });
+      stateRef.current = [];
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── bind a Fabric canvas to a freshly mounted <canvas> ref ──
+  const bindCanvas = useCallback((index: number, el: HTMLCanvasElement | null) => {
+    if (!el) return;
+    const slot = stateRef.current[index];
+    if (!slot) return;
+    if (slot.el === el && slot.canvas) return;
+    slot.el = el;
+    const canvas = new fabric.Canvas(el, {
+      width: w, height: h,
+      backgroundColor: "#FFFFFF", preserveObjectStacking: true,
+    });
+    slot.canvas = canvas;
+    canvas.on("selection:created", e => setSelected((e as unknown as { selected?: fabric.Object[] }).selected?.[0] || canvas.getActiveObject() || null));
+    canvas.on("selection:updated", () => setSelected(canvas.getActiveObject() || null));
+    canvas.on("selection:cleared", () => setSelected(null));
+    canvas.on("object:modified", () => { snapshotHistory(index); tick(); });
+    canvas.on("object:added", () => { snapshotHistory(index); tick(); });
+    canvas.on("object:removed", () => { snapshotHistory(index); tick(); });
+
+    // Hydrate from existing payload.
+    const payload = pages[index]?.payload;
+    if (payload && typeof payload === "object") {
+      canvas.loadFromJSON(payload as Record<string, unknown>).then(() => { canvas.renderAll(); seedHistory(index); });
+    } else {
+      // Apply seed template, else blank.
+      const tpl = project.templateId ? TEMPLATES.find(t => t.id === project.templateId) : null;
+      if (tpl) canvas.loadFromJSON(tpl.payload as unknown as Record<string, unknown>).then(() => { canvas.renderAll(); seedHistory(index); });
+      else seedHistory(index);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [w, h]);
+
+  function seedHistory(index: number) {
+    const slot = stateRef.current[index];
+    if (!slot?.canvas) return;
+    const j = JSON.stringify(slot.canvas.toJSON());
+    slot.history = [j];
+    slot.historyIdx = 0;
+  }
+
+  function snapshotHistory(index: number) {
+    const slot = stateRef.current[index];
+    if (!slot?.canvas) return;
+    const j = JSON.stringify(slot.canvas.toJSON());
+    if (slot.history[slot.historyIdx] === j) return;
+    slot.history = slot.history.slice(0, slot.historyIdx + 1);
+    slot.history.push(j);
+    if (slot.history.length > HIST_CAP) slot.history.shift();
+    slot.historyIdx = slot.history.length - 1;
+  }
+
+  function undo() {
+    const slot = stateRef.current[activeIdx];
+    if (!slot?.canvas || slot.historyIdx <= 0) return;
+    slot.historyIdx -= 1;
+    slot.canvas.loadFromJSON(JSON.parse(slot.history[slot.historyIdx])).then(() => { slot.canvas?.renderAll(); tick(); });
+  }
+  function redo() {
+    const slot = stateRef.current[activeIdx];
+    if (!slot?.canvas || slot.historyIdx >= slot.history.length - 1) return;
+    slot.historyIdx += 1;
+    slot.canvas.loadFromJSON(JSON.parse(slot.history[slot.historyIdx])).then(() => { slot.canvas?.renderAll(); tick(); });
+  }
+
+  // ── autosave: serialize every page to project.pages, persist ──
+  const captureAllPages = useCallback(async () => {
+    const next: ProjectRecord["pages"] = pages.map((p, i) => {
+      const slot = stateRef.current[i];
+      const payload = slot?.canvas ? slot.canvas.toJSON() : p.payload;
+      let thumb = p.thumb;
+      try {
+        if (slot?.canvas) thumb = slot.canvas.toDataURL({ format: "png", multiplier: 0.25 });
+      } catch {}
+      return { id: p.id, thumb, payload };
+    });
+    setPages(next);
+    onUpdatePages(next);
+    return next;
+  }, [pages, onUpdatePages]);
+
+  const autosaveDepKey = useMemo(() => {
+    // Re-run autosave whenever the visible selection changes or zoom adjusts —
+    // both are cheap proxies for "user did something".
+    return { selKey: selected ? (selected as fabric.Object & { id?: string }).id || JSON.stringify(selected.toJSON()) : null, zoom, leftTab, title };
+  }, [selected, zoom, leftTab, title]);
+
+  const autosave = useAutosave(async () => {
+    const nextPages = await captureAllPages();
+    await saveProject({
+      id: project.id, title, kind: "canvas", pages: nextPages,
+      category: project.category, preset: project.preset, templateId: project.templateId, meta: project.meta,
+    });
+  }, [autosaveDepKey, pages.length]);
+
+  const autosaveLabel = autosave.status === "saving"
+    ? "Saving…"
+    : autosave.status === "saved" && autosave.lastSavedAt
+      ? "Saved " + relTime(autosave.lastSavedAt)
+      : autosave.status === "error" ? "Save failed" : "Idle";
+
+  // ── add things to the active canvas ──
+  function activeCanvas(): fabric.Canvas | null { return stateRef.current[activeIdx]?.canvas || null; }
+
+  function addShape(id: string) {
+    const c = activeCanvas(); if (!c) return;
+    const cx = c.getWidth() / 2, cy = c.getHeight() / 2;
+    let obj: fabric.Object | null = null;
+    if (id === "rect")     obj = new fabric.Rect({ left: cx - 120, top: cy - 80, width: 240, height: 160, fill: BRAND_PALETTE[0], rx: 8, ry: 8 });
+    if (id === "circle")   obj = new fabric.Circle({ left: cx - 90, top: cy - 90, radius: 90, fill: BRAND_PALETTE[1] });
+    if (id === "triangle") obj = new fabric.Triangle({ left: cx - 100, top: cy - 80, width: 200, height: 180, fill: BRAND_PALETTE[2] });
+    if (id === "line")     obj = new fabric.Line([cx - 140, cy, cx + 140, cy], { stroke: BRAND_PALETTE[6], strokeWidth: 4 });
+    if (id === "star")     obj = new fabric.Polygon([{x:0,y:-90},{x:25,y:-30},{x:90,y:-30},{x:38,y:8},{x:55,y:75},{x:0,y:35},{x:-55,y:75},{x:-38,y:8},{x:-90,y:-30},{x:-25,y:-30}], { fill: BRAND_PALETTE[0], left: cx - 90, top: cy - 90 });
+    if (obj) { c.add(obj); c.setActiveObject(obj); c.requestRenderAll(); }
+  }
+
+  function addText(preset: typeof TEXT_PRESETS[number]) {
+    const c = activeCanvas(); if (!c) return;
+    const box = new fabric.Textbox(preset.label.toUpperCase(), {
+      left: c.getWidth() / 2 - 200, top: c.getHeight() / 2 - 40,
+      width: 400, fontSize: preset.fontSize, fontWeight: preset.fontWeight,
+      fontFamily: preset.fontFamily, fill: "#EDEDED", textAlign: "center",
+    });
+    c.add(box); c.setActiveObject(box); c.requestRenderAll();
+  }
+
+  function addImageFromFile(file: File) {
+    const c = activeCanvas(); if (!c) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = reader.result as string;
+      fabric.FabricImage.fromURL(url, { crossOrigin: "anonymous" }).then(img => {
+        const scale = Math.min(c.getWidth() / (img.width || 1), c.getHeight() / (img.height || 1)) * 0.6;
+        img.scale(scale);
+        img.set({ left: c.getWidth() / 2 - (img.getScaledWidth() / 2), top: c.getHeight() / 2 - (img.getScaledHeight() / 2) });
+        c.add(img); c.setActiveObject(img); c.requestRenderAll();
+      });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function addLogo(src: string) {
+    const c = activeCanvas(); if (!c) return;
+    fabric.FabricImage.fromURL(src, { crossOrigin: "anonymous" }).then(img => {
+      const scale = Math.min(c.getWidth() / (img.width || 1), c.getHeight() / (img.height || 1)) * 0.35;
+      img.scale(scale);
+      img.set({ left: 60, top: 60 });
+      c.add(img); c.setActiveObject(img); c.requestRenderAll();
+    });
+  }
+
+  function loadTemplate(tpl: DesignTemplate) {
+    const c = activeCanvas(); if (!c) return;
+    c.loadFromJSON(tpl.payload as unknown as Record<string, unknown>).then(() => { c.renderAll(); snapshotHistory(activeIdx); tick(); });
+  }
+
+  function deleteActive() {
+    const c = activeCanvas(); if (!c) return;
+    const obj = c.getActiveObject(); if (!obj) return;
+    c.remove(obj); c.discardActiveObject(); c.requestRenderAll();
+  }
+  function duplicateActive() {
+    const c = activeCanvas(); if (!c) return;
+    const obj = c.getActiveObject(); if (!obj) return;
+    obj.clone().then(cl => {
+      cl.set({ left: (obj.left || 0) + 24, top: (obj.top || 0) + 24 });
+      c.add(cl); c.setActiveObject(cl); c.requestRenderAll();
+    });
+  }
+  function bringForward() { const c = activeCanvas(); const o = c?.getActiveObject(); if (c && o) { c.bringObjectForward(o); c.requestRenderAll(); } }
+  function sendBackward() { const c = activeCanvas(); const o = c?.getActiveObject(); if (c && o) { c.sendObjectBackwards(o); c.requestRenderAll(); } }
+  function bringToFront() { const c = activeCanvas(); const o = c?.getActiveObject(); if (c && o) { c.bringObjectToFront(o); c.requestRenderAll(); } }
+  function sendToBack() { const c = activeCanvas(); const o = c?.getActiveObject(); if (c && o) { c.sendObjectToBack(o); c.requestRenderAll(); } }
+
+  function align(direction: "left" | "centerH" | "right" | "top" | "centerV" | "bottom") {
+    const c = activeCanvas(); if (!c) return;
+    const obj = c.getActiveObject(); if (!obj) return;
+    const cw = c.getWidth(), ch = c.getHeight();
+    const ow = obj.getScaledWidth(), oh = obj.getScaledHeight();
+    if (direction === "left")    obj.set({ left: 0 });
+    if (direction === "centerH") obj.set({ left: (cw - ow) / 2 });
+    if (direction === "right")   obj.set({ left: cw - ow });
+    if (direction === "top")     obj.set({ top: 0 });
+    if (direction === "centerV") obj.set({ top: (ch - oh) / 2 });
+    if (direction === "bottom")  obj.set({ top: ch - oh });
+    obj.setCoords(); c.requestRenderAll();
+  }
+
+  // ── multi-page ──
+  function addPage() {
+    const next: ProjectRecord["pages"] = [...pages, { id: uid("page"), payload: null }];
+    setPages(next); onUpdatePages(next);
+    setActiveIdx(next.length - 1);
+  }
+  function removePage(idx: number) {
+    if (pages.length <= 1) return;
+    const next = pages.slice(); next.splice(idx, 1);
+    // Dispose the corresponding canvas.
+    const slot = stateRef.current[idx];
+    if (slot?.canvas) { try { slot.canvas.dispose(); } catch {} }
+    stateRef.current.splice(idx, 1);
+    setPages(next); onUpdatePages(next);
+    setActiveIdx(Math.max(0, Math.min(activeIdx, next.length - 1)));
+  }
+
+  // ── selection updates ──
+  function setOnSelected(patch: Record<string, unknown>) {
+    const c = activeCanvas(); if (!c) return;
+    const obj = c.getActiveObject(); if (!obj) return;
+    obj.set(patch); obj.setCoords(); c.requestRenderAll(); tick();
+  }
+
+  // ── export ──
+  async function runExport(format: "png" | "jpg" | "svg" | "pdf" | "zip") {
+    await captureAllPages();
+    const canvases = stateRef.current.map(s => s.canvas).filter(Boolean) as fabric.Canvas[];
+    if (canvases.length === 0) { showToast("Nothing to export.", "info"); return; }
+    try {
+      if (format === "png") await exportFabricPNG({ canvases, title });
+      else if (format === "jpg") await exportFabricJPG({ canvases, title });
+      else if (format === "svg") await exportFabricSVG({ canvases, title });
+      else if (format === "pdf") await exportFabricPDF({ canvases, title });
+      else if (format === "zip") await exportFabricZip({ canvases, title }, "png");
+      showToast("Exported." , "success");
+    } catch (e) {
+      showToast("Export failed: " + String(e).slice(0, 80), "error");
+    }
+    setExportOpen(false);
+  }
+
+  // ── render ──
+  return (
+    <div ref={wrapperRef} style={{ display: "grid", gridTemplateRows: "56px 1fr " + (isMultiPage ? "120px" : "auto"), gridTemplateColumns: "240px 1fr 280px", height: "calc(100vh - 56px)", background: D.bg }}>
+      {/* TOP BAR */}
+      <div style={{ gridColumn: "1 / 4", display: "flex", alignItems: "center", padding: "0 14px", borderBottom: "1px solid " + D.border, background: "#0D0D12", gap: 6 }}>
+        <input value={title} onChange={e => { setTitle(e.target.value); onUpdateTitle(e.target.value); }} placeholder="Untitled design" style={{
+          background: "transparent", border: "1px solid transparent", padding: "4px 6px", borderRadius: 6,
+          color: D.tx, fontFamily: gf, fontSize: 16, fontWeight: 800, letterSpacing: -0.2, outline: "none", minWidth: 160,
+        }} onFocus={e => e.currentTarget.style.borderColor = D.border} onBlur={e => e.currentTarget.style.borderColor = "transparent"} />
+
+        <span style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 1.2, marginLeft: 6 }}>· {w}×{h}</span>
+        <span style={{ fontFamily: mn, fontSize: 10, color: autosave.status === "error" ? D.coral : D.txd, marginLeft: 10 }}>{autosaveLabel}</span>
+
+        <div style={{ width: 1, height: 22, background: D.border, margin: "0 6px" }} />
+
+        <IconBtn onClick={undo} title="Undo" Icon={Undo2} />
+        <IconBtn onClick={redo} title="Redo" Icon={Redo2} />
+
+        <div style={{ width: 1, height: 22, background: D.border, margin: "0 6px" }} />
+
+        <IconBtn onClick={() => align("left")} title="Align left" Icon={AlignStartHorizontal} />
+        <IconBtn onClick={() => align("centerH")} title="Center horizontally" Icon={AlignCenterHorizontal} />
+        <IconBtn onClick={() => align("right")} title="Align right" Icon={AlignEndHorizontal} />
+        <IconBtn onClick={() => align("top")} title="Align top" Icon={AlignStartVertical} />
+        <IconBtn onClick={() => align("centerV")} title="Center vertically" Icon={AlignCenterVertical} />
+        <IconBtn onClick={() => align("bottom")} title="Align bottom" Icon={AlignEndVertical} />
+
+        <div style={{ width: 1, height: 22, background: D.border, margin: "0 6px" }} />
+
+        <IconBtn onClick={bringForward} title="Forward" Icon={ChevronUp} />
+        <IconBtn onClick={sendBackward} title="Backward" Icon={ChevronDown} />
+        <IconBtn onClick={bringToFront} title="To front" Icon={ArrowUpToLine} />
+        <IconBtn onClick={sendToBack} title="To back" Icon={ArrowDownToLine} />
+
+        <div style={{ width: 1, height: 22, background: D.border, margin: "0 6px" }} />
+
+        <IconBtn onClick={duplicateActive} title="Duplicate" Icon={CopyIcon} />
+        <IconBtn onClick={deleteActive} title="Delete" Icon={Trash2} danger />
+
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+          <IconBtn onClick={() => setZoom(z => Math.max(0.1, z - 0.1))} title="Zoom out" Icon={ZoomOut} />
+          <span style={{ fontFamily: mn, fontSize: 10, color: D.txm, minWidth: 40, textAlign: "center" }}>{Math.round(zoom * 100)}%</span>
+          <IconBtn onClick={() => setZoom(z => Math.min(2, z + 0.1))} title="Zoom in" Icon={ZoomIn} />
+
+          <button onClick={() => autosave.saveNow()} style={pillStyle(D.teal)}><Save size={11} /> Save</button>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setExportOpen(o => !o)} style={pillStyle(D.amber)}><Download size={11} /> Export</button>
+            {exportOpen && (
+              <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, background: "#0D0D12", border: "1px solid " + D.border, borderRadius: 8, padding: 6, minWidth: 140, zIndex: 20, boxShadow: "0 12px 28px rgba(0,0,0,0.5)" }}>
+                {(["png", "jpg", "svg", "pdf", "zip"] as const).map(f => (
+                  <button key={f} onClick={() => runExport(f)} style={{
+                    width: "100%", textAlign: "left", padding: "8px 10px", background: "transparent", border: "none",
+                    color: D.tx, fontFamily: mn, fontSize: 11, cursor: "pointer", borderRadius: 6,
+                  }}>.{f}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* LEFT PANEL */}
+      <aside style={{ background: "#0D0D12", borderRight: "1px solid " + D.border, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", padding: 6, gap: 4, borderBottom: "1px solid " + D.border }}>
+          {(["templates", "elements", "text", "uploads", "brand"] as const).map(t => (
+            <button key={t} onClick={() => setLeftTab(t)} style={{
+              flex: 1, padding: "6px 4px", borderRadius: 5,
+              background: leftTab === t ? D.amber + "1F" : "transparent",
+              border: "1px solid " + (leftTab === t ? D.amber + "55" : "transparent"),
+              color: leftTab === t ? D.amber : D.txm,
+              fontFamily: mn, fontSize: 9, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase", cursor: "pointer",
+            }}>{t.slice(0, 5)}</button>
+          ))}
+        </div>
+        <div style={{ flex: 1, overflow: "auto", padding: 12 }}>
+          {leftTab === "templates" && <TemplatesTab cat={project.category} onPick={loadTemplate} />}
+          {leftTab === "elements" && <ElementsTab onPick={addShape} />}
+          {leftTab === "text" && <TextTab onPick={addText} />}
+          {leftTab === "uploads" && <UploadsTab onUpload={addImageFromFile} />}
+          {leftTab === "brand" && <BrandTab onLogo={addLogo} onColor={(hex) => setOnSelected({ fill: hex })} />}
+        </div>
+      </aside>
+
+      {/* CENTER */}
+      <main style={{ display: "flex", alignItems: "center", justifyContent: "center", overflow: "auto", background: "repeating-conic-gradient(#0c0c12 0% 25%, #08080d 0% 50%) 50% / 26px 26px" }}>
+        <div style={{ position: "relative" }}>
+          {pages.map((p, i) => (
+            <div key={p.id} style={{ display: i === activeIdx ? "block" : "none", boxShadow: "0 24px 60px rgba(0,0,0,0.55)", transform: "scale(" + zoom + ")", transformOrigin: "center center", margin: 40 }}>
+              <canvas ref={(el) => bindCanvas(i, el)} width={w} height={h} />
+            </div>
+          ))}
+        </div>
+      </main>
+
+      {/* RIGHT PANEL */}
+      <aside style={{ background: "#0D0D12", borderLeft: "1px solid " + D.border, overflow: "auto" }}>
+        {selected ? (
+          <PropertiesPanel obj={selected} onPatch={setOnSelected} />
+        ) : (
+          <LayersPanel canvas={activeCanvas()} onChange={() => tick()} />
+        )}
+      </aside>
+
+      {/* PAGES STRIP */}
+      {isMultiPage && (
+        <div style={{ gridColumn: "1 / 4", display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderTop: "1px solid " + D.border, background: "#08080D", overflowX: "auto" }}>
+          {pages.map((p, i) => (
+            <button key={p.id} onClick={() => setActiveIdx(i)} style={{
+              padding: 0, background: "transparent", border: "2px solid " + (activeIdx === i ? D.amber : D.border),
+              borderRadius: 6, cursor: "pointer", position: "relative", flexShrink: 0,
+            }}>
+              {p.thumb ? <img src={p.thumb} alt="" style={{ display: "block", width: 80, height: 80, objectFit: "contain", background: "#fff", borderRadius: 4 }} /> : <div style={{ width: 80, height: 80, background: "#fff", borderRadius: 4 }} />}
+              <span style={{ position: "absolute", top: 4, left: 6, fontFamily: mn, fontSize: 9, color: "#000", background: "rgba(255,255,255,0.9)", padding: "0 4px", borderRadius: 3 }}>{i + 1}</span>
+              {pages.length > 1 && <span onClick={(e) => { e.stopPropagation(); removePage(i); }} style={{ position: "absolute", top: 2, right: 2, fontFamily: mn, fontSize: 12, color: D.coral, cursor: "pointer", background: "rgba(13,13,18,0.9)", borderRadius: 4, padding: "0 4px" }}>×</span>}
+            </button>
+          ))}
+          <button onClick={addPage} style={{
+            padding: 10, background: D.amber + "1F", border: "1px solid " + D.amber + "55", borderRadius: 6,
+            color: D.amber, cursor: "pointer", fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase",
+            display: "inline-flex", alignItems: "center", gap: 5,
+          }}><Plus size={12} /> Add page</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Small UI helpers ──────────────────────────────────────────────
+function IconBtn({ onClick, title, Icon, danger }: { onClick: () => void; title: string; Icon: typeof Undo2; danger?: boolean }) {
+  return (
+    <button onClick={onClick} title={title} style={{
+      background: "transparent", border: "none", borderRadius: 5, padding: 6, cursor: "pointer",
+      color: danger ? D.coral : D.txm, display: "inline-flex",
+    }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+      <Icon size={13} strokeWidth={1.8} />
+    </button>
+  );
+}
+
+function pillStyle(accent: string): React.CSSProperties {
+  return {
+    display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 6,
+    background: accent + "16", border: "1px solid " + accent + "44", color: accent,
+    fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 1, cursor: "pointer", textTransform: "uppercase",
+  };
+}
+
+function PanelHeader({ children }: { children: React.ReactNode }) {
+  return <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 1.6, textTransform: "uppercase", marginBottom: 8 }}>{children}</div>;
+}
+
+// ─── Left-panel tabs ───────────────────────────────────────────────
+function TemplatesTab({ cat, onPick }: { cat?: string; onPick: (t: DesignTemplate) => void }) {
+  const list = cat ? templatesByCategory(cat) : TEMPLATES.slice(0, 12);
+  return (
+    <div>
+      <PanelHeader>Templates {cat ? "· " + cat : ""}</PanelHeader>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+        {list.length === 0 && <div style={{ gridColumn: "1 / 3", fontFamily: ft, fontSize: 12, color: D.txd }}>No templates for this category yet.</div>}
+        {list.map(t => (
+          <button key={t.id} onClick={() => onPick(t)} title={t.title} style={{
+            aspectRatio: String(t.preset.width / t.preset.height),
+            background: "#1a1a23", border: "1px solid " + D.border, borderRadius: 6, padding: 0, overflow: "hidden", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            {t.thumb ? <img src={t.thumb} alt={t.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontFamily: mn, fontSize: 9, color: D.txd, padding: 6, textAlign: "center" }}>{t.title}</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ElementsTab({ onPick }: { onPick: (id: string) => void }) {
+  return (
+    <div>
+      <PanelHeader>Shapes</PanelHeader>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+        {SHAPE_PRESETS.map(s => (
+          <button key={s.id} onClick={() => onPick(s.id)} style={{
+            padding: "14px 6px", background: "rgba(255,255,255,0.04)", border: "1px solid " + D.border, borderRadius: 6,
+            color: D.tx, fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.8, cursor: "pointer",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+          }}><s.Icon size={20} strokeWidth={1.6} color={D.amber} />{s.label}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TextTab({ onPick }: { onPick: (preset: typeof TEXT_PRESETS[number]) => void }) {
+  return (
+    <div>
+      <PanelHeader>Type presets</PanelHeader>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {TEXT_PRESETS.map(p => (
+          <button key={p.id} onClick={() => onPick(p)} style={{
+            padding: "12px 12px", background: "rgba(255,255,255,0.04)", border: "1px solid " + D.border, borderRadius: 6,
+            color: D.tx, cursor: "pointer", textAlign: "left",
+            fontFamily: p.fontFamily, fontSize: Math.min(p.fontSize * 0.4, 22), fontWeight: p.fontWeight,
+          }}>{p.label}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function UploadsTab({ onUpload }: { onUpload: (f: File) => void }) {
+  return (
+    <div>
+      <PanelHeader>Uploads</PanelHeader>
+      <label style={{
+        display: "block", padding: "20px 12px", background: "rgba(255,255,255,0.03)", border: "1px dashed " + D.border, borderRadius: 8,
+        color: D.txm, textAlign: "center", cursor: "pointer", fontFamily: mn, fontSize: 10, letterSpacing: 0.8,
+      }}>
+        <ImageIcon size={18} color={D.amber} strokeWidth={1.6} style={{ marginBottom: 6 }} />
+        <div>Drop or click to upload</div>
+        <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) onUpload(f); }} />
+      </label>
+    </div>
+  );
+}
+
+function BrandTab({ onLogo, onColor }: { onLogo: (src: string) => void; onColor: (hex: string) => void }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div>
+        <PanelHeader>Logos</PanelHeader>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          {SA_LOGOS.map(l => (
+            <button key={l.src} onClick={() => onLogo(l.src)} title={l.label} style={{
+              padding: 8, background: "#1a1a23", border: "1px solid " + D.border, borderRadius: 6, cursor: "pointer",
+            }}>
+              <img src={l.src} alt={l.label} style={{ width: "100%", height: 50, objectFit: "contain" }} />
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <PanelHeader>Palette</PanelHeader>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}>
+          {BRAND_PALETTE.map(hex => (
+            <button key={hex} onClick={() => onColor(hex)} title={hex} style={{
+              aspectRatio: "1", background: hex, border: "1px solid " + D.border, borderRadius: 6, cursor: "pointer",
+            }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Right-panel: properties / layers ──────────────────────────────
+function PropertiesPanel({ obj, onPatch }: { obj: fabric.Object; onPatch: (p: Record<string, unknown>) => void }) {
+  // narrow to text-like
+  const isText = obj.type === "textbox" || obj.type === "i-text" || obj.type === "text";
+  const t = obj as fabric.Textbox;
+  return (
+    <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+      <PanelHeader>Selection · {obj.type}</PanelHeader>
+
+      <Field label="Fill">
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          <input type="color" value={normaliseColor(obj.fill as string)} onChange={e => onPatch({ fill: e.target.value })} style={{ width: 32, height: 28, padding: 0, border: "1px solid " + D.border, borderRadius: 4, background: "transparent", cursor: "pointer" }} />
+          <input value={String(obj.fill || "")} onChange={e => onPatch({ fill: e.target.value })} style={inputStyle()} />
+        </div>
+      </Field>
+
+      <Field label="Stroke">
+        <div style={{ display: "flex", gap: 4 }}>
+          <input type="color" value={normaliseColor(obj.stroke as string || "#000000")} onChange={e => onPatch({ stroke: e.target.value })} style={{ width: 32, height: 28, padding: 0, border: "1px solid " + D.border, borderRadius: 4, background: "transparent", cursor: "pointer" }} />
+          <input type="number" min={0} value={obj.strokeWidth || 0} onChange={e => onPatch({ strokeWidth: Number(e.target.value) })} style={Object.assign({}, inputStyle(), { width: 70 })} />
+        </div>
+      </Field>
+
+      <Field label="Opacity">
+        <input type="range" min={0} max={1} step={0.05} value={obj.opacity ?? 1} onChange={e => onPatch({ opacity: Number(e.target.value) })} style={{ width: "100%" }} />
+      </Field>
+
+      {isText && (
+        <>
+          <Field label="Font">
+            <select value={t.fontFamily} onChange={e => onPatch({ fontFamily: e.target.value })} style={inputStyle()}>
+              <option value="Grift,Outfit,sans-serif">Grift / Outfit</option>
+              <option value="Arial, Helvetica, sans-serif">Arial</option>
+              <option value="Georgia, serif">Georgia</option>
+              <option value="JetBrains Mono, monospace">JetBrains Mono</option>
+            </select>
+          </Field>
+          <Field label="Size">
+            <input type="number" min={6} value={t.fontSize} onChange={e => onPatch({ fontSize: Number(e.target.value) })} style={inputStyle()} />
+          </Field>
+          <Field label="Weight">
+            <select value={String(t.fontWeight)} onChange={e => onPatch({ fontWeight: Number(e.target.value) || e.target.value })} style={inputStyle()}>
+              <option value="400">Regular 400</option>
+              <option value="600">Semibold 600</option>
+              <option value="700">Bold 700</option>
+              <option value="900">Black 900</option>
+            </select>
+          </Field>
+          <Field label="Align">
+            <select value={t.textAlign} onChange={e => onPatch({ textAlign: e.target.value })} style={inputStyle()}>
+              <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option><option value="justify">Justify</option>
+            </select>
+          </Field>
+        </>
+      )}
+
+      <Field label="Position">
+        <div style={{ display: "flex", gap: 6 }}>
+          <input type="number" value={Math.round(obj.left || 0)} onChange={e => onPatch({ left: Number(e.target.value) })} style={inputStyle()} />
+          <input type="number" value={Math.round(obj.top || 0)} onChange={e => onPatch({ top: Number(e.target.value) })} style={inputStyle()} />
+        </div>
+      </Field>
+    </div>
+  );
+}
+
+function LayersPanel({ canvas, onChange }: { canvas: fabric.Canvas | null; onChange: () => void }) {
+  const sensors = useSensors(useSensor(PointerSensor));
+  const objects = canvas?.getObjects() || [];
+  // Reverse so top-most renders at the top of the list.
+  const items = objects.slice().reverse().map((o, idx) => ({ id: idx, obj: o }));
+
+  function onDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!canvas || !over || active.id === over.id) return;
+    const from = items.findIndex(i => i.id === active.id);
+    const to = items.findIndex(i => i.id === over.id);
+    const reordered = arrayMove(items, from, to);
+    // Apply: removeAll, then re-add in reversed order.
+    canvas.remove(...canvas.getObjects());
+    reordered.slice().reverse().forEach(it => canvas.add(it.obj));
+    canvas.requestRenderAll(); onChange();
+  }
+
+  return (
+    <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+      <PanelHeader>Layers</PanelHeader>
+      {items.length === 0 && <div style={{ fontFamily: ft, fontSize: 12, color: D.txd }}>No objects on this page yet.</div>}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
+          {items.map((it) => (
+            <LayerRow key={it.id} id={it.id} obj={it.obj} canvas={canvas!} onChange={onChange} />
+          ))}
+        </SortableContext>
+      </DndContext>
+    </div>
+  );
+}
+
+function LayerRow({ id, obj, canvas, onChange }: { id: number; obj: fabric.Object; canvas: fabric.Canvas; onChange: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const visible = (obj.opacity ?? 1) > 0;
+  const locked = obj.selectable === false;
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform), transition,
+    display: "flex", alignItems: "center", gap: 6,
+    padding: "6px 8px", background: "rgba(255,255,255,0.03)", border: "1px solid " + D.border, borderRadius: 6,
+    opacity: isDragging ? 0.6 : 1, cursor: "default",
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      <button {...attributes} {...listeners} title="Drag" style={{ background: "transparent", border: "none", color: D.txd, cursor: "grab", display: "inline-flex", padding: 0 }}>
+        <GripVertical size={11} strokeWidth={1.6} />
+      </button>
+      <button onClick={() => { canvas.setActiveObject(obj); canvas.requestRenderAll(); onChange(); }} style={{
+        flex: 1, background: "transparent", border: "none", color: D.tx, cursor: "pointer", textAlign: "left",
+        fontFamily: mn, fontSize: 10, letterSpacing: 0.4,
+      }}>{labelFor(obj)}</button>
+      <button onClick={() => { obj.set({ opacity: visible ? 0 : 1 }); canvas.requestRenderAll(); onChange(); }} title={visible ? "Hide" : "Show"} style={{ background: "transparent", border: "none", color: D.txd, cursor: "pointer", display: "inline-flex" }}>
+        {visible ? <Eye size={11} /> : <EyeOff size={11} />}
+      </button>
+      <button onClick={() => { obj.set({ selectable: !locked, evented: !locked }); canvas.requestRenderAll(); onChange(); }} title={locked ? "Unlock" : "Lock"} style={{ background: "transparent", border: "none", color: D.txd, cursor: "pointer", display: "inline-flex" }}>
+        {locked ? <Lock size={11} /> : <Unlock size={11} />}
+      </button>
+    </div>
+  );
+}
+
+function labelFor(obj: fabric.Object): string {
+  if (obj.type === "textbox" || obj.type === "i-text" || obj.type === "text") {
+    const t = obj as fabric.Textbox;
+    return "T · " + (t.text || "Empty").slice(0, 18);
+  }
+  if (obj.type === "image") return "Image";
+  if (obj.type === "rect") return "Rect";
+  if (obj.type === "circle") return "Circle";
+  if (obj.type === "triangle") return "Triangle";
+  if (obj.type === "line") return "Line";
+  if (obj.type === "polygon") return "Polygon";
+  return obj.type || "Object";
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 4 }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function inputStyle(): React.CSSProperties {
+  return {
+    width: "100%", padding: "5px 8px", background: "rgba(255,255,255,0.03)", border: "1px solid " + D.border, borderRadius: 5,
+    color: D.tx, fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box",
+  };
+}
+
+function normaliseColor(c: string | undefined): string {
+  if (!c) return "#000000";
+  if (c.startsWith("#") && (c.length === 7 || c.length === 4)) return c;
+  return "#000000";
+}
+
+function relTime(ts: number): string {
+  const diff = Math.floor((Date.now() - ts) / 1000);
+  if (diff < 5) return "just now";
+  if (diff < 60) return diff + "s ago";
+  if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+  return Math.floor(diff / 3600) + "h ago";
+}
