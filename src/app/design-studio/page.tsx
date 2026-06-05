@@ -15,7 +15,10 @@ import {
   Wand,
   Search,
   Camera,
+  Trash2,
+  RotateCcw,
 } from "lucide-react";
+import { listProjects, softDeleteProject, restoreProject, type ProjectRecord } from "./projects-store";
 import { DocuShell } from "./docu-shell";
 import { D, ft, gf, mn } from "../shared-constants";
 import { useToast } from "../toast-context";
@@ -76,6 +79,8 @@ export default function DesignStudioHubPage() {
   const { showToast: toast } = useToast();
   const { prompt, confirm } = useDialog();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [localProjects, setLocalProjects] = useState<ProjectRecord[]>([]);
+  const [showDeleted, setShowDeleted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tablesMissing, setTablesMissing] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -133,6 +138,17 @@ export default function DesignStudioHubPage() {
   }, [toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  const refreshLocal = useCallback(async () => {
+    try {
+      const rows = await listProjects({ includeDeleted: showDeleted });
+      setLocalProjects(rows);
+    } catch {
+      setLocalProjects([]);
+    }
+  }, [showDeleted]);
+
+  useEffect(() => { refreshLocal(); }, [refreshLocal]);
 
   // Cmd/Ctrl+K to focus search.
   useEffect(() => {
@@ -206,7 +222,8 @@ export default function DesignStudioHubPage() {
     | { kind: "size"; id: string; label: string; sub: string; tool: StudioTool }
     | { kind: "template"; id: QuoteTemplateId; label: string; sub: string }
     | { kind: "event"; id: string; label: string; sub: string }
-    | { kind: "project"; id: string; label: string; sub: string };
+    | { kind: "project"; id: string; label: string; sub: string }
+    | { kind: "canvas"; id: string; label: string; sub: string };
 
   const corpus: SearchItem[] = useMemo(() => {
     const out: SearchItem[] = [];
@@ -225,15 +242,19 @@ export default function DesignStudioHubPage() {
     QUOTE_TEMPLATES.forEach((t) => out.push({ kind: "template", id: t.id, label: `Quote · ${t.label}`, sub: t.sub }));
     EVENT_ROSTER.forEach((e) => out.push({ kind: "event", id: e.id, label: `Event · ${e.label}`, sub: `${e.sub} · ${e.category}` }));
     projects.forEach((p) => out.push({ kind: "project", id: p.id, label: `Open · ${p.name}`, sub: p.updated_at ? new Date(p.updated_at).toLocaleString() : "" }));
+    localProjects.forEach((p) => {
+      if (p.deletedAt) return;
+      out.push({ kind: "canvas", id: p.id, label: `Open · ${p.title || "Untitled"}`, sub: p.updatedAt ? new Date(p.updatedAt).toLocaleString() : "" });
+    });
     return out;
-  }, [projects]);
+  }, [projects, localProjects]);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [] as SearchItem[];
     const tokens = q.split(/\s+/).filter(Boolean);
     const scored: Array<{ item: SearchItem; score: number }> = [];
-    const kindWeight: Record<SearchItem["kind"], number> = { tile: 1, category: 2, template: 3, event: 4, project: 5, size: 6 };
+    const kindWeight: Record<SearchItem["kind"], number> = { tile: 1, category: 2, template: 3, event: 4, project: 5, canvas: 5, size: 6 };
     corpus.forEach((item) => {
       const hay = (item.label + " " + item.sub).toLowerCase();
       const labelLc = item.label.toLowerCase();
@@ -272,6 +293,8 @@ export default function DesignStudioHubPage() {
       openTool("event", { eventId: item.id });
     } else if (item.kind === "project") {
       router.push(`/design-studio/p/${item.id}`);
+    } else if (item.kind === "canvas") {
+      router.push(`/design-studio/canvas-editor?id=${encodeURIComponent(item.id)}`);
     }
   }
 
@@ -585,14 +608,32 @@ export default function DesignStudioHubPage() {
 
         {/* Recent projects */}
         <div>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
             <div style={sectionLabel}>Recent projects</div>
-            <div style={{ color: D.txd, fontFamily: mn, fontSize: 11 }}>
-              {loading ? "loading…" : `${projects.length} total`}
+            <div style={{ color: D.txd, fontFamily: mn, fontSize: 11, marginLeft: "auto" }}>
+              {loading ? "loading…" : `${projects.length + localProjects.length} total`}
             </div>
+            <button
+              type="button"
+              onClick={() => setShowDeleted((s) => !s)}
+              style={{
+                background: "transparent",
+                border: `1px solid ${D.border}`,
+                borderRadius: 6,
+                color: showDeleted ? D.teal : D.txm,
+                fontFamily: mn,
+                fontSize: 10,
+                letterSpacing: 1.4,
+                padding: "4px 9px",
+                textTransform: "uppercase",
+                cursor: "pointer",
+              }}
+            >
+              {showDeleted ? "Hide trash" : "Show trash"}
+            </button>
           </div>
 
-          {!loading && projects.length === 0 && !tablesMissing ? (
+          {!loading && projects.length === 0 && localProjects.length === 0 && !tablesMissing ? (
             <div style={emptyBox}>
               <div style={{ fontFamily: gf, fontSize: 16, marginBottom: 6 }}>No projects yet</div>
               <div style={{ color: D.txm, lineHeight: 1.5, fontSize: 13 }}>
@@ -608,6 +649,69 @@ export default function DesignStudioHubPage() {
               gap: 12,
             }}
           >
+            {localProjects.slice(0, 12).map((p) => {
+              const isDeleted = !!p.deletedAt;
+              return (
+                <div
+                  key={`local-${p.id}`}
+                  style={{ ...projectCard, opacity: isDeleted ? 0.55 : 1 }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/design-studio/canvas-editor?id=${encodeURIComponent(p.id)}`)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      textAlign: "left",
+                      color: "inherit",
+                      flex: 1,
+                      padding: 14,
+                      cursor: "pointer",
+                      fontFamily: ft,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                      <div style={canvasPill}>CANVAS</div>
+                    </div>
+                    <div style={{ fontFamily: gf, fontSize: 15, marginBottom: 4, color: D.tx, lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {p.title || "Untitled"}
+                    </div>
+                    <div style={{ fontFamily: mn, fontSize: 10, color: D.txd }}>
+                      {p.updatedAt ? new Date(p.updatedAt).toLocaleString() : ""}
+                    </div>
+                  </button>
+                  <div style={{ borderTop: `1px solid ${D.border}`, padding: "6px 14px", display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                    {isDeleted ? (
+                      <button
+                        type="button"
+                        onClick={async () => { await restoreProject(p.id); await refreshLocal(); }}
+                        style={restoreBtn}
+                      >
+                        <RotateCcw size={11} /> Restore
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: "Move to trash?",
+                            body: `"${p.title || "Untitled"}" will be hidden until you restore it.`,
+                            cta: "Trash",
+                            variant: "danger",
+                          });
+                          if (!ok) return;
+                          await softDeleteProject(p.id);
+                          await refreshLocal();
+                        }}
+                        style={dangerBtn}
+                      >
+                        <Trash2 size={11} /> Trash
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
             {projects.slice(0, 12).map((p) => (
               <div key={p.id} style={projectCard}>
                 <Link
@@ -751,6 +855,34 @@ const dangerBtn: React.CSSProperties = {
   fontFamily: mn,
   fontSize: 11,
   cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 5,
+};
+
+const restoreBtn: React.CSSProperties = {
+  background: "transparent",
+  color: D.teal,
+  border: `1px solid ${D.border}`,
+  padding: "4px 10px",
+  borderRadius: 6,
+  fontFamily: mn,
+  fontSize: 11,
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 5,
+};
+
+const canvasPill: React.CSSProperties = {
+  fontFamily: mn,
+  fontSize: 10,
+  letterSpacing: 0.6,
+  padding: "2px 6px",
+  borderRadius: 4,
+  background: `${D.teal}1f`,
+  color: D.teal,
+  border: `1px solid ${D.teal}55`,
 };
 
 const projectCard: React.CSSProperties = {
@@ -793,6 +925,7 @@ const KIND_COLORS: Record<string, string> = {
   template: D.coral,
   event: D.crimson,
   project: D.txm,
+  canvas: D.teal,
 };
 
 function kindLabel(k: string): string {
@@ -802,6 +935,7 @@ function kindLabel(k: string): string {
   if (k === "template") return "TEMPLATE";
   if (k === "event") return "EVENT";
   if (k === "project") return "PROJECT";
+  if (k === "canvas") return "CANVAS";
   return k.toUpperCase();
 }
 
