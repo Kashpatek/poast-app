@@ -32,6 +32,35 @@ const NEW_DOC_NAMES: Record<DocType, string> = {
   diagram: "Untitled diagram",
 };
 
+// Phase 5C — convert the table-shaped payload that /api/studio-image/parse
+// returns for chart-classified images into a ChartDocPayload that
+// ChartMaker2 can hydrate. The route always emits a table-style sheet
+// (its system prompt biases that way for safety); we wrap it as a chart
+// doc and hint at a sensible default chart type based on row/col count.
+function tableParseToChartPayload(p: Record<string, unknown>): Record<string, unknown> {
+  const sheet = (p && typeof p === "object" && p.sheet && typeof p.sheet === "object")
+    ? (p.sheet as { schema?: Array<{ key: string; label?: string; type?: string }>; rows?: Array<Record<string, unknown>> })
+    : null;
+  const schema = sheet?.schema || [];
+  const rows = sheet?.rows || [];
+  // Pick a sensible default chart type. With <= 5 rows + 1 numeric column,
+  // a clustered bar lands cleanly; multiple numeric columns suggest
+  // stacked. Pure 2-col text+number → bar. Anything else → clustered.
+  const numericCols = schema.filter((c) => c.type === "number" || c.type === "percent").length;
+  const defaultType = numericCols >= 2 ? "stacked"
+    : rows.length <= 5 ? "stacked"
+    : "clustered";
+  return {
+    kind: "chart",
+    version: 1,
+    type: defaultType,
+    title: (p.titleWhite as string) || (p.name as string) || "",
+    subtitle: (p.subtitle as string) || "",
+    sheet,
+    chartAspect: "fit",
+  };
+}
+
 export default function StudioShell() {
   const { user } = useUser();
   const owner = user?.name || "Analyst";
@@ -132,17 +161,29 @@ export default function StudioShell() {
   // chart / diagram) is already validated against the route's JSON
   // schema; we just need to land it as a fresh doc and route the user
   // into the editor.
+  //
+  // Phase 5C — when docType === "chart" we now route to ChartMaker2
+  // instead of the legacy chart→table fallback. The parse route still
+  // returns the data in table shape (route prompt heavily biases that
+  // way), but we convert it into a ChartDocPayload here so the chart
+  // editor opens with the sheet pre-loaded.
   const newDocFromParsed = useCallback((parsed: {
     docType: "chart" | "table" | "diagram";
     name?: string;
     payload: Record<string, unknown>;
   }) => {
-    const type: DocType = parsed.docType === "chart" ? "table" /* chart → table fallback */
-      : parsed.docType === "diagram" ? "diagram"
+    const type: DocType = parsed.docType === "diagram"
+      ? "diagram"
+      : parsed.docType === "chart"
+      ? "chart"
       : "table";
     const name = (parsed.name && parsed.name.trim()) || NEW_DOC_NAMES[type];
     const doc = emptyDoc(type, owner, name);
-    doc.payload = parsed.payload;
+    if (type === "chart") {
+      doc.payload = tableParseToChartPayload(parsed.payload);
+    } else {
+      doc.payload = parsed.payload;
+    }
     setDocs((cur) => [doc, ...cur]);
     setView({ kind: "editor", docId: doc.id });
     void saveDoc(doc);

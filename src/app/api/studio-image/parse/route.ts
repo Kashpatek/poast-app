@@ -61,7 +61,18 @@ TABLE RULES:
 - If a value is unreadable or missing, use null (not "N/A" or "").
 
 ────────────── If docType === "chart" ──────────────
-Most charts are easier to land as a table the user can convert. Return the same shape as above with docType: "chart" — the editor will treat it as table-with-chart-intent. ALWAYS prefer table over chart unless the image clearly shows a chart with NO tabular numbers visible. Set chromeStyle to "framed".
+Return the same shape as above (the table schema captures the underlying
+data) but set docType: "chart" when the image is OBVIOUSLY a chart
+(bars, lines, areas, scatter, pie, waterfall) and not a tabular grid
+of values. The studio shell routes "chart" docs into ChartMaker2,
+which uses the embedded sheet as the chart's data source. Set
+chromeStyle to "framed". You may still extract numeric values from
+chart bars/points into the sheet — those are the chart's data.
+
+Heuristic: if the image is a chart, pick docType: "chart". If it's a
+spreadsheet-like grid, pick "table". Mixed (a chart with a table next
+to it) → pick whichever is the dominant visual; the user can convert
+between them in the editor.
 
 ────────────── If docType === "diagram" ──────────────
 Return:
