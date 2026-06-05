@@ -38,6 +38,10 @@ import { useOnboarding } from "./onboarding-context";
 import { useRouter, usePathname } from "next/navigation";
 import { StyleGuidePromo } from "./style-promo";
 import { showToast } from "./toast-context";
+import { SaveToLibrary } from "./components/save-to-library";
+import { Command } from "cmdk";
+import { useStore, type ToolOutput } from "./lib/store";
+import { AssetLibraryView } from "./asset-library/asset-library-view";
 
 // ═══ INTERFACES ═══
 interface BufferChannel {
@@ -333,16 +337,110 @@ function BufferPanel() {
 // ═══ CHIPPY (ASK POAST) ═══
 var POAST_SYS = "Your name is Chippy. You're a cute, friendly semiconductor chip mascot and the AI assistant for SemiAnalysis. You're enthusiastic about chips, AI infrastructure, and helping the SemiAnalysis team create great content. You have a playful personality but deep technical knowledge. You occasionally make chip/semiconductor puns.\n\nYou help with content creation, social media strategy, semiconductor industry analysis, and media operations.\n\nBrand rules: Never use em dashes. No emojis in content. No hashtags on X/Twitter. Direct, informed, casual tone.\n\nYou can help with:\n- Writing social posts, threads, captions for any platform\n- Generating video scripts, episode descriptions, titles\n- Brainstorming content ideas and angles\n- Drafting documents, outreach emails, pitches\n- Semiconductor industry analysis and talking points\n- Scheduling strategy and content calendar planning\n- Repurposing content across formats\n\nPlatform rules:\n- X: Hook tweet no link, reply-to-self with link. No hashtags ever.\n- LinkedIn/Facebook: Link in first comment, end with 'Link in comments.'\n- Instagram: Caption + 'Save this for later.' CTA + 5-8 hashtags + San Francisco CA location\n- TikTok: All lowercase, 4-6 hashtags\n- YouTube Shorts: Titles under 40 chars\n\nChannel: youtube.com/@SemianalysisWeekly\n\nWhen asked to create a document, format it clearly with headers and sections. When giving ideas, provide 3-5 options. Be concise but thorough.";
 
-function AskPoast({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+// Flat list of all sidebar items keyed by id — used by the Commands tab
+// to render "Jump to tool" entries. Built lazily once at module load
+// because SIDEBAR_CATS is defined further down the file; we read it via
+// a getter inside the palette to avoid TDZ issues.
+type PaletteJumpItem = { id: string; label: string; catLabel: string; catColor: string; href?: string; Icon: LucideIcon };
+function getJumpItems(): PaletteJumpItem[] {
+  var out: PaletteJumpItem[] = [];
+  Object.keys(SIDEBAR_CATS).forEach(function(k) {
+    var cat = SIDEBAR_CATS[k];
+    cat.items.forEach(function(it: SidebarCatItem) {
+      out.push({ id: it.id, label: it.l, catLabel: cat.label, catColor: cat.color, href: it.href, Icon: it.Icon });
+    });
+  });
+  return out;
+}
+
+// Map sec id -> sensible context-aware action that should float to the
+// top of the Commands list. When a contextual action exists for the
+// current tool, it renders first; otherwise we skip the section. The
+// payload destinations route via the existing window "poast-nav"
+// CustomEvent so we don't have to thread setSec into every command.
+function getContextualCommands(sec: string, lastOutput: ToolOutput | undefined): Array<{ label: string; hint?: string; run: () => void }> {
+  var out: Array<{ label: string; hint?: string; run: () => void }> = [];
+  if (sec === "captions") {
+    out.push({ label: "Save last caption to Saved Prompts", hint: "from Capper", run: function() {
+      if (lastOutput && typeof lastOutput.preview === "string") { copyText(lastOutput.preview); showToast("Caption copied — paste into Saved Prompts."); window.dispatchEvent(new CustomEvent("poast-nav", { detail: "prompts" })); }
+      else { showToast("No recent caption to save yet."); }
+    } });
+  } else if (sec === "weekly") {
+    out.push({ label: "Open in Audio Editor (coming soon)", hint: "SA Weekly", run: function() { showToast("Audio Editor lands in Phase 6 (ProductionSTUDIO)."); } });
+  } else if (sec === "brainstorm") {
+    out.push({ label: "Send last idea to Capper", hint: "Brainstorm", run: function() {
+      if (lastOutput) { showToast("Routing to Capper..."); window.dispatchEvent(new CustomEvent("poast-nav", { detail: "captions" })); }
+      else { showToast("No recent idea — generate one first."); }
+    } });
+  } else if (sec === "sloptop") {
+    out.push({ label: "Send last output to Approval Queue", hint: "Slop Top", run: function() {
+      if (lastOutput && typeof lastOutput.preview === "string") { copyText(lastOutput.preview); showToast("Copied — routing to Approval Queue."); window.dispatchEvent(new CustomEvent("poast-nav", { detail: "approval" })); }
+      else { showToast("No recent output."); }
+    } });
+  } else if (sec === "carousel") {
+    out.push({ label: "Save last carousel to Distribution Pack", hint: "Carousel", run: function() { showToast("Routing to Distribution Pack..."); window.dispatchEvent(new CustomEvent("poast-nav", { detail: "distpack" })); } });
+  } else if (sec === "p2p") {
+    out.push({ label: "Generate Distribution Pack from brief", hint: "Press to Premier", run: function() { showToast("Routing to Distribution Pack..."); window.dispatchEvent(new CustomEvent("poast-nav", { detail: "distpack" })); } });
+  } else if (sec === "approval") {
+    out.push({ label: "Open Performance Feedback", hint: "Approval Queue", run: function() { window.dispatchEvent(new CustomEvent("poast-nav", { detail: "perf" })); } });
+  } else if (sec === "trends" || sec === "news" || sec === "ideation") {
+    out.push({ label: "Open Brainstorm with this topic", hint: "Prepare", run: function() { window.dispatchEvent(new CustomEvent("poast-nav", { detail: "brainstorm" })); } });
+  }
+  return out;
+}
+
+// Small Kbd-style chip used inside the palette + on FloatingChippy to
+// hint the keyboard shortcut.
+function Kbd({ children }: { children: React.ReactNode }) {
+  return <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, padding: "0 5px", borderRadius: 4, background: "rgba(255,255,255,0.06)", border: "1px solid " + C.border, fontFamily: mn, fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.7)", letterSpacing: 0.5 }}>{children}</span>;
+}
+
+// Shared style for cmdk Command.Item. `accent` flips it amber-tinted
+// for the contextual section so the most-likely action stands out.
+function paletteItemStyle(accent: boolean): React.CSSProperties {
+  return {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "9px 12px",
+    borderRadius: 8,
+    cursor: "pointer",
+    background: accent ? C.amber + "08" : "transparent",
+    border: accent ? "1px solid " + C.amber + "30" : "1px solid transparent",
+    marginBottom: 2,
+  };
+}
+
+function AskPoast({ open, onToggle, sec, onNav }: { open: boolean; onToggle: () => void; sec: string; onNav: (id: string) => void }) {
+  // The palette has two modes: "commands" (cmdk-driven, default) and
+  // "chat" (the original AskPoast chat experience preserved verbatim).
+  // Tabs let the user flip between them without losing state.
+  var _tab = useState<"commands" | "chat">("commands"), tab = _tab[0], setTab = _tab[1];
+  var _kbdHelp = useState<boolean>(false), kbdHelp = _kbdHelp[0], setKbdHelp = _kbdHelp[1];
+  var _q = useState<string>(""), q = _q[0], setQ = _q[1];
   var _msgs = useState<ChatMessage[]>([]), msgs = _msgs[0], setMsgs = _msgs[1];
   var _input = useState<string>(""), input = _input[0], setInput = _input[1];
   var _loading = useState<boolean>(false), loading = _loading[0], setLoading = _loading[1];
   var _ready = useState<boolean>(false), ready = _ready[0], setReady = _ready[1];
   var scrollRef = useRef<HTMLDivElement>(null);
+  var cmdInputRef = useRef<HTMLInputElement>(null);
+  // Subscribe to the global output bus (Phase 1) so the "Recent outputs"
+  // group reflects whatever the user just generated anywhere in POAST.
+  var outputs = useStore(function(s) { return s.outputs; });
   var SUGGESTIONS = ["Explain HBM4 like I'm 5", "Write a spicy X thread about NVIDIA", "What's the hottest chip news today?", "Draft a LinkedIn post about our latest episode", "Help me brainstorm video ideas", "Generate a cold take on Intel"];
 
   useEffect(function() { if (open) setTimeout(function() { setReady(true); }, 50); else setReady(false); }, [open]);
   useEffect(function() { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [msgs]);
+  // When the palette opens in Commands mode, autofocus cmdk's input so
+  // typing immediately filters. Skip when on Chat tab so the chat input
+  // gets focus instead.
+  useEffect(function() {
+    if (open && tab === "commands") {
+      setTimeout(function() { if (cmdInputRef.current) cmdInputRef.current.focus(); }, 80);
+    }
+  }, [open, tab]);
+  // Reset the cmdk query on close so the next open starts fresh.
+  useEffect(function() { if (!open) { setQ(""); setKbdHelp(false); } }, [open]);
 
   var send = async function() {
     if (!input.trim() || loading) return;
@@ -384,14 +482,208 @@ function AskPoast({ open, onToggle }: { open: boolean; onToggle: () => void }) {
         </div>
       </div>
       <div style={{ display: "flex", gap: 5 }}>
-        {msgs.length > 0 && <span onClick={function() { var c = msgs.map(function(m) { return (m.role === "user" ? "YOU:\n" : "CHIPPY:\n") + m.text; }).join("\n\n---\n\n"); var b = new Blob([c], { type: "text/plain" }); var u = URL.createObjectURL(b); var a = document.createElement("a"); a.href = u; a.download = "chippy.txt"; a.click(); URL.revokeObjectURL(u); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.4)", padding: "4px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }}>Export</span>}
-        {msgs.length > 0 && <span onClick={function() { setMsgs([]); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.4)", padding: "4px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }}>Clear</span>}
+        {tab === "chat" && msgs.length > 0 && <span onClick={function() { var c = msgs.map(function(m) { return (m.role === "user" ? "YOU:\n" : "CHIPPY:\n") + m.text; }).join("\n\n---\n\n"); var b = new Blob([c], { type: "text/plain" }); var u = URL.createObjectURL(b); var a = document.createElement("a"); a.href = u; a.download = "chippy.txt"; a.click(); URL.revokeObjectURL(u); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.4)", padding: "4px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }}>Export</span>}
+        {tab === "chat" && msgs.length > 0 && <span onClick={function() { setMsgs([]); }} style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.4)", padding: "4px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.06)", cursor: "pointer" }}>Clear</span>}
         <span onClick={onToggle} style={{ fontFamily: mn, fontSize: 16, color: "rgba(255,255,255,0.2)", cursor: "pointer", padding: "2px 6px" }}>&times;</span>
       </div>
     </div>
 
-    {/* Messages */}
-    <div ref={scrollRef} style={{ position: "relative", zIndex: 2, flex: 1, overflow: "auto", padding: "18px 20px" }}>
+    {/* Tabs — Commands (cmdk palette) is the default; Chat (legacy
+        AskPoast experience) is the secondary fallback mode. Both share
+        the same modal shell. */}
+    <div style={{ position: "relative", zIndex: 2, display: "flex", gap: 0, padding: "0 16px", borderBottom: "1px solid " + C.border, alignItems: "center" }}>
+      {(["commands", "chat"] as const).map(function(t) {
+        var active = tab === t;
+        var label = t === "commands" ? "Commands" : "Chat";
+        return <div key={t} onClick={function() { setTab(t); }} style={{
+          padding: "10px 14px",
+          fontFamily: mn,
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: 2,
+          textTransform: "uppercase",
+          color: active ? C.amber : "rgba(255,255,255,0.35)",
+          borderBottom: active ? "2px solid " + C.amber : "2px solid transparent",
+          marginBottom: -1,
+          cursor: "pointer",
+          transition: "all 0.15s ease",
+        }}>{label}</div>;
+      })}
+      <div style={{ flex: 1 }} />
+      {tab === "commands" && <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "10px 0", fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.3)" }}>
+        <Kbd>{"⌘"}</Kbd><Kbd>K</Kbd>
+      </div>}
+    </div>
+
+    {/* COMMANDS TAB — cmdk-driven palette */}
+    {tab === "commands" && <div style={{ position: "relative", zIndex: 2, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <Command
+        label="POAST command palette"
+        shouldFilter={true}
+        style={{ display: "flex", flexDirection: "column", height: "100%", background: "transparent" }}
+      >
+        {/* Search input */}
+        <div style={{ padding: "14px 18px 10px", borderBottom: "1px solid " + C.border }}>
+          <Command.Input
+            ref={cmdInputRef}
+            value={q}
+            onValueChange={setQ}
+            placeholder={"Search commands, tools, recent outputs..."}
+            style={{
+              width: "100%",
+              padding: "10px 14px",
+              background: C.card,
+              border: "1px solid " + C.border,
+              borderRadius: 10,
+              color: C.tx,
+              fontFamily: ft,
+              fontSize: 13,
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        <Command.List style={{ flex: 1, overflow: "auto", padding: "6px 8px" }}>
+          <Command.Empty>
+            <div style={{ padding: "20px 14px", fontFamily: ft, fontSize: 12, color: "rgba(255,255,255,0.35)", textAlign: "center" }}>
+              No matches. Try the Chat tab.
+            </div>
+          </Command.Empty>
+
+          {/* Context-aware commands — only shown when one exists for the
+              current `sec`. Floats to the top so the most likely action
+              is the first thing the user sees. */}
+          {(function() {
+            var ctxCmds = getContextualCommands(sec, outputs[0]);
+            if (ctxCmds.length === 0) return null;
+            return <Command.Group heading={"For this tool"}>
+              <div style={{ padding: "6px 10px 4px", fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 2, textTransform: "uppercase" }}>For this tool</div>
+              {ctxCmds.map(function(c, i) {
+                return <Command.Item key={"ctx-" + i} value={"ctx " + c.label + " " + (c.hint || "")} onSelect={function() { c.run(); onToggle(); }} style={paletteItemStyle(true)}>
+                  <div style={{ display: "flex", flexDirection: "column", flex: 1, gap: 2 }}>
+                    <div style={{ fontFamily: ft, fontSize: 13, color: C.tx, fontWeight: 600 }}>{c.label}</div>
+                    {c.hint && <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)" }}>{c.hint}</div>}
+                  </div>
+                  <Kbd>{"⏎"}</Kbd>
+                </Command.Item>;
+              })}
+            </Command.Group>;
+          })()}
+
+          {/* Quick actions — global, available everywhere. */}
+          <Command.Group heading={"Quick actions"}>
+            <div style={{ padding: "6px 10px 4px", fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 2, textTransform: "uppercase" }}>Quick actions</div>
+            <Command.Item value={"quick generate caption capper"} onSelect={function() { onNav("captions"); onToggle(); }} style={paletteItemStyle(false)}>
+              <span style={{ fontFamily: ft, fontSize: 13, color: C.tx }}>Generate caption</span>
+              <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.35)" }}>Capper</span>
+            </Command.Item>
+            <Command.Item value={"quick send last output approval queue"} onSelect={function() {
+              var last = outputs[0];
+              if (last && typeof last.preview === "string") { copyText(last.preview); showToast("Copied last output — routing to Approval Queue."); }
+              else { showToast("No recent output. Routing anyway."); }
+              onNav("approval"); onToggle();
+            }} style={paletteItemStyle(false)}>
+              <span style={{ fontFamily: ft, fontSize: 13, color: C.tx }}>Send last output to Approval Queue</span>
+              <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.35)" }}>Approval</span>
+            </Command.Item>
+            <Command.Item value={"quick open brainstorm tennis ideation"} onSelect={function() { onNav("brainstorm"); onToggle(); }} style={paletteItemStyle(false)}>
+              <span style={{ fontFamily: ft, fontSize: 13, color: C.tx }}>Open Brainstorm</span>
+              <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.35)" }}>Produce</span>
+            </Command.Item>
+            <Command.Item value={"quick switch to chat ask chippy"} onSelect={function() { setTab("chat"); }} style={paletteItemStyle(false)}>
+              <span style={{ fontFamily: ft, fontSize: 13, color: C.tx }}>Switch to Chat with Chippy</span>
+              <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.35)" }}>Chat</span>
+            </Command.Item>
+            <Command.Item value={"quick show keyboard shortcuts cheatsheet"} onSelect={function() { setKbdHelp(true); }} style={paletteItemStyle(false)}>
+              <span style={{ fontFamily: ft, fontSize: 13, color: C.tx }}>Show keyboard shortcuts</span>
+              <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.35)" }}>Help</span>
+            </Command.Item>
+          </Command.Group>
+
+          {/* Recent outputs (from Phase 1 bus). Empty when nothing has
+              been pushed yet — we render the group only when there are
+              entries so the palette isn't visually cluttered. */}
+          {outputs.length > 0 && <Command.Group heading={"Recent outputs"}>
+            <div style={{ padding: "6px 10px 4px", fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 2, textTransform: "uppercase" }}>Recent outputs</div>
+            {outputs.slice(0, 8).map(function(o) {
+              var preview = (o.preview || "(no preview)").slice(0, 80);
+              return <Command.Item key={o.id} value={"out " + o.sourceTool + " " + o.kind + " " + (o.preview || "")} onSelect={function() {
+                // Route by kind: ideas -> Capper, captions/threads ->
+                // Approval Queue, headlines -> Distribution Pack,
+                // anything else -> copy preview to clipboard so the
+                // user can paste it wherever they want.
+                if (o.kind === "idea") { copyText(preview); showToast("Idea copied — routing to Capper."); onNav("captions"); }
+                else if (o.kind === "caption" || o.kind === "thread") { copyText(preview); showToast("Copied — routing to Approval Queue."); onNav("approval"); }
+                else if (o.kind === "headline") { copyText(preview); showToast("Headline copied — routing to Distribution Pack."); onNav("distpack"); }
+                else { copyText(preview); showToast("Copied output preview to clipboard."); }
+                onToggle();
+              }} style={paletteItemStyle(false)}>
+                <div style={{ display: "flex", flexDirection: "column", flex: 1, gap: 2, minWidth: 0 }}>
+                  <div style={{ fontFamily: ft, fontSize: 12, color: C.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{preview}</div>
+                  <div style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: 1 }}>{o.kind.toUpperCase()} · from {o.sourceTool}</div>
+                </div>
+              </Command.Item>;
+            })}
+          </Command.Group>}
+
+          {/* Jump to tool — every sidebar item, grouped by category. */}
+          <Command.Group heading={"Jump to tool"}>
+            <div style={{ padding: "6px 10px 4px", fontFamily: mn, fontSize: 9, color: C.amber, letterSpacing: 2, textTransform: "uppercase" }}>Jump to tool</div>
+            {getJumpItems().map(function(j) {
+              var Icon = j.Icon;
+              return <Command.Item key={"jump-" + j.id} value={"jump " + j.label + " " + j.catLabel} onSelect={function() {
+                if (j.href) { window.open(j.href, "_blank"); }
+                else { onNav(j.id); }
+                onToggle();
+              }} style={paletteItemStyle(false)}>
+                <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 5, background: j.catColor + "12", border: "1px solid " + j.catColor + "30" }}>
+                  <Icon size={12} strokeWidth={2} color={j.catColor} />
+                </span>
+                <span style={{ fontFamily: ft, fontSize: 13, color: C.tx, fontWeight: 500 }}>{j.label}</span>
+                <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 8, fontWeight: 700, color: j.catColor, letterSpacing: 1.5 }}>{j.catLabel}</span>
+              </Command.Item>;
+            })}
+          </Command.Group>
+        </Command.List>
+
+        {/* Footer hint chip — K / Enter / Esc */}
+        <div style={{ borderTop: "1px solid " + C.border, padding: "8px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.35)" }}>
+            <Kbd>K</Kbd> to search <span style={{ opacity: 0.6 }}>·</span> <Kbd>{"⏎"}</Kbd> select <span style={{ opacity: 0.6 }}>·</span> <Kbd>Esc</Kbd> close
+          </div>
+          <div style={{ fontFamily: mn, fontSize: 8, color: "rgba(255,255,255,0.2)" }}>POAST 4.0 · palette</div>
+        </div>
+      </Command>
+
+      {/* Keyboard shortcuts cheat-sheet — opened by the Quick action.
+          Small overlay inside the palette so it doesn't fight z-index
+          with the rest of the app. */}
+      {kbdHelp && <div onClick={function() { setKbdHelp(false); }} style={{ position: "absolute", inset: 0, zIndex: 5, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <div onClick={function(e: React.MouseEvent<HTMLElement>) { e.stopPropagation(); }} style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 12, padding: "18px 20px", maxWidth: 360, width: "100%" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, letterSpacing: 2, textTransform: "uppercase", fontWeight: 700 }}>Keyboard shortcuts</div>
+            <span onClick={function() { setKbdHelp(false); }} style={{ fontFamily: mn, fontSize: 14, color: "rgba(255,255,255,0.4)", cursor: "pointer" }}>&times;</span>
+          </div>
+          {[
+            { keys: ["⌘", "K"], desc: "Open command palette" },
+            { keys: ["⌘", "F"], desc: "Global search (coming, Phase 11F)" },
+            { keys: ["Esc"], desc: "Close palette / modal" },
+            { keys: ["⏎"], desc: "Select highlighted command" },
+            { keys: ["↑", "↓"], desc: "Navigate commands" },
+          ].map(function(row, i) {
+            return <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: i < 4 ? "1px solid " + C.border : "none" }}>
+              <span style={{ fontFamily: ft, fontSize: 12, color: C.tx }}>{row.desc}</span>
+              <span style={{ display: "flex", gap: 4 }}>{row.keys.map(function(k, j) { return <Kbd key={j}>{k}</Kbd>; })}</span>
+            </div>;
+          })}
+        </div>
+      </div>}
+    </div>}
+
+    {/* CHAT TAB — original AskPoast chat experience preserved verbatim
+        as the secondary fallback mode. */}
+    {tab === "chat" && <div ref={scrollRef} style={{ position: "relative", zIndex: 2, flex: 1, overflow: "auto", padding: "18px 20px" }}>
       {msgs.length === 0 && <div style={{ textAlign: "center", padding: "40px 16px" }}>
         <div style={{ width: 52, height: 52, borderRadius: 16, background: "linear-gradient(135deg, " + C.amber + ", " + C.cyan + ")", border: "1px solid " + C.cyan + "30", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontFamily: mn, fontSize: 24, fontWeight: 900, color: "#060608", animation: "logoPulse 3s ease-in-out infinite, chipFloat 3s ease-in-out infinite", position: "relative" }}><span>{"\u2B21"}</span><span style={{ position: "absolute", fontSize: 10, bottom: 8, color: "#060608", fontWeight: 900 }}>{":3"}</span></div>
         <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 700, color: "#E8E4DD", marginBottom: 6 }}>Hey! I'm Chippy</div>
@@ -424,15 +716,16 @@ function AskPoast({ open, onToggle }: { open: boolean; onToggle: () => void }) {
           {[0, 1, 2].map(function(i) { return <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: C.amber, opacity: 0.6, animation: "dotWave 1.2s ease-in-out " + (i * 0.15) + "s infinite" }} />; })}
         </div>
       </div>}
-    </div>
+    </div>}
 
-    {/* Input */}
-    <div style={{ position: "relative", zIndex: 2, padding: "14px 16px 16px", borderTop: "1px solid rgba(38,201,216,0.06)" }}>
+    {/* Chat input — only shown on Chat tab. Commands tab uses cmdk's
+        own Command.Input above. */}
+    {tab === "chat" && <div style={{ position: "relative", zIndex: 2, padding: "14px 16px 16px", borderTop: "1px solid rgba(38,201,216,0.06)" }}>
       <div style={{ display: "flex", gap: 8, alignItems: "center", background: "linear-gradient(135deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01))", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "5px 5px 5px 16px", transition: "all 0.25s", animation: "inputGlow 4s ease-in-out infinite" }}>
         <input value={input} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { setInput(e.target.value); }} onKeyDown={function(e: React.KeyboardEvent<HTMLInputElement>) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Ask anything..." style={{ flex: 1, padding: "10px 0", background: "transparent", border: "none", color: "#E8E4DD", fontFamily: ft, fontSize: 13, outline: "none" }} />
         <span onClick={send} style={{ padding: "9px 16px", background: input.trim() ? "linear-gradient(135deg, " + C.amber + ", " + C.cyan + ")" : "rgba(255,255,255,0.06)", color: input.trim() ? C.bg : "rgba(255,255,255,0.2)", borderRadius: 8, fontFamily: ft, fontSize: 12, fontWeight: 700, cursor: input.trim() ? "pointer" : "default", transition: "all 0.2s", boxShadow: input.trim() ? "0 4px 14px " + C.cyan + "30, 0 0 20px " + C.amber + "10" : "none" }}>Send</span>
       </div>
-    </div>
+    </div>}
   </div>;
 }
 
@@ -1170,6 +1463,7 @@ function ClipCaptions() {
                   </div>
                   <div style={{ display: "flex", gap: 5 }}>
                     <CopyBtn text={fullText} />
+                    <SaveToLibrary tool="capper" title={"Variation " + (i + 1) + " \u00B7 " + platObj.label + " thread"} prompt={posts.map(function(p) { return p.text; }).join("\n\n")} provider={provider} />
                     <span onClick={function() { if (!isRegen) regenerateOne(platKey, i); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: isRegen ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + borderC, opacity: isRegen ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>{isRegen ? "..." : "\u21BB"}</span>
                     <span onClick={function() { if (!bufferSending[platKey]) { var threadText = posts.map(function(p: { number: number; text: string }) { return p.text; }).join("\n\n"); sendToBuffer(platKey, threadText).then(function(ok: boolean) { if (ok) showToast("Sent " + platObj.label + " thread draft to Buffer."); }); } }} style={{ fontFamily: mn, fontSize: 9, color: bufferSending[platKey] ? C.teal : "rgba(255,255,255,0.4)", cursor: bufferSending[platKey] ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + (bufferSending[platKey] ? C.teal + "40" : borderC), background: bufferSending[platKey] ? C.teal + "08" : "transparent", opacity: bufferSending[platKey] ? 0.6 : 1, userSelect: "none", transition: "all 0.2s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = C.teal + "40"; e.currentTarget.style.color = C.teal; } }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; } }}>{bufferSending[platKey] ? "Sending..." : "Buffer"}</span>
                   </div>
@@ -1195,6 +1489,7 @@ function ClipCaptions() {
                 </div>
                 <div style={{ display: "flex", gap: 5 }}>
                   <CopyBtn text={cap + (r.reply ? "\n\n[Reply]\n" + r.reply : "") + (r.title ? "\n\n[Title]\n" + r.title : "")} />
+                  <SaveToLibrary tool="capper" title={"Variation " + (i + 1) + " \u00B7 " + platObj.label} prompt={cap + (r.reply ? "\n\n[Reply]\n" + r.reply : "") + (r.title ? "\n\n[Title]\n" + r.title : "")} provider={provider} />
                   <span onClick={function() { if (!isRegen) regenerateOne(platKey, i); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: isRegen ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + borderC, opacity: isRegen ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>{isRegen ? "..." : "\u21BB"}</span>
                   <span onClick={function() { if (!bufferSending[platKey]) { sendToBuffer(platKey, cap).then(function(ok: boolean) { if (ok) showToast("Sent " + platObj.label + " draft to Buffer."); }); } }} style={{ fontFamily: mn, fontSize: 9, color: bufferSending[platKey] ? C.teal : "rgba(255,255,255,0.4)", cursor: bufferSending[platKey] ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + (bufferSending[platKey] ? C.teal + "40" : borderC), background: bufferSending[platKey] ? C.teal + "08" : "transparent", opacity: bufferSending[platKey] ? 0.6 : 1, userSelect: "none", transition: "all 0.2s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = C.teal + "40"; e.currentTarget.style.color = C.teal; } }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; } }}>{bufferSending[platKey] ? "Sending..." : "Buffer"}</span>
                 </div>
@@ -1944,112 +2239,6 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
 // ═══ APP ═══
 var ANALYST_ALLOWED = ["home", "sloptop", "carousel", "captions", "brainstorm", "chart", "chart2", "assets"];
 
-// Asset Library embedded inside POAST. Fetches the standalone HTML
-// from /public, drops it inline into POAST's DOM via dangerouslySetInnerHTML,
-// then re-creates the inline <script> nodes so the slide's IIFE wires up
-// the tree-click → preview swap behavior. (React doesn't execute scripts
-// inserted via dangerouslySetInnerHTML — we have to re-attach them.)
-// CSS variables the slide depends on are declared on the wrapper so the
-// scoped rules resolve to the right brand colors.
-function AssetLibraryEmbed() {
-  var _h = useState<string>(""), html = _h[0], setHtml = _h[1];
-  var hostRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(function() {
-    fetch("/asset-library-content.html")
-      .then(function(r) { return r.text(); })
-      .then(function(text) {
-        // Pull just the body content (drops the <html>/<head>/<body>
-        // wrappers and the html/body reset CSS that would conflict with
-        // POAST's layout).
-        var m = text.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-        setHtml(m ? m[1] : text);
-      })
-      .catch(function() { setHtml(""); });
-  }, []);
-
-  useEffect(function() {
-    var host = hostRef.current;
-    if (!host || !html) return;
-    // Re-execute any <script> tags inside the injected HTML.
-    var scripts = host.querySelectorAll("script");
-    scripts.forEach(function(oldScript) {
-      var newScript = document.createElement("script");
-      if (oldScript.src) newScript.src = oldScript.src;
-      if (oldScript.textContent) newScript.textContent = oldScript.textContent;
-      oldScript.parentNode && oldScript.parentNode.replaceChild(newScript, oldScript);
-    });
-  }, [html]);
-
-  return (
-    <div style={Object.assign({
-      position: "fixed", top: 0, left: 240, right: 0, bottom: 0,
-      background: "#06060A", zIndex: 50,
-      display: "flex", flexDirection: "column",
-      overflow: "hidden",
-    }, {
-      // Brand CSS variables · the slide's scoped styles reference these.
-      ["--amber" as string]: "#F7B041",
-      ["--amber-dim" as string]: "rgba(247,176,65,0.15)",
-      ["--border2" as string]: "rgba(255,255,255,0.12)",
-      ["--text" as string]: "#F2F2F2",
-      ["--muted" as string]: "rgba(242,242,242,0.45)",
-      ["--muted2" as string]: "rgba(242,242,242,0.22)",
-      ["--black" as string]: "#06060A",
-      ["--font" as string]: "'Outfit', sans-serif",
-    }) as React.CSSProperties}>
-      <div style={{ padding: "12px 22px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10, background: "#0A0A14", flexShrink: 0 }}>
-        <Library size={18} strokeWidth={1.8} color={C.blue} />
-        <span style={{ fontFamily: gf, fontSize: 14, fontWeight: 800, color: "#E8E4DD", letterSpacing: 0.3 }}>Asset Library</span>
-        <span style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.35)", letterSpacing: 1.5, marginLeft: 6 }}>// SEMIANALYSIS BRAND</span>
-        <a href="/asset-library-content.html" target="_blank" rel="noopener" style={{ marginLeft: "auto", fontFamily: mn, fontSize: 10, color: C.blue, textDecoration: "none", padding: "4px 10px", border: "1px solid " + C.blue + "55", borderRadius: 6, fontWeight: 700, letterSpacing: 0.5 }}>Open ↗</a>
-      </div>
-      {/* Baseline styles for elements deck.html provides globally
-          (.eyebrow, .slide-title, .slide-sub, .hl) — needed because
-          we strip the standalone HTML's <head> when injecting just
-          its body content. Without these the title block is invisible. */}
-      <style>{`
-        /* Slide fills the host exactly so folder expansion scrolls
-           internally instead of growing the whole pane. */
-        .al-host .slide { display: flex; flex-direction: column; padding: 24px 32px 28px; height: 100%; min-height: 0; max-height: 100%; box-sizing: border-box; opacity: 1 !important; pointer-events: auto !important; transform: none !important; position: static !important; inset: auto !important; overflow: hidden !important; }
-        .al-host .sa-stars, .al-host .sa-orb, .al-host .sa-flare { display: none !important; }
-        .al-host .eyebrow { font-size: 13px; letter-spacing: 0.2em; font-weight: 700; color: var(--amber); text-transform: uppercase; margin-bottom: 10px; display: block; }
-        .al-host .slide-title { font-size: 38px; font-weight: 800; letter-spacing: -0.025em; color: #fff; line-height: 1.05; margin: 0 0 6px; display: block; }
-        .al-host .slide-sub { font-size: 14px; color: var(--muted); font-weight: 400; max-width: 880px; line-height: 1.5; margin-bottom: 14px; display: block; }
-        .al-host .hl { color: var(--amber); }
-        .al-host a { color: inherit; text-decoration: none; }
-        /* Tree / preview pane scroll inside the grid cells, don't push layout */
-        .al-host [data-sa-scope="sa-al0aldn"] .al-body { min-height: 0 !important; grid-template-rows: minmax(0, 1fr) !important; }
-        .al-host [data-sa-scope="sa-al0aldn"] .al-tree,
-        .al-host [data-sa-scope="sa-al0aldn"] .al-dir { min-height: 0; max-height: 100%; overflow: auto; }
-        /* Thumbnails grow with the preview pane width */
-        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-card { max-width: min(640px, 96%) !important; width: 100%; }
-        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-thumb:not(.mini) { height: clamp(140px, 24vh, 280px) !important; }
-        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-folder { max-width: min(820px, 96%) !important; }
-        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-thumb.mini { height: clamp(120px, 20vh, 200px) !important; }
-        /* Larger tree fonts */
-        .al-host [data-sa-scope="sa-al0aldn"] .al-tree-title { font-size: 12px !important; }
-        .al-host [data-sa-scope="sa-al0aldn"] details > summary .al-name { font-size: 15px !important; }
-        .al-host [data-sa-scope="sa-al0aldn"] details > summary .al-count { font-size: 11px !important; }
-        .al-host [data-sa-scope="sa-al0aldn"] .al-leaf { font-size: 13px !important; }
-        .al-host [data-sa-scope="sa-al0aldn"] .al-leaf .al-pill { font-size: 9.5px !important; }
-        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-mini-name { font-size: 13px !important; padding: 9px 11px !important; }
-        .al-host [data-sa-scope="sa-al0aldn"] .al-pv-mini-ext { font-size: 9.5px !important; padding: 0 11px 10px !important; }
-      `}</style>
-      {/* The embedded host scrolls when content overflows; the slide
-          inside it is locked to 100% height so child scroll containers
-          (al-tree, al-stage) actually receive scroll events. */}
-      <div
-        ref={hostRef}
-        className="al-host"
-        dangerouslySetInnerHTML={{ __html: html }}
-        style={{ flex: 1, overflow: "auto", color: "#F2F2F2", fontFamily: "'Outfit', sans-serif", minHeight: 0 }}
-      />
-      {!html && <div style={{ padding: 40, textAlign: "center", fontFamily: mn, fontSize: 11, color: "rgba(255,255,255,0.4)" }}>Loading asset library...</div>}
-    </div>
-  );
-}
-
 export default function App() {
   // Three-state intro gate. Loading briefly until we resolve on mount.
   // Rule: the root URL ('/') ALWAYS shows the cinematic welcome, even if
@@ -2109,6 +2298,28 @@ export default function App() {
     window.addEventListener("poast-nav", handler);
     return function() { window.removeEventListener("poast-nav", handler); };
   }, [analyst]);
+
+  // Phase 11A: ⌘K / Ctrl+K toggles the Chippy command palette globally.
+  // Analysts don't get the palette (Ask POAST gates on data they shouldn't
+  // see). We deliberately swallow the event even when the user is focused
+  // inside an <input> / <textarea> / contentEditable — ⌘K isn't a default
+  // browser/OS shortcut on either platform (Safari's location-bar Cmd+L is
+  // a different key), so capturing it everywhere is safe and matches every
+  // other command-palette UX (Linear, Raycast, Notion, etc.).
+  useEffect(function() {
+    if (analyst) return;
+    var onKey = function(e: KeyboardEvent) {
+      var meta = e.metaKey || e.ctrlKey;
+      if (meta && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        setAskPoastOpen(function(o) { return !o; });
+      } else if (e.key === "Escape" && askPoastOpen) {
+        setAskPoastOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return function() { window.removeEventListener("keydown", onKey); };
+  }, [analyst, askPoastOpen]);
 
   // When the user signs out mid-session (sidebar "Switch user" badge),
   // re-show the picker instead of forcing a full page reload. We only
@@ -2249,12 +2460,19 @@ export default function App() {
     })()}
 
     <Sidebar active={sec} onNav={setSec} onAskPoast={function() { if (analyst) return; setAskPoastOpen(!askPoastOpen); }} />
-    {/* Ask POAST panel — never open for Analysts (data access gate). */}
-    <AskPoast open={askPoastOpen && !analyst} onToggle={function() { setAskPoastOpen(false); }} />
+    {/* Ask POAST panel — never open for Analysts (data access gate).
+        Phase 11A: now a Cmd+K command palette with the original chat as
+        a secondary tab. `sec` flows in for context-aware commands;
+        `onNav` lets palette commands jump between tools. */}
+    <AskPoast open={askPoastOpen && !analyst} onToggle={function() { setAskPoastOpen(false); }} sec={sec} onNav={setSec} />
     {/* Asset Library renders as a sibling of the wrapped tree so its
         position:fixed resolves to the viewport, not the .poast-fadein
         transform's containing block. */}
-    {sec === "assets" && <AssetLibraryEmbed />}
+    {sec === "assets" && (
+      <div style={{ position: "fixed", top: 0, left: 240, right: 0, bottom: 0, background: "#06060A", zIndex: 50, overflow: "auto" }}>
+        <AssetLibraryView />
+      </div>
+    )}
     <div style={{ marginLeft: 240, position: "relative", zIndex: 1, display: sec === "assets" ? "none" : "block" }} className="poast-fadein">
       <div style={{ margin: "0 auto", padding: "0 32px" }}>
         <div key={sec} className="poast-section" style={{ paddingBottom: 60 }}>
