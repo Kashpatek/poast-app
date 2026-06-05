@@ -254,6 +254,22 @@ export function WidgetDeck() {
 
   return (
     <div>
+      {/* Scoped CSS · neutralize the legacy <W> wrapper's own min-height,
+          border, shadow, and rounded corners so the inner widget fills the
+          CommandCard cell cleanly (single chrome, scrolls internally). */}
+      <style>{`
+        .hub-deck-widget-inner > div {
+          min-height: 0 !important;
+          height: 100% !important;
+          border: none !important;
+          box-shadow: none !important;
+          border-radius: 0 !important;
+          background: transparent !important;
+        }
+        .hub-deck-widget-inner > div > div:first-child {
+          display: none !important;
+        }
+      `}</style>
       {/* ── Deck header ─────────────────────────────────────────── */}
       <div style={{
         display: "flex", alignItems: "flex-end", justifyContent: "space-between",
@@ -288,10 +304,14 @@ export function WidgetDeck() {
         </div>
       </div>
 
-      {/* ── Grid ────────────────────────────────────────────────── */}
+      {/* ── Grid ──────────────────────────────────────────────────
+          Pinned-row sizing: 220px per row unit so 1x1 cards stay
+          compact and 2x1 / 1x2 / 2x2 scale predictably. Widget body
+          scrolls internally when content overflows. */}
       <div style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+        gridAutoRows: "220px",
         gap: 14,
       }}>
         {activeIds.map(function (id) {
@@ -417,7 +437,10 @@ function CommandCard({
         flexDirection: "column",
         gridColumn: "span " + gw,
         gridRow: "span " + gh,
-        minHeight: gh * 220,
+        // Grid row-track is pinned to 220px; gridRow span gh fills the
+        // cell. height:100% guarantees the body scrolls inside the cell
+        // instead of stretching to its natural content size.
+        height: "100%",
         overflow: "hidden",
         transition: "border-color 160ms ease, box-shadow 160ms ease",
         boxShadow: hover ? "0 10px 28px rgba(0,0,0,0.45), 0 0 22px " + accent + "1A" : "none",
