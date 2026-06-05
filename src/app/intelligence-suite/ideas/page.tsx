@@ -5,8 +5,9 @@ import { D, ft, gf } from "../../shared-constants";
 import { CommandCenterShell, apps } from "../shell";
 import IdeationBoardPanel from "../ideation-board";
 
-// /intelligence-suite/ideas — starfield ideation board as a standalone
-// IS app. Auth gate mirrors /asset-library.
+// /intelligence-suite/ideas — full ideation suite (3-zone layout,
+// kanban/cards toggle, generate modal, inspiration feed). The panel
+// owns its own chrome; this page provides only the header.
 export default function IdeasPage() {
   var _ok = useState(false), ok = _ok[0], setOk = _ok[1];
 
@@ -24,16 +25,14 @@ export default function IdeasPage() {
 
   return (
     <CommandCenterShell activeId="ideas">
-      <div style={{ padding: "32px 32px 64px", maxWidth: 1280, margin: "0 auto" }}>
-        <div style={{ marginBottom: 22 }}>
+      <div style={{ padding: "24px 32px 32px", maxWidth: 1480, margin: "0 auto" }}>
+        <div style={{ marginBottom: 18 }}>
           <div style={{ fontFamily: gf, fontSize: 38, fontWeight: 900, color: D.tx, letterSpacing: -0.6 }}>{app.label}</div>
           <div style={{ fontFamily: ft, fontSize: 14, color: D.txm, marginTop: 6 }}>
-            Starfield ideation — turn signals and trends into deck-worthy story angles.
+            Generate, develop, and dispatch story angles. Built for play.
           </div>
         </div>
-        <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 14, padding: "20px 22px" }}>
-          <IdeationBoardPanel />
-        </div>
+        <IdeationBoardPanel />
       </div>
     </CommandCenterShell>
   );
