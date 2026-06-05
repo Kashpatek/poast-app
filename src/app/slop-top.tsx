@@ -4,6 +4,7 @@ import { useUser, isAnalyst } from "./user-context";
 import { ProviderChips } from "./provider-chips";
 import { getSurfaceProvider, getPreferredProvider } from "./shared-constants";
 import { useShortcuts } from "./keyboard-shortcuts";
+import { SendToChip } from "./components/send-to-chip";
 
 const SLOP_SURFACE = "slop-top";
 
@@ -458,7 +459,7 @@ function SlopCard({ title, content, onCopy, copyLabel, extraButton }: { title?: 
   >
     {title && <div style={{ fontFamily: mn, fontSize: 9, fontWeight: 600, color: D.txd, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>{title}</div>}
     <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 500, color: D.tx, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{content}</div>
-    <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+    <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center", flexWrap: "wrap" }}>
       <button onClick={handleCopy} style={{
         padding: "6px 14px", borderRadius: 8, border: "1px solid " + D.border,
         background: copied ? D.teal + "20" : "transparent",
@@ -466,6 +467,7 @@ function SlopCard({ title, content, onCopy, copyLabel, extraButton }: { title?: 
         cursor: "pointer", fontFamily: mn, fontSize: 10, fontWeight: 600,
         transition: "all 0.15s",
       }}>{copied ? "Copied" : (copyLabel || "Copy")}</button>
+      <SendToChip text={content} sourceTool="sloptop" kind="caption" />
       {extraButton}
     </div>
   </div>;

@@ -7,6 +7,7 @@ import { showToast } from "./toast-context";
 import { confirmDialog, promptDialog } from "./dialog-context";
 import { ProviderChips } from "./provider-chips";
 import { useShortcuts } from "./keyboard-shortcuts";
+import { SendToChip } from "./components/send-to-chip";
 
 const CAROUSEL_SURFACE = "carousel";
 
@@ -2620,7 +2621,10 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
         return <div style={{ background: C.card, border: "1px solid " + plat.color + "20", borderRadius: 10, padding: "14px 16px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <div style={{ fontFamily: mn, fontSize: 9, color: plat.color, textTransform: "uppercase", letterSpacing: "1px" }}>{plat.label} {plat.key === "shorts" ? "Title" : "Caption"}</div>
-            {text && <button onClick={function() { copyText(text, plat!.key); }} style={{ padding: "4px 12px", background: isCopied ? plat.color + "20" : "transparent", border: "1px solid " + plat.color + "30", borderRadius: 6, fontFamily: mn, fontSize: 10, fontWeight: 600, color: plat.color, cursor: "pointer", transition: "all 0.15s" }}>{isCopied ? "Copied" : "Copy"}</button>}
+            {text && <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <button onClick={function() { copyText(text, plat!.key); }} style={{ padding: "4px 12px", background: isCopied ? plat.color + "20" : "transparent", border: "1px solid " + plat.color + "30", borderRadius: 6, fontFamily: mn, fontSize: 10, fontWeight: 600, color: plat.color, cursor: "pointer", transition: "all 0.15s" }}>{isCopied ? "Copied" : "Copy"}</button>
+              <SendToChip text={text} sourceTool="carousel" kind="caption" />
+            </div>}
           </div>
           <div style={{ fontFamily: ft, fontSize: 13, color: C.tx, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word", padding: "10px 12px", background: C.bg, borderRadius: 8, border: "1px solid " + C.border, maxHeight: 200, overflowY: "auto" }}>{text || "No caption generated. Go back to Review to generate captions."}</div>
           {plat.key !== "shorts" && !!data.hashtags && (data.hashtags as string[]).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>

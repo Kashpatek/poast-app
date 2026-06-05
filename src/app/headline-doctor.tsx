@@ -7,6 +7,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { D, ft, gf, mn } from "./shared-constants";
 import { useShortcuts } from "./keyboard-shortcuts";
+import { SendToChip } from "./components/send-to-chip";
 
 interface Alternate {
   text: string;
@@ -341,6 +342,7 @@ export default function HeadlineDoctor() {
                     >
                       {copied === i ? "COPIED" : "COPY"}
                     </button>
+                    <SendToChip text={a.text} sourceTool="headline-doctor" kind="caption" />
                   </div>
                   <div style={{ display: "flex", gap: 14, alignItems: "baseline", marginLeft: 46 }}>
                     <span style={{ fontFamily: mn, fontSize: 10, color: D.amber, letterSpacing: 1.2, textTransform: "uppercase" }}>{a.pattern}</span>
