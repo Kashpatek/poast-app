@@ -828,6 +828,19 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
   var _tgl = useState<boolean>(false), thumbGenL = _tgl[0], setThumbGenL = _tgl[1];
   var _tgv = useState<string[] | null>(null), thumbVariants = _tgv[0], setThumbVariants = _tgv[1];
   var _tgu = useState<number | null>(null), uploadingIdx = _tgu[0], setUploadingIdx = _tgu[1];
+  // Blob preflight — fires once on mount to tell the user whether the
+  // generated thumbnail will be persisted past the session. When
+  // BLOB_READ_WRITE_TOKEN isn't set, the upload-asset endpoint silently
+  // falls back to a data URL; user only finds out after generating + clicking
+  // "Use this." The chip below the Generate button is the early warning.
+  var _blob = useState<boolean | null>(null), blobConfigured = _blob[0], setBlobConfigured = _blob[1];
+  React.useEffect(function() {
+    var cancelled = false;
+    fetch("/api/upload-asset/health").then(function(r) { return r.json(); }).then(function(d: { blobConfigured?: boolean }) {
+      if (!cancelled) setBlobConfigured(!!d.blobConfigured);
+    }).catch(function() { if (!cancelled) setBlobConfigured(false); });
+    return function() { cancelled = true; };
+  }, []);
   // Thumbnail provider + editable prompt + count. Defaults to Imagen
   // (cheaper, brand-safe) at 3 variants. Prompt textarea is seeded from
   // the picked concept the first time it opens and then becomes the
@@ -987,7 +1000,12 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
       var actual = (d.provider === "grok" || d.provider === "imagen") ? d.provider : null;
       setThumbActualProvider(actual);
       if (d.fellBackTo) {
-        showToast("Imagen refused the prompt → used " + d.fellBackTo + " instead");
+        // Surface the actual Imagen refusal reason (e.g. "Person/Face
+        // generation not allowed") instead of a generic "refused" toast.
+        var reason = typeof d.imagenError === "string"
+          ? d.imagenError.slice(0, 140)
+          : "policy refusal";
+        showToast("Imagen refused: " + reason + " → used " + d.fellBackTo + " instead");
       }
     } catch (e) {
       showToast("Network error: " + String(e));
@@ -1090,6 +1108,19 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
       <div style={{ width: "100%", aspectRatio: "16/9", background: D.surface, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>{thumb ? <img src={thumb} alt="Thumb" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ textAlign: "center" }}><div style={{ fontFamily: ft, fontSize: 15, color: D.txl }}>Thumbnail Preview</div></div>}<div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.8)", borderRadius: 4, padding: "3px 8px", fontFamily: mn, fontSize: 10, color: "#fff" }}>42:18</div></div>
       <div style={{ padding: "16px 20px" }}><div style={{ fontFamily: ft, fontSize: 16, fontWeight: 800, color: D.tx, lineHeight: 1.4, marginBottom: 10 }}>{curFin.title}</div><div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 28, height: 28, borderRadius: "50%", background: ACC, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 11, fontWeight: 800, color: D.tx }}>SA</div><div style={{ fontFamily: ft, fontSize: 12, color: D.txb, fontWeight: 600 }}>SemiAnalysis Weekly</div></div></div>
     </div>
+
+    {/* Blob preflight warning — fires when BLOB_READ_WRITE_TOKEN isn't
+        set so the user knows up front that thumbnails won't persist
+        past the session. */}
+    {blobConfigured === false && (
+      <div style={{
+        marginBottom: 12, padding: "8px 14px",
+        background: D.amber + "12", border: "1px solid " + D.amber + "55",
+        borderRadius: 8, fontFamily: mn, fontSize: 10.5, color: D.amber, letterSpacing: 0.4, lineHeight: 1.5,
+      }}>
+        ⚠ Vercel Blob not configured — generated thumbnails will only render this session. Set <span style={{ background: "rgba(0,0,0,0.3)", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>BLOB_READ_WRITE_TOKEN</span> to persist them past tab close.
+      </div>
+    )}
 
     {/* Thumbnail upload */}
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>

@@ -144,6 +144,10 @@ interface CapperSource {
   // voice shift (attribution, pronouns, hook patterns).
   voicePrompt: string;
   color: string;
+  // One-line italic example the user sees on the chip — shows the
+  // voice shift in human terms before they pick. Hand-written so
+  // they read as plausible SA captions.
+  example: string;
 }
 
 // LLM provider for caption generation. Different providers naturally
@@ -749,24 +753,31 @@ var CAPPER_LENGTHS: CapperLength[] = [
 var CAPPER_SOURCES: CapperSource[] = [
   { key: "sa_podcast",  label: "SA Weekly",       desc: "Clip from SemiAnalysis Weekly — Dylan & guests",
     color: "#F7B041",
+    example: "Dylan and Jordan got into why HBM4 supply is the actual bottleneck.",
     voicePrompt: "SOURCE: A clip from SemiAnalysis Weekly, OUR podcast. Use first-person 'we' or name guests directly (e.g. \"Dylan and Jordan got into\"). The hook should grab the most provocative thing said. Don't add insights that weren't on the show — sharpen what was actually said. Reference the conversation directly. OK to mention 'on Weekly' for context." },
   { key: "sa_article",  label: "SA Article / Research", desc: "Clip-style caption from a SA written piece",
     color: "#0B86D1",
+    example: "We modeled the GB300 NVL72 TCO at 30% MFU. It's not what NVIDIA's slide says.",
     voicePrompt: "SOURCE: A SemiAnalysis written research piece (article, deep dive, model). Use confident first-person 'we' framing ('we modeled', 'our data shows', 'we dug into'). Drive readers toward the full article — caption should tease the punchline without giving it all away. Cite methodology when it sharpens the point. Authoritative register." },
   { key: "sa_video",    label: "SA Own Video",    desc: "Internal video — Datacloud, Cannes, panels",
     color: "#2EAD8E",
+    example: "At Datacloud we walked through the Trainium roadmap. Slide 14 is the one to watch.",
     voicePrompt: "SOURCE: An internal SemiAnalysis video (Datacloud, Cannes panel, internal event — NOT the podcast). Hybrid voice: insider first-person but more polished than podcast banter. Include event/venue context ('at Datacloud', 'on the Cannes panel'). Less casual than Weekly, more analytical." },
   { key: "external_podcast", label: "External Podcast", desc: "Bg2, Acquired, Dwarkesh — 3rd-party show",
     color: "#905CCB",
+    example: "He told Acquired the launch slipped to Q4. Here's what he's missing.",
     voicePrompt: "SOURCE: A 3rd-party podcast clip (Bg2, Acquired, Dwarkesh, BG2, etc.). Use third-person attribution ('X told [host] on [show]'). Frame the caption as COMMENTARY on someone else's analysis — SA adds the angle. The hook can be a hot take ON the take ('Here's why he's missing the bigger story...' / 'This is the part nobody's caught...'). Never claim their insights as ours. Credit the show + guest." },
   { key: "external_video", label: "External Video", desc: "NVIDIA keynote, AMD analyst day, GTC",
     color: "#E06347",
+    example: "Jensen said Rubin Ultra ships in 2027. What that actually means for the supply chain:",
     voicePrompt: "SOURCE: A 3rd-party video clip (NVIDIA keynote, AMD analyst day, vendor event). Event/news framing ('Jensen said at GTC', '[Co] confirmed at analyst day'). Time-sensitive — feels like reporting. Often pair the quote with a SA take ('What this actually means:'). Cite company + event clearly." },
   { key: "conference_talk", label: "Conference Talk", desc: "GTC, Hot Chips, ISSCC, Computex",
     color: "#26C9D8",
+    example: "At Hot Chips, AMD finally showed the chiplet die yield numbers. They're better than expected.",
     voicePrompt: "SOURCE: A conference-talk clip (GTC, Hot Chips, ISSCC, Computex, MICRO). Strong on venue + speaker provenance ('At Hot Chips, [Co] showed...'). Often technical — assume the audience knows the conference. Quote-heavy framing. SA voice adds analyst context ('This is a big deal because...')." },
   { key: "interview",   label: "Long-form Interview", desc: "Cut from a longer interview, external or own",
     color: "#7ACFBA",
+    example: "Asked about TSMC capacity in '27, he said quietly: 'We won't have enough.'",
     voicePrompt: "SOURCE: A cut from a longer interview (NOT the podcast feed). Quote-heavy framing — lift a notable line. Third-person attribution ('[X] told [Y] in an interview'). Caption should make the quote stand alone — context-set in one sentence, then the line lands." },
 ];
 
@@ -1029,17 +1040,24 @@ function ClipCaptions() {
         {CAPPER_SOURCES.map(function(s) {
           var on = sourceType === s.key;
           return <div key={s.key} onClick={function() { setSourceType(s.key); }}
+            title={"Voice example: " + s.example}
             style={{ padding: "8px 14px", borderRadius: 8, cursor: "pointer",
               background: on ? s.color + "18" : cardBg,
               border: "1px solid " + (on ? s.color + "60" : borderC),
               fontFamily: ft, fontSize: 12, fontWeight: on ? 700 : 500,
               color: on ? s.color : C.txd,
               transition: "all 0.2s ease",
-              display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1 }}
+              display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1,
+              maxWidth: 280 }}
             onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!on) e.currentTarget.style.borderColor = s.color + "30"; }}
             onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!on) e.currentTarget.style.borderColor = borderC; }}>
             <span>{s.label}</span>
             <span style={{ fontFamily: mn, fontSize: 9, color: on ? s.color : C.txd, opacity: 0.8, fontWeight: 500 }}>{s.desc}</span>
+            {on && (
+              <span style={{ fontFamily: ft, fontSize: 10.5, color: s.color, opacity: 0.9, fontStyle: "italic", fontWeight: 500, marginTop: 4, lineHeight: 1.35 }}>
+                &ldquo;{s.example}&rdquo;
+              </span>
+            )}
           </div>;
         })}
       </div>
