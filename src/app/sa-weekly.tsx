@@ -91,6 +91,30 @@ interface ClipResult {
   generatedAt?: number;
 }
 
+// Phase 2A — append-only version history. Every save spawns a fresh
+// LogVersion that carries the entire editor snapshot. The legacy flat
+// fields on LogEntry (title, description, …) are now a *projection* of
+// the top version so older renderers continue to read them transparently.
+interface LogVersionPayload {
+  ep: EpState;
+  guestList: Guest[];
+  opts: GeneratedOptions | null;
+  sel: SelectionState;
+  fin: FinalizedState | null;
+  socialRes: SocialResult | null;
+  clips: ClipResult[];
+  thumb: string | null;
+  descLen: string;
+}
+
+interface LogVersion {
+  versionId: string;             // log-<id>-v<N>
+  savedAt: string;               // ISO timestamp
+  savedBy: string;               // user.name
+  payload: LogVersionPayload;    // full editor snapshot
+  changeNote?: string;           // optional, prompted on Save
+}
+
 interface LogEntry {
   episode: string;
   title: string;
@@ -113,6 +137,18 @@ interface LogEntry {
   sel?: SelectionState;
   thumb?: string | null;
   descLen?: string;
+  // Phase 2A — version history. Optional so legacy rows still load
+  // without errors; migration wraps them into a synthetic v1 on read.
+  versions?: LogVersion[];
+  currentVersion?: number;       // 1-indexed pointer into versions[]
+  status?: "draft" | "published";
+  createdBy?: string;            // pinned; never overwritten on edit
+  // Phase 2B — presence stamps. Written when a user opens an entry for
+  // editing; cleared on save / publish or after 5-min staleness check.
+  editorName?: string;
+  editorStartedAt?: string;      // ISO timestamp
+  lastEditedBy?: string;
+  lastEditedAt?: string;         // ISO timestamp — drives presence banner
 }
 
 interface ConfettiPiece {
@@ -188,6 +224,8 @@ var SYS_SOC = "You are a social media strategist for SemiAnalysis Weekly. HARD R
 import { showToast } from "./toast-context";
 import { getSurfaceProvider, getPreferredProvider } from "./shared-constants";
 import { ProviderChips } from "./provider-chips";
+import { confirmDialog } from "./dialog-context";
+import { VersionTimelineModal } from "./components/version-timeline-modal";
 
 async function ask(sys: string, prompt: string): Promise<Record<string, unknown> | null> {
   try {
@@ -296,6 +334,189 @@ function thTxt(th: string | ThumbnailConcept | null): string { if (!th) return "
 
 function exportDoc(title: string, sections: DocSection[]): void {
   exportDocx(title, sections);
+}
+
+// ═══ PHASE 2A · VERSION HISTORY HELPERS ═══
+// Build a LogVersionPayload from the editor's working state. The same
+// snapshot is captured for every append, so re-running this from the
+// same UI state is deterministic.
+function buildPayload(p: {
+  ep: EpState;
+  guests: Guest[];
+  opts: GeneratedOptions | null;
+  sel: SelectionState;
+  fin: FinalizedState | null;
+  socialRes: SocialResult | null;
+  clips: ClipResult[];
+  thumb: string | null;
+  descLen: string;
+}): LogVersionPayload {
+  return {
+    ep: p.ep,
+    guestList: p.guests,
+    opts: p.opts,
+    sel: p.sel,
+    fin: p.fin,
+    socialRes: p.socialRes,
+    clips: p.clips,
+    thumb: p.thumb,
+    descLen: p.descLen,
+  };
+}
+
+// Non-destructive migration. Legacy entries lack `versions` — wrap their
+// existing flat fields into a synthetic v1 so the rest of the codebase
+// can treat every entry as versioned. Idempotent: returns the entry
+// unchanged if it's already in the new shape.
+function migrateLogEntry(entry: LogEntry): LogEntry {
+  if (entry.versions && entry.versions.length > 0) return entry;
+  var id = entry.id || ("log-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8));
+  var payload: LogVersionPayload = {
+    ep: entry.ep || { number: entry.episode, link: "", transcript: "", timestamps: "", extra: "" },
+    guestList: entry.guestList || [],
+    opts: entry.opts || null,
+    sel: entry.sel || { title: 0, desc: 0, thumb: 0 },
+    fin: entry.title || entry.description ? { title: entry.title, description: entry.description, thumbnail: "" } : null,
+    socialRes: entry.social,
+    clips: entry.clips || [],
+    thumb: entry.thumb || null,
+    descLen: entry.descLen || "medium",
+  };
+  // Reconstruct an ISO timestamp from `date` when we can; otherwise use now.
+  var savedAtISO: string;
+  try {
+    var d = new Date(entry.date);
+    savedAtISO = isFinite(d.getTime()) ? d.toISOString() : new Date().toISOString();
+  } catch (_e) {
+    savedAtISO = new Date().toISOString();
+  }
+  var v1: LogVersion = {
+    versionId: "log-" + id + "-v1",
+    savedAt: savedAtISO,
+    savedBy: entry.createdBy || "Unknown",
+    payload: payload,
+    changeNote: undefined,
+  };
+  return Object.assign({}, entry, {
+    id: id,
+    versions: [v1],
+    currentVersion: 1,
+    status: (entry.status as "draft" | "published") || "published",
+    createdBy: entry.createdBy || "Unknown",
+  });
+}
+
+// Project the legacy flat fields from the top version of a versioned
+// entry. Run every time a new version is appended so the legacy view
+// (Activity Log card, Launch Kit, etc.) stays accurate without changing
+// downstream code.
+function projectLegacyFields(entry: LogEntry): LogEntry {
+  if (!entry.versions || !entry.versions.length) return entry;
+  var idx = Math.max(0, Math.min(entry.versions.length - 1, (entry.currentVersion || entry.versions.length) - 1));
+  var v = entry.versions[idx];
+  var p = v.payload;
+  var fin = p.fin || { title: entry.title || "", description: entry.description || "", thumbnail: "" };
+  var guestsStr = (p.guestList || []).filter(function(g) { return g && g.name; }).map(function(g) { return g.name; }).join(", ") || entry.guests || "";
+  return Object.assign({}, entry, {
+    title: fin.title || entry.title || "",
+    description: fin.description || entry.description || "",
+    guests: guestsStr,
+    social: p.socialRes,
+    clips: (p.clips && p.clips.length) ? p.clips : undefined,
+    ep: p.ep,
+    guestList: p.guestList,
+    opts: p.opts,
+    sel: p.sel,
+    thumb: p.thumb,
+    descLen: p.descLen,
+  });
+}
+
+// Append-only save. Returns the new entry with the new version on top.
+function appendVersion(
+  entry: LogEntry,
+  payload: LogVersionPayload,
+  savedBy: string,
+  changeNote?: string,
+): LogEntry {
+  var migrated = migrateLogEntry(entry);
+  var versions = (migrated.versions || []).slice();
+  var nextN = versions.length + 1;
+  var version: LogVersion = {
+    versionId: "log-" + (migrated.id || "x") + "-v" + nextN,
+    savedAt: new Date().toISOString(),
+    savedBy: savedBy || "Unknown",
+    payload: payload,
+    changeNote: changeNote && changeNote.trim() ? changeNote.trim() : undefined,
+  };
+  versions.push(version);
+  var withVersion = Object.assign({}, migrated, {
+    versions: versions,
+    currentVersion: nextN,
+    lastEditedBy: savedBy || "Unknown",
+    lastEditedAt: version.savedAt,
+  });
+  return projectLegacyFields(withVersion);
+}
+
+// Returns ms since lastEditedAt, or Infinity when never edited.
+function msSinceLastEdit(entry: LogEntry): number {
+  var t = entry.lastEditedAt || (entry.versions && entry.versions.length ? entry.versions[entry.versions.length - 1].savedAt : null);
+  if (!t) return Infinity;
+  var ms = Date.now() - new Date(t).getTime();
+  return isFinite(ms) ? ms : Infinity;
+}
+
+// "4 min ago" / "32 sec ago" / "2 hr ago" / "3 days ago" — small util
+// shared by the presence banner + version timeline rows.
+function timeAgo(iso: string | null | undefined): string {
+  if (!iso) return "just now";
+  var ms = Date.now() - new Date(iso).getTime();
+  if (!isFinite(ms) || ms < 0) return "just now";
+  var sec = Math.floor(ms / 1000);
+  if (sec < 60) return sec + " sec ago";
+  var min = Math.floor(sec / 60);
+  if (min < 60) return min + " min ago";
+  var hr = Math.floor(min / 60);
+  if (hr < 24) return hr + " hr ago";
+  var d = Math.floor(hr / 24);
+  return d + " day" + (d === 1 ? "" : "s") + " ago";
+}
+
+// Phase 2E — per-user draft scratch via localStorage. Shared row
+// `weekly-master` keeps only the published log; in-flight transcript
+// pastes live per-user so Akash's draft doesn't bleed into Vansh's
+// session. Keyed by user name (falls back to "anon").
+var DRAFT_STORAGE_PREFIX = "poast-weekly-draft:";
+function draftKeyFor(userName: string | null | undefined): string {
+  return DRAFT_STORAGE_PREFIX + (userName && userName.trim() ? userName.trim() : "anon");
+}
+function readUserDraft(userName: string | null | undefined): Record<string, unknown> | null {
+  try {
+    if (typeof window === "undefined") return null;
+    var raw = window.localStorage.getItem(draftKeyFor(userName));
+    if (!raw) return null;
+    var parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch (_e) {
+    return null;
+  }
+}
+function writeUserDraft(userName: string | null | undefined, state: Record<string, unknown>): void {
+  try {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(draftKeyFor(userName), JSON.stringify(state));
+  } catch (_e) {
+    /* swallow quota errors */
+  }
+}
+function clearUserDraft(userName: string | null | undefined): void {
+  try {
+    if (typeof window === "undefined") return;
+    window.localStorage.removeItem(draftKeyFor(userName));
+  } catch (_e) {
+    /* ignore */
+  }
 }
 
 // ═══ UI COMPONENTS ═══
@@ -1782,11 +2003,12 @@ function StepExport({ ep, guests, fin, socialRes, clips, onComplete }: { ep: EpS
 }
 
 // ═══ STEP 7: LOG ═══
-function StepLog({ logData, setLogData, onDevelopClips, onEditEntry, current, onSaveCurrent }: {
+function StepLog({ logData, setLogData, onDevelopClips, onEditEntry, onOpenTimeline, current, onSaveCurrent }: {
   logData: LogEntry[];
   setLogData: React.Dispatch<React.SetStateAction<LogEntry[]>>;
   onDevelopClips: (entry: LogEntry) => void;
   onEditEntry: (entry: LogEntry) => void;
+  onOpenTimeline: (entryId: string) => void;
   current: { ep: EpState; guests: Guest[]; fin: FinalizedState | null; socialRes: SocialResult | null; clips: ClipResult[]; editingLogId: string | null };
   onSaveCurrent: () => void;
 }) {
@@ -1915,6 +2137,11 @@ function StepLog({ logData, setLogData, onDevelopClips, onEditEntry, current, on
           {editing && <span onClick={function() { removeEntry(i); }} style={{ width: 24, height: 24, borderRadius: "50%", background: ACC + "15", border: "1px solid " + ACC, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 13, color: ACC, cursor: "pointer", flexShrink: 0 }}>x</span>}
           <div style={{ width: 42, height: 42, borderRadius: 10, background: D.surface, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 12, color: ACC, fontWeight: 700, border: "1px solid " + D.border, flexShrink: 0 }}>{"#" + e.episode}</div>
           <div style={{ flex: 1 }}><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: D.tx }}>{e.title}</div><div style={{ fontFamily: ft, fontSize: 12, color: D.txb }}>{e.guests}</div></div>
+          {/* Phase 2C · "N versions" chip — opens the version timeline modal. */}
+          {(function() {
+            var vCount = e.versions ? e.versions.length : 1;
+            return <span onClick={function(ev) { ev.stopPropagation(); if (e.id) onOpenTimeline(e.id); }} title="View version history" style={{ fontFamily: mn, fontSize: 9, color: D.violet, cursor: "pointer", padding: "3px 9px", background: D.violet + "0F", border: "1px solid " + D.violet + "40", borderRadius: 999, fontWeight: 700, letterSpacing: 0.4 }}>{vCount} version{vCount === 1 ? "" : "s"}</span>;
+          })()}
           <div style={{ fontFamily: mn, fontSize: 9, color: D.txl }}>{e.date}</div>
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
@@ -2023,24 +2250,44 @@ export default function SAWeekly() {
   var _hasDraft = useState<boolean>(false), hasDraft = _hasDraft[0], setHasDraft = _hasDraft[1];
   var _interacted = useState<boolean>(false), interacted = _interacted[0], setInteracted = _interacted[1];
   var draftRef = useRef<Record<string, unknown> | null>(null);
+  // Phase 2B — local editor session stamps. editorName + editorStartedAt
+  // are also written into the LogEntry on hydrate so other tabs can see
+  // "Akash started editing 1 min ago" via lastEditedAt/lastEditedBy.
+  var _editorName = useState<string | null>(null), editorName = _editorName[0], setEditorName = _editorName[1];
+  var _editorStartedAt = useState<string | null>(null), editorStartedAt = _editorStartedAt[0], setEditorStartedAt = _editorStartedAt[1];
+  // Phase 2C — version timeline modal target.
+  var _timelineId = useState<string | null>(null), timelineEntryId = _timelineId[0], setTimelineEntryId = _timelineId[1];
 
   // Load state on mount: try Supabase first (800ms timeout), fall back to Redis
   useEffect(function() {
     var settled = false;
     var applyData = function(d: { state?: Record<string, unknown> | null; log?: LogEntry[] }) {
       if (d.log && Array.isArray(d.log)) {
-        setLogData(d.log);
+        // Phase 2A migration · wrap legacy flat-shaped entries into the
+        // versioned shape on read. Non-destructive: re-running on already
+        // migrated rows is idempotent.
+        var migrated = d.log.map(function(e) { return migrateLogEntry(e); });
+        setLogData(migrated);
         // Auto-bump episode number to (latest_in_log + 1) on fresh load,
         // unless an in-flight draft is going to be loaded (in which case
         // the draft's number wins). The user can still type a different
         // number — this is just a sensible default so step 0 doesn't
         // anchor on "008" forever.
-        var draftHasContent = d.state && ((d.state.ep && (d.state.ep as Record<string, unknown>).transcript) || d.state.opts || d.state.fin);
+        // Per-user draft (Phase 2E) takes precedence; fall back to shared row.
+        var userDraft = readUserDraft(userCtx.user ? userCtx.user.name : null);
+        var sharedDraft = d.state && ((d.state.ep && (d.state.ep as Record<string, unknown>).transcript) || d.state.opts || d.state.fin) ? d.state : null;
+        var draftHasContent = !!userDraft || !!sharedDraft;
         if (!draftHasContent) {
-          setEp(function(prev) { return Object.assign({}, prev, { number: nextEpisodeNumber(d.log!) }); });
+          setEp(function(prev) { return Object.assign({}, prev, { number: nextEpisodeNumber(migrated) }); });
         }
       }
-      if (d.state && ((d.state.ep && (d.state.ep as Record<string, unknown>).transcript) || d.state.opts || d.state.fin)) {
+      // Phase 2E · per-user draft scratch wins over the shared weekly-master
+      // state. Falls back to the shared row for backward compat.
+      var userDraftFinal = readUserDraft(userCtx.user ? userCtx.user.name : null);
+      if (userDraftFinal && ((userDraftFinal.ep && (userDraftFinal.ep as Record<string, unknown>).transcript) || userDraftFinal.opts || userDraftFinal.fin)) {
+        draftRef.current = userDraftFinal;
+        setHasDraft(true);
+      } else if (d.state && ((d.state.ep && (d.state.ep as Record<string, unknown>).transcript) || d.state.opts || d.state.fin)) {
         draftRef.current = d.state;
         setHasDraft(true);
       }
@@ -2111,7 +2358,11 @@ export default function SAWeekly() {
       if (!res.data || !res.data.length) return;
       var row = res.data.find(function(rr) { return rr.type === "weekly" && rr.id === "weekly-master"; });
       if (row && row.data && Array.isArray(row.data.log) && row.data.log.length > 0) {
-        setLogData(row.data.log);
+        // Phase 2A · run migration on every refetch path so legacy rows
+        // (no `versions` array, no id) get wrapped into a synthetic v1
+        // before they hit React state. Otherwise the StepLog version
+        // chip + presence banner silently no-op on legacy entries.
+        setLogData(row.data.log.map(function(e) { return migrateLogEntry(e); }));
       }
     }).catch(function() { /* ignore — keep whatever logData we already have */ });
   };
@@ -2137,11 +2388,21 @@ export default function SAWeekly() {
     setInteracted(true);
   };
 
-  // Auto-save
+  // Auto-save · Phase 2E split.
+  // The shared `weekly-master` row holds only the published log going forward.
+  // In-flight editor scratch (transcript paste, mid-flow selections, etc.)
+  // writes to a per-user localStorage tier keyed by user name so Akash's
+  // draft doesn't bleed into Vansh's session.
   useEffect(function() {
     if (!loaded || !interacted) return;
-    // TODO(akash): SA Weekly state is shared (id: "weekly-master") so createdBy reflects the most recent editor; if a draft is loaded from the archive and re-saved, the original author is overwritten.
-    saveState({ ep: ep, guests: guests, opts: opts, sel: sel, fin: fin, thumb: null, launched: launched, descLen: descLen, socialRes: socialRes, clips: clips, createdBy: userCtx.user ? userCtx.user.name : "Unknown", createdByRole: userCtx.user ? userCtx.user.role : "" }, logData);
+    var inflightState = { ep: ep, guests: guests, opts: opts, sel: sel, fin: fin, thumb: null, launched: launched, descLen: descLen, socialRes: socialRes, clips: clips, createdBy: userCtx.user ? userCtx.user.name : "Unknown", createdByRole: userCtx.user ? userCtx.user.role : "" };
+    // Per-user scratch — primary location for in-flight state.
+    writeUserDraft(userCtx.user ? userCtx.user.name : null, inflightState as Record<string, unknown>);
+    // Shared row still receives the log (so other users see the published
+    // archive). The state piece is preserved here for backward compat with
+    // older sessions / browsers that haven't run the per-user migration,
+    // but published log is the source of truth going forward.
+    saveState(inflightState, logData);
   }, [ep, guests, opts, sel, fin, thumb, launched, descLen, socialRes, clips, logData, loaded, interacted]);
 
   // When clips change while editing a past log entry, mirror the change
@@ -2184,27 +2445,71 @@ export default function SAWeekly() {
 
   var handleComplete = function(data: { title: string; description: string; social: SocialResult | null }) {
     setLaunched(true);
-    // If this episode was opened from an existing log entry (editingLogId
-    // is set and the entry is in the log), UPDATE that entry in place so
-    // Edit-Save-Edit doesn't duplicate. Otherwise mint a new entry.
+    // Phase 2A · append-only. If editingLogId points at a known entry,
+    // append a new version under it. Otherwise mint a brand-new entry
+    // with a single v1. Previously this mutated the existing entry in
+    // place, which erased the archive on Edit→Save→Edit cycles.
+    var savedBy = userCtx.user ? userCtx.user.name : "Unknown";
     var existing = editingLogId ? logData.find(function(e) { return e.id === editingLogId; }) : null;
-    var entryId = existing ? existing.id! : "log-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
-    var entry: LogEntry = Object.assign({}, fullEditorSnapshot(), {
-      id: entryId,
-      episode: ep.number,
-      title: data.title,
-      description: data.description,
-      guests: gn,
-      date: existing ? existing.date : new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-      social: data.social,
-      clips: clips.length ? clips : undefined,
-    });
+    var payload: LogVersionPayload = {
+      ep: ep,
+      guestList: guests,
+      opts: opts,
+      sel: sel,
+      fin: { title: data.title, description: data.description, thumbnail: (fin && typeof fin.thumbnail !== "undefined") ? fin.thumbnail : "" },
+      socialRes: data.social,
+      clips: clips,
+      thumb: thumb,
+      descLen: descLen,
+    };
     if (existing) {
-      setLogData(function(prev) { return prev.map(function(e) { return e.id === entryId ? entry : e; }); });
+      var nextEntry = appendVersion(existing, payload, savedBy);
+      nextEntry.status = "published";
+      // editor presence stamps clear on publish.
+      delete nextEntry.editorName;
+      delete nextEntry.editorStartedAt;
+      setLogData(function(prev) { return prev.map(function(e) { return e.id === existing!.id ? nextEntry : e; }); });
+      setEditingLogId(nextEntry.id || null);
     } else {
-      setLogData(function(prev) { return [entry].concat(prev); });
+      var newId = "log-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+      var nowISO = new Date().toISOString();
+      var v1: LogVersion = {
+        versionId: "log-" + newId + "-v1",
+        savedAt: nowISO,
+        savedBy: savedBy,
+        payload: payload,
+      };
+      var fresh: LogEntry = {
+        id: newId,
+        episode: ep.number,
+        title: data.title,
+        description: data.description,
+        guests: gn,
+        date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        social: data.social,
+        clips: clips.length ? clips : undefined,
+        ep: ep,
+        guestList: guests,
+        opts: opts,
+        sel: sel,
+        thumb: thumb,
+        descLen: descLen,
+        versions: [v1],
+        currentVersion: 1,
+        status: "published",
+        createdBy: savedBy,
+        lastEditedBy: savedBy,
+        lastEditedAt: nowISO,
+      };
+      var projected = projectLegacyFields(fresh);
+      setLogData(function(prev) { return [projected].concat(prev); });
+      setEditingLogId(projected.id || null);
     }
-    setEditingLogId(entryId);
+    // Phase 2E · clear the per-user draft scratch once the work is
+    // published. Without this, the next mount sees the still-populated
+    // localStorage key and re-prompts a stale "Load from Draft" chip
+    // pointing at content already in the log.
+    clearUserDraft(userCtx.user ? userCtx.user.name : null);
     setStep(6); // go to log
   };
 
@@ -2212,28 +2517,76 @@ export default function SAWeekly() {
   // Export → Complete Launch Kit flow. Used by the "Save to Log" button
   // on Step 7. Mirrors handleComplete but doesn't flip `launched` and
   // bakes the chapters into the saved description deterministically.
+  // Phase 2A · append-only: never mutates a prior version.
   var saveCurrentToLog = function() {
     if (!fin) { showToast("Finalize selections first (Step 3 Review)"); return; }
+    var savedBy = userCtx.user ? userCtx.user.name : "Unknown";
     var existing = editingLogId ? logData.find(function(e) { return e.id === editingLogId; }) : null;
-    var entryId = existing ? existing.id! : "log-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
-    var entry: LogEntry = Object.assign({}, fullEditorSnapshot(), {
-      id: entryId,
-      episode: ep.number,
-      title: fin.title,
-      description: composeDescription(fin.description, ep.timestamps),
-      guests: gn,
-      date: existing ? existing.date : new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-      social: socialRes,
-      clips: clips.length ? clips : undefined,
-    });
+    var payload: LogVersionPayload = {
+      ep: ep,
+      guestList: guests,
+      opts: opts,
+      sel: sel,
+      fin: { title: fin.title, description: composeDescription(fin.description, ep.timestamps), thumbnail: fin.thumbnail },
+      socialRes: socialRes,
+      clips: clips,
+      thumb: thumb,
+      descLen: descLen,
+    };
     if (existing) {
-      setLogData(function(prev) { return prev.map(function(e) { return e.id === entryId ? entry : e; }); });
-      showToast("Episode #" + ep.number + " updated in log");
+      var nextEntry = appendVersion(existing, payload, savedBy);
+      // keep current status — "Save to Log" does not publish if user
+      // hasn't completed the launch kit yet.
+      if (!nextEntry.status) nextEntry.status = existing.status || "draft";
+      // Editor-presence stamps clear on save (same as handleComplete) so
+      // subsequent edits don't trigger a stale "Akash was here 4 min
+      // ago" banner against the same user.
+      delete nextEntry.editorName;
+      delete nextEntry.editorStartedAt;
+      setLogData(function(prev) { return prev.map(function(e) { return e.id === existing!.id ? nextEntry : e; }); });
+      setEditingLogId(nextEntry.id || null);
+      showToast("Episode #" + ep.number + " · saved as v" + (nextEntry.versions ? nextEntry.versions.length : 1));
     } else {
-      setLogData(function(prev) { return [entry].concat(prev); });
+      var newId = "log-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+      var nowISO = new Date().toISOString();
+      var v1: LogVersion = {
+        versionId: "log-" + newId + "-v1",
+        savedAt: nowISO,
+        savedBy: savedBy,
+        payload: payload,
+      };
+      var fresh: LogEntry = {
+        id: newId,
+        episode: ep.number,
+        title: fin.title,
+        description: composeDescription(fin.description, ep.timestamps),
+        guests: gn,
+        date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        social: socialRes,
+        clips: clips.length ? clips : undefined,
+        ep: ep,
+        guestList: guests,
+        opts: opts,
+        sel: sel,
+        thumb: thumb,
+        descLen: descLen,
+        versions: [v1],
+        currentVersion: 1,
+        status: "draft",
+        createdBy: savedBy,
+        lastEditedBy: savedBy,
+        lastEditedAt: nowISO,
+      };
+      var projected = projectLegacyFields(fresh);
+      setLogData(function(prev) { return [projected].concat(prev); });
+      setEditingLogId(projected.id || null);
       showToast("Episode #" + ep.number + " saved to log");
     }
-    setEditingLogId(entryId);
+    // Phase 2E · clear the per-user draft scratch — same rationale as
+    // handleComplete. The committed log entry IS the source of truth
+    // from here on; the localStorage scratch would just confuse the
+    // next mount.
+    clearUserDraft(userCtx.user ? userCtx.user.name : null);
   };
 
   // Best-effort parse of a stored "Dylan Patel, Doug O'Laughlin" string
@@ -2255,42 +2608,105 @@ export default function SAWeekly() {
   };
 
   // Full edit handler — load a past log entry into the working editor
-  // state and jump back into the suite. Uses the full snapshot when
-  // present; falls back to a best-effort hydration for older entries.
-  // Lands the user at Setup (step 0) so they can review/edit from the
-  // start without missing anything.
-  var editLogEntry = function(entry: LogEntry) {
-    if (!entry.id) {
-      // Backfill an id so subsequent saves match.
-      var newId = "log-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
-      var withId = Object.assign({}, entry, { id: newId });
-      setLogData(function(prev) { return prev.map(function(e) { return e === entry ? withId : e; }); });
-      entry = withId;
+  // state and jump back into the suite. Phase 2B · pull the top version's
+  // payload (versioned shape). For legacy entries the migration helper
+  // wraps the flat fields into a synthetic v1 first, so the same code
+  // path works for both shapes.
+  var editLogEntry = async function(entry: LogEntry) {
+    // Backfill an id + run migration so subsequent saves match.
+    var migrated = migrateLogEntry(entry);
+    if (migrated !== entry) {
+      var migratedSnap = migrated; // capture for closure
+      setLogData(function(prev) { return prev.map(function(e) { return e === entry || e.id === migratedSnap.id ? migratedSnap : e; }); });
     }
-    // Hydrate everything we can. Missing pieces use sensible defaults so
-    // the editor doesn't crash on partial-shape legacy entries.
-    var hydratedEp: EpState = entry.ep
-      ? entry.ep
-      : { number: entry.episode, link: "", transcript: "", timestamps: "", extra: "" };
-    var hydratedGuests: Guest[] = entry.guestList && entry.guestList.length > 0
-      ? entry.guestList
-      : parseGuestString(entry.guests);
-    var hydratedFin: FinalizedState = { title: entry.title, description: entry.description, thumbnail: "" };
+
+    // Phase 2B · presence guard. If another user touched this entry in
+    // the last 5 minutes, give the current user a chance to bail.
+    var FIVE_MIN = 5 * 60 * 1000;
+    var currentName = userCtx.user ? userCtx.user.name : "Unknown";
+    var lastEditor = migrated.lastEditedBy || (migrated.editorName);
+    var msSince = msSinceLastEdit(migrated);
+    if (lastEditor && lastEditor !== currentName && msSince < FIVE_MIN) {
+      var stamp = migrated.lastEditedAt || migrated.editorStartedAt || "";
+      var when = timeAgo(stamp);
+      var proceed = await confirmDialog({
+        title: "Someone else just edited this",
+        body: lastEditor + " touched Ep #" + migrated.episode + " " + when + ". Pick up where they left off, or cancel to avoid stepping on their work.",
+        cta: "Pick up where they left off",
+        cancel: "Cancel",
+      });
+      if (!proceed) return;
+    }
+
+    // Hydrate from the top version when available; fall back to legacy
+    // best-effort for any version-less shape that slips through.
+    var top = (migrated.versions && migrated.currentVersion && migrated.versions[migrated.currentVersion - 1]) ||
+              (migrated.versions && migrated.versions.length ? migrated.versions[migrated.versions.length - 1] : null);
+    var payload: LogVersionPayload | null = top ? top.payload : null;
+    var hydratedEp: EpState = payload && payload.ep
+      ? payload.ep
+      : (migrated.ep ? migrated.ep : { number: migrated.episode, link: "", transcript: "", timestamps: "", extra: "" });
+    var hydratedGuests: Guest[] = payload && payload.guestList && payload.guestList.length > 0
+      ? payload.guestList
+      : (migrated.guestList && migrated.guestList.length > 0 ? migrated.guestList : parseGuestString(migrated.guests));
+    var hydratedFin: FinalizedState = payload && payload.fin
+      ? payload.fin
+      : { title: migrated.title, description: migrated.description, thumbnail: "" };
     setEp(hydratedEp);
     setGuests(hydratedGuests);
-    setOpts(entry.opts || null);
-    setSel(entry.sel || { title: 0, desc: 0, thumb: 0 });
+    setOpts(payload ? payload.opts : (migrated.opts || null));
+    setSel(payload ? payload.sel : (migrated.sel || { title: 0, desc: 0, thumb: 0 }));
     setFin(hydratedFin);
-    setThumb(entry.thumb || null);
-    setSocialRes(entry.social);
-    setClips(entry.clips || []);
-    if (entry.descLen) setDescLen(entry.descLen);
-    setEditingLogId(entry.id || null);
+    setThumb(payload ? payload.thumb : (migrated.thumb || null));
+    setSocialRes(payload ? payload.socialRes : migrated.social);
+    setClips(payload ? payload.clips : (migrated.clips || []));
+    if (payload && payload.descLen) setDescLen(payload.descLen);
+    else if (migrated.descLen) setDescLen(migrated.descLen);
+    setEditingLogId(migrated.id || null);
     setLaunched(false); // re-enter edit mode; flip back on Complete
+
+    // Phase 2B · stamp editor presence onto the entry so other users see
+    // the banner. Both as local React state and persisted on the entry.
+    var nowISO = new Date().toISOString();
+    setEditorName(currentName);
+    setEditorStartedAt(nowISO);
+    var targetId = migrated.id;
+    setLogData(function(prev) {
+      return prev.map(function(e) {
+        if (e.id !== targetId) return e;
+        return Object.assign({}, e, { editorName: currentName, editorStartedAt: nowISO });
+      });
+    });
+
     setStep(0);         // start at Setup so user can review/edit from the top
     setInteracted(true);
-    showToast("Editing Ep #" + entry.episode + " · changes save back to this entry");
+    showToast("Editing Ep #" + migrated.episode + " · changes save back to this entry");
   };
+
+  // Phase 2C · "Revert to this version" copies a historical payload into
+  // a brand-new top version (non-destructive). The current top version
+  // stays intact in the timeline.
+  var revertToVersion = function(entryId: string, versionIdx: number) {
+    setLogData(function(prev) {
+      return prev.map(function(e) {
+        if (e.id !== entryId) return e;
+        var migrated = migrateLogEntry(e);
+        if (!migrated.versions || !migrated.versions[versionIdx]) return migrated;
+        var source = migrated.versions[versionIdx];
+        var savedBy = userCtx.user ? userCtx.user.name : "Unknown";
+        // Deep clone the historical payload so the new top version
+        // doesn't share a reference with the source. Today nothing
+        // mutates payloads, but any future in-place edit on the new
+        // version would silently corrupt history without this guard.
+        var clonedPayload = JSON.parse(JSON.stringify(source.payload)) as LogVersionPayload;
+        return appendVersion(migrated, clonedPayload, savedBy, "Reverted to v" + (versionIdx + 1));
+      });
+    });
+    showToast("Reverted to v" + (versionIdx + 1) + " · saved as a new top version");
+  };
+
+  // Look up an entry by id for the timeline modal.
+  var timelineEntry: LogEntry | null = timelineEntryId ? (logData.find(function(e) { return e.id === timelineEntryId; }) || null) : null;
 
   // Step navigation logic
   var canNavigate = function(targetStep: number): boolean {
@@ -2303,6 +2719,16 @@ export default function SAWeekly() {
     if (targetStep === 6) return true; // log always available
     return false;
   };
+
+  // Phase 2D · presence banner data. Show when actively editing a known
+  // entry AND another user touched it inside the 5-minute window.
+  var FIVE_MIN_MS = 5 * 60 * 1000;
+  var presenceEntry: LogEntry | null = editingLogId ? (logData.find(function(e) { return e.id === editingLogId; }) || null) : null;
+  var currentUserName = userCtx.user ? userCtx.user.name : "Unknown";
+  var presenceLastBy = presenceEntry ? (presenceEntry.lastEditedBy || presenceEntry.editorName || "") : "";
+  var presenceLastAt = presenceEntry ? (presenceEntry.lastEditedAt || presenceEntry.editorStartedAt || null) : null;
+  var presenceMs = presenceEntry ? msSinceLastEdit(presenceEntry) : Infinity;
+  var showPresenceBanner = !!presenceEntry && !!presenceLastBy && presenceLastBy !== currentUserName && presenceMs < FIVE_MIN_MS;
 
   return (<div>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes progressSlide{0%{left:-40%}100%{left:100%}}.progress-slide{animation:progressSlide 1.5s ease-in-out infinite}@keyframes dotPulse{0%,80%,100%{opacity:0.2}40%{opacity:1}}.progress-dots::after{content:'...';display:inline-block;animation:dotPulse 1.4s ease-in-out infinite}@keyframes confetti-fall{0%{transform:translateY(-20px) translateX(0) rotate(0deg);opacity:1}70%{opacity:1}100%{transform:translateY(calc(80vh)) translateX(var(--drift)) rotate(var(--rot));opacity:0}}" }} />
@@ -2325,6 +2751,17 @@ export default function SAWeekly() {
       <StepTracker current={step} steps={STEPS} canNavigate={canNavigate} onNav={function(i) { if (canNavigate(i) || i < step) setStep(i); }} />
     </div>
 
+    {/* Phase 2D · presence banner. Renders only when another user touched
+        this entry within the last 5 minutes — gives the current editor a
+        nudge that they might be stepping on someone's work. */}
+    {showPresenceBanner && presenceEntry && (
+      <div style={{ margin: "0 0 18px", padding: "8px 14px", background: D.amber + "12", border: "1px solid " + D.amber + "55", borderRadius: 8, display: "flex", alignItems: "center", gap: 10, fontFamily: mn, fontSize: 11, color: D.amber, letterSpacing: 0.5 }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: D.amber, flexShrink: 0 }} />
+        <span style={{ flex: 1 }}>{presenceLastBy} edited this {timeAgo(presenceLastAt)} · Ep #{presenceEntry.episode}</span>
+        <span onClick={function() { setTimelineEntryId(presenceEntry!.id || null); }} style={{ cursor: "pointer", color: D.amber, textDecoration: "underline", textUnderlineOffset: 3 }}>View history</span>
+      </div>
+    )}
+
     {/* Step Content */}
     <div style={{ paddingBottom: 60 }}>
       {step === 0 && <StepSetup ep={ep} setEp={setEp} guests={guests} setGuests={setGuests} />}
@@ -2338,10 +2775,24 @@ export default function SAWeekly() {
         setLogData={setLogData}
         onDevelopClips={openClipsForLogEntry}
         onEditEntry={editLogEntry}
+        onOpenTimeline={function(id: string) { setTimelineEntryId(id); }}
         current={{ ep: ep, guests: guests, fin: fin, socialRes: socialRes, clips: clips, editingLogId: editingLogId }}
         onSaveCurrent={saveCurrentToLog}
       />}
     </div>
+
+    {/* Phase 2C · version timeline modal */}
+    {timelineEntry && (
+      <VersionTimelineModal
+        entry={timelineEntry}
+        currentUserName={currentUserName}
+        onClose={function() { setTimelineEntryId(null); }}
+        onRevert={function(versionIdx: number) {
+          if (!timelineEntry || !timelineEntry.id) return;
+          revertToVersion(timelineEntry.id, versionIdx);
+        }}
+      />
+    )}
 
     {/* Step navigation buttons */}
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 40 }}>
