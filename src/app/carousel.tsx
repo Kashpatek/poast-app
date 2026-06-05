@@ -571,7 +571,7 @@ function SlideThumbnail({ slide, theme, isActive, onClick, index }: { slide: Sli
 
 
 // ═══ STEP 0: INPUT ═══
-function InputStep({ state, setState, onNext }: { state: CarouselState; setState: React.Dispatch<React.SetStateAction<CarouselState>>; onNext: () => void }) {
+function InputStep({ state, setState, onNext, generatedSlideCount }: { state: CarouselState; setState: React.Dispatch<React.SetStateAction<CarouselState>>; onNext: () => void; generatedSlideCount: number }) {
   var _dragging = useState(false), dragging = _dragging[0], setDragging = _dragging[1];
   var _inputMode = useState<string | null>(state.url ? "link" : state.text ? "context" : null), inputMode = _inputMode[0], setInputMode = _inputMode[1];
   var _genImgL = useState(false), genImgL = _genImgL[0], setGenImgL = _genImgL[1];
@@ -674,6 +674,21 @@ function InputStep({ state, setState, onNext }: { state: CarouselState; setState
         </div>;
       })}
     </div>
+
+    {/* Pre-gen visualizer: empty 4:5 frames at chosen count so the user
+        can see aspect ratio + slide count before generating. Hidden
+        once real slides for this count already exist. */}
+    {state.mode === "manual" && state.pageCount > 0 && generatedSlideCount !== state.pageCount && <div style={{ marginBottom: 24 }}>
+      <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Preview // 1080 x 1350 // 4:5</div>
+      <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8 }}>
+        {Array.from({ length: state.pageCount }).map(function(_, i) {
+          var label = (i + 1 < 10 ? "0" : "") + (i + 1);
+          return <div key={i} style={{ position: "relative", flexShrink: 0, width: 120, height: 150, borderRadius: 8, background: C.surface, border: "1px solid " + C.border }}>
+            <div style={{ position: "absolute", top: 8, left: 8, fontFamily: mn, fontSize: 10, fontWeight: 700, color: C.txd, letterSpacing: 0.5 }}>{label}</div>
+          </div>;
+        })}
+      </div>
+    </div>}
 
     {/* Input Mode Toggle: + Link / + Context */}
     <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Source</div>
@@ -2901,7 +2916,7 @@ export default function Carousel() {
       </div>
     </div>}
 
-    {step === 0 && <InputStep state={state} setState={setState} onNext={generate} />}
+    {step === 0 && <InputStep state={state} setState={setState} onNext={generate} generatedSlideCount={slides.length} />}
     {step === 1 && loading && <GenerateStep />}
     {step === 2 && variants && <VariantSelectStep
       variants={variants}
