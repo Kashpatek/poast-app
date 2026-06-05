@@ -39,6 +39,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { StyleGuidePromo } from "./style-promo";
 import { showToast } from "./toast-context";
 import { SaveToLibrary } from "./components/save-to-library";
+import { SendToChip } from "./components/send-to-chip";
 import { Command } from "cmdk";
 import { useStore, type ToolOutput } from "./lib/store";
 import { AssetLibraryView } from "./asset-library/asset-library-view";
@@ -1465,6 +1466,7 @@ function ClipCaptions() {
                   <div style={{ display: "flex", gap: 5 }}>
                     <CopyBtn text={fullText} />
                     <SaveToLibrary tool="capper" title={"Variation " + (i + 1) + " \u00B7 " + platObj.label + " thread"} prompt={posts.map(function(p) { return p.text; }).join("\n\n")} provider={provider} />
+                    <SendToChip text={posts.map(function(p) { return p.text; }).join("\n\n")} sourceTool="capper" provider={provider} kind="thread" excludeDestinations={["capper"]} />
                     <span onClick={function() { if (!isRegen) regenerateOne(platKey, i); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: isRegen ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + borderC, opacity: isRegen ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>{isRegen ? "..." : "\u21BB"}</span>
                     <span onClick={function() { if (!bufferSending[platKey]) { var threadText = posts.map(function(p: { number: number; text: string }) { return p.text; }).join("\n\n"); sendToBuffer(platKey, threadText).then(function(ok: boolean) { if (ok) showToast("Sent " + platObj.label + " thread draft to Buffer."); }); } }} style={{ fontFamily: mn, fontSize: 9, color: bufferSending[platKey] ? C.teal : "rgba(255,255,255,0.4)", cursor: bufferSending[platKey] ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + (bufferSending[platKey] ? C.teal + "40" : borderC), background: bufferSending[platKey] ? C.teal + "08" : "transparent", opacity: bufferSending[platKey] ? 0.6 : 1, userSelect: "none", transition: "all 0.2s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = C.teal + "40"; e.currentTarget.style.color = C.teal; } }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; } }}>{bufferSending[platKey] ? "Sending..." : "Buffer"}</span>
                   </div>
@@ -1491,6 +1493,7 @@ function ClipCaptions() {
                 <div style={{ display: "flex", gap: 5 }}>
                   <CopyBtn text={cap + (r.reply ? "\n\n[Reply]\n" + r.reply : "") + (r.title ? "\n\n[Title]\n" + r.title : "")} />
                   <SaveToLibrary tool="capper" title={"Variation " + (i + 1) + " \u00B7 " + platObj.label} prompt={cap + (r.reply ? "\n\n[Reply]\n" + r.reply : "") + (r.title ? "\n\n[Title]\n" + r.title : "")} provider={provider} />
+                  <SendToChip text={cap + (r.reply ? "\n\n[Reply]\n" + r.reply : "") + (r.title ? "\n\n[Title]\n" + r.title : "")} sourceTool="capper" provider={provider} kind="caption" excludeDestinations={["capper"]} />
                   <span onClick={function() { if (!isRegen) regenerateOne(platKey, i); }} style={{ fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.4)", cursor: isRegen ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + borderC, opacity: isRegen ? 0.4 : 1, userSelect: "none", transition: "all 0.2s ease" }}>{isRegen ? "..." : "\u21BB"}</span>
                   <span onClick={function() { if (!bufferSending[platKey]) { sendToBuffer(platKey, cap).then(function(ok: boolean) { if (ok) showToast("Sent " + platObj.label + " draft to Buffer."); }); } }} style={{ fontFamily: mn, fontSize: 9, color: bufferSending[platKey] ? C.teal : "rgba(255,255,255,0.4)", cursor: bufferSending[platKey] ? "wait" : "pointer", padding: "3px 8px", borderRadius: 6, border: "1px solid " + (bufferSending[platKey] ? C.teal + "40" : borderC), background: bufferSending[platKey] ? C.teal + "08" : "transparent", opacity: bufferSending[platKey] ? 0.6 : 1, userSelect: "none", transition: "all 0.2s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = C.teal + "40"; e.currentTarget.style.color = C.teal; } }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!bufferSending[platKey]) { e.currentTarget.style.borderColor = borderC; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; } }}>{bufferSending[platKey] ? "Sending..." : "Buffer"}</span>
                 </div>
