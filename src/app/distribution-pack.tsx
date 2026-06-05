@@ -623,7 +623,7 @@ function AdvancedPackView({ pack, copied, onCopy }: { pack: Pack; copied: string
       ) : null}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {pack.xThread ? (
-          <PackCard title="X Thread" copyKey="x-thread" text={pack.xThread.map((t, i) => (i + 1) + "/ " + t).join("\n\n")} copied={copied} onCopy={onCopy}>
+          <PackCard title="X Thread" copyKey="x-thread" text={pack.xThread.map((t, i) => (i + 1) + "/ " + t).join("\n\n")} copied={copied} onCopy={onCopy} charCount={pack.xThread.length ? Math.max(...pack.xThread.map((t) => t.length)) : 0} charLimit={PLATFORM_LIMITS.x} platformLabel="X" chipNote="longest tweet">
             {pack.xThread.map((t, i) => (
               <div key={i} style={{ fontFamily: ft, fontSize: 12, color: D.tx, padding: "6px 10px", background: "rgba(255,255,255,0.02)", borderRadius: 6, marginBottom: 4, lineHeight: 1.5 }}>
                 <span style={{ fontFamily: mn, fontSize: 10, color: D.amber, marginRight: 6 }}>{i + 1}/</span>{t}
@@ -632,13 +632,13 @@ function AdvancedPackView({ pack, copied, onCopy }: { pack: Pack; copied: string
           </PackCard>
         ) : null}
         {pack.linkedinArticle ? (
-          <PackCard title="LinkedIn Article" copyKey="li-article" text={[pack.linkedinArticle.headline, pack.linkedinArticle.subhead, "", pack.linkedinArticle.body].filter(Boolean).join("\n\n")} copied={copied} onCopy={onCopy}>
+          <PackCard title="LinkedIn Article" copyKey="li-article" text={[pack.linkedinArticle.headline, pack.linkedinArticle.subhead, "", pack.linkedinArticle.body].filter(Boolean).join("\n\n")} copied={copied} onCopy={onCopy} charCount={[pack.linkedinArticle.headline, pack.linkedinArticle.subhead, "", pack.linkedinArticle.body].filter(Boolean).join("\n\n").length} charLimit={PLATFORM_LIMITS.linkedin} platformLabel="in">
             <div style={{ fontFamily: gf, fontSize: 14, fontWeight: 700, color: D.tx, marginBottom: 4 }}>{pack.linkedinArticle.headline}</div>
             <div style={{ fontFamily: ft, fontSize: 12, color: D.txm, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{pack.linkedinArticle.body}</div>
           </PackCard>
         ) : null}
         {pack.igCarousel ? (
-          <PackCard title="IG Carousel" copyKey="ig-carousel" text={(pack.igCarousel.slides || []).map((s, i) => `Slide ${i + 1}: ${s.headline}\n${s.body}`).join("\n\n") + "\n\n" + (pack.igCarousel.caption || "")} copied={copied} onCopy={onCopy}>
+          <PackCard title="IG Carousel" copyKey="ig-carousel" text={(pack.igCarousel.slides || []).map((s, i) => `Slide ${i + 1}: ${s.headline}\n${s.body}`).join("\n\n") + "\n\n" + (pack.igCarousel.caption || "")} copied={copied} onCopy={onCopy} charCount={(pack.igCarousel.caption || "").length} charLimit={PLATFORM_LIMITS.instagram} platformLabel="IG" chipNote="caption">
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {(pack.igCarousel.slides || []).map((s, i) => (
                 <div key={i} style={{ fontFamily: ft, fontSize: 11, color: D.tx, padding: "4px 8px", background: "rgba(255,255,255,0.02)", borderRadius: 4, borderLeft: `2px solid ${D.amber}` }}>
@@ -649,7 +649,7 @@ function AdvancedPackView({ pack, copied, onCopy }: { pack: Pack; copied: string
           </PackCard>
         ) : null}
         {pack.tiktok ? (
-          <PackCard title="TikTok" copyKey="tiktok" text={pack.tiktok} copied={copied} onCopy={onCopy}>
+          <PackCard title="TikTok" copyKey="tiktok" text={pack.tiktok} copied={copied} onCopy={onCopy} charCount={pack.tiktok.length} charLimit={PLATFORM_LIMITS.tiktok} platformLabel="TT">
             <div style={{ fontFamily: ft, fontSize: 12, color: D.tx, lineHeight: 1.6 }}>{pack.tiktok}</div>
           </PackCard>
         ) : null}
@@ -670,21 +670,65 @@ function AdvancedPackView({ pack, copied, onCopy }: { pack: Pack; copied: string
   );
 }
 
-function PackCard({ title, copyKey, text, copied, onCopy, children }: { title: string; copyKey: string; text: string; copied: string | null; onCopy: (k: string, t: string) => void; children: React.ReactNode }) {
+function PackCard({ title, copyKey, text, copied, onCopy, children, charCount, charLimit, platformLabel, chipNote }: { title: string; copyKey: string; text: string; copied: string | null; onCopy: (k: string, t: string) => void; children: React.ReactNode; charCount?: number; charLimit?: number; platformLabel?: string; chipNote?: string }) {
   return (
     <div style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${D.border}`, borderRadius: 10, padding: "12px 14px", display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8, gap: 8 }}>
         <div style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.amber, textTransform: "uppercase" }}>{title}</div>
-        <button
-          type="button"
-          onClick={() => onCopy(copyKey, text)}
-          style={{ padding: "3px 10px", background: copied === copyKey ? D.teal : "transparent", color: copied === copyKey ? "#060608" : D.tx, border: `1px solid ${copied === copyKey ? D.teal : D.border}`, borderRadius: 4, fontFamily: mn, fontSize: 9, fontWeight: 700, letterSpacing: 0.8, cursor: "pointer" }}
-        >
-          {copied === copyKey ? "COPIED" : "COPY"}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {typeof charCount === "number" && typeof charLimit === "number" && platformLabel ? (
+            <CharChip count={charCount} limit={charLimit} label={platformLabel} note={chipNote} />
+          ) : null}
+          <button
+            type="button"
+            onClick={() => onCopy(copyKey, text)}
+            style={{ padding: "3px 10px", background: copied === copyKey ? D.teal : "transparent", color: copied === copyKey ? "#060608" : D.tx, border: `1px solid ${copied === copyKey ? D.teal : D.border}`, borderRadius: 4, fontFamily: mn, fontSize: 9, fontWeight: 700, letterSpacing: 0.8, cursor: "pointer" }}
+          >
+            {copied === copyKey ? "COPIED" : "COPY"}
+          </button>
+        </div>
       </div>
       <div>{children}</div>
     </div>
+  );
+}
+
+// Per-platform character limits used by the chip on each PackCard.
+const PLATFORM_LIMITS = {
+  x: 280,
+  linkedin: 3000,
+  facebook: 5000,
+  instagram: 2200,
+  tiktok: 2200,
+  youtubeShortsTitle: 100,
+  youtubeShortsDescription: 5000,
+} as const;
+
+function CharChip({ count, limit, label, note }: { count: number; limit: number; label: string; note?: string }) {
+  const ratio = count / limit;
+  // Over the limit is red regardless of how far; 80%+ is yellow; below is green.
+  const color = count > limit ? D.coral : ratio >= 0.8 ? D.amber : D.teal;
+  return (
+    <span
+      title={note ? `${note} — ${count} / ${limit}` : `${count} / ${limit}`}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "2px 7px",
+        borderRadius: 999,
+        border: `1px solid ${color}55`,
+        background: color + "12",
+        color: color,
+        fontFamily: mn,
+        fontSize: 9.5,
+        letterSpacing: 0.8,
+        fontWeight: 700,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {count} / {limit} {label}
+    </span>
   );
 }
 
