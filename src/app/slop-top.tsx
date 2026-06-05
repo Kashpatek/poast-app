@@ -1,8 +1,9 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useUser, isAnalyst } from "./user-context";
 import { ProviderChips } from "./provider-chips";
 import { getSurfaceProvider, getPreferredProvider } from "./shared-constants";
+import { useShortcuts } from "./keyboard-shortcuts";
 
 const SLOP_SURFACE = "slop-top";
 
@@ -1005,6 +1006,19 @@ export default function SlopTop() {
     for (var j = 0; j < empty; j++) bar += "\u2591";
     return bar + " " + Math.floor(pct) + "%";
   };
+
+  // Tinykeys captures the handler at registration time; route through a ref
+  // so the shortcut always dispatches to whichever tab is currently active.
+  var generateRef = useRef<(() => void) | undefined>(undefined);
+  generateRef.current = function() {
+    if (tab === "brief") handleGenerate();
+    else if (tab === "meme") handleMemeGenerate();
+    else if (tab === "factory") handleFactoryGenerateImage();
+    else handleSlopGenerate();
+  };
+  useShortcuts({
+    "$mod+g": { description: "Generate slop", handler: function() { if (generateRef.current) generateRef.current(); } },
+  }, { scope: "Slop Top" });
 
   // Load arxiv queue from localStorage on mount
   useEffect(function() {

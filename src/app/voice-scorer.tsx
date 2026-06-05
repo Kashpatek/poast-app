@@ -4,8 +4,9 @@
 // breakdown, list of violations, and concrete rewrite suggestions. The
 // fastest way to catch boomer/AI captions before they ship.
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { D, ft, gf, mn } from "./shared-constants";
+import { useShortcuts } from "./keyboard-shortcuts";
 
 interface ScoreResult {
   score: number;
@@ -86,6 +87,14 @@ export default function VoiceScorer() {
       setLoading(false);
     }
   }
+
+  // Tinykeys captures the handler at registration time; route through a ref
+  // so the shortcut always calls the latest `score` closure.
+  const scoreRef = useRef<(() => void) | undefined>(undefined);
+  scoreRef.current = () => { score(); };
+  useShortcuts({
+    "$mod+Enter": { description: "Score draft", handler: () => { if (scoreRef.current) scoreRef.current(); } },
+  }, { scope: "Voice Scorer" });
 
   const scoreColor = !result ? D.txm
     : result.score >= 8 ? D.teal

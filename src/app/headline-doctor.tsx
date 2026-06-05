@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { D, ft, gf, mn } from "./shared-constants";
+import { useShortcuts } from "./keyboard-shortcuts";
 
 interface Alternate {
   text: string;
@@ -123,6 +124,14 @@ export default function HeadlineDoctor() {
       setLoading(false);
     }
   }
+
+  // Tinykeys captures the handler at registration time; route through a ref
+  // so the shortcut always calls the latest `run` closure.
+  const runRef = useRef<(() => void) | undefined>(undefined);
+  runRef.current = () => { run(); };
+  useShortcuts({
+    "$mod+g": { description: "Doctor headline", handler: () => { if (runRef.current) runRef.current(); } },
+  }, { scope: "Headline Doctor" });
 
   function restore(entry: HistoryEntry) {
     setHeadline(entry.original);

@@ -6,6 +6,7 @@ import { useUser } from "./user-context";
 import { showToast } from "./toast-context";
 import { confirmDialog, promptDialog } from "./dialog-context";
 import { ProviderChips } from "./provider-chips";
+import { useShortcuts } from "./keyboard-shortcuts";
 
 const CAROUSEL_SURFACE = "carousel";
 
@@ -2824,6 +2825,14 @@ export default function Carousel() {
   }
 
   var _showVariantPicker = useState(false), showVariantPicker = _showVariantPicker[0], setShowVariantPicker = _showVariantPicker[1];
+
+  // Tinykeys captures the handler at registration time; route through a ref
+  // so the shortcut always invokes the latest `generate` closure.
+  var generateRef = useRef<(() => void) | undefined>(undefined);
+  generateRef.current = function() { generate(); };
+  useShortcuts({
+    "$mod+g": { description: "Generate carousel", handler: function() { if (generateRef.current) generateRef.current(); } },
+  }, { scope: "Carousel" });
 
   function pickVariant(key: string) {
     var picked = variants![key];
