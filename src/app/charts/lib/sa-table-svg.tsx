@@ -34,10 +34,13 @@ export interface ThemePalette {
   text: string;                    // primary body text
   textMuted: string;               // secondary text
   textDim: string;                 // tertiary text / labels
-  // Row banding — 3 tones cycled for Excel-style alternation. tone0 is
-  // the base row (no overlay), tone1 + tone2 are stripes layered over
-  // it. Legacy `rowBgEven` falls back to tone1 for callers that still
-  // expect a 2-tone stripe.
+  // Row banding — 3 tones declared, but the consumer renders rows in
+  // 2-row paired groups matching the brand Excel template. The
+  // consumption (sa-table-svg main render) cycles tones[1] and tones[2]
+  // in alternating pairs (rows 0+1 → tone[1], rows 2+3 → tone[2], rows
+  // 4+5 → tone[1], …) so tone[0] is reserved as the transparent
+  // baseline / future "no overlay" slot. Legacy `rowBgEven` aliases
+  // tone[1] for callers that still expect a 2-tone stripe.
   rowBgEven: string;               // (legacy alias for rowBandTones[1])
   rowBandTones: [string, string, string];
   rowDivider: string;              // horizontal row separator
@@ -893,11 +896,14 @@ function SaDataTable(props: SaTableRenderProps & { palette: ThemePalette }) {
         }
         return (
           <g key={"row-" + ri}>
-            {/* Alternate-row banding — 3-tone cycle matching the brand
-                Excel template. Tone 0 stays transparent so the gradient
-                shows through; tones 1 + 2 paint thin overlays. */}
+            {/* Alternate-row banding — 2-row groups matching the brand
+                Excel template, which pairs rows in a 4-row repeating
+                sequence (tone[1], tone[1], tone[2], tone[2], …) rather
+                than a strict 3-tone cycle. Tone 0 stays transparent as
+                the baseline; tones 1 + 2 paint thin overlays so the
+                gradient still reads through. */}
             {props.showRowStripe && !rowStyle?.band && (() => {
-              const tone = palette.rowBandTones[ri % 3];
+              const tone = palette.rowBandTones[ri % 4 < 2 ? 1 : 2];
               if (tone === "transparent") return null;
               return <rect x={tableX} y={y} width={tableW} height={rowH} fill={tone} />;
             })()}
