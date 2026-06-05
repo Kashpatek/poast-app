@@ -6,6 +6,8 @@ import SignalFeedPanel from "./signal-feed";
 import StoryRadarPanel from "./story-radar";
 import IdeationBoardPanel from "./ideation-board";
 import MorningBrief from "./morning-brief";
+import WatchlistAlertsPanel from "./watchlist-alerts";
+import CompetitiveRadarPanel from "./competitive-radar";
 
 // Default landing for /intelligence-suite. Mounts the 4 sub-panels
 // inside the shell. The "Generate Morning Brief" toolbar button bumps
@@ -27,6 +29,8 @@ export default function HubLanding() {
       signalFeed={<SignalFeedPanel />}
       storyRadar={<StoryRadarPanel />}
       ideationBoard={<IdeationBoardPanel />}
+      watchlist={<WatchlistAlertsPanel />}
+      competitive={<CompetitiveRadarPanel />}
     />
   );
 }

@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "@remotion/cli": "^4.0.448",
     "@remotion/player": "^4.0.448",
     "@supabase/supabase-js": "^2.103.0",
@@ -35,12 +37,15 @@
     "react-dom": "19.2.4",
     "react-filerobot-image-editor": "^5.0.0-beta.156",
     "react-konva": "^19.2.4",
+    "react-split": "^2.0.14",
     "recharts": "^3.8.1",
     "remotion": "^4.0.448",
+    "rss-parser": "^3.13.0",
     "rxjs": "^7.8.2",
     "sonner": "^2.0.7",
     "styled-components": "^6.4.1",
     "tinykeys": "^4.0.0",
+    "wavesurfer.js": "^7.12.7",
     "xlsx": "^0.18.5",
     "zod": "^4.3.6",
     "zustand": "^5.0.14"

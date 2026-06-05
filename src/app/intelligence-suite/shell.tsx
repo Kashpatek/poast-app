@@ -2,14 +2,16 @@
 
 import { ReactNode, useState } from "react";
 import { ArrowLeft, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
+import Split from "react-split";
 import { D, ft, gf, mn } from "../shared-constants";
 
 // ─── IntelligenceSUITE hub shell ─────────────────────────────────────
 // Top toolbar (title + date range + Morning Brief CTA + layout dropdown)
-// over a three-column flex layout (Signal Feed 35 / Story Radar 35 /
-// Ideation Board 30) with a collapsible bottom drawer (Watchlist +
-// Alerts / Competitive Radar placeholders for v1). All panels are
-// mounted by hub-landing.tsx — this file is layout chrome only.
+// over a react-split three-column workspace (Signal Feed 35 / Story
+// Radar 35 / Ideation Board 30 — user-resizable via drag gutters) with
+// a collapsible bottom drawer (Watchlist + Alerts / Competitive Radar
+// placeholders for v1). Panels are mounted by hub-landing.tsx; this
+// file is layout chrome only.
 
 export type DateRange = "24h" | "7d" | "30d";
 export type LayoutMode = "focus" | "research" | "ideation";
@@ -164,16 +166,30 @@ export default function IntelligenceSuiteShell(props: IntelligenceSuiteShellProp
       ) : null}
 
       {/* ── Three-column workspace ───────────────────────────────── */}
-      <div style={{ display: "flex", flex: 1, minHeight: 0, padding: 14, gap: 0 }}>
-        <PanelColumn flex={35} label="SIGNAL FEED" borderRight>
-          {props.signalFeed}
-        </PanelColumn>
-        <PanelColumn flex={35} label="STORY RADAR" borderRight>
-          {props.storyRadar}
-        </PanelColumn>
-        <PanelColumn flex={30} label="IDEATION BOARD">
-          {props.ideationBoard}
-        </PanelColumn>
+      <style>{`
+        .is-split { display: flex; flex-direction: row; height: 100%; width: 100%; }
+        .is-split > .gutter { background-color: ${D.border}; background-repeat: no-repeat; background-position: 50%; opacity: 0.6; transition: opacity 120ms ease, background-color 120ms ease; }
+        .is-split > .gutter:hover { opacity: 1; background-color: ${D.amber}55; }
+        .is-split > .gutter.gutter-horizontal { cursor: col-resize; }
+      `}</style>
+      <div style={{ flex: 1, minHeight: 0, padding: 14 }}>
+        <Split
+          className="is-split"
+          sizes={[35, 35, 30]}
+          minSize={[260, 260, 220]}
+          gutterSize={6}
+          direction="horizontal"
+        >
+          <PanelColumn label="SIGNAL FEED">
+            {props.signalFeed}
+          </PanelColumn>
+          <PanelColumn label="STORY RADAR">
+            {props.storyRadar}
+          </PanelColumn>
+          <PanelColumn label="IDEATION BOARD">
+            {props.ideationBoard}
+          </PanelColumn>
+        </Split>
       </div>
 
       {/* ── Bottom drawer ────────────────────────────────────────── */}
@@ -214,13 +230,12 @@ export default function IntelligenceSuiteShell(props: IntelligenceSuiteShellProp
 }
 
 // ─── Column wrapper with mono uppercase header ───────────────────────
-function PanelColumn({ flex, label, borderRight, children }: { flex: number; label: string; borderRight?: boolean; children: ReactNode }) {
+function PanelColumn({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div style={{
-      flex: flex,
+      height: "100%",
       display: "flex", flexDirection: "column",
       minWidth: 0, minHeight: 0,
-      borderRight: borderRight ? "1px solid " + D.border : "none",
       padding: "0 12px",
     }}>
       <div style={{
