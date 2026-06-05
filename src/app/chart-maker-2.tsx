@@ -57,7 +57,7 @@ type ChartType =
   | "stacked" | "stackedPosNeg" | "pct" | "clustered" | "wfup" | "wfdn"
   | "mekkoPct" | "combo" | "line" | "stackedArea" | "pctArea"
   | "mekkoUnit" | "pie" | "doughnut" | "scatter" | "bubble"
-  | "variance" | "gantt";
+  | "variance" | "gantt" | "groupedStacked";
 
 type ThemeId = "saCore" | "saSpectrum";
 
@@ -303,6 +303,23 @@ function samplePerType(type: ChartType): DataSheet {
           { task: "Week-1 retro", start: "2026-05-04", end: "2026-05-11", group: "Phase 3 · Launch", owner: "Vansh", progress: 0 },
         ],
       };
+    case "groupedStacked":
+      // Phase 5A.3 · clusters of stacks. Series labels carry a "group·sub"
+      // namespace; the renderer splits on "·" (or "/") to derive groups.
+      return {
+        schema: [
+          { key: "category", label: "Category", type: "text" },
+          { key: "g1s1", label: "Q1·Revenue", type: "number" },
+          { key: "g1s2", label: "Q1·COGS",    type: "number" },
+          { key: "g2s1", label: "Q2·Revenue", type: "number" },
+          { key: "g2s2", label: "Q2·COGS",    type: "number" },
+        ],
+        rows: [
+          { category: "NV",  g1s1: 145, g1s2: 60, g2s1: 168, g2s2: 70 },
+          { category: "AMD", g1s1: 32,  g1s2: 18, g2s1: 41,  g2s2: 22 },
+          { category: "TPU", g1s1: 78,  g1s2: 35, g2s1: 92,  g2s2: 42 },
+        ],
+      };
   }
 }
 
@@ -317,6 +334,7 @@ const TYPES: TypeSpec[][] = [
     { id: "stackedPosNeg", label: "Stacked +/−", Icon: ArrowDownUp,                    working: true  },
     { id: "pct",         label: "100%",       Icon: AlignVerticalJustifyCenter,       working: true  },
     { id: "clustered",   label: "Clustered",  Icon: AlignVerticalDistributeCenter,    working: true  },
+    { id: "groupedStacked", label: "Grouped + stacked", Icon: Columns3,                working: true  },
     { id: "wfup",        label: "Waterfall +", Icon: TrendingUp,                      working: true  },
     { id: "wfdn",        label: "Waterfall −", Icon: TrendingDown,                    working: true  },
     { id: "variance",    label: "Variance (AC vs PY)", Icon: ArrowLeftRight,          working: true  },
@@ -2259,6 +2277,24 @@ function StackedColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMenu,
                     style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 800, pointerEvents: "none" }}
                   >{fmtVal(v, cfg.numFmt)}</text>
                 )}
+                {/* Phase 5A.2 · error-bar whisker at top of segment */}
+                {cfg.showErrorBars && (() => {
+                  const err = cfg.errorMap?.[key]?.[i];
+                  if (!err || err <= 0) return null;
+                  const topVal = cum;
+                  const yTop = yOf(Math.min(tickMax, topVal + err));
+                  const yBot = yOf(Math.max(0, topVal - err));
+                  const cx = segX + barW / 2;
+                  const cap = Math.min(8, barW / 3);
+                  const stroke = colorOf(seriesKeys[si], si);
+                  return (
+                    <g pointerEvents="none" opacity={0.9}>
+                      <line x1={cx} x2={cx} y1={yTop} y2={yBot} stroke={stroke} strokeWidth={1.2} />
+                      <line x1={cx - cap} x2={cx + cap} y1={yTop} y2={yTop} stroke={stroke} strokeWidth={1.2} />
+                      <line x1={cx - cap} x2={cx + cap} y1={yBot} y2={yBot} stroke={stroke} strokeWidth={1.2} />
+                    </g>
+                  );
+                })()}
                 {isSelected && (
                   <SelectionHandles
                     x={segX} y={y1} w={barW} h={segH}
@@ -2756,6 +2792,23 @@ function ClusteredColumn({ sheet, cfg, W, H, onUpdateRow, onDeleteRow, onShowMen
                   style={{ cursor: onUpdateRow ? "pointer" : "default" }}
                 />
                 <text x={x + barW / 2} y={y - 4} textAnchor="middle" fill={cc.text} style={{ fontFamily: fontMono, fontSize: 13, fontWeight: 700, pointerEvents: "none" }}>{fmtVal(v, cfg.numFmt)}</text>
+                {/* Phase 5A.2 · error-bar whisker at top of cluster bar */}
+                {cfg.showErrorBars && (() => {
+                  const err = cfg.errorMap?.[key]?.[i];
+                  if (!err || err <= 0) return null;
+                  const yTop = yOf(Math.min(tickMax, v + err));
+                  const yBot = yOf(Math.max(0, v - err));
+                  const cx = x + barW / 2;
+                  const cap = Math.min(8, (barW - 2) / 3);
+                  const stroke = colorOf(seriesKeys[si], si);
+                  return (
+                    <g pointerEvents="none" opacity={0.9}>
+                      <line x1={cx} x2={cx} y1={yTop} y2={yBot} stroke={stroke} strokeWidth={1.2} />
+                      <line x1={cx - cap} x2={cx + cap} y1={yTop} y2={yTop} stroke={stroke} strokeWidth={1.2} />
+                      <line x1={cx - cap} x2={cx + cap} y1={yBot} y2={yBot} stroke={stroke} strokeWidth={1.2} />
+                    </g>
+                  );
+                })()}
                 {isSel && (
                   <SelectionHandles
                     x={x + 1} y={y} w={barW - 2} h={chartH - y}
@@ -2862,6 +2915,166 @@ function niceRound(v: number): number {
   if (abs >= 10) return Math.round(v * 10) / 10;
   if (abs >= 1) return Math.round(v * 100) / 100;
   return Math.round(v * 1000) / 1000;
+}
+
+// ─── Grouped + stacked ────────────────────────────────────────────────────
+// Phase 5A.3 · Clusters of stacks. Series keys are expected to be namespaced
+// with a separator ("·" preferred, "/" allowed) — first segment = group name,
+// second = sub-series. Example schema: { "Q1·revenue", "Q1·cogs", "Q2·revenue",
+// "Q2·cogs" } → categories along X each show a cluster of two stacked columns
+// (Q1 and Q2), with each column itself a stack of revenue + cogs. Series that
+// don't carry a separator are placed into a single "_" group so the chart
+// still renders sensibly.
+function GroupedStacked({ sheet, cfg, W, H, onShowMenu, onSetSeriesColor }: CatProps) {
+  const { categories } = getCategoricalSeries(sheet);
+  const seriesCols = sheet.schema.slice(1).filter(c => c.type === "number" || c.type === "percent");
+  const palette = THEMES[cfg.theme].colors;
+  const cc = chartColors(cfg);
+  const SIDE_LEGEND_W = (cfg.legendPos === "left" || cfg.legendPos === "right") ? 100 : 0;
+  const leftPad = cfg.legendPos === "left" ? 56 + SIDE_LEGEND_W : 56;
+  const rightPad = cfg.legendPos === "right" ? 24 + SIDE_LEGEND_W : 24;
+  const topPad = 70, bottomPad = cfg.legendPos === "top" ? 60 : 48;
+  const chartW = W - leftPad - rightPad;
+  const chartH = H - topPad - bottomPad;
+
+  // Split keys into { group, sub } based on "·" or "/" separator.
+  const splitKey = (raw: string): { group: string; sub: string } => {
+    for (const sep of ["·", "/"]) {
+      const idx = raw.indexOf(sep);
+      if (idx > 0) return { group: raw.slice(0, idx), sub: raw.slice(idx + 1) };
+    }
+    return { group: "_", sub: raw };
+  };
+
+  // Preserve schema order to keep group/sub orderings stable.
+  const groupOrder: string[] = [];
+  const subOrder: string[] = [];
+  const byGroupSub: Record<string, Record<string, { key: string; label: string }>> = {};
+  for (const c of seriesCols) {
+    const { group, sub } = splitKey(c.label || c.key);
+    if (!groupOrder.includes(group)) groupOrder.push(group);
+    if (!subOrder.includes(sub)) subOrder.push(sub);
+    if (!byGroupSub[group]) byGroupSub[group] = {};
+    byGroupSub[group][sub] = { key: c.key, label: c.label };
+  }
+
+  // For y-axis: max across all (row, group) stack totals.
+  const groupTotalAt = (rowIdx: number, group: string) => {
+    const subs = byGroupSub[group] || {};
+    let total = 0;
+    for (const sub of subOrder) {
+      const entry = subs[sub];
+      if (!entry) continue;
+      total += Number(sheet.rows[rowIdx]?.[entry.key]) || 0;
+    }
+    return total;
+  };
+  const allTotals: number[] = [];
+  for (let r = 0; r < categories.length; r++) {
+    for (const g of groupOrder) allTotals.push(groupTotalAt(r, g));
+  }
+  const maxVal = Math.max(0, ...allTotals);
+  const ticks = niceTicks(0, maxVal, 5);
+  const tickMax = cfg.yMax !== undefined ? cfg.yMax : (ticks[ticks.length - 1] || 1);
+  const yOf = (v: number) => chartH - (v / Math.max(0.0001, tickMax)) * chartH;
+
+  const groupW = chartW / Math.max(1, categories.length);
+  const clusterFrac = (cfg.barWidthPct ?? 65) / 100;
+  const innerW = groupW * clusterFrac;
+  const innerPad = (groupW - innerW) / 2;
+  const colW = innerW / Math.max(1, groupOrder.length);
+  const barW = Math.max(2, colW - 4);
+
+  // Stable colors per sub-series (so revenue stays one color across all groups).
+  const colorOfSub = (sub: string): string => {
+    const idx = subOrder.indexOf(sub);
+    return cfg.seriesColors?.[sub] || palette[idx % palette.length];
+  };
+  const legendSwatchClick = onSetSeriesColor && onShowMenu ? (key: string, e: React.MouseEvent) => onShowMenu(e, [
+    { kind: "swatchRow", colors: palette, current: cfg.seriesColors?.[key], onPick: c => onSetSeriesColor(key, c) },
+  ]) : undefined;
+
+  // Legend entries reflect sub-series (not group · sub combinations).
+  const legendSeries = subOrder.map(sub => ({ key: sub, label: sub, color: colorOfSub(sub) }));
+
+  return (
+    <ChartFrame cfg={cfg} W={W} H={H} leftPad={leftPad} rightPad={rightPad} topPad={topPad} bottomPad={bottomPad}>
+      {ticks.map(t => (
+        <g key={t}>
+          {cfg.showGridlines !== false && <line x1={leftPad} x2={W - rightPad} y1={yOf(t)} y2={yOf(t)} stroke={cc.grid} strokeWidth="1" />}
+          {cfg.showTickMarks && <line x1={leftPad - 4} x2={leftPad} y1={yOf(t)} y2={yOf(t)} stroke={cc.muted} strokeWidth="1.5" />}
+          <text x={leftPad - 8} y={yOf(t) + 4} textAnchor="end" fill={cc.muted} style={{ fontFamily: fontMono, fontSize: 10 }}>{fmtVal(t, cfg.numFmt)}</text>
+        </g>
+      ))}
+      {categories.map((cat, i) => (
+        <g key={i} style={{ animation: `cm2BarRise 0.6s cubic-bezier(.2,.7,.2,1) both`, animationDelay: `${i * 30}ms`, transformOrigin: `${leftPad + i * groupW + groupW / 2}px ${H - bottomPad}px`, transformBox: "fill-box" as React.CSSProperties["transformBox"] }}>
+          {groupOrder.map((group, gi) => {
+            const colX = leftPad + i * groupW + innerPad + gi * colW + (colW - barW) / 2;
+            let cum = 0;
+            const subs = byGroupSub[group] || {};
+            return (
+              <g key={group}>
+                {subOrder.map((sub) => {
+                  const entry = subs[sub];
+                  if (!entry) return null;
+                  const v = Number(sheet.rows[i]?.[entry.key]) || 0;
+                  if (v === 0) return null;
+                  const y0 = yOf(cum);
+                  const y1 = yOf(cum + v);
+                  cum += v;
+                  const color = colorOfSub(sub);
+                  return (
+                    <g key={sub}>
+                      <rect
+                        x={colX} y={y1} width={barW} height={Math.max(0, y0 - y1)}
+                        fill={color}
+                        stroke={cfg.showBorders ? cc.barBorder : "none"} strokeWidth={cfg.showBorders ? 1 : 0}
+                      />
+                      {cfg.showSegmentLabels && (y0 - y1) > 18 && barW > 24 && (
+                        <text x={colX + barW / 2} y={(y0 + y1) / 2 + 3} textAnchor="middle" fill={cc.onBar}
+                          style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 800, pointerEvents: "none" }}>{fmtVal(v, cfg.numFmt)}</text>
+                      )}
+                      {/* Phase 5A.2 · error-bar whisker on top of this sub-segment */}
+                      {cfg.showErrorBars && (() => {
+                        const err = cfg.errorMap?.[entry.key]?.[i];
+                        if (!err || err <= 0) return null;
+                        const topVal = cum;
+                        const yTop = yOf(Math.min(tickMax, topVal + err));
+                        const yBot = yOf(Math.max(0, topVal - err));
+                        const cx = colX + barW / 2;
+                        const cap = Math.min(8, barW / 3);
+                        return (
+                          <g pointerEvents="none" opacity={0.9}>
+                            <line x1={cx} x2={cx} y1={yTop} y2={yBot} stroke={color} strokeWidth={1.2} />
+                            <line x1={cx - cap} x2={cx + cap} y1={yTop} y2={yTop} stroke={color} strokeWidth={1.2} />
+                            <line x1={cx - cap} x2={cx + cap} y1={yBot} y2={yBot} stroke={color} strokeWidth={1.2} />
+                          </g>
+                        );
+                      })()}
+                    </g>
+                  );
+                })}
+                {/* Group label under each stack */}
+                {cfg.showTotalLabels !== false && cum > 0 && (
+                  <text x={colX + barW / 2} y={yOf(cum) - 5} textAnchor="middle" fill={cc.text}
+                    style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 700, pointerEvents: "none" }}>{fmtVal(cum, cfg.numFmt)}</text>
+                )}
+                {groupOrder.length > 1 && (
+                  <text x={colX + barW / 2} y={chartH + 14} textAnchor="middle" fill={cc.muted}
+                    style={{ fontFamily: fontMono, fontSize: 9, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", pointerEvents: "none" }}>{group}</text>
+                )}
+              </g>
+            );
+          })}
+          <text x={leftPad + i * groupW + groupW / 2} y={chartH + (groupOrder.length > 1 ? 30 : 22)} textAnchor="middle" fill={cc.muted}
+            style={{ fontFamily: fontSans, fontSize: 13, fontWeight: 700 }}>{cat}</text>
+        </g>
+      ))}
+      {cfg.legendPos === "left" && <Legend series={legendSeries} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={2} chartH={chartH} sideW={SIDE_LEGEND_W} />}
+      {cfg.legendPos === "right" && <Legend series={legendSeries} W={W} y={10} leftPad={0} onSwatchClick={legendSwatchClick} textColor={cc.muted} vertical vertX={W - SIDE_LEGEND_W} chartH={chartH} sideW={SIDE_LEGEND_W} />}
+      {(cfg.legendPos === "top" || cfg.legendPos === "bottom") && <Legend series={legendSeries} W={W} y={cfg.legendPos === "top" ? -28 : chartH + 36} leftPad={leftPad} onSwatchClick={legendSwatchClick} textColor={cc.muted} />}
+    </ChartFrame>
+  );
 }
 
 function PercentColumn({ sheet, cfg, W, H }: CatProps) {
@@ -3080,6 +3293,21 @@ function LineProfile({ sheet, cfg, W, H, fill = false, stacked = false, pct100 =
                 if (cfg.markerShape === "square") return <rect key={"mk"+i} x={mx-4} y={my-4} width={8} height={8} fill={lineColor} stroke="none" pointerEvents="none" />;
                 if (cfg.markerShape === "diamond") return <polygon key={"mk"+i} points={`${mx},${my-5} ${mx+5},${my} ${mx},${my+5} ${mx-5},${my}`} fill={lineColor} stroke="none" pointerEvents="none" />;
                 return null;
+              })}
+              {/* Phase 5A.2 · error-bar whiskers per data point */}
+              {cfg.showErrorBars && s.cumValues.map((v, i) => {
+                const err = cfg.errorMap?.[key]?.[i];
+                if (!err || err <= 0) return null;
+                const yTop = yOf(Math.min(tickMax, v + err));
+                const yBot = yOf(Math.max(tickMin, v - err));
+                const cx = xOf(i);
+                return (
+                  <g key={"err-"+i} pointerEvents="none" opacity={0.9}>
+                    <line x1={cx} x2={cx} y1={yTop} y2={yBot} stroke={lineColor} strokeWidth={1.2} />
+                    <line x1={cx - 5} x2={cx + 5} y1={yTop} y2={yTop} stroke={lineColor} strokeWidth={1.2} />
+                    <line x1={cx - 5} x2={cx + 5} y1={yBot} y2={yBot} stroke={lineColor} strokeWidth={1.2} />
+                  </g>
+                );
               })}
               {/* Series end-label */}
               {cfg.showEndLabels && lastVal >= tickMin && lastVal <= tickMax && (
@@ -4770,6 +4998,10 @@ interface ChartConfig {
   // bar chart with categories down the Y axis. Other renderers may opt in
   // later but the flag is harmless on charts that ignore it.
   flipped?: boolean;
+  // Phase 5A.2 · per-row / per-series error magnitude. Outer key = seriesKey,
+  // inner key = rowIdx. Renderers draw ±err whiskers when showErrorBars is on.
+  errorMap?: Record<string, Record<number, number>>;
+  showErrorBars?: boolean;
 }
 
 // Adaptive color set · text + grid pull from the backdrop mode so light
@@ -4819,7 +5051,7 @@ function chartColors(cfg: ChartConfig) {
 // Family color tints for the wheel — wedge fills are family color × low alpha
 // so the whole wheel reads at-a-glance even before you read labels.
 function familyForType(t: ChartType): "column" | "line" | "mekko" | "gantt" {
-  if (t === "stacked" || t === "stackedPosNeg" || t === "pct" || t === "clustered" || t === "wfup" || t === "wfdn" || t === "variance") return "column";
+  if (t === "stacked" || t === "stackedPosNeg" || t === "pct" || t === "clustered" || t === "wfup" || t === "wfdn" || t === "variance" || t === "groupedStacked") return "column";
   if (t === "line" || t === "stackedArea" || t === "pctArea" || t === "combo") return "line";
   if (t === "mekkoPct" || t === "mekkoUnit" || t === "pie" || t === "doughnut") return "mekko";
   return "gantt";
@@ -5949,6 +6181,10 @@ export default function ChartMaker2({
   const [markerShape, setMarkerShape] = useState<"none" | "circle" | "square" | "diamond">("circle");
   const [roundedCorners, setRoundedCorners] = useState(false);
   const [showSecondaryAxis, setShowSecondaryAxis] = useState(false);
+  // Phase 5A.2 · error bars (toggle + per-(series,row) magnitudes)
+  const [showErrorBars, setShowErrorBars] = useState(false);
+  const [errorMap, setErrorMap] = useState<Record<string, Record<number, number>>>({});
+  const [errorEntryOpen, setErrorEntryOpen] = useState(false);
   const [pieOtherThreshold, setPieOtherThreshold] = useState(3);
   // Wave 16 · Command palette + appearance modal
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -6536,6 +6772,7 @@ export default function ChartMaker2({
     locked, logScale, showEndLabels, markerShape, roundedCorners,
     pieOtherThreshold, showTotalLabels, showTickMarks, show100Indicator,
     axisBreak, watermark, barWidthPct, showSecondaryAxis,
+    showErrorBars, errorMap,
     // Wave 15.5 · only wire inline-edit hooks in Launch mode so the
     // compact card keeps its edit-via-inputs-below pattern.
     onInlineEditTitle: expandedMode ? setTitle : undefined,
@@ -6665,7 +6902,7 @@ export default function ChartMaker2({
       if (j?.sheet && Array.isArray(j.sheet.schema) && Array.isArray(j.sheet.rows)) {
         // Map the imported chart type onto one we know how to render;
         // fall back to clustered bars for anything unrecognized.
-        const knownTypes: ChartType[] = ["stacked","stackedPosNeg","pct","clustered","wfup","wfdn","mekkoPct","combo","line","stackedArea","pctArea","mekkoUnit","pie","doughnut","scatter","bubble","variance","gantt"];
+        const knownTypes: ChartType[] = ["stacked","stackedPosNeg","pct","clustered","groupedStacked","wfup","wfdn","mekkoPct","combo","line","stackedArea","pctArea","mekkoUnit","pie","doughnut","scatter","bubble","variance","gantt"];
         const importedType = (j.chartType && knownTypes.indexOf(j.chartType as ChartType) >= 0 ? j.chartType : "clustered") as ChartType;
         setType(importedType);
         setSheets((p) => ({ ...p, [importedType]: j.sheet as DataSheet }));
@@ -7023,6 +7260,7 @@ export default function ChartMaker2({
       case "stacked": return <StackedColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
       case "stackedPosNeg": return <StackedPosNegColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
       case "clustered": return <ClusteredColumn sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
+      case "groupedStacked": return <GroupedStacked sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
       case "pct": return <PercentColumn sheet={sheet} cfg={cfg} W={W} H={H} />;
       case "line": return <LineProfile sheet={sheet} cfg={cfg} W={W} H={H} {...a} />;
       case "stackedArea": return <LineProfile sheet={sheet} cfg={cfg} W={W} H={H} fill stacked {...a} />;
@@ -7690,6 +7928,27 @@ export default function ChartMaker2({
                 onToggleSliderMode={() => setSliderMode(v => !v)}
               />
             )}
+            {/* Phase 5A.2 · paste CSV-like rows to populate cfg.errorMap */}
+            <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
+              <button
+                onClick={() => setErrorEntryOpen(true)}
+                title="Paste rowIdx,seriesKey,errorValue lines to add ±err whiskers"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "5px 9px", borderRadius: 6,
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  color: showErrorBars ? C.amber : C.txm, cursor: "pointer",
+                  fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
+                  textTransform: "uppercase",
+                }}
+              >+ Error bar</button>
+              {Object.keys(errorMap).length > 0 && (
+                <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 0.6 }}>
+                  {Object.values(errorMap).reduce((n, m) => n + Object.keys(m).length, 0)} bar(s) configured · {showErrorBars ? "ON" : "OFF"}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Status bar — bottom of canvas area */}
@@ -7789,7 +8048,7 @@ export default function ChartMaker2({
             { id: "themeCore", label: "Palette · SA Core", category: "View", run: () => setTheme("saCore") },
             { id: "themeSpectrum", label: "Palette · SA Spectrum", category: "View", run: () => setTheme("saSpectrum") },
             // Chart type changes
-            ...((["stacked","stackedPosNeg","clustered","pct","line","stackedArea","pctArea","pie","doughnut","scatter","bubble","mekkoPct","mekkoUnit","combo","wfup","wfdn","variance","gantt"] as ChartType[]).map(t => ({
+            ...((["stacked","stackedPosNeg","clustered","groupedStacked","pct","line","stackedArea","pctArea","pie","doughnut","scatter","bubble","mekkoPct","mekkoUnit","combo","wfup","wfdn","variance","gantt"] as ChartType[]).map(t => ({
               id: "type-" + t, label: "Chart Type · " + t, category: "Chart" as const, run: () => setType(t),
             }))),
           ]}
@@ -8138,6 +8397,7 @@ export default function ChartMaker2({
           exportBranding={exportBranding} onToggleExportBranding={() => setExportBranding(v => !v)}
           printMode={printMode} onTogglePrintMode={() => setPrintMode(v => !v)}
           showSecondaryAxis={showSecondaryAxis} onToggleSecondaryAxis={() => setShowSecondaryAxis(v => !v)}
+          showErrorBars={showErrorBars} onToggleErrorBars={() => setShowErrorBars(v => !v)}
         />
       )}
       {/* Floating help button · always-on glass pill, opens shortcuts overlay */}
@@ -8178,6 +8438,15 @@ export default function ChartMaker2({
           config={wheelConfig}
           onChange={setWheelConfig}
           onClose={() => setWheelSettingsOpen(false)}
+        />
+      )}
+
+      {/* Phase 5A.2 · error-bar CSV entry drawer */}
+      {errorEntryOpen && (
+        <ErrorBarEntryDrawer
+          initialMap={errorMap}
+          onSave={(next) => { setErrorMap(next); setErrorEntryOpen(false); }}
+          onClose={() => setErrorEntryOpen(false)}
         />
       )}
 
@@ -8971,19 +9240,20 @@ function ExportDropdownIcon({ onPNG, onJPG, onSVG, onPPTX, onCopyPNG }: {
 // Each toggle now declares the set of chart types it applies to; renderers
 // gate visibility against this map.
 const TOGGLE_APPLIES: Record<string, ChartType[]> = {
-  gridlines:    ["stacked","stackedPosNeg","clustered","pct","line","stackedArea","pctArea","scatter","bubble","combo","variance","wfup","wfdn","mekkoPct","mekkoUnit"],
-  borders:      ["stacked","stackedPosNeg","clustered","pct","mekkoPct","mekkoUnit","wfup","wfdn","variance","combo","pie","doughnut"],
-  segmentLabels:["stacked","stackedPosNeg","pct","mekkoPct","mekkoUnit"],
-  totalLabels:  ["stacked","stackedPosNeg","clustered","mekkoPct","mekkoUnit"],
+  gridlines:    ["stacked","stackedPosNeg","clustered","groupedStacked","pct","line","stackedArea","pctArea","scatter","bubble","combo","variance","wfup","wfdn","mekkoPct","mekkoUnit"],
+  borders:      ["stacked","stackedPosNeg","clustered","groupedStacked","pct","mekkoPct","mekkoUnit","wfup","wfdn","variance","combo","pie","doughnut"],
+  segmentLabels:["stacked","stackedPosNeg","groupedStacked","pct","mekkoPct","mekkoUnit"],
+  totalLabels:  ["stacked","stackedPosNeg","clustered","groupedStacked","mekkoPct","mekkoUnit"],
   logScale:     ["stacked","clustered","line","stackedArea","scatter","bubble","combo","variance","wfup","wfdn"],
   rounded:      ["stacked","stackedPosNeg","clustered","pct","wfup","wfdn","variance","mekkoPct","mekkoUnit","combo"],
   endLabels:    ["line","stackedArea","pctArea"],
   markers:      ["line","stackedArea","pctArea","scatter","bubble","combo"],
   hundredIndicator: ["pct","pctArea","mekkoPct"],
   axisBreak:    ["stacked","clustered","line","stackedArea","scatter","bubble","combo","variance","wfup","wfdn"],
-  tickMarks:    ["stacked","stackedPosNeg","clustered","pct","line","stackedArea","pctArea","scatter","bubble","combo","variance","wfup","wfdn","mekkoPct","mekkoUnit"],
-  barWidth:     ["stacked","stackedPosNeg","clustered","pct","wfup","wfdn","variance","mekkoPct","mekkoUnit","combo"],
-  watermark:    ["stacked","stackedPosNeg","clustered","pct","line","stackedArea","pctArea","scatter","bubble","combo","variance","wfup","wfdn","mekkoPct","mekkoUnit","pie","doughnut","gantt"],
+  tickMarks:    ["stacked","stackedPosNeg","clustered","groupedStacked","pct","line","stackedArea","pctArea","scatter","bubble","combo","variance","wfup","wfdn","mekkoPct","mekkoUnit"],
+  barWidth:     ["stacked","stackedPosNeg","clustered","groupedStacked","pct","wfup","wfdn","variance","mekkoPct","mekkoUnit","combo"],
+  watermark:    ["stacked","stackedPosNeg","clustered","groupedStacked","pct","line","stackedArea","pctArea","scatter","bubble","combo","variance","wfup","wfdn","mekkoPct","mekkoUnit","pie","doughnut","gantt"],
+  errorBars:    ["stacked","clustered","groupedStacked","line","stackedArea","combo"],
   pieOther:     ["pie","doughnut"],
 };
 function toggleApplies(id: string, t: ChartType): boolean {
@@ -11622,7 +11892,7 @@ function AxisRangePicker({ axis, onChange, type }: { axis: { yMin?: number; yMax
 }
 
 // ─── DESIGN drawer · slide-in pane consolidating styling controls ────────
-function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, onChangeBackdrop, onChangeMode, legendPos, onChangeLegendPos, showBorders, onToggleBorders, showGridlines, onToggleGridlines, showSegmentLabels, onToggleSegmentLabels, axis, onChangeAxis, chartType, yLabel, onChangeYLabel, xLabel, onChangeXLabel, logScale, onToggleLogScale, roundedCorners, onToggleRoundedCorners, showEndLabels, onToggleEndLabels, markerShape, onChangeMarkerShape, watermark, onChangeWatermark, barWidthPct, onChangeBarWidthPct, vignette = true, onToggleVignette, exportBranding = false, onToggleExportBranding, printMode = false, onTogglePrintMode, showSecondaryAxis = false, onToggleSecondaryAxis }: {
+function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, onChangeBackdrop, onChangeMode, legendPos, onChangeLegendPos, showBorders, onToggleBorders, showGridlines, onToggleGridlines, showSegmentLabels, onToggleSegmentLabels, axis, onChangeAxis, chartType, yLabel, onChangeYLabel, xLabel, onChangeXLabel, logScale, onToggleLogScale, roundedCorners, onToggleRoundedCorners, showEndLabels, onToggleEndLabels, markerShape, onChangeMarkerShape, watermark, onChangeWatermark, barWidthPct, onChangeBarWidthPct, vignette = true, onToggleVignette, exportBranding = false, onToggleExportBranding, printMode = false, onTogglePrintMode, showSecondaryAxis = false, onToggleSecondaryAxis, showErrorBars = false, onToggleErrorBars }: {
   onClose: () => void;
   theme: ThemeId; onChangeTheme: (t: ThemeId) => void;
   backdrop: BackdropKey; backdropMode: BackdropMode;
@@ -11652,6 +11922,8 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
   // The renderer already honors cfg.showSecondaryAxis (line 4231); this
   // exposes the toggle in the Design drawer so it's actually reachable.
   showSecondaryAxis?: boolean; onToggleSecondaryAxis?: () => void;
+  // Phase 5A.2 · per-row, per-series error bars toggle
+  showErrorBars?: boolean; onToggleErrorBars?: () => void;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -11850,6 +12122,37 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
                 </button>
               </div>
             )}
+            {/* Phase 5A.2 · error bars toggle. Whiskers from cfg.errorMap drawn
+                on top of bars / points. Only meaningful for chart types that
+                show distinct data marks. */}
+            {onToggleErrorBars && toggleApplies("errorBars", chartType) && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", marginTop: 6, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <div>
+                  <div style={{ fontFamily: mn, fontSize: 11, color: C.tx, letterSpacing: 0.3, fontWeight: 700 }}>Show error bars</div>
+                  <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginTop: 2 }}>±err whiskers from cfg.errorMap</div>
+                </div>
+                <button
+                  onClick={onToggleErrorBars}
+                  style={{
+                    width: 36, height: 20, padding: 0, borderRadius: 999,
+                    background: showErrorBars ? C.amber : "rgba(255,255,255,0.10)",
+                    border: "1px solid " + (showErrorBars ? C.amber : "rgba(255,255,255,0.15)"),
+                    cursor: "pointer",
+                    position: "relative",
+                    transition: "background 0.15s",
+                  }}
+                  aria-label="Toggle error bars"
+                >
+                  <span style={{
+                    position: "absolute",
+                    top: 2, left: showErrorBars ? 18 : 2,
+                    width: 14, height: 14, borderRadius: "50%",
+                    background: "#FFFFFF",
+                    transition: "left 0.15s ease-out",
+                  }} />
+                </button>
+              </div>
+            )}
           </Section>
 
           {/* WATERMARK · Wave 12 · POAST box-logo behind the chart */}
@@ -11876,6 +12179,83 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
             </div>
             <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 8, letterSpacing: 0.5 }}>POAST box-logo at 20% opacity behind the chart.</div>
           </Section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Phase 5A.2 · ErrorBarEntryDrawer ─────────────────────────────────────
+// Lightweight CSV-paste drawer for populating cfg.errorMap. Each line:
+//   rowIdx,seriesKey,errorValue
+// Lines with bad formatting / NaN are skipped silently; this is meant for
+// quick paste-from-spreadsheet entry, not strict validation.
+function ErrorBarEntryDrawer({ initialMap, onSave, onClose }: {
+  initialMap: Record<string, Record<number, number>>;
+  onSave: (next: Record<string, Record<number, number>>) => void;
+  onClose: () => void;
+}) {
+  const initialText = (() => {
+    const lines: string[] = [];
+    for (const key of Object.keys(initialMap)) {
+      for (const rowStr of Object.keys(initialMap[key])) {
+        lines.push(`${rowStr},${key},${initialMap[key][Number(rowStr)]}`);
+      }
+    }
+    return lines.join("\n");
+  })();
+  const [text, setText] = useState(initialText);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const apply = () => {
+    const next: Record<string, Record<number, number>> = {};
+    for (const raw of text.split(/\n+/)) {
+      const line = raw.trim();
+      if (!line) continue;
+      const parts = line.split(",").map(s => s.trim());
+      if (parts.length < 3) continue;
+      const rowIdx = Number(parts[0]);
+      const key = parts[1];
+      const errVal = Number(parts[2]);
+      if (!Number.isFinite(rowIdx) || !key || !Number.isFinite(errVal)) continue;
+      if (!next[key]) next[key] = {};
+      next[key][rowIdx] = errVal;
+    }
+    onSave(next);
+  };
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 12400, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: 460, maxWidth: "92vw", background: "#0D0D12", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 12, padding: 18, boxShadow: "0 24px 60px rgba(0,0,0,0.55)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <div style={{ fontFamily: gf, fontSize: 16, fontWeight: 900, color: "#E8E4DD" }}>Error bars</div>
+          <span style={{ flex: 1 }} />
+          <button onClick={onClose} style={{ background: "transparent", border: "none", color: C.txm, cursor: "pointer", fontFamily: mn, fontSize: 11 }}>ESC</button>
+        </div>
+        <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginBottom: 8, letterSpacing: 0.4 }}>
+          Paste lines as <span style={{ color: C.amber }}>rowIdx,seriesKey,errorValue</span>. One whisker per line.
+        </div>
+        <textarea
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder={`0,s1,5\n0,s2,3\n1,s1,4.5`}
+          rows={8}
+          spellCheck={false}
+          style={{
+            width: "100%", boxSizing: "border-box",
+            background: "#06060A", border: "1px solid rgba(255,255,255,0.10)",
+            borderRadius: 8, padding: "10px 12px",
+            color: "#E8E4DD", fontFamily: mn, fontSize: 12, outline: "none",
+            resize: "vertical",
+          }}
+        />
+        <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+          <button onClick={() => { setText(""); }} style={{ padding: "6px 12px", borderRadius: 6, background: "transparent", border: "1px solid rgba(255,255,255,0.10)", color: C.txm, cursor: "pointer", fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase" }}>CLEAR</button>
+          <span style={{ flex: 1 }} />
+          <button onClick={onClose} style={{ padding: "6px 12px", borderRadius: 6, background: "transparent", border: "1px solid rgba(255,255,255,0.10)", color: C.txm, cursor: "pointer", fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase" }}>CANCEL</button>
+          <button onClick={apply} style={{ padding: "6px 12px", borderRadius: 6, background: C.amber, border: "1px solid " + C.amber, color: "#0A0A0E", cursor: "pointer", fontFamily: mn, fontSize: 10, fontWeight: 900, letterSpacing: 0.6, textTransform: "uppercase" }}>APPLY</button>
         </div>
       </div>
     </div>
