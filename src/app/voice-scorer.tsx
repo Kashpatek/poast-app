@@ -25,6 +25,37 @@ const PLATFORMS = [
   { id: "blog",      label: "Blog / Article" },
 ];
 
+const RUBRIC: { name: string; max: number; measures: string; pass: string; fail: string }[] = [
+  {
+    name: "Voice",
+    max: 3,
+    measures: "No em dashes, emojis, hype words, or rhetorical throat-clearing.",
+    pass: "TSMC N2 yields are tracking 6 months ahead of N3.",
+    fail: "Let's dive into how AI is unleashing a revolutionary new era —",
+  },
+  {
+    name: "Specificity",
+    max: 3,
+    measures: "Real numbers, named sources, and technical detail over vague claims.",
+    pass: "H100 spot pricing fell 38% QoQ to $2.10/hr on CoreWeave.",
+    fail: "GPU prices are coming down a lot lately.",
+  },
+  {
+    name: "Directness",
+    max: 2,
+    measures: "Active voice, no filler adjectives, gets to the point in the first line.",
+    pass: "Nvidia cut Blackwell allocations to two hyperscalers.",
+    fail: "It's really worth noting that allocations may have been adjusted.",
+  },
+  {
+    name: "Platform fit",
+    max: 2,
+    measures: "Follows platform-specific rules (no hashtags on X, link-in-comments on LinkedIn, etc.).",
+    pass: "LinkedIn post ending with \"Link in comments.\"",
+    fail: "X post stuffed with #AI #GPU #semiconductors.",
+  },
+];
+
 export default function VoiceScorer() {
   const [text, setText] = useState("");
   const [platform, setPlatform] = useState("any");
@@ -168,7 +199,15 @@ export default function VoiceScorer() {
 
           {result?.breakdown ? (
             <div style={{ marginBottom: 18 }}>
-              <div style={lbl}>Breakdown</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <div style={{ ...lbl, marginBottom: 0 }}>Breakdown</div>
+                <span
+                  title={RUBRIC.map((r) => `${r.name} (/${r.max}) — ${r.measures}`).join(" · ")}
+                  style={{ fontFamily: mn, fontSize: 10, letterSpacing: 0.4, color: D.txd, cursor: "help", border: `1px solid ${D.border}`, borderRadius: 999, padding: "2px 8px" }}
+                >
+                  ⓘ rubric
+                </span>
+              </div>
               <Bar label="Voice" value={result.breakdown.voice || 0} max={3} />
               <Bar label="Specificity" value={result.breakdown.specificity || 0} max={3} />
               <Bar label="Directness" value={result.breakdown.directness || 0} max={2} />
@@ -199,8 +238,40 @@ export default function VoiceScorer() {
           ) : null}
 
           {!result && !loading ? (
-            <div style={{ fontFamily: ft, fontSize: 12, color: D.txd, lineHeight: 1.5 }}>
-              Score appears here. Try a recent caption you're unsure about.
+            <div>
+              <div style={lbl}>Rubric</div>
+              <div style={{ fontFamily: ft, fontSize: 12, color: D.txd, lineHeight: 1.5, marginBottom: 12 }}>
+                Score appears here. Try a recent caption you're unsure about.
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {RUBRIC.map((r) => (
+                  <div
+                    key={r.name}
+                    style={{
+                      padding: "10px 12px",
+                      background: D.bg,
+                      border: `1px solid ${D.border}`,
+                      borderRadius: 8,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
+                      <span style={{ fontFamily: ft, fontSize: 12, fontWeight: 700, color: D.tx }}>{r.name}</span>
+                      <span style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.4 }}>/ {r.max}</span>
+                    </div>
+                    <div style={{ fontFamily: ft, fontSize: 11.5, color: D.txm, lineHeight: 1.45, marginBottom: 6 }}>
+                      {r.measures}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      <div style={{ fontFamily: mn, fontSize: 10.5, color: D.teal, lineHeight: 1.4 }}>
+                        <span style={{ opacity: 0.7 }}>pass · </span>{r.pass}
+                      </div>
+                      <div style={{ fontFamily: mn, fontSize: 10.5, color: D.coral, lineHeight: 1.4 }}>
+                        <span style={{ opacity: 0.7 }}>fail · </span>{r.fail}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : null}
         </div>
