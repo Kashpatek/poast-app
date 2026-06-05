@@ -5917,7 +5917,7 @@ export default function ChartMaker2({
   // Crosshair hover state — currently per-renderer (StackedColumn etc.); kept
   // here for potential future "broadcast hover" sync across multiple charts.
   const [, setHoveredCat] = useState<number | null>(null);
-  void showSecondaryAxis; void setShowSecondaryAxis; void setHoveredCat;
+  void setHoveredCat;
   // Per-series color overrides — clicking a Legend swatch lets you
   // recolor the entire series without changing the theme. Stored
   // per-chart-type so different chart types can have different colors.
@@ -6490,7 +6490,7 @@ export default function ChartMaker2({
     yLabel: yLabel || undefined, xLabel: xLabel || undefined,
     locked, logScale, showEndLabels, markerShape, roundedCorners,
     pieOtherThreshold, showTotalLabels, showTickMarks, show100Indicator,
-    axisBreak, watermark, barWidthPct,
+    axisBreak, watermark, barWidthPct, showSecondaryAxis,
     // Wave 15.5 · only wire inline-edit hooks in Launch mode so the
     // compact card keeps its edit-via-inputs-below pattern.
     onInlineEditTitle: expandedMode ? setTitle : undefined,
@@ -8039,6 +8039,7 @@ export default function ChartMaker2({
           vignette={vignette} onToggleVignette={() => setVignette(v => !v)}
           exportBranding={exportBranding} onToggleExportBranding={() => setExportBranding(v => !v)}
           printMode={printMode} onTogglePrintMode={() => setPrintMode(v => !v)}
+          showSecondaryAxis={showSecondaryAxis} onToggleSecondaryAxis={() => setShowSecondaryAxis(v => !v)}
         />
       )}
       {/* Floating help button · always-on glass pill, opens shortcuts overlay */}
@@ -11522,7 +11523,7 @@ function AxisRangePicker({ axis, onChange, type }: { axis: { yMin?: number; yMax
 }
 
 // ─── DESIGN drawer · slide-in pane consolidating styling controls ────────
-function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, onChangeBackdrop, onChangeMode, legendPos, onChangeLegendPos, showBorders, onToggleBorders, showGridlines, onToggleGridlines, showSegmentLabels, onToggleSegmentLabels, axis, onChangeAxis, chartType, yLabel, onChangeYLabel, xLabel, onChangeXLabel, logScale, onToggleLogScale, roundedCorners, onToggleRoundedCorners, showEndLabels, onToggleEndLabels, markerShape, onChangeMarkerShape, watermark, onChangeWatermark, barWidthPct, onChangeBarWidthPct, vignette = true, onToggleVignette, exportBranding = false, onToggleExportBranding, printMode = false, onTogglePrintMode }: {
+function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, onChangeBackdrop, onChangeMode, legendPos, onChangeLegendPos, showBorders, onToggleBorders, showGridlines, onToggleGridlines, showSegmentLabels, onToggleSegmentLabels, axis, onChangeAxis, chartType, yLabel, onChangeYLabel, xLabel, onChangeXLabel, logScale, onToggleLogScale, roundedCorners, onToggleRoundedCorners, showEndLabels, onToggleEndLabels, markerShape, onChangeMarkerShape, watermark, onChangeWatermark, barWidthPct, onChangeBarWidthPct, vignette = true, onToggleVignette, exportBranding = false, onToggleExportBranding, printMode = false, onTogglePrintMode, showSecondaryAxis = false, onToggleSecondaryAxis }: {
   onClose: () => void;
   theme: ThemeId; onChangeTheme: (t: ThemeId) => void;
   backdrop: BackdropKey; backdropMode: BackdropMode;
@@ -11548,6 +11549,10 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
   exportBranding?: boolean; onToggleExportBranding?: () => void;
   // Wave 17 · print/export mode toggle
   printMode?: boolean; onTogglePrintMode?: () => void;
+  // Phase 5A · secondary Y axis for the line series in combo charts.
+  // The renderer already honors cfg.showSecondaryAxis (line 4231); this
+  // exposes the toggle in the Design drawer so it's actually reachable.
+  showSecondaryAxis?: boolean; onToggleSecondaryAxis?: () => void;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -11713,6 +11718,39 @@ function DesignDrawer({ onClose, theme, onChangeTheme, backdrop, backdropMode, o
               />
             </div>
             <AxisRangeBlock axis={axis} onChange={onChangeAxis} xApplies={xApplies} chartType={chartType} />
+            {/* Phase 5A · Secondary Y axis. Combo charts (bar + line)
+                get a right-side independent scale when this is on so the
+                line series stops being squashed against the bars. The
+                renderer already supports it via cfg.showSecondaryAxis;
+                only valid when a line series is present (combo type). */}
+            {onToggleSecondaryAxis && chartType === "combo" && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", marginTop: 6, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <div>
+                  <div style={{ fontFamily: mn, fontSize: 11, color: C.tx, letterSpacing: 0.3, fontWeight: 700 }}>Secondary Y axis</div>
+                  <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, marginTop: 2 }}>Right-side scale for the line series</div>
+                </div>
+                <button
+                  onClick={onToggleSecondaryAxis}
+                  style={{
+                    width: 36, height: 20, padding: 0, borderRadius: 999,
+                    background: showSecondaryAxis ? C.amber : "rgba(255,255,255,0.10)",
+                    border: "1px solid " + (showSecondaryAxis ? C.amber : "rgba(255,255,255,0.15)"),
+                    cursor: "pointer",
+                    position: "relative",
+                    transition: "background 0.15s",
+                  }}
+                  aria-label="Toggle secondary Y axis"
+                >
+                  <span style={{
+                    position: "absolute",
+                    top: 2, left: showSecondaryAxis ? 18 : 2,
+                    width: 14, height: 14, borderRadius: "50%",
+                    background: "#FFFFFF",
+                    transition: "left 0.15s ease-out",
+                  }} />
+                </button>
+              </div>
+            )}
           </Section>
 
           {/* WATERMARK · Wave 12 · POAST box-logo behind the chart */}
