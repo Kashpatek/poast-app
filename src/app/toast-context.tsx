@@ -1,17 +1,24 @@
 "use client";
-import React, { createContext, useContext, useState, useCallback, useRef } from "react";
+import React, { createContext, useContext } from "react";
+import { Toaster, toast as sonnerToast } from "sonner";
+import { D, mn } from "./shared-constants";
+
+type ToastKind = "info" | "success" | "error";
 
 interface ToastContextValue {
-  showToast: (msg: string) => void;
+  showToast: (msg: string, kind?: ToastKind) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
-// Module-level ref so non-component code (e.g. ask()) can call showToast
-const _globalToast: { current: ((msg: string) => void) | null } = { current: null };
+function dispatch(msg: string, kind?: ToastKind): void {
+  if (kind === "success") sonnerToast.success(msg);
+  else if (kind === "error") sonnerToast.error(msg);
+  else sonnerToast(msg);
+}
 
-export function showToast(msg: string): void {
-  if (_globalToast.current) _globalToast.current(msg);
+export function showToast(msg: string, kind?: ToastKind): void {
+  dispatch(msg, kind);
 }
 
 export function useToast(): ToastContextValue {
@@ -21,47 +28,39 @@ export function useToast(): ToastContextValue {
 }
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [msg, setMsg] = useState<string | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleShow = useCallback((m: string) => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setMsg(m);
-    timerRef.current = setTimeout(() => {
-      setMsg(null);
-    }, 6000);
-  }, []);
-
-  // Keep the global ref in sync
-  _globalToast.current = handleShow;
-
   return (
-    <ToastContext.Provider value={{ showToast: handleShow }}>
+    <ToastContext.Provider value={{ showToast: dispatch }}>
       {children}
-      {msg && (
-        <div
-          onClick={() => setMsg(null)}
-          style={{
-            position: "fixed",
-            bottom: 24,
-            right: 24,
-            zIndex: 10000,
-            maxWidth: 420,
-            padding: "14px 20px",
-            background: "rgba(224,99,71,0.13)",
-            border: "1px solid #E06347",
-            borderRadius: 8,
-            fontFamily: "'JetBrains Mono',monospace",
+      <Toaster
+        position="bottom-center"
+        theme="dark"
+        richColors
+        closeButton
+        duration={6000}
+        toastOptions={{
+          style: {
+            background: D.card,
+            border: "1px solid " + D.border,
+            color: D.tx,
+            fontFamily: mn,
             fontSize: 11,
-            color: "#E06347",
-            cursor: "pointer",
-            boxShadow: "0 0 20px rgba(224,99,71,0.2)",
             lineHeight: 1.5,
-          }}
-        >
-          {msg}
-        </div>
-      )}
+            boxShadow: "0 8px 30px rgba(0,0,0,0.5)",
+          },
+        }}
+        style={{
+          // @ts-expect-error sonner reads these CSS vars to theme richColors
+          "--normal-bg": D.card,
+          "--normal-border": D.border,
+          "--normal-text": D.tx,
+          "--success-bg": D.card,
+          "--success-border": D.teal,
+          "--success-text": D.teal,
+          "--error-bg": D.card,
+          "--error-border": D.coral,
+          "--error-text": D.coral,
+        }}
+      />
     </ToastContext.Provider>
   );
 }
