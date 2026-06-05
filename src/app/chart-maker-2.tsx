@@ -46,6 +46,7 @@ import {
   CornerUpLeft, Repeat, ArrowDownUp, MoveHorizontal, Upload, FileSpreadsheet,
   Volume2, VolumeX, Sun, Moon, HelpCircle, Pipette, Check,
   GripVertical, Pin, PinOff, ZoomIn, ZoomOut, Wrench,
+  MoveUpRight, Percent,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1819,13 +1820,16 @@ type Annotation =
   | { id: string; kind: "totalDiff"; rowFrom: number; rowTo: number }
   // Free-form text callout placed via the ANNOTATE tool. x/y are in
   // SVG viewBox coords so positions stay stable across re-renders.
-  | { id: string; kind: "callout"; x: number; y: number; text: string; color?: string };
+  | { id: string; kind: "callout"; x: number; y: number; text: string; color?: string }
+  | { id: string; kind: "arrowCallout"; x: number; y: number; anchorX: number; anchorY: number; text: string; color?: string }
+  | { id: string; kind: "regionBand"; rowFrom: number; rowTo: number; label?: string; color?: string }
+  | { id: string; kind: "deltaBadge"; rowIdx: number; seriesKey: string; baselineRowIdx: number; color?: string };
 
-type PickMode = null | { kind: "cagr" | "diff" | "totalDiff"; bars: Array<{ rowIdx: number; key: string }> };
+type PickMode = null | { kind: "cagr" | "diff" | "totalDiff" | "regionBand" | "deltaBadge"; bars: Array<{ rowIdx: number; key: string }> };
 // Single-click placement mode for the ANNOTATE TEXT tool — distinct
 // from pickMode (multi-step). Click anywhere on the chart background
 // to drop a callout.
-type PlaceMode = null | { kind: "callout" };
+type PlaceMode = null | { kind: "callout" } | { kind: "arrowCallout-anchor" } | { kind: "arrowCallout-label"; anchorX: number; anchorY: number };
 type OnPickBar = (rowIdx: number, key: string) => boolean; // returns true if pick consumed the click
 
 // Floating mini-toolbar selection · LEGACY · kept for backwards
@@ -3526,6 +3530,40 @@ function AnnotationLayer({ annotations, getBarTop, getColumnTop, getSeriesEndPoi
             <g key={a.id}>
               <rect x={ep.x + 8} y={ep.y - 22} width={w} height="20" rx="4" fill="#0A0A0E" stroke={ep.color} strokeWidth="1" />
               <text x={ep.x + 8 + w / 2} y={ep.y - 8} textAnchor="middle" fill={ep.color} style={{ fontFamily: fontMono, fontSize: 12, fontWeight: 800, letterSpacing: 0.3 }}>{txt}</text>
+            </g>
+          );
+        }
+        if (a.kind === "regionBand") {
+          const A = getColumnTop ? getColumnTop(a.rowFrom) : null;
+          const B = getColumnTop ? getColumnTop(a.rowTo) : null;
+          if (!A || !B) return null;
+          const x0 = Math.min(A.x, B.x);
+          const x1 = Math.max(A.x, B.x);
+          const fill = a.color || C.amber;
+          return (
+            <g key={a.id}>
+              <rect x={x0} y={topPad} width={x1 - x0} height={chartH} fill={fill + "22"} stroke="none" />
+              {a.label && (
+                <g>
+                  <rect x={(x0 + x1) / 2 - (a.label.length * 6.4 + 14) / 2} y={topPad + 2} width={a.label.length * 6.4 + 14} height="18" rx="3" fill="#0A0A0E" stroke={fill} strokeWidth="1" />
+                  <text x={(x0 + x1) / 2} y={topPad + 15} textAnchor="middle" fill={fill} style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 800, letterSpacing: 0.3 }}>{a.label}</text>
+                </g>
+              )}
+            </g>
+          );
+        }
+        if (a.kind === "deltaBadge") {
+          const target = getBarTop(a.rowIdx, a.seriesKey);
+          const baseline = getBarTop(a.baselineRowIdx, a.seriesKey);
+          if (!target || !baseline || baseline.value === 0) return null;
+          const pct = ((target.value - baseline.value) / baseline.value) * 100;
+          const txt = (pct >= 0 ? "+" : "") + pct.toFixed(0) + "%";
+          const color = a.color || (pct >= 0 ? "#4FBF6B" : "#E06347");
+          const w = txt.length * 6.6 + 14;
+          return (
+            <g key={a.id} transform={`translate(${target.x}, ${target.y})`}>
+              <rect x={-w / 2} y={-26} width={w} height="18" rx="9" fill="#0A0A0E" stroke={color} strokeWidth="1" />
+              <text x="0" y={-13} textAnchor="middle" fill={color} style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 800, letterSpacing: 0.3 }}>{txt}</text>
             </g>
           );
         }
@@ -5614,7 +5652,7 @@ function PropertiesPanel({
   showEndLabels, onToggleEndLabels,
   markerShape, onChangeMarkerShape,
   annotations, onRemoveAnnotation, onClearAnnotations,
-  pickMode, placeMode, onStartPick, onCancelPick, onAddRefLine, onTogglePlaceText,
+  pickMode, placeMode, onStartPick, onCancelPick, onAddRefLine, onTogglePlaceText, onStartArrow,
   chartType,
   series, onSetSeriesColor, palette,
   onOpenDesign,
@@ -5636,8 +5674,9 @@ function PropertiesPanel({
   markerShape: "none" | "circle" | "square" | "diamond"; onChangeMarkerShape: (s: "none" | "circle" | "square" | "diamond") => void;
   annotations: Annotation[]; onRemoveAnnotation: (id: string) => void; onClearAnnotations: () => void;
   pickMode: PickMode; placeMode: PlaceMode;
-  onStartPick: (k: "cagr" | "diff" | "totalDiff") => void; onCancelPick: () => void;
+  onStartPick: (k: "cagr" | "diff" | "totalDiff" | "regionBand" | "deltaBadge") => void; onCancelPick: () => void;
   onAddRefLine: (v: number, l: string) => void; onTogglePlaceText: () => void;
+  onStartArrow: () => void;
   chartType: ChartType;
   series: Array<{ key: string; label: string; color: string }>;
   onSetSeriesColor: (key: string, color: string | null) => void;
@@ -5799,6 +5838,9 @@ function PropertiesPanel({
               <button onClick={() => onStartPick("cagr")} disabled={!annotApplies} style={{ padding: "10px 8px", borderRadius: 7, background: pickMode?.kind === "cagr" ? C.amber + "20" : "rgba(255,255,255,0.025)", border: "1px solid " + (pickMode?.kind === "cagr" ? C.amber + "55" : "rgba(255,255,255,0.10)"), color: pickMode?.kind === "cagr" ? C.amber : C.tx, fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: annotApplies ? "pointer" : "not-allowed", opacity: annotApplies ? 1 : 0.4, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5 }}><Sigma size={11} /> CAGR</button>
               <button onClick={() => onStartPick("diff")} disabled={!annotApplies} style={{ padding: "10px 8px", borderRadius: 7, background: pickMode?.kind === "diff" ? C.amber + "20" : "rgba(255,255,255,0.025)", border: "1px solid " + (pickMode?.kind === "diff" ? C.amber + "55" : "rgba(255,255,255,0.10)"), color: pickMode?.kind === "diff" ? C.amber : C.tx, fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: annotApplies ? "pointer" : "not-allowed", opacity: annotApplies ? 1 : 0.4, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5 }}><ArrowUpDown size={11} /> Δ DIFF</button>
               <button onClick={onTogglePlaceText} style={{ padding: "10px 8px", borderRadius: 7, background: placeMode?.kind === "callout" ? C.amber + "20" : "rgba(255,255,255,0.025)", border: "1px solid " + (placeMode?.kind === "callout" ? C.amber + "55" : "rgba(255,255,255,0.10)"), color: placeMode?.kind === "callout" ? C.amber : C.tx, fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5 }}><Type size={11} /> TEXT</button>
+              <button onClick={onStartArrow} style={{ padding: "10px 8px", borderRadius: 7, background: (placeMode?.kind === "arrowCallout-anchor" || placeMode?.kind === "arrowCallout-label") ? C.amber + "20" : "rgba(255,255,255,0.025)", border: "1px solid " + ((placeMode?.kind === "arrowCallout-anchor" || placeMode?.kind === "arrowCallout-label") ? C.amber + "55" : "rgba(255,255,255,0.10)"), color: (placeMode?.kind === "arrowCallout-anchor" || placeMode?.kind === "arrowCallout-label") ? C.amber : C.tx, fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5 }} title="Two-click: anchor first, then label position"><MoveUpRight size={11} /> ARROW</button>
+              <button onClick={() => onStartPick("regionBand")} disabled={!annotApplies} style={{ padding: "10px 8px", borderRadius: 7, background: pickMode?.kind === "regionBand" ? C.amber + "20" : "rgba(255,255,255,0.025)", border: "1px solid " + (pickMode?.kind === "regionBand" ? C.amber + "55" : "rgba(255,255,255,0.10)"), color: pickMode?.kind === "regionBand" ? C.amber : C.tx, fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: annotApplies ? "pointer" : "not-allowed", opacity: annotApplies ? 1 : 0.4, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5 }} title="Pick two bars to bracket a shaded x-range"><Columns3 size={11} /> BAND</button>
+              <button onClick={() => onStartPick("deltaBadge")} disabled={!annotApplies} style={{ padding: "10px 8px", borderRadius: 7, background: pickMode?.kind === "deltaBadge" ? C.amber + "20" : "rgba(255,255,255,0.025)", border: "1px solid " + (pickMode?.kind === "deltaBadge" ? C.amber + "55" : "rgba(255,255,255,0.10)"), color: pickMode?.kind === "deltaBadge" ? C.amber : C.tx, fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: annotApplies ? "pointer" : "not-allowed", opacity: annotApplies ? 1 : 0.4, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5 }} title="Pick baseline then target — renders +/-% pill at target point"><Percent size={11} /> DELTA</button>
               {pickMode && <button onClick={onCancelPick} style={{ padding: "10px 8px", borderRadius: 7, background: "rgba(224,99,71,0.10)", border: "1px solid rgba(224,99,71,0.40)", color: "#E06347", fontFamily: mn, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>CANCEL</button>}
             </div>
             <div>
@@ -5824,6 +5866,9 @@ function PropertiesPanel({
                     : a.kind === "callout" ? "Text · " + a.text.slice(0, 20)
                     : a.kind === "seriesCagr" ? "Series CAGR · " + a.seriesKey
                     : a.kind === "totalDiff" ? "Σ Δ " + a.rowFrom + "→" + a.rowTo
+                    : a.kind === "regionBand" ? "Band " + a.rowFrom + "→" + a.rowTo + (a.label ? " · " + a.label.slice(0, 16) : "")
+                    : a.kind === "deltaBadge" ? "Delta " + a.baselineRowIdx + "→" + a.rowIdx + " · " + a.seriesKey
+                    : a.kind === "arrowCallout" ? "Arrow · " + a.text.slice(0, 20)
                     : "Annotation";
                   return (
                     <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 7px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 5 }}>
@@ -6535,20 +6580,40 @@ export default function ChartMaker2({
     if (!pickMode) return false;
     const next = [...pickMode.bars, { rowIdx, key }];
     if (next.length >= 2) {
-      const annot: Annotation = pickMode.kind === "totalDiff"
-        ? {
-            id: Math.random().toString(36).slice(2, 9),
-            kind: "totalDiff",
-            rowFrom: next[0].rowIdx,
-            rowTo: next[1].rowIdx,
-          }
-        : {
-            id: Math.random().toString(36).slice(2, 9),
-            kind: pickMode.kind,
-            rowFrom: next[0].rowIdx,
-            rowTo: next[1].rowIdx,
-            seriesKey: next[0].key,
-          };
+      let annot: Annotation;
+      if (pickMode.kind === "totalDiff") {
+        annot = {
+          id: Math.random().toString(36).slice(2, 9),
+          kind: "totalDiff",
+          rowFrom: next[0].rowIdx,
+          rowTo: next[1].rowIdx,
+        };
+      } else if (pickMode.kind === "regionBand") {
+        const lo = Math.min(next[0].rowIdx, next[1].rowIdx);
+        const hi = Math.max(next[0].rowIdx, next[1].rowIdx);
+        annot = {
+          id: Math.random().toString(36).slice(2, 9),
+          kind: "regionBand",
+          rowFrom: lo,
+          rowTo: hi,
+        };
+      } else if (pickMode.kind === "deltaBadge") {
+        annot = {
+          id: Math.random().toString(36).slice(2, 9),
+          kind: "deltaBadge",
+          baselineRowIdx: next[0].rowIdx,
+          rowIdx: next[1].rowIdx,
+          seriesKey: next[1].key,
+        };
+      } else {
+        annot = {
+          id: Math.random().toString(36).slice(2, 9),
+          kind: pickMode.kind,
+          rowFrom: next[0].rowIdx,
+          rowTo: next[1].rowIdx,
+          seriesKey: next[0].key,
+        };
+      }
       setAnnotations([...annotations, annot]);
       setPickMode(null);
     } else {
@@ -7370,6 +7435,7 @@ export default function ChartMaker2({
           onCancelPick={() => setPickMode(null)}
           onAddRefLine={addReferenceLine}
           onTogglePlaceText={() => { setPickMode(null); setPlaceMode(placeMode?.kind === "callout" ? null : { kind: "callout" }); }}
+          onStartArrow={() => { setPickMode(null); setPlaceMode(placeMode?.kind === "arrowCallout-anchor" || placeMode?.kind === "arrowCallout-label" ? null : { kind: "arrowCallout-anchor" }); }}
           onRemove={removeAnnotation}
           onClearAll={clearAllAnnotations}
         />
@@ -7470,7 +7536,7 @@ export default function ChartMaker2({
               key={type}
               ref={svgRef}
               viewBox={`0 0 ${W} ${H}`}
-              style={{ width: "100%", height: "auto", display: "block", fontFamily: ft, touchAction: "none", cursor: placeMode?.kind === "callout" ? "crosshair" : "default", animation: "cm2ChartSwap 0.32s cubic-bezier(.2,.7,.2,1) both", position: "relative", zIndex: 1 }}
+              style={{ width: "100%", height: "auto", display: "block", fontFamily: ft, touchAction: "none", cursor: (placeMode?.kind === "callout" || placeMode?.kind === "arrowCallout-anchor" || placeMode?.kind === "arrowCallout-label") ? "crosshair" : "default", animation: "cm2ChartSwap 0.32s cubic-bezier(.2,.7,.2,1) both", position: "relative", zIndex: 1 }}
               onContextMenu={e => {
                 // Wave 15.5 · ALWAYS prevent the default browser context menu
                 // and fall through to opening the radial wheel for the current
@@ -7500,6 +7566,19 @@ export default function ChartMaker2({
                   onDelete={() => removeAnnotation(a.id)}
                 />
               ))}
+              {annotations.filter(a => a.kind === "arrowCallout").map(a => {
+                const ac = a as Extract<Annotation, { kind: "arrowCallout" }>;
+                const stroke = ac.color || C.amber;
+                const tw = ac.text.length * 7.2 + 18;
+                return (
+                  <g key={ac.id} pointerEvents="none">
+                    <line x1={ac.anchorX} y1={ac.anchorY} x2={ac.x} y2={ac.y} stroke={stroke} strokeWidth="1.4" />
+                    <circle cx={ac.anchorX} cy={ac.anchorY} r="3" fill={stroke} />
+                    <rect x={ac.x} y={ac.y - 14} width={tw} height="22" rx="4" fill="#0A0A0E" stroke={stroke} strokeWidth="1" opacity="0.95" />
+                    <text x={ac.x + tw / 2} y={ac.y + 2} textAnchor="middle" fill={stroke} style={{ fontFamily: mn, fontSize: 13, fontWeight: 800, letterSpacing: 0.3 }}>{ac.text}</text>
+                  </g>
+                );
+              })}
               {/* Placement overlay · catches the next click to drop a text */}
               {placeMode?.kind === "callout" && (
                 <rect
@@ -7511,6 +7590,24 @@ export default function ChartMaker2({
                     const newAnnot: Annotation = { id: Math.random().toString(36).slice(2, 9), kind: "callout", x: Math.round(pt.x), y: Math.round(pt.y), text: "Note" };
                     setAnnotations([...annotations, newAnnot]);
                     setPlaceMode(null);
+                  }}
+                  style={{ cursor: "crosshair" }}
+                />
+              )}
+              {(placeMode?.kind === "arrowCallout-anchor" || placeMode?.kind === "arrowCallout-label") && (
+                <rect
+                  x="0" y="0" width={W} height={H}
+                  fill="transparent"
+                  onPointerDown={e => {
+                    const pt = pointerToSvg(e, e.currentTarget);
+                    if (!pt) return;
+                    if (placeMode.kind === "arrowCallout-anchor") {
+                      setPlaceMode({ kind: "arrowCallout-label", anchorX: Math.round(pt.x), anchorY: Math.round(pt.y) });
+                    } else {
+                      const newAnnot: Annotation = { id: Math.random().toString(36).slice(2, 9), kind: "arrowCallout", x: Math.round(pt.x), y: Math.round(pt.y), anchorX: placeMode.anchorX, anchorY: placeMode.anchorY, text: "Note" };
+                      setAnnotations([...annotations, newAnnot]);
+                      setPlaceMode(null);
+                    }
                   }}
                   style={{ cursor: "crosshair" }}
                 />
@@ -7644,6 +7741,7 @@ export default function ChartMaker2({
             onCancelPick={() => setPickMode(null)}
             onAddRefLine={addReferenceLine}
             onTogglePlaceText={() => { setPickMode(null); setPlaceMode(placeMode?.kind === "callout" ? null : { kind: "callout" }); }}
+            onStartArrow={() => { setPickMode(null); setPlaceMode(placeMode?.kind === "arrowCallout-anchor" || placeMode?.kind === "arrowCallout-label" ? null : { kind: "arrowCallout-anchor" }); }}
             chartType={type}
             series={(() => {
               const palette = THEMES[theme].colors;
@@ -8540,6 +8638,7 @@ export default function ChartMaker2({
               onCancelPick={() => setPickMode(null)}
               onAddRefLine={addReferenceLine}
               onTogglePlaceText={() => { setPickMode(null); setPlaceMode(placeMode?.kind === "callout" ? null : { kind: "callout" }); }}
+              onStartArrow={() => { setPickMode(null); setPlaceMode(placeMode?.kind === "arrowCallout-anchor" || placeMode?.kind === "arrowCallout-label" ? null : { kind: "arrowCallout-anchor" }); }}
               chartType={type}
               series={(() => {
                 const palette = THEMES[theme].colors;
@@ -12357,12 +12456,13 @@ function NumberFormatPicker({ fmt, onChange }: { fmt: NumberFormat; onChange: (f
 }
 
 // ─── Annotations toolbar · Add reference line / CAGR / Δ ──────────────────
-function AnnotationsBar({ annotations, type, pickMode, placeMode, onStartPick, onCancelPick, onAddRefLine, onTogglePlaceText, onRemove, onClearAll }: {
+function AnnotationsBar({ annotations, type, pickMode, placeMode, onStartPick, onCancelPick, onAddRefLine, onTogglePlaceText, onStartArrow, onRemove, onClearAll }: {
   annotations: Annotation[]; type: ChartType; pickMode: PickMode; placeMode: PlaceMode;
-  onStartPick: (kind: "cagr" | "diff" | "totalDiff") => void;
+  onStartPick: (kind: "cagr" | "diff" | "totalDiff" | "regionBand" | "deltaBadge") => void;
   onCancelPick: () => void;
   onAddRefLine: (value: number, label: string) => void;
   onTogglePlaceText: () => void;
+  onStartArrow: () => void;
   onRemove: (id: string) => void;
   onClearAll: () => void;
 }) {
@@ -12390,6 +12490,9 @@ function AnnotationsBar({ annotations, type, pickMode, placeMode, onStartPick, o
       <AnnotChip active={pickMode?.kind === "totalDiff"} disabled={!annotApplies} title="Pick two columns to show total Δ" Icon={Sigma} onClick={() => onStartPick("totalDiff")}>Σ Δ TOTAL</AnnotChip>
       <AnnotChip active={refOpen} disabled={!annotApplies} title="Drop a horizontal reference line" Icon={Minus} onClick={() => setRefOpen(v => !v)}>REF LINE</AnnotChip>
       <AnnotChip active={placeMode?.kind === "callout"} title="Click chart to drop a free-form text annotation" Icon={Type} onClick={onTogglePlaceText}>TEXT</AnnotChip>
+      <AnnotChip active={placeMode?.kind === "arrowCallout-anchor" || placeMode?.kind === "arrowCallout-label"} title="Two-click: anchor first, then label position" Icon={MoveUpRight} onClick={onStartArrow}>ARROW</AnnotChip>
+      <AnnotChip active={pickMode?.kind === "regionBand"} disabled={!annotApplies} title="Pick two bars to bracket a shaded x-range" Icon={Columns3} onClick={() => onStartPick("regionBand")}>BAND</AnnotChip>
+      <AnnotChip active={pickMode?.kind === "deltaBadge"} disabled={!annotApplies} title="Pick baseline then target — renders +/-% pill at target point" Icon={Percent} onClick={() => onStartPick("deltaBadge")}>DELTA</AnnotChip>
       {refOpen && (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "0 4px" }}>
           <DragScrubInput value={Number(refValue) || 0} onChange={(n) => setRefValue(String(n))} placeholder="value" style={{ width: 72, padding: "6px 9px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 6, color: C.tx, fontFamily: mn, fontSize: 11, outline: "none" }} title="Alt-drag to scrub" />
