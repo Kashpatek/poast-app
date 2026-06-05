@@ -1244,6 +1244,12 @@ function ClipCaptions() {
     setLoading(false);
   };
 
+  var generateRef = useRef<(() => void) | undefined>(undefined);
+  generateRef.current = function() { generate(); };
+  useShortcuts({
+    "$mod+g": { description: "Generate captions", handler: function() { generateRef.current?.(); } },
+  }, { scope: "Capper" });
+
   var regenerateOne = async function(platKey: string, idx: number) {
     var regenKey = platKey + "_" + idx;
     setRegenL(function(p) { var o = Object.assign({}, p); o[regenKey] = true; return o; });
