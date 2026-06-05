@@ -8,7 +8,6 @@ import {
   TrendingUp,
   Lightbulb,
   Radio,
-  Star,
   Crosshair,
   Sun,
   StickyNote,
@@ -31,6 +30,10 @@ export interface AppDef {
   label: string;
   path: string;
   Icon: LucideIcon;
+  // Optional per-app accent override. Defaults to D.amber when omitted —
+  // the original Command Center palette. Markets opts into D.teal because
+  // it's the trading-floor app and teal/coral is the up/down vernacular.
+  accent?: string;
 }
 
 export const APPS: AppDef[] = [
@@ -38,7 +41,7 @@ export const APPS: AppDef[] = [
   { id: "trends",      label: "Trends",      path: "/intelligence-suite/trends",      Icon: TrendingUp },
   { id: "ideas",       label: "Ideas",       path: "/intelligence-suite/ideas",       Icon: Lightbulb },
   { id: "signals",     label: "Signals",     path: "/intelligence-suite/signals",     Icon: Radio },
-  { id: "watchlist",   label: "Watchlist",   path: "/intelligence-suite/watchlist",   Icon: Star },
+  { id: "watchlist",   label: "Markets",     path: "/intelligence-suite/watchlist",   Icon: TrendingUp, accent: D.teal },
   { id: "competitive", label: "Competitive", path: "/intelligence-suite/competitive", Icon: Crosshair },
   { id: "brief",       label: "Brief",       path: "/intelligence-suite/brief",       Icon: Sun },
   { id: "notes",       label: "Notes",       path: "/intelligence-suite/notes",       Icon: StickyNote },
@@ -244,6 +247,7 @@ export function AppTabBar({ pathname }: { pathname?: string }) {
           {APPS.map(function (app) {
             const isActive = app.path === active;
             const Icon = app.Icon;
+            const accent = app.accent || D.amber;
             return (
               <Link
                 key={app.id}
@@ -255,8 +259,8 @@ export function AppTabBar({ pathname }: { pathname?: string }) {
                   gap: 7,
                   padding: "8px 12px",
                   borderRadius: 7,
-                  background: isActive ? D.amber + "1F" : "transparent",
-                  color: isActive ? D.amber : D.txm,
+                  background: isActive ? accent + "1F" : "transparent",
+                  color: isActive ? accent : D.txm,
                   fontFamily: mn,
                   fontSize: 11,
                   fontWeight: 800,
@@ -277,7 +281,7 @@ export function AppTabBar({ pathname }: { pathname?: string }) {
                       right: 10,
                       bottom: -11,
                       height: 2,
-                      background: D.amber,
+                      background: accent,
                       borderRadius: 2,
                     }}
                   />
