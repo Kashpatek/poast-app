@@ -103,47 +103,18 @@ export function DocumentWizard({ open, onClose, initialCategoryId, initialPreset
     setSubmitting(true);
     try {
       const cat = category!;
-      const preset = presetId === "__custom__"
-        ? { id: `custom-${customSize.w}x${customSize.h}`, label: `Custom ${customSize.w}×${customSize.h}px`, w: Number(customSize.w), h: Number(customSize.h) }
-        : findPreset(presetId);
+      // Route into the new Tiptap doc editor. The editor seeds a fresh
+      // ProjectRecord (kind="doc") from these query params on first mount
+      // and rewrites the URL with the generated id, so refreshes resume.
+      const qs = new URLSearchParams();
+      qs.set("category", cat.id);
+      qs.set("name", title.trim() || "Untitled document");
+      const preset = presetId === "__custom__" ? null : findPreset(presetId);
+      if (preset?.id) qs.set("template", preset.id);
 
-      const payload = {
-        name: title.trim(),
-        type: "document" as const,
-        fidelity: "high" as const,
-        size_preset: preset?.id ?? null,
-        purpose: cat.id,
-        category: cat.id,
-        brief: {
-          title: title.trim(),
-          subtitle: subtitle.trim() || undefined,
-          audience: audience.trim() || undefined,
-          tone,
-          keyPoints: keyPoints
-            .split("\n")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          context: context.trim() || undefined,
-        },
-        format: "svg" as const,
-      };
-
-      const res = await fetch("/api/docu-design/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const j = await res.json();
-      if (!res.ok) {
-        showToast(j.error || "Couldn't create project");
-        setSubmitting(false);
-        return;
-      }
-      // Reset and route. router.push tears the modal down naturally.
-      const id = j.data?.id;
       reset();
       onClose();
-      if (id) router.push(`/design-studio/p/${id}`);
+      router.push(`/design-studio/doc-editor?${qs.toString()}`);
     } catch (e) {
       showToast(String(e));
       setSubmitting(false);
