@@ -256,7 +256,9 @@ export function WidgetDeck() {
     <div>
       {/* Scoped CSS · neutralize the legacy <W> wrapper's own min-height,
           border, shadow, and rounded corners so the inner widget fills the
-          CommandCard cell cleanly (single chrome, scrolls internally). */}
+          CommandCard cell cleanly. Also style scrollbars to match the
+          dark command-center vibe — thin track, dim thumb that lights up
+          on hover. */}
       <style>{`
         .hub-deck-widget-inner > div {
           min-height: 0 !important;
@@ -268,6 +270,28 @@ export function WidgetDeck() {
         }
         .hub-deck-widget-inner > div > div:first-child {
           display: none !important;
+        }
+        .hub-deck-card *::-webkit-scrollbar,
+        .hub-deck-card::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        .hub-deck-card *::-webkit-scrollbar-track,
+        .hub-deck-card::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .hub-deck-card *::-webkit-scrollbar-thumb,
+        .hub-deck-card::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.06);
+          border-radius: 3px;
+        }
+        .hub-deck-card:hover *::-webkit-scrollbar-thumb,
+        .hub-deck-card:hover::-webkit-scrollbar-thumb {
+          background: rgba(247,176,65,0.35);
+        }
+        .hub-deck-card * {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255,255,255,0.06) transparent;
         }
       `}</style>
       {/* ── Deck header ─────────────────────────────────────────── */}
@@ -411,6 +435,7 @@ function CommandCard({
 
   return (
     <div
+      className="hub-deck-card"
       draggable={editMode}
       onDragStart={function (e) { if (editMode) onDragStart(e, id); }}
       onDragOver={function (e) {

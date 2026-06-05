@@ -44,12 +44,12 @@ export function HubLanding() {
           margin: 0,
           fontFamily: gf, fontSize: 56, fontWeight: 900,
           color: D.tx, letterSpacing: -1.4, lineHeight: 1,
-        }}>HUB</h1>
+        }}>Command Center</h1>
         <p style={{
           margin: "10px 0 0",
           fontFamily: ft, fontSize: 16, color: D.txm,
           letterSpacing: -0.1,
-        }}>Command center for SemiAnalysis intelligence.</p>
+        }}>Your one-stop shop for SemiAnalysis intelligence.</p>
       </div>
 
       {/* ── App launcher grid ──────────────────────────────────── */}

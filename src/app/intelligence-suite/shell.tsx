@@ -13,6 +13,7 @@ import {
   StickyNote,
   ArrowLeft,
   Sparkles,
+  Brain,
   type LucideIcon,
 } from "lucide-react";
 import { D, ft, gf, mn } from "../shared-constants";
@@ -37,7 +38,7 @@ export interface AppDef {
 }
 
 export const APPS: AppDef[] = [
-  { id: "hub",         label: "HUB",         path: "/intelligence-suite",             Icon: Home },
+  { id: "hub",         label: "Command Center", path: "/intelligence-suite",          Icon: Brain },
   { id: "trends",      label: "Trends",      path: "/intelligence-suite/trends",      Icon: TrendingUp },
   { id: "ideas",       label: "Ideas",       path: "/intelligence-suite/ideas",       Icon: Lightbulb },
   { id: "signals",     label: "Signals",     path: "/intelligence-suite/signals",     Icon: Radio },
@@ -166,7 +167,7 @@ function HubHero() {
             textTransform: "uppercase",
           }}
         >
-          INTELLIGENCE SUITE
+          COMMAND CENTER
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 10 }}>
           <div
@@ -177,10 +178,10 @@ function HubHero() {
               boxShadow: "0 0 24px " + D.amber + "44, 0 0 48px " + D.violet + "28",
             }}
           >
-            <Sparkles size={16} strokeWidth={2.4} color="#0A0A0E" />
+            <Brain size={16} strokeWidth={2.4} color="#0A0A0E" />
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-            <span style={{ fontFamily: gf, fontSize: 32, fontWeight: 900, color: D.tx, letterSpacing: -0.6 }}>Command</span>
+            <span style={{ fontFamily: gf, fontSize: 32, fontWeight: 900, color: D.tx, letterSpacing: -0.6 }}>Intelligence</span>
             <span
               style={{
                 fontFamily: gf, fontSize: 32, fontWeight: 900, letterSpacing: -0.6,
@@ -188,7 +189,7 @@ function HubHero() {
                 WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
               }}
             >
-              Center
+              Suite
             </span>
           </div>
         </div>

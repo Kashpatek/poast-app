@@ -903,9 +903,7 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "outreach", l: "Outreach",         Icon: Send },
   ]},
   prepare: { label: "PREPARE", color: C.blue, glow: "rgba(11,134,209,", items: [
-    { id: "intelligence-suite", l: "IntelligenceSUITE", Icon: Activity, href: "/intelligence-suite", badge: "NEW" },
-    { id: "trends",   l: "Trends (legacy)",        Icon: Flame },
-    { id: "ideation", l: "IdeationNation (legacy)",Icon: Lightbulb },
+    { id: "intelligence-suite", l: "IntelligenceSUITE", Icon: Brain, href: "/intelligence-suite", badge: "NEW" },
     { id: "news",     l: "News Flow (legacy)",     Icon: Newspaper },
     { id: "gtc",      l: "GTC Flow",         Icon: Activity },
   ]},
@@ -1860,8 +1858,7 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
       { id: "outreach", label: "Outreach",      sub: "Guest cold emails",       Icon: Send },
     ] },
     { key: "prepare", label: "Prepare", sub: "Find the angle", color: C.blue, tiles: [
-      { id: "trends",   label: "Trends",        sub: "What's lit right now",    Icon: Flame },
-      { id: "ideation", label: "IdeationNation", sub: "Spark sessions",         Icon: Lightbulb },
+      { id: "intelligence-suite", label: "IntelligenceSUITE", sub: "Command center for trends, signals, ideas", Icon: Brain, href: "/intelligence-suite" },
       { id: "news",     label: "News Flow",     sub: "Drafts from headlines",   Icon: Newspaper },
       { id: "gtc",      label: "GTC Flow",      sub: "Conference desk",         Icon: Activity },
     ] },
