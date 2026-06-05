@@ -31,6 +31,7 @@ export const DESTINATIONS: Destination[] = [
   { id: "perf",         label: "Perf Tracker",     desc: "Track this post's numbers",    navSec: "perf",     autoConsume: false },
   { id: "distribution", label: "Distribution Pack",desc: "Bundle into a launch pack",    navSec: "distpack", autoConsume: true  },
   { id: "capper",       label: "Capper",           desc: "Spin captions from this",      navSec: "captions", autoConsume: true  },
+  { id: "brief-builder",label: "Brief Builder",    desc: "Seed a production brief",      navSec: "brief-builder", autoConsume: false },
 ];
 
 interface SendToChipProps {

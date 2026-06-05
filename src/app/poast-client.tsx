@@ -885,12 +885,13 @@ function FloatingChippy({ onAsk }: { onAsk: () => void }) {
 // ═══ SIDEBAR ═══
 var SIDEBAR_CATS: Record<string, SidebarCat> = {
   produce: { label: "PRODUCE", color: C.amber, glow: "rgba(247,176,65,", items: [
+    { id: "production-studio", l: "ProductionSTUDIO", Icon: Clapperboard, href: "/production-studio", badge: "NEW" },
     { id: "sloptop",  l: "Slop Top",         Icon: Zap },
     { id: "carousel", l: "Carousel",         Icon: LayoutGrid },
     { id: "captions", l: "Capper",           Icon: Captions },
     { id: "brainstorm", l: "Brainstorm",     Icon: Brain,      badge: "NEW" },
-    { id: "p2p",      l: "Press to Premier", Icon: Clapperboard },
-    { id: "broll",    l: "B-Roll Library",   Icon: Film },
+    { id: "p2p",      l: "Press to Premier (legacy)", Icon: Clapperboard },
+    { id: "broll",    l: "B-Roll Library (legacy)",   Icon: Film },
     { id: "chart",    l: "Chart Maker",      Icon: GanttChart, href: "/charts", badge: "NEW" },
     { id: "docu",     l: "DesignStudio",     Icon: Wand,       href: "/design-studio", badge: "NEW" },
     { id: "distpack", l: "Distribution Pack",Icon: Layers,     badge: "NEW" },
@@ -904,9 +905,10 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "outreach", l: "Outreach",         Icon: Send },
   ]},
   prepare: { label: "PREPARE", color: C.blue, glow: "rgba(11,134,209,", items: [
-    { id: "trends",   l: "Trends",           Icon: Flame },
-    { id: "ideation", l: "IdeationNation",   Icon: Lightbulb },
-    { id: "news",     l: "News Flow",        Icon: Newspaper },
+    { id: "intelligence-suite", l: "IntelligenceSUITE", Icon: Activity, href: "/intelligence-suite", badge: "NEW" },
+    { id: "trends",   l: "Trends (legacy)",        Icon: Flame },
+    { id: "ideation", l: "IdeationNation (legacy)",Icon: Lightbulb },
+    { id: "news",     l: "News Flow (legacy)",     Icon: Newspaper },
     { id: "gtc",      l: "GTC Flow",         Icon: Activity },
   ]},
   premier: { label: "PREMIER", color: C.teal, glow: "rgba(46,173,142,", items: [

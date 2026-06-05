@@ -128,6 +128,16 @@ export const TOOL_COACH: Record<string, CoachContent> = {
     body: "Your creative suite — DocuDesign for docs and flyers, Graphics for Canva-style design, Image Studio for AI-generated visuals, plus motion and programmatic video. All powered by your SA design system.",
     tip: "Tip: set up your Design System first (logos + brand assets) so every project ships on-brand.",
   },
+  "production-studio": {
+    title: "ProductionSTUDIO",
+    body: "The unified video production hub — absorbs Press to Premier, B-Roll Library, and Render Queue into one workspace. Brief in, edited cut out, with shared assets and queue across the whole pipeline.",
+    tip: "Tip: the legacy Press to Premier and B-Roll Library entries still work — bookmarks won't break while the hub takes over.",
+  },
+  "intelligence-suite": {
+    title: "IntelligenceSUITE",
+    body: "Your shared signal layer — Trends, IdeationNation, and News Flow merged into one feed-and-brief surface. Spot the angle, draft the brief, hand off to Produce.",
+    tip: "Tip: the legacy Trends / IdeationNation / News Flow sidebar items still work during the migration.",
+  },
   // ─── Podcast ──────────────────────────────────────────────────────
   fk: {
     title: "Fab Knowledge",
