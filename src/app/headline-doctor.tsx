@@ -4,7 +4,7 @@
 // across different hook patterns (number-led, provocative, question,
 // comparison, etc). Copy the one that works.
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { D, ft, gf, mn } from "./shared-constants";
 
 interface Alternate {
@@ -17,6 +17,34 @@ interface Alternate {
 interface Result {
   alternates: Alternate[];
   diagnosis?: string;
+}
+
+interface HistoryEntry {
+  id: string;
+  original: string;
+  rewrite: string;
+  context?: string;
+  platform: string;
+  result: Result;
+  createdAt: number;
+}
+
+const HISTORY_KEY = "poast-headline-doctor-history";
+const HISTORY_CAP = 10;
+
+function loadHistory(): HistoryEntry[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+function saveHistory(h: HistoryEntry[]): void {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch { /* ignore */ }
 }
 
 const PLATFORMS = [
@@ -36,6 +64,23 @@ export default function HeadlineDoctor() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<number | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [hoverHistory, setHoverHistory] = useState<string | null>(null);
+  // narrow viewport -> stack the history panel under the editor
+  const [stack, setStack] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => { setHistory(loadHistory()); }, []);
+
+  useEffect(() => {
+    function measure() {
+      const w = wrapRef.current?.offsetWidth ?? window.innerWidth;
+      setStack(w < 960);
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
 
   async function run() {
     if (!headline.trim()) return;
@@ -53,12 +98,52 @@ export default function HeadlineDoctor() {
         setError(j.error || "Doctor failed");
         return;
       }
-      setResult(j as Result);
+      const r = j as Result;
+      setResult(r);
+      const top = r.alternates?.[0];
+      if (top?.text) {
+        const entry: HistoryEntry = {
+          id: Math.random().toString(36).slice(2) + Date.now().toString(36),
+          original: headline.trim(),
+          rewrite: top.text,
+          context: context.trim() || undefined,
+          platform,
+          result: r,
+          createdAt: Date.now(),
+        };
+        setHistory((prev) => {
+          const next = [entry, ...prev].slice(0, HISTORY_CAP);
+          saveHistory(next);
+          return next;
+        });
+      }
     } catch (e) {
       setError(String(e));
     } finally {
       setLoading(false);
     }
+  }
+
+  function restore(entry: HistoryEntry) {
+    setHeadline(entry.original);
+    setContext(entry.context ?? "");
+    setPlatform(entry.platform);
+    setResult(entry.result);
+    setError(null);
+  }
+
+  function fmtTime(ts: number): string {
+    const d = new Date(ts);
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    if (sameDay) {
+      return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    }
+    return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  }
+
+  function trim60(s: string): string {
+    return s.length > 60 ? s.slice(0, 60).trimEnd() + "…" : s;
   }
 
   async function copy(text: string, i: number) {
@@ -69,8 +154,62 @@ export default function HeadlineDoctor() {
     } catch { /* ignore */ }
   }
 
+  const historyPanel = (
+    <div style={{ flex: stack ? "0 0 auto" : "0 0 320px", minWidth: 0 }}>
+      <div style={lbl}>Recent rewrites</div>
+      {history.length === 0 ? (
+        <div style={{ fontFamily: ft, fontSize: 12, color: D.txd, padding: "12px 14px", background: D.surface, border: `1px dashed ${D.border}`, borderRadius: 8, lineHeight: 1.4 }}>
+          Doctored headlines will appear here. Click any row to restore it.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {history.map((h) => {
+            const hov = hoverHistory === h.id;
+            return (
+              <button
+                key={h.id}
+                type="button"
+                onClick={() => restore(h)}
+                onMouseEnter={() => setHoverHistory(h.id)}
+                onMouseLeave={() => setHoverHistory((cur) => cur === h.id ? null : cur)}
+                style={{
+                  textAlign: "left",
+                  background: hov ? D.hover : D.surface,
+                  border: `1px solid ${hov ? D.amber + "66" : D.border}`,
+                  borderRadius: 8,
+                  padding: "8px 10px",
+                  cursor: "pointer",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
+                  width: "100%",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <span style={{ fontFamily: mn, fontSize: 9, color: D.txm, letterSpacing: 0.6 }}>{fmtTime(h.createdAt)}</span>
+                  <span style={{ fontFamily: mn, fontSize: 9, letterSpacing: 1.2, textTransform: "uppercase", color: hov ? D.amber : D.txd }}>
+                    {hov ? "Restore" : ""}
+                  </span>
+                </div>
+                <div style={{ fontFamily: ft, fontSize: 12, color: D.tx, lineHeight: 1.35, opacity: 0.75 }}>
+                  {trim60(h.original)}
+                </div>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                  <span style={{ fontFamily: mn, fontSize: 12, color: D.amber, lineHeight: 1.35 }}>→</span>
+                  <div style={{ fontFamily: ft, fontSize: 12, color: D.tx, lineHeight: 1.35, fontWeight: 600 }}>
+                    {trim60(h.rewrite)}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 32px" }}>
+    <div ref={wrapRef} style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 32px" }}>
       <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "4px 10px", borderRadius: 999, background: "rgba(46,173,142,0.10)", border: `1px solid ${D.teal}55`, marginBottom: 14 }}>
         <span style={{ width: 6, height: 6, borderRadius: "50%", background: D.teal, boxShadow: `0 0 8px ${D.teal}` }} />
         <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.teal, textTransform: "uppercase" }}>Headline Lab</span>
@@ -80,6 +219,8 @@ export default function HeadlineDoctor() {
         Paste a working headline. Get 10 alternates ranked by hook strength, across patterns you can actually use.
       </div>
 
+      <div style={{ display: "flex", flexDirection: stack ? "column" : "row", gap: 24, alignItems: "flex-start" }}>
+        <div style={{ flex: 1, minWidth: 0, width: stack ? "100%" : undefined }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 24 }}>
         <div>
           <div style={lbl}>Working headline</div>
@@ -202,6 +343,9 @@ export default function HeadlineDoctor() {
           </div>
         </div>
       ) : null}
+        </div>
+        {historyPanel}
+      </div>
     </div>
   );
 }
