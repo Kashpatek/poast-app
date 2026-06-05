@@ -606,22 +606,77 @@ function OutCard({ title, content, color, onRedo, rLoading }: { title: string; c
   </div>);
 }
 
-// ═══ STEP TRACKER (P2P-style numbered circles) ═══
-function StepTracker({ current, steps, canNavigate, onNav }: { current: number; steps: string[]; canNavigate?: (i: number) => boolean; onNav: (i: number) => void }) {
-  var progress = ((current + 1) / steps.length) * 100;
-  return <div style={{ marginBottom: 40 }}>
-    {/* Progress bar */}
-    <div style={{ height: 4, background: D.border, borderRadius: 2, marginBottom: 20, overflow: "hidden" }}>
-      <div style={{ height: "100%", width: progress + "%", background: "linear-gradient(90deg, " + ACC + ", " + D.teal + ")", borderRadius: 2, transition: "width 0.5s cubic-bezier(0.16, 1, 0.3, 1)" }} />
-    </div>
-    {/* Step labels */}
-    <div style={{ display: "flex", gap: 0 }}>
+// ═══ STEP TRACKER (horizontal card stepper) ═══
+// One card per pipeline step. Visual states:
+//   done       — filled accent fill (background tint + accent border + check dot)
+//   active     — pulsing accent border, elevated bg
+//   pending    — muted ring, surface bg, reduced opacity if not clickable
+// Each card also shows a relative-time "edited Xm ago" badge when the parent
+// has recorded a touched timestamp for that step. Wraps to multi-row beyond
+// 6 steps so the row never overflows narrow viewports.
+function StepTracker({ current, steps, canNavigate, onNav, doneMap, touchedMap }: { current: number; steps: string[]; canNavigate?: (i: number) => boolean; onNav: (i: number) => void; doneMap?: boolean[]; touchedMap?: (string | null)[] }) {
+  // Tick once a minute so the relative-time badge re-renders without the
+  // parent having to thread a clock through.
+  var _tick = useState<number>(0); var setTick = _tick[1];
+  useEffect(function() {
+    var t = setInterval(function() { setTick(function(n) { return n + 1; }); }, 60000);
+    return function() { clearInterval(t); };
+  }, []);
+  return <div style={{ marginBottom: 32 }}>
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes stepperPulse{0%,100%{box-shadow:0 0 0 0 " + ACC + "55,0 0 0 1px " + ACC + "}50%{box-shadow:0 0 0 4px " + ACC + "00,0 0 0 1px " + ACC + "}}" }} />
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
       {steps.map(function(s, i) {
-        var done = i < current; var active = i === current; var future = i > current;
-        var clickable = done || (canNavigate && canNavigate(i));
-        return <div key={i} onClick={function() { if (clickable) onNav(i); }} style={{ flex: 1, textAlign: "center", cursor: clickable ? "pointer" : "default", opacity: future ? 0.3 : 1, transition: "opacity 0.2s" }}>
-          <div style={{ fontFamily: mn, fontSize: 24, fontWeight: 900, color: done ? D.teal : active ? ACC : D.txl, transition: "color 0.3s", textShadow: active ? "0 0 20px " + ACC + "40" : "none" }}>{done ? "\u2713" : i + 1}</div>
-          <div style={{ fontFamily: ft, fontSize: 11, fontWeight: active ? 700 : 500, color: active ? D.tx : D.txl, marginTop: 4, letterSpacing: active ? 0.5 : 0 }}>{s}</div>
+        var fallbackDone = i < current;
+        var done = doneMap && typeof doneMap[i] === "boolean" ? doneMap[i] : fallbackDone;
+        var active = i === current;
+        var pending = !done && !active;
+        var clickable = done || active || (canNavigate ? canNavigate(i) : false);
+        var touched = touchedMap ? touchedMap[i] : null;
+
+        // Active wins over done so the user can always see "you are here"
+        // even when revisiting a completed step; the keyframes pulse is
+        // orthogonal and would otherwise overlay the done fill confusingly.
+        var bg = active ? D.elevated : done ? ACC + "18" : D.surface;
+        var border = active ? "1px solid " + ACC : done ? "1px solid " + ACC : "1px solid " + D.border;
+        var labelColor = active ? D.tx : done ? ACC : D.txb;
+        var dotBg = done && !active ? ACC : "transparent";
+        var dotBorder = active ? "1px solid " + ACC : done ? "1px solid " + ACC : "1px solid " + D.txh;
+
+        return <div key={i}
+          onClick={function() { if (clickable) onNav(i); }}
+          style={{
+            flex: "1 1 130px", minWidth: 120, maxWidth: 220,
+            padding: "10px 12px",
+            background: bg,
+            border: border,
+            borderRadius: 10,
+            cursor: clickable ? "pointer" : "default",
+            opacity: pending && !clickable ? 0.5 : 1,
+            transition: "background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease",
+            animation: active ? "stepperPulse 2s ease-in-out infinite" : "none",
+            display: "flex", flexDirection: "column", gap: 6,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{
+              width: 14, height: 14, borderRadius: "50%",
+              background: dotBg, border: dotBorder,
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              fontFamily: mn, fontSize: 9, fontWeight: 800, color: D.bg,
+              flexShrink: 0,
+            }}>{done ? "✓" : ""}</span>
+            <span style={{
+              fontFamily: mn, fontSize: 10,
+              letterSpacing: 1.2, textTransform: "uppercase",
+              color: labelColor, fontWeight: active || done ? 700 : 500,
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}>{s}</span>
+          </div>
+          <div style={{
+            fontFamily: mn, fontSize: 9, letterSpacing: 0.6,
+            color: touched ? D.txl : D.txh,
+            paddingLeft: 22,
+          }}>{touched ? "edited " + timeAgo(touched) : "—"}</div>
         </div>;
       })}
     </div>
@@ -2229,6 +2284,16 @@ export default function SAWeekly() {
   var userCtx = useUser();
   var STEPS = ["Setup", "Generate", "Review", "Social", "Clips", "Export", "Log"];
   var _step = useState<number>(0), step = _step[0], setStep = _step[1];
+  // Per-step last-touched timestamps, lives only in this session — used by
+  // the horizontal card stepper to render the "edited Xm ago" badge.
+  var _touched = useState<(string | null)[]>(function() { return STEPS.map(function() { return null; }); }), stepTouched = _touched[0], setStepTouched = _touched[1];
+  var markStepTouched = function(i: number) {
+    setStepTouched(function(prev) {
+      var next = prev.slice();
+      next[i] = new Date().toISOString();
+      return next;
+    });
+  };
 
   // Episode state
   var _e = useState<EpState>({ number: "008", link: "", transcript: "", timestamps: "", extra: "" }), ep = _e[0], setEp = _e[1];
@@ -2720,6 +2785,33 @@ export default function SAWeekly() {
     return false;
   };
 
+  // Per-step done state, derived from the same completion signals that gate
+  // navigation. Mirrors canNavigate's downstream-readiness checks so a step
+  // is "done" once its output is in hand, regardless of the current step.
+  var stepDone: boolean[] = [
+    !!ep.transcript,           // Setup     — transcript pasted
+    !!opts,                    // Generate  — options produced
+    !!fin,                     // Review    — selections finalized
+    !!socialRes,               // Social    — captions generated
+    clips.length > 0,          // Clips     — at least one clip captured
+    launched,                  // Export    — export run / launched
+    launched,                  // Log       — entry committed on launch
+  ];
+
+  // Stamp the freshly-arrived step so the "edited Xm ago" badge starts
+  // ticking. Skip the first mount so a brand-new session doesn't show
+  // "edited 0m ago" on Setup before the user has actually touched
+  // anything; subsequent step changes are real user activity.
+  var stepperFirstMountRef = useRef(true);
+  useEffect(function() {
+    if (stepperFirstMountRef.current) {
+      stepperFirstMountRef.current = false;
+      return;
+    }
+    markStepTouched(step);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   // Phase 2D · presence banner data. Show when actively editing a known
   // entry AND another user touched it inside the 5-minute window.
   var FIVE_MIN_MS = 5 * 60 * 1000;
@@ -2748,7 +2840,7 @@ export default function SAWeekly() {
 
     {/* Step Tracker */}
     <div style={{ marginTop: 28 }}>
-      <StepTracker current={step} steps={STEPS} canNavigate={canNavigate} onNav={function(i) { if (canNavigate(i) || i < step) setStep(i); }} />
+      <StepTracker current={step} steps={STEPS} canNavigate={canNavigate} onNav={function(i) { if (canNavigate(i) || i < step) setStep(i); }} doneMap={stepDone} touchedMap={stepTouched} />
     </div>
 
     {/* Phase 2D · presence banner. Renders only when another user touched
