@@ -15,10 +15,14 @@ export function trackEvent(event: string, payload?: Record<string, unknown>, sec
   try {
     const user = localStorage.getItem("poast-current-user") || "anon";
     const role = ROLES[user] || "anon";
+    // Personal name an analyst entered at first sign-in. Lets us tell
+    // apart different humans sharing the generic "Analyst" login.
+    const analystName = localStorage.getItem("poast-analyst-name") || null;
     const body = JSON.stringify({
       event,
       user,
       role,
+      analystName,
       sec: sec || null,
       payload: payload || {},
       ts: Date.now(),

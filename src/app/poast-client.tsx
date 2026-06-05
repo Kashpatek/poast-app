@@ -2048,13 +2048,22 @@ function TiltTile({ tool, index, onNavigate, onHoverColor }: { tool: TiltToolSpe
 function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
   var ob = useOnboarding();
   var VIOLET = "#905CCB";
-  // Launch-scope analyst rail: 4 tools only. Slop Top opens on Brief
-  // Generator (Meme Maker + FACTORY are hidden for analyst inside Slop Top).
-  var tools: TiltToolSpec[] = [
-    { id: "sloptop",  label: "Slop Top",    sub: "Brief Gen + arxiv.lol",  Icon: Zap,        color: C.amber },
-    { id: "carousel", label: "Carousel",    sub: "Instagram carousels",    Icon: LayoutGrid, color: C.blue },
-    { id: "captions", label: "Capper",      sub: "Captions per platform",  Icon: Captions,   color: C.teal },
-    { id: "chart-cm2", label: "POAST Studio", sub: "Charts · tables · diagrams · saved library", Icon: GanttChart, color: C.coral, href: "/charts" },
+  // Personal handle so the splash can greet the analyst by name.
+  var _name = useState<string | null>(null), analystName = _name[0], setAnalystName = _name[1];
+  useEffect(function() {
+    try { setAnalystName(localStorage.getItem("poast-analyst-name")); } catch {}
+  }, []);
+  // Tier hierarchy:
+  //   HERO   · POAST Studio (Charts) — analyst's primary surface
+  //   WIDE   · Carousel — second-most-used
+  //   ROW    · Slop Top, Capper, Brainstorm — quick utilities
+  //   LIBRARY · Asset Library — quiet, separate
+  var heroTool: TiltToolSpec = { id: "chart-cm2", label: "POAST Studio", sub: "Charts · tables · diagrams · saved library", Icon: GanttChart, color: C.coral, href: "/charts" };
+  var wideTool: TiltToolSpec = { id: "carousel",  label: "Carousel",    sub: "Build Instagram carousels",                  Icon: LayoutGrid, color: C.blue };
+  var rowTools: TiltToolSpec[] = [
+    { id: "sloptop",    label: "Slop Top",   sub: "Brief Gen + arxiv.lol",  Icon: Zap,        color: C.amber },
+    { id: "captions",   label: "Capper",     sub: "Captions per platform",  Icon: Captions,   color: C.teal },
+    { id: "brainstorm", label: "Brainstorm", sub: "Tennis ideation",        Icon: Brain,      color: VIOLET },
   ];
   // Lifted from whichever tile is currently being hovered. Null when no tile
   // is active → the screen falls back to the resting violet ambient.
@@ -2102,20 +2111,33 @@ function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
       <img src="/poast-logo.png" style={{ width: 40, height: 40, borderRadius: 10 }} />
       <span style={{ fontFamily: gf, fontSize: 20, fontWeight: 900, color: C.amber, letterSpacing: 5 }}>POAST</span>
     </div>
-    <div style={{ fontFamily: ft, fontSize: 28, fontWeight: 900, color: "#E8E4DD", letterSpacing: -0.5, marginBottom: 4, animation: "asFade 0.5s ease 0.05s forwards", opacity: 0 }}>Analyst Studio</div>
-    <div style={{ fontFamily: mn, fontSize: 11, color: VIOLET, letterSpacing: 2, marginBottom: 48, animation: "asFade 0.5s ease 0.1s forwards", opacity: 0 }}>PICK A TOOL TO CREATE</div>
+    <div style={{ fontFamily: ft, fontSize: 28, fontWeight: 900, color: "#E8E4DD", letterSpacing: -0.5, marginBottom: 4, animation: "asFade 0.5s ease 0.05s forwards", opacity: 0 }}>
+      {analystName ? "Welcome back, " + analystName : "Analyst Studio"}
+    </div>
+    <div style={{ fontFamily: mn, fontSize: 11, color: VIOLET, letterSpacing: 2, marginBottom: 36, animation: "asFade 0.5s ease 0.1s forwards", opacity: 0 }}>
+      {analystName ? "ANALYST STUDIO" : "PICK A TOOL TO CREATE"}
+    </div>
 
-    {/* 3×2 tile grid — cards tilt in 3D toward the cursor */}
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 240px)", gridAutoRows: "240px", gap: 22, maxWidth: "min(90vw, 520px)", perspective: "1100px" }}>
-      {tools.map(function(t, i) {
-        return <TiltTile key={t.id} tool={t} index={i} onNavigate={onNavigate} onHoverColor={setHovC} />;
+    {/* Tier 1 · HERO — POAST Studio. Full-width, tallest tile so the
+        analyst's primary surface dominates the screen on entry. */}
+    <div style={{ width: "min(92vw, 760px)", height: 220, marginBottom: 16, perspective: "1100px" }}>
+      <TiltTile tool={heroTool} index={0} onNavigate={onNavigate} onHoverColor={setHovC} />
+    </div>
+
+    {/* Tier 2 · WIDE — Carousel. Full-width, shorter than hero. */}
+    <div style={{ width: "min(92vw, 760px)", height: 150, marginBottom: 16, perspective: "1100px" }}>
+      <TiltTile tool={wideTool} index={1} onNavigate={onNavigate} onHoverColor={setHovC} />
+    </div>
+
+    {/* Tier 3 · ROW — Slop Top · Capper · Brainstorm. Three compact tiles. */}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, width: "min(92vw, 760px)", height: 180, marginBottom: 28, perspective: "1100px" }}>
+      {rowTools.map(function(t, i) {
+        return <TiltTile key={t.id} tool={t} index={2 + i} onNavigate={onNavigate} onHoverColor={setHovC} />;
       })}
     </div>
 
-    {/* CTAs · same TiltTile interaction language (3D cursor tilt, color
-        glow, specular highlight). Asset Library opens embedded inside
-        POAST; Brand Launch Presentation opens /brand-launch in a new tab. */}
-    <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 28, width: "min(90vw, 520px)", perspective: "1100px" }}>
+    {/* Asset Library — analyst's quiet library. CTA bar, not a tile. */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "min(92vw, 760px)", perspective: "1100px" }}>
       <SplashCTA
         Icon={Library}
         label="Asset Library"
@@ -2334,6 +2356,57 @@ function AssetLibraryEmbed() {
   );
 }
 
+// Lightweight name-capture for analysts. The Analyst seat is a shared
+// login (one role-user, many humans), so on first session we ask for a
+// personal name. The value is stored locally and then attached to every
+// trackEvent payload so the analytics endpoint can tell humans apart.
+function AnalystWelcomeGate({ onSubmit }: { onSubmit: (name: string) => void }) {
+  var _name = useState(""), nameInput = _name[0], setName = _name[1];
+  var canSubmit = nameInput.trim().length >= 2;
+
+  function submit() {
+    if (!canSubmit) return;
+    var name = nameInput.trim();
+    try { localStorage.setItem("poast-analyst-name", name); } catch {}
+    try { trackEvent("analyst_identified", { analystName: name }); } catch {}
+    onSubmit(name);
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(6,6,12,0.94)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10001, fontFamily: ft }}>
+      <div style={{ width: 440, maxWidth: "92vw", padding: "32px 30px", background: C.card, border: "1px solid " + C.amber + "40", borderRadius: 18, boxShadow: "0 28px 64px rgba(0,0,0,0.7), 0 0 64px " + C.amber + "1A" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
+          <img src="/poast-logo.png" alt="POAST" style={{ width: 32, height: 32, borderRadius: 8 }} />
+          <span style={{ fontFamily: gf, fontSize: 14, fontWeight: 900, color: C.amber, letterSpacing: 4 }}>POAST</span>
+          <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.35)", letterSpacing: 2 }}>// ANALYST</span>
+        </div>
+        <div style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.6, marginBottom: 6 }}>Welcome in.</div>
+        <div style={{ fontFamily: ft, fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.55, marginBottom: 22 }}>
+          What should we call you? Just so your workspace knows who's driving.
+        </div>
+        <input
+          autoFocus
+          value={nameInput}
+          onChange={function(e: React.ChangeEvent<HTMLInputElement>) { setName(e.target.value); }}
+          onKeyDown={function(e: React.KeyboardEvent<HTMLInputElement>) { if (e.key === "Enter" && canSubmit) submit(); }}
+          placeholder="Your name"
+          style={{ width: "100%", padding: "12px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 10, color: C.tx, fontFamily: ft, fontSize: 15, outline: "none", marginBottom: 18, boxSizing: "border-box" }}
+        />
+        <button
+          onClick={submit}
+          disabled={!canSubmit}
+          style={{ width: "100%", padding: "12px 14px", background: canSubmit ? C.amber : "rgba(247,176,65,0.18)", color: canSubmit ? "#060608" : "rgba(247,176,65,0.45)", border: "none", borderRadius: 10, fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 1.4, cursor: canSubmit ? "pointer" : "not-allowed", textTransform: "uppercase" }}
+        >
+          Continue →
+        </button>
+        <div style={{ marginTop: 14, fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.25)", letterSpacing: 1.8 }}>
+          Stored on this device. You can change it anytime.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ═══ APP ═══
 var ANALYST_ALLOWED = ["home", "sloptop", "carousel", "captions", "brainstorm", "chart", "chart2", "assets"];
 
@@ -2378,6 +2451,19 @@ export default function App() {
   var _s = useState("home"), sec = _s[0], setSec = _s[1];
   var userCtx = useUser();
   var analyst = isAnalyst(userCtx.user);
+  // Analyst name capture: shared role-user means we need a personal
+  // handle to tell different humans apart. Hydrate from localStorage
+  // on mount; show the welcome gate when missing.
+  var _analystName = useState<string | null>(null), analystName = _analystName[0], setAnalystName = _analystName[1];
+  var _analystNameHydrated = useState(false), analystNameHydrated = _analystNameHydrated[0], setAnalystNameHydrated = _analystNameHydrated[1];
+  useEffect(function() {
+    try {
+      var stored = localStorage.getItem("poast-analyst-name");
+      if (stored) setAnalystName(stored);
+    } catch {}
+    setAnalystNameHydrated(true);
+  }, []);
+  var showAnalystGate = analyst && analystNameHydrated && !analystName;
   // Analysts: gate navigation to allowed sections only, default to carousel
   useEffect(function() {
     // If an analyst somehow lands on a section they can't access, send
@@ -2563,6 +2649,9 @@ export default function App() {
         a secondary tab. `sec` flows in for context-aware commands;
         `onNav` lets palette commands jump between tools. */}
     <AskPoast open={askPoastOpen && !analyst} onToggle={function() { setAskPoastOpen(false); }} sec={sec} onNav={setSec} />
+    {/* First-time analyst sign-in: capture a personal handle so usage
+        events can tell different humans apart on the shared Analyst seat. */}
+    {showAnalystGate ? <AnalystWelcomeGate onSubmit={function(name: string) { setAnalystName(name); }} /> : null}
     {/* Asset Library renders as a sibling of the wrapped tree so its
         position:fixed resolves to the viewport, not the .poast-fadein
         transform's containing block. */}
