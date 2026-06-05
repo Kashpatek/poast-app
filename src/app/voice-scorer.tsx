@@ -4,7 +4,8 @@
 // breakdown, list of violations, and concrete rewrite suggestions. The
 // fastest way to catch boomer/AI captions before they ship.
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
+import DiffMatchPatch from "diff-match-patch";
 import { D, ft, gf, mn } from "./shared-constants";
 import { useShortcuts } from "./keyboard-shortcuts";
 
@@ -63,6 +64,7 @@ export default function VoiceScorer() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScoreResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [diffOpen, setDiffOpen] = useState(false);
 
   async function score() {
     if (!text.trim()) return;
@@ -100,6 +102,15 @@ export default function VoiceScorer() {
     : result.score >= 8 ? D.teal
     : result.score >= 5 ? D.amber
     : D.coral;
+
+  const topRewrite = result?.suggestions && result.suggestions[0] && result.suggestions[0].trim() ? result.suggestions[0] : "";
+  const diffSegments = useMemo(() => {
+    if (!topRewrite || !text.trim()) return null;
+    const dmp = new DiffMatchPatch.diff_match_patch();
+    const diffs = dmp.diff_main(text, topRewrite);
+    dmp.diff_cleanupSemantic(diffs);
+    return diffs;
+  }, [text, topRewrite]);
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 32px" }}>
@@ -232,6 +243,67 @@ export default function VoiceScorer() {
                   {v}
                 </div>
               ))}
+            </div>
+          ) : null}
+
+          {diffSegments && diffSegments.length > 0 ? (
+            <div style={{ marginBottom: 16 }}>
+              <button
+                type="button"
+                onClick={() => setDiffOpen((o) => !o)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  padding: "8px 10px",
+                  background: "transparent",
+                  border: `1px solid ${D.border}`,
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  marginBottom: diffOpen ? 8 : 0,
+                }}
+              >
+                <span style={{ ...lbl, marginBottom: 0 }}>Diff view · draft vs top suggestion</span>
+                <span style={{ fontFamily: mn, fontSize: 10, color: D.txd }}>{diffOpen ? "−" : "+"}</span>
+              </button>
+              {diffOpen ? (
+                <pre
+                  style={{
+                    margin: 0,
+                    padding: "10px 12px",
+                    background: D.bg,
+                    border: `1px solid ${D.border}`,
+                    borderRadius: 6,
+                    fontFamily: ft,
+                    fontSize: 14,
+                    color: D.tx,
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {diffSegments.map((seg, i) => {
+                    const op = seg[0];
+                    const value = seg[1];
+                    if (op === 0) {
+                      return <span key={i} style={{ color: D.tx }}>{value}</span>;
+                    }
+                    if (op === -1) {
+                      return (
+                        <span key={i} style={{ color: D.coral, textDecoration: "line-through", opacity: 0.7 }}>
+                          {value}
+                        </span>
+                      );
+                    }
+                    return (
+                      <span key={i} style={{ color: D.teal, textDecoration: "underline", fontWeight: 600 }}>
+                        {value}
+                      </span>
+                    );
+                  })}
+                </pre>
+              ) : null}
             </div>
           ) : null}
 
