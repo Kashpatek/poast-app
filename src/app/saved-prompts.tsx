@@ -5,10 +5,11 @@
 // text, optional system text, and an "author + last used" trail. Sync to
 // Supabase under projects/saved-prompts-master so everyone shares.
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { D, ft, gf, mn } from "./shared-constants";
 import { useUser } from "./user-context";
 import { confirmDialog } from "./dialog-context";
+import { buildSeedPrompts } from "./lib/saved-prompts-seed";
 
 interface SavedPrompt {
   id: string;
@@ -21,11 +22,16 @@ interface SavedPrompt {
   createdAt: string;
   updatedAt?: string;
   uses?: number;
+  // Free-form filter tags. Pre-seeded prompts carry "seed: true" plus a
+  // category and a tool tag. Hand-saved prompts add [tool, provider,
+  // date, user] via <SaveToLibrary>. Filter UI can pivot on any tag.
+  tags?: string[];
 }
 
 const TOOL_TAGS = [
-  "any", "sloptop", "carousel", "sa-weekly", "press-to-premier",
-  "headlines", "data-story", "newsletter", "outreach", "social",
+  "any", "capper", "sloptop", "carousel", "sa-weekly", "press-to-premier",
+  "headlines", "image", "voice", "general",
+  "data-story", "newsletter", "outreach", "social",
 ];
 
 export default function SavedPromptsLibrary() {
@@ -37,16 +43,57 @@ export default function SavedPromptsLibrary() {
   const [tagFilter, setTagFilter] = useState("any");
   const [editing, setEditing] = useState<SavedPrompt | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  // The seed flag rides along on the master row so we never re-seed even
+  // if a user later trashes every prompt manually. The local ref guards
+  // against double-firing during the same React mount.
+  const seededRef = useRef(false);
+
+  // Pre-seed on first mount: if the library row doesn't exist yet OR
+  // exists but has zero prompts AND seedFlag has not been set, write a
+  // curated batch of ~25 prompts pulled from CAPPER_TONES, CAPPER_SOURCES,
+  // STYLE_PRESETS, and the Voice Lab voice shapes. Each carries a
+  // "seed:true" tag so the team can filter or clear them later. Strictly
+  // idempotent — runs at most once per row lifetime.
+  const maybeSeed = useCallback(async (existingPrompts: SavedPrompt[], seedFlag: boolean): Promise<SavedPrompt[] | null> => {
+    if (seededRef.current) return null;
+    if (seedFlag) return null;
+    if (existingPrompts.length > 0) {
+      // Library is non-empty — just stamp the flag so we don't re-check on
+      // every reload. No mutation of existing rows.
+      seededRef.current = true;
+      try {
+        await fetch("/api/db", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ table: "projects", id: "saved-prompts-master", type: "saved-prompts", data: { prompts: existingPrompts, seedFlag: true } }),
+        });
+      } catch { /* ignore */ }
+      return null;
+    }
+    seededRef.current = true;
+    const seeds = buildSeedPrompts() as SavedPrompt[];
+    try {
+      await fetch("/api/db", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ table: "projects", id: "saved-prompts-master", type: "saved-prompts", data: { prompts: seeds, seedFlag: true } }),
+      });
+    } catch { /* ignore */ }
+    return seeds;
+  }, []);
 
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/db?table=projects");
       const j = await res.json();
       const row = (j.data || []).find((r: { id: string; type: string }) => r.id === "saved-prompts-master" && r.type === "saved-prompts");
-      setPrompts(row?.data?.prompts || []);
+      const existing: SavedPrompt[] = row?.data?.prompts || [];
+      const seedFlag: boolean = row?.data?.seedFlag === true;
+      const seeded = await maybeSeed(existing, seedFlag);
+      setPrompts(seeded || existing);
     } catch { /* ignore */ }
     setLoading(false);
-  }, []);
+  }, [maybeSeed]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -56,7 +103,7 @@ export default function SavedPromptsLibrary() {
       await fetch("/api/db", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "projects", id: "saved-prompts-master", type: "saved-prompts", data: { prompts: next } }),
+        body: JSON.stringify({ table: "projects", id: "saved-prompts-master", type: "saved-prompts", data: { prompts: next, seedFlag: true } }),
       });
     } catch { /* ignore */ }
   }
