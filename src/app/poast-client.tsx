@@ -11,6 +11,7 @@ import SlopTop from "./slop-top";
 import Outreach from "./outreach";
 import IdeationNation from "./ideation-nation";
 import SAWeekly from "./sa-weekly";
+import Brainstorm from "./brainstorm";
 import BRollLibrary from "./broll-library";
 import ChartMaker from "./chart-maker";
 import ChartMaker2 from "./chart-maker-2";
@@ -136,7 +137,7 @@ interface CapperLength {
 // with a `voicePrompt` that gets injected into the system prompt so
 // the model knows whose story it's telling. Separate from Tone (which
 // is a person/persona) and Audience (which is a vibe).
-interface CapperSource {
+export interface CapperSource {
   key: string;
   label: string;
   desc: string;
@@ -592,6 +593,7 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "sloptop",  l: "Slop Top",         Icon: Zap },
     { id: "carousel", l: "Carousel",         Icon: LayoutGrid },
     { id: "captions", l: "Capper",           Icon: Captions },
+    { id: "brainstorm", l: "Brainstorm",     Icon: Brain,      badge: "NEW" },
     { id: "p2p",      l: "Press to Premier", Icon: Clapperboard },
     { id: "broll",    l: "B-Roll Library",   Icon: Film },
     { id: "chart",    l: "Chart Maker",      Icon: GanttChart, href: "/charts", badge: "NEW" },
@@ -750,7 +752,7 @@ var CAPPER_LENGTHS: CapperLength[] = [
 // Source type — where the clip came from. Drives the framing (first-
 // person vs commentary, attribution, hook patterns). Pick the one
 // that matches reality; the system prompt adjusts the voice to suit.
-var CAPPER_SOURCES: CapperSource[] = [
+export var CAPPER_SOURCES: CapperSource[] = [
   { key: "sa_podcast",  label: "SA Weekly",       desc: "Clip from SemiAnalysis Weekly — Dylan & guests",
     color: "#F7B041",
     example: "Dylan and Jordan got into why HBM4 supply is the actual bottleneck.",
@@ -1940,7 +1942,7 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
 }
 
 // ═══ APP ═══
-var ANALYST_ALLOWED = ["home", "sloptop", "carousel", "captions", "chart", "chart2", "assets"];
+var ANALYST_ALLOWED = ["home", "sloptop", "carousel", "captions", "brainstorm", "chart", "chart2", "assets"];
 
 // Asset Library embedded inside POAST. Fetches the standalone HTML
 // from /public, drops it inline into POAST's DOM via dangerouslySetInnerHTML,
@@ -2230,7 +2232,7 @@ export default function App() {
       // Determine active category color
       var catGlow = "rgba(247,176,65,"; // default amber
       var catGlow2 = "rgba(144,92,203,"; // accent
-      var produceIds = ["weekly", "p2p", "captions"];
+      var produceIds = ["weekly", "p2p", "captions", "brainstorm"];
       var prepareIds = ["news", "gtc"];
       var premierIds = ["schedule"];
       if (produceIds.indexOf(sec) >= 0) { catGlow = "rgba(247,176,65,"; catGlow2 = "rgba(224,99,71,"; }
@@ -2260,6 +2262,7 @@ export default function App() {
         {sec === "settings" && !analyst && <PoastSettings />}
         {sec === "weekly" && <SAWeekly />}
         {sec === "captions" && <ClipCaptions />}
+        {sec === "brainstorm" && <Brainstorm />}
         {sec === "carousel" && <Carousel />}
         {sec === "sloptop" && <SlopTop />}
         {sec === "broll" && <BRollLibrary />}
