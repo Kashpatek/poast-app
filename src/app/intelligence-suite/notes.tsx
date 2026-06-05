@@ -1,23 +1,32 @@
 "use client";
 
 // NotesPanel — IntelligenceSUITE / Notes (slot 8).
-// Quick research capture: textarea → list of note cards. Persisted to
-// localStorage immediately so reloads are instant, then mirrored to
-// Supabase via /api/db (id="is-notes-master") for cross-session sync.
-// On mount we hydrate from LS first; the remote fetch runs in parallel
-// and we keep whichever side has the newer updatedAt.
+// Three-pane research notebook. Notion-meets-Bear vibe.
+// LEFT  · sections + tag chips + pinned shortcuts.
+// MIDDLE · note list (search + selected highlight).
+// RIGHT · editor (markdown preview + bidirectional [[link]] resolution).
+// Persisted to localStorage immediately so reloads are instant, then
+// mirrored to Supabase via /api/db (id="is-notes-master") for cross-
+// session sync. Legacy single-field notes are migrated on first read.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Pin, PinOff, Trash2, Copy, Search } from "lucide-react";
+import { Pin, PinOff, Trash2, Copy, Search, StickyNote, Plus, Archive, Eye, EyeOff, FileText, Hash, Inbox, BookOpen, Lightbulb, Microscope } from "lucide-react";
 import { D, ft, gf, mn, copyText, uid } from "../shared-constants";
 import { showToast } from "../toast-context";
 import { SendToChip } from "../components/send-to-chip";
+import { useShortcuts } from "../keyboard-shortcuts";
+
+// ─── types ──────────────────────────────────────────────────────────
+type Section = "inbox" | "reading" | "ideas" | "research" | "archive";
 
 interface Note {
   id: string;
+  title: string;
   body: string;
+  section: Section;
   tags: string[];
   pinned: boolean;
+  archived: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -31,13 +40,19 @@ const LS_KEY = "poast-is-notes";
 const DB_TABLE = "projects";
 const DB_ID = "is-notes-master";
 const DB_TYPE = "is-notes";
-const MAX_LINES_COLLAPSED = 8;
+
+const SECTIONS: { id: Section; label: string; Icon: typeof Inbox }[] = [
+  { id: "inbox",    label: "Inbox",    Icon: Inbox },
+  { id: "reading",  label: "Reading",  Icon: BookOpen },
+  { id: "ideas",    label: "Ideas",    Icon: Lightbulb },
+  { id: "research", label: "Research", Icon: Microscope },
+  { id: "archive",  label: "Archive",  Icon: Archive },
+];
 
 // ─── helpers ────────────────────────────────────────────────────────
 function extractTags(body: string): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
-  // #tag — letters/digits/underscore/dash, anchored on a non-word boundary.
   const re = /(^|[^\w#])#([A-Za-z0-9_\-]{1,40})/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(body)) !== null) {
@@ -48,6 +63,13 @@ function extractTags(body: string): string[] {
     }
   }
   return out;
+}
+
+function extractTitle(body: string): string {
+  const first = (body.split(/\r?\n/)[0] || "").trim();
+  if (!first) return "Untitled";
+  const cleaned = first.replace(/^#+\s*/, "").replace(/\*\*/g, "").replace(/\*/g, "");
+  return cleaned.slice(0, 60) || "Untitled";
 }
 
 function relativeTime(ts: number): string {
@@ -68,13 +90,27 @@ function relativeTime(ts: number): string {
   return Math.floor(d / 365) + "y ago";
 }
 
+function migrate(raw: unknown): Note {
+  const r = raw as Record<string, unknown>;
+  const id = typeof r.id === "string" ? r.id : uid("note");
+  const body = typeof r.body === "string" ? r.body : "";
+  const tags = Array.isArray(r.tags) ? (r.tags as string[]).filter(t => typeof t === "string") : extractTags(body);
+  const pinned = r.pinned === true;
+  const archived = r.archived === true;
+  const createdAt = typeof r.createdAt === "number" ? r.createdAt : Date.now();
+  const updatedAt = typeof r.updatedAt === "number" ? r.updatedAt : createdAt;
+  const title = typeof r.title === "string" && r.title ? r.title : extractTitle(body);
+  const section: Section = (typeof r.section === "string" && SECTIONS.some(s => s.id === r.section)) ? (r.section as Section) : "inbox";
+  return { id, title, body, section, tags, pinned, archived, createdAt, updatedAt };
+}
+
 function readLS(): NotesEnvelope | null {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as NotesEnvelope;
     if (!parsed || !Array.isArray(parsed.notes)) return null;
-    return parsed;
+    return { notes: parsed.notes.map(migrate), updatedAt: parsed.updatedAt || Date.now() };
   } catch {
     return null;
   }
@@ -88,525 +124,552 @@ function writeLS(env: NotesEnvelope): void {
   }
 }
 
+// Minimal homemade markdown → JSX. Covers # heading, **bold**, *italic*,
+// `code`, > quote, - bullet, [text](url), [[wikilink]]. No new dep.
+function renderMarkdown(body: string, onLink: (target: string) => void): React.ReactNode {
+  const lines = body.split(/\r?\n/);
+  const blocks: React.ReactNode[] = [];
+  let bulletBuf: string[] = [];
+
+  function flushBullet() {
+    if (bulletBuf.length === 0) return;
+    blocks.push(
+      <ul key={"ul-" + blocks.length} style={{ paddingLeft: 22, margin: "6px 0", color: D.tx, fontFamily: ft, fontSize: 14, lineHeight: 1.6 }}>
+        {bulletBuf.map((b, i) => <li key={i} style={{ marginBottom: 4 }}>{inline(b)}</li>)}
+      </ul>
+    );
+    bulletBuf = [];
+  }
+
+  function inline(text: string): React.ReactNode {
+    // Bidirectional [[wikilink]] first — they may contain spaces.
+    const parts: React.ReactNode[] = [];
+    const re = /(\[\[[^\]]+\]\]|\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    let idx = 0;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) parts.push(<span key={"t" + idx++}>{text.slice(last, m.index)}</span>);
+      const tok = m[0];
+      if (tok.startsWith("[[")) {
+        const target = tok.slice(2, -2).trim();
+        parts.push(<a key={"w" + idx++} onClick={() => onLink(target)} style={{ color: D.blue, cursor: "pointer", textDecoration: "underline", textDecorationStyle: "dotted" }}>{target}</a>);
+      } else if (tok.startsWith("[")) {
+        const linkMatch = tok.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+        if (linkMatch) {
+          parts.push(<a key={"l" + idx++} href={linkMatch[2]} target="_blank" rel="noopener noreferrer" style={{ color: D.blue, textDecoration: "underline" }}>{linkMatch[1]}</a>);
+        } else {
+          parts.push(<span key={"l" + idx++}>{tok}</span>);
+        }
+      } else if (tok.startsWith("**")) {
+        parts.push(<strong key={"b" + idx++} style={{ color: D.tx }}>{tok.slice(2, -2)}</strong>);
+      } else if (tok.startsWith("*")) {
+        parts.push(<em key={"i" + idx++}>{tok.slice(1, -1)}</em>);
+      } else if (tok.startsWith("`")) {
+        parts.push(<code key={"c" + idx++} style={{ fontFamily: mn, fontSize: 12.5, padding: "1px 5px", borderRadius: 4, background: "rgba(255,255,255,0.06)", border: "1px solid " + D.border, color: D.amber }}>{tok.slice(1, -1)}</code>);
+      }
+      last = m.index + tok.length;
+    }
+    if (last < text.length) parts.push(<span key={"t" + idx++}>{text.slice(last)}</span>);
+    return <>{parts}</>;
+  }
+
+  lines.forEach((raw, i) => {
+    if (raw.startsWith("- ") || raw.startsWith("* ")) {
+      bulletBuf.push(raw.slice(2));
+      return;
+    }
+    flushBullet();
+    if (raw.startsWith("# ")) {
+      blocks.push(<h2 key={i} style={{ fontFamily: gf, fontSize: 24, fontWeight: 800, color: D.tx, margin: "14px 0 6px", letterSpacing: -0.4 }}>{inline(raw.slice(2))}</h2>);
+    } else if (raw.startsWith("## ")) {
+      blocks.push(<h3 key={i} style={{ fontFamily: gf, fontSize: 18, fontWeight: 700, color: D.tx, margin: "12px 0 4px" }}>{inline(raw.slice(3))}</h3>);
+    } else if (raw.startsWith("> ")) {
+      blocks.push(
+        <blockquote key={i} style={{ borderLeft: "3px solid " + D.amber + "55", padding: "4px 12px", color: D.txm, fontFamily: ft, fontSize: 14, margin: "6px 0", fontStyle: "italic" }}>
+          {inline(raw.slice(2))}
+        </blockquote>
+      );
+    } else if (raw.trim() === "") {
+      blocks.push(<div key={i} style={{ height: 8 }} />);
+    } else {
+      blocks.push(<p key={i} style={{ fontFamily: ft, fontSize: 14, color: D.tx, margin: "4px 0", lineHeight: 1.6 }}>{inline(raw)}</p>);
+    }
+  });
+  flushBullet();
+  return <>{blocks}</>;
+}
+
+// Find notes that reference the given title via [[...]].
+function findBacklinks(notes: Note[], title: string, selfId: string): Note[] {
+  if (!title) return [];
+  const needle = title.toLowerCase();
+  return notes.filter(n => {
+    if (n.id === selfId) return false;
+    const re = /\[\[([^\]]+)\]\]/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(n.body)) !== null) {
+      if (m[1].trim().toLowerCase() === needle) return true;
+    }
+    return false;
+  });
+}
+
 // ─── component ──────────────────────────────────────────────────────
 export default function NotesPanel() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [hydrated, setHydrated] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [query, setQuery] = useState("");
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [section, setSection] = useState<Section>("inbox");
   const [activeTag, setActiveTag] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [query, setQuery] = useState("");
+  const [preview, setPreview] = useState(false);
 
-  const draftRef = useRef<HTMLTextAreaElement | null>(null);
-  const lastSavedRef = useRef<string>("");
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const titleRef = useRef<HTMLInputElement | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedRef = useRef<string>("");
 
-  // Hydrate: LS first (instant paint), then merge with remote if remote
-  // is newer. We compare envelope.updatedAt rather than per-note ts so
-  // a stale local cache from a different device can't silently win.
-  useEffect(function () {
+  // Hydrate: LS first, then merge with remote if remote is newer.
+  useEffect(() => {
     const local = readLS();
     if (local) {
       setNotes(local.notes);
-      lastSavedRef.current = JSON.stringify({ notes: local.notes });
+      setHydrated(true);
     }
-    setHydrated(true);
-    let cancelled = false;
-    (async function () {
+    (async () => {
       try {
-        const res = await fetch("/api/db?table=" + DB_TABLE + "&id=" + DB_ID);
-        if (!res.ok) return;
-        const j = await res.json();
-        const row = j.data;
-        if (!row || cancelled) return;
-        const data = row.data as NotesEnvelope | undefined;
-        if (!data || !Array.isArray(data.notes)) return;
-        const localStamp = local ? local.updatedAt : 0;
-        const remoteStamp = data.updatedAt || 0;
-        if (remoteStamp >= localStamp) {
-          setNotes(data.notes);
-          writeLS({ notes: data.notes, updatedAt: remoteStamp });
-          lastSavedRef.current = JSON.stringify({ notes: data.notes });
+        const r = await fetch("/api/db?table=" + DB_TABLE + "&id=" + DB_ID);
+        const res = await r.json();
+        const remote: NotesEnvelope | null = res?.data?.data || null;
+        if (remote && Array.isArray(remote.notes)) {
+          const remoteEnv: NotesEnvelope = { notes: remote.notes.map(migrate), updatedAt: remote.updatedAt || 0 };
+          if (!local || remoteEnv.updatedAt > local.updatedAt) {
+            setNotes(remoteEnv.notes);
+            writeLS(remoteEnv);
+          }
         }
-      } catch {
-        /* offline — LS already populated UI */
-      }
+      } catch { /* offline */ }
+      setHydrated(true);
     })();
-    return function () { cancelled = true; };
   }, []);
 
-  // Debounced persist. Mirrors to LS synchronously (so a reload right
-  // after a keystroke doesn't lose it) and to the DB on a 500ms trail.
-  useEffect(function () {
+  // Debounced sync to LS + remote whenever notes change after hydration.
+  useEffect(() => {
     if (!hydrated) return;
-    const serialized = JSON.stringify({ notes: notes });
-    if (serialized === lastSavedRef.current) return;
-    const stamp = Date.now();
-    writeLS({ notes: notes, updatedAt: stamp });
+    const env: NotesEnvelope = { notes, updatedAt: Date.now() };
+    writeLS(env);
+    const serial = JSON.stringify(notes);
+    if (serial === lastSavedRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(function () {
-      lastSavedRef.current = serialized;
-      void fetch("/api/db", {
+    saveTimerRef.current = setTimeout(() => {
+      lastSavedRef.current = serial;
+      fetch("/api/db", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           table: DB_TABLE,
-          data: {
-            id: DB_ID,
-            name: "IS Notes",
-            type: DB_TYPE,
-            data: { notes: notes, updatedAt: stamp },
-            updated_at: new Date().toISOString(),
-          },
+          data: { id: DB_ID, name: "IntelligenceSUITE Notes", type: DB_TYPE, data: env, updated_at: new Date(env.updatedAt).toISOString() },
         }),
-      }).catch(function () { /* swallow — LS is still authoritative */ });
-    }, 500);
-    return function () {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
+      }).catch(() => { /* fail-quiet */ });
+    }, 900);
   }, [notes, hydrated]);
 
-  // ── actions ─────────────────────────────────────────────────
-  function addNote() {
-    const body = draft.trim();
-    if (!body) return;
+  // Derived view.
+  const tagCloud = useMemo(() => {
+    const map = new Map<string, number>();
+    notes.forEach(n => n.tags.forEach(t => map.set(t, (map.get(t) || 0) + 1)));
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]).slice(0, 24);
+  }, [notes]);
+
+  const sectionCounts = useMemo(() => {
+    const c: Record<Section, number> = { inbox: 0, reading: 0, ideas: 0, research: 0, archive: 0 };
+    notes.forEach(n => { c[n.section] = (c[n.section] || 0) + 1; });
+    return c;
+  }, [notes]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return notes
+      .filter(n => n.section === section)
+      .filter(n => !activeTag || n.tags.includes(activeTag))
+      .filter(n => !q || n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q) || n.tags.some(t => t.includes(q)))
+      .sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return b.updatedAt - a.updatedAt;
+      });
+  }, [notes, section, activeTag, query]);
+
+  const pinned = useMemo(() => notes.filter(n => n.pinned && !n.archived).slice(0, 6), [notes]);
+
+  const active = useMemo(() => notes.find(n => n.id === activeId) || null, [notes, activeId]);
+  const backlinks = useMemo(() => active ? findBacklinks(notes, active.title, active.id) : [], [notes, active]);
+
+  // ── actions ──────────────────────────────────────────────────────
+  function newNote() {
     const now = Date.now();
     const note: Note = {
       id: uid("note"),
-      body: body,
-      tags: extractTags(body),
+      title: "Untitled",
+      body: "",
+      section,
+      tags: [],
       pinned: false,
+      archived: false,
       createdAt: now,
       updatedAt: now,
     };
-    setNotes(function (cur) { return [note, ...cur]; });
-    setDraft("");
-    showToast("Note captured.", "success");
-    if (draftRef.current) draftRef.current.focus();
+    setNotes(prev => [note, ...prev]);
+    setActiveId(note.id);
+    setPreview(false);
+    setTimeout(() => { titleRef.current?.focus(); titleRef.current?.select(); }, 30);
   }
 
-  function deleteNote(id: string) {
-    setNotes(function (cur) { return cur.filter(function (n) { return n.id !== id; }); });
-    showToast("Note deleted.", "info");
+  function updateNote(id: string, patch: Partial<Note>) {
+    setNotes(prev => prev.map(n => {
+      if (n.id !== id) return n;
+      const merged = { ...n, ...patch, updatedAt: Date.now() };
+      if ("body" in patch && typeof patch.body === "string") {
+        merged.tags = extractTags(patch.body);
+        if (!patch.title && (n.title === "Untitled" || !n.title)) merged.title = extractTitle(patch.body);
+      }
+      return merged;
+    }));
+  }
+
+  function setActiveBody(body: string) {
+    if (!active) return;
+    updateNote(active.id, { body });
+  }
+
+  function setActiveTitle(title: string) {
+    if (!active) return;
+    updateNote(active.id, { title });
   }
 
   function togglePin(id: string) {
-    setNotes(function (cur) {
-      return cur.map(function (n) {
-        if (n.id !== id) return n;
-        return { ...n, pinned: !n.pinned, updatedAt: Date.now() };
-      });
-    });
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, pinned: !n.pinned, updatedAt: Date.now() } : n));
   }
 
-  function copyNote(body: string) {
-    if (copyText(body)) showToast("Note copied.", "success");
-    else showToast("Copy failed.", "error");
+  function archive(id: string) {
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, section: "archive", archived: true, updatedAt: Date.now() } : n));
+    showToast("Archived.", "info");
   }
 
-  // ── derived: tag universe + filtered list ──────────────────
-  const allTags = useMemo(function () {
-    const counts: Record<string, number> = {};
-    notes.forEach(function (n) {
-      n.tags.forEach(function (t) { counts[t] = (counts[t] || 0) + 1; });
-    });
-    return Object.entries(counts)
-      .sort(function (a, b) { return b[1] - a[1]; })
-      .map(function (entry) { return { tag: entry[0], count: entry[1] }; });
-  }, [notes]);
+  function deleteNote(id: string) {
+    setNotes(prev => prev.filter(n => n.id !== id));
+    if (activeId === id) setActiveId(null);
+    showToast("Deleted.", "info");
+  }
 
-  const visibleNotes = useMemo(function () {
-    const q = query.trim().toLowerCase();
-    return notes
-      .filter(function (n) {
-        if (activeTag && n.tags.indexOf(activeTag) === -1) return false;
-        if (q && n.body.toLowerCase().indexOf(q) === -1) return false;
-        return true;
-      })
-      .slice()
-      .sort(function (a, b) {
-        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-        return b.createdAt - a.createdAt;
-      });
-  }, [notes, query, activeTag]);
+  function setActiveSection(id: string, next: Section) {
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, section: next, archived: next === "archive", updatedAt: Date.now() } : n));
+  }
 
-  // ── render ──────────────────────────────────────────────────
+  function wrapSelection(marker: string) {
+    if (!active || !bodyRef.current) return;
+    const ta = bodyRef.current;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const before = active.body.slice(0, start);
+    const middle = active.body.slice(start, end);
+    const after = active.body.slice(end);
+    const next = before + marker + middle + marker + after;
+    setActiveBody(next);
+    setTimeout(() => {
+      ta.focus();
+      ta.selectionStart = start + marker.length;
+      ta.selectionEnd = end + marker.length;
+    }, 0);
+  }
+
+  function jumpToTitle(target: string) {
+    const t = target.trim().toLowerCase();
+    const hit = notes.find(n => n.title.toLowerCase() === t);
+    if (hit) {
+      setSection(hit.section);
+      setActiveTag(null);
+      setActiveId(hit.id);
+      return;
+    }
+    // Create a new note with that title.
+    const now = Date.now();
+    const note: Note = {
+      id: uid("note"),
+      title: target.trim(),
+      body: "",
+      section: "inbox",
+      tags: [],
+      pinned: false,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    setNotes(prev => [note, ...prev]);
+    setSection("inbox");
+    setActiveId(note.id);
+    setPreview(false);
+    showToast("Created \"" + target.trim() + "\".", "success");
+  }
+
+  // ── shortcuts ────────────────────────────────────────────────────
+  const newNoteRef = useRef(newNote);
+  const focusSearchRef = useRef(() => { searchRef.current?.focus(); });
+  const wrapBoldRef = useRef(() => wrapSelection("**"));
+  const wrapItalicRef = useRef(() => wrapSelection("*"));
+  const togglePinRef = useRef(() => { if (active) togglePin(active.id); });
+  newNoteRef.current = newNote;
+  focusSearchRef.current = () => { searchRef.current?.focus(); };
+  wrapBoldRef.current = () => wrapSelection("**");
+  wrapItalicRef.current = () => wrapSelection("*");
+  togglePinRef.current = () => { if (active) togglePin(active.id); };
+
+  useShortcuts({
+    "$mod+n": { description: "New note", handler: () => newNoteRef.current() },
+    "$mod+f": { description: "Focus search", handler: () => focusSearchRef.current() },
+    "$mod+b": { description: "Bold selection", handler: () => wrapBoldRef.current() },
+    "$mod+i": { description: "Italic selection", handler: () => wrapItalicRef.current() },
+    "$mod+p": { description: "Toggle pin on current note", handler: () => togglePinRef.current() },
+  }, { scope: "Notes" });
+
+  // ── render ───────────────────────────────────────────────────────
   return (
-    <div style={{
-      maxWidth: 920,
-      margin: "0 auto",
-      padding: "28px 22px 56px 22px",
-      fontFamily: ft,
-    }}>
-      {/* Header */}
-      <div style={{ marginBottom: 22 }}>
-        <div style={{ fontFamily: gf, fontSize: 38, fontWeight: 800, color: D.tx, letterSpacing: -0.8, lineHeight: 1.05 }}>
-          Notes
-        </div>
-        <div style={{ fontFamily: ft, fontSize: 14, color: D.txm, marginTop: 6 }}>
-          Quick research capture and reading list.
-        </div>
-      </div>
-
-      {/* Quick-add */}
-      <div style={{
-        background: D.card,
-        border: "1px solid " + D.border,
-        borderRadius: 12,
-        padding: 14,
-        marginBottom: 22,
+    <div style={{ display: "grid", gridTemplateColumns: "240px 360px 1fr", gap: 14, height: "calc(100vh - 220px)", minHeight: 520, fontFamily: ft, color: D.tx }}>
+      {/* LEFT · sidebar */}
+      <aside style={{
+        background: D.card, border: "1px solid " + D.border, borderRadius: 14,
+        padding: 14, overflow: "auto", display: "flex", flexDirection: "column", gap: 14,
       }}>
-        <textarea
-          ref={draftRef}
-          value={draft}
-          onChange={function (e) { setDraft(e.target.value); }}
-          onKeyDown={function (e) {
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-              e.preventDefault();
-              addNote();
-            }
-          }}
-          rows={3}
-          placeholder="Capture a thought, quote, article, or #idea... (⌘+Enter to save)"
-          style={{
-            width: "100%",
-            background: "transparent",
-            border: "none",
-            outline: "none",
-            resize: "vertical",
-            color: D.tx,
-            fontFamily: ft,
-            fontSize: 14,
-            lineHeight: 1.5,
-            minHeight: 64,
-          }}
-        />
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
-          <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.8, textTransform: "uppercase" }}>
-            #tags become filter chips
+        <button onClick={newNote} style={{
+          padding: "10px 12px", background: D.amber, color: "#060608", border: "none", borderRadius: 8,
+          fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 1.4, textTransform: "uppercase", cursor: "pointer",
+          display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+        }}><Plus size={13} strokeWidth={2.2} /> New note</button>
+
+        <div>
+          <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Sections</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {SECTIONS.map(s => {
+              const isActive = section === s.id;
+              return (
+                <button key={s.id} onClick={() => { setSection(s.id); setActiveTag(null); }} style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "8px 10px", borderRadius: 6,
+                  background: isActive ? D.amber + "14" : "transparent",
+                  border: "1px solid " + (isActive ? D.amber + "55" : "transparent"),
+                  color: isActive ? D.amber : D.tx,
+                  fontFamily: ft, fontSize: 13, cursor: "pointer", textAlign: "left",
+                }}>
+                  <s.Icon size={13} strokeWidth={1.8} color={isActive ? D.amber : D.txm} />
+                  <span style={{ flex: 1 }}>{s.label}</span>
+                  <span style={{ fontFamily: mn, fontSize: 10, color: D.txd }}>{sectionCounts[s.id] || 0}</span>
+                </button>
+              );
+            })}
           </div>
-          <button
-            onClick={addNote}
-            disabled={!draft.trim()}
-            style={{
-              padding: "8px 18px",
-              borderRadius: 999,
-              border: "none",
-              background: draft.trim() ? D.amber : "rgba(247,176,65,0.20)",
-              color: draft.trim() ? "#0A0A0E" : D.txd,
-              fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 1.4,
-              textTransform: "uppercase",
-              cursor: draft.trim() ? "pointer" : "default",
-              transition: "all 0.15s ease",
-            }}
-          >
-            Add note
-          </button>
         </div>
-      </div>
 
-      {/* Search */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 10,
-        padding: "10px 12px",
-        background: D.card,
-        border: "1px solid " + D.border,
-        borderRadius: 10,
-        marginBottom: 14,
-      }}>
-        <Search size={13} strokeWidth={2.4} color={D.txm} />
-        <input
-          type="text"
-          value={query}
-          onChange={function (e) { setQuery(e.target.value); }}
-          placeholder="Search notes..."
-          style={{
-            flex: 1,
-            background: "transparent",
-            border: "none",
-            outline: "none",
-            color: D.tx,
-            fontFamily: ft, fontSize: 13,
-          }}
-        />
-        {query && (
-          <span
-            onClick={function () { setQuery(""); }}
-            role="button"
-            style={{
-              fontFamily: mn, fontSize: 9, color: D.txd, cursor: "pointer",
-              padding: "3px 8px", borderRadius: 6, border: "1px solid " + D.border,
-            }}
-          >
-            Clear
-          </span>
+        {tagCloud.length > 0 && (
+          <div>
+            <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Tags</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+              {tagCloud.map(([t, count]) => {
+                const isActive = activeTag === t;
+                return (
+                  <button key={t} onClick={() => setActiveTag(isActive ? null : t)} style={{
+                    padding: "3px 8px", borderRadius: 999,
+                    background: isActive ? D.violet + "22" : "rgba(255,255,255,0.04)",
+                    border: "1px solid " + (isActive ? D.violet + "55" : D.border),
+                    color: isActive ? D.violet : D.txm,
+                    fontFamily: mn, fontSize: 10, fontWeight: 600, cursor: "pointer",
+                  }}>#{t} <span style={{ opacity: 0.55 }}>{count}</span></button>
+                );
+              })}
+            </div>
+          </div>
         )}
+
+        {pinned.length > 0 && (
+          <div>
+            <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Pinned</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {pinned.map(n => (
+                <button key={n.id} onClick={() => { setSection(n.section); setActiveTag(null); setActiveId(n.id); }} style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "6px 8px", borderRadius: 6,
+                  background: activeId === n.id ? D.amber + "10" : "transparent",
+                  border: "1px solid transparent",
+                  color: D.tx, fontFamily: ft, fontSize: 12.5, cursor: "pointer", textAlign: "left",
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>
+                  <Pin size={11} strokeWidth={1.8} color={D.amber} />
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{n.title}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </aside>
+
+      {/* MIDDLE · note list */}
+      <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: 12, borderBottom: "1px solid " + D.border, display: "flex", alignItems: "center", gap: 8 }}>
+          <Search size={14} strokeWidth={1.8} color={D.txd} />
+          <input
+            ref={searchRef}
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search notes…"
+            style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: D.tx, fontFamily: ft, fontSize: 13 }}
+          />
+          {query && (
+            <button onClick={() => setQuery("")} style={{ background: "transparent", border: "none", color: D.txd, cursor: "pointer", fontFamily: mn, fontSize: 11 }}>×</button>
+          )}
+        </div>
+        <div style={{ flex: 1, overflow: "auto" }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: 28, textAlign: "center", fontFamily: ft, fontSize: 13, color: D.txm }}>
+              {query ? "No notes match \"" + query + "\"." : "No notes in " + section + " yet — try + New note."}
+            </div>
+          ) : (
+            filtered.map(n => {
+              const isActive = activeId === n.id;
+              return (
+                <div key={n.id} onClick={() => { setActiveId(n.id); setPreview(false); }} style={{
+                  padding: "12px 14px",
+                  borderLeft: isActive ? "2px solid " + D.amber : "2px solid transparent",
+                  borderBottom: "1px solid " + D.border,
+                  background: isActive ? D.amber + "0A" : "transparent",
+                  cursor: "pointer",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                    {n.pinned && <Pin size={10} strokeWidth={2} color={D.amber} />}
+                    <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: D.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{n.title}</div>
+                  </div>
+                  <div style={{ fontFamily: ft, fontSize: 11, color: D.txm, lineHeight: 1.4, marginBottom: 4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                    {n.body.replace(/[#*`>[\]]/g, "").slice(0, 200) || <em style={{ color: D.txd }}>empty</em>}
+                  </div>
+                  <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.8 }}>{relativeTime(n.updatedAt)}</div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
-      {/* Tag filter row */}
-      {allTags.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 18 }}>
-          <TagChip
-            label="All"
-            active={activeTag === null}
-            onClick={function () { setActiveTag(null); }}
-          />
-          {allTags.map(function (entry) {
-            return (
-              <TagChip
-                key={entry.tag}
-                label={"#" + entry.tag}
-                count={entry.count}
-                active={activeTag === entry.tag}
-                onClick={function () { setActiveTag(activeTag === entry.tag ? null : entry.tag); }}
-              />
-            );
-          })}
-        </div>
-      )}
-
-      {/* Notes list */}
-      {visibleNotes.length === 0 ? (
-        <EmptyState hasNotes={notes.length > 0} />
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {visibleNotes.map(function (n) {
-            return (
-              <NoteCard
-                key={n.id}
-                note={n}
-                expanded={!!expanded[n.id]}
-                onToggleExpand={function () {
-                  setExpanded(function (cur) {
-                    const next = { ...cur };
-                    next[n.id] = !cur[n.id];
-                    return next;
-                  });
-                }}
-                onCopy={function () { copyNote(n.body); }}
-                onPin={function () { togglePin(n.id); }}
-                onDelete={function () { deleteNote(n.id); }}
-                onTagClick={function (tag) { setActiveTag(activeTag === tag ? null : tag); }}
-              />
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── subcomponents ──────────────────────────────────────────────────
-interface TagChipProps {
-  label: string;
-  count?: number;
-  active: boolean;
-  onClick: () => void;
-}
-
-function TagChip({ label, count, active, onClick }: TagChipProps) {
-  const [hover, setHover] = useState(false);
-  const on = active || hover;
-  return (
-    <span
-      role="button"
-      onClick={onClick}
-      onMouseEnter={function () { setHover(true); }}
-      onMouseLeave={function () { setHover(false); }}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 5,
-        padding: "5px 10px",
-        borderRadius: 999,
-        background: active ? D.amber + "18" : (hover ? "rgba(255,255,255,0.04)" : "transparent"),
-        border: "1px solid " + (active ? D.amber + "55" : D.border),
-        color: on ? D.amber : D.txm,
-        fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.6,
-        cursor: "pointer",
-        userSelect: "none",
-        transition: "all 0.15s ease",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {label}
-      {typeof count === "number" && (
-        <span style={{ color: active ? D.amber : D.txd, opacity: 0.8 }}>· {count}</span>
-      )}
-    </span>
-  );
-}
-
-interface NoteCardProps {
-  note: Note;
-  expanded: boolean;
-  onToggleExpand: () => void;
-  onCopy: () => void;
-  onPin: () => void;
-  onDelete: () => void;
-  onTagClick: (tag: string) => void;
-}
-
-function NoteCard({ note, expanded, onToggleExpand, onCopy, onPin, onDelete, onTagClick }: NoteCardProps) {
-  const lines = note.body.split("\n");
-  const tooLong = lines.length > MAX_LINES_COLLAPSED;
-  const displayBody = expanded || !tooLong
-    ? note.body
-    : lines.slice(0, MAX_LINES_COLLAPSED).join("\n");
-
-  return (
-    <div style={{
-      background: note.pinned
-        ? "linear-gradient(180deg, rgba(247,176,65,0.05), " + D.card + " 60%)"
-        : D.card,
-      border: "1px solid " + (note.pinned ? D.amber + "33" : D.border),
-      borderRadius: 12,
-      padding: 14,
-      display: "flex", flexDirection: "column", gap: 10,
-    }}>
-      {/* Body */}
-      <div style={{
-        fontFamily: ft, fontSize: 14, color: D.tx,
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-word",
-        lineHeight: 1.55,
-      }}>
-        {displayBody}
-        {tooLong && (
+      {/* RIGHT · editor */}
+      <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        {!active ? (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 32 }}>
+            <StickyNote size={64} strokeWidth={1.4} color={D.amber} style={{ opacity: 0.4 }} />
+            <div style={{ fontFamily: gf, fontSize: 22, fontWeight: 800, color: D.tx, letterSpacing: -0.3 }}>Capture your first thought.</div>
+            <div style={{ fontFamily: ft, fontSize: 13, color: D.txm, textAlign: "center", maxWidth: 360 }}>Quotes, ideas, links, half-formed angles — drop them here and use #tags + [[backlinks]] to weave them together.</div>
+            <button onClick={newNote} style={{
+              padding: "10px 18px", background: D.amber, color: "#060608", border: "none", borderRadius: 8,
+              fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 1.4, textTransform: "uppercase", cursor: "pointer",
+              display: "inline-flex", alignItems: "center", gap: 6,
+            }}><Plus size={13} strokeWidth={2.2} /> New note</button>
+          </div>
+        ) : (
           <>
-            {!expanded && <span style={{ color: D.txd }}>…</span>}
-            <span
-              role="button"
-              onClick={onToggleExpand}
+            {/* Editor toolbar */}
+            <div style={{ padding: "10px 14px", borderBottom: "1px solid " + D.border, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <ToolbarBtn label={active.pinned ? "Unpin" : "Pin"} Icon={active.pinned ? PinOff : Pin} onClick={() => togglePin(active.id)} />
+              <ToolbarBtn label="Archive" Icon={Archive} onClick={() => archive(active.id)} />
+              <ToolbarBtn label="Copy" Icon={Copy} onClick={() => { copyText(active.body); showToast("Copied.", "success"); }} />
+              <ToolbarBtn label={preview ? "Edit" : "Preview"} Icon={preview ? EyeOff : Eye} onClick={() => setPreview(p => !p)} />
+              <ToolbarBtn label="Export .md" Icon={FileText} onClick={() => {
+                const blob = new Blob([active.body], { type: "text/markdown" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = (active.title || "note").replace(/[^A-Za-z0-9_-]/g, "_") + ".md";
+                document.body.appendChild(a); a.click(); a.remove();
+                URL.revokeObjectURL(url);
+              }} />
+              <ToolbarBtn label="Delete" Icon={Trash2} onClick={() => deleteNote(active.id)} danger />
+              <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+                <select
+                  value={active.section}
+                  onChange={e => setActiveSection(active.id, e.target.value as Section)}
+                  style={{
+                    background: "rgba(255,255,255,0.04)", border: "1px solid " + D.border, borderRadius: 6,
+                    color: D.tx, fontFamily: mn, fontSize: 10, padding: "5px 8px", cursor: "pointer", outline: "none",
+                  }}>
+                  {SECTIONS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                </select>
+                <SendToChip text={active.body} sourceTool="notes" kind="caption" />
+              </div>
+            </div>
+
+            {/* Title */}
+            <input
+              ref={titleRef}
+              value={active.title}
+              onChange={e => setActiveTitle(e.target.value)}
+              placeholder="Untitled"
               style={{
-                display: "inline-block",
-                marginLeft: 8,
-                fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.amber,
-                letterSpacing: 0.6, textTransform: "uppercase",
-                cursor: "pointer",
+                width: "100%", padding: "16px 22px 4px", background: "transparent", border: "none", outline: "none",
+                color: D.tx, fontFamily: gf, fontSize: 24, fontWeight: 800, letterSpacing: -0.4, boxSizing: "border-box",
               }}
-            >
-              {expanded ? "Show less" : "Show more"}
-            </span>
+            />
+
+            {/* Tag row */}
+            {active.tags.length > 0 && (
+              <div style={{ padding: "0 22px 6px", display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {active.tags.map(t => (
+                  <span key={t} style={{ fontFamily: mn, fontSize: 10, color: D.violet, background: D.violet + "12", border: "1px solid " + D.violet + "33", borderRadius: 999, padding: "2px 8px" }}>#{t}</span>
+                ))}
+              </div>
+            )}
+
+            {/* Body — editor or preview */}
+            <div style={{ flex: 1, overflow: "auto", padding: "8px 22px 18px" }}>
+              {preview ? (
+                renderMarkdown(active.body, jumpToTitle)
+              ) : (
+                <textarea
+                  ref={bodyRef}
+                  value={active.body}
+                  onChange={e => setActiveBody(e.target.value)}
+                  placeholder="Start writing — supports # heading, **bold**, *italic*, [link](url), [[backlinks]], and #tags."
+                  style={{
+                    width: "100%", minHeight: "100%", background: "transparent", border: "none", outline: "none",
+                    color: D.tx, fontFamily: ft, fontSize: 14, lineHeight: 1.6, resize: "none", boxSizing: "border-box",
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Linked-notes panel */}
+            {backlinks.length > 0 && (
+              <div style={{ padding: "12px 22px", borderTop: "1px solid " + D.border, background: D.surface }}>
+                <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" }}>Linked from</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {backlinks.map(b => (
+                    <button key={b.id} onClick={() => { setSection(b.section); setActiveTag(null); setActiveId(b.id); }} style={{
+                      padding: "4px 10px", background: "rgba(255,255,255,0.04)", border: "1px solid " + D.border, borderRadius: 6,
+                      color: D.blue, fontFamily: ft, fontSize: 12, cursor: "pointer",
+                    }}>{b.title}</button>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
-
-      {/* Tags */}
-      {note.tags.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-          {note.tags.map(function (t) {
-            return (
-              <span
-                key={t}
-                role="button"
-                onClick={function () { onTagClick(t); }}
-                style={{
-                  fontFamily: mn, fontSize: 9, fontWeight: 700,
-                  color: D.amber,
-                  padding: "2px 7px",
-                  borderRadius: 999,
-                  background: D.amber + "10",
-                  border: "1px solid " + D.amber + "30",
-                  cursor: "pointer",
-                  letterSpacing: 0.4,
-                }}
-              >
-                #{t}
-              </span>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Footer */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        gap: 10,
-        flexWrap: "wrap",
-      }}>
-        <div style={{
-          fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.6,
-        }}>
-          {relativeTime(note.createdAt)}
-          {note.pinned && (
-            <span style={{ marginLeft: 8, color: D.amber }}>· pinned</span>
-          )}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <IconChip label="Copy" Icon={Copy} onClick={onCopy} />
-          <SendToChip text={note.body} sourceTool="notes" kind="other" />
-          <IconChip
-            label={note.pinned ? "Unpin" : "Pin"}
-            Icon={note.pinned ? PinOff : Pin}
-            onClick={onPin}
-            active={note.pinned}
-          />
-          <IconChip label="Delete" Icon={Trash2} onClick={onDelete} danger />
-        </div>
-      </div>
     </div>
   );
 }
 
-interface IconChipProps {
-  label: string;
-  Icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
-  onClick: () => void;
-  active?: boolean;
-  danger?: boolean;
-}
-
-function IconChip({ label, Icon, onClick, active, danger }: IconChipProps) {
-  const [hover, setHover] = useState(false);
-  const color = danger
-    ? (hover ? D.coral : "rgba(255,255,255,0.4)")
-    : active
-      ? D.amber
-      : (hover ? D.amber : "rgba(255,255,255,0.5)");
-  const borderColor = danger
-    ? (hover ? D.coral + "55" : D.border)
-    : active
-      ? D.amber + "55"
-      : (hover ? D.amber + "55" : D.border);
+function ToolbarBtn({ label, Icon, onClick, danger }: { label: string; Icon: typeof Pin; onClick: () => void; danger?: boolean }) {
   return (
-    <span
-      role="button"
-      title={label}
-      onClick={onClick}
-      onMouseEnter={function () { setHover(true); }}
-      onMouseLeave={function () { setHover(false); }}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 5,
-        fontFamily: mn, fontSize: 9, color: color,
-        cursor: "pointer",
-        padding: "3px 8px",
-        borderRadius: 6,
-        border: "1px solid " + borderColor,
-        background: (active || hover) && !danger ? D.amber + "08" : (hover && danger ? D.coral + "08" : "transparent"),
-        userSelect: "none",
-        transition: "all 0.15s ease",
-        whiteSpace: "nowrap",
-      }}
-    >
-      <Icon size={10} strokeWidth={2.4} />
-      <span>{label}</span>
-    </span>
-  );
-}
-
-function EmptyState({ hasNotes }: { hasNotes: boolean }) {
-  return (
-    <div style={{
-      padding: "40px 22px",
-      textAlign: "center",
-      border: "1px dashed " + D.border,
-      borderRadius: 12,
-      color: D.txm,
-      fontFamily: ft, fontSize: 13,
-      lineHeight: 1.55,
-    }}>
-      {hasNotes
-        ? "No notes match the current filter."
-        : "No notes yet. Capture ideas, articles, quotes, anything worth remembering."}
-    </div>
+    <button onClick={onClick} title={label} style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      padding: "5px 9px", borderRadius: 6,
+      background: "rgba(255,255,255,0.03)", border: "1px solid " + D.border,
+      color: danger ? D.coral : D.txm, fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+      cursor: "pointer", textTransform: "uppercase",
+    }}><Icon size={11} strokeWidth={1.8} />{label}</button>
   );
 }
