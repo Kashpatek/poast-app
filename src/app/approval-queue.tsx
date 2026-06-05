@@ -5,10 +5,12 @@
 // approve, request changes, or reject. Once approved, the draft is
 // marked ready_to_publish (or auto-routes to Buffer in a follow-up).
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { D, ft, gf, mn } from "./shared-constants";
 import { useUser } from "./user-context";
 import { confirmDialog } from "./dialog-context";
+import { useStore } from "./lib/store";
+import { showToast } from "./toast-context";
 
 interface ReviewItem {
   id: string;
@@ -58,6 +60,41 @@ export default function ApprovalQueue() {
       });
     } catch { /* ignore */ }
   }
+
+  // Ingest cross-tool handoffs from the SendToChip output bus. Each entry on
+  // the bus represents a "submit for review" intent; dedupe by output id via
+  // a ref so re-mounts and unrelated re-renders never double-add.
+  const outputs = useStore((s) => s.outputs);
+  const itemsRef = useRef<ReviewItem[]>(items);
+  itemsRef.current = items;
+  const seenOutputIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (loading) return;
+    const fresh = outputs.filter((o) => !seenOutputIds.current.has(o.id));
+    if (fresh.length === 0) return;
+    fresh.forEach((o) => seenOutputIds.current.add(o.id));
+    const known = new Set(itemsRef.current.map((i) => i.id));
+    const ingested: ReviewItem[] = [];
+    fresh.forEach((o) => {
+      const text = typeof o.payload === "string" ? o.payload : (o.preview || "");
+      if (!text.trim()) return;
+      const id = "rv-" + o.id;
+      if (known.has(id)) return;
+      ingested.push({
+        id,
+        title: (o.preview || text).slice(0, 80) || "Untitled draft",
+        content: text,
+        tool: o.sourceTool,
+        author: me,
+        status: "pending_review",
+        createdAt: new Date(o.ts).toISOString(),
+      });
+    });
+    if (ingested.length === 0) return;
+    persist([...ingested, ...itemsRef.current]);
+    const tools = Array.from(new Set(ingested.map((i) => i.tool))).join(", ");
+    showToast("Received " + ingested.length + " draft" + (ingested.length === 1 ? "" : "s") + " from " + tools + ".", "success");
+  }, [outputs, loading, me]);
 
   async function submit(item: ReviewItem) {
     await persist([item, ...items]);
