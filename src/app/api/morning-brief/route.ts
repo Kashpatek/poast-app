@@ -29,11 +29,26 @@ interface StorySeed {
   angle: string;
 }
 
+interface LeadStory {
+  headline: string;
+  body: string;
+  whyItMatters: string;
+  sourceUrl?: string;
+}
+
+interface DeeperRead {
+  headline: string;
+  source: string;
+  url?: string;
+}
+
 interface BriefPayload {
   topSignals: string[];
   storyIdeas: StorySeed[];
   moveFastAlert: string | null;
   competitorSummary: string;
+  leadStory: LeadStory | null;
+  deeperReads: DeeperRead[];
 }
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -88,30 +103,74 @@ WATCHLIST FOCUS: NVIDIA, AMD, Intel, TSMC, ASML, Broadcom, Micron, AVGO, hypersc
 
 Return ONLY valid JSON in this exact shape (no markdown fences):
 {
+  "leadStory": {
+    "headline": "The single biggest story of the day, written like a newspaper headline (8-14 words)",
+    "body": "Two to three short paragraphs (separated by \\n\\n) explaining the story in editorial prose. Be specific with numbers, names, and dates. No marketing fluff.",
+    "whyItMatters": "One or two sentences explaining the strategic implication for the semiconductor / AI infra industry",
+    "sourceUrl": "the most relevant source URL from the news above, or null if none fits"
+  },
   "topSignals": ["signal 1", "signal 2", "signal 3", "signal 4", "signal 5"],
   "storyIdeas": [
     { "title": "...", "angle": "why it matters in one sentence" },
     { "title": "...", "angle": "..." },
+    { "title": "...", "angle": "..." },
+    { "title": "...", "angle": "..." },
     { "title": "...", "angle": "..." }
   ],
   "moveFastAlert": "single sentence describing the one thing the team should publish on TODAY or null if nothing is urgent",
-  "competitorSummary": "2-3 sentence summary of what competitor analysts (The Information, Stratechery, Asianometry, Stratosphere, etc) are covering and any gap we can fill"
-}`;
+  "competitorSummary": "2-3 sentence summary of what competitor analysts (The Information, Stratechery, Asianometry, Stratosphere, etc) are covering and any gap we can fill",
+  "deeperReads": [
+    { "headline": "longer-form piece worth bookmarking", "source": "publication name", "url": "url if available, else null" },
+    { "headline": "...", "source": "...", "url": null },
+    { "headline": "...", "source": "...", "url": null },
+    { "headline": "...", "source": "...", "url": null }
+  ]
+}
+
+Notes:
+- leadStory must be the highest-impact story across all the signals above
+- storyIdeas should be exactly 5 distinct angles the editorial team can publish
+- deeperReads should be exactly 4 longer-form articles surfaced by the brief
+- Use the actual source URLs and publication names from the input news where possible`;
 }
 
 function parseBrief(raw: string): BriefPayload {
   const cleaned = raw.replace(/```json|```/g, "").trim();
   const data = JSON.parse(cleaned) as Partial<BriefPayload>;
+  let leadStory: LeadStory | null = null;
+  if (data.leadStory && typeof data.leadStory === "object") {
+    const ls = data.leadStory as Partial<LeadStory>;
+    const headline = String(ls.headline || "").trim();
+    if (headline) {
+      leadStory = {
+        headline,
+        body: String(ls.body || "").trim(),
+        whyItMatters: String(ls.whyItMatters || "").trim(),
+        sourceUrl: ls.sourceUrl ? String(ls.sourceUrl) : undefined,
+      };
+    }
+  }
   return {
     topSignals: Array.isArray(data.topSignals) ? data.topSignals.slice(0, 5).map((s) => String(s)) : [],
     storyIdeas: Array.isArray(data.storyIdeas)
-      ? data.storyIdeas.slice(0, 3).map((s) => ({
+      ? data.storyIdeas.slice(0, 5).map((s) => ({
           title: String((s as StorySeed)?.title || ""),
           angle: String((s as StorySeed)?.angle || ""),
         }))
       : [],
     moveFastAlert: data.moveFastAlert ? String(data.moveFastAlert) : null,
     competitorSummary: data.competitorSummary ? String(data.competitorSummary) : "",
+    leadStory,
+    deeperReads: Array.isArray(data.deeperReads)
+      ? data.deeperReads.slice(0, 4).map((d) => {
+          const dr = d as Partial<DeeperRead>;
+          return {
+            headline: String(dr.headline || "").trim(),
+            source: String(dr.source || "").trim(),
+            url: dr.url ? String(dr.url) : undefined,
+          };
+        }).filter((d) => d.headline.length > 0)
+      : [],
   };
 }
 
@@ -129,7 +188,7 @@ export async function POST(req: NextRequest) {
       provider,
       system: "You are a semiconductor and AI infrastructure intelligence editor. RESPOND ONLY IN VALID JSON. No markdown fences. Never use em dashes.",
       prompt,
-      maxTokens: 2000,
+      maxTokens: 3200,
     });
     const text = llmTextOf(r);
 
