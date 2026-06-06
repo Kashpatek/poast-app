@@ -2762,6 +2762,110 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
 }
 
 
+// ═══ ARCHIVE VIEW — primary view for browsing saved carousels ═══
+//
+// Mounted when the user clicks "Open Saved" from the welcome view. Shows
+// every archived carousel in a card grid (richer than the inline archive
+// strip), with rename/delete/open actions. Returns to the welcome view on
+// Back. Opening an item loads the carousel and jumps to the Edit step.
+function ArchiveView({
+  items,
+  loading,
+  filter,
+  setFilter,
+  userName,
+  onBack,
+  onOpen,
+  onRename,
+  onDelete,
+  onRefresh,
+}: {
+  items: Array<{ id: string; name?: string; data?: Record<string, unknown> }>;
+  loading: boolean;
+  filter: "all" | "mine";
+  setFilter: (f: "all" | "mine") => void;
+  userName: string;
+  onBack: () => void;
+  onOpen: (item: { id: string; data?: Record<string, unknown> }) => void;
+  onRename: (item: { id: string; name?: string; data?: Record<string, unknown> }, e: React.MouseEvent) => void;
+  onDelete: (item: { id: string }, e: React.MouseEvent) => void;
+  onRefresh: () => void;
+}) {
+  var _search = useState(""), search = _search[0], setSearch = _search[1];
+
+  var visible = filter === "mine"
+    ? items.filter(function(it) { return it.data && (it.data as Record<string, unknown>).createdBy === userName; })
+    : items;
+  if (search.trim()) {
+    var q = search.trim().toLowerCase();
+    visible = visible.filter(function(it) {
+      var n = (it.name || "").toLowerCase();
+      var src = String((it.data || {}).sourceUrl || "").toLowerCase();
+      return n.indexOf(q) !== -1 || src.indexOf(q) !== -1;
+    });
+  }
+
+  return <div>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+      <div>
+        <div style={{ fontFamily: ft, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.5 }}>Saved Carousels</div>
+        <div style={{ fontFamily: ft, fontSize: 14, color: C.txm, marginTop: 2 }}>Click any card to reopen at the Edit step.</div>
+      </div>
+      <button onClick={onBack} style={{ padding: "8px 16px", background: C.surface, border: "1px solid " + C.border, borderRadius: 8, fontFamily: ft, fontSize: 12, fontWeight: 700, color: C.txm, cursor: "pointer", letterSpacing: 0.3 }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.violet + "55"; e.currentTarget.style.color = C.violet; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.txm; }}>← Back to Suite</button>
+    </div>
+
+    <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 20 }}>
+      <input value={search} onChange={function(e) { setSearch(e.target.value); }} placeholder="Search saved carousels..." style={{ flex: 1, padding: "10px 14px", background: C.card, border: "1px solid " + C.border, borderRadius: 8, fontFamily: ft, fontSize: 13, color: C.tx, outline: "none" }} onFocus={function(e: React.FocusEvent<HTMLInputElement>) { e.currentTarget.style.borderColor = C.violet + "60"; }} onBlur={function(e: React.FocusEvent<HTMLInputElement>) { e.currentTarget.style.borderColor = C.border; }} />
+      <div style={{ display: "flex", gap: 6 }}>
+        {(["all", "mine"] as Array<"all" | "mine">).map(function(opt) {
+          var active = filter === opt;
+          return <button key={opt} onClick={function() { setFilter(opt); }} style={{ padding: "8px 14px", background: active ? C.violet + "20" : "transparent", border: "1px solid " + (active ? C.violet + "55" : C.border), borderRadius: 999, fontFamily: mn, fontSize: 10, fontWeight: 700, color: active ? C.violet : C.txm, cursor: "pointer", textTransform: "uppercase", letterSpacing: 0.5, transition: "all 0.15s" }}>{opt === "all" ? "All" : "Mine"}</button>;
+        })}
+      </div>
+      <button onClick={onRefresh} title="Refresh" style={{ padding: "8px 12px", background: "transparent", border: "1px solid " + C.border, borderRadius: 8, fontFamily: mn, fontSize: 10, fontWeight: 700, color: C.txm, cursor: "pointer" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.violet + "55"; e.currentTarget.style.color = C.violet; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.txm; }}>Refresh</button>
+    </div>
+
+    {loading && <div style={{ padding: 60, textAlign: "center", fontFamily: ft, fontSize: 13, color: C.txm, background: C.card, border: "1px solid " + C.border, borderRadius: 12 }}>Loading archive…</div>}
+    {!loading && items.length === 0 && <div style={{ padding: 60, textAlign: "center", background: C.card, border: "1px dashed " + C.border, borderRadius: 12 }}>
+      <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: C.tx, marginBottom: 6 }}>No saved carousels yet</div>
+      <div style={{ fontFamily: ft, fontSize: 12, color: C.txd }}>Build a carousel and click Save to Archive on the Export step. It will show up here.</div>
+    </div>}
+    {!loading && items.length > 0 && visible.length === 0 && <div style={{ padding: 40, textAlign: "center", background: C.card, border: "1px dashed " + C.border, borderRadius: 12, fontFamily: ft, fontSize: 12, color: C.txd }}>No carousels match your search.</div>}
+    {!loading && visible.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      {visible.map(function(item) {
+        var d = item.data || {} as Record<string, unknown>;
+        var dateStr = d.timestamp ? new Date(d.timestamp as string).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Unknown date";
+        var timeStr = d.timestamp ? new Date(d.timestamp as string).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "";
+        var author = d.createdBy ? String(d.createdBy) : "Unknown";
+        var isAnalystSave = d.createdByRole === "Analyst";
+        var authorColor = isAnalystSave ? C.violet : C.amber;
+        var slideCount = String(d.slideCount || "?");
+        var theme = String(d.theme || "general");
+        var themeColor = (THEMES[theme as ThemeKey] && THEMES[theme as ThemeKey].color) || C.violet;
+        var sourceUrl = String(d.sourceUrl || "");
+        return <div key={item.id} onClick={function() { onOpen(item); }} style={{ padding: "18px 20px", background: C.card, border: "1px solid " + C.border, borderRadius: 12, cursor: "pointer", transition: "all 0.15s", position: "relative" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = themeColor + "55"; e.currentTarget.style.background = themeColor + "06"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.card; }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 12 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 10, background: themeColor + "15", border: "1px solid " + themeColor + "30", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 16, fontWeight: 800, color: themeColor, flexShrink: 0 }}>{slideCount}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: C.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 4 }}>{item.name || "Untitled carousel"}</div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ fontFamily: mn, fontSize: 8.5, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: authorColor + "15", color: authorColor, border: "1px solid " + authorColor + "30", textTransform: "uppercase", letterSpacing: 0.5 }}>{author}{isAnalystSave ? " · ANALYST" : ""}</div>
+                <div style={{ fontFamily: mn, fontSize: 8.5, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: themeColor + "12", color: themeColor, border: "1px solid " + themeColor + "30", textTransform: "uppercase", letterSpacing: 0.5 }}>{theme}</div>
+              </div>
+            </div>
+          </div>
+          <div style={{ fontFamily: mn, fontSize: 10, color: C.txd, marginBottom: 10 }}>{dateStr} {timeStr}</div>
+          {sourceUrl && <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 10 }}>{sourceUrl}</div>}
+          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+            <button title="Rename" onClick={function(e) { onRename(item, e); }} style={{ padding: "4px 10px", background: "transparent", border: "1px solid " + C.border, borderRadius: 6, fontFamily: mn, fontSize: 9, fontWeight: 700, color: C.txm, cursor: "pointer", textTransform: "uppercase", letterSpacing: 0.5 }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.violet + "55"; e.currentTarget.style.color = C.violet; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.txm; }}>Rename</button>
+            <button title="Delete" onClick={function(e) { onDelete(item, e); }} style={{ padding: "4px 8px", background: "transparent", border: "1px solid " + C.coral + "40", borderRadius: 6, fontFamily: mn, fontSize: 11, fontWeight: 700, color: C.coral + "BB", cursor: "pointer", lineHeight: 1 }} onMouseEnter={function(e) { e.currentTarget.style.background = C.coral + "10"; e.currentTarget.style.color = C.coral; }} onMouseLeave={function(e) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.coral + "BB"; }}>{"✕"}</button>
+          </div>
+        </div>;
+      })}
+    </div>}
+  </div>;
+}
+
 // ═══ LAUNCH SUITE / WELCOME VIEW ═══
 //
 // Mounted before the 6-step wizard. Three entry paths:
@@ -2883,7 +2987,7 @@ function apiSlidesToEditorSlides(apiSlides: GeneratedSlide[], slideCount: number
 
 // ═══ MAIN CAROUSEL COMPONENT ═══
 export default function Carousel() {
-  var _view = useState<"welcome" | "wizard">("welcome"), view = _view[0], setView = _view[1];
+  var _view = useState<"welcome" | "archive" | "wizard">("welcome"), view = _view[0], setView = _view[1];
   var _step = useState(0), step = _step[0], setStep = _step[1];
   var _maxStep = useState(0), maxStep = _maxStep[0], setMaxStep = _maxStep[1];
   var _state = useState<CarouselState>({ category: "general", mode: "auto", pageCount: 4, text: "", url: "", generationMode: "ai" }), state = _state[0], setState = _state[1];
@@ -3071,8 +3175,21 @@ export default function Carousel() {
       recentLoading={archiveLoading}
       onPickAI={function() { setState(function(s) { return Object.assign({}, s, { generationMode: "ai" as const }); }); setView("wizard"); setStep(0); }}
       onPickVerbatim={function() { setState(function(s) { return Object.assign({}, s, { generationMode: "verbatim" as const }); }); setView("wizard"); setStep(0); }}
-      onOpenArchive={function() { setView("wizard"); setStep(0); setShowArchive(true); loadArchive(); }}
+      onOpenArchive={function() { setView("archive"); loadArchive(); }}
       onResume={loadFromArchive}
+    />}
+
+    {view === "archive" && <ArchiveView
+      items={archiveItems}
+      loading={archiveLoading}
+      filter={archiveFilter}
+      setFilter={setArchiveFilter}
+      userName={(userCtx.user && userCtx.user.name) || ""}
+      onBack={function() { setView("welcome"); }}
+      onOpen={loadFromArchive}
+      onRename={renameArchive}
+      onDelete={deleteArchive}
+      onRefresh={loadArchive}
     />}
 
     {/* Archive panel */}
