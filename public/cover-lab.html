@@ -204,6 +204,18 @@
       `;
     }
 
+    // Drop-shadow filter — every variant gets it once via dropShadowDefs()
+    // and top-anchored chrome (meta tag, brand mark) wraps in this group
+    // so the text stays legible against bright parts of the photo.
+    function dropShadowDefs(id) {
+      return `<defs><filter id="${id}" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="2" stdDeviation="8" flood-color="#000000" flood-opacity="0.85"/>
+      </filter></defs>`;
+    }
+    function shadowed(id, inner) {
+      return `<g filter="url(#${id})">${inner}</g>`;
+    }
+
     // Auto-shrink title to fit width. SVG textLength is a fallback;
     // we approximate by char count.
     function titleFontSize(text, baseSize, maxCharsPerLine) {
@@ -255,14 +267,34 @@
       return lines;
     }
 
-    function logoPill(x, y, w = 220, h = 60, dark = true) {
+    // Real SA brand mark — fetched once from /sa-logo-full.svg on boot,
+    // inlined into every cover so downloaded SVGs are portable. Source
+    // viewBox is 290.53 × 172.53 (hex + "semianalysis" wordmark with
+    // SA's cobalt + amber palette).
+    const LOGO_VB_W = 290.53;
+    const LOGO_VB_H = 172.53;
+    let SA_LOGO_INNER = "";
+    fetch("/sa-logo-full.svg")
+      .then(r => r.text())
+      .then(text => {
+        const open = text.indexOf("<svg");
+        const after = text.indexOf(">", open);
+        SA_LOGO_INNER = text.slice(after + 1).replace(/<\/svg>\s*$/, "");
+        refresh();
+      })
+      .catch(() => {});
+
+    // Place the SA brand mark at (x, y) bounded by (w, h). Preserves the
+    // 290.53 × 172.53 aspect ratio. Renders nothing when the user has
+    // toggled the logo off.
+    function saMark(x, y, w, h) {
       if (!state.showLogo) return "";
-      return `
-        <g transform="translate(${x}, ${y})">
-          <rect x="0" y="0" width="${w}" height="${h}" rx="6" fill="${dark ? "#FFFFFF" : "#000000"}" />
-          <text x="${w/2}" y="${h/2 + 6}" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="18" font-weight="700" letter-spacing="2.5" fill="${dark ? "#0A0B10" : "#FFFFFF"}">SEMIANALYSIS</text>
-        </g>
-      `;
+      if (!SA_LOGO_INNER) return "";
+      const scaleX = w / LOGO_VB_W;
+      const scaleY = h / LOGO_VB_H;
+      const scale = Math.min(scaleX, scaleY);
+      const actualW = LOGO_VB_W * scale;
+      return `<g transform="translate(${x + (w - actualW)}, ${y}) scale(${scale})">${SA_LOGO_INNER}</g>`;
     }
 
     function hexMark(x, y, size = 44, fill = "#FFFFFF") {
@@ -293,13 +325,15 @@
     // wrapping <svg> is added by the caller so we can dump natively).
     // ─────────────────────────────────────────────────────────────
 
-    // 01 · REFERENCE — User's Illustrator mockup, faithfully reproduced.
-    // Title bottom-anchored so the subtitle (1-3 lines) can be measured
-    // and placed below with a real gap. The original code overlapped them.
+    // 01 · REFERENCE — Image clipped inside the outlined frame box.
+    // The dark gradient + title sit inside the same frame so the whole
+    // composition reads as one "card" floating on the canvas backdrop.
     function v01() {
       const t = displayTitle();
       const pad = 60;
-      const maxTitleWidth = W - pad*2 - 48;
+      const frameW = W - pad * 2;
+      const frameH = H - pad * 2;
+      const maxTitleWidth = frameW - 48;
       const lines = wordWrap(t, 18);
       const fs = titleFontSizeForLines(lines, 110, maxTitleWidth);
 
@@ -307,45 +341,65 @@
       const subFs = 30;
       const subGap = 36;
 
-      // Bottom safe-area for the type block.
-      const blockBottomMargin = 120;
-      const subBottomY = H - blockBottomMargin;
+      const frameBottom = pad + frameH;
+      const blockBottomMargin = 70;
+      const subBottomY = frameBottom - blockBottomMargin;
       const subStartY = subBottomY - (subLines.length - 1) * subGap;
-      const titleBottomY = subLines.length
-        ? subStartY - 70
-        : subBottomY;
-
+      const titleBottomY = subLines.length ? subStartY - 70 : subBottomY;
       const tb = titleBlock(lines, fs, pad + 24, titleBottomY);
 
+      const innerImage = state.imageUrl
+        ? `<image href="${esc(state.imageUrl)}" x="${pad}" y="${pad}" width="${frameW}" height="${frameH}" preserveAspectRatio="xMidYMid slice"/>`
+        : `<rect x="${pad}" y="${pad}" width="${frameW}" height="${frameH}" fill="#0F1626"/>
+           <rect x="${pad}" y="${pad}" width="${frameW}" height="${frameH}" fill="url(#v01-pat)"/>`;
+
       return `
-        ${imageOrFallback("v01")}
-        <defs>${gradient("v01-grad", [{o:"0%",c:"#000",a:0},{o:"45%",c:"#000",a:0},{o:"100%",c:"#000",a:0.94}])}</defs>
-        <rect width="${W}" height="${H}" fill="url(#v01-grad)"/>
-        <rect x="${pad}" y="${pad}" width="${W - pad*2}" height="${H - pad*2}" fill="none" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="2"/>
-        ${logoPill(W - pad - 220 - 12, pad + 12, 220, 56)}
+        <rect width="${W}" height="${H}" fill="#0A0B10"/>
+        <defs>
+          <pattern id="v01-pat" width="40" height="46" patternUnits="userSpaceOnUse">
+            <polygon points="20,2 38,12 38,34 20,44 2,34 2,12" fill="none" stroke="${state.accent}" stroke-opacity="0.10" stroke-width="1"/>
+          </pattern>
+          <clipPath id="v01-frame"><rect x="${pad}" y="${pad}" width="${frameW}" height="${frameH}"/></clipPath>
+          ${gradient("v01-grad", [{o:"0%",c:"#000",a:0},{o:"45%",c:"#000",a:0},{o:"100%",c:"#000",a:0.94}])}
+        </defs>
+        <g clip-path="url(#v01-frame)">
+          ${innerImage}
+          <rect x="${pad}" y="${pad}" width="${frameW}" height="${frameH}" fill="url(#v01-grad)"/>
+        </g>
+        <rect x="${pad}" y="${pad}" width="${frameW}" height="${frameH}" fill="none" stroke="#FFFFFF" stroke-opacity="0.20" stroke-width="2"/>
+        ${dropShadowDefs("v01-shadow")}
+        ${shadowed("v01-shadow", saMark(W - pad - 220 - 24, pad + 24, 220, 132))}
         ${tb.svg}
-        ${subLines.map((ln, i) => `<text x="${pad + 24}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.82)">${esc(ln)}</text>`).join("")}
+        ${subLines.map((ln, i) => `<text x="${pad + 24}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.86)">${esc(ln)}</text>`).join("")}
       `;
     }
 
     // 02 · TYPE BOMB — No image, massive declarative type.
-    // Auto-shrinks based on the widest word so 14-letter words like
-    // "INFRASTRUCTURE" don't bleed off the right edge.
+    // Stays at base 190 always. Each line uses SVG textLength +
+    // lengthAdjust so a wide word like "INFRASTRUCTURE" squeezes
+    // horizontally to fit while keeping the headline visually huge.
+    // Short lines render natural — only over-wide lines squeeze.
     function v02() {
       const t = displayTitle();
       const pad = 80;
       const maxWidth = W - pad * 2;
-      const lines = wordWrap(t, 9);
-      const fs = titleFontSizeForLines(lines, 170, maxWidth);
+      const fs = 190;
       const lineGap = fs * 1.0;
-      const titleStartY = 240 + fs;
-      const titleEndY = titleStartY + (lines.length - 1) * lineGap;
+      const lines = wordWrap(t, 9);
+      const perChar = 0.58;
+      const titleStartY = 260 + fs;
 
       const subLines = state.showSub && state.subtitle ? wordWrap(state.subtitle, 40) : [];
       const subFs = 30;
       const subGap = 36;
       const subEndY = H - 130;
       const subStartY = subEndY - (subLines.length - 1) * subGap;
+
+      const titleSvg = lines.map((ln, i) => {
+        const naturalW = ln.length * fs * perChar;
+        const tl = naturalW > maxWidth ? `textLength="${maxWidth}" lengthAdjust="spacingAndGlyphs"` : "";
+        return `<text x="${pad}" y="${titleStartY + i * lineGap}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF" ${tl}>${esc(ln)}</text>`;
+      }).join("");
 
       return `
         <rect width="${W}" height="${H}" fill="#0A0B10"/>
@@ -356,10 +410,11 @@
         </defs>
         <rect width="${W}" height="${H}" fill="url(#v02-pat)"/>
         <rect x="0" y="0" width="${W}" height="14" fill="${state.accent}"/>
-        ${lines.map((ln, i) => `<text x="${pad}" y="${titleStartY + i * lineGap}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
+        ${titleSvg}
         <line x1="${pad}" y1="${subStartY - 80}" x2="${pad + 100}" y2="${subStartY - 80}" stroke="${state.accent}" stroke-width="4"/>
         ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.78)">${esc(ln)}</text>`).join("")}
         ${metaTag("TEAR-DOWN · SEMIANALYSIS", pad, H - 60, "rgba(255,255,255,0.4)")}
+        ${saMark(W - 80 - 200, H - 200, 200, 120)}
       `;
     }
 
@@ -430,8 +485,8 @@
         ${dual ? dualImg : singleImg}
         ${dual ? `<line x1="0" y1="${splitY}" x2="${W}" y2="${splitY}" stroke="${state.accent}" stroke-width="4"/>` : ""}
         <rect width="${W}" height="${H}" fill="url(#v03-grad)"/>
-        ${logoPill(W - 232, 60, 200, 50)}
-        ${metaTag(dual ? "DIPTYCH · 06 / 26" : "INFRASTRUCTURE · 06 / 26", 60, 95, state.accent)}
+        ${dropShadowDefs("v03-shadow")}
+        ${shadowed("v03-shadow", saMark(W - 60 - 220, 50, 220, 132) + metaTag(dual ? "DIPTYCH · 06 / 26" : "INFRASTRUCTURE · 06 / 26", 60, 95, state.accent))}
         ${tb.svg}
         ${subLines.map((ln, i) => `<text x="${pad + 24}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.82)">${esc(ln)}</text>`).join("")}
       `;
@@ -459,8 +514,8 @@
         <rect x="0" y="0" width="16" height="${H}" fill="${state.accent}"/>
         <defs>${gradient("v04-grad", [{o:"0%",c:"#000",a:0.15},{o:"45%",c:"#000",a:0},{o:"100%",c:"#000",a:0.94}])}</defs>
         <rect width="${W}" height="${H}" fill="url(#v04-grad)"/>
-        ${metaTag("06 / 2026 · INFRA", W - 360, 90, state.accent)}
-        ${logoPill(W - 232, 130, 200, 50)}
+        ${dropShadowDefs("v04-shadow")}
+        ${shadowed("v04-shadow", metaTag("06 / 2026 · INFRA", W - 360, 90, state.accent) + saMark(W - 60 - 220, 110, 220, 132))}
         ${tb.svg}
         ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.82)">${esc(ln)}</text>`).join("")}
       `;
@@ -499,7 +554,8 @@
         <defs><clipPath id="v05-clip"><rect width="${W}" height="${imgH}"/></clipPath></defs>
         <rect x="0" y="${barTop}" width="${W}" height="${barH}" fill="#0A0B10"/>
         <rect x="0" y="${barTop}" width="${W}" height="6" fill="${state.accent}"/>
-        ${logoPill(W - 232, 50, 200, 50)}
+        ${dropShadowDefs("v05-shadow")}
+        ${shadowed("v05-shadow", saMark(W - 60 - 220, 50, 220, 132))}
         ${metaTag("ISSUE 24 · INFRASTRUCTURE", pad, metaY, state.accent)}
         ${lines.map((ln, i) => `<text x="${pad}" y="${titleTopBaselineY + i * titleLineGap}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
         ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.72)">${esc(ln)}</text>`).join("")}
@@ -527,8 +583,8 @@
         <rect x="0" y="0" width="${W}" height="22" fill="${state.accent}"/>
         <defs>${gradient("v06-grad", [{o:"0%",c:"#000",a:0.18},{o:"45%",c:"#000",a:0},{o:"100%",c:"#000",a:0.93}])}</defs>
         <rect width="${W}" height="${H}" fill="url(#v06-grad)"/>
-        ${metaTag("YB · 04 · INFRASTRUCTURE", pad, 100, "#FFFFFF")}
-        ${logoPill(W - 232, 80, 200, 50)}
+        ${dropShadowDefs("v06-shadow")}
+        ${shadowed("v06-shadow", metaTag("YB · 04 · INFRASTRUCTURE", pad, 100, "#FFFFFF") + saMark(W - 60 - 220, 70, 220, 132))}
         <rect x="${pad}" y="${titleBottomY - fs - 60}" width="68" height="4" fill="${state.accent}"/>
         ${tb.svg}
         ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.82)">${esc(ln)}</text>`).join("")}
