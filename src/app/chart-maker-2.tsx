@@ -23,6 +23,11 @@ import { createPortal } from "react-dom";
 import { D as C, ft, gf, mn } from "./shared-constants";
 import { showToast } from "./toast-context";
 import type { ChartDocPayload } from "./charts/studio-types";
+// Wave 17 · Phase 5E — SA Brand Excel-template reference thumbs. The PNGs
+// are produced on the user's machine by `npm run rasterize-tables` (LibreOffice
+// headless). The gallery renders a "Reference original" link only when a
+// thumb is mapped for the template-id.
+import { getThumb as getSaTableThumb } from "./charts/lib/sa-table-thumbs";
 // Wave 14.2 · Univer (full Excel-grade spreadsheet) · The CSS bundle for the
 // Univer presets ships as a flat ~80 KB stylesheet. We import it eagerly so
 // that when the user toggles EXCEL SUITE in Launch mode, all of Univer's UI
@@ -12400,11 +12405,20 @@ function TemplatesButton({ onPick, openExternal, onCloseExternal, hideTrigger }:
 }
 function TemplateCard({ tpl, onPick }: { tpl: TemplateSpec; onPick: () => void }) {
   const [hov, setHov] = useState(false);
+  // Wave 17 · Phase 5E — reference-original lightbox + thumb resolution.
+  // getSaTableThumb returns null for templates that aren't descended from a
+  // SA Brand Excel sheet, so the link only appears on the "sa-brand-*" tiles.
+  const thumb = getSaTableThumb(tpl.id);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [thumbBroken, setThumbBroken] = useState(false);
   // Use the template theme palette if specified, otherwise SA Core
   const previewPalette = THEMES[tpl.theme || "saCore"].colors;
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onPick}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(); } }}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
@@ -12447,10 +12461,75 @@ function TemplateCard({ tpl, onPick }: { tpl: TemplateSpec; onPick: () => void }
         <span style={{ fontFamily: gf, fontSize: 13, fontWeight: 800, color: hov ? C.amber : "#E8E4DD", letterSpacing: -0.1 }}>{tpl.label}</span>
       </div>
       <div style={{ fontFamily: ft, fontSize: 11, color: C.txm, lineHeight: 1.4 }}>{tpl.desc}</div>
-      <div style={{ marginTop: "auto", display: "flex", alignItems: "center", gap: 6, paddingTop: 4 }}>
+      <div style={{ marginTop: "auto", display: "flex", alignItems: "center", gap: 6, paddingTop: 4, flexWrap: "wrap" }}>
         <span style={{ fontFamily: mn, fontSize: 8, fontWeight: 700, color: C.txd, letterSpacing: 1, padding: "2px 6px", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 3, background: "rgba(255,255,255,0.025)", textTransform: "uppercase" }}>{TYPES.flat().find(t => t.id === tpl.type)?.label || tpl.type}</span>
+        {thumb && !thumbBroken && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={e => { e.stopPropagation(); setLightboxOpen(true); }}
+            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setLightboxOpen(true); } }}
+            title="Open the original SA Brand Excel sheet rasterized via LibreOffice"
+            style={{
+              fontFamily: mn, fontSize: 8, fontWeight: 700, color: C.amber, letterSpacing: 1,
+              padding: "2px 6px", borderRadius: 3,
+              border: "1px solid " + C.amber + "55",
+              background: C.amber + "15",
+              cursor: "pointer", textTransform: "uppercase",
+              display: "inline-flex", alignItems: "center", gap: 4,
+            }}
+          >📊 Reference original</span>
+        )}
       </div>
-    </button>
+      {lightboxOpen && thumb && createPortal(
+        <div
+          onClick={() => setLightboxOpen(false)}
+          style={{
+            position: "fixed", inset: 0,
+            background: "rgba(6,6,12,0.86)",
+            backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+            zIndex: 13000,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: 24,
+          }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{
+            display: "flex", flexDirection: "column", gap: 10,
+            maxWidth: "min(1200px, 94vw)", maxHeight: "92vh",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontFamily: gf, fontSize: 15, fontWeight: 800, color: "#E8E4DD" }}>{tpl.label}</span>
+              <span style={{ fontFamily: mn, fontSize: 9, color: C.txm, letterSpacing: 1 }}>· SA BRAND EXCEL REFERENCE</span>
+              <button
+                onClick={() => setLightboxOpen(false)}
+                style={{
+                  marginLeft: "auto",
+                  padding: "5px 10px", borderRadius: 6,
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  color: C.txm, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
+                  cursor: "pointer", textTransform: "uppercase",
+                }}
+              >Close</button>
+            </div>
+            <img
+              src={thumb}
+              alt={tpl.label + " · original SA Brand Excel sheet"}
+              onError={() => { setThumbBroken(true); setLightboxOpen(false); }}
+              style={{
+                display: "block",
+                maxWidth: "100%", maxHeight: "calc(92vh - 40px)",
+                borderRadius: 10,
+                border: "1px solid rgba(255,255,255,0.12)",
+                boxShadow: "0 32px 80px rgba(0,0,0,0.55)",
+                background: "#fff",
+              }}
+            />
+          </div>
+        </div>,
+        document.body,
+      )}
+    </div>
   );
 }
 
