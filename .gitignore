@@ -40,3 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .claude/
+
+# vendored OpenCut reference clone — keep the source, ignore installed deps/builds
+apps/opencut/**/node_modules
+apps/opencut/**/.next
+apps/opencut/**/.turbo
+apps/opencut/**/dist
