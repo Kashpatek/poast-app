@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Command } from "cmdk";
 import {
   FileText,
   LayoutGrid,
@@ -17,12 +18,18 @@ import {
   Camera,
   Trash2,
   RotateCcw,
+  ArrowRight,
+  BarChart3,
+  Brain,
+  Newspaper,
+  History as HistoryIcon,
 } from "lucide-react";
 import { listProjects, softDeleteProject, restoreProject, type ProjectRecord, type ProjectKind } from "./projects-store";
 import { DocuShell } from "./docu-shell";
 import { D, ft, gf, mn } from "../shared-constants";
 import { useToast } from "../toast-context";
 import { useDialog } from "../dialog-context";
+import { useShortcuts } from "../keyboard-shortcuts";
 import { DocumentWizard } from "./wizards/document-wizard";
 import { ImageWizard } from "./wizards/image-wizard";
 import { QuoteWizard } from "./wizards/quote-wizard";
@@ -31,6 +38,7 @@ import { GraphicWizard } from "./wizards/graphic-wizard";
 import { MotionWizard } from "./wizards/motion-wizard";
 import { ProgrammaticWizard } from "./wizards/programmatic-wizard";
 import { RebuildWizard } from "./wizards/rebuild-wizard";
+import { CustomWizard } from "./wizards/custom-wizard";
 import { ALL_CATEGORIES, type Category, type StudioTool } from "./wizards/categories";
 import { SIZE_PRESETS } from "./wizards/size-presets";
 import { QUOTE_TEMPLATES, type QuoteTemplateId } from "./wizards/quote-templates";
@@ -92,6 +100,7 @@ export default function DesignStudioHubPage() {
   const [motionWizardOpen, setMotionWizardOpen] = useState(false);
   const [programmaticWizardOpen, setProgrammaticWizardOpen] = useState(false);
   const [rebuildWizardOpen, setRebuildWizardOpen] = useState(false);
+  const [customWizardOpen, setCustomWizardOpen] = useState(false);
 
   // Preselection handed to a wizard the next time it opens (cleared on close).
   // Each tool keeps its own bag so opening one wizard doesn't leak into another.
@@ -103,6 +112,7 @@ export default function DesignStudioHubPage() {
     programmatic?: { compId?: string };
     quote?: { categoryId?: string; presetId?: string; templateId?: QuoteTemplateId };
     event?: { eventId?: string; categoryId?: string; presetId?: string };
+    custom?: { presetId?: string };
   }>({});
 
   // ── Search ──────────────────────────────────────────────────────
@@ -111,12 +121,25 @@ export default function DesignStudioHubPage() {
   const [activeIdx, setActiveIdx] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
 
+  // ── Cmd+K command palette ───────────────────────────────────────
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
   // ── Recent Projects strip controls ──────────────────────────────
   type SortMode = "recent" | "title" | "category";
   type FilterMode = "all" | "canvas" | "doc" | "image";
   const [sortMode, setSortMode] = useState<SortMode>("recent");
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const [recentQuery, setRecentQuery] = useState("");
+
+  // ── Take-a-tour overlay ────────────────────────────────────────
+  // 3-step tooltip walkthrough shown once per browser (gated on
+  // localStorage "poast-ds-tour-seen"). Empty-state CTA can re-trigger it.
+  const [tourStep, setTourStep] = useState<number>(-1);
+  const startTour = useCallback(() => setTourStep(0), []);
+  const endTour = useCallback(() => {
+    setTourStep(-1);
+    try { localStorage.setItem("poast-ds-tour-seen", "1"); } catch {}
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -157,18 +180,46 @@ export default function DesignStudioHubPage() {
 
   useEffect(() => { refreshLocal(); }, [refreshLocal]);
 
-  // Cmd/Ctrl+K to focus search.
+  // Auto-launch the tour once on first visit to an empty hub.
+  useEffect(() => {
+    if (loading) return;
+    if (projects.length > 0 || localProjects.length > 0) return;
+    try {
+      if (localStorage.getItem("poast-ds-tour-seen") === "1") return;
+    } catch { return; }
+    setTourStep(0);
+  }, [loading, projects.length, localProjects.length]);
+
+  // Cmd/Ctrl+K opens the DesignStudio command palette. We bind on the
+  // capture phase and stopImmediatePropagation so the global palette in
+  // poast-client (also $mod+k) doesn't double-fire on this landing page.
+  // The useShortcuts call below still registers the binding in the
+  // cheat-sheet registry under the "DesignStudio" scope — the handler
+  // never actually runs because we've already stopped the event.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        searchRef.current?.focus();
-        searchRef.current?.select();
-      }
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.key.toLowerCase() !== "k") return;
+      // Skip when the user is editing text — match useShortcuts' input
+      // guard so we don't hijack ⌘K inside inputs / contentEditable.
+      const t = e.target as HTMLElement | null;
+      const tag = t?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t?.isContentEditable) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      setPaletteOpen((v) => !v);
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, []);
+
+  // Register in the cheat-sheet registry under DesignStudio scope.
+  // The actual toggle is handled by the capture-phase listener above
+  // — this exists purely so ⌘K shows up in the "?" cheat-sheet.
+  useShortcuts(
+    { "$mod+k": { description: "Open command palette", handler: () => setPaletteOpen((v) => !v) } },
+    { scope: "DesignStudio" },
+  );
 
   // Open the wizard that matches a tool, with optional preselection.
   function openTool(tool: StudioTool, pre?: {
@@ -200,7 +251,8 @@ export default function DesignStudioHubPage() {
       setPick((p) => ({ ...p, event: { eventId: pre?.eventId, categoryId: pre?.categoryId, presetId: pre?.presetId } }));
       setEventWizardOpen(true);
     } else if (tool === "custom") {
-      createProject("other");
+      setPick((p) => ({ ...p, custom: { presetId: pre?.presetId } }));
+      setCustomWizardOpen(true);
     } else if (tool === "rebuild") {
       setRebuildWizardOpen(true);
     }
@@ -301,7 +353,9 @@ export default function DesignStudioHubPage() {
     } else if (item.kind === "project") {
       router.push(`/design-studio/p/${item.id}`);
     } else if (item.kind === "canvas") {
-      router.push(`/design-studio/canvas-editor?id=${encodeURIComponent(item.id)}`);
+      const local = localProjects.find((p) => p.id === item.id);
+      const dest = local?.kind === "doc" ? "/design-studio/doc-editor" : local?.kind === "excalidraw" ? "/design-studio/custom-canvas" : "/design-studio/canvas-editor";
+      router.push(`${dest}?id=${encodeURIComponent(item.id)}`);
     }
   }
 
@@ -351,7 +405,7 @@ export default function DesignStudioHubPage() {
     else if (t.action === "programmatic") setProgrammaticWizardOpen(true);
     else if (t.action === "quote") setQuoteWizardOpen(true);
     else if (t.action === "event") setEventWizardOpen(true);
-    else if (t.action === "custom") createProject("other");
+    else if (t.action === "custom") setCustomWizardOpen(true);
     else if (t.action === "rebuild") setRebuildWizardOpen(true);
   }
 
@@ -361,10 +415,11 @@ export default function DesignStudioHubPage() {
     let rows = localProjects.slice();
     if (filterMode !== "all") {
       rows = rows.filter((p) => {
-        if (filterMode === "canvas") return p.kind === "canvas";
+        // "canvas" intentionally includes excalidraw — both produce free
+        // artboards, just with different editors (Fabric vs Excalidraw).
+        if (filterMode === "canvas") return p.kind === "canvas" || p.kind === "excalidraw";
         if (filterMode === "doc") return p.kind === "doc";
         if (filterMode === "image") {
-          if (p.kind === "excalidraw") return true;
           if (p.category && /image|photo|graphic/i.test(p.category)) return true;
           return false;
         }
@@ -602,7 +657,7 @@ export default function DesignStudioHubPage() {
         ) : null}
 
         {/* Tile grid */}
-        <div style={{ marginBottom: 36 }}>
+        <div data-tour="tiles" style={{ marginBottom: 36 }}>
           <div style={sectionLabel}>Create something</div>
           <div
             style={{
@@ -665,7 +720,7 @@ export default function DesignStudioHubPage() {
         </div>
 
         {/* Recent projects */}
-        <div>
+        <div data-tour="recent">
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
             <div style={sectionLabel}>Recent projects</div>
             <Link
@@ -717,7 +772,7 @@ export default function DesignStudioHubPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => toast("Tour coming soon.")}
+                  onClick={startTour}
                   style={emptyCtaGhost}
                 >
                   Take a tour
@@ -815,7 +870,7 @@ export default function DesignStudioHubPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        const dest = p.kind === "doc" ? "/design-studio/doc-editor" : "/design-studio/canvas-editor";
+                        const dest = p.kind === "doc" ? "/design-studio/doc-editor" : p.kind === "excalidraw" ? "/design-studio/custom-canvas" : "/design-studio/canvas-editor";
                         router.push(`${dest}?id=${encodeURIComponent(p.id)}`);
                       }}
                       style={{
@@ -856,6 +911,11 @@ export default function DesignStudioHubPage() {
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
                           <div style={kindPill(p.kind)}>{kindShort(p.kind)}</div>
                           {p.category ? <div style={fidelityPill}>{p.category.toUpperCase().slice(0, 12)}</div> : null}
+                          {p.snapshots && p.snapshots.length > 0 ? (
+                            <div style={snapshotPill} title={`${p.snapshots.length} saved version${p.snapshots.length === 1 ? "" : "s"}`}>
+                              <HistoryIcon size={9} strokeWidth={2} /> {p.snapshots.length}
+                            </div>
+                          ) : null}
                         </div>
                         <div style={{ fontFamily: gf, fontSize: 14, marginBottom: 4, color: D.tx, lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {p.title || "Untitled"}
@@ -982,9 +1042,182 @@ export default function DesignStudioHubPage() {
         open={rebuildWizardOpen}
         onClose={() => setRebuildWizardOpen(false)}
       />
+      <CustomWizard
+        key={`custom-${customWizardOpen}-${pick.custom?.presetId ?? ""}`}
+        open={customWizardOpen}
+        onClose={() => { setCustomWizardOpen(false); setPick((p) => ({ ...p, custom: undefined })); }}
+        initialPresetId={pick.custom?.presetId}
+      />
+      <DesignPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        recents={localProjects.filter((p) => !p.deletedAt).slice(0, 10)}
+        showDeleted={showDeleted}
+        onNewDesign={() => { setPaletteOpen(false); setGraphicWizardOpen(true); }}
+        onNewDocument={() => { setPaletteOpen(false); router.push("/design-studio/doc-editor"); }}
+        onNewCustomCanvas={() => { setPaletteOpen(false); router.push("/design-studio/custom-canvas"); }}
+        onOpenRecent={(p) => {
+          setPaletteOpen(false);
+          const dest = p.kind === "doc" ? "/design-studio/doc-editor" : p.kind === "excalidraw" ? "/design-studio/custom-canvas" : "/design-studio/canvas-editor";
+          router.push(`${dest}?id=${encodeURIComponent(p.id)}`);
+        }}
+        onGoTo={(href) => { setPaletteOpen(false); router.push(href); }}
+        onToggleTrash={() => { setPaletteOpen(false); setShowDeleted((s) => !s); }}
+      />
+      <TourOverlay step={tourStep} onAdvance={() => setTourStep((s) => s + 1)} onClose={endTour} />
     </DocuShell>
   );
 }
+
+// ─── Take-a-tour overlay ─────────────────────────────────────────
+interface TourStepDef {
+  target: string | null;
+  title: string;
+  body: string;
+}
+
+const TOUR_STEPS: TourStepDef[] = [
+  { target: "tiles",  title: "Pick a category to start a design", body: "Eight tools, one design system. Hover any tile to peek at what it does, then click to launch its wizard." },
+  { target: "recent", title: "Your work lives here", body: "Every project autosaves locally. Click any card to keep going where you left off — versions and trash are one click away." },
+  { target: null,     title: "Cmd+K to launch anything", body: "The search bar up top jumps to tiles, sizes, templates, events, and any project. Most days, that's the only nav you need." },
+];
+
+function TourOverlay({ step, onAdvance, onClose }: { step: number; onAdvance: () => void; onClose: () => void }) {
+  const [box, setBox] = useState<DOMRect | null>(null);
+
+  useEffect(() => {
+    if (step < 0 || step >= TOUR_STEPS.length) { setBox(null); return; }
+    const def = TOUR_STEPS[step];
+    if (!def.target) { setBox(null); return; }
+    function locate() {
+      const el = document.querySelector(`[data-tour="${def.target}"]`) as HTMLElement | null;
+      if (el) {
+        const r = el.getBoundingClientRect();
+        setBox(r);
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else {
+        setBox(null);
+      }
+    }
+    locate();
+    window.addEventListener("resize", locate);
+    window.addEventListener("scroll", locate, true);
+    return () => {
+      window.removeEventListener("resize", locate);
+      window.removeEventListener("scroll", locate, true);
+    };
+  }, [step]);
+
+  if (step < 0 || step >= TOUR_STEPS.length) return null;
+
+  const def = TOUR_STEPS[step];
+  const isLast = step === TOUR_STEPS.length - 1;
+
+  // Tooltip placement: below the highlighted box if there is one,
+  // else centered on screen.
+  const tipStyle: React.CSSProperties = box
+    ? {
+        position: "fixed",
+        top: Math.min(box.bottom + 14, window.innerHeight - 200),
+        left: Math.max(16, Math.min(box.left, window.innerWidth - 360)),
+        width: 340,
+      }
+    : {
+        position: "fixed",
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%)",
+        width: 360,
+      };
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, zIndex: 9000, pointerEvents: "auto" }}
+      onClick={onClose}
+    >
+      {/* Backdrop */}
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.62)", backdropFilter: "blur(2px)" }} />
+      {/* Highlight ring */}
+      {box ? (
+        <div
+          style={{
+            position: "fixed",
+            top: box.top - 6,
+            left: box.left - 6,
+            width: box.width + 12,
+            height: box.height + 12,
+            borderRadius: 14,
+            border: `2px solid ${D.amber}`,
+            boxShadow: `0 0 0 9999px rgba(0,0,0,0.55), 0 0 24px ${D.amber}66`,
+            pointerEvents: "none",
+          }}
+        />
+      ) : null}
+      {/* Tooltip card */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          ...tipStyle,
+          background: D.card,
+          border: `1px solid ${D.border}`,
+          borderRadius: 12,
+          padding: 18,
+          boxShadow: "0 18px 50px -16px rgba(0,0,0,0.8)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <span style={{
+            fontFamily: mn, fontSize: 10, letterSpacing: 1.4, color: D.amber,
+            textTransform: "uppercase", padding: "2px 7px", borderRadius: 4,
+            background: `${D.amber}1a`, border: `1px solid ${D.amber}55`,
+          }}>Tour</span>
+          <span style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.6 }}>
+            Step {step + 1} of {TOUR_STEPS.length}
+          </span>
+        </div>
+        <div style={{ fontFamily: gf, fontSize: 17, fontWeight: 800, color: D.tx, marginBottom: 6, letterSpacing: -0.2 }}>
+          {def.title}
+        </div>
+        <div style={{ fontFamily: ft, fontSize: 13, color: D.txm, lineHeight: 1.5, marginBottom: 14 }}>
+          {def.body}
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+          <button type="button" onClick={onClose} style={tourGhostBtn}>Skip</button>
+          <button type="button" onClick={isLast ? onClose : onAdvance} style={tourPrimaryBtn}>
+            {isLast ? "Got it" : "Next"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const tourGhostBtn: React.CSSProperties = {
+  background: "transparent",
+  border: `1px solid ${D.border}`,
+  color: D.txm,
+  fontFamily: mn,
+  fontSize: 11,
+  letterSpacing: 0.8,
+  textTransform: "uppercase",
+  padding: "7px 14px",
+  borderRadius: 6,
+  cursor: "pointer",
+};
+
+const tourPrimaryBtn: React.CSSProperties = {
+  background: D.amber,
+  border: "none",
+  color: "#06060C",
+  fontFamily: mn,
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: 0.8,
+  textTransform: "uppercase",
+  padding: "7px 16px",
+  borderRadius: 6,
+  cursor: "pointer",
+};
 
 const tileStyle: React.CSSProperties = {
   background: D.card,
@@ -1194,6 +1427,22 @@ const fidelityPill: React.CSSProperties = {
   border: `1px solid ${D.border}`,
 };
 
+// Shown on a recent-project card when the record has 1+ stored snapshots
+// (version history). Tints amber so it reads as a meta marker, not a kind.
+const snapshotPill: React.CSSProperties = {
+  fontFamily: mn,
+  fontSize: 10,
+  letterSpacing: 0.5,
+  padding: "2px 6px",
+  borderRadius: 4,
+  background: `${D.amber}1a`,
+  color: D.amber,
+  border: `1px solid ${D.amber}55`,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 3,
+};
+
 const filterChip: React.CSSProperties = {
   fontFamily: mn,
   fontSize: 11,
@@ -1313,4 +1562,190 @@ function thumbGlyph(k: ProjectKind): React.ReactNode {
   if (k === "motion") return <Play size={26} strokeWidth={1.5} />;
   if (k === "programmatic") return <Code size={26} strokeWidth={1.5} />;
   return <LayoutGrid size={26} strokeWidth={1.5} />;
+}
+
+// ─── Cmd+K command palette ──────────────────────────────────────────
+// Mirrors the IntelligenceSUITE cheat-sheet chrome (640px, blurred
+// backdrop, dark POAST surface) but accented in D.teal — DesignStudio's
+// signature. Built on cmdk so type-to-filter, arrow nav, and Enter-to-
+// pick all come for free.
+interface DesignPaletteProps {
+  open: boolean;
+  onClose: () => void;
+  recents: ProjectRecord[];
+  showDeleted: boolean;
+  onNewDesign: () => void;
+  onNewDocument: () => void;
+  onNewCustomCanvas: () => void;
+  onOpenRecent: (p: ProjectRecord) => void;
+  onGoTo: (href: string) => void;
+  onToggleTrash: () => void;
+}
+
+function DesignPalette({
+  open, onClose, recents, showDeleted,
+  onNewDesign, onNewDocument, onNewCustomCanvas,
+  onOpenRecent, onGoTo, onToggleTrash,
+}: DesignPaletteProps): React.ReactElement | null {
+  const [value, setValue] = useState("");
+
+  // Esc closes — register only while open so we don't leak listeners.
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") { e.preventDefault(); onClose(); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  // Reset the input whenever the palette opens so successive ⌘K
+  // toggles always start from a clean slate.
+  useEffect(() => { if (open) setValue(""); }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0,
+        background: "rgba(6,6,12,0.78)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+        zIndex: 10001,
+        display: "flex", alignItems: "flex-start", justifyContent: "center",
+        padding: "10vh 16px 16px",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 640, maxWidth: "100%",
+          background: "linear-gradient(180deg, #0B0B0F, #08080C)",
+          border: `1px solid ${D.teal}35`,
+          borderRadius: 14,
+          boxShadow: `0 24px 64px rgba(0,0,0,0.7), 0 0 48px ${D.teal}1F`,
+          overflow: "hidden",
+        }}
+      >
+        <Command label="DesignStudio command palette" shouldFilter>
+          <div style={{ padding: "14px 16px", borderBottom: `1px solid ${D.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+            <Search size={15} strokeWidth={1.6} color={D.teal} />
+            <Command.Input
+              autoFocus
+              value={value}
+              onValueChange={setValue}
+              placeholder="Type a command, project, or destination…"
+              style={{
+                flex: 1, background: "transparent", border: "none", outline: "none",
+                color: D.tx, fontFamily: ft, fontSize: 15,
+              }}
+            />
+            <kbd style={{
+              fontFamily: mn, fontSize: 10, color: D.txd, padding: "2px 6px",
+              borderRadius: 4, border: `1px solid ${D.border}`,
+            }}>esc</kbd>
+          </div>
+          <Command.List style={{ maxHeight: 420, overflow: "auto", padding: 6 }}>
+            <Command.Empty>
+              <div style={{ padding: 22, textAlign: "center", fontFamily: mn, fontSize: 11, color: D.txd, letterSpacing: 0.5 }}>
+                No match. Try &quot;new design&quot;, &quot;doc&quot;, &quot;charts&quot;…
+              </div>
+            </Command.Empty>
+
+            <Command.Group heading="Create">
+              <Command.Item value="new design graphic wizard create" onSelect={onNewDesign}>
+                <PaletteRow Icon={Sparkles} label="New design" sub="Open the Graphics wizard" />
+              </Command.Item>
+              <Command.Item value="new document doc tiptap create" onSelect={onNewDocument}>
+                <PaletteRow Icon={FileText} label="New document" sub="Tiptap doc editor" />
+              </Command.Item>
+              <Command.Item value="new custom canvas free artboard create" onSelect={onNewCustomCanvas}>
+                <PaletteRow Icon={PenTool} label="New custom canvas" sub="Free chat-driven artboard" />
+              </Command.Item>
+            </Command.Group>
+
+            {recents.length > 0 ? (
+              <Command.Group heading="Recent projects">
+                {recents.map((p) => {
+                  const Icon = recentIcon(p.kind);
+                  return (
+                    <Command.Item
+                      key={p.id}
+                      value={`open ${p.title || "untitled"} ${p.kind} ${p.category || ""}`}
+                      onSelect={() => onOpenRecent(p)}
+                    >
+                      <PaletteRow
+                        Icon={Icon}
+                        label={`Open: ${p.title || "Untitled"}`}
+                        sub={`${kindShort(p.kind)}${p.updatedAt ? ` · ${new Date(p.updatedAt).toLocaleString()}` : ""}`}
+                      />
+                    </Command.Item>
+                  );
+                })}
+              </Command.Group>
+            ) : null}
+
+            <Command.Group heading="Go to">
+              <Command.Item value="production studio go" onSelect={() => onGoTo("/production-studio")}>
+                <PaletteRow Icon={Play} label="ProductionSTUDIO" sub="Video, audio, episode kits" />
+              </Command.Item>
+              <Command.Item value="intelligence suite command center go" onSelect={() => onGoTo("/intelligence-suite")}>
+                <PaletteRow Icon={Brain} label="IntelligenceSUITE" sub="Command Center, trends, signals" />
+              </Command.Item>
+              <Command.Item value="copy studio go writing" onSelect={() => onGoTo("/copy-studio")}>
+                <PaletteRow Icon={Newspaper} label="CopySTUDIO" sub="Drafts, headlines, captions" />
+              </Command.Item>
+              <Command.Item value="charts studio data go" onSelect={() => onGoTo("/charts")}>
+                <PaletteRow Icon={BarChart3} label="Charts" sub="Chart, diagram & table editors" />
+              </Command.Item>
+            </Command.Group>
+
+            <Command.Group heading="View">
+              <Command.Item value="show trash hide trash deleted projects toggle" onSelect={onToggleTrash}>
+                <PaletteRow
+                  Icon={Trash2}
+                  label={showDeleted ? "Hide trash" : "Show trash"}
+                  sub="Toggle deleted projects in Recent Projects"
+                />
+              </Command.Item>
+            </Command.Group>
+          </Command.List>
+        </Command>
+      </div>
+    </div>
+  );
+}
+
+function recentIcon(kind: ProjectKind): React.ComponentType<{ size?: number; strokeWidth?: number; color?: string }> {
+  if (kind === "doc") return FileText;
+  if (kind === "excalidraw") return PenTool;
+  if (kind === "motion") return Play;
+  if (kind === "programmatic") return Code;
+  return LayoutGrid;
+}
+
+function PaletteRow({ Icon, label, sub }: {
+  Icon: React.ComponentType<{ size?: number; strokeWidth?: number; color?: string }>;
+  label: string;
+  sub: string;
+}) {
+  return (
+    <div style={{
+      width: "100%", display: "flex", alignItems: "center", gap: 10,
+      padding: "10px 12px", color: D.tx, textAlign: "left",
+    }}>
+      <Icon size={14} color={D.teal} strokeWidth={1.8} />
+      <span style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <span style={{ fontFamily: ft, fontSize: 13.5, color: D.tx, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {label}
+        </span>
+        <span style={{ fontFamily: ft, fontSize: 11.5, color: D.txm, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {sub}
+        </span>
+      </span>
+      <ArrowRight size={13} color={D.txd} />
+    </div>
+  );
 }
