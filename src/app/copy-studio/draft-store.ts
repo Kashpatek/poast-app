@@ -16,6 +16,22 @@ function db(): LocalForage {
   return store;
 }
 
+// Fail-quiet mirror to /api/drafts so the server has a copy of every draft
+// for cross-device pickup. Same pattern as design-studio/projects-store →
+// /api/db: local IndexedDB stays the source of truth, the server write is
+// best-effort and intentionally not awaited from the public API.
+async function pushRemote(record: DraftRecord): Promise<void> {
+  try {
+    await fetch("/api/drafts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: record.id, name: record.title, body: record }),
+    });
+  } catch {
+    // fail-quiet
+  }
+}
+
 export type DraftPlatform = "essay" | "thread" | "newsletter" | "carousel" | "pack" | "post" | "seo" | "other";
 
 export interface HeadlineVariant {
@@ -90,6 +106,7 @@ export async function saveDraft(input: Partial<DraftRecord> & { id?: string; tit
     updatedAt: now,
   };
   await db().setItem(id, next);
+  void pushRemote(next);
   return next;
 }
 

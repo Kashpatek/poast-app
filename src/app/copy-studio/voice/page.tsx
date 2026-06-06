@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import CopyShell from "../shell";
 import VoiceScorer from "../../voice-scorer";
+import InstantAnalysisPanel from "../instant-analysis-panel";
 
 export default function VoicePage() {
   const [ok, setOk] = useState(false);
@@ -17,6 +18,7 @@ export default function VoicePage() {
   return (
     <CopyShell title="Brand Voice Gate" subtitle="0-10 SA-on-brand score, breakdown by rubric, surgical rewrites.">
       <VoiceScorer />
+      <InstantAnalysisPanel />
     </CopyShell>
   );
 }

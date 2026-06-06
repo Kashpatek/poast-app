@@ -11,6 +11,7 @@ import { COPY_SOLID, COPY_GLOW, COPY_GRADIENT } from "../shell";
 import { saveDraft, getDraft, snapshotDraft, type DraftRecord, type DraftPlatform } from "../draft-store";
 import { exportDraft, copyAsRichText, htmlToMarkdown, stripHtml } from "../export";
 import { showToast } from "../../toast-context";
+import { retextAnalyze, type RetextAnalysis } from "../retext-voice";
 
 interface Props {
   draftId: string | null;
@@ -28,9 +29,13 @@ export default function DraftEditor({ draftId, seed }: Props) {
   const [voicePanelOpen, setVoicePanelOpen] = useState(false);
   const [voiceResult, setVoiceResult] = useState<{ score: number; topLine?: string; violations?: string[]; suggestions?: string[] } | null>(null);
   const [voiceLoading, setVoiceLoading] = useState(false);
+  const [retext, setRetext] = useState<RetextAnalysis | null>(null);
+  const [retextExpanded, setRetextExpanded] = useState(false);
 
   const lastSerialRef = useRef<string>("");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retextSeqRef = useRef(0);
 
   const editor = useEditor({
     extensions: [
@@ -102,6 +107,31 @@ export default function DraftEditor({ draftId, seed }: Props) {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => { persist(); }, AUTOSAVE_MS);
   }, [title, platform, persist, loaded]);
+
+  // Deterministic retext layer — runs client-side on every edit, debounced.
+  // Surfaces a tiny "PASSIVE n · HYPE n · READABILITY n" counter under the
+  // toolbar that the user can click to expand into the full rubric panel.
+  useEffect(() => {
+    if (!loaded || !editor) return;
+    const trigger = () => {
+      if (retextTimerRef.current) clearTimeout(retextTimerRef.current);
+      retextTimerRef.current = setTimeout(async () => {
+        const plain = stripHtml(editor.getHTML()).trim();
+        const mySeq = ++retextSeqRef.current;
+        if (!plain) { setRetext(null); return; }
+        try {
+          const a = await retextAnalyze(plain);
+          if (mySeq === retextSeqRef.current) setRetext(a);
+        } catch { /* swallow — the LLM gate is the source of truth */ }
+      }, 600);
+    };
+    trigger();
+    editor.on("update", trigger);
+    return () => {
+      editor.off("update", trigger);
+      if (retextTimerRef.current) clearTimeout(retextTimerRef.current);
+    };
+  }, [editor, loaded]);
 
   // Voice gate.
   async function voiceCheck() {
@@ -204,6 +234,8 @@ export default function DraftEditor({ draftId, seed }: Props) {
         </div>
 
         <Toolbar editor={editor} onSave={() => { persist(true); showToast("Snapshot saved.", "success"); }} onVoiceCheck={voiceCheck} onAIContinue={aiContinue} onCopy={copyRich} onExport={doExport} />
+
+        <RetextStrip analysis={retext} expanded={retextExpanded} onToggle={() => setRetextExpanded(o => !o)} />
 
         <div style={{
           background: "#0D0D12", border: "1px solid " + D.border, borderRadius: 14, padding: "22px 26px",
@@ -348,5 +380,93 @@ function VoicePanel({ result, loading, onClose }: { result: { score: number; top
         <div style={{ fontFamily: mn, fontSize: 11, color: D.txd, padding: "12px 0" }}>NO SCORE YET.</div>
       )}
     </aside>
+  );
+}
+
+// ─── Retext strip ─────────────────────────────────────────────────
+// Tiny inline strip wired to the deterministic retext layer. Always
+// renders so the user knows the analysis is running; clicks expand into a
+// full rubric panel with the live grade and inline-flag detail.
+function RetextStrip({ analysis, expanded, onToggle }: { analysis: RetextAnalysis | null; expanded: boolean; onToggle: () => void }) {
+  const passive  = analysis ? analysis.passiveCount     : 0;
+  const hype     = analysis ? analysis.weakHypeCount    : 0;
+  const equality = analysis ? analysis.equalityWarnings : 0;
+  const grade    = analysis ? analysis.readability.grade : null;
+  return (
+    <div style={{ background: "rgba(13,13,18,0.6)", border: "1px solid " + D.border, borderRadius: 10 }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        title="Click to expand retext rubric"
+        style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 12,
+          padding: "6px 12px", background: "transparent", border: "none", cursor: "pointer",
+        }}
+      >
+        <span style={{ fontFamily: mn, fontSize: 9, letterSpacing: 1.6, textTransform: "uppercase", color: D.teal, fontWeight: 800 }}>
+          Live · retext
+        </span>
+        <StripChip label="passive" value={passive} color={D.violet} />
+        <StripChip label="hype" value={hype} color={D.coral} />
+        <StripChip label="readability" value={grade == null ? "—" : grade} color={D.cyan} />
+        {equality > 0 ? <StripChip label="equality" value={equality} color={D.amber} /> : null}
+        <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.6 }}>
+          {expanded ? "− collapse" : "+ rubric"}
+        </span>
+      </button>
+      {expanded && (
+        <div style={{ padding: "10px 14px 14px", borderTop: "1px solid " + D.border }}>
+          {analysis ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+              <div>
+                <RetextBar label="Voice"        value={analysis.rubric.voice}       max={3} />
+                <RetextBar label="Specificity"  value={analysis.rubric.specificity} max={3} />
+                <RetextBar label="Directness"   value={analysis.rubric.directness}  max={2} />
+                <RetextBar label="Platform fit" value={analysis.rubric.platformFit} max={2} />
+              </div>
+              <div>
+                <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 6 }}>Readability</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, color: D.tx, letterSpacing: -0.6 }}>{analysis.readability.grade}</span>
+                  <span style={{ fontFamily: mn, fontSize: 10, color: D.txm }}>grade · FK ease {analysis.readability.fleschKincaid}</span>
+                </div>
+                <div style={{ fontFamily: ft, fontSize: 11.5, color: D.txm, lineHeight: 1.5 }}>
+                  {analysis.inlineFlags.length === 0
+                    ? "No inline flags. The LLM gate above is still the source of truth."
+                    : `${analysis.inlineFlags.length} inline flag${analysis.inlineFlags.length === 1 ? "" : "s"}. Click the Voice button to run the full SA scorer.`}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontFamily: mn, fontSize: 10, color: D.txd }}>Type something to see the rubric.</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StripChip({ label, value, color }: { label: string; value: number | string; color: string }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontFamily: mn, fontSize: 10, letterSpacing: 1, textTransform: "uppercase" }}>
+      <span style={{ color, fontWeight: 800 }}>{label}</span>
+      <span style={{ color: D.tx, fontWeight: 700 }}>{value}</span>
+    </span>
+  );
+}
+
+function RetextBar({ label, value, max }: { label: string; value: number; max: number }) {
+  const pct = max > 0 ? (value / max) * 100 : 0;
+  const color = pct >= 80 ? D.teal : pct >= 50 ? D.amber : D.coral;
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+        <span style={{ fontFamily: ft, fontSize: 11, color: D.tx }}>{label}</span>
+        <span style={{ fontFamily: mn, fontSize: 11, color: D.txm }}>{value} / {max}</span>
+      </div>
+      <div style={{ height: 4, background: D.border, borderRadius: 2, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: pct + "%", background: color, transition: "width 0.3s ease" }} />
+      </div>
+    </div>
   );
 }
