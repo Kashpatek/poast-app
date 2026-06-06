@@ -1,4 +1,14 @@
-# OpenCut (vendored reference clone)
+# OpenCut (vendored reference clone — decommissioned)
+
+> **Status (2026-06-06):** Upstream OpenCut classic is currently a
+> **placeholder** — the editor surface does not ship a functional NLE.
+> Because of this, POAST has stopped integrating OpenCut and now ships
+> **its own native timeline editor** at `/production-studio/timeline`.
+> This directory is left on disk for reference only; it is no longer
+> installed, built, served, or wired into the POAST app, and `npm run
+> dev` does not depend on it. See
+> [`../OPENCUT.md`](../../OPENCUT.md) and
+> [`../../src/app/production-studio/timeline/OPENCUT.md`](../../src/app/production-studio/timeline/OPENCUT.md).
 
 This directory is a shallow clone of
 [OpenCut-app/OpenCut](https://github.com/OpenCut-app/OpenCut) (MIT)
@@ -7,12 +17,11 @@ taken on **2026-06-06**.
 It is **not** installed, built, or wired into the POAST app. We keep the
 source tree here as a reference snapshot so we can:
 
-1. Port OpenCut's React/Tailwind UI to POAST's inline-style design system
-   (`src/app/shared-constants.ts` — tokens `D`, `ft`, `gf`, `mn`).
-2. Mirror OpenCut's Zustand stores into our POAST project store (via
-   `/api/db`) once we vendor the editor in-process.
-3. Track upstream when OpenCut publishes its plugin/MCP API so we can
-   replace today's clipboard hand-off with a real bidirectional bridge.
+1. Port any useful UI patterns to POAST's inline-style design system
+   (`src/app/shared-constants.ts` — tokens `D`, `ft`, `gf`, `mn`) if
+   the upstream editor ever ships a real implementation.
+2. Diff against future upstream releases to evaluate re-integration.
+3. Preserve the MIT license attribution alongside any code we port out.
 
 ## Running OpenCut standalone (optional)
 
