@@ -1,9 +1,12 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { ArticleJsonLd } from "next-seo";
+import type { ArticleJsonLdProps } from "next-seo";
 import CopyShell, { COPY_SOLID, COPY_GLOW } from "../shell";
 import { D, ft, gf, mn, copyText } from "../../shared-constants";
-import { Tags, Copy as CopyIcon, Code2 } from "lucide-react";
+import { Copy as CopyIcon, Code2, Download, Loader2 } from "lucide-react";
 import { showToast } from "../../toast-context";
 
 export default function SEOPage() {
@@ -17,6 +20,10 @@ export default function SEOPage() {
   const [twitterHandle, setTwitterHandle] = useState("@SemiAnalysis_");
   const [tab, setTab] = useState<"google" | "twitter" | "facebook" | "tags">("google");
 
+  // ─── Auto-fill from URL (metascraper) ───
+  const [scrapeUrl, setScrapeUrl] = useState("");
+  const [scraping, setScraping] = useState(false);
+
   useEffect(() => {
     try {
       const stored = localStorage.getItem("poast-current-user");
@@ -24,6 +31,30 @@ export default function SEOPage() {
     } catch {}
     if (typeof window !== "undefined") window.location.href = "/";
   }, []);
+
+  async function handleFetch() {
+    const u = scrapeUrl.trim();
+    if (!u) { showToast("Enter a URL to scrape.", "error"); return; }
+    setScraping(true);
+    try {
+      const r = await fetch("/api/seo-scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: u }),
+      });
+      const d = await r.json();
+      if (!r.ok || d.error) { showToast(d.error || "Scrape failed.", "error"); return; }
+      if (d.title) setTitle(d.title);
+      if (d.description) setDesc(d.description);
+      if (d.image) setImage(d.image);
+      if (d.url) setUrl(d.url);
+      showToast("Filled from page metadata.", "success");
+    } catch (e) {
+      showToast("Network error fetching URL.", "error");
+    } finally {
+      setScraping(false);
+    }
+  }
 
   const titleLen = title.length;
   const descLen = desc.length;
@@ -38,6 +69,31 @@ export default function SEOPage() {
       <div style={{ display: "grid", gridTemplateColumns: "420px 1fr", gap: 18, padding: "20px 28px 40px", maxWidth: 1320, margin: "0 auto" }}>
         {/* LEFT — inputs */}
         <aside style={{ background: "#0D0D12", border: "1px solid " + D.border, borderRadius: 14, padding: 18, display: "flex", flexDirection: "column", gap: 12, height: "fit-content", position: "sticky", top: 76 }}>
+          {/* Auto-fill from URL */}
+          <Field label="Auto-fill from URL" sub="metascraper">
+            <div style={{ display: "flex", gap: 6 }}>
+              <input
+                value={scrapeUrl}
+                onChange={e => setScrapeUrl(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && !scraping) { e.preventDefault(); handleFetch(); } }}
+                placeholder="https://example.com/article"
+                style={inputStyle()}
+              />
+              <button
+                onClick={handleFetch}
+                disabled={scraping}
+                style={{
+                  padding: "0 12px", background: COPY_SOLID + "1F", border: "1px solid " + COPY_SOLID + "55", borderRadius: 7,
+                  color: COPY_SOLID, fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase",
+                  cursor: scraping ? "wait" : "pointer", display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
+                  opacity: scraping ? 0.65 : 1,
+                }}
+              >
+                {scraping ? <Loader2 size={12} className="spin" /> : <Download size={12} strokeWidth={2} />}
+                {scraping ? "Fetching" : "Fetch"}
+              </button>
+            </div>
+          </Field>
           <Field label="Title" sub={charSub(titleLen, 60)}>
             <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Article title (≤ 60 chars sweet spot)" style={inputStyle()} />
           </Field>
@@ -118,6 +174,10 @@ export default function SEOPage() {
           )}
         </main>
       </div>
+      <style jsx>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        :global(.spin) { animation: spin 0.9s linear infinite; }
+      `}</style>
     </CopyShell>
   );
 }
@@ -178,6 +238,11 @@ function escapeAttr(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// ─── <head> tag generator ───
+// next-seo's <NextSeo> + <ArticleJsonLd> render the same set of <meta> tags
+// when used in a real page. There's no exported helper that returns a meta-tag
+// string standalone, so we mirror their output here using next-seo's type
+// shape to keep us aligned with what they would actually emit.
 function buildTags({ title, desc, url, image, siteName, author, twitterHandle }: MetaArgs): string {
   const t = escapeAttr(title || "Untitled");
   const d = escapeAttr(desc || "");
@@ -211,19 +276,27 @@ function buildTags({ title, desc, url, image, siteName, author, twitterHandle }:
   return lines.filter(Boolean).join("\n");
 }
 
+// ─── JSON-LD generator (next-seo) ───
+// Build a strongly-typed ArticleJsonLdProps payload, hand it to next-seo's
+// <ArticleJsonLd>, render to static markup. The output is exactly the
+// <script type="application/ld+json"> that next-seo would emit server-side.
 function buildJsonLd({ title, desc, url, image, siteName, author }: Omit<MetaArgs, "twitterHandle">): string {
-  const data: Record<string, unknown> = {
-    "@context": "https://schema.org",
-    "@type": "Article",
+  const props: ArticleJsonLdProps = {
+    type: "Article",
     headline: title || "Untitled",
-    description: desc || undefined,
-    image: image ? [image] : undefined,
-    url: url || undefined,
-    publisher: { "@type": "Organization", name: siteName || "SemiAnalysis" },
-    author: author ? { "@type": "Person", name: author } : undefined,
     datePublished: new Date().toISOString(),
+    publisher: { "@type": "Organization", name: siteName || "SemiAnalysis" },
+    ...(desc ? { description: desc } : {}),
+    ...(url ? { url, mainEntityOfPage: url } : {}),
+    ...(image ? { image: [image] } : {}),
+    ...(author ? { author: { "@type": "Person", name: author } } : {}),
   };
-  // Remove undefined entries.
-  Object.keys(data).forEach(k => { if (data[k] === undefined) delete data[k]; });
-  return `<script type="application/ld+json">\n` + JSON.stringify(data, null, 2) + "\n</script>";
+  try {
+    return renderToStaticMarkup(<ArticleJsonLd {...props} />);
+  } catch {
+    // Fallback in the very unlikely case renderToStaticMarkup throws — keep
+    // the code-block populated rather than blanking the UI.
+    return `<script type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@type": "Article", headline: props.headline }, null, 2)}</script>`;
+  }
 }
+

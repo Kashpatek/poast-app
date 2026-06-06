@@ -1,6 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // metascraper's transitive url-regex-safe → re2 native module can't be
+  // bundled by Turbopack. Marking metascraper as server-external keeps the
+  // SEO scraper route working without dragging the .node binary through
+  // the server bundler.
+  serverExternalPackages: [
+    "metascraper",
+    "metascraper-title",
+    "metascraper-description",
+    "metascraper-image",
+    "metascraper-url",
+    "url-regex-safe",
+    "re2",
+  ],
   async redirects() {
     return [
       { source: "/docu-design", destination: "/design-studio", permanent: true },
