@@ -116,8 +116,15 @@
         <div class="swatch" data-color="#FFFFFF" style="background:#FFFFFF" title="White"></div>
         <div class="swatch" data-color="#8E7AE6" style="background:#8E7AE6" title="Violet"></div>
       </div>
-      <div class="field-row" style="margin-top: 4px;">
+      <div class="field-row" style="margin-top: 4px; flex-wrap: wrap;">
         <label class="toggle"><input id="show-meta" type="checkbox" checked /> META TAG</label>
+      </div>
+      <div class="field-row" style="margin-top: 6px; flex-wrap: wrap;">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--txd); letter-spacing: 1px; align-self: center;">LOGO:</span>
+        <label class="toggle"><input type="radio" name="logo-style" value="auto" checked /> AUTO</label>
+        <label class="toggle"><input type="radio" name="logo-style" value="box" /> BOX</label>
+        <label class="toggle"><input type="radio" name="logo-style" value="lettermark" /> TEXT</label>
+        <label class="toggle"><input type="radio" name="logo-style" value="full" /> FULL</label>
       </div>
     </div>
     <div class="field">
@@ -141,8 +148,9 @@
       <li>Each cover is a 1080×1350 SVG that re-renders whenever you change a control above.</li>
       <li>Click <code>FULLSCREEN</code> on any card to inspect at native size. <code>SVG</code> downloads the file ready for InDesign / Illustrator. <code>PNG</code> rasterizes via canvas.</li>
       <li>Tell me which numbers you want as cover-picker options in the verbatim carousel flow and I'll port them into <code>carousel.tsx</code>. The SVGs here become the React renderers — same paths, same math.</li>
-      <li>Variants that don't use the cover image (<b>02 · Type Bomb</b>) still render so you can compare type weight against the photo treatments.</li>
+      <li><b>02 · Type Bomb</b> now uses your dropped image as a darkened background. With no image, it falls back to the SA chip-hex pattern.</li>
       <li><b>03 · Diptych</b> defaults to one full image. Tick <code>DUAL IMAGE</code> in the image controls to split it horizontally — top half stays color, bottom half flips to an accent-tinted duotone with a hairline accent seam between.</li>
+      <li><code>LOGO</code> controls flip every cover between the chip-pattern hex (<b>BOX</b>), the wordmark (<b>TEXT</b>), the combined lockup (<b>FULL</b>), or <b>AUTO</b> — which picks per variant (box for 01/04/06, text for 02/05, full for 03).</li>
     </ul>
   </div>
 
@@ -161,6 +169,7 @@
       showLogo: true,
       showMeta: true,
       dual: false,
+      logoStyle: "auto",
       accent: "#F7B041",
       imageUrl: "",
     };
@@ -267,34 +276,42 @@
       return lines;
     }
 
-    // Real SA brand mark — fetched once from /sa-logo-full.svg on boot,
-    // inlined into every cover so downloaded SVGs are portable. Source
-    // viewBox is 290.53 × 172.53 (hex + "semianalysis" wordmark with
-    // SA's cobalt + amber palette).
-    const LOGO_VB_W = 290.53;
-    const LOGO_VB_H = 172.53;
-    let SA_LOGO_INNER = "";
-    fetch("/sa-logo-full.svg")
-      .then(r => r.text())
-      .then(text => {
-        const open = text.indexOf("<svg");
-        const after = text.indexOf(">", open);
-        SA_LOGO_INNER = text.slice(after + 1).replace(/<\/svg>\s*$/, "");
-        refresh();
-      })
-      .catch(() => {});
+    // Real SA brand marks — three flavors fetched once on boot and
+    // inlined so downloaded SVGs stay portable.
+    //   box        — chip-pattern hex symbol only (Box Logo.svg)
+    //   lettermark — "semianalysis" wordmark text only
+    //   full       — hex + wordmark together
+    // Each variant calls saMark(x, y, w, h, preferred). When the user
+    // sets LOGO STYLE to AUTO, the preferred style for that variant
+    // applies. Any explicit choice overrides every variant.
+    const LOGOS = {
+      box:        { vbW: 110.75, vbH: 125.61, inner: "", url: "/sa-box-logo.svg" },
+      lettermark: { vbW: 368.82, vbH: 119.02, inner: "", url: "/sa-lettermark.svg" },
+      full:       { vbW: 290.53, vbH: 172.53, inner: "", url: "/sa-logo-full.svg" },
+    };
+    Object.values(LOGOS).forEach(spec => {
+      fetch(spec.url)
+        .then(r => r.text())
+        .then(text => {
+          const open = text.indexOf("<svg");
+          const after = text.indexOf(">", open);
+          spec.inner = text.slice(after + 1).replace(/<\/svg>\s*$/, "");
+          refresh();
+        })
+        .catch(() => {});
+    });
 
-    // Place the SA brand mark at (x, y) bounded by (w, h). Preserves the
-    // 290.53 × 172.53 aspect ratio. Renders nothing when the user has
-    // toggled the logo off.
-    function saMark(x, y, w, h) {
+    function saMark(x, y, w, h, preferred) {
       if (!state.showLogo) return "";
-      if (!SA_LOGO_INNER) return "";
-      const scaleX = w / LOGO_VB_W;
-      const scaleY = h / LOGO_VB_H;
+      const style = state.logoStyle === "auto" ? (preferred || "full") : state.logoStyle;
+      const spec = LOGOS[style];
+      if (!spec || !spec.inner) return "";
+      const scaleX = w / spec.vbW;
+      const scaleY = h / spec.vbH;
       const scale = Math.min(scaleX, scaleY);
-      const actualW = LOGO_VB_W * scale;
-      return `<g transform="translate(${x + (w - actualW)}, ${y}) scale(${scale})">${SA_LOGO_INNER}</g>`;
+      const actualW = spec.vbW * scale;
+      const actualH = spec.vbH * scale;
+      return `<g transform="translate(${x + (w - actualW)}, ${y + (h - actualH) / 2}) scale(${scale})">${spec.inner}</g>`;
     }
 
     function hexMark(x, y, size = 44, fill = "#FFFFFF") {
@@ -326,18 +343,23 @@
     // ─────────────────────────────────────────────────────────────
 
     // 01 · REFERENCE — Image clipped inside the outlined frame box.
-    // The dark gradient + title sit inside the same frame so the whole
-    // composition reads as one "card" floating on the canvas backdrop.
+    // Outer area (around the frame) shows the SA chip-hex pattern in
+    // an ambient accent stroke. Title + subtitle live inside the frame
+    // and clip to its edges — no text bleeds past the outline.
     function v01() {
       const t = displayTitle();
       const pad = 60;
       const frameW = W - pad * 2;
       const frameH = H - pad * 2;
-      const maxTitleWidth = frameW - 48;
-      const lines = wordWrap(t, 18);
+      const innerPad = 24;
+      const textX = pad + innerPad;
+      const maxTitleWidth = frameW - innerPad * 2;
+      const subWrap = Math.max(20, Math.floor(maxTitleWidth / 17));
+      const titleWrap = Math.max(8, Math.floor(maxTitleWidth / 28));
+      const lines = wordWrap(t, titleWrap);
       const fs = titleFontSizeForLines(lines, 110, maxTitleWidth);
 
-      const subLines = state.showSub && state.subtitle ? wordWrap(state.subtitle, 42) : [];
+      const subLines = state.showSub && state.subtitle ? wordWrap(state.subtitle, subWrap) : [];
       const subFs = 30;
       const subGap = 36;
 
@@ -346,47 +368,50 @@
       const subBottomY = frameBottom - blockBottomMargin;
       const subStartY = subBottomY - (subLines.length - 1) * subGap;
       const titleBottomY = subLines.length ? subStartY - 70 : subBottomY;
-      const tb = titleBlock(lines, fs, pad + 24, titleBottomY);
+      const tb = titleBlock(lines, fs, textX, titleBottomY);
 
       const innerImage = state.imageUrl
         ? `<image href="${esc(state.imageUrl)}" x="${pad}" y="${pad}" width="${frameW}" height="${frameH}" preserveAspectRatio="xMidYMid slice"/>`
         : `<rect x="${pad}" y="${pad}" width="${frameW}" height="${frameH}" fill="#0F1626"/>
-           <rect x="${pad}" y="${pad}" width="${frameW}" height="${frameH}" fill="url(#v01-pat)"/>`;
+           <rect x="${pad}" y="${pad}" width="${frameW}" height="${frameH}" fill="url(#v01-pat-inner)"/>`;
 
       return `
-        <rect width="${W}" height="${H}" fill="#0A0B10"/>
         <defs>
-          <pattern id="v01-pat" width="40" height="46" patternUnits="userSpaceOnUse">
+          <pattern id="v01-pat-outer" width="40" height="46" patternUnits="userSpaceOnUse">
+            <polygon points="20,2 38,12 38,34 20,44 2,34 2,12" fill="none" stroke="${state.accent}" stroke-opacity="0.18" stroke-width="1"/>
+          </pattern>
+          <pattern id="v01-pat-inner" width="40" height="46" patternUnits="userSpaceOnUse">
             <polygon points="20,2 38,12 38,34 20,44 2,34 2,12" fill="none" stroke="${state.accent}" stroke-opacity="0.10" stroke-width="1"/>
           </pattern>
           <clipPath id="v01-frame"><rect x="${pad}" y="${pad}" width="${frameW}" height="${frameH}"/></clipPath>
           ${gradient("v01-grad", [{o:"0%",c:"#000",a:0},{o:"45%",c:"#000",a:0},{o:"100%",c:"#000",a:0.94}])}
         </defs>
+        <rect width="${W}" height="${H}" fill="#0A0B10"/>
+        <rect width="${W}" height="${H}" fill="url(#v01-pat-outer)"/>
         <g clip-path="url(#v01-frame)">
           ${innerImage}
           <rect x="${pad}" y="${pad}" width="${frameW}" height="${frameH}" fill="url(#v01-grad)"/>
+          ${tb.svg}
+          ${subLines.map((ln, i) => `<text x="${textX}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.88)">${esc(ln)}</text>`).join("")}
         </g>
         <rect x="${pad}" y="${pad}" width="${frameW}" height="${frameH}" fill="none" stroke="#FFFFFF" stroke-opacity="0.20" stroke-width="2"/>
         ${dropShadowDefs("v01-shadow")}
-        ${shadowed("v01-shadow", saMark(W - pad - 220 - 24, pad + 24, 220, 132))}
-        ${tb.svg}
-        ${subLines.map((ln, i) => `<text x="${pad + 24}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.86)">${esc(ln)}</text>`).join("")}
+        ${shadowed("v01-shadow", saMark(W - pad - 220 - innerPad, pad + innerPad, 220, 132, "box"))}
       `;
     }
 
-    // 02 · TYPE BOMB — No image, massive declarative type.
-    // Stays at base 190 always. Each line uses SVG textLength +
-    // lengthAdjust so a wide word like "INFRASTRUCTURE" squeezes
-    // horizontally to fit while keeping the headline visually huge.
-    // Short lines render natural — only over-wide lines squeeze.
+    // 02 · TYPE BOMB — Auto-shrinks based on widest word so anything
+    // fits without bleeding off the edge. If the user has dropped a
+    // cover image, it loads behind the type with a heavy dark overlay
+    // (the chip-hex pattern still shines through accent strokes when
+    // no image is set).
     function v02() {
       const t = displayTitle();
       const pad = 80;
       const maxWidth = W - pad * 2;
-      const fs = 190;
-      const lineGap = fs * 1.0;
       const lines = wordWrap(t, 9);
-      const perChar = 0.58;
+      const fs = titleFontSizeForLines(lines, 170, maxWidth);
+      const lineGap = fs * 1.0;
       const titleStartY = 260 + fs;
 
       const subLines = state.showSub && state.subtitle ? wordWrap(state.subtitle, 40) : [];
@@ -395,26 +420,26 @@
       const subEndY = H - 130;
       const subStartY = subEndY - (subLines.length - 1) * subGap;
 
-      const titleSvg = lines.map((ln, i) => {
-        const naturalW = ln.length * fs * perChar;
-        const tl = naturalW > maxWidth ? `textLength="${maxWidth}" lengthAdjust="spacingAndGlyphs"` : "";
-        return `<text x="${pad}" y="${titleStartY + i * lineGap}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF" ${tl}>${esc(ln)}</text>`;
-      }).join("");
+      const bg = state.imageUrl
+        ? `<image href="${esc(state.imageUrl)}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/>
+           <rect width="${W}" height="${H}" fill="#0A0B10" fill-opacity="0.74"/>
+           <rect width="${W}" height="${H}" fill="url(#v02-pat)"/>`
+        : `<rect width="${W}" height="${H}" fill="#0A0B10"/>
+           <rect width="${W}" height="${H}" fill="url(#v02-pat)"/>`;
 
       return `
-        <rect width="${W}" height="${H}" fill="#0A0B10"/>
         <defs>
           <pattern id="v02-pat" width="44" height="50" patternUnits="userSpaceOnUse">
-            <polygon points="22,2 42,13 42,37 22,48 2,37 2,13" fill="none" stroke="${state.accent}" stroke-opacity="0.10" stroke-width="1"/>
+            <polygon points="22,2 42,13 42,37 22,48 2,37 2,13" fill="none" stroke="${state.accent}" stroke-opacity="0.12" stroke-width="1"/>
           </pattern>
         </defs>
-        <rect width="${W}" height="${H}" fill="url(#v02-pat)"/>
+        ${bg}
         <rect x="0" y="0" width="${W}" height="14" fill="${state.accent}"/>
-        ${titleSvg}
+        ${lines.map((ln, i) => `<text x="${pad}" y="${titleStartY + i * lineGap}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
         <line x1="${pad}" y1="${subStartY - 80}" x2="${pad + 100}" y2="${subStartY - 80}" stroke="${state.accent}" stroke-width="4"/>
-        ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.78)">${esc(ln)}</text>`).join("")}
+        ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.80)">${esc(ln)}</text>`).join("")}
         ${metaTag("TEAR-DOWN · SEMIANALYSIS", pad, H - 60, "rgba(255,255,255,0.4)")}
-        ${saMark(W - 80 - 200, H - 200, 200, 120)}
+        ${saMark(W - 80 - 240, H - 200, 240, 120, "lettermark")}
       `;
     }
 
@@ -486,7 +511,7 @@
         ${dual ? `<line x1="0" y1="${splitY}" x2="${W}" y2="${splitY}" stroke="${state.accent}" stroke-width="4"/>` : ""}
         <rect width="${W}" height="${H}" fill="url(#v03-grad)"/>
         ${dropShadowDefs("v03-shadow")}
-        ${shadowed("v03-shadow", saMark(W - 60 - 220, 50, 220, 132) + metaTag(dual ? "DIPTYCH · 06 / 26" : "INFRASTRUCTURE · 06 / 26", 60, 95, state.accent))}
+        ${shadowed("v03-shadow", saMark(W - 60 - 220, 50, 220, 132, "full") + metaTag(dual ? "DIPTYCH · 06 / 26" : "INFRASTRUCTURE · 06 / 26", 60, 95, state.accent))}
         ${tb.svg}
         ${subLines.map((ln, i) => `<text x="${pad + 24}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.82)">${esc(ln)}</text>`).join("")}
       `;
@@ -515,7 +540,7 @@
         <defs>${gradient("v04-grad", [{o:"0%",c:"#000",a:0.15},{o:"45%",c:"#000",a:0},{o:"100%",c:"#000",a:0.94}])}</defs>
         <rect width="${W}" height="${H}" fill="url(#v04-grad)"/>
         ${dropShadowDefs("v04-shadow")}
-        ${shadowed("v04-shadow", metaTag("06 / 2026 · INFRA", W - 360, 90, state.accent) + saMark(W - 60 - 220, 110, 220, 132))}
+        ${shadowed("v04-shadow", metaTag("06 / 2026 · INFRA", W - 360, 90, state.accent) + saMark(W - 60 - 160, 130, 160, 180, "box"))}
         ${tb.svg}
         ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.82)">${esc(ln)}</text>`).join("")}
       `;
@@ -555,7 +580,7 @@
         <rect x="0" y="${barTop}" width="${W}" height="${barH}" fill="#0A0B10"/>
         <rect x="0" y="${barTop}" width="${W}" height="6" fill="${state.accent}"/>
         ${dropShadowDefs("v05-shadow")}
-        ${shadowed("v05-shadow", saMark(W - 60 - 220, 50, 220, 132))}
+        ${shadowed("v05-shadow", saMark(W - 60 - 240, 50, 240, 100, "lettermark"))}
         ${metaTag("ISSUE 24 · INFRASTRUCTURE", pad, metaY, state.accent)}
         ${lines.map((ln, i) => `<text x="${pad}" y="${titleTopBaselineY + i * titleLineGap}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
         ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.72)">${esc(ln)}</text>`).join("")}
@@ -584,7 +609,7 @@
         <defs>${gradient("v06-grad", [{o:"0%",c:"#000",a:0.18},{o:"45%",c:"#000",a:0},{o:"100%",c:"#000",a:0.93}])}</defs>
         <rect width="${W}" height="${H}" fill="url(#v06-grad)"/>
         ${dropShadowDefs("v06-shadow")}
-        ${shadowed("v06-shadow", metaTag("YB · 04 · INFRASTRUCTURE", pad, 100, "#FFFFFF") + saMark(W - 60 - 220, 70, 220, 132))}
+        ${shadowed("v06-shadow", metaTag("YB · 04 · INFRASTRUCTURE", pad, 100, "#FFFFFF") + saMark(W - 60 - 160, 70, 160, 180, "box"))}
         <rect x="${pad}" y="${titleBottomY - fs - 60}" width="68" height="4" fill="${state.accent}"/>
         ${tb.svg}
         ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.82)">${esc(ln)}</text>`).join("")}
@@ -642,6 +667,9 @@
     document.getElementById("show-meta").addEventListener("change", e => { state.showMeta = e.target.checked; refresh(); });
     document.getElementById("image-url").addEventListener("input", e => { state.imageUrl = e.target.value.trim(); refresh(); });
     document.getElementById("dual-image").addEventListener("change", e => { state.dual = e.target.checked; refresh(); });
+    document.querySelectorAll('input[name="logo-style"]').forEach(r => {
+      r.addEventListener("change", e => { state.logoStyle = e.target.value; refresh(); });
+    });
 
     document.querySelectorAll(".swatch").forEach(sw => {
       sw.addEventListener("click", () => {
