@@ -132,6 +132,25 @@ function CommandPalette({ tools, onRoute }: { tools: ToolCard[]; onRoute: (href:
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
+  // ⌘K toggles the palette open. We bind on the capture phase and
+  // stopImmediatePropagation so the global palette in poast-client
+  // (also $mod+k) doesn't double-fire on this landing page. Inputs and
+  // contentEditable targets are ignored so ⌘K stays usable mid-typing.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.key.toLowerCase() !== "k") return;
+      const t = e.target as HTMLElement | null;
+      const tag = t?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t?.isContentEditable) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      setOpen((v) => !v);
+    }
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
+
   function go(href: string) { setOpen(false); setValue(""); onRoute(href); }
 
   // Bare prompt slot (always visible). Click → expand into the cmdk popover.

@@ -698,6 +698,54 @@ function PanelHeader({ children }: { children: React.ReactNode }) {
 }
 
 // ─── Left-panel tabs ───────────────────────────────────────────────
+// Thumbnail cache shared across all TemplatesTab mounts. Each entry is a
+// dataURL rendered by a headless StaticCanvas at low resolution. Persisting
+// back to the templates module isn't possible at runtime, so we keep it in
+// memory — cheap and re-generated on hard reload.
+const TEMPLATE_THUMB_CACHE = new Map<string, string>();
+
+async function renderTemplateThumb(t: DesignTemplate): Promise<string> {
+  const cached = TEMPLATE_THUMB_CACHE.get(t.id);
+  if (cached) return cached;
+  // Build a detached <canvas> so the StaticCanvas has something to bind to.
+  const el = document.createElement("canvas");
+  el.width = t.preset.width;
+  el.height = t.preset.height;
+  const sc = new fabric.StaticCanvas(el, {
+    width: t.preset.width,
+    height: t.preset.height,
+    backgroundColor: "#FFFFFF",
+  });
+  try {
+    await sc.loadFromJSON(t.payload as unknown as Record<string, unknown>);
+    sc.renderAll();
+    // 160px on the long edge is enough for the 2-col grid; that maps to
+    // multiplier 160 / longEdge. Capped low so this stays cheap.
+    const longEdge = Math.max(t.preset.width, t.preset.height);
+    const multiplier = Math.min(0.25, 160 / longEdge);
+    const dataURL = sc.toDataURL({ format: "png", multiplier });
+    TEMPLATE_THUMB_CACHE.set(t.id, dataURL);
+    return dataURL;
+  } finally {
+    try { sc.dispose(); } catch {}
+  }
+}
+
+function TemplateThumb({ t }: { t: DesignTemplate }) {
+  const [src, setSrc] = useState<string | null>(() => TEMPLATE_THUMB_CACHE.get(t.id) || (t.thumb || null));
+  useEffect(() => {
+    if (src) return;
+    let cancelled = false;
+    renderTemplateThumb(t).then((url) => { if (!cancelled) setSrc(url); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [t, src]);
+  if (src) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} alt={t.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />;
+  }
+  return <span style={{ fontFamily: mn, fontSize: 9, color: D.txd, padding: 6, textAlign: "center" }}>{t.title}</span>;
+}
+
 function TemplatesTab({ cat, onPick }: { cat?: string; onPick: (t: DesignTemplate) => void }) {
   const list = cat ? templatesByCategory(cat) : TEMPLATES.slice(0, 12);
   return (
@@ -711,7 +759,7 @@ function TemplatesTab({ cat, onPick }: { cat?: string; onPick: (t: DesignTemplat
             background: "#1a1a23", border: "1px solid " + D.border, borderRadius: 6, padding: 0, overflow: "hidden", cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
-            {t.thumb ? <img src={t.thumb} alt={t.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontFamily: mn, fontSize: 9, color: D.txd, padding: 6, textAlign: "center" }}>{t.title}</span>}
+            <TemplateThumb t={t} />
           </button>
         ))}
       </div>

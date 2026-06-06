@@ -135,6 +135,9 @@ export function WidgetDeck() {
   var _loaded = useState<boolean>(false), loaded = _loaded[0], setLoaded = _loaded[1];
 
   const dragId = useRef<string | null>(null);
+  // Debounce remote writes so rapid reorder/resize/add/remove edits batch
+  // into a single POST instead of slamming /api/db on every keystroke.
+  const dbSyncTimer = useRef<number | null>(null);
 
   // Hydrate: race localStorage (fast) against Supabase (canonical).
   useEffect(function () {
@@ -192,12 +195,26 @@ export function WidgetDeck() {
     return function () { clearTimeout(timer); };
   }, []);
 
-  // Persist on change once hydrated.
+  // Persist on change once hydrated. Local writes are cheap so they fire
+  // every render; the remote /api/db POST is debounced 1.5s so rapid edits
+  // (drag-reorder, resize cycle, picker spam) batch into a single round-trip.
   useEffect(function () {
     if (!loaded) return;
     const cfg: DeckConfig = { activeIds, widgetSizes };
     saveToLS(cfg);
-    dbSync(cfg);
+    if (dbSyncTimer.current !== null) {
+      window.clearTimeout(dbSyncTimer.current);
+    }
+    dbSyncTimer.current = window.setTimeout(function () {
+      dbSyncTimer.current = null;
+      dbSync(cfg);
+    }, 1500);
+    return function () {
+      if (dbSyncTimer.current !== null) {
+        window.clearTimeout(dbSyncTimer.current);
+        dbSyncTimer.current = null;
+      }
+    };
   }, [activeIds, widgetSizes, loaded]);
 
   function getSize(id: string): SizeKey {
