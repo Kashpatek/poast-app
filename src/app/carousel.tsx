@@ -90,6 +90,9 @@ interface CarouselState {
   articleImages?: string[];
   selectedArticleImage?: string | null;
   fetchingImages?: boolean;
+  // "ai" (default) — LLM rewrites/structures the input into 3 variants.
+  // "verbatim" — analyst's text is laid out across slides unchanged.
+  generationMode?: "ai" | "verbatim";
 }
 
 // ═══ THEME / BACKDROP MAPPING ═══
@@ -573,9 +576,75 @@ function SlideThumbnail({ slide, theme, isActive, onClick, index }: { slide: Sli
 
 
 // ═══ STEP 0: INPUT ═══
+// Verbatim splitter — preserves the analyst's writing untouched. Splits on
+// paragraph breaks first; falls back to line breaks for unformatted blobs.
+// Groups or splits chunks so the slide count matches the user's pick.
+function splitVerbatim(text: string, pageCount: number): GeneratedSlide[] {
+  var raw = String(text || "").trim();
+  if (!raw) return [];
+  var rawChunks = raw.split(/\n\s*\n|\n-{3,}\n/).map(function(s) { return s.trim(); }).filter(Boolean);
+  if (rawChunks.length === 1) {
+    rawChunks = raw.split(/\n+/).map(function(s) { return s.trim(); }).filter(Boolean);
+  }
+  if (!rawChunks.length) rawChunks = [raw];
+
+  var target = pageCount && pageCount > 0
+    ? Math.max(1, pageCount)
+    : Math.min(7, Math.max(3, rawChunks.length));
+
+  var chunks: string[] = rawChunks.slice();
+  if (chunks.length > target) {
+    var grouped: string[] = [];
+    var groupSize = Math.ceil(chunks.length / target);
+    for (var i = 0; i < chunks.length; i += groupSize) {
+      grouped.push(chunks.slice(i, i + groupSize).join("\n\n"));
+    }
+    chunks = grouped.slice(0, target);
+  } else if (chunks.length < target) {
+    var safety = 0;
+    while (chunks.length < target && safety++ < 64) {
+      var longestIdx = 0;
+      for (var j = 0; j < chunks.length; j++) {
+        if (chunks[j].length > chunks[longestIdx].length) longestIdx = j;
+      }
+      var longest = chunks[longestIdx];
+      var sentences = longest.match(/[^.!?]+[.!?]+(\s|$)|\S[^.!?]*$/g);
+      if (!sentences || sentences.length < 2) break;
+      var mid = Math.ceil(sentences.length / 2);
+      var first = sentences.slice(0, mid).join("").trim();
+      var second = sentences.slice(mid).join("").trim();
+      if (!first || !second) break;
+      chunks.splice(longestIdx, 1, first, second);
+    }
+  }
+
+  var slides: GeneratedSlide[] = [];
+  for (var k = 0; k < chunks.length; k++) {
+    var c = chunks[k];
+    if (k === 0 && chunks.length > 1) {
+      var firstLine = (c.split(/\n/)[0] || c).trim();
+      var rest = c.slice(firstLine.length).trim();
+      slides.push({ type: "COVER", title: firstLine.slice(0, 140), subtitle: rest });
+    } else if (k === chunks.length - 1 && chunks.length > 1) {
+      slides.push({ type: "BODY_FINAL", body_text: c });
+    } else if (chunks.length === 1) {
+      var firstLine2 = (c.split(/\n/)[0] || c).trim();
+      var rest2 = c.slice(firstLine2.length).trim();
+      slides.push({ type: "COVER", title: firstLine2.slice(0, 140), subtitle: rest2 });
+    } else {
+      slides.push({ type: k % 2 === 1 ? "BODY_A" : "BODY_B", body_text: c });
+    }
+  }
+  return slides;
+}
+
 function InputStep({ state, setState, onNext, generatedSlideCount }: { state: CarouselState; setState: React.Dispatch<React.SetStateAction<CarouselState>>; onNext: () => void; generatedSlideCount: number }) {
   var _dragging = useState(false), dragging = _dragging[0], setDragging = _dragging[1];
-  var _inputMode = useState<string | null>(state.url ? "link" : state.text ? "context" : null), inputMode = _inputMode[0], setInputMode = _inputMode[1];
+  var _inputMode = useState<string | null>(state.url ? "link" : state.text ? "context" : (state.generationMode === "verbatim" ? "context" : null)), inputMode = _inputMode[0], setInputMode = _inputMode[1];
+
+  useEffect(function() {
+    if (state.generationMode === "verbatim" && inputMode === null) setInputMode("context");
+  }, [state.generationMode, inputMode]);
   var _genImgL = useState(false), genImgL = _genImgL[0], setGenImgL = _genImgL[1];
   var themeKeys = Object.keys(THEMES) as ThemeKey[];
 
@@ -624,11 +693,36 @@ function InputStep({ state, setState, onNext, generatedSlideCount }: { state: Ca
     reader.readAsText(file);
   }
 
-  var canProceed = (state.url || "").trim() || (state.text || "").trim();
+  var isVerbatim = state.generationMode === "verbatim";
+
+  var canProceed = isVerbatim
+    ? !!(state.text || "").trim()
+    : (state.url || "").trim() || (state.text || "").trim();
 
   return <div>
-    <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx, marginBottom: 4 }}>Content Input</div>
-    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 24 }}>Provide a link, context, or both to generate carousel slides with real SA branded backgrounds.</div>
+    <div style={{ fontFamily: ft, fontSize: 22, fontWeight: 800, color: C.tx, marginBottom: 4 }}>{isVerbatim ? "Format Analyst Text" : "Content Input"}</div>
+    <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 18 }}>{isVerbatim ? "Drop in the analyst's prose. We lay it onto SA slides exactly as written — no rephrasing, no AI rewrites." : "Provide a link, context, or both to generate carousel slides with real SA branded backgrounds."}</div>
+
+    {/* Generation Mode */}
+    <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Mode</div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 24 }}>
+      <div onClick={function() { setState(function(s) { return Object.assign({}, s, { generationMode: "ai" as const }); }); }} style={{ padding: "14px 16px", borderRadius: 10, cursor: "pointer", background: !isVerbatim ? C.amber + "10" : C.card, border: "1px solid " + (!isVerbatim ? C.amber : C.border), transition: "all 0.2s" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 10, height: 10, borderRadius: "50%", background: !isVerbatim ? C.amber : C.border, boxShadow: !isVerbatim ? "0 0 8px " + C.amber + "60" : "none" }} />
+          <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: !isVerbatim ? C.amber : C.tx }}>AI Carousel</div>
+          <div style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: C.txd }}>3 VARIANTS</div>
+        </div>
+        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm, paddingLeft: 18, marginTop: 2 }}>LLM rewrites the source into structured slides. Best for raw notes or URLs.</div>
+      </div>
+      <div onClick={function() { setState(function(s) { return Object.assign({}, s, { generationMode: "verbatim" as const }); }); }} style={{ padding: "14px 16px", borderRadius: 10, cursor: "pointer", background: isVerbatim ? C.teal + "10" : C.card, border: "1px solid " + (isVerbatim ? C.teal : C.border), transition: "all 0.2s" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 10, height: 10, borderRadius: "50%", background: isVerbatim ? C.teal : C.border, boxShadow: isVerbatim ? "0 0 8px " + C.teal + "60" : "none" }} />
+          <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: isVerbatim ? C.teal : C.tx }}>Format Verbatim</div>
+          <div style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9, color: C.txd }}>NO REWRITE</div>
+        </div>
+        <div style={{ fontFamily: ft, fontSize: 11, color: C.txm, paddingLeft: 18, marginTop: 2 }}>Lays your text onto slides word for word. Split paragraphs with blank lines.</div>
+      </div>
+    </div>
 
     {/* Category / Theme */}
     <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Category</div>
@@ -698,7 +792,7 @@ function InputStep({ state, setState, onNext, generatedSlideCount }: { state: Ca
       <button onClick={function() { setInputMode(inputMode === "link" && !((state.text || "").trim()) ? null : "link"); }} style={{ padding: "10px 20px", borderRadius: 8, cursor: "pointer", background: inputMode === "link" || (state.url || "").trim() ? C.blue + "15" : C.card, border: "1px solid " + (inputMode === "link" || (state.url || "").trim() ? C.blue + "50" : C.border), fontFamily: ft, fontSize: 13, fontWeight: 700, color: inputMode === "link" || (state.url || "").trim() ? C.blue : C.tx, transition: "all 0.2s" }}>+ Link</button>
       <button onClick={function() { setInputMode(inputMode === "context" && !((state.url || "").trim()) ? null : "context"); }} style={{ padding: "10px 20px", borderRadius: 8, cursor: "pointer", background: inputMode === "context" || (state.text || "").trim() ? C.teal + "15" : C.card, border: "1px solid " + (inputMode === "context" || (state.text || "").trim() ? C.teal + "50" : C.border), fontFamily: ft, fontSize: 13, fontWeight: 700, color: inputMode === "context" || (state.text || "").trim() ? C.teal : C.tx, transition: "all 0.2s" }}>+ Context</button>
       <div style={{ flex: 1 }} />
-      <div style={{ fontFamily: ft, fontSize: 11, color: C.txd, alignSelf: "center" }}>At least one required</div>
+      <div style={{ fontFamily: ft, fontSize: 11, color: C.txd, alignSelf: "center" }}>{isVerbatim ? "Context required — link optional for reference" : "At least one required"}</div>
     </div>
 
     {/* Link Input */}
@@ -775,7 +869,7 @@ function InputStep({ state, setState, onNext, generatedSlideCount }: { state: Ca
       {state.selectedArticleImage && <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, marginTop: 6 }}>Selected image will be used as cover</div>}
     </div>
 
-    <button onClick={onNext} disabled={!canProceed} style={{ width: "100%", padding: "14px 0", background: canProceed ? C.amber : C.surface, color: canProceed ? C.bg : C.txd, border: "none", borderRadius: 8, fontFamily: ft, fontSize: 15, fontWeight: 800, cursor: canProceed ? "pointer" : "not-allowed", transition: "all 0.2s" }}>Generate Carousel</button>
+    <button onClick={onNext} disabled={!canProceed} style={{ width: "100%", padding: "14px 0", background: canProceed ? (isVerbatim ? C.teal : C.amber) : C.surface, color: canProceed ? C.bg : C.txd, border: "none", borderRadius: 8, fontFamily: ft, fontSize: 15, fontWeight: 800, cursor: canProceed ? "pointer" : "not-allowed", transition: "all 0.2s" }}>{isVerbatim ? "Format Slides" : "Generate Carousel"}</button>
   </div>;
 }
 
@@ -2668,6 +2762,86 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
 }
 
 
+// ═══ LAUNCH SUITE / WELCOME VIEW ═══
+//
+// Mounted before the 6-step wizard. Three entry paths:
+//   - AI Carousel       — original LLM rewrite flow
+//   - Format Verbatim   — analyst text laid out unchanged
+//   - Open Saved        — jumps into the existing Archive panel
+// Plus a Recent Drafts strip surfacing the last 4 saved projects so the
+// user can hop straight back into an in-progress edit.
+function WelcomeView({
+  recent,
+  recentLoading,
+  onPickAI,
+  onPickVerbatim,
+  onOpenArchive,
+  onResume,
+}: {
+  recent: Array<{ id: string; name?: string; data?: Record<string, unknown> }>;
+  recentLoading: boolean;
+  onPickAI: () => void;
+  onPickVerbatim: () => void;
+  onOpenArchive: () => void;
+  onResume: (item: { id: string; data?: Record<string, unknown> }) => void;
+}) {
+  var cards: Array<{ key: "ai" | "verbatim" | "archive"; label: string; tagline: string; color: string; tag: string; onClick: () => void }> = [
+    { key: "ai", label: "AI Carousel", tagline: "URL or notes in, 3 structural variants out. Pick the one you like and edit.", color: C.amber, tag: "GENERATE", onClick: onPickAI },
+    { key: "verbatim", label: "Format Analyst Text", tagline: "Drop in prose the analyst wrote. We lay it on slides exactly, no rephrasing.", color: C.teal, tag: "VERBATIM", onClick: onPickVerbatim },
+    { key: "archive", label: "Open Saved", tagline: "Browse every carousel archived from the export step. Resume or duplicate.", color: C.violet, tag: "ARCHIVE", onClick: onOpenArchive },
+  ];
+
+  return <div>
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ fontFamily: ft, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.5, marginBottom: 4 }}>What are we making?</div>
+      <div style={{ fontFamily: ft, fontSize: 14, color: C.txm }}>Pick a path. You can switch modes inside the input step at any time.</div>
+    </div>
+
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 32 }}>
+      {cards.map(function(card) {
+        return <div key={card.key} onClick={card.onClick} style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 14, padding: "22px 22px 20px", cursor: "pointer", transition: "all 0.2s", position: "relative", overflow: "hidden" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = card.color + "60"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 12px 32px " + card.color + "10"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}>
+          <div style={{ position: "absolute", top: 14, right: 14, fontFamily: mn, fontSize: 8, color: card.color, letterSpacing: "1.5px", fontWeight: 700 }}>{card.tag}</div>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: card.color + "15", border: "1px solid " + card.color + "30", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
+            <div style={{ width: 12, height: 12, borderRadius: "50%", background: card.color, boxShadow: "0 0 12px " + card.color + "80" }} />
+          </div>
+          <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: C.tx, marginBottom: 6, letterSpacing: -0.3 }}>{card.label}</div>
+          <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, lineHeight: 1.55 }}>{card.tagline}</div>
+        </div>;
+      })}
+    </div>
+
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+      <div style={{ fontFamily: mn, fontSize: 10, color: C.violet, textTransform: "uppercase", letterSpacing: "1.5px" }}>Recent Saves</div>
+      <button onClick={onOpenArchive} style={{ padding: "4px 10px", background: "transparent", border: "1px solid " + C.border, borderRadius: 6, fontFamily: mn, fontSize: 9, fontWeight: 700, color: C.txm, cursor: "pointer", textTransform: "uppercase", letterSpacing: 0.5 }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.violet + "55"; e.currentTarget.style.color = C.violet; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.txm; }}>See all</button>
+    </div>
+
+    {recentLoading && <div style={{ padding: 24, textAlign: "center", fontFamily: ft, fontSize: 12, color: C.txm, background: C.card, border: "1px solid " + C.border, borderRadius: 10 }}>Loading drafts…</div>}
+    {!recentLoading && recent.length === 0 && <div style={{ padding: 28, textAlign: "center", background: C.card, border: "1px dashed " + C.border, borderRadius: 10 }}>
+      <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 4 }}>No saved carousels yet.</div>
+      <div style={{ fontFamily: ft, fontSize: 11, color: C.txd }}>Pick a path above to start one. Save to Archive on the Export step keeps it here.</div>
+    </div>}
+    {!recentLoading && recent.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      {recent.slice(0, 4).map(function(item) {
+        var d = item.data || {} as Record<string, unknown>;
+        var dateStr = d.timestamp ? new Date(d.timestamp as string).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Unknown";
+        var timeStr = d.timestamp ? new Date(d.timestamp as string).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "";
+        var slideCount = String(d.slideCount || "?");
+        var theme = String(d.theme || "general");
+        var author = d.createdBy ? String(d.createdBy) : "Unknown";
+        var themeColor = (THEMES[theme as ThemeKey] && THEMES[theme as ThemeKey].color) || C.violet;
+        return <div key={item.id} onClick={function() { onResume(item); }} style={{ padding: "14px 16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", display: "flex", gap: 14, alignItems: "center", transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = themeColor + "55"; e.currentTarget.style.background = themeColor + "06"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.card; }}>
+          <div style={{ width: 40, height: 40, borderRadius: 8, background: themeColor + "15", border: "1px solid " + themeColor + "30", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 14, fontWeight: 800, color: themeColor, flexShrink: 0 }}>{slideCount}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name || "Untitled carousel"}</div>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 2 }}>{dateStr} {timeStr} // {author} // {theme}</div>
+          </div>
+          <div style={{ fontFamily: mn, fontSize: 9, fontWeight: 700, padding: "4px 10px", borderRadius: 6, background: themeColor + "12", color: themeColor, border: "1px solid " + themeColor + "30", textTransform: "uppercase", letterSpacing: 0.5, flexShrink: 0 }}>Open</div>
+        </div>;
+      })}
+    </div>}
+  </div>;
+}
+
 // ═══ CONVERT API RESPONSE TO EDITOR SLIDES ═══
 function apiSlidesToEditorSlides(apiSlides: GeneratedSlide[], slideCount: number): Slide[] {
   var positions = getSlidePositions(slideCount);
@@ -2709,9 +2883,10 @@ function apiSlidesToEditorSlides(apiSlides: GeneratedSlide[], slideCount: number
 
 // ═══ MAIN CAROUSEL COMPONENT ═══
 export default function Carousel() {
+  var _view = useState<"welcome" | "wizard">("welcome"), view = _view[0], setView = _view[1];
   var _step = useState(0), step = _step[0], setStep = _step[1];
   var _maxStep = useState(0), maxStep = _maxStep[0], setMaxStep = _maxStep[1];
-  var _state = useState<CarouselState>({ category: "general", mode: "auto", pageCount: 4, text: "", url: "" }), state = _state[0], setState = _state[1];
+  var _state = useState<CarouselState>({ category: "general", mode: "auto", pageCount: 4, text: "", url: "", generationMode: "ai" }), state = _state[0], setState = _state[1];
   var _slides = useState<Slide[]>([]), slides = _slides[0], setSlides = _slides[1];
   var _variants = useState<Record<string, Variant> | null>(null), variants = _variants[0], setVariants = _variants[1];
   var _caption = useState<unknown>(null), caption = _caption[0], setCaption = _caption[1];
@@ -2785,11 +2960,37 @@ export default function Carousel() {
     if (d.caption) setCaption(d.caption);
     if (d.theme) setState(function(s) { return Object.assign({}, s, { category: d.theme as ThemeKey, url: String(d.sourceUrl || "") }); });
     setShowArchive(false);
+    setView("wizard");
     goStep(3);
     setMaxStep(5);
   }
 
+  useEffect(function() {
+    if (archiveItems.length === 0) loadArchive();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function generate() {
+    // Verbatim path: lay analyst text onto slides locally, skip the API and
+    // the variant picker. One "variant" so the existing variant chip + caption
+    // gen still work downstream.
+    if (state.generationMode === "verbatim") {
+      var raw = (state.text || "").trim();
+      if (!raw) { showToast("Paste the analyst's text first."); return; }
+      var targetCount = state.mode === "manual" ? (state.pageCount || 5) : 0;
+      var verbSlides = splitVerbatim(raw, targetCount);
+      if (!verbSlides.length) { showToast("Could not split that text into slides."); return; }
+      var verbVariant: Variant = { label: "Verbatim", topic: "Analyst text, formatted as-is.", slides: verbSlides };
+      setVariants({ V: verbVariant });
+      var editorSlides = apiSlidesToEditorSlides(verbSlides, verbSlides.length);
+      setSlides(editorSlides);
+      setSelectedVariantLabel("Verbatim");
+      setCaptionOptions([]);
+      setSelectedCaptionIdx(0);
+      goStep(3);
+      if (3 > maxStep) setMaxStep(5);
+      return;
+    }
     setLoading(true);
     goStep(1);
     try {
@@ -2857,15 +3058,25 @@ export default function Carousel() {
         <div style={{ marginTop: 8 }}><ProviderChips surface={CAROUSEL_SURFACE} compact /></div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        {step === 0 && <button onClick={function() { setShowArchive(!showArchive); if (!showArchive) loadArchive(); }} style={{ padding: "6px 14px", background: showArchive ? C.violet + "15" : C.surface, border: "1px solid " + (showArchive ? C.violet + "40" : C.border), borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, color: showArchive ? C.violet : C.txm, cursor: "pointer", transition: "all 0.2s" }}>Archive</button>}
-        <div style={{ width: 8, height: 8, borderRadius: "50%", background: THEMES[state.category].color, boxShadow: "0 0 8px " + THEMES[state.category].color + "60" }} />
-        <span style={{ fontFamily: mn, fontSize: 10, color: C.txm }}>{state.category} // {THEMES[state.category].prefix}</span>
-        {variants && step >= 3 && <button onClick={function() { setShowVariantPicker(!showVariantPicker); }} style={{ padding: "4px 10px", background: C.surface, border: "1px solid " + C.border, borderRadius: 4, fontFamily: mn, fontSize: 9, color: C.txm, cursor: "pointer" }}>Variants</button>}
+        {view === "wizard" && <button onClick={function() { setView("welcome"); }} style={{ padding: "6px 14px", background: C.surface, border: "1px solid " + C.border, borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, color: C.txm, cursor: "pointer", transition: "all 0.2s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.violet + "55"; e.currentTarget.style.color = C.violet; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.txm; }}>← Suite</button>}
+        {view === "wizard" && step === 0 && <button onClick={function() { setShowArchive(!showArchive); if (!showArchive) loadArchive(); }} style={{ padding: "6px 14px", background: showArchive ? C.violet + "15" : C.surface, border: "1px solid " + (showArchive ? C.violet + "40" : C.border), borderRadius: 6, fontFamily: ft, fontSize: 11, fontWeight: 600, color: showArchive ? C.violet : C.txm, cursor: "pointer", transition: "all 0.2s" }}>Archive</button>}
+        {view === "wizard" && <div style={{ width: 8, height: 8, borderRadius: "50%", background: THEMES[state.category].color, boxShadow: "0 0 8px " + THEMES[state.category].color + "60" }} />}
+        {view === "wizard" && <span style={{ fontFamily: mn, fontSize: 10, color: C.txm }}>{state.category} // {THEMES[state.category].prefix}</span>}
+        {view === "wizard" && variants && step >= 3 && <button onClick={function() { setShowVariantPicker(!showVariantPicker); }} style={{ padding: "4px 10px", background: C.surface, border: "1px solid " + C.border, borderRadius: 4, fontFamily: mn, fontSize: 9, color: C.txm, cursor: "pointer" }}>Variants</button>}
       </div>
     </div>
 
+    {view === "welcome" && <WelcomeView
+      recent={archiveItems}
+      recentLoading={archiveLoading}
+      onPickAI={function() { setState(function(s) { return Object.assign({}, s, { generationMode: "ai" as const }); }); setView("wizard"); setStep(0); }}
+      onPickVerbatim={function() { setState(function(s) { return Object.assign({}, s, { generationMode: "verbatim" as const }); }); setView("wizard"); setStep(0); }}
+      onOpenArchive={function() { setView("wizard"); setStep(0); setShowArchive(true); loadArchive(); }}
+      onResume={loadFromArchive}
+    />}
+
     {/* Archive panel */}
-    {showArchive && step === 0 && (function() {
+    {view === "wizard" && showArchive && step === 0 && (function() {
       var visibleItems = archiveFilter === "mine"
         ? archiveItems.filter(function(item) { return item.data && (item.data as Record<string, unknown>).createdBy === (userCtx.user && userCtx.user.name); })
         : archiveItems;
@@ -2910,10 +3121,10 @@ export default function Carousel() {
     </div>;
     })()}
 
-    <StepBar step={step} setStep={function(n) { if (n <= maxStep) goStep(n); }} maxStep={maxStep} />
+    {view === "wizard" && <StepBar step={step} setStep={function(n) { if (n <= maxStep) goStep(n); }} maxStep={maxStep} />}
 
     {/* Variant picker dropdown */}
-    {showVariantPicker && variants && <div style={{ marginBottom: 20, background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: 16 }}>
+    {view === "wizard" && showVariantPicker && variants && <div style={{ marginBottom: 20, background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: 16 }}>
       <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 10 }}>Switch Variant</div>
       <div style={{ display: "flex", gap: 10 }}>
         {Object.keys(variants!).filter(function(k) { return variants![k] && variants![k].slides; }).map(function(k) {
@@ -2929,9 +3140,9 @@ export default function Carousel() {
       </div>
     </div>}
 
-    {step === 0 && <InputStep state={state} setState={setState} onNext={generate} generatedSlideCount={slides.length} />}
-    {step === 1 && loading && <GenerateStep />}
-    {step === 2 && variants && <VariantSelectStep
+    {view === "wizard" && step === 0 && <InputStep state={state} setState={setState} onNext={generate} generatedSlideCount={slides.length} />}
+    {view === "wizard" && step === 1 && loading && <GenerateStep />}
+    {view === "wizard" && step === 2 && variants && <VariantSelectStep
       variants={variants}
       theme={state.category}
       onSelect={function(key) {
@@ -2946,7 +3157,7 @@ export default function Carousel() {
       }}
       onBack={function() { goStep(0); }}
     />}
-    {step === 3 && <EditStep
+    {view === "wizard" && step === 3 && <EditStep
       slides={slides}
       setSlides={setSlides}
       theme={state.category}
@@ -2954,7 +3165,7 @@ export default function Carousel() {
       onNext={function() { goStep(4); }}
       onBack={function() { goStep(2); }}
     />}
-    {step === 4 && <ReviewStep
+    {view === "wizard" && step === 4 && <ReviewStep
       slides={slides}
       setSlides={setSlides}
       theme={state.category}
@@ -2968,7 +3179,7 @@ export default function Carousel() {
       setSelectedCaptionIdx={setSelectedCaptionIdx}
       setCaption={setCaption}
     />}
-    {step === 5 && <ExportStep
+    {view === "wizard" && step === 5 && <ExportStep
       slides={slides}
       theme={state.category}
       caption={caption}
