@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>POAST · Carousel Cover Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;700&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0A0B10;
+      --panel: #14151C;
+      --panel-2: #1B1D26;
+      --border: #2A2D38;
+      --tx: #ECEDF2;
+      --txm: #9095A4;
+      --txd: #5E6376;
+      --amber: #F7B041;
+      --cobalt: #0B86D1;
+      --mint: #2EAD8E;
+      --coral: #E85A5A;
+      --violet: #8E7AE6;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--tx); font-family: 'Outfit', 'Inter', -apple-system, system-ui, sans-serif; }
+    body { padding: 28px 28px 64px; }
+    .head { max-width: 1480px; margin: 0 auto 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .head h1 { font-family: 'Outfit', sans-serif; font-weight: 900; font-size: 26px; letter-spacing: -0.5px; margin: 0; }
+    .head .sub { font-size: 13px; color: var(--txm); margin-top: 4px; }
+    .head .mark { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--txd); letter-spacing: 1.5px; text-transform: uppercase; }
+
+    .controls { max-width: 1480px; margin: 0 auto 28px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; display: grid; grid-template-columns: 1.4fr 1.4fr 0.8fr 1.2fr; gap: 18px; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; color: var(--amber); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; }
+    .field input[type="text"], .field input[type="url"] { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--tx); font-size: 13px; font-family: 'Outfit', sans-serif; outline: none; transition: border-color 0.15s; }
+    .field input[type="text"]:focus, .field input[type="url"]:focus { border-color: var(--amber); }
+    .field-row { display: flex; gap: 8px; align-items: center; }
+    .toggle { display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 11px; font-family: 'Outfit', sans-serif; color: var(--txm); cursor: pointer; user-select: none; transition: all 0.15s; }
+    .toggle input { accent-color: var(--amber); margin: 0; }
+    .toggle:hover { border-color: var(--amber); color: var(--tx); }
+    .swatch-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .swatch { width: 28px; height: 28px; border-radius: 6px; cursor: pointer; border: 2px solid transparent; transition: transform 0.15s, border-color 0.15s; }
+    .swatch:hover { transform: translateY(-1px); }
+    .swatch.active { border-color: var(--tx); }
+
+    .drop { border: 1.5px dashed var(--border); border-radius: 10px; padding: 14px; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; transition: all 0.15s; background: var(--bg); }
+    .drop.has { border-color: var(--mint); background: rgba(46, 173, 142, 0.06); }
+    .drop:hover { border-color: var(--amber); }
+    .drop .dlabel { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--txm); letter-spacing: 1px; }
+    .drop .dhint { font-size: 11px; color: var(--txd); }
+
+    .grid { max-width: 1480px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+    @media (max-width: 1280px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 980px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } .controls { grid-template-columns: 1fr; } }
+
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; transition: all 0.2s; }
+    .card:hover { border-color: var(--amber); transform: translateY(-2px); box-shadow: 0 12px 32px rgba(247, 176, 65, 0.08); }
+    .card .meta { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+    .card .name { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 13px; letter-spacing: -0.2px; }
+    .card .num { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--amber); font-weight: 700; letter-spacing: 1.5px; }
+    .card .canvas { background: #000; position: relative; aspect-ratio: 1080 / 1350; }
+    .card .canvas svg { width: 100%; height: 100%; display: block; }
+    .card .actions { display: flex; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--border); background: var(--panel-2); }
+    .card button { flex: 1; background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--txm); cursor: pointer; transition: all 0.15s; }
+    .card button:hover { border-color: var(--amber); color: var(--amber); }
+
+    .note { max-width: 1480px; margin: 36px auto 0; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 22px 26px; }
+    .note h3 { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 15px; margin: 0 0 10px; letter-spacing: -0.2px; }
+    .note ul { margin: 0; padding-left: 20px; font-size: 12.5px; color: var(--txm); line-height: 1.7; }
+    .note li::marker { color: var(--amber); }
+    .note code { background: var(--bg); padding: 1px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--mint); }
+
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 999; padding: 32px; }
+    .modal.open { display: flex; }
+    .modal .frame { max-width: 90vw; max-height: 90vh; }
+    .modal svg { max-width: 90vw; max-height: 90vh; box-shadow: 0 32px 80px rgba(0,0,0,0.5); border-radius: 8px; }
+    .modal .close { position: absolute; top: 20px; right: 20px; padding: 8px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--tx); font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <div class="head">
+    <div>
+      <h1>Carousel Cover Lab</h1>
+      <div class="sub">8 SA-styled cover treatments. Edit title, subtitle, image, and accent live. Each SVG exports at 1080×1350.</div>
+    </div>
+    <div class="mark">POAST · 4.0 · cover-lab.html</div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>Title</label>
+      <input id="title" type="text" value="The new era of infrastructure" maxlength="160" />
+      <div class="field-row">
+        <label class="toggle"><input id="upper" type="checkbox" checked /> UPPERCASE</label>
+        <label class="toggle"><input id="tight" type="checkbox" /> TIGHT TRACKING</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Subtitle <span style="color:var(--txd); font-weight: 400; text-transform: none; letter-spacing: 0;">(optional)</span></label>
+      <input id="subtitle" type="text" value="What the CPU floor really means for AI compute economics." maxlength="240" />
+      <div class="field-row">
+        <label class="toggle"><input id="show-sub" type="checkbox" checked /> SHOW SUBTITLE</label>
+        <label class="toggle"><input id="show-logo" type="checkbox" checked /> LOGO MARK</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Accent</label>
+      <div class="swatch-row" id="swatches">
+        <div class="swatch active" data-color="#F7B041" style="background:#F7B041" title="Amber"></div>
+        <div class="swatch" data-color="#0B86D1" style="background:#0B86D1" title="Cobalt"></div>
+        <div class="swatch" data-color="#2EAD8E" style="background:#2EAD8E" title="Mint"></div>
+        <div class="swatch" data-color="#E85A5A" style="background:#E85A5A" title="Coral"></div>
+        <div class="swatch" data-color="#FFFFFF" style="background:#FFFFFF" title="White"></div>
+        <div class="swatch" data-color="#8E7AE6" style="background:#8E7AE6" title="Violet"></div>
+      </div>
+      <div class="field-row" style="margin-top: 4px;">
+        <label class="toggle"><input id="show-meta" type="checkbox" checked /> META TAG</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Cover Image</label>
+      <div class="drop" id="drop">
+        <div class="dlabel" id="drop-label">DROP IMAGE HERE</div>
+        <div class="dhint" id="drop-hint">or click to pick · or paste URL below</div>
+      </div>
+      <input id="image-url" type="url" placeholder="https://… or leave blank for gradient" />
+    </div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="note">
+    <h3>How this works</h3>
+    <ul>
+      <li>Each cover is a 1080×1350 SVG that re-renders whenever you change a control above.</li>
+      <li>Click <code>FULLSCREEN</code> on any card to inspect at native size. <code>SVG</code> downloads the file ready for InDesign / Illustrator. <code>PNG</code> rasterizes via canvas.</li>
+      <li>Tell me which numbers you want as cover-picker options in the verbatim carousel flow and I'll port them into <code>carousel.tsx</code>. The SVGs here become the React renderers — same paths, same math.</li>
+      <li>Variants that don't use the cover image (<b>02 · Type Bomb</b>) still render so you can compare type weight against the photo treatments.</li>
+    </ul>
+  </div>
+
+  <div class="modal" id="modal" onclick="closeModal()"><button class="close" onclick="closeModal()">CLOSE · ESC</button><div class="frame" id="modal-frame" onclick="event.stopPropagation()"></div></div>
+
+  <script>
+    // ─────────────────────────────────────────────────────────────
+    // State
+    // ─────────────────────────────────────────────────────────────
+    const state = {
+      title: "The new era of infrastructure",
+      subtitle: "What the CPU floor really means for AI compute economics.",
+      upper: true,
+      tight: false,
+      showSub: true,
+      showLogo: true,
+      showMeta: true,
+      accent: "#F7B041",
+      imageUrl: "",
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────
+    const W = 1080, H = 1350;
+
+    function esc(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+    function displayTitle() {
+      return state.upper ? state.title.toUpperCase() : state.title;
+    }
+    function tracking() {
+      return state.tight ? "-2.5" : "-1";
+    }
+
+    function gradient(id, stops) {
+      return `<linearGradient id="${id}" x1="0%" y1="0%" x2="0%" y2="100%">${stops.map(s => `<stop offset="${s.o}" stop-color="${s.c}" stop-opacity="${s.a}"/>`).join("")}</linearGradient>`;
+    }
+
+    function imageOrFallback(id) {
+      if (state.imageUrl) {
+        return `<image href="${esc(state.imageUrl)}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/>`;
+      }
+      return `
+        <defs>
+          <linearGradient id="${id}-fb" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#1A2438"/>
+            <stop offset="55%" stop-color="#0B1322"/>
+            <stop offset="100%" stop-color="#000000"/>
+          </linearGradient>
+          <pattern id="${id}-pat" width="40" height="46" patternUnits="userSpaceOnUse" patternTransform="rotate(0)">
+            <polygon points="20,2 38,12 38,34 20,44 2,34 2,12" fill="none" stroke="${state.accent}" stroke-opacity="0.05" stroke-width="1"/>
+          </pattern>
+        </defs>
+        <rect width="${W}" height="${H}" fill="url(#${id}-fb)"/>
+        <rect width="${W}" height="${H}" fill="url(#${id}-pat)"/>
+      `;
+    }
+
+    // Auto-shrink title to fit width. SVG textLength is a fallback;
+    // we approximate by char count.
+    function titleFontSize(text, baseSize, maxCharsPerLine) {
+      const len = text.length;
+      if (len <= maxCharsPerLine) return baseSize;
+      const scale = Math.max(0.55, maxCharsPerLine / len);
+      return Math.round(baseSize * scale);
+    }
+
+    function wordWrap(text, maxCharsPerLine) {
+      const words = text.split(/\s+/);
+      const lines = [];
+      let cur = "";
+      for (const w of words) {
+        if ((cur + " " + w).trim().length <= maxCharsPerLine) {
+          cur = (cur + " " + w).trim();
+        } else {
+          if (cur) lines.push(cur);
+          cur = w;
+        }
+      }
+      if (cur) lines.push(cur);
+      return lines;
+    }
+
+    function logoPill(x, y, w = 220, h = 60, dark = true) {
+      if (!state.showLogo) return "";
+      return `
+        <g transform="translate(${x}, ${y})">
+          <rect x="0" y="0" width="${w}" height="${h}" rx="6" fill="${dark ? "#FFFFFF" : "#000000"}" />
+          <text x="${w/2}" y="${h/2 + 6}" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="18" font-weight="700" letter-spacing="2.5" fill="${dark ? "#0A0B10" : "#FFFFFF"}">SEMIANALYSIS</text>
+        </g>
+      `;
+    }
+
+    function hexMark(x, y, size = 44, fill = "#FFFFFF") {
+      if (!state.showLogo) return "";
+      const r = size / 2;
+      const pts = [];
+      for (let i = 0; i < 6; i++) {
+        const a = Math.PI / 3 * i - Math.PI / 6;
+        pts.push((x + r * Math.cos(a)).toFixed(1) + "," + (y + r * Math.sin(a)).toFixed(1));
+      }
+      return `<polygon points="${pts.join(" ")}" fill="none" stroke="${fill}" stroke-width="3"/>
+              <polygon points="${pts.join(" ")}" fill="${fill}" fill-opacity="0.08"/>`;
+    }
+
+    function metaTag(text, x, y, fill = "rgba(255,255,255,0.85)") {
+      if (!state.showMeta) return "";
+      return `<text x="${x}" y="${y}" font-family="'JetBrains Mono', monospace" font-size="20" font-weight="700" letter-spacing="3" fill="${fill}">${esc(text)}</text>`;
+    }
+
+    function subtitleBlock(text, x, y, maxWidth, fill = "rgba(255,255,255,0.78)") {
+      if (!state.showSub || !text) return "";
+      const lines = wordWrap(text, Math.floor(maxWidth / 16));
+      return lines.map((ln, i) => `<text x="${x}" y="${y + i * 38}" font-family="'Outfit', sans-serif" font-size="30" font-weight="400" fill="${fill}">${esc(ln)}</text>`).join("");
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Variant renderers (each returns the inner SVG content; the
+    // wrapping <svg> is added by the caller so we can dump natively).
+    // ─────────────────────────────────────────────────────────────
+
+    // 01 · REFERENCE — User's Illustrator mockup, faithfully reproduced.
+    function v01() {
+      const t = displayTitle();
+      const lines = wordWrap(t, 18);
+      const fs = titleFontSize(t, 110, 36);
+      const pad = 60;
+      return `
+        ${imageOrFallback("v01")}
+        <defs>${gradient("v01-grad", [{o:"0%",c:"#000",a:0},{o:"55%",c:"#000",a:0},{o:"100%",c:"#000",a:0.92}])}</defs>
+        <rect width="${W}" height="${H}" fill="url(#v01-grad)"/>
+        <rect x="${pad}" y="${pad}" width="${W - pad*2}" height="${H - pad*2}" fill="none" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="2"/>
+        ${logoPill(W - pad - 220 - 12, pad + 12, 220, 56)}
+        <g>
+          ${lines.map((ln, i) => `<text x="${pad + 24}" y="${H - 180 + i * (fs * 1.02) - (lines.length - 1) * fs * 0.5}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
+        </g>
+        ${subtitleBlock(state.subtitle, pad + 24, H - 110, W - pad*2 - 48)}
+      `;
+    }
+
+    // 02 · TYPE BOMB — No image, massive declarative type.
+    function v02() {
+      const t = displayTitle();
+      const lines = wordWrap(t, 9);
+      const fs = titleFontSize(t, 170, 36);
+      return `
+        <rect width="${W}" height="${H}" fill="#0A0B10"/>
+        <defs>
+          <pattern id="v02-pat" width="44" height="50" patternUnits="userSpaceOnUse">
+            <polygon points="22,2 42,13 42,37 22,48 2,37 2,13" fill="none" stroke="${state.accent}" stroke-opacity="0.10" stroke-width="1"/>
+          </pattern>
+        </defs>
+        <rect width="${W}" height="${H}" fill="url(#v02-pat)"/>
+        <rect x="0" y="0" width="${W}" height="14" fill="${state.accent}"/>
+        ${lines.map((ln, i) => `<text x="80" y="${280 + i * fs * 1.0}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
+        <line x1="80" y1="${H - 220}" x2="180" y2="${H - 220}" stroke="${state.accent}" stroke-width="4"/>
+        ${subtitleBlock(state.subtitle, 80, H - 170, W - 160, "rgba(255,255,255,0.75)")}
+        ${metaTag("TEAR-DOWN · SEMIANALYSIS", 80, H - 70, "rgba(255,255,255,0.4)")}
+      `;
+    }
+
+    // 03 · CENTER SLAB — Horizontal dark band across mid-slide.
+    function v03() {
+      const t = displayTitle();
+      const lines = wordWrap(t, 22);
+      const fs = titleFontSize(t, 90, 36);
+      const slabH = 480;
+      const slabY = (H - slabH) / 2;
+      return `
+        ${imageOrFallback("v03")}
+        <defs>${gradient("v03-grad", [{o:"0%",c:"#000",a:0.55},{o:"40%",c:"#000",a:0.18},{o:"60%",c:"#000",a:0.18},{o:"100%",c:"#000",a:0.55}])}</defs>
+        <rect width="${W}" height="${H}" fill="url(#v03-grad)"/>
+        <rect x="0" y="${slabY}" width="${W}" height="${slabH}" fill="#000000" fill-opacity="0.82"/>
+        <line x1="60" y1="${slabY}" x2="${W - 60}" y2="${slabY}" stroke="${state.accent}" stroke-width="3"/>
+        <line x1="60" y1="${slabY + slabH}" x2="${W - 60}" y2="${slabY + slabH}" stroke="${state.accent}" stroke-width="3"/>
+        ${metaTag("INFRASTRUCTURE · 06 / 26", W/2 - 200, slabY + 60)}
+        ${lines.map((ln, i) => `<text x="${W/2}" y="${slabY + 200 + i * fs * 1.02 - (lines.length - 1) * fs * 0.5}" text-anchor="middle" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
+        ${state.showSub && state.subtitle ? `<g>${subtitleBlock(state.subtitle, 120, slabY + slabH - 90 - (wordWrap(state.subtitle, Math.floor((W - 240)/16)).length - 1) * 38, W - 240, "rgba(255,255,255,0.82)").replace(/x="120"/g, 'x="' + W/2 + '" text-anchor="middle"')}</g>` : ""}
+        ${logoPill(W - 232, H - 80, 200, 50)}
+      `;
+    }
+
+    // 04 · SIDE CAPTION — Vertical dark band on left, title stacked.
+    function v04() {
+      const t = displayTitle();
+      const sideW = 420;
+      const lines = wordWrap(t, 12);
+      const fs = titleFontSize(t, 86, 32);
+      return `
+        ${imageOrFallback("v04")}
+        <rect x="0" y="0" width="${sideW}" height="${H}" fill="#000000" fill-opacity="0.88"/>
+        <rect x="${sideW - 6}" y="0" width="6" height="${H}" fill="${state.accent}"/>
+        ${metaTag("YB · INFRA", 50, 90)}
+        ${lines.map((ln, i) => `<text x="50" y="${H - 280 + i * fs * 1.02 - (lines.length - 1) * fs * 0.5}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
+        ${subtitleBlock(state.subtitle, 50, H - 200, sideW - 100, "rgba(255,255,255,0.80)")}
+        ${hexMark(50 + 22, H - 90, 44, "#FFFFFF")}
+        <text x="50 + 78" y="${H - 80}" font-family="'JetBrains Mono', monospace" font-size="16" font-weight="700" letter-spacing="2" fill="#FFFFFF">SEMIANALYSIS</text>
+      `;
+    }
+
+    // 05 · ACCENT RAIL — Thin accent stripe + bottom gradient + title.
+    function v05() {
+      const t = displayTitle();
+      const lines = wordWrap(t, 20);
+      const fs = titleFontSize(t, 100, 38);
+      return `
+        ${imageOrFallback("v05")}
+        <rect x="0" y="0" width="16" height="${H}" fill="${state.accent}"/>
+        <defs>${gradient("v05-grad", [{o:"0%",c:"#000",a:0},{o:"50%",c:"#000",a:0},{o:"100%",c:"#000",a:0.94}])}</defs>
+        <rect width="${W}" height="${H}" fill="url(#v05-grad)"/>
+        ${metaTag("06 / 2026 · INFRA", W - 360, 80, state.accent)}
+        ${logoPill(W - 232, 120, 200, 50)}
+        ${lines.map((ln, i) => `<text x="60" y="${H - 200 + i * fs * 1.02 - (lines.length - 1) * fs * 0.5}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
+        ${subtitleBlock(state.subtitle, 60, H - 120, W - 140)}
+      `;
+    }
+
+    // 06 · MAGAZINE BAR — Image top 70%, solid block bottom 30%.
+    function v06() {
+      const t = displayTitle();
+      const lines = wordWrap(t, 22);
+      const fs = titleFontSize(t, 88, 36);
+      const imgH = H * 0.66;
+      return `
+        <rect width="${W}" height="${H}" fill="#0A0B10"/>
+        <g clip-path="url(#v06-clip)">
+          ${state.imageUrl
+            ? `<image href="${esc(state.imageUrl)}" x="0" y="0" width="${W}" height="${imgH}" preserveAspectRatio="xMidYMid slice"/>`
+            : `<rect width="${W}" height="${imgH}" fill="#1A2438"/>`}
+        </g>
+        <defs><clipPath id="v06-clip"><rect width="${W}" height="${imgH}"/></clipPath></defs>
+        <rect x="0" y="${imgH}" width="${W}" height="${H - imgH}" fill="#0A0B10"/>
+        <rect x="0" y="${imgH}" width="${W}" height="6" fill="${state.accent}"/>
+        ${logoPill(W - 232, 50, 200, 50)}
+        ${metaTag("ISSUE 24 · INFRASTRUCTURE", 60, imgH + 60, state.accent)}
+        ${lines.map((ln, i) => `<text x="60" y="${imgH + 130 + i * fs * 1.02}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
+        ${subtitleBlock(state.subtitle, 60, H - 90, W - 120, "rgba(255,255,255,0.70)")}
+      `;
+    }
+
+    // 07 · QUAD GRID — Image split 2x2 with subtle seams + bottom darken.
+    function v07() {
+      const t = displayTitle();
+      const lines = wordWrap(t, 18);
+      const fs = titleFontSize(t, 100, 36);
+      return `
+        ${imageOrFallback("v07")}
+        <line x1="${W/2}" y1="0" x2="${W/2}" y2="${H}" stroke="#000000" stroke-opacity="0.45" stroke-width="6"/>
+        <line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="#000000" stroke-opacity="0.45" stroke-width="6"/>
+        <defs>${gradient("v07-grad", [{o:"0%",c:"#000",a:0.05},{o:"50%",c:"#000",a:0.05},{o:"100%",c:"#000",a:0.90}])}</defs>
+        <rect width="${W}" height="${H}" fill="url(#v07-grad)"/>
+        ${metaTag("0" + 2 + " · ARTBOARD", 60, 80, "rgba(255,255,255,0.55)")}
+        ${logoPill(W - 232, 50, 200, 50)}
+        <rect x="0" y="${H - 380}" width="${W}" height="4" fill="${state.accent}"/>
+        ${lines.map((ln, i) => `<text x="60" y="${H - 280 + i * fs * 1.0 - (lines.length - 1) * fs * 0.5}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
+        ${subtitleBlock(state.subtitle, 60, H - 130, W - 120)}
+      `;
+    }
+
+    // 08 · EDGE STRIPE — Top color stripe + bottom gradient + category mono.
+    function v08() {
+      const t = displayTitle();
+      const lines = wordWrap(t, 18);
+      const fs = titleFontSize(t, 110, 36);
+      return `
+        ${imageOrFallback("v08")}
+        <rect x="0" y="0" width="${W}" height="22" fill="${state.accent}"/>
+        <defs>${gradient("v08-grad", [{o:"0%",c:"#000",a:0.18},{o:"45%",c:"#000",a:0},{o:"100%",c:"#000",a:0.93}])}</defs>
+        <rect width="${W}" height="${H}" fill="url(#v08-grad)"/>
+        ${metaTag("YB · 04 · INFRASTRUCTURE", 60, 90, "#FFFFFF")}
+        ${logoPill(W - 232, 70, 200, 50)}
+        <rect x="60" y="${H - 380}" width="68" height="4" fill="${state.accent}"/>
+        ${lines.map((ln, i) => `<text x="60" y="${H - 260 + i * fs * 1.0 - (lines.length - 1) * fs * 0.5}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
+        ${subtitleBlock(state.subtitle, 60, H - 140, W - 120)}
+      `;
+    }
+
+    const VARIANTS = [
+      { id: "01", name: "Reference", fn: v01, note: "Your Illustrator mockup, faithfully matched. Bottom-up gradient, inner stroke frame, LOGO pill top-right." },
+      { id: "02", name: "Type Bomb", fn: v02, note: "No image. Massive 4-line declarative headline. Hex pattern + accent stripe top." },
+      { id: "03", name: "Center Slab", fn: v03, note: "Horizontal dark band across the vertical center. Centered title with accent rules above/below." },
+      { id: "04", name: "Side Caption", fn: v04, note: "Vertical dark band left 38%. Title stacked bottom-left, hex mark + wordmark at the foot." },
+      { id: "05", name: "Accent Rail", fn: v05, note: "Thin accent stripe down the left edge + heavy bottom gradient. Clean photo top." },
+      { id: "06", name: "Magazine Bar", fn: v06, note: "Image top 66%, solid dark block bottom. Magazine-cover feel; great for editorial pieces." },
+      { id: "07", name: "Quad Grid", fn: v07, note: "Image split into 2×2 with thin seams. Title in bottom half. References editorial layouts." },
+      { id: "08", name: "Edge Stripe", fn: v08, note: "Top accent stripe + bottom gradient. Subtle category code top-left." },
+    ];
+
+    // ─────────────────────────────────────────────────────────────
+    // Render
+    // ─────────────────────────────────────────────────────────────
+    function renderAll() {
+      const grid = document.getElementById("grid");
+      grid.innerHTML = VARIANTS.map(v => `
+        <div class="card" data-id="${v.id}">
+          <div class="meta">
+            <div class="name">${v.name}</div>
+            <div class="num">${v.id}</div>
+          </div>
+          <div class="canvas">
+            <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" id="svg-${v.id}">${v.fn()}</svg>
+          </div>
+          <div class="actions">
+            <button onclick="openModal('${v.id}')">FULLSCREEN</button>
+            <button onclick="downloadSVG('${v.id}', '${v.name}')">SVG</button>
+            <button onclick="downloadPNG('${v.id}', '${v.name}')">PNG</button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function refresh() {
+      VARIANTS.forEach(v => {
+        const node = document.getElementById("svg-" + v.id);
+        if (node) node.innerHTML = v.fn();
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Controls
+    // ─────────────────────────────────────────────────────────────
+    document.getElementById("title").addEventListener("input", e => { state.title = e.target.value || " "; refresh(); });
+    document.getElementById("subtitle").addEventListener("input", e => { state.subtitle = e.target.value; refresh(); });
+    document.getElementById("upper").addEventListener("change", e => { state.upper = e.target.checked; refresh(); });
+    document.getElementById("tight").addEventListener("change", e => { state.tight = e.target.checked; refresh(); });
+    document.getElementById("show-sub").addEventListener("change", e => { state.showSub = e.target.checked; refresh(); });
+    document.getElementById("show-logo").addEventListener("change", e => { state.showLogo = e.target.checked; refresh(); });
+    document.getElementById("show-meta").addEventListener("change", e => { state.showMeta = e.target.checked; refresh(); });
+    document.getElementById("image-url").addEventListener("input", e => { state.imageUrl = e.target.value.trim(); refresh(); });
+
+    document.querySelectorAll(".swatch").forEach(sw => {
+      sw.addEventListener("click", () => {
+        document.querySelectorAll(".swatch").forEach(s => s.classList.remove("active"));
+        sw.classList.add("active");
+        state.accent = sw.dataset.color;
+        refresh();
+      });
+    });
+
+    // Drop zone
+    const dz = document.getElementById("drop");
+    const dlabel = document.getElementById("drop-label");
+    const dhint = document.getElementById("drop-hint");
+    function handleFile(file) {
+      if (!file || !file.type.startsWith("image/")) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        state.imageUrl = e.target.result;
+        dz.classList.add("has");
+        dlabel.textContent = file.name.toUpperCase();
+        dhint.textContent = (file.size / 1024).toFixed(0) + " KB · click to swap";
+        refresh();
+      };
+      reader.readAsDataURL(file);
+    }
+    dz.addEventListener("click", () => {
+      const inp = document.createElement("input");
+      inp.type = "file";
+      inp.accept = "image/*";
+      inp.onchange = e => handleFile(e.target.files[0]);
+      inp.click();
+    });
+    dz.addEventListener("dragover", e => { e.preventDefault(); dz.style.borderColor = "var(--amber)"; });
+    dz.addEventListener("dragleave", e => { dz.style.borderColor = ""; });
+    dz.addEventListener("drop", e => {
+      e.preventDefault();
+      dz.style.borderColor = "";
+      handleFile(e.dataTransfer.files[0]);
+    });
+
+    // ─────────────────────────────────────────────────────────────
+    // Modal + downloads
+    // ─────────────────────────────────────────────────────────────
+    function openModal(id) {
+      const v = VARIANTS.find(x => x.id === id);
+      const frame = document.getElementById("modal-frame");
+      frame.innerHTML = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width: min(90vw, ${W * 0.7}px); height: auto;">${v.fn()}</svg>`;
+      document.getElementById("modal").classList.add("open");
+    }
+    function closeModal() { document.getElementById("modal").classList.remove("open"); }
+    document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+
+    function svgString(id) {
+      const v = VARIANTS.find(x => x.id === id);
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${v.fn()}</svg>`;
+    }
+    function downloadSVG(id, name) {
+      const blob = new Blob([svgString(id)], { type: "image/svg+xml" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `sa-cover-${id}-${name.toLowerCase().replace(/\s+/g, "-")}.svg`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    function downloadPNG(id, name) {
+      const svg = svgString(id);
+      const blob = new Blob([svg], { type: "image/svg+xml" });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement("canvas");
+        c.width = W; c.height = H;
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, W, H);
+        ctx.drawImage(img, 0, 0, W, H);
+        c.toBlob(b => {
+          const u = URL.createObjectURL(b);
+          const a = document.createElement("a");
+          a.href = u; a.download = `sa-cover-${id}-${name.toLowerCase().replace(/\s+/g, "-")}.png`;
+          a.click();
+          setTimeout(() => { URL.revokeObjectURL(u); URL.revokeObjectURL(url); }, 1000);
+        }, "image/png");
+      };
+      img.onerror = () => { alert("PNG export hit a CORS issue with the image. Use a same-origin URL or upload via the drop zone."); URL.revokeObjectURL(url); };
+      img.src = url;
+    }
+
+    // Boot
+    renderAll();
+  </script>
+</body>
+</html>
