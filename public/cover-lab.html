@@ -84,7 +84,7 @@
   <div class="head">
     <div>
       <h1>Carousel Cover Lab</h1>
-      <div class="sub">8 SA-styled cover treatments. Edit title, subtitle, image, and accent live. Each SVG exports at 1080×1350.</div>
+      <div class="sub">6 SA-styled cover treatments. Edit title, subtitle, image, and accent live. Each SVG exports at 1080×1350.</div>
     </div>
     <div class="mark">POAST · 4.0 · cover-lab.html</div>
   </div>
@@ -127,6 +127,9 @@
         <div class="dhint" id="drop-hint">or click to pick · or paste URL below</div>
       </div>
       <input id="image-url" type="url" placeholder="https://… or leave blank for gradient" />
+      <div class="field-row" style="margin-top: 4px;">
+        <label class="toggle"><input id="dual-image" type="checkbox" /> DUAL IMAGE (V03)</label>
+      </div>
     </div>
   </div>
 
@@ -139,6 +142,7 @@
       <li>Click <code>FULLSCREEN</code> on any card to inspect at native size. <code>SVG</code> downloads the file ready for InDesign / Illustrator. <code>PNG</code> rasterizes via canvas.</li>
       <li>Tell me which numbers you want as cover-picker options in the verbatim carousel flow and I'll port them into <code>carousel.tsx</code>. The SVGs here become the React renderers — same paths, same math.</li>
       <li>Variants that don't use the cover image (<b>02 · Type Bomb</b>) still render so you can compare type weight against the photo treatments.</li>
+      <li><b>03 · Diptych</b> defaults to one full image. Tick <code>DUAL IMAGE</code> in the image controls to split it horizontally — top half stays color, bottom half flips to an accent-tinted duotone with a hairline accent seam between.</li>
     </ul>
   </div>
 
@@ -156,6 +160,7 @@
       showSub: true,
       showLogo: true,
       showMeta: true,
+      dual: false,
       accent: "#F7B041",
       imageUrl: "",
     };
@@ -206,6 +211,32 @@
       if (len <= maxCharsPerLine) return baseSize;
       const scale = Math.max(0.55, maxCharsPerLine / len);
       return Math.round(baseSize * scale);
+    }
+
+    // Shrink baseSize so the WIDEST line in `lines` fits inside maxWidth.
+    // Uses ~0.58 * fontSize per char as the average glyph width for the
+    // Outfit 900 cut. Prevents wide words ("INFRASTRUCTURE") from
+    // running off the canvas.
+    function titleFontSizeForLines(lines, baseSize, maxWidth) {
+      if (!lines.length) return baseSize;
+      const maxLen = lines.reduce((m, l) => Math.max(m, l.length), 0);
+      const perChar = 0.58;
+      const fitSize = Math.floor(maxWidth / (maxLen * perChar));
+      return Math.max(44, Math.min(baseSize, fitSize));
+    }
+
+    // Render a title block bottom-anchored at `bottomY` (last line baseline)
+    // and return both the SVG string AND the topY/bottomY of the block so
+    // the caller can place a subtitle below with a real gap (the original
+    // code stomped the subtitle on top of the last title line).
+    function titleBlock(lines, fs, x, bottomBaselineY, fill = "#FFFFFF", anchor = "start") {
+      const lineGap = fs * 1.02;
+      const topBaselineY = bottomBaselineY - (lines.length - 1) * lineGap;
+      const tx = anchor === "middle" ? `text-anchor="middle"` : "";
+      const svg = lines.map((ln, i) =>
+        `<text x="${x}" y="${topBaselineY + i * lineGap}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="${fill}" ${tx}>${esc(ln)}</text>`
+      ).join("");
+      return { svg, topY: topBaselineY - fs, bottomY: bottomBaselineY };
     }
 
     function wordWrap(text, maxCharsPerLine) {
@@ -263,29 +294,59 @@
     // ─────────────────────────────────────────────────────────────
 
     // 01 · REFERENCE — User's Illustrator mockup, faithfully reproduced.
+    // Title bottom-anchored so the subtitle (1-3 lines) can be measured
+    // and placed below with a real gap. The original code overlapped them.
     function v01() {
       const t = displayTitle();
-      const lines = wordWrap(t, 18);
-      const fs = titleFontSize(t, 110, 36);
       const pad = 60;
+      const maxTitleWidth = W - pad*2 - 48;
+      const lines = wordWrap(t, 18);
+      const fs = titleFontSizeForLines(lines, 110, maxTitleWidth);
+
+      const subLines = state.showSub && state.subtitle ? wordWrap(state.subtitle, 42) : [];
+      const subFs = 30;
+      const subGap = 36;
+
+      // Bottom safe-area for the type block.
+      const blockBottomMargin = 120;
+      const subBottomY = H - blockBottomMargin;
+      const subStartY = subBottomY - (subLines.length - 1) * subGap;
+      const titleBottomY = subLines.length
+        ? subStartY - 70
+        : subBottomY;
+
+      const tb = titleBlock(lines, fs, pad + 24, titleBottomY);
+
       return `
         ${imageOrFallback("v01")}
-        <defs>${gradient("v01-grad", [{o:"0%",c:"#000",a:0},{o:"55%",c:"#000",a:0},{o:"100%",c:"#000",a:0.92}])}</defs>
+        <defs>${gradient("v01-grad", [{o:"0%",c:"#000",a:0},{o:"45%",c:"#000",a:0},{o:"100%",c:"#000",a:0.94}])}</defs>
         <rect width="${W}" height="${H}" fill="url(#v01-grad)"/>
         <rect x="${pad}" y="${pad}" width="${W - pad*2}" height="${H - pad*2}" fill="none" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="2"/>
         ${logoPill(W - pad - 220 - 12, pad + 12, 220, 56)}
-        <g>
-          ${lines.map((ln, i) => `<text x="${pad + 24}" y="${H - 180 + i * (fs * 1.02) - (lines.length - 1) * fs * 0.5}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
-        </g>
-        ${subtitleBlock(state.subtitle, pad + 24, H - 110, W - pad*2 - 48)}
+        ${tb.svg}
+        ${subLines.map((ln, i) => `<text x="${pad + 24}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.82)">${esc(ln)}</text>`).join("")}
       `;
     }
 
     // 02 · TYPE BOMB — No image, massive declarative type.
+    // Auto-shrinks based on the widest word so 14-letter words like
+    // "INFRASTRUCTURE" don't bleed off the right edge.
     function v02() {
       const t = displayTitle();
+      const pad = 80;
+      const maxWidth = W - pad * 2;
       const lines = wordWrap(t, 9);
-      const fs = titleFontSize(t, 170, 36);
+      const fs = titleFontSizeForLines(lines, 170, maxWidth);
+      const lineGap = fs * 1.0;
+      const titleStartY = 240 + fs;
+      const titleEndY = titleStartY + (lines.length - 1) * lineGap;
+
+      const subLines = state.showSub && state.subtitle ? wordWrap(state.subtitle, 40) : [];
+      const subFs = 30;
+      const subGap = 36;
+      const subEndY = H - 130;
+      const subStartY = subEndY - (subLines.length - 1) * subGap;
+
       return `
         <rect width="${W}" height="${H}" fill="#0A0B10"/>
         <defs>
@@ -295,138 +356,192 @@
         </defs>
         <rect width="${W}" height="${H}" fill="url(#v02-pat)"/>
         <rect x="0" y="0" width="${W}" height="14" fill="${state.accent}"/>
-        ${lines.map((ln, i) => `<text x="80" y="${280 + i * fs * 1.0}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
-        <line x1="80" y1="${H - 220}" x2="180" y2="${H - 220}" stroke="${state.accent}" stroke-width="4"/>
-        ${subtitleBlock(state.subtitle, 80, H - 170, W - 160, "rgba(255,255,255,0.75)")}
-        ${metaTag("TEAR-DOWN · SEMIANALYSIS", 80, H - 70, "rgba(255,255,255,0.4)")}
+        ${lines.map((ln, i) => `<text x="${pad}" y="${titleStartY + i * lineGap}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
+        <line x1="${pad}" y1="${subStartY - 80}" x2="${pad + 100}" y2="${subStartY - 80}" stroke="${state.accent}" stroke-width="4"/>
+        ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.78)">${esc(ln)}</text>`).join("")}
+        ${metaTag("TEAR-DOWN · SEMIANALYSIS", pad, H - 60, "rgba(255,255,255,0.4)")}
       `;
     }
 
-    // 03 · CENTER SLAB — Horizontal dark band across mid-slide.
+    // 03 · DIPTYCH — One image full-bleed by default; "DUAL IMAGE" toggle
+    // stacks two images vertically (top + bottom-tinted duplicate) with a
+    // hairline accent seam between them. Either way the title sits in the
+    // bottom dark zone and the headline can be split visually across the
+    // seam when in dual mode.
     function v03() {
       const t = displayTitle();
-      const lines = wordWrap(t, 22);
-      const fs = titleFontSize(t, 90, 36);
-      const slabH = 480;
-      const slabY = (H - slabH) / 2;
+      const pad = 60;
+      const maxTitleWidth = W - pad*2 - 48;
+      const lines = wordWrap(t, 20);
+      const fs = titleFontSizeForLines(lines, 100, maxTitleWidth);
+
+      const subLines = state.showSub && state.subtitle ? wordWrap(state.subtitle, 44) : [];
+      const subFs = 30;
+      const subGap = 36;
+      const subEndY = H - 110;
+      const subStartY = subEndY - (subLines.length - 1) * subGap;
+      const titleBottomY = subLines.length ? subStartY - 70 : subEndY;
+      const tb = titleBlock(lines, fs, pad + 24, titleBottomY);
+
+      const dual = state.dual;
+      const splitY = H / 2;
+
+      // Dual-image SVG: top image natural, bottom image with a duotone
+      // accent-tint filter so even with a single source the two halves
+      // read as a deliberate pair.
+      const filterDef = `
+        <defs>
+          <filter id="v03-tint" x="0" y="0" width="100%" height="100%">
+            <feColorMatrix type="matrix" values="
+              0.30 0.59 0.11 0 0
+              0.30 0.59 0.11 0 0
+              0.30 0.59 0.11 0 0
+              0    0    0    1 0"/>
+            <feComponentTransfer>
+              <feFuncR type="table" tableValues="0 1"/>
+              <feFuncG type="table" tableValues="0 0.72"/>
+              <feFuncB type="table" tableValues="0 0.30"/>
+            </feComponentTransfer>
+          </filter>
+          <clipPath id="v03-top"><rect x="0" y="0" width="${W}" height="${splitY}"/></clipPath>
+          <clipPath id="v03-bot"><rect x="0" y="${splitY}" width="${W}" height="${H - splitY}"/></clipPath>
+          ${gradient("v03-grad", [{o:"0%",c:"#000",a:0},{o:"55%",c:"#000",a:0},{o:"100%",c:"#000",a:0.94}])}
+        </defs>
+      `;
+
+      const dualImg = state.imageUrl
+        ? `
+          <g clip-path="url(#v03-top)">
+            <image href="${esc(state.imageUrl)}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/>
+          </g>
+          <g clip-path="url(#v03-bot)" filter="url(#v03-tint)">
+            <image href="${esc(state.imageUrl)}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/>
+          </g>
+        `
+        : `
+          <rect x="0" y="0" width="${W}" height="${splitY}" fill="#1A2438"/>
+          <rect x="0" y="${splitY}" width="${W}" height="${H - splitY}" fill="#0F2230"/>
+        `;
+
+      const singleImg = imageOrFallback("v03");
+
       return `
-        ${imageOrFallback("v03")}
-        <defs>${gradient("v03-grad", [{o:"0%",c:"#000",a:0.55},{o:"40%",c:"#000",a:0.18},{o:"60%",c:"#000",a:0.18},{o:"100%",c:"#000",a:0.55}])}</defs>
+        ${filterDef}
+        ${dual ? dualImg : singleImg}
+        ${dual ? `<line x1="0" y1="${splitY}" x2="${W}" y2="${splitY}" stroke="${state.accent}" stroke-width="4"/>` : ""}
         <rect width="${W}" height="${H}" fill="url(#v03-grad)"/>
-        <rect x="0" y="${slabY}" width="${W}" height="${slabH}" fill="#000000" fill-opacity="0.82"/>
-        <line x1="60" y1="${slabY}" x2="${W - 60}" y2="${slabY}" stroke="${state.accent}" stroke-width="3"/>
-        <line x1="60" y1="${slabY + slabH}" x2="${W - 60}" y2="${slabY + slabH}" stroke="${state.accent}" stroke-width="3"/>
-        ${metaTag("INFRASTRUCTURE · 06 / 26", W/2 - 200, slabY + 60)}
-        ${lines.map((ln, i) => `<text x="${W/2}" y="${slabY + 200 + i * fs * 1.02 - (lines.length - 1) * fs * 0.5}" text-anchor="middle" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
-        ${state.showSub && state.subtitle ? `<g>${subtitleBlock(state.subtitle, 120, slabY + slabH - 90 - (wordWrap(state.subtitle, Math.floor((W - 240)/16)).length - 1) * 38, W - 240, "rgba(255,255,255,0.82)").replace(/x="120"/g, 'x="' + W/2 + '" text-anchor="middle"')}</g>` : ""}
-        ${logoPill(W - 232, H - 80, 200, 50)}
+        ${logoPill(W - 232, 60, 200, 50)}
+        ${metaTag(dual ? "DIPTYCH · 06 / 26" : "INFRASTRUCTURE · 06 / 26", 60, 95, state.accent)}
+        ${tb.svg}
+        ${subLines.map((ln, i) => `<text x="${pad + 24}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.82)">${esc(ln)}</text>`).join("")}
       `;
     }
 
-    // 04 · SIDE CAPTION — Vertical dark band on left, title stacked.
+    // 04 · ACCENT RAIL — Thin accent stripe down left edge + bottom
+    // gradient. Subtitle now sits on a real 70px gap below the title.
     function v04() {
       const t = displayTitle();
-      const sideW = 420;
-      const lines = wordWrap(t, 12);
-      const fs = titleFontSize(t, 86, 32);
+      const pad = 60;
+      const maxTitleWidth = W - pad - 80;
+      const lines = wordWrap(t, 20);
+      const fs = titleFontSizeForLines(lines, 100, maxTitleWidth);
+
+      const subLines = state.showSub && state.subtitle ? wordWrap(state.subtitle, 44) : [];
+      const subFs = 30;
+      const subGap = 36;
+      const subEndY = H - 100;
+      const subStartY = subEndY - (subLines.length - 1) * subGap;
+      const titleBottomY = subLines.length ? subStartY - 70 : subEndY;
+      const tb = titleBlock(lines, fs, pad, titleBottomY);
+
       return `
         ${imageOrFallback("v04")}
-        <rect x="0" y="0" width="${sideW}" height="${H}" fill="#000000" fill-opacity="0.88"/>
-        <rect x="${sideW - 6}" y="0" width="6" height="${H}" fill="${state.accent}"/>
-        ${metaTag("YB · INFRA", 50, 90)}
-        ${lines.map((ln, i) => `<text x="50" y="${H - 280 + i * fs * 1.02 - (lines.length - 1) * fs * 0.5}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
-        ${subtitleBlock(state.subtitle, 50, H - 200, sideW - 100, "rgba(255,255,255,0.80)")}
-        ${hexMark(50 + 22, H - 90, 44, "#FFFFFF")}
-        <text x="50 + 78" y="${H - 80}" font-family="'JetBrains Mono', monospace" font-size="16" font-weight="700" letter-spacing="2" fill="#FFFFFF">SEMIANALYSIS</text>
+        <rect x="0" y="0" width="16" height="${H}" fill="${state.accent}"/>
+        <defs>${gradient("v04-grad", [{o:"0%",c:"#000",a:0.15},{o:"45%",c:"#000",a:0},{o:"100%",c:"#000",a:0.94}])}</defs>
+        <rect width="${W}" height="${H}" fill="url(#v04-grad)"/>
+        ${metaTag("06 / 2026 · INFRA", W - 360, 90, state.accent)}
+        ${logoPill(W - 232, 130, 200, 50)}
+        ${tb.svg}
+        ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.82)">${esc(ln)}</text>`).join("")}
       `;
     }
 
-    // 05 · ACCENT RAIL — Thin accent stripe + bottom gradient + title.
+    // 05 · MAGAZINE BAR — Image top 66%, solid block bottom 34%. Title
+    // and subtitle both anchored relative to the bar's interior so the
+    // type breathes whether the subtitle is one line or three.
     function v05() {
       const t = displayTitle();
-      const lines = wordWrap(t, 20);
-      const fs = titleFontSize(t, 100, 38);
-      return `
-        ${imageOrFallback("v05")}
-        <rect x="0" y="0" width="16" height="${H}" fill="${state.accent}"/>
-        <defs>${gradient("v05-grad", [{o:"0%",c:"#000",a:0},{o:"50%",c:"#000",a:0},{o:"100%",c:"#000",a:0.94}])}</defs>
-        <rect width="${W}" height="${H}" fill="url(#v05-grad)"/>
-        ${metaTag("06 / 2026 · INFRA", W - 360, 80, state.accent)}
-        ${logoPill(W - 232, 120, 200, 50)}
-        ${lines.map((ln, i) => `<text x="60" y="${H - 200 + i * fs * 1.02 - (lines.length - 1) * fs * 0.5}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
-        ${subtitleBlock(state.subtitle, 60, H - 120, W - 140)}
-      `;
-    }
-
-    // 06 · MAGAZINE BAR — Image top 70%, solid block bottom 30%.
-    function v06() {
-      const t = displayTitle();
+      const pad = 60;
+      const imgH = Math.round(H * 0.62);
+      const maxTitleWidth = W - pad * 2;
       const lines = wordWrap(t, 22);
-      const fs = titleFontSize(t, 88, 36);
-      const imgH = H * 0.66;
+      const fs = titleFontSizeForLines(lines, 90, maxTitleWidth);
+
+      const subLines = state.showSub && state.subtitle ? wordWrap(state.subtitle, 50) : [];
+      const subFs = 26;
+      const subGap = 32;
+
+      const barTop = imgH;
+      const barH = H - imgH;
+      const metaY = barTop + 56;
+      const titleTopBaselineY = barTop + 130;
+      const titleLineGap = fs * 1.02;
+      const titleBottomY = titleTopBaselineY + (lines.length - 1) * titleLineGap;
+      const subStartY = titleBottomY + 60;
+
       return `
         <rect width="${W}" height="${H}" fill="#0A0B10"/>
-        <g clip-path="url(#v06-clip)">
+        <g clip-path="url(#v05-clip)">
           ${state.imageUrl
             ? `<image href="${esc(state.imageUrl)}" x="0" y="0" width="${W}" height="${imgH}" preserveAspectRatio="xMidYMid slice"/>`
             : `<rect width="${W}" height="${imgH}" fill="#1A2438"/>`}
         </g>
-        <defs><clipPath id="v06-clip"><rect width="${W}" height="${imgH}"/></clipPath></defs>
-        <rect x="0" y="${imgH}" width="${W}" height="${H - imgH}" fill="#0A0B10"/>
-        <rect x="0" y="${imgH}" width="${W}" height="6" fill="${state.accent}"/>
+        <defs><clipPath id="v05-clip"><rect width="${W}" height="${imgH}"/></clipPath></defs>
+        <rect x="0" y="${barTop}" width="${W}" height="${barH}" fill="#0A0B10"/>
+        <rect x="0" y="${barTop}" width="${W}" height="6" fill="${state.accent}"/>
         ${logoPill(W - 232, 50, 200, 50)}
-        ${metaTag("ISSUE 24 · INFRASTRUCTURE", 60, imgH + 60, state.accent)}
-        ${lines.map((ln, i) => `<text x="60" y="${imgH + 130 + i * fs * 1.02}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
-        ${subtitleBlock(state.subtitle, 60, H - 90, W - 120, "rgba(255,255,255,0.70)")}
+        ${metaTag("ISSUE 24 · INFRASTRUCTURE", pad, metaY, state.accent)}
+        ${lines.map((ln, i) => `<text x="${pad}" y="${titleTopBaselineY + i * titleLineGap}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
+        ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.72)">${esc(ln)}</text>`).join("")}
       `;
     }
 
-    // 07 · QUAD GRID — Image split 2x2 with subtle seams + bottom darken.
-    function v07() {
+    // 06 · EDGE STRIPE — Top accent stripe + bottom gradient + category code.
+    function v06() {
       const t = displayTitle();
+      const pad = 60;
+      const maxTitleWidth = W - pad * 2;
       const lines = wordWrap(t, 18);
-      const fs = titleFontSize(t, 100, 36);
-      return `
-        ${imageOrFallback("v07")}
-        <line x1="${W/2}" y1="0" x2="${W/2}" y2="${H}" stroke="#000000" stroke-opacity="0.45" stroke-width="6"/>
-        <line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="#000000" stroke-opacity="0.45" stroke-width="6"/>
-        <defs>${gradient("v07-grad", [{o:"0%",c:"#000",a:0.05},{o:"50%",c:"#000",a:0.05},{o:"100%",c:"#000",a:0.90}])}</defs>
-        <rect width="${W}" height="${H}" fill="url(#v07-grad)"/>
-        ${metaTag("0" + 2 + " · ARTBOARD", 60, 80, "rgba(255,255,255,0.55)")}
-        ${logoPill(W - 232, 50, 200, 50)}
-        <rect x="0" y="${H - 380}" width="${W}" height="4" fill="${state.accent}"/>
-        ${lines.map((ln, i) => `<text x="60" y="${H - 280 + i * fs * 1.0 - (lines.length - 1) * fs * 0.5}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
-        ${subtitleBlock(state.subtitle, 60, H - 130, W - 120)}
-      `;
-    }
+      const fs = titleFontSizeForLines(lines, 110, maxTitleWidth);
 
-    // 08 · EDGE STRIPE — Top color stripe + bottom gradient + category mono.
-    function v08() {
-      const t = displayTitle();
-      const lines = wordWrap(t, 18);
-      const fs = titleFontSize(t, 110, 36);
+      const subLines = state.showSub && state.subtitle ? wordWrap(state.subtitle, 44) : [];
+      const subFs = 30;
+      const subGap = 36;
+      const subEndY = H - 110;
+      const subStartY = subEndY - (subLines.length - 1) * subGap;
+      const titleBottomY = subLines.length ? subStartY - 70 : subEndY;
+      const tb = titleBlock(lines, fs, pad, titleBottomY);
+
       return `
-        ${imageOrFallback("v08")}
+        ${imageOrFallback("v06")}
         <rect x="0" y="0" width="${W}" height="22" fill="${state.accent}"/>
-        <defs>${gradient("v08-grad", [{o:"0%",c:"#000",a:0.18},{o:"45%",c:"#000",a:0},{o:"100%",c:"#000",a:0.93}])}</defs>
-        <rect width="${W}" height="${H}" fill="url(#v08-grad)"/>
-        ${metaTag("YB · 04 · INFRASTRUCTURE", 60, 90, "#FFFFFF")}
-        ${logoPill(W - 232, 70, 200, 50)}
-        <rect x="60" y="${H - 380}" width="68" height="4" fill="${state.accent}"/>
-        ${lines.map((ln, i) => `<text x="60" y="${H - 260 + i * fs * 1.0 - (lines.length - 1) * fs * 0.5}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${tracking()}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
-        ${subtitleBlock(state.subtitle, 60, H - 140, W - 120)}
+        <defs>${gradient("v06-grad", [{o:"0%",c:"#000",a:0.18},{o:"45%",c:"#000",a:0},{o:"100%",c:"#000",a:0.93}])}</defs>
+        <rect width="${W}" height="${H}" fill="url(#v06-grad)"/>
+        ${metaTag("YB · 04 · INFRASTRUCTURE", pad, 100, "#FFFFFF")}
+        ${logoPill(W - 232, 80, 200, 50)}
+        <rect x="${pad}" y="${titleBottomY - fs - 60}" width="68" height="4" fill="${state.accent}"/>
+        ${tb.svg}
+        ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.82)">${esc(ln)}</text>`).join("")}
       `;
     }
 
     const VARIANTS = [
       { id: "01", name: "Reference", fn: v01, note: "Your Illustrator mockup, faithfully matched. Bottom-up gradient, inner stroke frame, LOGO pill top-right." },
-      { id: "02", name: "Type Bomb", fn: v02, note: "No image. Massive 4-line declarative headline. Hex pattern + accent stripe top." },
-      { id: "03", name: "Center Slab", fn: v03, note: "Horizontal dark band across the vertical center. Centered title with accent rules above/below." },
-      { id: "04", name: "Side Caption", fn: v04, note: "Vertical dark band left 38%. Title stacked bottom-left, hex mark + wordmark at the foot." },
-      { id: "05", name: "Accent Rail", fn: v05, note: "Thin accent stripe down the left edge + heavy bottom gradient. Clean photo top." },
-      { id: "06", name: "Magazine Bar", fn: v06, note: "Image top 66%, solid dark block bottom. Magazine-cover feel; great for editorial pieces." },
-      { id: "07", name: "Quad Grid", fn: v07, note: "Image split into 2×2 with thin seams. Title in bottom half. References editorial layouts." },
-      { id: "08", name: "Edge Stripe", fn: v08, note: "Top accent stripe + bottom gradient. Subtle category code top-left." },
+      { id: "02", name: "Type Bomb", fn: v02, note: "No image. Massive declarative headline that auto-shrinks for long words. Hex pattern + accent stripe top." },
+      { id: "03", name: "Diptych", fn: v03, note: "One full-bleed image by default. Toggle DUAL IMAGE to stack two image halves with a duotone treatment and a hairline accent seam." },
+      { id: "04", name: "Accent Rail", fn: v04, note: "Thin accent stripe down the left edge + heavy bottom gradient. Clean photo top." },
+      { id: "05", name: "Magazine Bar", fn: v05, note: "Image top 62%, solid dark block bottom. Title + 1-3 sentence subtitle both anchored inside the bar." },
+      { id: "06", name: "Edge Stripe", fn: v06, note: "Top accent stripe + bottom gradient. Subtle category code top-left, accent tick above title." },
     ];
 
     // ─────────────────────────────────────────────────────────────
@@ -470,6 +585,7 @@
     document.getElementById("show-logo").addEventListener("change", e => { state.showLogo = e.target.checked; refresh(); });
     document.getElementById("show-meta").addEventListener("change", e => { state.showMeta = e.target.checked; refresh(); });
     document.getElementById("image-url").addEventListener("input", e => { state.imageUrl = e.target.value.trim(); refresh(); });
+    document.getElementById("dual-image").addEventListener("change", e => { state.dual = e.target.checked; refresh(); });
 
     document.querySelectorAll(".swatch").forEach(sw => {
       sw.addEventListener("click", () => {
