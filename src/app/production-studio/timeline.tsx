@@ -47,7 +47,14 @@ import { ProductionStudioShell } from "./shell";
 import { D, ft, gf, mn } from "../shared-constants";
 import { showToast } from "../toast-context";
 
-const OPENCUT_URL = "https://opencut.app";
+// Same-origin path served by the OpenCut sub-server (apps/opencut/apps/web)
+// via the Next rewrite in next.config.ts. Start the sub-server with
+// `npm run dev:opencut` alongside the main `npm run dev`. The "Open
+// OpenCut" hand-off button still opens the upstream-hosted version so
+// users can flip to a tab/window if the embedded sub-server isn't up.
+const OPENCUT_EMBED_URL = "/embed/opencut/";
+const OPENCUT_UPSTREAM_URL = "https://opencut.app";
+const OPENCUT_URL = OPENCUT_UPSTREAM_URL;
 const SAVED_TRANSCRIPTS_KEY = "poast-transcripts-saved";
 
 interface CaptionCue {
@@ -608,7 +615,7 @@ export function TimelineEditorView() {
           }}
         >
           <iframe
-            src={OPENCUT_URL}
+            src={OPENCUT_EMBED_URL}
             title="OpenCut Editor"
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-downloads allow-modals allow-pointer-lock allow-presentation"
             allow="camera; microphone; clipboard-read; clipboard-write; fullscreen; autoplay; encrypted-media; display-capture"

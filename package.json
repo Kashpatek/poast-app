@@ -4,7 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:opencut": "cd apps/opencut/apps/web && bun run vite dev --port 5173 --base /embed/opencut/",
+    "dev:all": "concurrently -k -n NEXT,OPENCUT -c amber,cyan \"npm:dev\" \"npm:dev:opencut\"",
     "build": "next build",
+    "build:opencut": "cd apps/opencut/apps/web && bun run build",
     "start": "next start",
     "lint": "eslint",
     "rasterize-tables": "node scripts/rasterize-sa-tables.mjs"
@@ -82,6 +85,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^10.0.3",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
     "tailwindcss": "^4",
