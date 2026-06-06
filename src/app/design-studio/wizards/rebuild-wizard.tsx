@@ -3,7 +3,7 @@
 // Rebuild from Image — upload a screenshot of an old chart or table,
 // Claude's vision extracts the structure as JSON, then we route to:
 //   chart  → /charts with the data pre-loaded into Chart Maker 2
-//   table  → a new DocuDesign doc with the table baked in
+//   table  → a fresh artboard in the Fabric canvas editor (US Letter screen)
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -146,36 +146,23 @@ export function RebuildWizard({ open, onClose }: RebuildWizardProps) {
     setSubmitting(true);
     try {
       const t = extracted.table;
-      // Build a brief that the DocuDesign canvas understands. We seed
-      // the project with a recreated table as the initial artboard
-      // content via the `keyPoints` field (canvas reads keyPoints and
-      // formats them — for a table we pre-format as a markdown table).
-      const md = renderTableMarkdown(t);
-      const payload = {
-        name: t.title || "Rebuilt table",
-        type: "document" as const,
-        fidelity: "high" as const,
-        size_preset: "us-letter-screen",
-        purpose: "one-pager",
-        category: "one-pager",
-        brief: {
-          title: t.title || "Rebuilt table",
-          keyPoints: [md],
-          context: "Recreated from an uploaded image. The original markdown table is in keyPoints. Notes from extraction: " + (t.notes || "—"),
-        },
-        format: "svg" as const,
-      };
-      const res = await fetch("/api/docu-design/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const j = await res.json();
-      if (!res.ok) { showToast(j.error || "Couldn't open as doc"); setSubmitting(false); return; }
-      const id = j.data?.id;
+      // Route into the Fabric canvas editor with a "rebuild" category
+      // marker so the canvas knows this is a rebuilt-from-image project.
+      // The canvas-editor page seeds a fresh ProjectRecord on first mount
+      // and rewrites the URL with the generated id.
+      const projectName = t.title || "Rebuilt table";
+      // US Letter at screen DPI — sensible default for a rebuilt table.
+      const w = 1632;
+      const h = 2112;
+      const qs = new URLSearchParams();
+      qs.set("category", "rebuild");
+      qs.set("name", projectName);
+      qs.set("w", String(w));
+      qs.set("h", String(h));
+      qs.set("template", "us-letter-screen");
       reset();
       onClose();
-      if (id) router.push(`/design-studio/p/${id}`);
+      router.push(`/design-studio/canvas-editor?${qs.toString()}`);
     } catch (e) {
       showToast(String(e));
       setSubmitting(false);
@@ -191,7 +178,7 @@ export function RebuildWizard({ open, onClose }: RebuildWizardProps) {
       totalSteps={2}
       canGoNext={step === 0 ? !!imageUrl && !extracting : !!extracted}
       isFinalStep={step === 1}
-      finalLabel={extracted?.kind === "chart" ? (submitting ? "Opening…" : "Open in Chart Maker") : extracted?.kind === "table" ? (submitting ? "Creating doc…" : "Open as DocuDesign doc") : "—"}
+      finalLabel={extracted?.kind === "chart" ? (submitting ? "Opening…" : "Open in Chart Maker") : extracted?.kind === "table" ? (submitting ? "Opening canvas…" : "Open in Canvas Editor") : "—"}
       onBack={() => setStep(0)}
       onNext={() => {
         if (step === 0) { extract(); return; }
@@ -227,7 +214,7 @@ function UploadStep({ imageFile, imageUrl, extracting, err, onLoadFile, onClear 
   return (
     <div>
       <div style={{ fontFamily: ft, fontSize: 14, color: D.txm, marginBottom: 14, lineHeight: 1.5 }}>
-        Drop a screenshot of any chart or table — even old, ugly, or low-res. We'll vision-extract the structure and rebuild it cleanly. Charts route to <strong style={{ color: D.tx }}>Chart Maker</strong>, tables open as a <strong style={{ color: D.tx }}>DocuDesign doc</strong>.
+        Drop a screenshot of any chart or table — even old, ugly, or low-res. We'll vision-extract the structure and rebuild it cleanly. Charts route to <strong style={{ color: D.tx }}>Chart Maker</strong>, tables open as a <strong style={{ color: D.tx }}>canvas</strong>.
       </div>
       <label
         onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = D.amber; }}
@@ -417,5 +404,8 @@ function pill(color: string): React.CSSProperties {
 }
 const noteBox: React.CSSProperties = { marginTop: 10, fontFamily: mn, fontSize: 10, color: D.txm, lineHeight: 1.5, padding: "8px 10px", background: D.bg, border: `1px dashed ${D.border}`, borderRadius: 6, letterSpacing: 0.2 };
 // Suppress unused import warning when wizardInput isn't referenced — kept
-// for future "edit before opening" iterations.
+// for future "edit before opening" iterations. renderTableMarkdown is
+// likewise retained for when the canvas-editor handoff learns to seed
+// table content from a markdown brief.
 void wizardInput;
+void renderTableMarkdown;

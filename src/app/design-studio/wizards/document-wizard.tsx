@@ -5,8 +5,9 @@
 // 2) Size / platform (where will it live)
 // 3) Brief (title, key points, tone)
 // 4) Context (audience, source material, design system override)
-// Submits to /api/docu-design/projects with the full brief on the record,
-// then routes to the canvas which will pre-shape the first artboard.
+// Routes to /design-studio/doc-editor with category + name + template on the
+// query string; the Tiptap editor seeds a fresh ProjectRecord on first mount
+// and rewrites the URL with the generated id so refreshes resume cleanly.
 
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -111,6 +112,28 @@ export function DocumentWizard({ open, onClose, initialCategoryId, initialPreset
       qs.set("name", title.trim() || "Untitled document");
       const preset = presetId === "__custom__" ? null : findPreset(presetId);
       if (preset?.id) qs.set("template", preset.id);
+
+      // Pipe the brief through so the doc editor can seed the body with a
+      // structured outline. Each field is trimmed and capped at 200 chars
+      // to keep the URL short. keyPoints is comma-joined (newlines become
+      // commas) since it was collected as one-per-line in the textarea.
+      const cap = (s: string) => s.trim().slice(0, 200);
+      const subT = cap(subtitle);
+      if (subT) qs.set("subtitle", subT);
+      const kp = cap(
+        keyPoints
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .join(", ")
+      );
+      if (kp) qs.set("keyPoints", kp);
+      const toneT = cap(tone);
+      if (toneT) qs.set("tone", toneT);
+      const audT = cap(audience);
+      if (audT) qs.set("audience", audT);
+      const ctxT = cap(context);
+      if (ctxT) qs.set("context", ctxT);
 
       reset();
       onClose();

@@ -23,6 +23,55 @@ const DocEditor = dynamic(() => import("./doc-editor").then(m => m.DocEditor), {
   ),
 });
 
+// Build a structured outline from the document-wizard brief so the editor
+// opens with the user's intent already on the page. Returns "" when there's
+// nothing beyond the title to seed — the editor falls back to its empty
+// placeholder in that case.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function buildBriefOutline(brief: {
+  title: string;
+  subtitle: string;
+  keyPoints: string;
+  tone: string;
+  audience: string;
+  context: string;
+}): string {
+  const parts: string[] = [];
+  const title = brief.title.trim();
+  if (title) parts.push(`<h1>${escapeHtml(title)}</h1>`);
+  const subtitle = brief.subtitle.trim();
+  if (subtitle) parts.push(`<p>${escapeHtml(subtitle)}</p>`);
+
+  const points = brief.keyPoints
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (points.length) {
+    parts.push("<h2>Key points</h2>");
+    parts.push(
+      "<ul>" +
+        points.map((p) => `<li>${escapeHtml(p)}</li>`).join("") +
+        "</ul>"
+    );
+  }
+
+  const metaLines: string[] = [];
+  if (brief.tone.trim()) metaLines.push(`Tone: ${escapeHtml(brief.tone.trim())}`);
+  if (brief.audience.trim()) metaLines.push(`Audience: ${escapeHtml(brief.audience.trim())}`);
+  if (brief.context.trim()) metaLines.push(`Context: ${escapeHtml(brief.context.trim())}`);
+  for (const line of metaLines) parts.push(`<p>${line}</p>`);
+
+  // If only the (default) title is present we have nothing useful to seed.
+  if (parts.length <= 1) return "";
+  return parts.join("");
+}
+
 export default function DocEditorPage() {
   return (
     <Suspense fallback={null}>
@@ -59,6 +108,13 @@ function DocEditorInner() {
     const category = sp?.get("category") || undefined;
     const name = sp?.get("name") || "Untitled document";
     const templateId = sp?.get("template") || undefined;
+    // Brief fields piped from document-wizard. Only consumed when seeding
+    // a fresh project — never overwrites an existing payload.
+    const subtitle = sp?.get("subtitle") || "";
+    const keyPoints = sp?.get("keyPoints") || "";
+    const tone = sp?.get("tone") || "";
+    const audience = sp?.get("audience") || "";
+    const context = sp?.get("context") || "";
 
     (async () => {
       if (id) {
@@ -70,12 +126,21 @@ function DocEditorInner() {
         }
       }
 
+      const seededHtml = buildBriefOutline({
+        title: name,
+        subtitle,
+        keyPoints,
+        tone,
+        audience,
+        context,
+      });
+
       const fresh: ProjectRecord = {
         id: id || uid("proj"),
         title: name,
         kind: "doc",
         category,
-        pages: [{ id: uid("page"), payload: { json: null, html: "" } }],
+        pages: [{ id: uid("page"), payload: { json: null, html: seededHtml } }],
         templateId,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -86,10 +151,17 @@ function DocEditorInner() {
       setProject(saved);
       setLoading(false);
 
-      // Keep URL stable so refresh resumes the same project.
+      // Keep URL stable so refresh resumes the same project. Strip the
+      // brief params on the way out so a refresh doesn't re-seed (the
+      // ?id branch above will hydrate the saved payload instead).
       if (!id) {
         const next = new URLSearchParams(sp?.toString() || "");
         next.set("id", saved.id);
+        next.delete("subtitle");
+        next.delete("keyPoints");
+        next.delete("tone");
+        next.delete("audience");
+        next.delete("context");
         router.replace(`/design-studio/doc-editor?${next.toString()}`);
       }
     })();

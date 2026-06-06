@@ -136,43 +136,20 @@ export function ImageWizard({ open, onClose, initialCategoryId, initialPresetId 
     try {
       const preset = findPreset(presetId);
       const projectName = name.trim() || prompt.trim().slice(0, 60);
-      const all = variants.map((url, i) => ({
-        url,
-        name: `Variant ${i + 1}`,
-        format: "image",
-        is_cover: i === picked,
-        created_at: new Date().toISOString(),
-      }));
-      const payload = {
-        name: projectName,
-        type: "image" as const,
-        fidelity: "high" as const,
-        size_preset: preset?.id ?? null,
-        category: categoryId,
-        purpose: categoryId,
-        brief: {
-          title: name.trim() || undefined,
-          context: prompt.trim(),
-          tone: style,
-        },
-        format: "image",
-        output_files: all,
-      };
-      const res = await fetch("/api/docu-design/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const j = await res.json();
-      if (!res.ok) {
-        showToast(j.error || "Couldn't save image project");
-        setSaving(false);
-        return;
-      }
-      const id = j.data?.id;
+      // Route into the Fabric canvas editor — it owns the Uploads tab and
+      // image layer that this wizard's variants will drop into. The
+      // canvas-editor page seeds a fresh ProjectRecord (kind="canvas") from
+      // these query params on first mount and rewrites the URL with the
+      // generated id, so refreshes resume.
+      const qs = new URLSearchParams();
+      qs.set("category", "image");
+      qs.set("name", projectName);
+      if (preset?.w) qs.set("w", String(preset.w));
+      if (preset?.h) qs.set("h", String(preset.h));
+      if (preset?.id) qs.set("template", preset.id);
       reset();
       onClose();
-      if (id) router.push(`/design-studio/p/${id}`);
+      router.push(`/design-studio/canvas-editor?${qs.toString()}`);
     } catch (e) {
       showToast(String(e));
       setSaving(false);
