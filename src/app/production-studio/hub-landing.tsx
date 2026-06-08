@@ -15,6 +15,7 @@ import {
   AudioLines,
   FileAudio,
   Rss,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { D, ft, gf, mn } from "../shared-constants";
@@ -32,6 +33,15 @@ interface HubCard {
 }
 
 const VIDEO_CARDS: HubCard[] = [
+  {
+    id: "generate-studio",
+    label: "Generate Studio",
+    sub: "Image + video from every API key you have — Imagen, Runway, Veo, Grok, Kling",
+    Icon: Sparkles,
+    accent: D.teal,
+    status: "live",
+    href: "/production-studio/generate-studio",
+  },
   {
     id: "brief-builder",
     label: "Brief Builder",
