@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { D as C, ft, mn, gf, getSurfaceProvider, getPreferredProvider } from "./shared-constants";
 import { showToast } from "./toast-context";
 import { COVER_TEMPLATES, renderCoverFullSvg, type CoverTemplateId } from "./carousel-covers";
@@ -205,14 +205,18 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
   var _upper = useState(true), upper = _upper[0], setUpper = _upper[1];
   var _tight = useState(false), tight = _tight[0], setTight = _tight[1];
 
-  var _titleIdeas = useState<string[]>([]), titleIdeas = _titleIdeas[0], setTitleIdeas = _titleIdeas[1];
+  var _titleIdeas = useState<{ title: string; subtitle: string }[]>([]), titleIdeas = _titleIdeas[0], setTitleIdeas = _titleIdeas[1];
   var _titleLoad = useState(false), titleLoading = _titleLoad[0], setTitleLoading = _titleLoad[1];
   var _subLoad = useState(false), subLoading = _subLoad[0], setSubLoading = _subLoad[1];
+  var _subIdeas = useState<string[]>([]), subtitleIdeas = _subIdeas[0], setSubtitleIdeas = _subIdeas[1];
 
   var _imgTab = useState<"ai" | "upload" | "skip">("ai"), imageTab = _imgTab[0], setImageTab = _imgTab[1];
   var _imgUrl = useState(""), chosenImageUrl = _imgUrl[0], setChosenImageUrl = _imgUrl[1];
   var _imgVariants = useState<string[]>([]), imgVariants = _imgVariants[0], setImgVariants = _imgVariants[1];
   var _imgLoad = useState(false), imgLoading = _imgLoad[0], setImgLoading = _imgLoad[1];
+  var _imgPrompt = useState(""), imagePrompt = _imgPrompt[0], setImagePrompt = _imgPrompt[1];
+  var _imgPromptLoad = useState(false), imagePromptLoading = _imgPromptLoad[0], setImagePromptLoading = _imgPromptLoad[1];
+  var _imgPromptKey = useState(""), imagePromptKey = _imgPromptKey[0], setImagePromptKey = _imgPromptKey[1];
 
   var _pasteDrag = useState(false), pasteDrag = _pasteDrag[0], setPasteDrag = _pasteDrag[1];
   var _uploadDrag = useState(false), uploadDrag = _uploadDrag[0], setUploadDrag = _uploadDrag[1];
@@ -257,9 +261,14 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
       });
       var d = await r.json();
       if (!r.ok || d.error) { showToast(d.error || "Failed to generate titles."); return; }
-      var ideas = (d.titles || []) as string[];
-      if (!ideas.length) { showToast("No titles returned. Try again."); return; }
-      setTitleIdeas(ideas);
+      var pairs = (d.pairs || []) as { title: string; subtitle: string }[];
+      if (!pairs.length) {
+        // Back-compat for old payload shape.
+        var legacy = (d.titles || []) as string[];
+        pairs = legacy.map(function(t) { return { title: t, subtitle: "" }; });
+      }
+      if (!pairs.length) { showToast("No titles returned. Try again."); return; }
+      setTitleIdeas(pairs);
     } catch (e) {
       showToast("Network error: " + (e instanceof Error ? e.message : String(e)));
     } finally {
@@ -285,11 +294,41 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
       });
       var d = await r.json();
       if (!r.ok || d.error) { showToast(d.error || "Failed to suggest subtitle."); return; }
-      if (d.subtitle) setChosenSubtitle(String(d.subtitle));
+      var subs = (d.subtitles || []) as string[];
+      if (!subs.length && d.subtitle) subs = [String(d.subtitle)];
+      if (!subs.length) { showToast("No subtitles returned. Try again."); return; }
+      setSubtitleIdeas(subs);
     } catch (e) {
       showToast("Network error: " + (e instanceof Error ? e.message : String(e)));
     } finally {
       setSubLoading(false);
+    }
+  }
+
+  async function fetchImagePromptSuggestion() {
+    if (imagePromptLoading) return;
+    if (!chosenTitle.trim()) return;
+    setImagePromptLoading(true);
+    try {
+      var r = await fetch("/api/carousel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "verbatim-image-prompt",
+          title: chosenTitle,
+          subtitle: includeSubtitle ? chosenSubtitle : "",
+          category: state.category,
+          text: (state.text || "").slice(0, 1500),
+          provider: carouselProvider(),
+        }),
+      });
+      var d = await r.json();
+      if (!r.ok || d.error) { showToast(d.error || "Failed to suggest a prompt."); return; }
+      if (d.prompt) setImagePrompt(String(d.prompt));
+    } catch (e) {
+      showToast("Network error: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setImagePromptLoading(false);
     }
   }
 
@@ -304,9 +343,11 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
         body: JSON.stringify({
           action: "generateImage",
           title: chosenTitle,
+          subtitle: includeSubtitle ? chosenSubtitle : "",
           slideText: (state.text || "").slice(0, 500),
           category: state.category,
           slideType: "COVER",
+          customPrompt: imagePrompt.trim() || undefined,
         }),
       });
       var d = await r.json();
@@ -320,6 +361,19 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
       setImgLoading(false);
     }
   }
+
+  // Auto-fetch a suggested image prompt when entering the image step
+  // with a title set and no prompt yet (or when title/subtitle changed
+  // since the last fetch). Key debounces re-fetches.
+  useEffect(function() {
+    if (sub !== "image" || imageTab !== "ai") return;
+    if (!chosenTitle.trim()) return;
+    var key = chosenTitle + "|" + (includeSubtitle ? chosenSubtitle : "") + "|" + state.category;
+    if (key === imagePromptKey && imagePrompt.trim()) return;
+    setImagePromptKey(key);
+    if (!imagePrompt.trim()) fetchImagePromptSuggestion();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sub, imageTab, chosenTitle, chosenSubtitle, includeSubtitle, state.category]);
 
   function canContinue(): boolean {
     if (sub === "paste") return !!(state.text || "").trim();
@@ -502,11 +556,23 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
       </div>
 
       {titleIdeas.length > 0 && <div style={{ marginBottom: 22 }}>
-        <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Ideas</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Ideas · click to use title + subtitle</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           {titleIdeas.map(function(idea, i) {
-            var sel = chosenTitle === idea;
-            return <div key={i} onClick={function() { setChosenTitle(idea); }} style={{ padding: "10px 14px", borderRadius: 8, background: sel ? accent + "15" : C.card, border: "1px solid " + (sel ? accent : C.border), color: sel ? accent : C.tx, fontFamily: ft, fontSize: 13, fontWeight: 600, cursor: "pointer", maxWidth: 360 }}>{idea}</div>;
+            var sel = chosenTitle === idea.title;
+            return <div key={i} onClick={function() {
+              setChosenTitle(idea.title);
+              if (idea.subtitle) {
+                setChosenSubtitle(idea.subtitle);
+                setIncludeSubtitle(true);
+              }
+              setSubtitleIdeas([]);
+            }} style={{ padding: "14px 16px", borderRadius: 10, background: sel ? accent + "12" : C.card, border: "1px solid " + (sel ? accent : C.border), cursor: "pointer", transition: "all 0.15s" }}
+              onMouseEnter={function(e) { if (!sel) e.currentTarget.style.borderColor = accent + "55"; }}
+              onMouseLeave={function(e) { if (!sel) e.currentTarget.style.borderColor = C.border; }}>
+              <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: sel ? accent : C.tx, letterSpacing: -0.2, marginBottom: idea.subtitle ? 6 : 0 }}>{idea.title}</div>
+              {idea.subtitle && <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, lineHeight: 1.45 }}>{idea.subtitle}</div>}
+            </div>;
           })}
         </div>
       </div>}
@@ -535,8 +601,8 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
 
       {includeSubtitle && <div style={{ padding: "16px 18px", background: C.card, border: "1px solid " + C.border, borderRadius: 10 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, textTransform: "uppercase", letterSpacing: 1.2 }}>Subtitle</div>
-          <button onClick={fetchSubtitleSuggestion} disabled={subLoading || !chosenTitle.trim()} style={{ padding: "6px 12px", borderRadius: 6, background: subLoading ? C.surface : accent + "12", border: "1px solid " + accent + "30", color: accent, fontFamily: ft, fontSize: 11, fontWeight: 700, cursor: subLoading || !chosenTitle.trim() ? "wait" : "pointer", opacity: !chosenTitle.trim() ? 0.5 : 1 }}>{subLoading ? "Thinking..." : "✨ Suggest with AI"}</button>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, textTransform: "uppercase", letterSpacing: 1.2 }}>Subtitle{chosenSubtitle ? " · " + chosenSubtitle.length + " chars" : ""}</div>
+          <button onClick={fetchSubtitleSuggestion} disabled={subLoading || !chosenTitle.trim()} style={{ padding: "6px 12px", borderRadius: 6, background: subLoading ? C.surface : accent + "12", border: "1px solid " + accent + "30", color: accent, fontFamily: ft, fontSize: 11, fontWeight: 700, cursor: subLoading || !chosenTitle.trim() ? "wait" : "pointer", opacity: !chosenTitle.trim() ? 0.5 : 1 }}>{subLoading ? "Thinking..." : subtitleIdeas.length ? "✨ More options" : "✨ Suggest alternatives"}</button>
         </div>
         <input
           value={chosenSubtitle}
@@ -546,6 +612,15 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
           onFocus={function(e) { e.currentTarget.style.borderColor = accent + "50"; }}
           onBlur={function(e) { e.currentTarget.style.borderColor = C.border; }}
         />
+        {subtitleIdeas.length > 0 && <div style={{ marginTop: 12 }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6 }}>Alternatives · click to swap</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {subtitleIdeas.map(function(s, i) {
+              var sel = chosenSubtitle === s;
+              return <div key={i} onClick={function() { setChosenSubtitle(s); }} style={{ padding: "10px 12px", borderRadius: 6, background: sel ? accent + "15" : C.bg, border: "1px solid " + (sel ? accent + "55" : C.border), color: sel ? C.tx : C.txm, fontFamily: ft, fontSize: 12.5, cursor: "pointer", lineHeight: 1.45 }}>{s}</div>;
+            })}
+          </div>
+        </div>}
       </div>}
     </div>;
   }
@@ -567,7 +642,23 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
       </div>
 
       {imageTab === "ai" && <div>
-        <button onClick={fetchImageVariants} disabled={imgLoading} style={{ padding: "10px 18px", borderRadius: 8, background: imgLoading ? C.card : accent + "15", border: "1px solid " + accent + "40", color: accent, fontFamily: ft, fontSize: 13, fontWeight: 700, cursor: imgLoading ? "wait" : "pointer", marginBottom: 16 }}>{imgLoading ? "Generating 4 variations..." : "✨ Generate 4 Variations"}</button>
+        <div style={{ padding: "16px 18px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, textTransform: "uppercase", letterSpacing: 1.2 }}>Image Prompt {imagePromptLoading ? "· thinking..." : ""}</div>
+            <button onClick={fetchImagePromptSuggestion} disabled={imagePromptLoading || !chosenTitle.trim()} style={{ padding: "6px 12px", borderRadius: 6, background: imagePromptLoading ? C.surface : accent + "12", border: "1px solid " + accent + "30", color: accent, fontFamily: ft, fontSize: 11, fontWeight: 700, cursor: imagePromptLoading || !chosenTitle.trim() ? "wait" : "pointer", opacity: !chosenTitle.trim() ? 0.5 : 1 }}>{imagePromptLoading ? "..." : imagePrompt.trim() ? "✨ Re-suggest" : "✨ Suggest"}</button>
+          </div>
+          <textarea
+            value={imagePrompt}
+            onChange={function(e) { setImagePrompt(e.target.value); }}
+            placeholder={chosenTitle.trim() ? "Suggesting a prompt..." : "Set a title first — the prompt will be drafted from it."}
+            rows={4}
+            style={{ width: "100%", padding: "12px 14px", background: C.bg, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 13, lineHeight: 1.55, resize: "vertical", outline: "none", boxSizing: "border-box" }}
+            onFocus={function(e) { e.currentTarget.style.borderColor = accent + "50"; }}
+            onBlur={function(e) { e.currentTarget.style.borderColor = C.border; }}
+          />
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginTop: 6, letterSpacing: 0.4 }}>Edit the prompt before generating. SA style + brand cues are added automatically.</div>
+        </div>
+        <button onClick={fetchImageVariants} disabled={imgLoading || !imagePrompt.trim()} style={{ padding: "10px 18px", borderRadius: 8, background: imgLoading || !imagePrompt.trim() ? C.card : accent + "15", border: "1px solid " + accent + "40", color: accent, fontFamily: ft, fontSize: 13, fontWeight: 700, cursor: imgLoading ? "wait" : !imagePrompt.trim() ? "not-allowed" : "pointer", marginBottom: 16, opacity: !imagePrompt.trim() ? 0.5 : 1 }}>{imgLoading ? "Generating variations..." : imgVariants.length ? "✨ Regenerate" : "✨ Generate Variations"}</button>
         {imgVariants.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {imgVariants.map(function(url, i) {
             var sel = chosenImageUrl === url;

@@ -68,7 +68,7 @@ const THEMES_MAP: Record<string, string> = {
 };
 
 const CarouselSchema = z.object({
-  action: z.enum(["generate", "fetchImages", "caption", "rewrite", "generateImage", "verbatim-titles", "verbatim-subtitle"]),
+  action: z.enum(["generate", "fetchImages", "caption", "rewrite", "generateImage", "verbatim-titles", "verbatim-subtitle", "verbatim-image-prompt"]),
   text: z.string().optional(),
   url: z.string().optional(),
   category: z.string().optional(),
@@ -369,6 +369,7 @@ Style rules:
         category: imgCategory,
         style: imgStyle,
         provider: imgProvider,
+        customPrompt,
       } = body as {
         title?: string;
         subtitle?: string;
@@ -377,6 +378,7 @@ Style rules:
         category?: string;
         style?: string;
         provider?: "imagen" | "grok";
+        customPrompt?: string;
       };
 
       const stylePrompt =
@@ -387,7 +389,12 @@ Style rules:
         ? "Single clean focal subject, generous negative space at the top for a headline overlay (do not render text in the image)."
         : "Tight supporting illustration, simple subject, balanced composition. Do not render text.";
 
-      const subject = [imgTitle, imgSubtitle, slideText].filter(Boolean).join(" — ");
+      // When the user has edited the suggested prompt (verbatim flow),
+      // trust their prompt as the SUBJECT and still wrap with SA style
+      // cues + brand cues so the output stays on-brand.
+      const subject = customPrompt && customPrompt.trim()
+        ? customPrompt.trim()
+        : [imgTitle, imgSubtitle, slideText].filter(Boolean).join(" — ");
 
       const fullPrompt = [
         stylePrompt,
@@ -446,24 +453,37 @@ Style rules:
       }
       const themeInfo = category ? (THEMES_MAP[category] || category) : "general";
       try {
-        const result = await genJSON<{ titles: string[] }>({
-          system: `You write Instagram-carousel COVER HOOKS for SemiAnalysis. These titles aren't generic article headlines — they're the first slide of an IG carousel built from an analyst's X thread. Their only job is to STOP the scroll. SA voice: confident, technical, institutional. No em dashes. No hype words. No emojis.`,
-          maxTokens: 1500,
+        const result = await genJSON<{ pairs: { title: string; subtitle: string }[] }>({
+          system: `You write Instagram-carousel COVER HOOKS for SemiAnalysis. These are the first slide of a carousel built from an analyst's X thread — punchy hook on top, supporting line underneath. The title's only job is to STOP the scroll. The subtitle earns the swipe by adding context the title can't carry. SA voice: confident, technical, institutional. No em dashes. No hype words. No emojis.`,
+          maxTokens: 2200,
           provider,
-          prompt: `Read this analyst-written X thread and produce 5 alternative cover hook titles. Each:
-- 5-8 words
+          prompt: `Read this analyst-written X thread and produce 5 alternative cover hook PAIRS — each a punchy title plus its own paired subtitle. The subtitle was written FOR that specific title, not interchangeable.
+
+Each title:
+- 4-7 words (punchy — fewer is better)
 - No end punctuation
-- Reads as a hook, not a headline (e.g., "What the new CPU floor really means" over "Analysis: CPU Pricing in Q3 2026")
-- Avoids cliches and hype ("game-changing", "revolutionary", "the truth about", etc.)
-- Different ANGLES across the 5 — first principles, contrarian, data, future, frame
-- Category: ${themeInfo}
+- Reads as a hook, not a headline ("What the new CPU floor really means" over "Analysis: CPU Pricing in Q3 2026")
+- Avoids cliches and hype ("game-changing", "revolutionary", "the truth about")
+- Different ANGLES across the 5 pairs — first principles / contrarian / data / future / frame
+- Plain declarative; no questions, no colons
+
+Each subtitle:
+- 1 full sentence, 60-110 characters
+- Adds the specific stake / number / name / frame the title can't carry
+- Plain declarative voice, ends with a period
+- No em dashes, no semicolons, no hype words
+
+Category: ${themeInfo}
 
 Source thread:
 ${(text || "").slice(0, 6000)}
 
-Return JSON: { "titles": ["...", "...", "...", "...", "..."] }`,
+Return JSON: { "pairs": [ { "title": "...", "subtitle": "..." }, ... 5 items total ] }`,
         });
-        return NextResponse.json({ titles: result.titles || [], ts: Date.now() });
+        const pairs = (result.pairs || []).filter((p) => p && p.title);
+        // Back-compat: keep old `titles` field around for any callers still
+        // expecting strings.
+        return NextResponse.json({ pairs, titles: pairs.map((p) => p.title), ts: Date.now() });
       } catch (e) {
         if ((e as AnthropicError).status) {
           return NextResponse.json({ error: (e as Error).message || "Generation failed" }, { status: (e as AnthropicError).status });
@@ -479,25 +499,65 @@ Return JSON: { "titles": ["...", "...", "...", "...", "..."] }`,
       }
       const themeInfo = category ? (THEMES_MAP[category] || category) : "general";
       try {
-        const result = await genJSON<{ subtitle: string }>({
-          system: `You write Instagram-carousel cover SUBTITLES for SemiAnalysis. The subtitle supports the cover hook — gives one sharp sentence of context that makes the swipe feel worth it. SA voice: confident, technical, institutional. No em dashes. No hype words. No emojis.`,
-          maxTokens: 500,
+        const result = await genJSON<{ subtitles: string[] }>({
+          system: `You write Instagram-carousel cover SUBTITLES for SemiAnalysis. The subtitle supports a fixed cover title — it adds context that earns the swipe. SA voice: confident, technical, institutional. No em dashes. No hype words. No emojis.`,
+          maxTokens: 1200,
           provider,
-          prompt: `Cover title: "${title}"
+          prompt: `Cover title (fixed — do not rewrite): "${title}"
 Category: ${themeInfo}
 
 Source thread:
 ${(text || "").slice(0, 4000)}
 
-Write ONE subtitle sentence:
-- 50-70 characters
-- Adds context the title can't (a specific stake, a number, a name, a frame)
-- Plain declarative voice
+Write 4 ALTERNATIVE subtitles for this title. Each:
+- 1 full sentence, 60-110 characters
+- Different angle (specific stake / specific number / specific name / specific frame)
+- Plain declarative voice, ends with a period
 - No em dashes, no semicolons, no hype words
 
-Return JSON: { "subtitle": "..." }`,
+Return JSON: { "subtitles": ["...", "...", "...", "..."] }`,
         });
-        return NextResponse.json({ subtitle: result.subtitle || "", ts: Date.now() });
+        const subtitles = (result.subtitles || []).filter((s) => typeof s === "string" && s.trim());
+        // Back-compat: also return first as `subtitle` for old callers.
+        return NextResponse.json({ subtitles, subtitle: subtitles[0] || "", ts: Date.now() });
+      } catch (e) {
+        if ((e as AnthropicError).status) {
+          return NextResponse.json({ error: (e as Error).message || "Generation failed" }, { status: (e as AnthropicError).status });
+        }
+        throw e;
+      }
+    }
+
+    if (action === "verbatim-image-prompt") {
+      const { title, subtitle, category, text } = body;
+      if (!title) {
+        return NextResponse.json({ error: "title required" }, { status: 400 });
+      }
+      const themeInfo = category ? (THEMES_MAP[category] || category) : "general";
+      try {
+        const result = await genJSON<{ prompt: string }>({
+          system: `You write image-generation prompts for SemiAnalysis Instagram-carousel COVERS. The image will be rendered behind a headline overlay, so leave generous negative space at the top. SA brand: editorial, technical, restrained color palette (cobalt + amber + deep slate). No text in the image. No watermarks. No people unless the title explicitly names one.`,
+          maxTokens: 800,
+          provider,
+          prompt: `Compose ONE image-generation prompt that captures the cover idea below. It will be wrapped with SA style cues + brand palette downstream — focus on the subject, composition, and mood.
+
+Cover title: "${title}"
+${subtitle ? `Subtitle: "${subtitle}"` : ""}
+Category: ${themeInfo}
+${text ? `Thread excerpt for context:\n${String(text).slice(0, 1500)}` : ""}
+
+The prompt should:
+- Name a concrete focal subject (a chip, a substrate close-up, a data center hall, a graph in 3D, a labeled wafer — pick what fits the title)
+- Specify a mood / lighting (cold studio light, dramatic side-light, soft editorial wash)
+- Specify a composition (centered, off-center with negative space top-right, isometric overhead, etc.)
+- 35-70 words total
+- No instructions to render text or logos
+- No mention of specific living people unless their name is in the title
+- One paragraph, plain prose
+
+Return JSON: { "prompt": "..." }`,
+        });
+        return NextResponse.json({ prompt: result.prompt || "", ts: Date.now() });
       } catch (e) {
         if ((e as AnthropicError).status) {
           return NextResponse.json({ error: (e as Error).message || "Generation failed" }, { status: (e as AnthropicError).status });
