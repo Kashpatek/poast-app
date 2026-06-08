@@ -270,7 +270,7 @@ function imageOrFallback(p: ResolvedCoverProps, id: string): string {
         <stop offset="100%" stop-color="#000000"/>
       </linearGradient>
       <pattern id="${id}-pat" width="40" height="46" patternUnits="userSpaceOnUse" patternTransform="rotate(0)">
-        <polygon points="20,2 38,12 38,34 20,44 2,34 2,12" fill="none" stroke="${p.accent}" stroke-opacity="0.05" stroke-width="1"/>
+        <polygon points="12,2 28,2 38,12 38,34 28,44 12,44 2,34 2,12" fill="none" stroke="${p.accent}" stroke-opacity="0.04" stroke-width="1"/>
       </pattern>
     </defs>
     <rect width="${W}" height="${H}" fill="url(#${id}-fb)"/>
@@ -362,10 +362,10 @@ function render01(rawP: CoverProps): string {
   return `
     <defs>
       <pattern id="v01-pat-outer" width="40" height="46" patternUnits="userSpaceOnUse">
-        <polygon points="20,2 38,12 38,34 20,44 2,34 2,12" fill="none" stroke="${p.accent}" stroke-opacity="0.18" stroke-width="1"/>
+        <polygon points="12,2 28,2 38,12 38,34 28,44 12,44 2,34 2,12" fill="none" stroke="${p.accent}" stroke-opacity="0.11" stroke-width="1"/>
       </pattern>
       <pattern id="v01-pat-inner" width="40" height="46" patternUnits="userSpaceOnUse">
-        <polygon points="20,2 38,12 38,34 20,44 2,34 2,12" fill="none" stroke="${p.accent}" stroke-opacity="0.10" stroke-width="1"/>
+        <polygon points="12,2 28,2 38,12 38,34 28,44 12,44 2,34 2,12" fill="none" stroke="${p.accent}" stroke-opacity="0.07" stroke-width="1"/>
       </pattern>
       <clipPath id="v01-frame"><rect x="${pad}" y="${pad}" width="${frameW}" height="${frameH}"/></clipPath>
       ${gradient("v01-grad", [{o:"0%",c:"#000",a:0},{o:"45%",c:"#000",a:0},{o:"100%",c:"#000",a:0.94}])}
@@ -412,7 +412,7 @@ function render02(rawP: CoverProps): string {
   return `
     <defs>
       <pattern id="v02-pat" width="44" height="50" patternUnits="userSpaceOnUse">
-        <polygon points="22,2 42,13 42,37 22,48 2,37 2,13" fill="none" stroke="${p.accent}" stroke-opacity="0.12" stroke-width="1"/>
+        <polygon points="13,2 31,2 42,13 42,37 31,48 13,48 2,37 2,13" fill="none" stroke="${p.accent}" stroke-opacity="0.07" stroke-width="1"/>
       </pattern>
     </defs>
     ${bg}

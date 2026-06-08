@@ -177,9 +177,9 @@ type SubStep = "paste" | "cover" | "title" | "image" | "confirm";
 
 const SUB_STEPS: { id: SubStep; label: string }[] = [
   { id: "paste",   label: "Paste" },
-  { id: "cover",   label: "Cover" },
   { id: "title",   label: "Title" },
   { id: "image",   label: "Image" },
+  { id: "cover",   label: "Cover" },
   { id: "confirm", label: "Confirm" },
 ];
 
@@ -332,19 +332,19 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
 
   function goNext() {
     if (!canContinue()) return;
-    if (sub === "paste") setSub("cover");
-    else if (sub === "cover") setSub("title");
+    if (sub === "paste") setSub("title");
     else if (sub === "title") setSub("image");
-    else if (sub === "image") setSub("confirm");
+    else if (sub === "image") setSub("cover");
+    else if (sub === "cover") setSub("confirm");
     else if (sub === "confirm") handleBuild();
   }
 
   function goBack() {
     if (sub === "paste") { props.onCancel(); return; }
-    if (sub === "cover") setSub("paste");
-    else if (sub === "title") setSub("cover");
+    if (sub === "title") setSub("paste");
     else if (sub === "image") setSub("title");
-    else if (sub === "confirm") setSub("image");
+    else if (sub === "cover") setSub("image");
+    else if (sub === "confirm") setSub("cover");
   }
 
   function handleBuild() {
@@ -447,25 +447,27 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
   }
 
   function renderCover() {
+    var previewTitle = chosenTitle.trim() || "The new era of infrastructure";
+    var previewSub = includeSubtitle && chosenSubtitle.trim() ? chosenSubtitle : "";
     return <div>
       <div style={{ fontFamily: gf, fontSize: 30, fontWeight: 900, color: C.tx, letterSpacing: -0.6, marginBottom: 6 }}>Pick a cover style</div>
-      <div style={{ fontFamily: ft, fontSize: 14, color: C.txm, marginBottom: 24, maxWidth: 640 }}>The cover is your hook. The body slides will preserve the analyst&apos;s text verbatim.</div>
+      <div style={{ fontFamily: ft, fontSize: 14, color: C.txm, marginBottom: 24, maxWidth: 640 }}>The cover is your hook. Previews use your title + image — click whichever framing lands hardest.</div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
         {COVER_TEMPLATES.map(function(tpl) {
           var sel = selectedTemplateId === tpl.id;
           var svg = renderCoverFullSvg(tpl.id, {
-            title: "The new era of infrastructure",
-            subtitle: "How hyperscalers are rebuilding the stack",
+            title: previewTitle,
+            subtitle: previewSub,
             accent: accent,
-            imageUrl: "",
+            imageUrl: chosenImageUrl,
             dual: tpl.id === "03" ? dual : false,
             logoStyle: "auto",
-            showSub: true,
+            showSub: !!previewSub,
             showLogo: true,
             showMeta: true,
-            upper: true,
-            tight: false,
+            upper: upper,
+            tight: tight,
           });
           return <div key={tpl.id} onClick={function() { setSelectedTemplateId(tpl.id); }} style={{ position: "relative", cursor: "pointer", borderRadius: 14, overflow: "hidden", border: sel ? "2px solid " + accent : "2px solid " + C.border, transition: "all 0.15s", background: C.card, boxShadow: sel ? "0 0 0 4px " + accent + "20" : "none" }}>
             <div style={{ width: "100%", aspectRatio: "1080/1350", overflow: "hidden" }} dangerouslySetInnerHTML={{ __html: svg }} />
