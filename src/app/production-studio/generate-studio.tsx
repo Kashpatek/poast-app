@@ -297,6 +297,7 @@ function defaultKnobsFor(p: Provider): KnobValues {
   if (p.knobs.personGenerationOptions && p.knobs.personGenerationOptions[0]) {
     k.personGeneration = p.knobs.personGenerationOptions[0].id;
   }
+  if (p.models && p.models[0]) k.modelId = p.models[0].modelId;
   return k;
 }
 
@@ -573,6 +574,14 @@ function PromptPanel({
 function KnobsRow({ provider, knobs, setKnobs }: { provider: Provider; knobs: KnobValues; setKnobs: (k: KnobValues) => void }) {
   return (
     <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+      {provider.models && provider.models.length > 1 && (
+        <KnobSelect
+          label="Model · cost shifts here"
+          value={knobs.modelId || provider.models[0].modelId}
+          onChange={(v) => setKnobs({ ...knobs, modelId: v })}
+          options={provider.models.map((m) => ({ id: m.modelId, label: `${m.label} · ${formatCost(m.pricing.basePerUnit)}${m.pricing.unit === "video-second" ? "/s" : m.pricing.unit === "image" ? "/img" : "/clip"}` }))}
+        />
+      )}
       {provider.knobs.aspectRatios && (
         <KnobSelect
           label="Aspect ratio"

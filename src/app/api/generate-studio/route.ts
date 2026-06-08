@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateImagenImages, ImagenError } from "@/lib/imagen";
 import { generateGrokImages, GrokImageError } from "@/lib/grok-image";
-import { getProvider, type Provider } from "@/lib/generation-providers";
+import { getProvider, getActiveModel, type Provider } from "@/lib/generation-providers";
 
 // Unified entry point for the Generate Studio. Dispatches to the right
 // vendor library or vendor HTTP endpoint based on the provider id chosen
@@ -22,6 +22,7 @@ interface GenerateBody {
     stylePreset?: string;
     personGeneration?: string;
     referenceImageDataUrl?: string;
+    modelId?: string;
   };
   taskId?: string;
 }
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest) {
         const key = process.env.RUNWAYML_API_SECRET!;
         const r = await runwayPost("/v1/text_to_image", key, {
           promptText: prompt,
-          model: provider.modelId,
+          model: getActiveModel(provider, knobs || {}).modelId,
           ratio: knobs?.aspectRatio || "1024:1024",
           seed: knobs?.seed,
         });
@@ -132,7 +133,7 @@ export async function POST(req: NextRequest) {
       // ─── VIDEO ────────────────────────────────────────
       if (provider.id === "veo-3") {
         const apiKey = process.env.GEMINI_API_KEY!;
-        const model = provider.modelId;
+        const model = getActiveModel(provider, knobs || {}).modelId;
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:predictLongRunning?key=${apiKey}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -162,7 +163,7 @@ export async function POST(req: NextRequest) {
         const r = await fetch("https://api.x.ai/v1/videos/generations", {
           method: "POST",
           headers: { Authorization: `Bearer ${xaiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: provider.modelId, prompt }),
+          body: JSON.stringify({ model: getActiveModel(provider, knobs || {}).modelId, prompt }),
         });
         const data = await r.json();
         if (data.error) return NextResponse.json({ error: `Grok video: ${data.error.message || data.error}` }, { status: 400 });
@@ -182,7 +183,7 @@ export async function POST(req: NextRequest) {
         const r = await runwayPost("/v1/image_to_video", key, {
           promptImage: knobs.referenceImageDataUrl,
           promptText: prompt,
-          model: provider.modelId,
+          model: getActiveModel(provider, knobs || {}).modelId,
           ratio: knobs?.aspectRatio || "1280:720",
           duration: knobs?.duration || 5,
           seed: knobs?.seed,
