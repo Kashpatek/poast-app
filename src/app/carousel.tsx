@@ -8,6 +8,8 @@ import { confirmDialog, promptDialog } from "./dialog-context";
 import { ProviderChips } from "./provider-chips";
 import { useShortcuts } from "./keyboard-shortcuts";
 import { SendToChip } from "./components/send-to-chip";
+import { VerbatimWizard } from "./carousel-verbatim";
+import { COVER_TEMPLATES, renderCoverSvg, type CoverTemplateId } from "./carousel-covers";
 
 const CAROUSEL_SURFACE = "carousel";
 
@@ -53,6 +55,10 @@ interface Slide {
   titleAnchor?: "top" | "center"; // default "top"
   titleMarginTop?: number; // default 80 (px in 1080x1350 space)
   bodyAnchor?: "top" | "center"; // default "top" for body slides; for position=4, "top"
+  coverTemplate?: CoverTemplateId;
+  coverAccent?: string;
+  coverShowSub?: boolean;
+  coverDual?: boolean;
 }
 
 interface GeneratedSlide {
@@ -325,7 +331,25 @@ function SlideCanvas({ slide, theme, onUpdate, onRequestPicker }: { slide: Slide
   return <div style={{ width: DISPLAY_W, height: DISPLAY_H, position: "relative", borderRadius: 8, overflow: "hidden", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}>
 
     {/* ─── COVER SLIDE ─── */}
-    {slide.type === "cover" && <div style={{ position: "absolute", left: 0, right: 0, top: (slide.titleAnchor === "center" ? FULL_H * 0.10 : (slide.titleMarginTop ?? 80)) * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + (60 * SCALE) + "px" }}>
+    {slide.type === "cover" && slide.coverTemplate ? (
+      <div
+        style={{ position: "absolute", inset: 0 }}
+        dangerouslySetInnerHTML={{ __html: '<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block">' + renderCoverSvg(slide.coverTemplate, {
+          title: slide.title || "",
+          subtitle: slide.subtitle || "",
+          accent: slide.coverAccent || "#F7B041",
+          imageUrl: slide.imageUrl || "",
+          dual: slide.coverDual || false,
+          logoStyle: "auto",
+          showSub: slide.coverShowSub !== false,
+          showLogo: true,
+          showMeta: true,
+          upper: true,
+          tight: false,
+        }) + '</svg>' }}
+      />
+    ) : null}
+    {slide.type === "cover" && !slide.coverTemplate && <div style={{ position: "absolute", left: 0, right: 0, top: (slide.titleAnchor === "center" ? FULL_H * 0.10 : (slide.titleMarginTop ?? 80)) * SCALE, bottom: FULL_H * 0.08 * SCALE, padding: "0 " + (60 * SCALE) + "px" }}>
       {/* Image frame: top area, safely below SA logo */}
       <ImageFrame
         imageUrl={slide.imageUrl}
@@ -547,7 +571,25 @@ function SlideThumbnail({ slide, theme, isActive, onClick, index }: { slide: Sli
   return <div onClick={onClick} style={{ width: tw, height: th, borderRadius: 6, overflow: "hidden", cursor: "pointer", position: "relative", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, border: "2px solid " + (isActive ? C.amber : "transparent"), boxShadow: isActive ? "0 0 12px " + C.amber + "40" : "0 2px 8px rgba(0,0,0,0.3)", transition: "all 0.2s", opacity: isActive ? 1 : 0.7 }} onMouseEnter={function(e) { if (!isActive) e.currentTarget.style.opacity = "0.9"; }} onMouseLeave={function(e) { if (!isActive) e.currentTarget.style.opacity = "0.7"; }}>
     {/* Mini content overlay */}
     <div style={{ position: "absolute", inset: 0, padding: 6 }}>
-      {slide.type === "cover" && <div>
+      {slide.type === "cover" && slide.coverTemplate ? (
+        <div
+          style={{ position: "absolute", inset: 0 }}
+          dangerouslySetInnerHTML={{ __html: '<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block">' + renderCoverSvg(slide.coverTemplate, {
+            title: slide.title || "",
+            subtitle: slide.subtitle || "",
+            accent: slide.coverAccent || "#F7B041",
+            imageUrl: slide.imageUrl || "",
+            dual: slide.coverDual || false,
+            logoStyle: "auto",
+            showSub: slide.coverShowSub !== false,
+            showLogo: true,
+            showMeta: true,
+            upper: true,
+            tight: false,
+          }) + '</svg>' }}
+        />
+      ) : null}
+      {slide.type === "cover" && !slide.coverTemplate && <div>
         {slide.imageUrl && <div style={{ width: "100%", height: "40%", borderRadius: 3, overflow: "hidden", marginBottom: 3, background: "rgba(255,255,255,0.05)" }}>
           <img src={slide.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
         </div>}
@@ -1878,8 +1920,26 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
 
         return <div key={sl.id} style={{ flexShrink: 0 }}>
           <div style={{ width: rw, height: rh, borderRadius: 6, overflow: "hidden", position: "relative", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
+            {sl.type === "cover" && sl.coverTemplate ? (
+              <div
+                style={{ position: "absolute", inset: 0 }}
+                dangerouslySetInnerHTML={{ __html: '<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block">' + renderCoverSvg(sl.coverTemplate, {
+                  title: sl.title || "",
+                  subtitle: sl.subtitle || "",
+                  accent: sl.coverAccent || "#F7B041",
+                  imageUrl: sl.imageUrl || "",
+                  dual: sl.coverDual || false,
+                  logoStyle: "auto",
+                  showSub: sl.coverShowSub !== false,
+                  showLogo: true,
+                  showMeta: true,
+                  upper: true,
+                  tight: false,
+                }) + '</svg>' }}
+              />
+            ) : null}
             <div style={{ position: "absolute", left: 0, right: 0, top: sl.type === "cover" ? coverTopPad : topPad, bottom: botPad, padding: "0 " + sidePad + "px" }}>
-              {sl.type === "cover" && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+              {sl.type === "cover" && !sl.coverTemplate && <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
                 {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 46) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: 6, flexShrink: 0, background: "#000" }}>
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                 </div>}
@@ -2655,7 +2715,25 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
         return <div key={sl.id} style={{ flexShrink: 0 }}>
           <div style={{ width: rw, height: rh, borderRadius: 6, overflow: "hidden", position: "relative", backgroundImage: "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", boxShadow: "0 4px 16px rgba(0,0,0,0.4)", cursor: "pointer" }} onClick={function() { downloadSlide(i); }}>
             <div style={{ position: "absolute", inset: 0, padding: 8 }}>
-              {sl.type === "cover" && <div>
+              {sl.type === "cover" && sl.coverTemplate ? (
+                <div
+                  style={{ position: "absolute", inset: 0 }}
+                  dangerouslySetInnerHTML={{ __html: '<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block">' + renderCoverSvg(sl.coverTemplate, {
+                    title: sl.title || "",
+                    subtitle: sl.subtitle || "",
+                    accent: sl.coverAccent || "#F7B041",
+                    imageUrl: sl.imageUrl || "",
+                    dual: sl.coverDual || false,
+                    logoStyle: "auto",
+                    showSub: sl.coverShowSub !== false,
+                    showLogo: true,
+                    showMeta: true,
+                    upper: true,
+                    tight: false,
+                  }) + '</svg>' }}
+                />
+              ) : null}
+              {sl.type === "cover" && !sl.coverTemplate && <div>
                 {sl.imageUrl && <div style={{ width: "100%", height: "40%", borderRadius: 4, overflow: "hidden", marginBottom: 3, background: "rgba(255,255,255,0.05)" }}>
                   <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={function(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }} />
                 </div>}
@@ -3257,7 +3335,23 @@ export default function Carousel() {
       </div>
     </div>}
 
-    {view === "wizard" && step === 0 && <InputStep state={state} setState={setState} onNext={generate} generatedSlideCount={slides.length} />}
+    {view === "wizard" && step === 0 && state.generationMode !== "verbatim" && <InputStep state={state} setState={setState} onNext={generate} generatedSlideCount={slides.length} />}
+    {view === "wizard" && step === 0 && state.generationMode === "verbatim" && (
+      <VerbatimWizard
+        state={state}
+        setState={setState}
+        onCancel={function() { setView("welcome"); }}
+        onComplete={function(newSlides) {
+          setSlides(newSlides);
+          setVariants({ V: { label: "Verbatim", topic: "Analyst text, formatted as-is.", slides: [] } });
+          setSelectedVariantLabel("Verbatim");
+          setCaptionOptions([]);
+          setSelectedCaptionIdx(0);
+          goStep(3);
+          if (5 > maxStep) setMaxStep(5);
+        }}
+      />
+    )}
     {view === "wizard" && step === 1 && loading && <GenerateStep />}
     {view === "wizard" && step === 2 && variants && <VariantSelectStep
       variants={variants}

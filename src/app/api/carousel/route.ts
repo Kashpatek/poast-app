@@ -68,7 +68,7 @@ const THEMES_MAP: Record<string, string> = {
 };
 
 const CarouselSchema = z.object({
-  action: z.enum(["generate", "fetchImages", "caption", "rewrite", "generateImage"]),
+  action: z.enum(["generate", "fetchImages", "caption", "rewrite", "generateImage", "verbatim-titles", "verbatim-subtitle"]),
   text: z.string().optional(),
   url: z.string().optional(),
   category: z.string().optional(),
@@ -434,6 +434,73 @@ Style rules:
         }
         if (e instanceof ImagenError) {
           return NextResponse.json({ error: e.message, provider }, { status: e.status });
+        }
+        throw e;
+      }
+    }
+
+    if (action === "verbatim-titles") {
+      const { text, category } = body;
+      if (!text || typeof text !== "string" || !text.trim()) {
+        return NextResponse.json({ error: "text required" }, { status: 400 });
+      }
+      const themeInfo = category ? (THEMES_MAP[category] || category) : "general";
+      try {
+        const result = await genJSON<{ titles: string[] }>({
+          system: `You write Instagram-carousel COVER HOOKS for SemiAnalysis. These titles aren't generic article headlines — they're the first slide of an IG carousel built from an analyst's X thread. Their only job is to STOP the scroll. SA voice: confident, technical, institutional. No em dashes. No hype words. No emojis.`,
+          maxTokens: 1500,
+          provider,
+          prompt: `Read this analyst-written X thread and produce 5 alternative cover hook titles. Each:
+- 5-8 words
+- No end punctuation
+- Reads as a hook, not a headline (e.g., "What the new CPU floor really means" over "Analysis: CPU Pricing in Q3 2026")
+- Avoids cliches and hype ("game-changing", "revolutionary", "the truth about", etc.)
+- Different ANGLES across the 5 — first principles, contrarian, data, future, frame
+- Category: ${themeInfo}
+
+Source thread:
+${(text || "").slice(0, 6000)}
+
+Return JSON: { "titles": ["...", "...", "...", "...", "..."] }`,
+        });
+        return NextResponse.json({ titles: result.titles || [], ts: Date.now() });
+      } catch (e) {
+        if ((e as AnthropicError).status) {
+          return NextResponse.json({ error: (e as Error).message || "Generation failed" }, { status: (e as AnthropicError).status });
+        }
+        throw e;
+      }
+    }
+
+    if (action === "verbatim-subtitle") {
+      const { text, title, category } = body;
+      if (!text || !title) {
+        return NextResponse.json({ error: "text and title required" }, { status: 400 });
+      }
+      const themeInfo = category ? (THEMES_MAP[category] || category) : "general";
+      try {
+        const result = await genJSON<{ subtitle: string }>({
+          system: `You write Instagram-carousel cover SUBTITLES for SemiAnalysis. The subtitle supports the cover hook — gives one sharp sentence of context that makes the swipe feel worth it. SA voice: confident, technical, institutional. No em dashes. No hype words. No emojis.`,
+          maxTokens: 500,
+          provider,
+          prompt: `Cover title: "${title}"
+Category: ${themeInfo}
+
+Source thread:
+${(text || "").slice(0, 4000)}
+
+Write ONE subtitle sentence:
+- 50-70 characters
+- Adds context the title can't (a specific stake, a number, a name, a frame)
+- Plain declarative voice
+- No em dashes, no semicolons, no hype words
+
+Return JSON: { "subtitle": "..." }`,
+        });
+        return NextResponse.json({ subtitle: result.subtitle || "", ts: Date.now() });
+      } catch (e) {
+        if ((e as AnthropicError).status) {
+          return NextResponse.json({ error: (e as Error).message || "Generation failed" }, { status: (e as AnthropicError).status });
         }
         throw e;
       }
