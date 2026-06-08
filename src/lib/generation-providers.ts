@@ -252,36 +252,6 @@ const RUNWAY_VIDEO: Provider = {
   },
 };
 
-const KLING_V1: Provider = {
-  id: "kling-v1",
-  name: "Kling v1",
-  vendor: "Kuaishou",
-  kind: "video",
-  modelId: "kling-v1",
-  envKeys: ["KLING_ACCESS_KEY", "KLING_SECRET_KEY"],
-  description: "Kuaishou's text-to-video. 5 or 10 second clips, 16:9 / 9:16 / 1:1, supports negative prompt + seed. Async.",
-  async: true,
-  knobs: {
-    aspectRatios: [
-      { id: "16:9", label: "Wide 16:9" },
-      { id: "9:16", label: "Tall 9:16" },
-      { id: "1:1", label: "Square 1:1" },
-    ],
-    durations: [5, 10],
-    countMax: 1,
-    defaultCount: 1,
-    supportsNegativePrompt: true,
-    supportsSeed: false,
-  },
-  pricing: {
-    basePerUnit: 0.07,
-    unit: "video-second",
-    notes: "Approx — Kling charges in credits ($0.35 per 5s standard, scales with quality tier).",
-    isEstimate: true,
-    publishedUrl: "https://klingai.com/pricing",
-  },
-};
-
 export const PROVIDERS: Provider[] = [
   IMAGEN_3,
   RUNWAY_IMAGE,
@@ -289,7 +259,6 @@ export const PROVIDERS: Provider[] = [
   VEO_3,
   RUNWAY_VIDEO,
   GROK_VIDEO,
-  KLING_V1,
 ];
 
 export function providersByKind(kind: Kind): Provider[] {

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
 import { generateImagenImages, ImagenError } from "@/lib/imagen";
 import { generateGrokImages, GrokImageError } from "@/lib/grok-image";
 import { getProvider, type Provider } from "@/lib/generation-providers";
@@ -48,17 +47,6 @@ async function runwayPollTask(taskId: string, key: string) {
       "X-Runway-Version": RUNWAY_VERSION,
     },
   });
-}
-
-function getKlingToken(): string | null {
-  const ak = process.env.KLING_ACCESS_KEY;
-  const sk = process.env.KLING_SECRET_KEY;
-  if (!ak || !sk) return null;
-  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
-  const now = Math.floor(Date.now() / 1000);
-  const payload = Buffer.from(JSON.stringify({ iss: ak, exp: now + 1800, nbf: now - 5 })).toString("base64url");
-  const sig = crypto.createHmac("sha256", sk).update(header + "." + payload).digest("base64url");
-  return `${header}.${payload}.${sig}`;
 }
 
 function envCheck(provider: Provider): string | null {
@@ -211,32 +199,6 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      if (provider.id === "kling-v1") {
-        const token = getKlingToken();
-        if (!token) return NextResponse.json({ error: "KLING keys not configured" }, { status: 500 });
-        const r = await fetch("https://api.klingai.com/v1/videos/text2video", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt,
-            duration: String(knobs?.duration || 5),
-            aspect_ratio: knobs?.aspectRatio || "16:9",
-            model: provider.modelId,
-            negative_prompt: knobs?.negativePrompt || undefined,
-          }),
-        });
-        const data = await r.json();
-        if (data.code && data.code !== 0) {
-          return NextResponse.json({ error: `Kling: ${data.message}`, code: data.code }, { status: 400 });
-        }
-        return NextResponse.json({
-          kind: "video",
-          provider: provider.id,
-          task: { taskId: data.data?.task_id, status: data.data?.task_status || "processing", progress: 5 },
-          ts: Date.now(),
-        });
-      }
-
       return NextResponse.json({ error: `Provider ${provider.id} not yet wired` }, { status: 501 });
     }
 
@@ -299,24 +261,6 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ task: { status: "failed", progress: 100, failure: data.failure || data.failureCode }, ts: Date.now() });
         }
         return NextResponse.json({ task: { status: "processing", progress: data.progress ? Math.round(data.progress * 100) : 35 }, ts: Date.now() });
-      }
-
-      if (provider.id === "kling-v1") {
-        const token = getKlingToken();
-        if (!token) return NextResponse.json({ error: "KLING keys not configured" }, { status: 500 });
-        const r = await fetch(`https://api.klingai.com/v1/videos/text2video/${taskId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await r.json();
-        const status = data.data?.task_status || "processing";
-        if (status === "succeed") {
-          const videos = (data.data?.task_result?.videos || []).map((v: { url: string }) => ({ url: v.url }));
-          return NextResponse.json({ task: { status: "succeeded", progress: 100, videos }, ts: Date.now() });
-        }
-        if (status === "failed") {
-          return NextResponse.json({ task: { status: "failed", progress: 100 }, ts: Date.now() });
-        }
-        return NextResponse.json({ task: { status: "processing", progress: data.data?.progress || 40 }, ts: Date.now() });
       }
 
       return NextResponse.json({ error: `Provider ${provider.id} does not support polling` }, { status: 400 });

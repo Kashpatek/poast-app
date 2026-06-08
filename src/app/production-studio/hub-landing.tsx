@@ -36,7 +36,7 @@ const VIDEO_CARDS: HubCard[] = [
   {
     id: "generate-studio",
     label: "Generate Studio",
-    sub: "Image + video from every API key you have — Imagen, Runway, Veo, Grok, Kling",
+    sub: "Image + video from every API key you have — Imagen, Runway, Veo, Grok",
     Icon: Sparkles,
     accent: D.teal,
     status: "live",
