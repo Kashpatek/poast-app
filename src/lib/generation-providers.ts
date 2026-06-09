@@ -36,7 +36,16 @@ export interface KnobSpec {
   defaultCount?: number;
   supportsNegativePrompt?: boolean;
   supportsSeed?: boolean;
+  // Reference-image semantics for image-to-video providers:
+  //   supportsReferenceImage  — generic "ref" image (e.g. Grok image)
+  //   supportsFirstFrame      — provider treats the image as t=0 (Runway, Veo i2v)
+  //   firstFrameRequired      — provider can't run without it
+  //   supportsLastFrame       — provider can also condition on a final frame
+  //                              (Runway gen-3a "first + last" interpolation)
   supportsReferenceImage?: boolean;
+  supportsFirstFrame?: boolean;
+  firstFrameRequired?: boolean;
+  supportsLastFrame?: boolean;
   stylePresets?: { id: string; label: string }[];
   personGenerationOptions?: { id: string; label: string }[];
 }
@@ -86,6 +95,8 @@ export interface KnobValues {
   stylePreset?: string;
   personGeneration?: string;
   referenceImageDataUrl?: string;
+  firstFrameDataUrl?: string;
+  lastFrameDataUrl?: string;
   modelId?: string;                     // when provider has variants
 }
 
@@ -234,6 +245,7 @@ const VEO_3: Provider = {
     defaultCount: 1,
     supportsNegativePrompt: false,
     supportsSeed: false,
+    supportsFirstFrame: true,
     personGenerationOptions: [
       { id: "allow_adult", label: "Allow adults" },
       { id: "dont_allow", label: "No people" },
@@ -242,7 +254,7 @@ const VEO_3: Provider = {
   pricing: {
     basePerUnit: 0.75,
     unit: "video-second",
-    notes: "Default Veo 3 pricing — switch to Veo 2 for cheaper silent video.",
+    notes: "Default Veo 3 pricing — switch to Veo 3 Fast or Veo 2 for cheaper options.",
     publishedUrl: "https://ai.google.dev/pricing",
   },
   models: [
@@ -252,6 +264,13 @@ const VEO_3: Provider = {
       modelId: "veo-3.0-generate-001",
       pricing: { basePerUnit: 0.75, unit: "video-second", notes: "$0.75/sec — flagship Veo 3, includes native audio." },
       description: "Highest quality. Generates synced audio.",
+    },
+    {
+      id: "veo-3-fast",
+      label: "Veo 3 Fast (with audio)",
+      modelId: "veo-3.0-fast-generate-001",
+      pricing: { basePerUnit: 0.4, unit: "video-second", notes: "$0.40/sec — Veo 3 Fast, audio, ~2x quicker than Veo 3." },
+      description: "Same audio support as Veo 3 at roughly half the price; lower visual fidelity.",
     },
     {
       id: "veo-2",
@@ -308,7 +327,9 @@ const RUNWAY_VIDEO: Provider = {
     durations: [5, 10],
     countMax: 1,
     defaultCount: 1,
-    supportsReferenceImage: true,
+    supportsFirstFrame: true,
+    firstFrameRequired: true,
+    supportsLastFrame: true,
     supportsSeed: true,
   },
   pricing: {

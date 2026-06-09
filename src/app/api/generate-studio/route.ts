@@ -22,9 +22,18 @@ interface GenerateBody {
     stylePreset?: string;
     personGeneration?: string;
     referenceImageDataUrl?: string;
+    firstFrameDataUrl?: string;
+    lastFrameDataUrl?: string;
     modelId?: string;
   };
   taskId?: string;
+}
+
+function dataUrlToInline(dataUrl?: string): { bytesBase64Encoded: string; mimeType: string } | null {
+  if (!dataUrl) return null;
+  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) return null;
+  return { mimeType: match[1], bytesBase64Encoded: match[2] };
 }
 
 const RUNWAY_VERSION = "2024-11-06";
@@ -134,11 +143,14 @@ export async function POST(req: NextRequest) {
       if (provider.id === "veo-3") {
         const apiKey = process.env.GEMINI_API_KEY!;
         const model = getActiveModel(provider, knobs || {}).modelId;
+        const firstFrame = dataUrlToInline(knobs?.firstFrameDataUrl);
+        const instance: { prompt: string; image?: { bytesBase64Encoded: string; mimeType: string } } = { prompt };
+        if (firstFrame) instance.image = firstFrame;
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:predictLongRunning?key=${apiKey}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            instances: [{ prompt }],
+            instances: [instance],
             parameters: {
               aspectRatio: knobs?.aspectRatio || "16:9",
               durationSeconds: knobs?.duration || 8,
@@ -176,12 +188,21 @@ export async function POST(req: NextRequest) {
       }
 
       if (provider.id === "runway-video") {
-        if (!knobs?.referenceImageDataUrl) {
-          return NextResponse.json({ error: "Runway video needs a reference image (upload one or generate via Runway Gen-4 Image first)" }, { status: 400 });
+        const firstFrame = knobs?.firstFrameDataUrl || knobs?.referenceImageDataUrl;
+        if (!firstFrame) {
+          return NextResponse.json({ error: "Runway video needs a first frame (upload one or generate via Runway Gen-4 Image first)" }, { status: 400 });
         }
         const key = process.env.RUNWAYML_API_SECRET!;
+        // Runway image_to_video accepts a single image (string) or
+        // [{uri, position}] for first+last-frame interpolation.
+        const promptImage = knobs?.lastFrameDataUrl
+          ? [
+              { uri: firstFrame, position: "first" },
+              { uri: knobs.lastFrameDataUrl, position: "last" },
+            ]
+          : firstFrame;
         const r = await runwayPost("/v1/image_to_video", key, {
-          promptImage: knobs.referenceImageDataUrl,
+          promptImage,
           promptText: prompt,
           model: getActiveModel(provider, knobs || {}).modelId,
           ratio: knobs?.aspectRatio || "1280:720",
