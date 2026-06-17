@@ -5,7 +5,7 @@ import { stripHTML, extractImages } from "@/lib/html";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { generateGrokImages, GrokImageError, SA_BRAND_CUES, STYLE_PRESETS } from "@/lib/grok-image";
 import { generateImagenImages, ImagenError } from "@/lib/imagen";
-import { callLLM, type LLMProvider } from "@/lib/llm-provider";
+import { callLLM, llmTextOf, parseLLMJson, type LLMProvider } from "@/lib/llm-provider";
 
 // Provider-aware text helpers — when caller asks for gemini/grok, route
 // through `callLLM`; otherwise stay on the existing Claude path so the
@@ -24,9 +24,17 @@ async function genJSON<T>(opts: { system: string; prompt: string; maxTokens?: nu
   if (provider === "claude") {
     return generateJSON<T>({ system: opts.system, prompt: opts.prompt, maxTokens: opts.maxTokens });
   }
-  const text = await genText(opts);
-  const cleaned = text.replace(/```json|```/g, "").trim();
-  return JSON.parse(cleaned) as T;
+  // Non-Claude providers (e.g. Gemini) don't reliably return clean JSON, so
+  // request strict JSON mode and parse defensively. Fixes the carousel
+  // "Unterminated string in JSON" error on the Gemini path.
+  const r = await callLLM({
+    provider,
+    system: opts.system,
+    prompt: opts.prompt,
+    maxTokens: opts.maxTokens || 4000,
+    json: true,
+  });
+  return parseLLMJson<T>(llmTextOf(r));
 }
 
 // SA Carousel Schema v1.0

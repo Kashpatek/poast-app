@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { generateJSON, AnthropicError } from "@/lib/anthropic";
-import { callLLM, llmTextOf, LLMError, type LLMProvider } from "@/lib/llm-provider";
+import { callLLM, llmTextOf, parseLLMJson, LLMError, type LLMProvider } from "@/lib/llm-provider";
 import { stripHTML } from "@/lib/html";
 import { checkRateLimit } from "@/lib/ratelimit";
 
@@ -18,7 +18,7 @@ const SlobTopSchema = z.object({
 
 // Opus-class model for meme idea generation per the May sprint list —
 // the default Claude model is too generic for spicy meme-text output.
-const OPUS_MEME_MODEL = process.env.OPUS_MODEL || "claude-opus-4-20250514";
+const OPUS_MEME_MODEL = process.env.OPUS_MODEL || "claude-opus-4-8";
 
 // Run a generation call through the multi-provider abstraction when a
 // provider override is set; otherwise stay on the existing Claude path.
@@ -27,9 +27,8 @@ async function generateRouted<T>(opts: { system: string; prompt: string; provide
   if (!opts.provider || opts.provider === "claude") {
     return generateJSON<T>({ system: opts.system, prompt: opts.prompt, maxTokens: opts.maxTokens, model: opts.model });
   }
-  const r = await callLLM({ provider: opts.provider, system: opts.system, prompt: opts.prompt, maxTokens: opts.maxTokens });
-  const raw = llmTextOf(r).replace(/```json|```/g, "").trim();
-  return JSON.parse(raw) as T;
+  const r = await callLLM({ provider: opts.provider, system: opts.system, prompt: opts.prompt, maxTokens: opts.maxTokens, json: true });
+  return parseLLMJson<T>(llmTextOf(r));
 }
 
 export async function POST(req: NextRequest) {

@@ -1,5 +1,5 @@
 export const CLAUDE_MODEL =
-  process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
+  process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
 
 interface GenerateOptions {
   system: string;

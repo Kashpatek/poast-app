@@ -18,6 +18,11 @@ export interface LLMOptions {
   prompt: string;
   maxTokens?: number;
   model?: string;
+  // When true, ask the provider for strict JSON output (where supported) so
+  // callers can parse without code-fence/prose cleanup. On Gemini this also
+  // disables "thinking", which otherwise eats the output-token budget and
+  // truncates the JSON (the "Unterminated string in JSON" carousel error).
+  json?: boolean;
 }
 
 export interface LLMResponse {
@@ -92,8 +97,15 @@ async function callGemini(opts: LLMOptions): Promise<LLMResponse> {
         systemInstruction: opts.system ? { parts: [{ text: opts.system }] } : undefined,
         contents: [{ role: "user", parts: [{ text: opts.prompt }] }],
         generationConfig: {
-          maxOutputTokens: opts.maxTokens || 4000,
+          maxOutputTokens: opts.maxTokens || (opts.json ? 8192 : 4000),
           temperature: 0.7,
+          // JSON mode + thinking disabled: Gemini 2.5 Flash thinks by default,
+          // which consumes maxOutputTokens and can cut the response off
+          // mid-string. For JSON callers, turn thinking off and force a
+          // well-formed JSON document.
+          ...(opts.json
+            ? { responseMimeType: "application/json", thinkingConfig: { thinkingBudget: 0 } }
+            : {}),
         },
       }),
     }
@@ -154,4 +166,19 @@ async function callGrok(opts: LLMOptions): Promise<LLMResponse> {
 
 export function llmTextOf(r: LLMResponse): string {
   return r.content.map((c) => c.text).join("");
+}
+
+// Robustly parse JSON returned by an LLM. Strips ```json fences and, if the
+// model wrapped the JSON in prose, slices out the outermost {...} / [...]
+// block before parsing. Pair with `json: true` so providers emit clean JSON
+// in the first place; this is the belt-and-suspenders for the rest.
+export function parseLLMJson<T = unknown>(text: string): T {
+  let s = text.replace(/```json|```/gi, "").trim();
+  if (s[0] !== "{" && s[0] !== "[") {
+    const candidates = [s.indexOf("{"), s.indexOf("[")].filter((i) => i >= 0);
+    const start = candidates.length ? Math.min(...candidates) : -1;
+    const end = Math.max(s.lastIndexOf("}"), s.lastIndexOf("]"));
+    if (start >= 0 && end > start) s = s.slice(start, end + 1);
+  }
+  return JSON.parse(s) as T;
 }
