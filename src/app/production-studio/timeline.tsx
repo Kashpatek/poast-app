@@ -66,6 +66,9 @@ function emptyProject(): Project {
 export function TimelineEditorView() {
   const [project, setProject] = useState<Project>(() => emptyProject());
   const [loaded, setLoaded] = useState(false);
+  // Which project to load/persist. Defaults to the standing production timeline;
+  // a `?project=<id>` param (the Clip Engine handoff) opens that project instead.
+  const [projectId, setProjectId] = useState(TIMELINE_PROJECT_ID);
   const [playheadSec, setPlayheadSec] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -74,7 +77,12 @@ export function TimelineEditorView() {
     let cancelled = false;
     (async () => {
       try {
-        const row = await getProject(TIMELINE_PROJECT_ID);
+        const pid =
+          (typeof window !== "undefined" &&
+            new URLSearchParams(window.location.search).get("project")) ||
+          TIMELINE_PROJECT_ID;
+        setProjectId(pid);
+        const row = await getProject(pid);
         if (cancelled) return;
         if (row && row.pages && row.pages[0]) {
           const payload = row.pages[0].payload as Project | undefined;
@@ -103,7 +111,7 @@ export function TimelineEditorView() {
         kind: "motion";
         pages: ProjectRecord["pages"];
       } = {
-        id: TIMELINE_PROJECT_ID,
+        id: projectId,
         title: project.title || TIMELINE_PROJECT_TITLE,
         kind: "motion",
         pages: [{ id: uid("page"), payload: project }],
@@ -113,7 +121,7 @@ export function TimelineEditorView() {
       });
     }, 400);
     return () => window.clearTimeout(handle);
-  }, [project, loaded]);
+  }, [project, loaded, projectId]);
 
   // ─── AiDropPanel callbacks: mutate the Project shape directly ────────
 
