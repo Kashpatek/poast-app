@@ -233,6 +233,11 @@ export default function AkashTodo() {
   const [quickAdd, setQuickAdd] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
+  // hydrated flips true ONLY after a successful load. The auto-save effect
+  // gates on it, so a failed load can never overwrite the stored board with
+  // the empty default (the real cause of the "my tasks vanished" scare).
+  const [hydrated, setHydrated] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const quickRef = useRef<HTMLInputElement>(null);
@@ -242,8 +247,11 @@ export default function AkashTodo() {
 
   // ── Load / persist ──────────────────────────────────────────────
   const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetch("/api/db?table=projects");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const j = await res.json();
       const row = (j.data || []).find((r: { id: string; type: string }) => r.id === "akash-todo-master" && r.type === "akash-todo");
       const data: BoardArchive = row?.data || { boards: [], activeId: "" };
@@ -273,8 +281,16 @@ export default function AkashTodo() {
       // initial render purely from setArchive populating the value.
       lastSavedRef.current = JSON.stringify(data);
       setArchive(data);
-    } catch { /* tolerate */ }
-    setLoading(false);
+      // Success → allow auto-save. Until this flips true the auto-save effect
+      // is inert, so a failed/empty load can't overwrite the real board.
+      setHydrated(true);
+    } catch (e) {
+      // Leave `hydrated` false (on first load) so we don't clobber the stored
+      // board. Surface the reason for the status bar + reload affordance.
+      setLoadError(e instanceof Error ? e.message : "Couldn't reach the server");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { if (allowed) load(); }, [allowed, load]);
@@ -317,13 +333,16 @@ export default function AkashTodo() {
   }, []);
 
   useEffect(() => {
-    if (loading) return;
+    // Gate on a successful load, not merely "not loading". A failed initial
+    // load leaves hydrated=false, so this never fires and can't overwrite the
+    // stored board with the empty default.
+    if (!hydrated) return;
     const serialized = JSON.stringify(archive);
     if (serialized === lastSavedRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => { saveArchive(archive); }, 400);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [archive, loading, saveArchive]);
+  }, [archive, hydrated, saveArchive]);
 
   const activeBoard = archive.boards.find((b) => b.id === archive.activeId);
 
@@ -652,6 +671,7 @@ export default function AkashTodo() {
             </span>
           </div>
           <SaveIndicator state={saveState} error={saveError} onRetry={() => saveArchive(archive)} />
+          <LoadIndicator loading={loading} error={loadError} onReload={load} />
         </div>
         <h1 className="tb-title" style={{ fontFamily: ft, fontSize: 46, fontWeight: 900, letterSpacing: -1.6, margin: 0, marginBottom: 6, color: D.tx, display: "inline-flex", alignItems: "baseline", gap: 12 }}>
           <span>Task Board</span>
@@ -962,6 +982,13 @@ export default function AkashTodo() {
           );
         })}
       </div>
+
+      {loadError && !loading ? (
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "12px 16px", marginBottom: 16, borderRadius: 10, background: D.coral + "14", border: `1px solid ${D.coral}55`, fontFamily: mn, fontSize: 12, color: D.coral, lineHeight: 1.5 }}>
+          <span style={{ flex: 1, minWidth: 240 }}>⚠ Couldn&apos;t load the latest board ({loadError}). Your saved tasks are safe in the cloud — this is a connection hiccup, not data loss.{!hydrated ? " Editing is paused until a successful reload so nothing gets overwritten." : ""}</span>
+          <button type="button" onClick={load} style={{ background: D.coral, border: "none", color: "#060608", cursor: "pointer", fontFamily: mn, fontSize: 11, fontWeight: 700, padding: "6px 14px", borderRadius: 6, letterSpacing: 0.4 }}>↻ Reload</button>
+        </div>
+      ) : null}
 
       {/* ── View body ──────────────────────────────────────────── */}
       {loading ? (
@@ -3598,6 +3625,40 @@ function SaveIndicator({ state, error, onRetry }: { state: "idle" | "saving" | "
         </span>
       ) : null}
     </span>
+  );
+}
+
+// Load-status + force-reload control. Mirrors SaveIndicator. When healthy it
+// stays as a persistent "↻ Reload" button so the board can always be re-fetched
+// from the cloud; while loading it shows a pill; on failure it explains and
+// offers reload (with the raw reason behind "why?").
+function LoadIndicator({ loading, error, onReload }: { loading: boolean; error: string | null; onReload: () => void }) {
+  const [showFull, setShowFull] = useState(false);
+  if (loading) {
+    return <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 0.6, color: D.txm, display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 9px", borderRadius: 999, background: "rgba(255,255,255,0.04)", border: `1px solid ${D.border}` }}>
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: D.amber, animation: "tbPulse 1.1s ease-in-out infinite" }} />
+      Loading
+      <style dangerouslySetInnerHTML={{ __html: "@keyframes tbPulse{0%,100%{opacity:0.35}50%{opacity:1}}" }} />
+    </span>;
+  }
+  if (error) {
+    return (
+      <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "stretch", gap: 4 }}>
+        <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: 0.6, color: D.coral, display: "inline-flex", alignItems: "center", gap: 8, padding: "4px 10px", borderRadius: 8, background: D.coral + "16", border: `1px solid ${D.coral}55` }}>
+          ⚠ Load failed — data is safe in the cloud
+          <button type="button" onClick={onReload} style={{ background: D.coral, border: "none", color: "#060608", cursor: "pointer", fontFamily: mn, fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 700, letterSpacing: 0.4 }}>reload</button>
+          <button type="button" onClick={() => setShowFull((v) => !v)} style={{ background: "transparent", border: `1px solid ${D.coral}55`, color: D.coral, cursor: "pointer", fontFamily: mn, fontSize: 10, padding: "2px 8px", borderRadius: 4, letterSpacing: 0.4 }}>{showFull ? "hide" : "why?"}</button>
+        </span>
+        {showFull && error ? (
+          <span style={{ fontFamily: mn, fontSize: 11, color: D.coral, padding: "8px 12px", background: D.coral + "0a", border: `1px solid ${D.coral}40`, borderRadius: 8, whiteSpace: "pre-wrap", maxWidth: 720, lineHeight: 1.5, letterSpacing: 0.2 }}>
+            {error}
+          </span>
+        ) : null}
+      </span>
+    );
+  }
+  return (
+    <button type="button" onClick={onReload} title="Reload the board from the cloud" style={{ fontFamily: mn, fontSize: 10, letterSpacing: 0.6, color: D.txm, display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 999, background: "rgba(255,255,255,0.04)", border: `1px solid ${D.border}`, cursor: "pointer" }}>↻ Reload</button>
   );
 }
 
