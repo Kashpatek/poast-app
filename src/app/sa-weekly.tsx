@@ -9,12 +9,20 @@ interface Guest {
   handle: string;
 }
 
+interface Article {
+  url: string;
+  title?: string;
+  description?: string;
+}
+
 interface EpState {
   number: string;
   link: string;
   transcript: string;
   timestamps?: string;
   extra?: string;
+  articles?: Article[];
+  includeArticleInDesc?: boolean;
 }
 
 interface ThumbnailConcept {
@@ -278,8 +286,16 @@ var FREQUENT_GUESTS: Guest[] = [
 // double-append in case the AI already included them. Used by the
 // Export step + launch-kit DOCX + "Copy all" so timestamps never get
 // dropped at the finish line.
-function composeDescription(description: string, timestamps: string | undefined): string {
+function composeDescription(description: string, timestamps: string | undefined, articles?: Article[], includeArticles?: boolean): string {
   var desc = (description || "").trim();
+  // Append referenced article link(s) when opted in (default on). Guards
+  // against double-appending if the first link is already in the text.
+  if (articles && articles.length && includeArticles !== false) {
+    var links = articles.filter(function(a) { return a && a.url; }).map(function(a) { return a.title ? a.title + ": " + a.url : a.url; });
+    if (links.length && desc.indexOf(links[0]) < 0) {
+      desc = desc + "\n\nReferenced:\n" + links.join("\n");
+    }
+  }
   var ts = (timestamps || "").trim();
   if (!ts) return desc;
   // If the description already contains the chapter block (AI included
@@ -865,8 +881,30 @@ function saveState(state: Record<string, unknown>, log: LogEntry[]): void {
 var SYS_CHAPTERS = "You extract YouTube chapters from podcast transcripts. Output ONLY the chapter list (one chapter per line), nothing else — no preamble, no JSON, no markdown fences. Each line is exactly `(MM:SS) Chapter title` or `(HH:MM:SS) Chapter title` for episodes over an hour. Chapter titles are 3-7 words, specific (name what was discussed, not 'Discussion of X'). 5-10 chapters total. (00:00) must always be the first chapter (YouTube requires it). Times in ascending order. If the transcript has embedded timestamps, use them. If not, estimate from topic-shift positions; do NOT prefix anything. SA voice: no em dashes, no emojis, no hype words.";
 
 // ═══ STEP 1: SETUP ═══
-function StepSetup({ ep, setEp, guests, setGuests }: { ep: EpState; setEp: (ep: EpState) => void; guests: Guest[]; setGuests: (g: Guest[]) => void }) {
+function StepSetup({ ep, setEp, guests, setGuests, autoNum, onNewEpisode }: { ep: EpState; setEp: (ep: EpState) => void; guests: Guest[]; setGuests: (g: Guest[]) => void; autoNum: string; onNewEpisode: () => void }) {
   var _chL = useState<boolean>(false), chL = _chL[0], setChL = _chL[1];
+  var _au = useState<string>(""), artUrl = _au[0], setArtUrl = _au[1];
+  var _aL = useState<boolean>(false), artL = _aL[0], setArtL = _aL[1];
+
+  var addArticle = async function() {
+    var url = (artUrl || "").trim();
+    if (!/^https?:\/\//i.test(url)) { showToast("Enter a valid http(s) URL"); return; }
+    setArtL(true);
+    var meta: Article = { url: url };
+    try {
+      var r = await fetch("/api/seo-scrape", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: url }) });
+      if (r.ok) { var d = await r.json(); meta = { url: d.url || url, title: d.title || "", description: d.description || "" }; }
+    } catch (e) { /* best-effort — keep the bare URL */ }
+    var list = (ep.articles || []).slice();
+    if (!list.some(function(a) { return a.url === meta.url; })) list.push(meta);
+    setEp(Object.assign({}, ep, { articles: list, includeArticleInDesc: ep.includeArticleInDesc !== false }));
+    setArtUrl("");
+    setArtL(false);
+  };
+
+  var removeArticle = function(url: string) {
+    setEp(Object.assign({}, ep, { articles: (ep.articles || []).filter(function(a) { return a.url !== url; }) }));
+  };
 
   var generateChapters = async function() {
     if (!ep.transcript || chL) return;
@@ -901,12 +939,18 @@ function StepSetup({ ep, setEp, guests, setGuests }: { ep: EpState; setEp: (ep: 
   };
 
   return (<div>
-    <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Episode Setup</div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 8 }}>
+      <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2 }}>Episode Setup</div>
+      <button type="button" onClick={onNewEpisode} title="Reset to a fresh, auto-numbered episode" style={{ marginTop: 10, padding: "8px 14px", borderRadius: 10, cursor: "pointer", background: "transparent", border: "1px solid " + D.border, color: ACC, fontFamily: mn, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>+ New Episode (Ep {autoNum})</button>
+    </div>
     <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 32 }}>Fill in episode details, guests, and transcript.</div>
 
     <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: 14, marginBottom: 4 }}>
       <Field label="Episode #" value={ep.number} onChange={function(v: string) { setEp(Object.assign({}, ep, { number: v })); }} isMono />
       <Field label="YouTube Link" value={ep.link} onChange={function(v: string) { setEp(Object.assign({}, ep, { link: v })); }} placeholder="https://youtube.com/watch?v=..." isMono />
+    </div>
+    <div style={{ fontFamily: mn, fontSize: 9, color: D.txl, marginTop: 4, marginBottom: 16 }}>
+      {ep.number === autoNum ? "Episode # is auto-set from the archive — no need to change it." : <span>Auto-numbers to <span onClick={function() { setEp(Object.assign({}, ep, { number: autoNum })); }} style={{ color: ACC, cursor: "pointer" }}>{autoNum}</span> (next after your latest archived episode).</span>}
     </div>
     <GuestManager guests={guests} setGuests={setGuests} />
 
@@ -938,11 +982,33 @@ function StepSetup({ ep, setEp, guests, setGuests }: { ep: EpState; setEp: (ep: 
       <Label>Additional Info (optional)</Label>
       <textarea value={ep.extra || ""} onChange={function(e) { setEp(Object.assign({}, ep, { extra: e.target.value })); }} rows={2} placeholder="Key topics, sponsor mentions, angles to emphasize..." style={{ width: "100%", padding: "12px 14px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, color: D.tx, fontFamily: ft, fontSize: 14, outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: 1.6, transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; e.target.style.boxShadow = "0 0 24px rgba(224,99,71,0.06)"; }} onBlur={function(e) { e.target.style.borderColor = D.border; e.target.style.boxShadow = "none"; }} />
     </div>
+
+    {/* Articles */}
+    <div style={{ marginBottom: 20 }}>
+      <Label>Articles (optional)</Label>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input value={artUrl} onChange={function(e) { setArtUrl(e.target.value); }} onKeyDown={function(e) { if (e.key === "Enter") { e.preventDefault(); addArticle(); } }} placeholder="https://www.semianalysis.com/p/..." style={{ flex: 1, padding: "12px 14px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, color: D.tx, fontFamily: mn, fontSize: 12, outline: "none", boxSizing: "border-box" }} />
+        <button type="button" onClick={addArticle} disabled={artL} style={{ padding: "0 16px", borderRadius: 10, cursor: artL ? "not-allowed" : "pointer", background: "transparent", border: "1px solid " + ACC, color: ACC, fontFamily: mn, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", opacity: artL ? 0.6 : 1 }}>{artL ? "Adding…" : "+ Add Article"}</button>
+      </div>
+      {(ep.articles || []).length > 0 && <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+        {(ep.articles || []).map(function(a, i) { return (
+          <div key={"art" + i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 8 }}>
+            <a href={a.url} target="_blank" rel="noreferrer" style={{ color: ACC, fontFamily: mn, fontSize: 11, textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.title || a.url}</a>
+            <span onClick={function() { removeArticle(a.url); }} title="Remove" style={{ cursor: "pointer", color: D.txl, fontFamily: mn, fontSize: 14, flexShrink: 0, lineHeight: 1 }}>×</span>
+          </div>
+        ); })}
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 4, cursor: "pointer", fontFamily: mn, fontSize: 10, color: D.txb }}>
+          <input type="checkbox" checked={ep.includeArticleInDesc !== false} onChange={function(e) { setEp(Object.assign({}, ep, { includeArticleInDesc: e.target.checked })); }} />
+          Include article link{(ep.articles || []).length > 1 ? "s" : ""} in the description
+        </label>
+      </div>}
+      <div style={{ fontFamily: mn, fontSize: 9, color: D.txl, marginTop: 6 }}>Linked in the description by default. Generation uses the transcript unless you turn on &ldquo;Use article as source&rdquo; on the Generate step.</div>
+    </div>
   </div>);
 }
 
 // ═══ STEP 2: GENERATE ═══
-function StepGenerate({ ep, guests, opts, setOpts, sel, setSel, fin, setFin, descLen, setDescLen, onDone }: { ep: EpState; guests: Guest[]; opts: GeneratedOptions | null; setOpts: React.Dispatch<React.SetStateAction<GeneratedOptions | null>>; sel: SelectionState; setSel: React.Dispatch<React.SetStateAction<SelectionState>>; fin: FinalizedState | null; setFin: React.Dispatch<React.SetStateAction<FinalizedState | null>>; descLen: string; setDescLen: (v: string) => void; onDone: () => void }) {
+function StepGenerate({ ep, guests, opts, setOpts, sel, setSel, fin, setFin, descLen, setDescLen, useArticleSource, setUseArticleSource, onDone }: { ep: EpState; guests: Guest[]; opts: GeneratedOptions | null; setOpts: React.Dispatch<React.SetStateAction<GeneratedOptions | null>>; sel: SelectionState; setSel: React.Dispatch<React.SetStateAction<SelectionState>>; fin: FinalizedState | null; setFin: React.Dispatch<React.SetStateAction<FinalizedState | null>>; descLen: string; setDescLen: (v: string) => void; useArticleSource: boolean; setUseArticleSource: (v: boolean) => void; onDone: () => void }) {
   var _l = useState<boolean>(false), loading = _l[0], setLoading = _l[1];
   var _r = useState<Record<string, boolean>>({}), rL = _r[0], setRL = _r[1];
   var _k = useState<boolean>(false), kwL = _k[0], setKwL = _k[1];
@@ -951,6 +1017,13 @@ function StepGenerate({ ep, guests, opts, setOpts, sel, setSel, fin, setFin, des
     if (descLen === "short") return "Descriptions: concise, 2-4 sentences. Key topics only.";
     if (descLen === "long") return "Descriptions: LONG (3-5 paragraphs, 200-400 words). All key topics, guest credentials with handles, why it matters, subscribe CTA. SEO keywords. Include timestamps at the end if provided.";
     return "Descriptions: medium (2 solid paragraphs). Main topics, guest names with handles on first mention, subscribe CTA. SEO keywords. Include timestamps at the end if provided.";
+  };
+
+  // Article context for generation — only when the user opts in on this step.
+  // The transcript stays primary; this is supplementary reference material.
+  var articleContext = function() {
+    if (!useArticleSource) return "";
+    return (ep.articles || []).filter(function(a) { return a && a.url; }).map(function(a) { return (a.title || "Article") + (a.description ? " — " + a.description : "") + " (" + a.url + ")"; }).join("\n");
   };
 
   var genAll = async function() {
@@ -963,6 +1036,7 @@ function StepGenerate({ ep, guests, opts, setOpts, sel, setSel, fin, setFin, des
       ep.extra ? "Additional context: " + ep.extra : "",
       ep.timestamps ? "Timestamps to include at end of descriptions:\n" + ep.timestamps : "",
       "Transcript (first 8000 chars): " + tx,
+      articleContext() ? "Reference article(s) — SUPPLEMENTARY only, the transcript is the primary source:\n" + articleContext() : "",
       descInstr(),
       "Generate 3 STRUCTURALLY DIFFERENT title options. Each option is {topic, category} per the title format rules. The 3 options should explore different angles, not three rewordings of the same hook.",
       'Return JSON: {"titles":[{"topic":"...","category":"..."},{"topic":"...","category":"..."},{"topic":"...","category":"..."}],"descriptions":["d1","d2","d3"],"thumbnails":[{"concept":"c1","text_overlay":"to1","mood":"m1"},{"concept":"c2","text_overlay":"to2","mood":"m2"},{"concept":"c3","text_overlay":"to3","mood":"m3"}]}',
@@ -1022,7 +1096,8 @@ function StepGenerate({ ep, guests, opts, setOpts, sel, setSel, fin, setFin, des
       var dn = " " + descInstr();
       var en = ep.extra ? " Context: " + ep.extra : "";
       var tsn = ep.timestamps ? " Timestamps:\n" + ep.timestamps : "";
-      p2 = buildPrompt(["ONE new description for SA Weekly Ep #" + ep.number + ". Different from: " + curStr + "." + dn, "Guests: " + gs + en + tsn, "Transcript: " + tx, 'Return JSON: {"result":"..."}']);
+      var an = articleContext() ? " Reference article(s) (supplementary, transcript is primary):\n" + articleContext() : "";
+      p2 = buildPrompt(["ONE new description for SA Weekly Ep #" + ep.number + ". Different from: " + curStr + "." + dn, "Guests: " + gs + en + tsn + an, "Transcript: " + tx, 'Return JSON: {"result":"..."}']);
       parse = function(d: Record<string, unknown>) { return d.result; };
     }
     var data = await ask(SYS_EP, p2);
@@ -1046,7 +1121,8 @@ function StepGenerate({ ep, guests, opts, setOpts, sel, setSel, fin, setFin, des
       var dn = ". " + descInstr();
       var en = ep.extra ? ". Context: " + ep.extra : "";
       var tsn = ep.timestamps ? ". Timestamps:\n" + ep.timestamps : "";
-      p2 = buildPrompt(["3 NEW " + cat + " for SA Weekly Ep #" + ep.number + dn, "Guests: " + gs + en + tsn, "Transcript: " + tx, 'Return JSON: {"' + cat + '":["a","b","c"]}']);
+      var an = articleContext() ? ". Reference article(s) (supplementary, transcript is primary):\n" + articleContext() : "";
+      p2 = buildPrompt(["3 NEW " + cat + " for SA Weekly Ep #" + ep.number + dn, "Guests: " + gs + en + tsn + an, "Transcript: " + tx, 'Return JSON: {"' + cat + '":["a","b","c"]}']);
     }
     var data = await ask(SYS_EP, p2);
     if (data && data[cat]) {
@@ -1070,6 +1146,15 @@ function StepGenerate({ ep, guests, opts, setOpts, sel, setSel, fin, setFin, des
         {[{ id: "short", l: "Short", sub: "2-4 sentences" }, { id: "medium", l: "Medium", sub: "2 paragraphs" }, { id: "long", l: "Long", sub: "3-5 paragraphs" }].map(function(m) { var s2 = descLen === m.id; return <div key={m.id} onClick={function() { setDescLen(m.id); }} style={{ flex: 1, padding: "14px 16px", borderRadius: 12, cursor: "pointer", background: s2 ? ACC + "0A" : D.elevated, border: "1px solid " + (s2 ? ACC + "60" : D.border), textAlign: "center", boxShadow: s2 ? "0 0 24px rgba(224,99,71,0.06)" : "none", transition: "all 0.2s ease" }}><div style={{ fontFamily: ft, fontSize: 14, fontWeight: s2 ? 800 : 500, color: s2 ? ACC : D.tx }}>{m.l}</div><div style={{ fontFamily: mn, fontSize: 9, color: s2 ? ACC : D.txl, marginTop: 3 }}>{m.sub}</div></div>; })}
       </div>
     </div>
+
+    {(ep.articles || []).length > 0 && <div style={{ marginBottom: 24 }}>
+      <Label>Article Source</Label>
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "14px 16px", borderRadius: 12, background: useArticleSource ? ACC + "0A" : D.elevated, border: "1px solid " + (useArticleSource ? ACC + "60" : D.border) }}>
+        <input type="checkbox" checked={useArticleSource} onChange={function(e) { setUseArticleSource(e.target.checked); }} />
+        <span style={{ fontFamily: ft, fontSize: 14, fontWeight: useArticleSource ? 800 : 500, color: useArticleSource ? ACC : D.tx }}>Use article as a source</span>
+        <span style={{ fontFamily: mn, fontSize: 9, color: D.txl }}>{useArticleSource ? "Fed to generation as supplementary context" : "Off — generation uses the transcript only"}</span>
+      </label>
+    </div>}
 
     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
       <Btn onClick={genAll} loading={loading} off={!ep.transcript}>Generate Options</Btn>
@@ -1955,7 +2040,7 @@ function StepExport({ ep, guests, fin, socialRes, clips, onComplete }: { ep: EpS
     { key: "tiktok_caption", label: "TikTok" },
   ];
 
-  var fullDescription = composeDescription(fin.description, ep.timestamps);
+  var fullDescription = composeDescription(fin.description, ep.timestamps, ep.articles, ep.includeArticleInDesc);
   var doExport = function() {
     if (!socialRes) return;
     var spotifyTitle = buildSpotifyTitle(fin.title, guests);
@@ -2303,6 +2388,9 @@ export default function SAWeekly() {
   var _f = useState<FinalizedState | null>(null), fin = _f[0], setFin = _f[1];
   var _th = useState<string | null>(null), thumb = _th[0], setThumb = _th[1];
   var _dl = useState<string>("medium"), descLen = _dl[0], setDescLen = _dl[1];
+  // Generate-step toggle: feed the linked article(s) into generation as
+  // supplementary context. Off by default — the transcript is primary.
+  var _uas = useState<boolean>(false), useArticleSource = _uas[0], setUseArticleSource = _uas[1];
   var _sr = useState<SocialResult | null>(null), socialRes = _sr[0], setSocialRes = _sr[1];
   var _cl = useState<ClipResult[]>([]), clips = _cl[0], setClips = _cl[1];
   // When the user clicked "Develop Clips" on a past Activity Log entry,
@@ -2592,7 +2680,7 @@ export default function SAWeekly() {
       guestList: guests,
       opts: opts,
       sel: sel,
-      fin: { title: fin.title, description: composeDescription(fin.description, ep.timestamps), thumbnail: fin.thumbnail },
+      fin: { title: fin.title, description: composeDescription(fin.description, ep.timestamps, ep.articles, ep.includeArticleInDesc), thumbnail: fin.thumbnail },
       socialRes: socialRes,
       clips: clips,
       thumb: thumb,
@@ -2624,7 +2712,7 @@ export default function SAWeekly() {
         id: newId,
         episode: ep.number,
         title: fin.title,
-        description: composeDescription(fin.description, ep.timestamps),
+        description: composeDescription(fin.description, ep.timestamps, ep.articles, ep.includeArticleInDesc),
         guests: gn,
         date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
         social: socialRes,
@@ -2652,6 +2740,26 @@ export default function SAWeekly() {
     // from here on; the localStorage scratch would just confuse the
     // next mount.
     clearUserDraft(userCtx.user ? userCtx.user.name : null);
+  };
+
+  // Start a brand-new episode: reset the working state and auto-number to the
+  // next episode (max archived + 1) so the user never has to type the number.
+  var startNewEpisode = function() {
+    var n = nextEpisodeNumber(logData);
+    setEp({ number: n, link: "", transcript: "", timestamps: "", extra: "", articles: [], includeArticleInDesc: true });
+    setGuests([]);
+    setOpts(null);
+    setSel({ title: 0, desc: 0, thumb: 0 });
+    setFin(null);
+    setThumb(null);
+    setSocialRes(null);
+    setClips([]);
+    setLaunched(false);
+    setUseArticleSource(false);
+    setEditingLogId(null);
+    clearUserDraft(userCtx.user ? userCtx.user.name : null);
+    setStep(0);
+    showToast("Started Episode " + n);
   };
 
   // Best-effort parse of a stored "Dylan Patel, Doug O'Laughlin" string
@@ -2856,8 +2964,8 @@ export default function SAWeekly() {
 
     {/* Step Content */}
     <div style={{ paddingBottom: 60 }}>
-      {step === 0 && <StepSetup ep={ep} setEp={setEp} guests={guests} setGuests={setGuests} />}
-      {step === 1 && <StepGenerate ep={ep} guests={guests} opts={opts} setOpts={setOpts} sel={sel} setSel={setSel} fin={fin} setFin={setFin} descLen={descLen} setDescLen={setDescLen} onDone={function() {}} />}
+      {step === 0 && <StepSetup ep={ep} setEp={setEp} guests={guests} setGuests={setGuests} autoNum={nextEpisodeNumber(logData)} onNewEpisode={startNewEpisode} />}
+      {step === 1 && <StepGenerate ep={ep} guests={guests} opts={opts} setOpts={setOpts} sel={sel} setSel={setSel} fin={fin} setFin={setFin} descLen={descLen} setDescLen={setDescLen} useArticleSource={useArticleSource} setUseArticleSource={setUseArticleSource} onDone={function() {}} />}
       {step === 2 && <StepReview ep={ep} guests={guests} opts={opts} sel={sel} fin={fin} setFin={setFin} thumb={thumb} setThumb={setThumb} onDone={function() { setStep(3); }} />}
       {step === 3 && <StepSocial ep={ep} guests={guests} fin={fin} socialRes={socialRes} setSocialRes={setSocialRes} />}
       {step === 4 && <StepClips ep={ep} guests={guests} fin={fin} clips={clips} setClips={setClips} editingLogId={editingLogId} onSavedToLog={function() { setStep(6); }} />}
