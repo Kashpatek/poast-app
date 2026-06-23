@@ -70,6 +70,15 @@ const VIDEO_CARDS: HubCard[] = [
     href: "/production-studio/auto-caption",
   },
   {
+    id: "capper",
+    label: "Capper",
+    sub: "AI captions with tone, audience & platform controls",
+    Icon: Captions,
+    accent: D.amber,
+    status: "live",
+    href: "/production-studio/capper",
+  },
+  {
     id: "shorts-formatter",
     label: "Shorts Formatter",
     sub: "Reframe + repack horizontal cuts to 9:16",

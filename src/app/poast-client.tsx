@@ -800,7 +800,6 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "production-studio", l: "ProductionSTUDIO", Icon: Clapperboard, href: "/production-studio", badge: "NEW" },
     { id: "brainstorm", l: "Brainstorm",     Icon: Lightbulb },
     { id: "carousel", l: "Carousel",         Icon: LayoutGrid },
-    { id: "captions", l: "Capper",           Icon: Captions },
     { id: "chart",    l: "ChartMAKER",       Icon: GanttChart, href: "/charts", badge: "NEW" },
     { id: "docu",     l: "DesignSTUDIO",     Icon: Wand,       href: "/design-studio", badge: "NEW" },
     { id: "copy-studio", l: "CopySTUDIO",   Icon: Type,       href: "/copy-studio", badge: "NEW" },
@@ -813,7 +812,6 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
   ]},
   prepare: { label: "PREPARE", color: C.blue, glow: "rgba(11,134,209,", Icon: Brain, items: [
     { id: "intelligence-suite", l: "IntelligenceSUITE", Icon: Brain, href: "/intelligence-suite", badge: "NEW" },
-    { id: "news",     l: "News Flow (legacy)",     Icon: Newspaper },
     { id: "gtc",      l: "GTC Flow",         Icon: Activity },
   ]},
   premier: { label: "PREMIER", color: C.teal, glow: "rgba(46,173,142,", Icon: Calendar, items: [

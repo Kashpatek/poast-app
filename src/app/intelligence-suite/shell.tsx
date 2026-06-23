@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   Sparkles,
   Brain,
+  LayoutDashboard,
   type LucideIcon,
 } from "lucide-react";
 import { D, ft, gf, mn } from "../shared-constants";
@@ -46,6 +47,7 @@ export const APPS: AppDef[] = [
   { id: "competitive", label: "Competitive", path: "/intelligence-suite/competitive", Icon: Crosshair },
   { id: "brief",       label: "Brief",       path: "/intelligence-suite/brief",       Icon: Sun },
   { id: "notes",       label: "Notes",       path: "/intelligence-suite/notes",       Icon: StickyNote },
+  { id: "dashboard",   label: "Dashboard",   path: "/intelligence-suite/dashboard",   Icon: LayoutDashboard },
 ];
 
 const STICKY_THRESHOLD_PX = 64;
@@ -107,6 +109,7 @@ export default function CommandCenterShell({ children, activeId }: CommandCenter
       "$mod+6": { description: "Open " + APPS[5].label, handler: function () { router.push(APPS[5].path); } },
       "$mod+7": { description: "Open " + APPS[6].label, handler: function () { router.push(APPS[6].path); } },
       "$mod+8": { description: "Open " + APPS[7].label, handler: function () { router.push(APPS[7].path); } },
+      "$mod+9": { description: "Open " + APPS[8].label, handler: function () { router.push(APPS[8].path); } },
     },
     { scope: "IntelligenceSUITE" },
   );
