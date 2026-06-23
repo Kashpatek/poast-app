@@ -32,7 +32,7 @@ import HubPalette, { type PaletteItem } from "./hub-palette";
 import { BugButton } from "./bug-report";
 import { trackEvent } from "../lib/poast-track";
 
-import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings, Wand, ShieldCheck, Sparkles, BookmarkCheck, ClipboardCheck, TrendingUp, Layers, CheckSquare, Brain, Type, Rocket } from "lucide-react";
+import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings, Wand, ShieldCheck, Sparkles, BookmarkCheck, ClipboardCheck, TrendingUp, Layers, CheckSquare, Brain, Type, Rocket, Home } from "lucide-react";
 type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>;
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
 import { useUser, isAnalyst, canUseDocuDesign, isAkash } from "./user-context";
@@ -828,188 +828,167 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
   ]},
 };
 
-function Sidebar({ active, onNav, onAskPoast, collapsed, onToggleCollapsed }: { active: string; onNav: (id: string) => void; onAskPoast: () => void; collapsed: boolean; onToggleCollapsed: () => void }) {
+function Sidebar({ active, onNav, onAskPoast, locked, onToggleLock }: { active: string; onNav: (id: string) => void; onAskPoast: () => void; locked: boolean; onToggleLock: () => void }) {
   var userCtx = useUser();
   var analyst = isAnalyst(userCtx.user);
   var canDocu = canUseDocuDesign(userCtx.user);
   var akash = isAkash(userCtx.user);
   var router = useRouter();
   var pathname = usePathname();
-  // Smart sidebar (mirrors the Stock mockup rail):
-  //  • docked (!collapsed) → full 240px grouped list.
-  //  • collapsed → 72px category-icon rail; hovering the rail shows a "pull to
-  //    dock" arrow, and resting on a category (after an intent delay) pops a
-  //    flyout of just that category's tools.
-  var _railHov = useState(false), railHov = _railHov[0], setRailHov = _railHov[1];
-  var _fly = useState<string | null>(null), flyCat = _fly[0], setFlyCat = _fly[1];
-  var _flyTop = useState(0), flyTop = _flyTop[0], setFlyTop = _flyTop[1];
-  var flyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  var closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  var railTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  var expanded = !collapsed;
-  function killFly() { if (flyTimer.current) { clearTimeout(flyTimer.current); flyTimer.current = null; } }
-  function openFly(catKey: string, el: HTMLElement) {
-    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
-    var r = el.getBoundingClientRect();
-    setFlyTop(Math.max(64, Math.min(r.top - 4, window.innerHeight - 380)));
-    setFlyCat(catKey);
-  }
-  // hover-intent: wait ~450ms before a category flies out (so it doesn't chase
-  // the cursor); if one's already open, switch instantly.
-  function onCatEnter(catKey: string, e: React.MouseEvent<HTMLElement>) {
-    var el = e.currentTarget; killFly();
-    if (flyCat) { openFly(catKey, el); }
-    else { flyTimer.current = setTimeout(function() { openFly(catKey, el); }, 450); }
-  }
-  function scheduleFlyClose() { if (closeTimer.current) clearTimeout(closeTimer.current); closeTimer.current = setTimeout(function() { setFlyCat(null); }, 200); }
-  function railOn() { if (railTimer.current) { clearTimeout(railTimer.current); railTimer.current = null; } setRailHov(true); }
-  function railOff() { if (railTimer.current) clearTimeout(railTimer.current); railTimer.current = setTimeout(function() { setRailHov(false); }, 160); }
-  function filterItems(items: SidebarCatItem[]) { return items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).filter(function(it) { return it.id !== "docu" || canDocu; }).filter(function(it) { return it.id !== "tasks" || akash; }); }
-  function itemOpen(item: SidebarCatItem) { if (item.href) { window.open(item.href, "_blank"); } else { onNav(item.id); } setFlyCat(null); }
-  useEffect(function() { return function() { killFly(); if (closeTimer.current) clearTimeout(closeTimer.current); if (railTimer.current) clearTimeout(railTimer.current); }; }, []);
+  var sbTheme = useTheme();
+  // Faithful to the mockup .srail: HIDDEN off-canvas by default. Hover the left
+  // edge to PEEK it in (overlay, no content shift); click the edge arrow to LOCK
+  // it open (docks, content shifts) or to CLOSE it. Never a condensed rail.
+  var _peek = useState(false), peek = _peek[0], setPeek = _peek[1];
+  var _hovArrow = useState(false), hovArrow = _hovArrow[0], setHovArrow = _hovArrow[1];
+  var peekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  var shown = locked || peek;
+  function peekOn() { if (peekTimer.current) { clearTimeout(peekTimer.current); peekTimer.current = null; } setPeek(true); }
+  function peekOffSoon() { if (peekTimer.current) clearTimeout(peekTimer.current); peekTimer.current = setTimeout(function() { setPeek(false); }, 200); }
+  useEffect(function() { return function() { if (peekTimer.current) clearTimeout(peekTimer.current); }; }, []);
   var goHome = function() {
     onNav("home");
-    // For analysts inside their app, keep /analyst in the URL so back/forward
-    // and bookmarks stay coherent. Non-analysts stay at whatever path they're on.
-    if (analyst && pathname !== "/analyst") {
-      try { router.replace("/analyst"); } catch (e) {}
-    }
+    if (analyst && pathname !== "/analyst") { try { router.replace("/analyst"); } catch (e) {} }
   };
   // Analysts only see PRODUCE
   var visibleCats = analyst ? ["produce"] : Object.keys(SIDEBAR_CATS);
-  // Determine active category
   var activeCat: string | null = null;
   visibleCats.forEach(function(k) { SIDEBAR_CATS[k].items.forEach(function(it: SidebarCatItem) { if (it.id === active) activeCat = k; }); });
+  // Clean (stock) gets the SemiAnalysis wordmark; Classic keeps the old logo.
+  var clean = sbTheme.theme === "stock";
+  var subtitle = clean ? "v3.0 · SemiAnalysis" : "Content Command Center";
+
+  // ── Clean (mockup .srail) renderers — mono dot-prefixed caption + the
+  //    holographic rounded-ring active treatment, tinted to each group color.
+  function cleanCap(label: string, color: string) {
+    return <div style={{ display: "flex", alignItems: "center", gap: 7, margin: "2px 8px 7px", fontFamily: mn, fontSize: 9.5, fontWeight: 500, letterSpacing: 1.6, textTransform: "uppercase", color: color, textShadow: "0 0 11px color-mix(in srgb," + color + " 32%,transparent)" }}>
+      <span style={{ width: 5, height: 5, borderRadius: 2, background: color, boxShadow: "0 0 8px " + color, flex: "none" }} />
+      {label}
+    </div>;
+  }
+  function cleanItem(o: { key: string; label: string; Icon: LucideIcon; color: string; badge?: string; href?: string; isActive: boolean; onClick: () => void }) {
+    var ia = o.isActive; var IconC = o.Icon;
+    return <div key={o.key} onClick={o.onClick} title={o.href ? "Open " + o.label + " in a new tab" : undefined}
+      style={{ position: "relative", display: "flex", alignItems: "center", gap: 13, padding: "10px 12px", borderRadius: 11, marginBottom: 2, cursor: "pointer", fontFamily: ft, fontWeight: 600, fontSize: 15, color: ia ? ("color-mix(in srgb, " + o.color + " 76%, #fff)") : "rgba(255,255,255,0.56)", background: ia ? ("linear-gradient(90deg, color-mix(in srgb," + o.color + " 17%,transparent), color-mix(in srgb," + o.color + " 5%,transparent) 62%, transparent)") : "transparent", boxShadow: ia ? ("inset 0 0 0 1px color-mix(in srgb," + o.color + " 22%,transparent)") : "none", transition: "color .15s, background .15s, box-shadow .15s" }}
+      onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!ia) { e.currentTarget.style.background = "rgba(255,255,255,0.045)"; e.currentTarget.style.color = "#E8E4DD"; } }}
+      onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!ia) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.56)"; } }}>
+      <div style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 3, height: ia ? 22 : 0, borderRadius: "0 3px 3px 0", background: "linear-gradient(180deg, color-mix(in srgb," + o.color + " 66%,#fff), " + o.color + " 52%, color-mix(in srgb," + o.color + " 58%,#fff))", boxShadow: "0 0 9px " + o.color + ", 0 0 3px " + o.color, opacity: ia ? 1 : 0, transition: "height .18s cubic-bezier(.2,.8,.2,1), opacity .18s" }} />
+      <IconC size={18} strokeWidth={1.8} color={ia ? o.color : "rgba(255,255,255,0.62)"} style={{ flex: "none" }} />
+      <span style={{ minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.label}</span>
+      {o.badge && <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 7, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", color: o.color, border: "1px solid color-mix(in srgb," + o.color + " 45%,transparent)", borderRadius: 999, padding: "2px 5px", flex: "none" }}>{o.badge}</span>}
+    </div>;
+  }
+  function visibleItems(cat: SidebarCat) { return cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).filter(function(it) { return it.id !== "docu" || canDocu; }).filter(function(it) { return it.id !== "tasks" || akash; }); }
 
   return (<>
-  <div
-    className={expanded ? "sbx" : "sbx sbx-collapsed"}
-    onMouseEnter={function() { railOn(); }}
-    onMouseLeave={function() { railOff(); if (collapsed) scheduleFlyClose(); }}
-    style={{ width: expanded ? 240 : 72, height: "100vh", background: "linear-gradient(180deg, #08080F 0%, #0A0A14 100%)", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100, transition: "width 0.22s cubic-bezier(0.3,0.7,0.3,1)", overflow: "hidden" }}>
-    <style dangerouslySetInnerHTML={{ __html: ".sbx-lbl{transition:opacity .14s}.sbx-collapsed .sbx-lbl{display:none}.sbx-collapsed .sbx-cat{display:none}.sbx-collapsed .sbx-row{padding-left:0!important;justify-content:center}.sbx-collapsed .sbx-hidec{display:none}.sbx-collapsed .sbx-foot{justify-content:center}" }} />
-    {/* Logo — click to go home (splash) without re-auth */}
-    <div
-      onClick={goHome}
-      title="Home"
-      style={{ padding: "18px 16px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: expanded ? "flex-start" : "center", gap: 10, cursor: "pointer", transition: "background 0.15s" }}
-      onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(247,176,65,0.04)"; }}
-      onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "transparent"; }}
-    >
-      <img src="/poast-logo.png" style={{ width: 32, height: 32, borderRadius: 7, flex: "none" }} />
-      <div className="sbx-lbl">
-        <div style={{ fontFamily: gf, fontSize: 18, fontWeight: 900, color: C.amber, letterSpacing: 2 }}>POAST</div>
-        <div style={{ fontFamily: ft, fontSize: 7, fontWeight: 600, color: "rgba(255,255,255,0.25)", letterSpacing: 2, textTransform: "uppercase" }}>Content Command Center</div>
+    {/* left-edge hover zone with a subtle grabber — summons the peek. Only when
+        the sidebar is hidden (not locked, not already peeking). */}
+    {!shown && (
+      <div onMouseEnter={peekOn} style={{ position: "fixed", left: 0, top: 0, width: 16, height: "100vh", zIndex: 99, display: "flex", alignItems: "center", cursor: "pointer" }}>
+        <div style={{ width: 4, height: 48, borderRadius: "0 4px 4px 0", background: "linear-gradient(180deg, " + C.amber + "cc, " + C.amber + "55)", boxShadow: "0 0 12px " + C.amber + "66" }} />
       </div>
-      {/* dock/undock lives entirely in the edge arrow tab (below) — no header
-          chevron, so the logo stays perfectly centered in the collapsed rail. */}
-    </div>
-
-    {/* Chippy moved to a floating widget at the bottom-right of the page
-        (mounted at App root). The sidebar real estate it used to consume
-        was making the rail feel crowded. */}
-
-    {/* Categories — expanded: full grouped list · collapsed-idle: clean category-icon rail */}
-    {expanded ? (
-    <div style={{ padding: "8px 10px", flex: 1, overflow: "auto" }}>
-      {visibleCats.map(function(catKey) {
-        var cat = SIDEBAR_CATS[catKey];
-        var isCatActive = activeCat === catKey;
-        return <div key={catKey} style={{ marginBottom: 2 }}>
-          {/* Category label */}
-          <div className="sbx-cat" style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 12px" }}>
-            <div style={{ width: 3, height: 14, borderRadius: 2, background: isCatActive ? cat.color : "rgba(255,255,255,0.12)", boxShadow: isCatActive ? "0 0 10px " + cat.color + "60, 0 0 20px " + cat.color + "20" : "none", transition: "all 0.25s" }} />
-            <span style={{ fontFamily: ft, fontSize: 10, fontWeight: 800, color: isCatActive ? cat.color : "rgba(255,255,255,0.3)", letterSpacing: 2, textTransform: "uppercase", transition: "all 0.25s", textShadow: isCatActive ? "0 0 16px " + cat.glow + "0.4), 0 0 30px " + cat.glow + "0.12)" : "none" }}>{cat.label}</span>
-          </div>
-          {/* Items */}
-          {cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).filter(function(it) { return it.id !== "docu" || canDocu; }).filter(function(it) { return it.id !== "tasks" || akash; }).map(function(item) {
-            var isActive = active === item.id;
-            return <div key={item.id} className="sbx-row" onClick={function() { if (item.href) { window.open(item.href, "_blank"); } else { onNav(item.id); } }} title={item.href ? "Open " + item.l + " in a new tab" : undefined} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 12px 7px 28px", borderRadius: 6, marginBottom: 1, cursor: "pointer", background: isActive ? cat.color + "0C" : "transparent", borderLeft: isActive ? "3px solid " + cat.color : "3px solid transparent", transition: "all 0.2s", position: "relative" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
-              {isActive && <div style={{ position: "absolute", left: 0, top: "10%", width: 3, height: "80%", background: cat.color, borderRadius: 2, boxShadow: "0 0 12px " + cat.color + "70, 0 0 24px " + cat.color + "25" }} />}
-              {isActive && <div style={{ position: "absolute", left: 0, top: 0, width: "50%", height: "100%", background: "radial-gradient(ellipse at left center, " + cat.color + "08, transparent 70%)", pointerEvents: "none" }} />}
-              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, transition: "opacity 0.2s", opacity: isActive ? 1 : 0.55 }}>
-                <item.Icon size={15} strokeWidth={isActive ? 2.2 : 1.8} color={isActive ? cat.color : "rgba(255,255,255,0.65)"} />
-              </span>
-              <span className="sbx-lbl" style={{ fontFamily: ft, fontSize: 13, fontWeight: isActive ? 800 : 500, color: isActive ? cat.color : "rgba(255,255,255,0.5)", transition: "all 0.2s", textShadow: isActive ? "0 0 20px " + cat.glow + "0.5), 0 0 40px " + cat.glow + "0.12)" : "none" }}>{item.l}</span>
-              {item.badge && <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 7, fontWeight: 800, color: cat.color, letterSpacing: 1, padding: "2px 5px", border: "1px solid " + cat.color + "55", borderRadius: 3, background: cat.color + "12" }}>{item.badge}</span>}
-              {!item.badge && isActive && <div style={{ width: 5, height: 5, borderRadius: "50%", background: cat.color, marginLeft: "auto", boxShadow: "0 0 8px " + cat.color + "70, 0 0 16px " + cat.color + "30" }} />}
-            </div>;
-          })}
-        </div>;
-      })}
-    </div>
-    ) : (
-    /* collapsed mini rail — clean category icons; rest on one (after an intent
-       delay) to pop its flyout of tools; the lock arrow docks the rail open. */
-    <div style={{ padding: "12px 0", flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, overflow: "hidden" }}>
-      {visibleCats.map(function(catKey) {
-        var cat = SIDEBAR_CATS[catKey];
-        var isCatActive = activeCat === catKey || flyCat === catKey;
-        return <div key={catKey} title={cat.label}
-          onMouseEnter={function(e) { onCatEnter(catKey, e); }}
-          onMouseLeave={function() { killFly(); }}
-          onClick={function(e) { onCatEnter(catKey, e); }}
-          style={{ position: "relative", width: 46, height: 44, borderRadius: 12, display: "grid", placeItems: "center", cursor: "pointer", background: isCatActive ? cat.color + "1A" : "transparent", transition: "background .15s" }}>
-          {isCatActive && <div style={{ position: "absolute", left: -2, top: "50%", transform: "translateY(-50%)", width: 3, height: 20, borderRadius: 2, background: cat.color, boxShadow: "0 0 10px " + cat.color + "80" }} />}
-          <cat.Icon size={20} strokeWidth={isCatActive ? 2.2 : 1.8} color={isCatActive ? cat.color : "rgba(255,255,255,0.62)"} />
-        </div>;
-      })}
-    </div>
     )}
 
-    {/* Brand Launch tile — miniature of the cover slide, opens /brand-launch */}
-    <div className="sbx-hidec" style={{ padding: "0 10px 4px" }}>
-      <BrandLaunchTile />
-    </div>
-
-    {/* Footer */}
-    <div style={{ padding: "14px 18px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-      {/* Bug report — captures the current sec automatically and lands in
-          POAST Settings · Bugs. Analysts use it most; visible for everyone. */}
-      <BugButton sec={active} />
-      {/* User badge — click to sign out + return to the picker. Nulling
-          the user context now re-shows the Intro picker via the useEffect
-          in App (no full page reload). For Analyst the label reads "Lock";
-          for admins it reads "Switch". A misclick is cheap to recover from. */}
-      {userCtx.user && <div className="sbx-foot" onClick={function() { userCtx.setUser(null); }} title={analyst ? "Lock studio" : "Switch user"} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "6px 8px", borderRadius: 6, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}>
-        <div style={{ width: 22, height: 22, borderRadius: 6, background: analyst ? "#905CCB20" : C.amber + "20", border: "1px solid " + (analyst ? "#905CCB40" : C.amber + "40"), display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 10, fontWeight: 800, color: analyst ? "#905CCB" : C.amber }}>{userCtx.user.name[0]}</div>
-        <div className="sbx-lbl" style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 700, color: "#E8E4DD", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userCtx.user.name}</div>
-          <div style={{ fontFamily: ft, fontSize: 8, fontWeight: 600, color: "rgba(255,255,255,0.35)", letterSpacing: 1 }}>{userCtx.user.role}</div>
+    <div
+      onMouseEnter={peekOn}
+      onMouseLeave={function() { if (!locked) peekOffSoon(); }}
+      style={{ width: 240, height: "100vh", background: "linear-gradient(180deg, #08080F 0%, #0A0A14 100%)", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100, transform: shown ? "translateX(0)" : "translateX(-104%)", transition: "transform 0.30s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.3s", boxShadow: (peek && !locked) ? "24px 0 60px rgba(0,0,0,0.5)" : "none", overflow: "hidden" }}>
+      {/* Logo — click to go home (splash) without re-auth */}
+      <div
+        onClick={goHome}
+        title="Home"
+        style={{ padding: "18px 16px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", transition: "background 0.15s" }}
+        onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(247,176,65,0.04)"; }}
+        onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "transparent"; }}
+      >
+        <img src="/poast-logo.png" style={{ width: 32, height: 32, borderRadius: 7, flex: "none" }} />
+        <div>
+          <div style={{ fontFamily: gf, fontSize: clean ? 17 : 18, fontWeight: clean ? 700 : 900, color: C.amber, letterSpacing: clean ? 0.3 : 2, lineHeight: 1 }}>POAST</div>
+          <div style={clean
+            ? { fontFamily: mn, fontSize: 9.5, fontWeight: 500, color: "rgba(255,255,255,0.5)", letterSpacing: 1.5, textTransform: "uppercase", marginTop: 4 }
+            : { fontFamily: ft, fontSize: 7, fontWeight: 600, color: "rgba(255,255,255,0.25)", letterSpacing: 2, textTransform: "uppercase" }}>{subtitle}</div>
         </div>
-        <span className="sbx-lbl" style={{ fontFamily: mn, fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.35)", letterSpacing: 1, padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.08)" }}>{analyst ? "LOCK" : "SWITCH"}</span>
-      </div>}
-      <div className="sbx-lbl" style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v3.2 // SEMIANALYSIS</div>
-    </div>
-  </div>
-
-  {/* dock controls removed — the full sidebar is the only mode (no condensed). */}
-
-  {/* category flyout — rest on a category icon in the collapsed rail */}
-  {collapsed && flyCat ? (function() {
-    var cat = SIDEBAR_CATS[flyCat as string]; if (!cat) return null;
-    var col = cat.color;
-    return <div onMouseEnter={function() { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } }}
-      onMouseLeave={scheduleFlyClose}
-      style={{ position: "fixed", left: 72, top: flyTop, zIndex: 105, width: 248, padding: 9, borderRadius: 16, background: "linear-gradient(180deg, rgba(17,17,25,0.98), rgba(10,10,16,0.99))", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 30px 70px rgba(0,0,0,0.62)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 8px 9px", borderBottom: "1px solid rgba(255,255,255,0.08)", marginBottom: 6 }}>
-        <div style={{ width: 4, height: 16, borderRadius: 2, background: col }} />
-        <div style={{ fontFamily: gf, fontWeight: 700, fontSize: 14, color: "#E8E4DD", letterSpacing: 0.5 }}>{cat.label}</div>
       </div>
-      {filterItems(cat.items).map(function(item) {
-        var isActive = active === item.id;
-        return <div key={item.id} onClick={function() { itemOpen(item); }} title={item.href ? "Open " + item.l + " in a new tab" : undefined}
-          style={{ display: "flex", alignItems: "center", gap: 11, padding: "8px 9px", borderRadius: 11, cursor: "pointer", background: isActive ? col + "18" : "transparent", transition: "background .13s" }}
-          onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
-          onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
-          <span style={{ width: 30, height: 30, borderRadius: 9, flex: "none", display: "grid", placeItems: "center", color: col, background: col + "16", border: "1px solid " + col + "2c" }}><item.Icon size={15} strokeWidth={1.9} /></span>
-          <span style={{ flex: 1, minWidth: 0, fontFamily: gf, fontWeight: 600, fontSize: 13, color: isActive ? col : "#E8E4DD", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.l}</span>
-          {item.badge && <span style={{ fontFamily: mn, fontSize: 7, fontWeight: 800, color: col, letterSpacing: 1, padding: "2px 5px", border: "1px solid " + col + "55", borderRadius: 999, flex: "none" }}>{item.badge}</span>}
-          {item.href && !item.badge && <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, flex: "none" }}>{"↗"}</span>}
-        </div>;
-      })}
-    </div>;
-  })() : null}
+
+      {/* Categories — full grouped list. Clean (stock) uses the mockup .srail
+          treatment (WORKSPACE › Home, mono dot captions, rounded-ring active);
+          Classic keeps its original bar-caption / left-border look. */}
+      {clean ? (
+      <div style={{ padding: "10px 10px 8px", flex: 1, overflow: "auto" }}>
+        <div style={{ marginBottom: 13 }}>
+          {cleanCap("Workspace", C.amber)}
+          {cleanItem({ key: "home", label: "Home", Icon: Home, color: C.amber, isActive: active === "home", onClick: function() { onNav("home"); } })}
+        </div>
+        {visibleCats.map(function(catKey) {
+          var cat = SIDEBAR_CATS[catKey];
+          return <div key={catKey} style={{ marginBottom: 13 }}>
+            {cleanCap(cat.label, cat.color)}
+            {visibleItems(cat).map(function(item) {
+              return cleanItem({ key: item.id, label: item.l, Icon: item.Icon, color: cat.color, badge: item.badge, href: item.href, isActive: active === item.id, onClick: function() { if (item.href) { window.open(item.href, "_blank"); } else { onNav(item.id); } } });
+            })}
+          </div>;
+        })}
+      </div>
+      ) : (
+      <div style={{ padding: "8px 10px", flex: 1, overflow: "auto" }}>
+        {visibleCats.map(function(catKey) {
+          var cat = SIDEBAR_CATS[catKey];
+          var isCatActive = activeCat === catKey;
+          return <div key={catKey} style={{ marginBottom: 2 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 12px" }}>
+              <div style={{ width: 3, height: 14, borderRadius: 2, background: isCatActive ? cat.color : "rgba(255,255,255,0.12)", boxShadow: isCatActive ? "0 0 10px " + cat.color + "60, 0 0 20px " + cat.color + "20" : "none", transition: "all 0.25s" }} />
+              <span style={{ fontFamily: ft, fontSize: 10, fontWeight: 800, color: isCatActive ? cat.color : "rgba(255,255,255,0.3)", letterSpacing: 2, textTransform: "uppercase", transition: "all 0.25s", textShadow: isCatActive ? "0 0 16px " + cat.glow + "0.4), 0 0 30px " + cat.glow + "0.12)" : "none" }}>{cat.label}</span>
+            </div>
+            {cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).filter(function(it) { return it.id !== "docu" || canDocu; }).filter(function(it) { return it.id !== "tasks" || akash; }).map(function(item) {
+              var isActive = active === item.id;
+              return <div key={item.id} onClick={function() { if (item.href) { window.open(item.href, "_blank"); } else { onNav(item.id); } }} title={item.href ? "Open " + item.l + " in a new tab" : undefined} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 12px 7px 28px", borderRadius: 6, marginBottom: 1, cursor: "pointer", background: isActive ? cat.color + "0C" : "transparent", borderLeft: isActive ? "3px solid " + cat.color : "3px solid transparent", transition: "all 0.2s", position: "relative" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
+                {isActive && <div style={{ position: "absolute", left: 0, top: "10%", width: 3, height: "80%", background: cat.color, borderRadius: 2, boxShadow: "0 0 12px " + cat.color + "70, 0 0 24px " + cat.color + "25" }} />}
+                {isActive && <div style={{ position: "absolute", left: 0, top: 0, width: "50%", height: "100%", background: "radial-gradient(ellipse at left center, " + cat.color + "08, transparent 70%)", pointerEvents: "none" }} />}
+                <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, transition: "opacity 0.2s", opacity: isActive ? 1 : 0.55 }}>
+                  <item.Icon size={15} strokeWidth={isActive ? 2.2 : 1.8} color={isActive ? cat.color : "rgba(255,255,255,0.65)"} />
+                </span>
+                <span style={{ fontFamily: ft, fontSize: 13, fontWeight: isActive ? 800 : 500, color: isActive ? cat.color : "rgba(255,255,255,0.5)", transition: "all 0.2s", textShadow: isActive ? "0 0 20px " + cat.glow + "0.5), 0 0 40px " + cat.glow + "0.12)" : "none" }}>{item.l}</span>
+                {item.badge && <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 7, fontWeight: 800, color: cat.color, letterSpacing: 1, padding: "2px 5px", border: "1px solid " + cat.color + "55", borderRadius: 3, background: cat.color + "12" }}>{item.badge}</span>}
+                {!item.badge && isActive && <div style={{ width: 5, height: 5, borderRadius: "50%", background: cat.color, marginLeft: "auto", boxShadow: "0 0 8px " + cat.color + "70, 0 0 16px " + cat.color + "30" }} />}
+              </div>;
+            })}
+          </div>;
+        })}
+      </div>
+      )}
+
+      {/* Brand Launch tile — miniature of the cover slide, opens /brand-launch */}
+      <div style={{ padding: "0 10px 4px" }}>
+        <BrandLaunchTile />
+      </div>
+
+      {/* Footer */}
+      <div style={{ padding: "14px 18px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        <BugButton sec={active} />
+        {userCtx.user && <div onClick={function() { userCtx.setUser(null); }} title={analyst ? "Lock studio" : "Switch user"} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "6px 8px", borderRadius: 6, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}>
+          <div style={{ width: 22, height: 22, borderRadius: 6, background: analyst ? "#905CCB20" : C.amber + "20", border: "1px solid " + (analyst ? "#905CCB40" : C.amber + "40"), display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 10, fontWeight: 800, color: analyst ? "#905CCB" : C.amber }}>{userCtx.user.name[0]}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 700, color: "#E8E4DD", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userCtx.user.name}</div>
+            <div style={{ fontFamily: ft, fontSize: 8, fontWeight: 600, color: "rgba(255,255,255,0.35)", letterSpacing: 1 }}>{userCtx.user.role}</div>
+          </div>
+          <span style={{ fontFamily: mn, fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.35)", letterSpacing: 1, padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.08)" }}>{analyst ? "LOCK" : "SWITCH"}</span>
+        </div>}
+        <div style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v3.2 // SEMIANALYSIS</div>
+      </div>
+    </div>
+
+    {/* edge arrow — the lock / close control. Shown while peeking, locked, or
+        hovering the arrow itself. Peek → amber, points right (lock open).
+        Locked → subtle, points left (close). Rides the sidebar edge. */}
+    {(shown || hovArrow) && (
+      <button onClick={onToggleLock}
+        onMouseEnter={function() { setHovArrow(true); peekOn(); }}
+        onMouseLeave={function() { setHovArrow(false); if (!locked) peekOffSoon(); }}
+        title={locked ? "Close the sidebar" : "Lock the sidebar open"}
+        style={{ position: "fixed", left: shown ? 240 : 0, top: "50%", transform: "translateY(-50%)", zIndex: 104, width: 22, height: 46, borderRadius: "0 13px 13px 0", borderTop: locked ? "1px solid rgba(255,255,255,0.12)" : "none", borderRight: locked ? "1px solid rgba(255,255,255,0.12)" : "none", borderBottom: locked ? "1px solid rgba(255,255,255,0.12)" : "none", borderLeft: "none", background: locked ? "rgba(18,18,26,0.96)" : ("linear-gradient(135deg, " + C.amber + ", " + C.amber + "aa)"), color: locked ? C.amber : "#0b0b11", cursor: "pointer", display: "grid", placeItems: "center", boxShadow: "4px 0 14px rgba(0,0,0,0.4)", transition: "left 0.30s cubic-bezier(0.2,0.8,0.2,1)" }}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d={locked ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6"} /></svg>
+      </button>
+    )}
   </>);
 }
 
@@ -2175,11 +2154,14 @@ export default function App() {
   // translucent surface tokens do the legibility work over the aurora.
   var isClassicTheme = themeCtx.theme === "classic";
   var appBaseBg = isClassicTheme ? C.bg : "transparent";
-  // Condensed/mini sidebar removed (user: "the condensed look can go"). The full
-  // sidebar is the only mode now; content always offsets by its full width.
-  var navCollapsed = false;
-  var toggleCollapsed = function() {};
-  var contentLeft = isGlass ? 0 : 240;
+  // The developed smart sidebar (mockup .srail): HIDDEN off-canvas by default →
+  // PEEK on left-edge hover → LOCK open (docks, shifts content) / CLOSE via the
+  // edge arrow. The lock choice persists per browser. Default unlocked = hidden,
+  // so the look is never a condensed rail and the home stays full-bleed.
+  var _locked = useState(false), navLocked = _locked[0], setNavLocked = _locked[1];
+  useEffect(function() { try { setNavLocked(localStorage.getItem("poast-sidebar-locked") === "1"); } catch (e) {} }, []);
+  var toggleLock = function() { setNavLocked(function(v) { var n = !v; try { localStorage.setItem("poast-sidebar-locked", n ? "1" : "0"); } catch (e) {} return n; }); };
+  var contentLeft = isGlass ? 0 : (navLocked ? 240 : 0);
   var contentTop = isGlass ? 52 : 0;
   var analyst = isAnalyst(userCtx.user);
   // Analyst name capture: shared role-user means we need a personal
@@ -2379,7 +2361,7 @@ export default function App() {
 
     {isGlass
       ? <GlassTopNav active={sec} onNav={setSec} />
-      : <Sidebar active={sec} onNav={setSec} onAskPoast={function() { if (analyst) return; setAskPoastOpen(!askPoastOpen); }} collapsed={navCollapsed} onToggleCollapsed={toggleCollapsed} />}
+      : <Sidebar active={sec} onNav={setSec} onAskPoast={function() { if (analyst) return; setAskPoastOpen(!askPoastOpen); }} locked={navLocked} onToggleLock={toggleLock} />}
     {/* Ask POAST panel — never open for Analysts (data access gate).
         Phase 11A: now a Cmd+K command palette with the original chat as
         a secondary tab. `sec` flows in for context-aware commands;

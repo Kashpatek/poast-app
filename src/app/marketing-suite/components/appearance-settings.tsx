@@ -8,7 +8,7 @@ import { useTheme, type ThemeName, type BgName } from "../../theme-context";
 
 const THEMES: { id: ThemeName; name: string; desc: string; sw: string }[] = [
   { id: "classic", name: "Classic", desc: "The original POAST look — flat, focused, dark.", sw: "linear-gradient(135deg,#0D0D12,#09090D)" },
-  { id: "stock", name: "Stock", desc: "Calm aurora backdrop glowing behind your work.", sw: "linear-gradient(135deg,#3a2a10,#102236 55%,#2a1330)" },
+  { id: "stock", name: "Clean", desc: "Smokey aurora — pick from three backdrops.", sw: "linear-gradient(135deg,#D1334A,#905CCB 55%,#2E6BE6)" },
   { id: "glass", name: "Glass", desc: "Translucent liquid-glass surfaces over ambient light.", sw: "linear-gradient(135deg,rgba(52,166,230,.5),rgba(46,173,142,.4))" },
 ];
 const BGS: { id: BgName; name: string }[] = [
@@ -50,7 +50,7 @@ export function AppearancePanel({ onReplayTour }: { onReplayTour?: () => void })
 
       {theme === "stock" && (
         <>
-          <div style={{ ...lbl, marginTop: 22 }}>Stock · Backdrop</div>
+          <div style={{ ...lbl, marginTop: 22 }}>Clean · Backdrop</div>
           <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
             {BGS.map((b) => {
               const on = bg === b.id;
