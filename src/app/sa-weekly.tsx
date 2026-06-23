@@ -2934,7 +2934,7 @@ export default function SAWeekly() {
     <style dangerouslySetInnerHTML={{ __html: "@keyframes progressSlide{0%{left:-40%}100%{left:100%}}.progress-slide{animation:progressSlide 1.5s ease-in-out infinite}@keyframes dotPulse{0%,80%,100%{opacity:0.2}40%{opacity:1}}.progress-dots::after{content:'...';display:inline-block;animation:dotPulse 1.4s ease-in-out infinite}@keyframes confetti-fall{0%{transform:translateY(-20px) translateX(0) rotate(0deg);opacity:1}70%{opacity:1}100%{transform:translateY(calc(80vh)) translateX(var(--drift)) rotate(var(--rot));opacity:0}}" }} />
 
     {/* Header */}
-    <div style={{ padding: "24px 0", borderBottom: "1px solid " + D.border, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", background: D.bg + "E0" }}>
+    <div style={{ padding: "24px 0", borderBottom: "1px solid " + D.border, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", background: "color-mix(in srgb,var(--bg) 88%,transparent)" }}>
       <div>
         <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2 }}>SemiAnalysis Weekly</div>
         <div style={{ fontFamily: mn, fontSize: 11, color: D.txb, marginTop: 4, letterSpacing: "2px", textTransform: "uppercase" }}>{"Ep #" + ep.number + (gn ? " . " + gn : "") + (launched ? " . Launched" : fin ? " . Saved" : "")}</div>

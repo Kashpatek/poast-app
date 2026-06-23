@@ -1143,7 +1143,7 @@ function Step8({ data, setData, onNext, onBack }: { data: ProjectData; setData: 
           <span style={{ fontFamily: ft, fontSize: 14, color: D.txl }}>No clips available</span>
         </div>}
         {/* Shot indicator */}
-        {playing && orderedClips[currentClip] && <div style={{ position: "absolute", top: 10, left: 10, padding: "4px 10px", background: D.bg + "CC", borderRadius: 6, fontFamily: mn, fontSize: 10, color: D.amber }}>Shot {orderedClips[currentClip].shot} of {orderedClips.length}</div>}
+        {playing && orderedClips[currentClip] && <div style={{ position: "absolute", top: 10, left: 10, padding: "4px 10px", background: "color-mix(in srgb,var(--bg) 80%,transparent)", borderRadius: 6, fontFamily: mn, fontSize: 10, color: D.amber }}>Shot {orderedClips[currentClip].shot} of {orderedClips.length}</div>}
         {/* Progress bar */}
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: D.border }}>
           <div style={{ height: "100%", width: orderedClips.length > 0 ? ((currentClip + (playing ? 0.5 : 0)) / orderedClips.length * 100) + "%" : "0%", background: D.amber, transition: "width 0.3s" }} />

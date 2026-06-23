@@ -1300,7 +1300,7 @@ export default function SlopTop() {
     {arxivToast && <div style={{
       position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", zIndex: 9999,
       padding: "14px 28px", borderRadius: 12,
-      background: "linear-gradient(135deg, " + D.teal + "20, " + D.card + "F0)",
+      background: "linear-gradient(135deg, " + D.teal + "20, " + "color-mix(in srgb,var(--card) 94%,transparent))",
       border: "1px solid " + D.teal + "60",
       boxShadow: "0 8px 32px rgba(46,173,142,0.3), 0 0 60px rgba(46,173,142,0.1)",
       fontFamily: ft, fontSize: 14, fontWeight: 700, color: D.teal,
@@ -1317,7 +1317,7 @@ export default function SlopTop() {
     {submitToast && <div style={{
       position: "fixed", top: 76, left: "50%", transform: "translateX(-50%)", zIndex: 9998,
       padding: "10px 20px", borderRadius: 10,
-      background: "linear-gradient(135deg, " + D.amber + "22, " + D.card + "F0)",
+      background: "linear-gradient(135deg, " + D.amber + "22, " + "color-mix(in srgb,var(--card) 94%,transparent))",
       border: "1px solid " + D.amber + "70",
       boxShadow: "0 8px 32px rgba(247,176,65,0.25), 0 0 40px rgba(247,176,65,0.08)",
       fontFamily: mn, fontSize: 12, fontWeight: 700, color: D.amber,

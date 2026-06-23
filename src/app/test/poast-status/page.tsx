@@ -143,7 +143,7 @@ export default function PoastStatusPage() {
       </div>
 
       {/* Filter bar */}
-      <div style={{ position: "sticky", top: 0, zIndex: 10, background: D.bg + "F0", backdropFilter: "blur(12px)", borderBottom: "1px solid " + D.border, padding: "16px 40px" }}>
+      <div style={{ position: "sticky", top: 0, zIndex: 10, background: "color-mix(in srgb,var(--bg) 94%,transparent)", backdropFilter: "blur(12px)", borderBottom: "1px solid " + D.border, padding: "16px 40px" }}>
         <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
           {/* Search */}
           <div style={{ flex: "1 1 320px", minWidth: 240, position: "relative" }}>

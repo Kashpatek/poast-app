@@ -1008,7 +1008,7 @@ function HistoryModal({
       onClick={onClose}
       style={{
         position: "fixed", inset: 0,
-        background: D.bg + "E6",
+        background: "color-mix(in srgb,var(--bg) 90%,transparent)",
         zIndex: 10000,
         display: "flex", alignItems: "center", justifyContent: "center",
         padding: 20,

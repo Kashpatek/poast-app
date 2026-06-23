@@ -1,9 +1,14 @@
 @import "tailwindcss";
+@import "./tokens.css";
 
 :root {
   --background: #ffffff;
   --foreground: #171717;
 }
+
+/* themed full-viewport backdrop (Classic = flat; Stock/Glass = aurora/tint
+   revealed through translucent surfaces). Painted on <html>, fixed. */
+html { background: var(--app-backdrop, #06060C); background-attachment: fixed; }
 
 @theme inline {
   --color-background: var(--background);
@@ -20,7 +25,7 @@
 }
 
 body {
-  background: var(--background);
+  background: transparent;
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }

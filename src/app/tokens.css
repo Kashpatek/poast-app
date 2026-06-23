@@ -1,0 +1,102 @@
+/* ============================================================
+   POAST — theme token contract
+   Three themes, selected via data-theme on <html>:
+     classic (default) · stock · glass
+   Background variant via data-bg: aurora | cockpit | iridescent (stock).
+
+   IMPORTANT: brand ACCENTS (amber/blue/teal/coral/violet/cyan/crimson)
+   are CONSTANT across all themes — they stay as hex in shared-constants.ts
+   (they're heavily concatenated, e.g. D.amber + "1c", so they must not
+   become var()). Only the SURFACE tokens (bg/card/surface/border/hover +
+   text + composites) vary by theme and are bridged to these vars.
+
+   Classic values are byte-identical to the previous hardcoded D, so the
+   default theme is a zero-regression baseline.
+   ============================================================ */
+
+:root,
+[data-theme="classic"] {
+  --bg:        #06060C;
+  --card:      #09090D;
+  --surface:   #0D0D12;
+  --hover:     #0D0D12;
+  --border:    rgba(255,255,255,0.06);
+  --tx:        #E8E4DD;
+  --txm:       #8A8690;
+  --txd:       #4E4B56;
+  --card-grad: linear-gradient(135deg, #09090D 0%, #0D0D12 100%);
+  --surf-grad: linear-gradient(135deg, #0D0D12 0%, #09090D 100%);
+  --glow:       0 2px 12px rgba(0,0,0,0.4), 0 0 0 0 rgba(247,176,65,0);
+  --glow-hover: 0 8px 30px rgba(0,0,0,0.5), 0 0 20px rgba(247,176,65,0.08);
+
+  /* constant brand accents (exposed for CSS use; D keeps hex for JS concat) */
+  --amber:#F7B041; --blue:#0B86D1; --teal:#2EAD8E; --coral:#E06347;
+  --violet:#905CCB; --cyan:#26C9D8; --crimson:#D1334A;
+  /* role-tinted backdrop stops (drive the stock aurora) */
+  --bg0:#241a33; --bg1:#11202e; --bg2:#1d2a16;
+
+  --ft:'Outfit',sans-serif; --gf:'Grift','Outfit',sans-serif; --mn:'JetBrains Mono',monospace;
+
+  /* the full-screen themed backdrop painted on <body> */
+  --app-backdrop: #06060C;
+}
+
+/* ── STOCK ── same clean dark surfaces as classic, but the page tints
+   let an aurora backdrop glow through. ── */
+[data-theme="stock"] {
+  --bg:        rgba(7,6,14,0.55);
+  --card:      rgba(13,12,22,0.82);
+  --surface:   rgba(17,16,28,0.82);
+  --hover:     rgba(22,20,34,0.85);
+  --border:    rgba(255,255,255,0.08);
+  --card-grad: linear-gradient(135deg, rgba(15,13,26,0.84) 0%, rgba(18,16,30,0.84) 100%);
+  --surf-grad: linear-gradient(135deg, rgba(18,16,30,0.84) 0%, rgba(15,13,26,0.84) 100%);
+  --app-backdrop:
+    radial-gradient(950px 660px at 16% 4%,  color-mix(in srgb, var(--amber) 38%, transparent), transparent 66%),
+    radial-gradient(1050px 720px at 88% 96%, color-mix(in srgb, var(--violet) 34%, transparent), transparent 68%),
+    radial-gradient(820px 600px at 74% 12%, color-mix(in srgb, var(--cyan) 18%, transparent), transparent 66%),
+    #070611;
+}
+[data-theme="stock"][data-bg="iridescent"] {
+  --app-backdrop:
+    conic-gradient(from 120deg at 36% 30%,
+      color-mix(in srgb, var(--violet) 30%, #06060C), color-mix(in srgb, var(--teal) 26%, #06060C) 30%,
+      color-mix(in srgb, var(--blue) 28%, #06060C) 60%, color-mix(in srgb, var(--violet) 30%, #06060C)), #06060C;
+}
+[data-theme="stock"][data-bg="cockpit"] {
+  --app-backdrop:
+    radial-gradient(1100px 700px at 30% 0%, color-mix(in srgb, var(--blue) 22%, transparent), transparent 64%),
+    #070710;
+}
+
+/* ── GLASS ── translucent surfaces over a tinted backdrop. Opt-in blur via
+   .lg / [data-glass] for elements that want the full liquid-glass material. ── */
+[data-theme="glass"] {
+  --bg:        rgba(8,7,18,0.42);
+  --card:      rgba(30,28,48,0.46);
+  --surface:   rgba(24,22,40,0.42);
+  --hover:     rgba(255,255,255,0.08);
+  --border:    rgba(255,255,255,0.16);
+  --tx:        #F4F1EC;
+  --card-grad: linear-gradient(135deg, rgba(34,31,54,0.5) 0%, rgba(22,20,38,0.42) 100%);
+  --surf-grad: linear-gradient(135deg, rgba(28,26,46,0.46) 0%, rgba(20,18,34,0.4) 100%);
+  --glow:       0 2px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+  --glow-hover: 0 10px 38px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.16);
+  --frost: 16px;
+  --app-backdrop:
+    radial-gradient(1100px 760px at 50% -4%,  color-mix(in srgb, var(--blue) 40%, transparent), transparent 62%),
+    radial-gradient(1100px 820px at 50% 104%, color-mix(in srgb, var(--teal) 30%, transparent), transparent 62%),
+    radial-gradient(700px 500px at 12% 50%, color-mix(in srgb, var(--violet) 20%, transparent), transparent 60%),
+    #06070e;
+}
+[data-theme="glass"] .lg,
+[data-theme="glass"] [data-glass] {
+  backdrop-filter: blur(var(--frost,14px)) saturate(1.5) brightness(1.04);
+  -webkit-backdrop-filter: blur(var(--frost,14px)) saturate(1.5) brightness(1.04);
+}
+@media (prefers-reduced-transparency: reduce) {
+  [data-theme="glass"] { --bg:#0a0912; --card:#15131f; --surface:#121019; }
+  [data-theme="glass"] .lg, [data-theme="glass"] [data-glass] {
+    backdrop-filter:none; -webkit-backdrop-filter:none;
+  }
+}
