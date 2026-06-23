@@ -27,6 +27,7 @@ import {
   type MarketingEvent, type EventStatus, type AdPayload, type AdMetrics,
 } from "../marketing-constants";
 import type { ViewProps } from "../use-marketing";
+import { LiveStatsDashboard } from "../components/ad-charts";
 
 // ─── Per-platform creative guidance (the "what to put in" block) ───
 interface PlatGuide {
@@ -103,7 +104,9 @@ function deriveMetrics(raw: AdMetrics): AdMetrics {
 
 // ════════════════════════════════════════════════════════════════════════════
 export default function KioskView({ m, onOpenView, focusId }: ViewProps) {
-  const [mode, setMode] = useState<"build" | "live">("build");
+  // Live Ads is the default landing screen (immediate overview of everything
+  // active); a focusId deep-link from Campaigns opens the builder instead.
+  const [mode, setMode] = useState<"build" | "live">(focusId ? "build" : "live");
 
   // All ad events, freshest data straight off the spine.
   const ads = useMemo(() => m.events.filter((e) => e.type === "ad"), [m.events]);
@@ -449,6 +452,9 @@ function LiveMode({
         </button>
       </div>
 
+      {/* Visual stats — spend share, efficiency, trend */}
+      {ads.length > 0 && <LiveStatsDashboard ads={ads} />}
+
       {/* Running ads — hero row */}
       {running.length > 0 && (
         <div>
@@ -534,7 +540,12 @@ function AdCard({
       conversions: cleanNum(d.conversions),
     };
     const next = deriveMetrics(raw);
-    m.updateEvent(e.id, { payload: { ...p, metrics: next } });
+    // Append a dated snapshot (one per day, replacing same-day) so the trend
+    // chart accrues a real time-series as metrics get logged.
+    const today = new Date().toISOString().slice(0, 10);
+    const hist = (Array.isArray(p.metricsHistory) ? p.metricsHistory : []).filter((h) => h.date !== today);
+    const metricsHistory = [...hist, { ...next, date: today }];
+    m.updateEvent(e.id, { payload: { ...p, metrics: next, metricsHistory } });
     setEditing(false);
   }
 
