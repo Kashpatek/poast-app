@@ -1008,7 +1008,7 @@ function UserSelect({ onSelect }: { onSelect: (name: string, remember?: boolean)
     }
   };
 
-  return <div style={{ position: "fixed", inset: 0, background: "#06060C", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "safe center", zIndex: 9999, overflowY: "auto", overflowX: "hidden", padding: "48px 20px" }}>
+  return <div style={{ position: "fixed", inset: 0, background: "radial-gradient(950px 660px at 16% 4%, rgba(247,176,65,0.16), transparent 66%), radial-gradient(1050px 720px at 88% 96%, rgba(144,92,203,0.16), transparent 68%), radial-gradient(820px 600px at 74% 12%, rgba(38,201,216,0.08), transparent 66%), #070611", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "safe center", zIndex: 9999, overflowY: "auto", overflowX: "hidden", padding: "48px 20px" }}>
     <style dangerouslySetInnerHTML={{ __html: [
       "@keyframes wfade{0%{opacity:0;transform:translateY(18px)}100%{opacity:1;transform:translateY(0)}}",
       "@keyframes wpop{0%{opacity:0;transform:translateY(20px) scale(0.94)}100%{opacity:1;transform:translateY(0) scale(1)}}",
@@ -1017,7 +1017,7 @@ function UserSelect({ onSelect }: { onSelect: (name: string, remember?: boolean)
       "@keyframes worbC{0%,100%{transform:translate(0,0) scale(1);opacity:0.4}50%{transform:translate(30px,30px) scale(1.1);opacity:0.7}}",
       "@keyframes wshim{0%{background-position:0% 50%}100%{background-position:200% 50%}}",
       "@keyframes pwShake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}",
-      ".w-headline{background:linear-gradient(120deg,#F7B041 0%,#26C9D8 45%,#F7B041 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:wfade 0.7s cubic-bezier(0.16,1,0.3,1) 0.35s forwards,wshim 8s ease-in-out infinite;opacity:0}",
+      ".w-headline{background:linear-gradient(120deg,#F7B041 0%,#E06347 40%,#905CCB 72%,#F7B041 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:wfade 0.7s cubic-bezier(0.16,1,0.3,1) 0.35s forwards,wshim 8s ease-in-out infinite;opacity:0}",
     ].join("") }} />
 
     {/* Ambient orbs — three drifting blooms behind everything */}
