@@ -7,6 +7,7 @@ import React, { createContext, useCallback, useContext, useState } from "react";
 import type { MarketingState } from "./use-marketing";
 import type { CreateKind } from "./marketing-constants";
 import { TaskModal, ScheduleModal } from "./components/create-modals";
+import { CampaignModal } from "./components/campaign-modal";
 
 interface CreateApi {
   openCreate: (kind: CreateKind, prefill?: Record<string, unknown>) => void;
@@ -25,8 +26,7 @@ export function CreateProvider({
   const [prefill, setPrefill] = useState<Record<string, unknown>>({});
 
   const openCreate = useCallback((k: CreateKind, pf?: Record<string, unknown>) => {
-    if (k === "campaign") { onOpenView?.("campaigns"); return; } // Phase 2: full setup modal
-    if (k === "ad") { onOpenView?.("kiosk"); return; }           // Phase 3: full ad modal
+    if (k === "ad") { onOpenView?.("kiosk"); return; } // Phase 3: full ad modal
     setPrefill(pf || {});
     setKind(k);
   }, [onOpenView]);
@@ -38,6 +38,7 @@ export function CreateProvider({
       {children}
       <TaskModal open={kind === "task"} prefill={prefill} m={m} onOpenView={onOpenView} onClose={close} />
       <ScheduleModal open={kind === "schedule"} prefill={prefill} m={m} onOpenView={onOpenView} onClose={close} />
+      <CampaignModal open={kind === "campaign"} prefill={prefill} m={m} onOpenView={onOpenView} onClose={close} />
     </Ctx.Provider>
   );
 }

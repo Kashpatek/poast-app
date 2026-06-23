@@ -21,6 +21,7 @@ import {
   type Campaign, type MarketingEvent, type EventStatus, type CampaignStatus,
 } from "../marketing-constants";
 import type { ViewProps } from "../use-marketing";
+import { useCreate } from "../create-context";
 
 // ─── Static maps ───
 const PIPELINE: { key: EventStatus; label: string }[] = [
@@ -75,6 +76,7 @@ const isAd = (e: MarketingEvent) => e.type === "ad";
 
 export default function CampaignsView({ m, onOpenView }: ViewProps) {
   const { campaigns, events } = m;
+  const { openCreate } = useCreate();
 
   const firstActive = campaigns.find((c) => c.status === "active") || campaigns[0];
   const [selectedId, setSelectedId] = useState<string | null>(firstActive?.id ?? null);
@@ -96,16 +98,10 @@ export default function CampaignsView({ m, onOpenView }: ViewProps) {
     setSelectedId(id);
   }
 
-  // ── + New campaign → create, select, jump to Campaigns tab.
+  // ── + New campaign → open the full setup modal (name/type/dates/goal/tasks).
   function newCampaign() {
-    const palette = [D.violet, D.teal, D.coral, D.cyan, D.blue, D.amber];
-    const color = palette[campaigns.length % palette.length];
-    const c = m.addCampaign({
-      name: "New campaign", color, status: "planning",
-      goal: "Describe the objective…", start: new Date().toISOString(),
-    });
-    setSelectedId(c.id);
     setTab("campaigns");
+    openCreate("campaign");
   }
 
   // ── + New ad → mint a type:'ad' event, then deep-link into the Ad Kiosk.
