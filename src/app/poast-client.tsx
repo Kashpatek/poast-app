@@ -36,6 +36,7 @@ import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, H
 type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>;
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
 import { useUser, isAnalyst, canUseDocuDesign, isAkash } from "./user-context";
+import { useTheme } from "./theme-context";
 import { OnboardingHost } from "./onboarding/onboarding-host";
 import { ChartTourTrigger } from "./onboarding/chart-tour-trigger";
 import { useOnboarding } from "./onboarding-context";
@@ -829,13 +830,17 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
   ]},
 };
 
-function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: string) => void; onAskPoast: () => void }) {
+function Sidebar({ active, onNav, onAskPoast, collapsed, onToggleCollapsed }: { active: string; onNav: (id: string) => void; onAskPoast: () => void; collapsed: boolean; onToggleCollapsed: () => void }) {
   var userCtx = useUser();
   var analyst = isAnalyst(userCtx.user);
   var canDocu = canUseDocuDesign(userCtx.user);
   var akash = isAkash(userCtx.user);
   var router = useRouter();
   var pathname = usePathname();
+  // Smart sidebar: when collapsed it's a 72px icon rail that expands to a
+  // floating 240px overlay on hover (peek); the dock chevron toggles collapsed.
+  var _hov = useState(false), hov = _hov[0], setHov = _hov[1];
+  var expanded = !collapsed || hov;
   var goHome = function() {
     onNav("home");
     // For analysts inside their app, keep /analyst in the URL so back/forward
@@ -850,20 +855,34 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
   var activeCat: string | null = null;
   visibleCats.forEach(function(k) { SIDEBAR_CATS[k].items.forEach(function(it: SidebarCatItem) { if (it.id === active) activeCat = k; }); });
 
-  return (<div style={{ width: 240, height: "100vh", background: "linear-gradient(180deg, #08080F 0%, #0A0A14 100%)", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100 }}>
+  return (<div
+    className={expanded ? "sbx" : "sbx sbx-collapsed"}
+    onMouseEnter={function() { if (collapsed) setHov(true); }}
+    onMouseLeave={function() { if (collapsed) setHov(false); }}
+    style={{ width: expanded ? 240 : 72, height: "100vh", background: "linear-gradient(180deg, #08080F 0%, #0A0A14 100%)", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100, transition: "width 0.22s cubic-bezier(0.3,0.7,0.3,1)", overflow: "hidden" }}>
+    <style dangerouslySetInnerHTML={{ __html: ".sbx-lbl{transition:opacity .14s}.sbx-collapsed .sbx-lbl{opacity:0;width:0;overflow:hidden;white-space:nowrap;pointer-events:none}.sbx-collapsed .sbx-cat{height:0;margin:0;padding:0;opacity:0;overflow:hidden}.sbx-collapsed .sbx-row{padding-left:0!important;justify-content:center}.sbx-collapsed .sbx-hidec{display:none}" }} />
     {/* Logo — click to go home (splash) without re-auth */}
     <div
       onClick={goHome}
       title="Home"
-      style={{ padding: "18px 18px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", transition: "background 0.15s" }}
+      style={{ padding: "18px 16px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", transition: "background 0.15s" }}
       onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(247,176,65,0.04)"; }}
       onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "transparent"; }}
     >
-      <img src="/poast-logo.png" style={{ width: 32, height: 32, borderRadius: 7 }} />
-      <div>
+      <img src="/poast-logo.png" style={{ width: 32, height: 32, borderRadius: 7, flex: "none" }} />
+      <div className="sbx-lbl">
         <div style={{ fontFamily: gf, fontSize: 18, fontWeight: 900, color: C.amber, letterSpacing: 2 }}>POAST</div>
         <div style={{ fontFamily: ft, fontSize: 7, fontWeight: 600, color: "rgba(255,255,255,0.25)", letterSpacing: 2, textTransform: "uppercase" }}>Content Command Center</div>
       </div>
+      {/* dock / undock chevron */}
+      <button
+        className="sbx-lbl"
+        onClick={function(e) { e.stopPropagation(); setHov(false); onToggleCollapsed(); }}
+        title={collapsed ? "Dock sidebar open" : "Collapse sidebar"}
+        style={{ marginLeft: "auto", width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.55)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ transform: collapsed ? "rotate(180deg)" : "none", transition: "transform .2s" }}><path d="M15 18l-6-6 6-6" /></svg>
+      </button>
     </div>
 
     {/* Chippy moved to a floating widget at the bottom-right of the page
@@ -877,20 +896,20 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
         var isCatActive = activeCat === catKey;
         return <div key={catKey} style={{ marginBottom: 2 }}>
           {/* Category label */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 12px" }}>
+          <div className="sbx-cat" style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 12px" }}>
             <div style={{ width: 3, height: 14, borderRadius: 2, background: isCatActive ? cat.color : "rgba(255,255,255,0.12)", boxShadow: isCatActive ? "0 0 10px " + cat.color + "60, 0 0 20px " + cat.color + "20" : "none", transition: "all 0.25s" }} />
             <span style={{ fontFamily: ft, fontSize: 10, fontWeight: 800, color: isCatActive ? cat.color : "rgba(255,255,255,0.3)", letterSpacing: 2, textTransform: "uppercase", transition: "all 0.25s", textShadow: isCatActive ? "0 0 16px " + cat.glow + "0.4), 0 0 30px " + cat.glow + "0.12)" : "none" }}>{cat.label}</span>
           </div>
           {/* Items */}
           {cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).filter(function(it) { return it.id !== "docu" || canDocu; }).filter(function(it) { return it.id !== "tasks" || akash; }).map(function(item) {
             var isActive = active === item.id;
-            return <div key={item.id} onClick={function() { if (item.href) { window.open(item.href, "_blank"); } else { onNav(item.id); } }} title={item.href ? "Open " + item.l + " in a new tab" : undefined} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 12px 7px 28px", borderRadius: 6, marginBottom: 1, cursor: "pointer", background: isActive ? cat.color + "0C" : "transparent", borderLeft: isActive ? "3px solid " + cat.color : "3px solid transparent", transition: "all 0.2s", position: "relative" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
+            return <div key={item.id} className="sbx-row" onClick={function() { if (item.href) { window.open(item.href, "_blank"); } else { onNav(item.id); } }} title={item.href ? "Open " + item.l + " in a new tab" : undefined} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 12px 7px 28px", borderRadius: 6, marginBottom: 1, cursor: "pointer", background: isActive ? cat.color + "0C" : "transparent", borderLeft: isActive ? "3px solid " + cat.color : "3px solid transparent", transition: "all 0.2s", position: "relative" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
               {isActive && <div style={{ position: "absolute", left: 0, top: "10%", width: 3, height: "80%", background: cat.color, borderRadius: 2, boxShadow: "0 0 12px " + cat.color + "70, 0 0 24px " + cat.color + "25" }} />}
               {isActive && <div style={{ position: "absolute", left: 0, top: 0, width: "50%", height: "100%", background: "radial-gradient(ellipse at left center, " + cat.color + "08, transparent 70%)", pointerEvents: "none" }} />}
               <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, transition: "opacity 0.2s", opacity: isActive ? 1 : 0.55 }}>
                 <item.Icon size={15} strokeWidth={isActive ? 2.2 : 1.8} color={isActive ? cat.color : "rgba(255,255,255,0.65)"} />
               </span>
-              <span style={{ fontFamily: ft, fontSize: 13, fontWeight: isActive ? 800 : 500, color: isActive ? cat.color : "rgba(255,255,255,0.5)", transition: "all 0.2s", textShadow: isActive ? "0 0 20px " + cat.glow + "0.5), 0 0 40px " + cat.glow + "0.12)" : "none" }}>{item.l}</span>
+              <span className="sbx-lbl" style={{ fontFamily: ft, fontSize: 13, fontWeight: isActive ? 800 : 500, color: isActive ? cat.color : "rgba(255,255,255,0.5)", transition: "all 0.2s", textShadow: isActive ? "0 0 20px " + cat.glow + "0.5), 0 0 40px " + cat.glow + "0.12)" : "none" }}>{item.l}</span>
               {item.badge && <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 7, fontWeight: 800, color: cat.color, letterSpacing: 1, padding: "2px 5px", border: "1px solid " + cat.color + "55", borderRadius: 3, background: cat.color + "12" }}>{item.badge}</span>}
               {!item.badge && isActive && <div style={{ width: 5, height: 5, borderRadius: "50%", background: cat.color, marginLeft: "auto", boxShadow: "0 0 8px " + cat.color + "70, 0 0 16px " + cat.color + "30" }} />}
             </div>;
@@ -900,7 +919,7 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
     </div>
 
     {/* Brand Launch tile — miniature of the cover slide, opens /brand-launch */}
-    <div style={{ padding: "0 10px 4px" }}>
+    <div className="sbx-hidec" style={{ padding: "0 10px 4px" }}>
       <BrandLaunchTile />
     </div>
 
@@ -915,15 +934,60 @@ function Sidebar({ active, onNav, onAskPoast }: { active: string; onNav: (id: st
           for admins it reads "Switch". A misclick is cheap to recover from. */}
       {userCtx.user && <div onClick={function() { userCtx.setUser(null); }} title={analyst ? "Lock studio" : "Switch user"} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "6px 8px", borderRadius: 6, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}>
         <div style={{ width: 22, height: 22, borderRadius: 6, background: analyst ? "#905CCB20" : C.amber + "20", border: "1px solid " + (analyst ? "#905CCB40" : C.amber + "40"), display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 10, fontWeight: 800, color: analyst ? "#905CCB" : C.amber }}>{userCtx.user.name[0]}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="sbx-lbl" style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 700, color: "#E8E4DD", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userCtx.user.name}</div>
           <div style={{ fontFamily: ft, fontSize: 8, fontWeight: 600, color: "rgba(255,255,255,0.35)", letterSpacing: 1 }}>{userCtx.user.role}</div>
         </div>
-        <span style={{ fontFamily: mn, fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.35)", letterSpacing: 1, padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.08)" }}>{analyst ? "LOCK" : "SWITCH"}</span>
+        <span className="sbx-lbl" style={{ fontFamily: mn, fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.35)", letterSpacing: 1, padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.08)" }}>{analyst ? "LOCK" : "SWITCH"}</span>
       </div>}
-      <div style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v3.2 // SEMIANALYSIS</div>
+      <div className="sbx-lbl" style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v3.2 // SEMIANALYSIS</div>
     </div>
   </div>);
+}
+
+// ═══ GLASS TOP NAV ═══
+// Glass theme has no sidebar — navigation lives in a top bar with category
+// buttons that drop down their tools (mirrors the mockup glass homebar).
+// Reuses SIDEBAR_CATS + the same analyst/docu/akash visibility rules.
+function GlassTopNav({ active, onNav }: { active: string; onNav: (id: string) => void }) {
+  var userCtx = useUser();
+  var analyst = isAnalyst(userCtx.user);
+  var canDocu = canUseDocuDesign(userCtx.user);
+  var akash = isAkash(userCtx.user);
+  var _open = useState<string | null>(null), open = _open[0], setOpen = _open[1];
+  var visibleCats = analyst ? ["produce"] : Object.keys(SIDEBAR_CATS);
+  function itemClick(item: SidebarCatItem) { if (item.href) { window.open(item.href, "_blank"); } else { onNav(item.id); } setOpen(null); }
+  return <div data-tour="glass-nav" style={{ position: "fixed", top: 0, left: 0, right: 0, height: 52, zIndex: 100, display: "flex", alignItems: "center", gap: 4, padding: "0 16px", background: "rgba(10,10,18,0.55)", backdropFilter: "blur(16px) saturate(1.4)", WebkitBackdropFilter: "blur(16px) saturate(1.4)", borderBottom: "1px solid var(--border)" }}>
+    <div onClick={function() { onNav("home"); setOpen(null); }} title="Home" style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginRight: 10 }}>
+      <img src="/poast-logo.png" style={{ width: 26, height: 26, borderRadius: 6 }} />
+      <span style={{ fontFamily: gf, fontWeight: 900, fontSize: 16, color: C.amber, letterSpacing: 1.5 }}>POAST</span>
+    </div>
+    {visibleCats.map(function(catKey) {
+      var cat = SIDEBAR_CATS[catKey];
+      var items = cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).filter(function(it) { return it.id !== "docu" || canDocu; }).filter(function(it) { return it.id !== "tasks" || akash; });
+      if (!items.length) return null;
+      var on = open === catKey;
+      var hasActive = items.some(function(it) { return it.id === active; });
+      return <div key={catKey} style={{ position: "relative" }} onMouseEnter={function() { setOpen(catKey); }} onMouseLeave={function() { setOpen(function(o) { return o === catKey ? null : o; }); }}>
+        <button onClick={function() { setOpen(on ? null : catKey); }} style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 12px", borderRadius: 10, border: "1px solid " + (on || hasActive ? cat.color + "55" : "transparent"), background: on || hasActive ? cat.color + "14" : "transparent", color: on || hasActive ? cat.color : "rgba(255,255,255,0.62)", cursor: "pointer", fontFamily: ft, fontWeight: 700, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase", transition: "all 0.15s" }}>{cat.label}</button>
+        {on && <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, minWidth: 232, padding: 8, borderRadius: 14, background: "rgba(16,16,26,0.94)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid var(--border)", boxShadow: "0 24px 60px rgba(0,0,0,0.55)" }}>
+          {items.map(function(item) {
+            var isA = active === item.id;
+            return <div key={item.id} onClick={function() { itemClick(item); }} title={item.href ? "Open " + item.l + " in a new tab" : undefined} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 9, cursor: "pointer", background: isA ? cat.color + "16" : "transparent", color: isA ? cat.color : "rgba(255,255,255,0.72)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!isA) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!isA) e.currentTarget.style.background = "transparent"; }}>
+              <item.Icon size={15} color={isA ? cat.color : "rgba(255,255,255,0.6)"} />
+              <span style={{ fontFamily: ft, fontSize: 13, fontWeight: isA ? 700 : 500 }}>{item.l}</span>
+              {item.badge && <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 7, fontWeight: 800, color: cat.color, letterSpacing: 1, padding: "2px 5px", border: "1px solid " + cat.color + "55", borderRadius: 3 }}>{item.badge}</span>}
+            </div>;
+          })}
+        </div>}
+      </div>;
+    })}
+    <span style={{ flex: 1 }} />
+    {userCtx.user && <div onClick={function() { userCtx.setUser(null); }} title="Switch user" style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "5px 10px", borderRadius: 999, border: "1px solid var(--border)" }}>
+      <span style={{ width: 22, height: 22, borderRadius: 6, background: C.amber + "20", border: "1px solid " + C.amber + "40", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 10, fontWeight: 800, color: C.amber }}>{userCtx.user.name[0]}</span>
+      <span style={{ fontFamily: ft, fontSize: 12, fontWeight: 700, color: C.tx }}>{userCtx.user.name}</span>
+    </div>}
+  </div>;
 }
 
 // ═══ CLIP CAPTIONS ═══
@@ -1669,7 +1733,7 @@ function Intro({ onDone }: { onDone: (id?: string) => void }) {
 // inserted via dangerouslySetInnerHTML — we have to re-attach them.)
 // CSS variables the slide depends on are declared on the wrapper so the
 // scoped rules resolve to the right brand colors.
-function AssetLibraryEmbed() {
+function AssetLibraryEmbed({ left, top }: { left: number; top: number }) {
   var _h = useState<string>(""), html = _h[0], setHtml = _h[1];
   var hostRef = useRef<HTMLDivElement | null>(null);
 
@@ -1697,8 +1761,9 @@ function AssetLibraryEmbed() {
 
   return (
     <div style={Object.assign({
-      position: "fixed", top: 0, left: 240, right: 0, bottom: 0,
+      position: "fixed", top: top, left: left, right: 0, bottom: 0,
       background: "#06060A", zIndex: 50,
+      transition: "left 0.22s cubic-bezier(0.3,0.7,0.3,1)",
       display: "flex", flexDirection: "column",
       overflow: "hidden",
     }, {
@@ -1845,6 +1910,15 @@ export default function App() {
   // into SA Weekly on app load and bypassed the home screen entirely.
   var _s = useState("home"), sec = _s[0], setSec = _s[1];
   var userCtx = useUser();
+  // Theme-conditional nav: Glass → top bar (no sidebar, full-width content);
+  // Classic/Stock → smart sidebar (dock 240 / collapse 72, peek on hover).
+  var themeCtx = useTheme();
+  var isGlass = themeCtx.theme === "glass";
+  var _collapsed = useState(false), navCollapsed = _collapsed[0], setNavCollapsed = _collapsed[1];
+  useEffect(function() { try { setNavCollapsed(localStorage.getItem("poast-sidebar-collapsed") === "1"); } catch (e) {} }, []);
+  var toggleCollapsed = function() { setNavCollapsed(function(v) { var n = !v; try { localStorage.setItem("poast-sidebar-collapsed", n ? "1" : "0"); } catch (e) {} return n; }); };
+  var contentLeft = isGlass ? 0 : (navCollapsed ? 72 : 240);
+  var contentTop = isGlass ? 52 : 0;
   var analyst = isAnalyst(userCtx.user);
   // Analyst name capture: shared role-user means we need a personal
   // handle to tell different humans apart. Hydrate from localStorage
@@ -2038,7 +2112,9 @@ export default function App() {
       </div>;
     })()}
 
-    <Sidebar active={sec} onNav={setSec} onAskPoast={function() { if (analyst) return; setAskPoastOpen(!askPoastOpen); }} />
+    {isGlass
+      ? <GlassTopNav active={sec} onNav={setSec} />
+      : <Sidebar active={sec} onNav={setSec} onAskPoast={function() { if (analyst) return; setAskPoastOpen(!askPoastOpen); }} collapsed={navCollapsed} onToggleCollapsed={toggleCollapsed} />}
     {/* Ask POAST panel — never open for Analysts (data access gate).
         Phase 11A: now a Cmd+K command palette with the original chat as
         a secondary tab. `sec` flows in for context-aware commands;
@@ -2050,9 +2126,9 @@ export default function App() {
     {/* Asset Library renders as a sibling of the wrapped tree so its
         position:fixed resolves to the viewport, not the .poast-fadein
         transform's containing block. */}
-    {sec === "assets" && <AssetLibraryEmbed />}
-    <div style={{ marginLeft: 240, position: "relative", zIndex: 1, display: sec === "assets" ? "none" : "block" }} className="poast-fadein">
-      <div style={{ margin: "0 auto", padding: "0 32px" }}>
+    {sec === "assets" && <AssetLibraryEmbed left={contentLeft} top={contentTop} />}
+    <div style={{ marginLeft: contentLeft, marginTop: contentTop, position: "relative", zIndex: 1, display: sec === "assets" ? "none" : "block", transition: "margin-left 0.22s cubic-bezier(0.3,0.7,0.3,1)" }} className="poast-fadein">
+      <div style={{ width: "100%", margin: "0 auto", padding: "0 32px" }}>
         <div key={sec} className="poast-section" style={{ paddingBottom: 60 }}>
         {sec === "home" && (analyst ? <AnalystSplash onNavigate={setSec} /> : <SplashScreen onNavigate={setSec} />)}
         {sec === "settings" && !analyst && <PoastSettings />}
