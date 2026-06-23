@@ -883,10 +883,10 @@ function Sidebar({ active, onNav, onAskPoast, collapsed, onToggleCollapsed }: { 
   return (<>
   <div
     className={expanded ? "sbx" : "sbx sbx-collapsed"}
-    onMouseEnter={function() { if (collapsed) railOn(); }}
-    onMouseLeave={function() { if (collapsed) { railOff(); scheduleFlyClose(); } }}
+    onMouseEnter={function() { railOn(); }}
+    onMouseLeave={function() { railOff(); if (collapsed) scheduleFlyClose(); }}
     style={{ width: expanded ? 240 : 72, height: "100vh", background: "linear-gradient(180deg, #08080F 0%, #0A0A14 100%)", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100, transition: "width 0.22s cubic-bezier(0.3,0.7,0.3,1)", overflow: "hidden" }}>
-    <style dangerouslySetInnerHTML={{ __html: ".sbx-lbl{transition:opacity .14s}.sbx-collapsed .sbx-lbl{opacity:0;width:0;overflow:hidden;white-space:nowrap;pointer-events:none}.sbx-collapsed .sbx-cat{height:0;margin:0;padding:0;opacity:0;overflow:hidden}.sbx-collapsed .sbx-row{padding-left:0!important;justify-content:center}.sbx-collapsed .sbx-hidec{display:none}" }} />
+    <style dangerouslySetInnerHTML={{ __html: ".sbx-lbl{transition:opacity .14s}.sbx-collapsed .sbx-lbl{display:none}.sbx-collapsed .sbx-cat{display:none}.sbx-collapsed .sbx-row{padding-left:0!important;justify-content:center}.sbx-collapsed .sbx-hidec{display:none}.sbx-collapsed .sbx-foot{justify-content:center}" }} />
     {/* Logo — click to go home (splash) without re-auth */}
     <div
       onClick={goHome}
@@ -900,15 +900,8 @@ function Sidebar({ active, onNav, onAskPoast, collapsed, onToggleCollapsed }: { 
         <div style={{ fontFamily: gf, fontSize: 18, fontWeight: 900, color: C.amber, letterSpacing: 2 }}>POAST</div>
         <div style={{ fontFamily: ft, fontSize: 7, fontWeight: 600, color: "rgba(255,255,255,0.25)", letterSpacing: 2, textTransform: "uppercase" }}>Content Command Center</div>
       </div>
-      {/* dock / undock chevron */}
-      <button
-        className="sbx-lbl"
-        onClick={function(e) { e.stopPropagation(); onToggleCollapsed(); }}
-        title={collapsed ? "Dock sidebar open" : "Collapse sidebar"}
-        style={{ marginLeft: "auto", width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.55)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ transform: collapsed ? "rotate(180deg)" : "none", transition: "transform .2s" }}><path d="M15 18l-6-6 6-6" /></svg>
-      </button>
+      {/* dock/undock lives entirely in the edge arrow tab (below) — no header
+          chevron, so the logo stays perfectly centered in the collapsed rail. */}
     </div>
 
     {/* Chippy moved to a floating widget at the bottom-right of the page
@@ -977,7 +970,7 @@ function Sidebar({ active, onNav, onAskPoast, collapsed, onToggleCollapsed }: { 
           the user context now re-shows the Intro picker via the useEffect
           in App (no full page reload). For Analyst the label reads "Lock";
           for admins it reads "Switch". A misclick is cheap to recover from. */}
-      {userCtx.user && <div onClick={function() { userCtx.setUser(null); }} title={analyst ? "Lock studio" : "Switch user"} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "6px 8px", borderRadius: 6, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}>
+      {userCtx.user && <div className="sbx-foot" onClick={function() { userCtx.setUser(null); }} title={analyst ? "Lock studio" : "Switch user"} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "6px 8px", borderRadius: 6, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}>
         <div style={{ width: 22, height: 22, borderRadius: 6, background: analyst ? "#905CCB20" : C.amber + "20", border: "1px solid " + (analyst ? "#905CCB40" : C.amber + "40"), display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 10, fontWeight: 800, color: analyst ? "#905CCB" : C.amber }}>{userCtx.user.name[0]}</div>
         <div className="sbx-lbl" style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 700, color: "#E8E4DD", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userCtx.user.name}</div>
@@ -989,12 +982,15 @@ function Sidebar({ active, onNav, onAskPoast, collapsed, onToggleCollapsed }: { 
     </div>
   </div>
 
-  {/* lock arrow — appears while hovering the collapsed rail; click to dock it open */}
-  {collapsed && railHov && (
+  {/* edge arrow tab — appears while hovering the rail; the ONLY dock control.
+      Collapsed → amber, points right (pull open). Docked → subtle, points left
+      (collapse). No header chevron, so the logo stays centered. */}
+  {railHov && (
     <button onClick={function() { killFly(); setFlyCat(null); railOff(); onToggleCollapsed(); }}
-      onMouseEnter={railOn} onMouseLeave={railOff} title="Pull to dock the sidebar open"
-      style={{ position: "fixed", left: 64, top: "50%", transform: "translateY(-50%)", zIndex: 104, width: 24, height: 46, borderRadius: "0 13px 13px 0", border: "none", background: "linear-gradient(135deg, " + C.amber + ", " + C.amber + "aa)", color: "#0b0b11", cursor: "pointer", display: "grid", placeItems: "center", boxShadow: "6px 0 20px rgba(0,0,0,0.5)" }}>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+      onMouseEnter={railOn} onMouseLeave={railOff}
+      title={collapsed ? "Pull to dock the sidebar open" : "Collapse the sidebar"}
+      style={{ position: "fixed", left: collapsed ? 64 : 240, top: "50%", transform: "translateY(-50%)", zIndex: 104, width: 22, height: 46, borderRadius: "0 13px 13px 0", borderTop: collapsed ? "none" : "1px solid rgba(255,255,255,0.12)", borderRight: collapsed ? "none" : "1px solid rgba(255,255,255,0.12)", borderBottom: collapsed ? "none" : "1px solid rgba(255,255,255,0.12)", borderLeft: "none", background: collapsed ? ("linear-gradient(135deg, " + C.amber + ", " + C.amber + "aa)") : "rgba(18,18,26,0.96)", color: collapsed ? "#0b0b11" : C.amber, cursor: "pointer", display: "grid", placeItems: "center", boxShadow: collapsed ? "6px 0 20px rgba(0,0,0,0.5)" : "4px 0 14px rgba(0,0,0,0.4)" }}>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d={collapsed ? "M9 18l6-6-6-6" : "M15 18l-6-6 6-6"} /></svg>
     </button>
   )}
 
@@ -1427,21 +1423,25 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
     sections[sections.length - 1].tiles.unshift({ id: "tasks", label: "Task Board", sub: "Daily planner + Focus Mode", Icon: CheckSquare });
   }
 
-  return <div style={{ minHeight: "100%", padding: "48px 0 64px", position: "relative" }}>
+  return <div style={{ minHeight: "100%", padding: "80px 0 64px", position: "relative" }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes ssRise{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}@keyframes ssShim{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}.ss-headline{background:linear-gradient(120deg,#F7B041 0%,#26C9D8 50%,#F7B041 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:ssShim 8s ease-in-out infinite}" }} />
 
-    {/* Hero */}
-    <div style={{ animation: "ssRise 0.5s ease forwards", opacity: 0, marginBottom: 48 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <img src="/poast-logo.png" alt="" style={{ width: 32, height: 32, borderRadius: 8 }} />
-        <div style={{ fontFamily: mn, fontSize: 11, fontWeight: 700, color: C.amber, letterSpacing: 4, textTransform: "uppercase" }}>POAST</div>
+    {/* Hero — given room to breathe + a soft lift glow behind the welcome */}
+    <div style={{ animation: "ssRise 0.5s ease forwards", opacity: 0, marginBottom: 64, position: "relative" }}>
+      <div style={{ position: "absolute", left: -60, top: -56, width: 620, height: 280, background: "radial-gradient(58% 64% at 22% 42%, rgba(247,176,65,0.12), rgba(38,201,216,0.05) 55%, transparent 72%)", filter: "blur(18px)", pointerEvents: "none", zIndex: 0 }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 22 }}>
+          <img src="/poast-logo.png" alt="" style={{ width: 34, height: 34, borderRadius: 8 }} />
+          <div style={{ fontFamily: mn, fontSize: 11, fontWeight: 700, color: C.amber, letterSpacing: 4, textTransform: "uppercase" }}>POAST</div>
+        </div>
+        <h1 className="ss-headline" style={{ fontFamily: gf, fontSize: "clamp(52px, 8.5vw, 104px)", fontWeight: 900, lineHeight: 0.98, letterSpacing: -2.5, margin: 0, marginBottom: 20 }}>
+          Welcome back{userCtx.user ? ", " + userCtx.user.name : ""}.
+        </h1>
+        <div style={{ fontFamily: ft, fontSize: 17, fontWeight: 500, color: "rgba(232,228,221,0.6)", maxWidth: 660, lineHeight: 1.6 }}>
+          Pick where you're working today. Your sidebar has every tool — this grid is the same set, grouped by what they're for.
+        </div>
       </div>
-      <h1 className="ss-headline" style={{ fontFamily: gf, fontSize: "clamp(48px, 8vw, 96px)", fontWeight: 900, lineHeight: 0.98, letterSpacing: -2.5, margin: 0, marginBottom: 14 }}>
-        Welcome back{userCtx.user ? ", " + userCtx.user.name : ""}.
-      </h1>
-      <div style={{ fontFamily: ft, fontSize: 16, fontWeight: 500, color: "rgba(232,228,221,0.55)", maxWidth: 640, lineHeight: 1.55 }}>
-        Pick where you're working today. Your sidebar has every tool — this grid is the same set, grouped by what they're for.
-      </div>
+      <div style={{ marginTop: 34, height: 1, background: "linear-gradient(90deg, " + C.amber + "55, rgba(255,255,255,0.07) 38%, transparent 80%)" }} />
     </div>
 
     {/* Sections */}
@@ -1958,7 +1958,7 @@ function BrainstormHub() {
     return <button onClick={function() { setTab(id); }} style={{ padding: "8px 16px", borderRadius: 9, border: "1px solid " + (on ? C.amber + "66" : "rgba(255,255,255,0.1)"), background: on ? C.amber + "1c" : "rgba(255,255,255,0.03)", color: on ? C.amber : "rgba(255,255,255,0.6)", fontFamily: ft, fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all .15s" }}>{label}</button>;
   };
   return <div>
-    <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+    <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 32, marginBottom: 28 }}>
       {tabBtn("brainstorm", "Brainstorm")}
       {tabBtn("sloptop", "Slop Top")}
     </div>
