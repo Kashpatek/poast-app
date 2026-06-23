@@ -17,8 +17,75 @@ const BGS: { id: BgName; name: string }[] = [
   { id: "cockpit", name: "Cockpit" },
 ];
 
-export default function AppearanceSettings({ open, onClose }: { open: boolean; onClose: () => void }) {
+// The inner theme/backdrop controls — reusable both inline (e.g. a Settings
+// tab) and inside the modal below. `onReplayTour`, when supplied, renders the
+// Help · Replay-tour action (the modal wires it to close-then-replay; surfaces
+// that own their own tour replay just omit it).
+export function AppearancePanel({ onReplayTour }: { onReplayTour?: () => void }) {
   const { theme, bg, setTheme, setBg } = useTheme();
+  return (
+    <>
+      <div style={lbl}>Appearance · Theme</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 10 }}>
+        {THEMES.map((t) => {
+          const on = theme === t.id;
+          return (
+            <button key={t.id} onClick={() => setTheme(t.id)} style={{
+              textAlign: "left", cursor: "pointer", borderRadius: 14, overflow: "hidden",
+              border: `1px solid ${on ? D.amber : D.border}`,
+              boxShadow: on ? `0 0 0 1px ${D.amber}, 0 10px 30px ${D.amber}1c` : "none",
+              background: D.surface, color: D.tx, padding: 0, transition: "all .16s",
+            }}>
+              <div style={{ height: 64, background: t.sw, position: "relative" }}>
+                {on && <div style={{ position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: 999, background: D.amber, color: "#1a1208", display: "flex", alignItems: "center", justifyContent: "center" }}><Check size={13} /></div>}
+              </div>
+              <div style={{ padding: "10px 12px 12px" }}>
+                <div style={{ fontFamily: gf, fontWeight: 700, fontSize: 14 }}>{t.name}</div>
+                <div style={{ fontSize: 11.5, color: D.txm, marginTop: 4, lineHeight: 1.45 }}>{t.desc}</div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {theme === "stock" && (
+        <>
+          <div style={{ ...lbl, marginTop: 22 }}>Stock · Backdrop</div>
+          <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+            {BGS.map((b) => {
+              const on = bg === b.id;
+              return (
+                <button key={b.id} onClick={() => setBg(b.id)} style={{
+                  flex: 1, cursor: "pointer", borderRadius: 11, padding: "10px 8px",
+                  border: `1px solid ${on ? D.amber : D.border}`,
+                  background: on ? D.amber + "14" : D.surface, color: on ? D.amber : D.txm,
+                  fontFamily: mn, fontSize: 10.5, letterSpacing: ".12em", textTransform: "uppercase", fontWeight: 600,
+                }}>{b.name}</button>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {onReplayTour && (
+        <>
+          <div style={{ ...lbl, marginTop: 24 }}>Help</div>
+          <button onClick={onReplayTour} style={{
+            marginTop: 10, display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer",
+            fontFamily: ft, fontWeight: 600, fontSize: 13, color: D.tx,
+            background: D.surface, border: `1px solid ${D.border}`, borderRadius: 10, padding: "10px 16px",
+          }}><RotateCcw size={14} /> Replay the guided tour</button>
+        </>
+      )}
+
+      <div style={{ marginTop: 22, fontSize: 11, color: D.txd, fontFamily: mn, lineHeight: 1.6 }}>
+        Your theme is saved to your account and follows you across devices.
+      </div>
+    </>
+  );
+}
+
+export default function AppearanceSettings({ open, onClose }: { open: boolean; onClose: () => void }) {
   if (!open || typeof document === "undefined") return null;
 
   const ui = (
@@ -37,58 +104,7 @@ export default function AppearanceSettings({ open, onClose }: { open: boolean; o
         </div>
 
         <div style={{ padding: 22 }}>
-          <div style={lbl}>Appearance · Theme</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 10 }}>
-            {THEMES.map((t) => {
-              const on = theme === t.id;
-              return (
-                <button key={t.id} onClick={() => setTheme(t.id)} style={{
-                  textAlign: "left", cursor: "pointer", borderRadius: 14, overflow: "hidden",
-                  border: `1px solid ${on ? D.amber : D.border}`,
-                  boxShadow: on ? `0 0 0 1px ${D.amber}, 0 10px 30px ${D.amber}1c` : "none",
-                  background: D.surface, color: D.tx, padding: 0, transition: "all .16s",
-                }}>
-                  <div style={{ height: 64, background: t.sw, position: "relative" }}>
-                    {on && <div style={{ position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: 999, background: D.amber, color: "#1a1208", display: "flex", alignItems: "center", justifyContent: "center" }}><Check size={13} /></div>}
-                  </div>
-                  <div style={{ padding: "10px 12px 12px" }}>
-                    <div style={{ fontFamily: gf, fontWeight: 700, fontSize: 14 }}>{t.name}</div>
-                    <div style={{ fontSize: 11.5, color: D.txm, marginTop: 4, lineHeight: 1.45 }}>{t.desc}</div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {theme === "stock" && (
-            <>
-              <div style={{ ...lbl, marginTop: 22 }}>Stock · Backdrop</div>
-              <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-                {BGS.map((b) => {
-                  const on = bg === b.id;
-                  return (
-                    <button key={b.id} onClick={() => setBg(b.id)} style={{
-                      flex: 1, cursor: "pointer", borderRadius: 11, padding: "10px 8px",
-                      border: `1px solid ${on ? D.amber : D.border}`,
-                      background: on ? D.amber + "14" : D.surface, color: on ? D.amber : D.txm,
-                      fontFamily: mn, fontSize: 10.5, letterSpacing: ".12em", textTransform: "uppercase", fontWeight: 600,
-                    }}>{b.name}</button>
-                  );
-                })}
-              </div>
-            </>
-          )}
-
-          <div style={{ ...lbl, marginTop: 24 }}>Help</div>
-          <button onClick={() => { onClose(); setTimeout(() => window.dispatchEvent(new Event("poast:replay-tour")), 60); }} style={{
-            marginTop: 10, display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer",
-            fontFamily: ft, fontWeight: 600, fontSize: 13, color: D.tx,
-            background: D.surface, border: `1px solid ${D.border}`, borderRadius: 10, padding: "10px 16px",
-          }}><RotateCcw size={14} /> Replay the guided tour</button>
-
-          <div style={{ marginTop: 22, fontSize: 11, color: D.txd, fontFamily: mn, lineHeight: 1.6 }}>
-            Your theme is saved to your account and follows you across devices.
-          </div>
+          <AppearancePanel onReplayTour={() => { onClose(); setTimeout(() => window.dispatchEvent(new Event("poast:replay-tour")), 60); }} />
         </div>
       </div>
     </div>

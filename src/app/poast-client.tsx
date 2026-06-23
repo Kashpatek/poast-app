@@ -1470,15 +1470,25 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
 // in-app sec navigation.
 function SplashTile({ tile, color, onNavigate }: { tile: { id: string; label: string; sub: string; Icon: LucideIcon; href?: string }; color: string; onNavigate: (id: string) => void }) {
   var _hov = useState(false), hov = _hov[0], setHov = _hov[1];
+  // Off-Classic themes use a translucent, blurred panel (mockup .ctile) with a
+  // per-accent tint so the aurora reads behind/between tiles. Classic keeps the
+  // flat opaque hex — byte-identical.
+  var nc = useTheme().theme !== "classic";
   var click = function() { if (tile.href) window.open(tile.href, "_blank"); else onNavigate(tile.id); };
+  var restBg = nc ? "linear-gradient(160deg, rgba(255,255,255,0.03), transparent), rgba(13,12,22,0.72)" : "#0A0A0F";
+  var hovBg = nc ? "linear-gradient(160deg, " + color + "20, " + color + "08), rgba(16,15,26,0.80)" : "linear-gradient(135deg, " + color + "12, " + color + "04)";
+  var restChipBg = nc ? color + "16" : "#0F0F1A";
+  var restChipBorder = nc ? color + "33" : "rgba(255,255,255,0.06)";
   return <button
     onClick={click}
     onMouseEnter={function() { setHov(true); }}
     onMouseLeave={function() { setHov(false); }}
     style={{
       width: "100%", textAlign: "left", cursor: "pointer",
-      background: hov ? "linear-gradient(135deg, " + color + "12, " + color + "04)" : "#0A0A0F",
-      border: "1px solid " + (hov ? color + "60" : "rgba(255,255,255,0.06)"),
+      background: hov ? hovBg : restBg,
+      backdropFilter: nc ? "blur(7px)" : undefined,
+      WebkitBackdropFilter: nc ? "blur(7px)" : undefined,
+      border: "1px solid " + (hov ? color + "60" : (nc ? color + "20" : "rgba(255,255,255,0.06)")),
       borderRadius: 14, padding: "20px 18px",
       display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 14,
       transition: "all 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
@@ -1489,8 +1499,8 @@ function SplashTile({ tile, color, onNavigate }: { tile: { id: string; label: st
   >
     <div style={{
       width: 44, height: 44, borderRadius: 11,
-      background: hov ? color + "1F" : "#0F0F1A",
-      border: "1px solid " + (hov ? color + "55" : "rgba(255,255,255,0.06)"),
+      background: hov ? color + "1F" : restChipBg,
+      border: "1px solid " + (hov ? color + "55" : restChipBorder),
       display: "flex", alignItems: "center", justifyContent: "center",
       transition: "all 0.22s",
       boxShadow: hov ? "0 0 16px " + color + "30, inset 0 0 12px " + color + "08" : "none",
@@ -1515,8 +1525,15 @@ function TiltTile({ tool, index, onNavigate, onHoverColor }: { tool: TiltToolSpe
   var _hov = useState(false), hov = _hov[0], setHov = _hov[1];
   var _coords = useState<{ x: number; y: number } | null>(null), coords = _coords[0], setCoords = _coords[1];
   var t = tool;
-  var baseBg = "linear-gradient(135deg, " + t.color + "14 0%, " + t.color + "06 100%)";
-  var hoverBg = "linear-gradient(135deg, " + t.color + "26 0%, " + t.color + "0C 100%)";
+  // Off-Classic themes blend a translucent dark panel under the accent tint so
+  // the label stays legible over the aurora while the glass still reads.
+  var nc = useTheme().theme !== "classic";
+  var baseBg = nc
+    ? "linear-gradient(135deg, " + t.color + "1e 0%, " + t.color + "0a 100%), rgba(14,13,24,0.66)"
+    : "linear-gradient(135deg, " + t.color + "14 0%, " + t.color + "06 100%)";
+  var hoverBg = nc
+    ? "linear-gradient(135deg, " + t.color + "30 0%, " + t.color + "12 100%), rgba(16,15,26,0.72)"
+    : "linear-gradient(135deg, " + t.color + "26 0%, " + t.color + "0C 100%)";
 
   var rotX = 0, rotY = 0;
   if (coords) {
@@ -1548,6 +1565,8 @@ function TiltTile({ tool, index, onNavigate, onHoverColor }: { tool: TiltToolSpe
         width: "100%",
         height: "100%",
         background: hov ? hoverBg : baseBg,
+        backdropFilter: nc ? "blur(8px)" : undefined,
+        WebkitBackdropFilter: nc ? "blur(8px)" : undefined,
         border: "1px solid " + (hov ? t.color + "70" : t.color + "28"),
         borderRadius: 28,
         padding: "26px 22px",
@@ -2012,6 +2031,12 @@ export default function App() {
   // Classic/Stock → smart sidebar (dock 240 / collapse 72, peek on hover).
   var themeCtx = useTheme();
   var isGlass = themeCtx.theme === "glass";
+  // Stock/Glass want the <html> aurora (globals.css paints var(--app-backdrop))
+  // to show THROUGH the hub. Classic stays a flat opaque base — byte-identical.
+  // So the hub's full-screen base layers are transparent off-Classic and the
+  // translucent surface tokens do the legibility work over the aurora.
+  var isClassicTheme = themeCtx.theme === "classic";
+  var appBaseBg = isClassicTheme ? C.bg : "transparent";
   var _collapsed = useState(false), navCollapsed = _collapsed[0], setNavCollapsed = _collapsed[1];
   useEffect(function() { try { setNavCollapsed(localStorage.getItem("poast-sidebar-collapsed") === "1"); } catch (e) {} }, []);
   var toggleCollapsed = function() { setNavCollapsed(function(v) { var n = !v; try { localStorage.setItem("poast-sidebar-collapsed", n ? "1" : "0"); } catch (e) {} return n; }); };
@@ -2114,7 +2139,7 @@ export default function App() {
     });
   });
 
-  return (<ShortcutsProvider><div style={{ background: C.bg, minHeight: "100vh", position: "relative" }}>
+  return (<ShortcutsProvider><div style={{ background: appBaseBg, minHeight: "100vh", position: "relative" }}>
     {/* Analyst mode accent bar — subtle violet stripe + small label so the user knows they're in the restricted view. */}
     {analyst && <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 10000, pointerEvents: "none" }}>
       <div style={{ height: 2, background: "linear-gradient(90deg, transparent, #905CCB, transparent)", boxShadow: "0 0 12px rgba(144,92,203,0.5)" }} />
@@ -2140,7 +2165,9 @@ export default function App() {
       "@font-face{font-family:'Grift';src:url('/fonts/Grift-ExtraBold.woff2') format('woff2');font-weight:800;font-style:normal;font-display:swap}",
       "@font-face{font-family:'Grift';src:url('/fonts/Grift-Black.woff2') format('woff2');font-weight:900;font-style:normal;font-display:swap}",
       "*{box-sizing:border-box;margin:0;padding:0}",
-      "body{background:#06060C}",
+      // Classic keeps the flat opaque body. Stock/Glass leave body transparent
+      // so globals.css's <html> var(--app-backdrop) aurora shows through.
+      "html[data-theme=\"classic\"] body{background:#06060C}",
       "html{scroll-behavior:smooth}",
       "::selection{background:rgba(247,176,65,0.25);color:#F7B041}",
       "::-webkit-scrollbar{width:6px}",
@@ -2201,7 +2228,7 @@ export default function App() {
       else if (prepareIds.indexOf(sec) >= 0) { catGlow = "rgba(11,134,209,"; catGlow2 = "rgba(144,92,203,"; }
       else if (premierIds.indexOf(sec) >= 0) { catGlow = "rgba(46,173,142,"; catGlow2 = "rgba(11,134,209,"; }
       return <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
-        <div style={{ position: "absolute", inset: 0, background: C.bg }} />
+        <div style={{ position: "absolute", inset: 0, background: appBaseBg }} />
         <div className="bg-orb" style={{ width: "55vw", height: "55vw", top: "-15%", right: "-10%", background: "radial-gradient(ellipse, " + catGlow + "0.18) 0%, " + catGlow + "0.06) 35%, transparent 65%)", animation: "od1 22s ease-in-out infinite", borderRadius: "40% 60% 55% 45%", transition: "background 1.5s ease" }} />
         <div className="bg-orb" style={{ width: "45vw", height: "50vw", bottom: "-12%", left: "-5%", background: "radial-gradient(ellipse, " + catGlow + "0.14) 0%, " + catGlow + "0.04) 40%, transparent 65%)", animation: "od2 28s ease-in-out infinite", borderRadius: "55% 45% 50% 50%", transition: "background 1.5s ease" }} />
         <div className="bg-orb" style={{ width: "30vw", height: "35vw", top: "35%", left: "15%", background: "radial-gradient(ellipse, " + catGlow2 + "0.09) 0%, transparent 65%)", animation: "od3 20s ease-in-out infinite", borderRadius: "45% 55% 60% 40%", transition: "background 1.5s ease" }} />

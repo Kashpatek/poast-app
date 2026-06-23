@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Bug, BarChart3, RefreshCw, CheckCircle, Circle, HelpCircle } from "lucide-react";
+import { Bug, BarChart3, RefreshCw, CheckCircle, Circle, HelpCircle, Palette } from "lucide-react";
 import { D as C, ft, mn, gf } from "./shared-constants";
 import { useOnboarding } from "./onboarding-context";
 import { showToast } from "./toast-context";
 import { STEP_WELCOME, STEP_CHART2_DEEP } from "./onboarding/tours";
+import { AppearancePanel } from "./marketing-suite/components/appearance-settings";
 
 interface PoastEvent {
   event: string;
@@ -31,17 +32,18 @@ type AnalyticsFilter = "all" | "today" | "7d" | "analyst";
 // POAST Settings page · Director / Marketing / Social Media Manager.
 // Two tabs: Analytics (usage metrics) and Bugs (analyst submissions).
 export default function PoastSettings() {
-  var _t = useState<"analytics" | "bugs" | "onboarding">("analytics"), tab = _t[0], setTab = _t[1];
+  var _t = useState<"analytics" | "bugs" | "onboarding" | "appearance">("appearance"), tab = _t[0], setTab = _t[1];
 
   return (
     <div style={{ padding: "32px 0 0", maxWidth: 1200, margin: "0 auto" }}>
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.5 }}>POAST Settings</div>
-        <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 4, letterSpacing: 1 }}>USAGE ANALYTICS // BUG REPORTS // ONBOARDING</div>
+        <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 4, letterSpacing: 1 }}>APPEARANCE // USAGE ANALYTICS // BUG REPORTS // ONBOARDING</div>
       </div>
 
       <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "1px solid " + C.border }}>
         {([
+          { id: "appearance" as const, l: "Appearance", Icon: Palette },
           { id: "analytics" as const, l: "Analytics", Icon: BarChart3 },
           { id: "bugs" as const, l: "Bugs", Icon: Bug },
           { id: "onboarding" as const, l: "Onboarding", Icon: HelpCircle },
@@ -59,9 +61,24 @@ export default function PoastSettings() {
         })}
       </div>
 
+      {tab === "appearance" && <AppearanceTab />}
       {tab === "analytics" && <AnalyticsTab />}
       {tab === "bugs" && <BugsTab />}
       {tab === "onboarding" && <OnboardingTab />}
+    </div>
+  );
+}
+
+// Appearance — theme + backdrop switcher. Reuses the shared AppearancePanel
+// (the same control surfaced in the MarketingSUITE settings modal), wired to
+// the global ThemeProvider so the choice applies app-wide and persists per
+// user. Tour replay lives in the Onboarding tab, so it's omitted here.
+function AppearanceTab() {
+  return (
+    <div style={{ maxWidth: 620 }}>
+      <div style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 14, padding: 22, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
+        <AppearancePanel />
+      </div>
     </div>
   );
 }
