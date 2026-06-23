@@ -112,6 +112,7 @@ interface SidebarCat {
   label: string;
   color: string;
   glow: string;
+  Icon: LucideIcon;   // representative icon for the collapsed (mini) rail
   items: SidebarCatItem[];
 }
 
@@ -795,7 +796,7 @@ function FloatingChippy({ onAsk }: { onAsk: () => void }) {
 
 // ═══ SIDEBAR ═══
 var SIDEBAR_CATS: Record<string, SidebarCat> = {
-  produce: { label: "PRODUCE", color: C.amber, glow: "rgba(247,176,65,", items: [
+  produce: { label: "PRODUCE", color: C.amber, glow: "rgba(247,176,65,", Icon: Clapperboard, items: [
     { id: "production-studio", l: "ProductionSTUDIO", Icon: Clapperboard, href: "/production-studio", badge: "NEW" },
     { id: "sloptop",  l: "Slop Top",         Icon: Zap },
     { id: "carousel", l: "Carousel",         Icon: LayoutGrid },
@@ -807,22 +808,22 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "copy-studio", l: "CopySTUDIO",   Icon: Type,       href: "/copy-studio", badge: "NEW" },
     { id: "assets",   l: "Asset Library",    Icon: Library },
   ]},
-  podcast: { label: "PODCAST", color: C.coral, glow: "rgba(224,99,71,", items: [
+  podcast: { label: "PODCAST", color: C.coral, glow: "rgba(224,99,71,", Icon: Headphones, items: [
     { id: "fk",       l: "Fab Knowledge",    Icon: Headphones },
     { id: "weekly",   l: "SA Weekly",        Icon: Radio },
     { id: "outreach", l: "Outreach",         Icon: Send },
   ]},
-  prepare: { label: "PREPARE", color: C.blue, glow: "rgba(11,134,209,", items: [
+  prepare: { label: "PREPARE", color: C.blue, glow: "rgba(11,134,209,", Icon: Brain, items: [
     { id: "intelligence-suite", l: "IntelligenceSUITE", Icon: Brain, href: "/intelligence-suite", badge: "NEW" },
     { id: "news",     l: "News Flow (legacy)",     Icon: Newspaper },
     { id: "gtc",      l: "GTC Flow",         Icon: Activity },
   ]},
-  premier: { label: "PREMIER", color: C.teal, glow: "rgba(46,173,142,", items: [
+  premier: { label: "PREMIER", color: C.teal, glow: "rgba(46,173,142,", Icon: Calendar, items: [
     { id: "schedule", l: "Schedule",         Icon: Calendar },
     { id: "approval", l: "Approval Queue",   Icon: ClipboardCheck, badge: "NEW" },
     { id: "perf",     l: "Performance",      Icon: TrendingUp,      badge: "NEW" },
   ]},
-  admin:   { label: "ADMIN",   color: C.violet, glow: "rgba(144,92,203,", items: [
+  admin:   { label: "ADMIN",   color: C.violet, glow: "rgba(144,92,203,", Icon: ShieldCheck, items: [
     { id: "marketing-suite", l: "MarketingSUITE", Icon: Rocket,    href: "/marketing-suite", badge: "NEW" },
     { id: "training", l: "AI Training",      Icon: Brain,          href: "/ai-training", badge: "NEW" },
     { id: "tasks",    l: "Task Board",       Icon: CheckSquare,    badge: "AKASH" },
@@ -865,7 +866,7 @@ function Sidebar({ active, onNav, onAskPoast, collapsed, onToggleCollapsed }: { 
     <div
       onClick={goHome}
       title="Home"
-      style={{ padding: "18px 16px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", transition: "background 0.15s" }}
+      style={{ padding: "18px 16px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: expanded ? "flex-start" : "center", gap: 10, cursor: "pointer", transition: "background 0.15s" }}
       onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(247,176,65,0.04)"; }}
       onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "transparent"; }}
     >
@@ -889,7 +890,8 @@ function Sidebar({ active, onNav, onAskPoast, collapsed, onToggleCollapsed }: { 
         (mounted at App root). The sidebar real estate it used to consume
         was making the rail feel crowded. */}
 
-    {/* Categories */}
+    {/* Categories — expanded: full grouped list · collapsed-idle: clean category-icon rail */}
+    {expanded ? (
     <div style={{ padding: "8px 10px", flex: 1, overflow: "auto" }}>
       {visibleCats.map(function(catKey) {
         var cat = SIDEBAR_CATS[catKey];
@@ -917,6 +919,20 @@ function Sidebar({ active, onNav, onAskPoast, collapsed, onToggleCollapsed }: { 
         </div>;
       })}
     </div>
+    ) : (
+    /* collapsed mini rail — one clean icon per category (no tool clutter / badges);
+       hovering the rail peek-expands to the full list above. */
+    <div style={{ padding: "12px 0", flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, overflow: "hidden" }}>
+      {visibleCats.map(function(catKey) {
+        var cat = SIDEBAR_CATS[catKey];
+        var isCatActive = activeCat === catKey;
+        return <div key={catKey} title={cat.label} style={{ position: "relative", width: 46, height: 44, borderRadius: 12, display: "grid", placeItems: "center", background: isCatActive ? cat.color + "1A" : "transparent" }}>
+          {isCatActive && <div style={{ position: "absolute", left: -2, top: "50%", transform: "translateY(-50%)", width: 3, height: 20, borderRadius: 2, background: cat.color, boxShadow: "0 0 10px " + cat.color + "80" }} />}
+          <cat.Icon size={20} strokeWidth={isCatActive ? 2.2 : 1.8} color={isCatActive ? cat.color : "rgba(255,255,255,0.62)"} />
+        </div>;
+      })}
+    </div>
+    )}
 
     {/* Brand Launch tile — miniature of the cover slide, opens /brand-launch */}
     <div className="sbx-hidec" style={{ padding: "0 10px 4px" }}>
