@@ -20,6 +20,7 @@ import {
 import { D, ft, gf, mn } from "../../shared-constants";
 import { channelOf, TYPE_COLOR } from "../marketing-constants";
 import type { MarketingState } from "../use-marketing";
+import RunningNow from "./running-now";
 
 // ─── tiny formatters (ported from mockup) ───
 const pad = (n: number) => String(Math.floor(n)).padStart(2, "0");
@@ -592,6 +593,9 @@ export default function WidgetPanel({ m }: { m: MarketingState }) {
 
   return (
     <div style={{ padding: 13, fontFamily: ft }}>
+      {/* Auto-appears when something is live or imminent */}
+      <RunningNow m={m} />
+
       {/* rail heading */}
       <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12, padding: "0 2px" }}>
         <span style={{ fontFamily: gf, fontSize: 13, letterSpacing: 0.5, color: D.tx, textTransform: "uppercase" }}>

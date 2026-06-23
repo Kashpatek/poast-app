@@ -10,7 +10,7 @@ import { VIEWS, type ViewId } from "./marketing-constants";
 import { useMarketing, type ViewProps } from "./use-marketing";
 
 import TodayView from "./views/today";
-import ScheduleView from "./views/schedule";
+import AgendaView from "./views/agenda";
 import CalendarView from "./views/calendar";
 import TimelineView from "./views/timeline";
 import BoardView from "./views/board";
@@ -40,7 +40,7 @@ export default function MarketingSuiteShell() {
   function renderView() {
     switch (active) {
       case "today": return <TodayView {...vp} />;
-      case "schedule": return <ScheduleView {...vp} />;
+      case "schedule": return <AgendaView {...vp} />;
       case "calendar": return <CalendarView {...vp} />;
       case "timeline": return <TimelineView {...vp} />;
       case "board": return <BoardView />;

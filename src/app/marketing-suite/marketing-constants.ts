@@ -93,7 +93,7 @@ export type ViewId =
 export interface ViewDef { id: ViewId; label: string; Icon: LucideIcon; accent: string; }
 export const VIEWS: ViewDef[] = [
   { id: "today",     label: "Today",    Icon: LayoutDashboard, accent: D.amber },
-  { id: "schedule",  label: "Schedule", Icon: CalendarClock,   accent: D.amber },
+  { id: "schedule",  label: "Agenda",   Icon: CalendarClock,   accent: D.amber },
   { id: "calendar",  label: "Calendar", Icon: CalendarDays,    accent: D.cyan },
   { id: "timeline",  label: "Timeline", Icon: GanttChart,      accent: D.teal },
   { id: "board",     label: "Board",    Icon: KanbanSquare,    accent: D.blue },
@@ -238,6 +238,8 @@ export const DEFAULT_MODULES = ["schedule", "weekheat", "campaigns", "ads", "dea
 export interface BoardTaskLite {
   id: string; title: string; category?: string; assignee?: string; priority?: string;
   done?: boolean; addedAt?: string; updatedAt?: string; dueDate?: string;
+  estimateMins?: number; description?: string;
+  subtasks?: { id: string; title: string; done?: boolean }[];
 }
 export function readBoardTasks(): BoardTaskLite[] {
   try {
