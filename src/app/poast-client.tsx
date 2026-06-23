@@ -36,6 +36,9 @@ import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, H
 type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>;
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
 import { useUser, isAnalyst, canUseDocuDesign, isAkash } from "./user-context";
+import GlassClarityHome from "./home-glass-clarity";
+import GlassDepthHome from "./home-glass-depth";
+import StockBackdrop from "./stock-backdrop";
 import { useTheme } from "./theme-context";
 import { OnboardingHost } from "./onboarding/onboarding-host";
 import { ChartTourTrigger } from "./onboarding/chart-tour-trigger";
@@ -980,17 +983,7 @@ function Sidebar({ active, onNav, onAskPoast, collapsed, onToggleCollapsed }: { 
     </div>
   </div>
 
-  {/* edge arrow tab — appears while hovering the rail; the ONLY dock control.
-      Collapsed → amber, points right (pull open). Docked → subtle, points left
-      (collapse). No header chevron, so the logo stays centered. */}
-  {railHov && (
-    <button onClick={function() { killFly(); setFlyCat(null); railOff(); onToggleCollapsed(); }}
-      onMouseEnter={railOn} onMouseLeave={railOff}
-      title={collapsed ? "Pull to dock the sidebar open" : "Collapse the sidebar"}
-      style={{ position: "fixed", left: collapsed ? 64 : 240, top: "50%", transform: "translateY(-50%)", zIndex: 104, width: 22, height: 46, borderRadius: "0 13px 13px 0", borderTop: collapsed ? "none" : "1px solid rgba(255,255,255,0.12)", borderRight: collapsed ? "none" : "1px solid rgba(255,255,255,0.12)", borderBottom: collapsed ? "none" : "1px solid rgba(255,255,255,0.12)", borderLeft: "none", background: collapsed ? ("linear-gradient(135deg, " + C.amber + ", " + C.amber + "aa)") : "rgba(18,18,26,0.96)", color: collapsed ? "#0b0b11" : C.amber, cursor: "pointer", display: "grid", placeItems: "center", boxShadow: collapsed ? "6px 0 20px rgba(0,0,0,0.5)" : "4px 0 14px rgba(0,0,0,0.4)" }}>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d={collapsed ? "M9 18l6-6-6-6" : "M15 18l-6-6 6-6"} /></svg>
-    </button>
-  )}
+  {/* dock controls removed — the full sidebar is the only mode (no condensed). */}
 
   {/* category flyout — rest on a category icon in the collapsed rail */}
   {collapsed && flyCat ? (function() {
@@ -1551,7 +1544,9 @@ function StockHome({ onNavigate }: { onNavigate: (id: string) => void }) {
   var roleLabel = analyst ? "Analyst workspace" : (isAkash(userCtx.user) ? "Admin workspace" : "Marketing workspace");
   var roleName = analyst ? "Analyst" : (isAkash(userCtx.user) ? "Admin" : "Marketing");
   var dateStr = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
-  var grad = "linear-gradient(100deg, " + C.amber + ", " + C.violet + " 52%, " + C.cyan + ")";
+  // Faithful to the mockup cwelcome: linear-gradient(100deg, bg0, bg2 55%, bg1)
+  // using the same smokey aurora palette as the backdrop (red · violet · cobalt).
+  var grad = "linear-gradient(100deg, #D1334A, #905CCB 55%, #2E6BE6)";
 
   return <div style={{ position: "relative", padding: "0 6px" }}>
     <style dangerouslySetInnerHTML={{ __html: "@keyframes shShim{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}@keyframes shBob{50%{transform:translateY(5px)}}@keyframes ctilein{to{opacity:1;transform:translateY(0)}}.sh-welcome{-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;background-size:200% auto;animation:shShim 7s linear infinite}" }} />
@@ -2180,10 +2175,11 @@ export default function App() {
   // translucent surface tokens do the legibility work over the aurora.
   var isClassicTheme = themeCtx.theme === "classic";
   var appBaseBg = isClassicTheme ? C.bg : "transparent";
-  var _collapsed = useState(false), navCollapsed = _collapsed[0], setNavCollapsed = _collapsed[1];
-  useEffect(function() { try { setNavCollapsed(localStorage.getItem("poast-sidebar-collapsed") === "1"); } catch (e) {} }, []);
-  var toggleCollapsed = function() { setNavCollapsed(function(v) { var n = !v; try { localStorage.setItem("poast-sidebar-collapsed", n ? "1" : "0"); } catch (e) {} return n; }); };
-  var contentLeft = isGlass ? 0 : (navCollapsed ? 72 : 240);
+  // Condensed/mini sidebar removed (user: "the condensed look can go"). The full
+  // sidebar is the only mode now; content always offsets by its full width.
+  var navCollapsed = false;
+  var toggleCollapsed = function() {};
+  var contentLeft = isGlass ? 0 : 240;
   var contentTop = isGlass ? 52 : 0;
   var analyst = isAnalyst(userCtx.user);
   // Analyst name capture: shared role-user means we need a personal
@@ -2359,8 +2355,8 @@ export default function App() {
       ".bg-orb{position:absolute;border-radius:50%;filter:blur(100px);will-change:transform;pointer-events:none}",
     ].join("") }} />
 
-    {/* ═══ ANIMATED BACKGROUND (color shifts with category) ═══ */}
-    {(function() {
+    {/* ═══ ANIMATED BACKGROUND — Classic only; Stock/Glass own their backdrops ═══ */}
+    {isClassicTheme && (function() {
       // Determine active category color
       var catGlow = "rgba(247,176,65,"; // default amber
       var catGlow2 = "rgba(144,92,203,"; // accent
@@ -2379,6 +2375,7 @@ export default function App() {
         <div className="bg-orb" style={{ width: "25vw", height: "30vw", bottom: "20%", right: "8%", background: "radial-gradient(ellipse, " + catGlow2 + "0.09) 0%, transparent 60%)", animation: "od1 24s ease-in-out infinite reverse", borderRadius: "60% 40% 45% 55%", transition: "background 1.5s ease" }} />
       </div>;
     })()}
+    {themeCtx.theme === "stock" && <StockBackdrop bg={themeCtx.bg} />}
 
     {isGlass
       ? <GlassTopNav active={sec} onNav={setSec} />
@@ -2399,9 +2396,13 @@ export default function App() {
       <div style={{ width: "100%", margin: "0 auto", padding: "0 32px" }}>
         <div key={sec} className="poast-section" style={{ paddingBottom: 60 }}>
         {sec === "home" && (
-          themeCtx.theme === "stock"
-            ? <StockHome onNavigate={setSec} />
-            : (analyst ? <AnalystSplash onNavigate={setSec} /> : <SplashScreen onNavigate={setSec} />)
+          themeCtx.theme === "glass"
+            ? (themeCtx.glassMat === "depth"
+                ? <GlassDepthHome onNavigate={setSec} userName={userCtx.user ? userCtx.user.name : ""} />
+                : <GlassClarityHome onNavigate={setSec} userName={userCtx.user ? userCtx.user.name : ""} />)
+            : themeCtx.theme === "stock"
+              ? <StockHome onNavigate={setSec} />
+              : (analyst ? <AnalystSplash onNavigate={setSec} /> : <SplashScreen onNavigate={setSec} />)
         )}
         {sec === "settings" && !analyst && <PoastSettings />}
         {sec === "weekly" && <SAWeekly />}
