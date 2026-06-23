@@ -14,6 +14,7 @@ export function BugButton({ sec }: { sec: string }) {
   return (
     <>
       <div
+        className="sbx-foot"
         onClick={function() { setOpen(true); }}
         title="Report a bug"
         style={{
@@ -28,7 +29,7 @@ export function BugButton({ sec }: { sec: string }) {
         onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(224,99,71,0.06)"; }}
       >
         <Bug size={14} strokeWidth={1.9} color="#E06347" />
-        <span style={{ fontFamily: ft, fontSize: 11, fontWeight: 700, color: "#E06347", letterSpacing: 0.6 }}>Report a bug</span>
+        <span className="sbx-lbl" style={{ fontFamily: ft, fontSize: 11, fontWeight: 700, color: "#E06347", letterSpacing: 0.6 }}>Report a bug</span>
       </div>
       {open && <BugModal sec={sec} onClose={function() { setOpen(false); }} />}
     </>
