@@ -798,13 +798,11 @@ function FloatingChippy({ onAsk }: { onAsk: () => void }) {
 var SIDEBAR_CATS: Record<string, SidebarCat> = {
   produce: { label: "PRODUCE", color: C.amber, glow: "rgba(247,176,65,", Icon: Clapperboard, items: [
     { id: "production-studio", l: "ProductionSTUDIO", Icon: Clapperboard, href: "/production-studio", badge: "NEW" },
-    { id: "sloptop",  l: "Slop Top",         Icon: Zap },
+    { id: "brainstorm", l: "Brainstorm",     Icon: Lightbulb },
     { id: "carousel", l: "Carousel",         Icon: LayoutGrid },
     { id: "captions", l: "Capper",           Icon: Captions },
-    { id: "brainstorm", l: "Brainstorm",     Icon: Brain,      badge: "NEW" },
-    { id: "p2p",      l: "Press to Premier (legacy)", Icon: Clapperboard },
-    { id: "chart",    l: "Chart Maker",      Icon: GanttChart, href: "/charts", badge: "NEW" },
-    { id: "docu",     l: "DesignStudio",     Icon: Wand,       href: "/design-studio", badge: "NEW" },
+    { id: "chart",    l: "ChartMAKER",       Icon: GanttChart, href: "/charts", badge: "NEW" },
+    { id: "docu",     l: "DesignSTUDIO",     Icon: Wand,       href: "/design-studio", badge: "NEW" },
     { id: "copy-studio", l: "CopySTUDIO",   Icon: Type,       href: "/copy-studio", badge: "NEW" },
     { id: "assets",   l: "Asset Library",    Icon: Library },
   ]},
@@ -819,9 +817,7 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "gtc",      l: "GTC Flow",         Icon: Activity },
   ]},
   premier: { label: "PREMIER", color: C.teal, glow: "rgba(46,173,142,", Icon: Calendar, items: [
-    { id: "schedule", l: "Schedule",         Icon: Calendar },
-    { id: "approval", l: "Approval Queue",   Icon: ClipboardCheck, badge: "NEW" },
-    { id: "perf",     l: "Performance",      Icon: TrendingUp,      badge: "NEW" },
+    { id: "schedule", l: "Schedule",         Icon: Calendar, href: "https://brianna-bhakta.vercel.app/" },
   ]},
   admin:   { label: "ADMIN",   color: C.violet, glow: "rgba(144,92,203,", Icon: ShieldCheck, items: [
     { id: "marketing-suite", l: "MarketingSUITE", Icon: Rocket,    href: "/marketing-suite", badge: "NEW" },
@@ -838,10 +834,38 @@ function Sidebar({ active, onNav, onAskPoast, collapsed, onToggleCollapsed }: { 
   var akash = isAkash(userCtx.user);
   var router = useRouter();
   var pathname = usePathname();
-  // Smart sidebar: when collapsed it's a 72px icon rail that expands to a
-  // floating 240px overlay on hover (peek); the dock chevron toggles collapsed.
-  var _hov = useState(false), hov = _hov[0], setHov = _hov[1];
-  var expanded = !collapsed || hov;
+  // Smart sidebar (mirrors the Stock mockup rail):
+  //  • docked (!collapsed) → full 240px grouped list.
+  //  • collapsed → 72px category-icon rail; hovering the rail shows a "pull to
+  //    dock" arrow, and resting on a category (after an intent delay) pops a
+  //    flyout of just that category's tools.
+  var _railHov = useState(false), railHov = _railHov[0], setRailHov = _railHov[1];
+  var _fly = useState<string | null>(null), flyCat = _fly[0], setFlyCat = _fly[1];
+  var _flyTop = useState(0), flyTop = _flyTop[0], setFlyTop = _flyTop[1];
+  var flyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  var closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  var railTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  var expanded = !collapsed;
+  function killFly() { if (flyTimer.current) { clearTimeout(flyTimer.current); flyTimer.current = null; } }
+  function openFly(catKey: string, el: HTMLElement) {
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+    var r = el.getBoundingClientRect();
+    setFlyTop(Math.max(64, Math.min(r.top - 4, window.innerHeight - 380)));
+    setFlyCat(catKey);
+  }
+  // hover-intent: wait ~450ms before a category flies out (so it doesn't chase
+  // the cursor); if one's already open, switch instantly.
+  function onCatEnter(catKey: string, e: React.MouseEvent<HTMLElement>) {
+    var el = e.currentTarget; killFly();
+    if (flyCat) { openFly(catKey, el); }
+    else { flyTimer.current = setTimeout(function() { openFly(catKey, el); }, 450); }
+  }
+  function scheduleFlyClose() { if (closeTimer.current) clearTimeout(closeTimer.current); closeTimer.current = setTimeout(function() { setFlyCat(null); }, 200); }
+  function railOn() { if (railTimer.current) { clearTimeout(railTimer.current); railTimer.current = null; } setRailHov(true); }
+  function railOff() { if (railTimer.current) clearTimeout(railTimer.current); railTimer.current = setTimeout(function() { setRailHov(false); }, 160); }
+  function filterItems(items: SidebarCatItem[]) { return items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).filter(function(it) { return it.id !== "docu" || canDocu; }).filter(function(it) { return it.id !== "tasks" || akash; }); }
+  function itemOpen(item: SidebarCatItem) { if (item.href) { window.open(item.href, "_blank"); } else { onNav(item.id); } setFlyCat(null); }
+  useEffect(function() { return function() { killFly(); if (closeTimer.current) clearTimeout(closeTimer.current); if (railTimer.current) clearTimeout(railTimer.current); }; }, []);
   var goHome = function() {
     onNav("home");
     // For analysts inside their app, keep /analyst in the URL so back/forward
@@ -856,10 +880,11 @@ function Sidebar({ active, onNav, onAskPoast, collapsed, onToggleCollapsed }: { 
   var activeCat: string | null = null;
   visibleCats.forEach(function(k) { SIDEBAR_CATS[k].items.forEach(function(it: SidebarCatItem) { if (it.id === active) activeCat = k; }); });
 
-  return (<div
+  return (<>
+  <div
     className={expanded ? "sbx" : "sbx sbx-collapsed"}
-    onMouseEnter={function() { if (collapsed) setHov(true); }}
-    onMouseLeave={function() { if (collapsed) setHov(false); }}
+    onMouseEnter={function() { if (collapsed) railOn(); }}
+    onMouseLeave={function() { if (collapsed) { railOff(); scheduleFlyClose(); } }}
     style={{ width: expanded ? 240 : 72, height: "100vh", background: "linear-gradient(180deg, #08080F 0%, #0A0A14 100%)", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100, transition: "width 0.22s cubic-bezier(0.3,0.7,0.3,1)", overflow: "hidden" }}>
     <style dangerouslySetInnerHTML={{ __html: ".sbx-lbl{transition:opacity .14s}.sbx-collapsed .sbx-lbl{opacity:0;width:0;overflow:hidden;white-space:nowrap;pointer-events:none}.sbx-collapsed .sbx-cat{height:0;margin:0;padding:0;opacity:0;overflow:hidden}.sbx-collapsed .sbx-row{padding-left:0!important;justify-content:center}.sbx-collapsed .sbx-hidec{display:none}" }} />
     {/* Logo — click to go home (splash) without re-auth */}
@@ -878,7 +903,7 @@ function Sidebar({ active, onNav, onAskPoast, collapsed, onToggleCollapsed }: { 
       {/* dock / undock chevron */}
       <button
         className="sbx-lbl"
-        onClick={function(e) { e.stopPropagation(); setHov(false); onToggleCollapsed(); }}
+        onClick={function(e) { e.stopPropagation(); onToggleCollapsed(); }}
         title={collapsed ? "Dock sidebar open" : "Collapse sidebar"}
         style={{ marginLeft: "auto", width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.55)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}
       >
@@ -920,13 +945,17 @@ function Sidebar({ active, onNav, onAskPoast, collapsed, onToggleCollapsed }: { 
       })}
     </div>
     ) : (
-    /* collapsed mini rail — one clean icon per category (no tool clutter / badges);
-       hovering the rail peek-expands to the full list above. */
+    /* collapsed mini rail — clean category icons; rest on one (after an intent
+       delay) to pop its flyout of tools; the lock arrow docks the rail open. */
     <div style={{ padding: "12px 0", flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, overflow: "hidden" }}>
       {visibleCats.map(function(catKey) {
         var cat = SIDEBAR_CATS[catKey];
-        var isCatActive = activeCat === catKey;
-        return <div key={catKey} title={cat.label} style={{ position: "relative", width: 46, height: 44, borderRadius: 12, display: "grid", placeItems: "center", background: isCatActive ? cat.color + "1A" : "transparent" }}>
+        var isCatActive = activeCat === catKey || flyCat === catKey;
+        return <div key={catKey} title={cat.label}
+          onMouseEnter={function(e) { onCatEnter(catKey, e); }}
+          onMouseLeave={function() { killFly(); }}
+          onClick={function(e) { onCatEnter(catKey, e); }}
+          style={{ position: "relative", width: 46, height: 44, borderRadius: 12, display: "grid", placeItems: "center", cursor: "pointer", background: isCatActive ? cat.color + "1A" : "transparent", transition: "background .15s" }}>
           {isCatActive && <div style={{ position: "absolute", left: -2, top: "50%", transform: "translateY(-50%)", width: 3, height: 20, borderRadius: 2, background: cat.color, boxShadow: "0 0 10px " + cat.color + "80" }} />}
           <cat.Icon size={20} strokeWidth={isCatActive ? 2.2 : 1.8} color={isCatActive ? cat.color : "rgba(255,255,255,0.62)"} />
         </div>;
@@ -958,7 +987,43 @@ function Sidebar({ active, onNav, onAskPoast, collapsed, onToggleCollapsed }: { 
       </div>}
       <div className="sbx-lbl" style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v3.2 // SEMIANALYSIS</div>
     </div>
-  </div>);
+  </div>
+
+  {/* lock arrow — appears while hovering the collapsed rail; click to dock it open */}
+  {collapsed && railHov && (
+    <button onClick={function() { killFly(); setFlyCat(null); railOff(); onToggleCollapsed(); }}
+      onMouseEnter={railOn} onMouseLeave={railOff} title="Pull to dock the sidebar open"
+      style={{ position: "fixed", left: 64, top: "50%", transform: "translateY(-50%)", zIndex: 104, width: 24, height: 46, borderRadius: "0 13px 13px 0", border: "none", background: "linear-gradient(135deg, " + C.amber + ", " + C.amber + "aa)", color: "#0b0b11", cursor: "pointer", display: "grid", placeItems: "center", boxShadow: "6px 0 20px rgba(0,0,0,0.5)" }}>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+    </button>
+  )}
+
+  {/* category flyout — rest on a category icon in the collapsed rail */}
+  {collapsed && flyCat ? (function() {
+    var cat = SIDEBAR_CATS[flyCat as string]; if (!cat) return null;
+    var col = cat.color;
+    return <div onMouseEnter={function() { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } }}
+      onMouseLeave={scheduleFlyClose}
+      style={{ position: "fixed", left: 72, top: flyTop, zIndex: 105, width: 248, padding: 9, borderRadius: 16, background: "linear-gradient(180deg, rgba(17,17,25,0.98), rgba(10,10,16,0.99))", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 30px 70px rgba(0,0,0,0.62)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 8px 9px", borderBottom: "1px solid rgba(255,255,255,0.08)", marginBottom: 6 }}>
+        <div style={{ width: 4, height: 16, borderRadius: 2, background: col }} />
+        <div style={{ fontFamily: gf, fontWeight: 700, fontSize: 14, color: "#E8E4DD", letterSpacing: 0.5 }}>{cat.label}</div>
+      </div>
+      {filterItems(cat.items).map(function(item) {
+        var isActive = active === item.id;
+        return <div key={item.id} onClick={function() { itemOpen(item); }} title={item.href ? "Open " + item.l + " in a new tab" : undefined}
+          style={{ display: "flex", alignItems: "center", gap: 11, padding: "8px 9px", borderRadius: 11, cursor: "pointer", background: isActive ? col + "18" : "transparent", transition: "background .13s" }}
+          onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+          onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
+          <span style={{ width: 30, height: 30, borderRadius: 9, flex: "none", display: "grid", placeItems: "center", color: col, background: col + "16", border: "1px solid " + col + "2c" }}><item.Icon size={15} strokeWidth={1.9} /></span>
+          <span style={{ flex: 1, minWidth: 0, fontFamily: gf, fontWeight: 600, fontSize: 13, color: isActive ? col : "#E8E4DD", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.l}</span>
+          {item.badge && <span style={{ fontFamily: mn, fontSize: 7, fontWeight: 800, color: col, letterSpacing: 1, padding: "2px 5px", border: "1px solid " + col + "55", borderRadius: 999, flex: "none" }}>{item.badge}</span>}
+          {item.href && !item.badge && <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, flex: "none" }}>{"↗"}</span>}
+        </div>;
+      })}
+    </div>;
+  })() : null}
+  </>);
 }
 
 // ═══ GLASS TOP NAV ═══
@@ -1883,6 +1948,25 @@ function AnalystWelcomeGate({ onSubmit }: { onSubmit: (name: string) => void }) 
   );
 }
 
+// ═══ BRAINSTORM HUB ═══
+// Brainstorm + Slop Top converged into one tool with a tab switch. Both stay
+// mounted (display toggle) so each keeps its state when you flip between them.
+function BrainstormHub() {
+  var _t = useState("brainstorm"), tab = _t[0], setTab = _t[1];
+  var tabBtn = function(id: string, label: string) {
+    var on = tab === id;
+    return <button onClick={function() { setTab(id); }} style={{ padding: "8px 16px", borderRadius: 9, border: "1px solid " + (on ? C.amber + "66" : "rgba(255,255,255,0.1)"), background: on ? C.amber + "1c" : "rgba(255,255,255,0.03)", color: on ? C.amber : "rgba(255,255,255,0.6)", fontFamily: ft, fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all .15s" }}>{label}</button>;
+  };
+  return <div>
+    <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+      {tabBtn("brainstorm", "Brainstorm")}
+      {tabBtn("sloptop", "Slop Top")}
+    </div>
+    <div style={{ display: tab === "brainstorm" ? "block" : "none" }}><Brainstorm /></div>
+    <div style={{ display: tab === "sloptop" ? "block" : "none" }}><SlopTop /></div>
+  </div>;
+}
+
 // ═══ APP ═══
 var ANALYST_ALLOWED = ["home", "sloptop", "carousel", "captions", "brainstorm", "chart", "chart2", "assets"];
 
@@ -2150,7 +2234,7 @@ export default function App() {
         {sec === "settings" && !analyst && <PoastSettings />}
         {sec === "weekly" && <SAWeekly />}
         {sec === "captions" && <ClipCaptions />}
-        {sec === "brainstorm" && <Brainstorm />}
+        {sec === "brainstorm" && <BrainstormHub />}
         {sec === "carousel" && <Carousel />}
         {sec === "sloptop" && <SlopTop />}
         {sec === "broll" && <BRollLibrary />}
