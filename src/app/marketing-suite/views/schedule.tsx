@@ -5,7 +5,7 @@
 // one-tap scheduling. Reads the shared event spine; create routes through the
 // Schedule modal.
 import React, { useMemo, useState } from "react";
-import { CalendarClock, Plus, ArrowRight, Clock } from "lucide-react";
+import { CalendarClock, Plus, ArrowRight, Clock, CalendarCheck } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
 import {
   STATUS_COLOR, STATUS_LABEL, scheduleKindOf, channelOf, TYPE_COLOR,
@@ -13,6 +13,7 @@ import {
 } from "../marketing-constants";
 import type { ViewProps } from "../use-marketing";
 import { useCreate } from "../create-context";
+import GoogleCalendarsPanel from "../components/google-calendars";
 
 const DAY = 24 * 60 * 60 * 1000;
 function startOfDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
@@ -27,6 +28,7 @@ const RANGES = [
 export default function ScheduleView({ m }: ViewProps) {
   const { openCreate } = useCreate();
   const [days, setDays] = useState<number>(14);
+  const [showCals, setShowCals] = useState(false);
   const now = useMemo(() => new Date(), []);
   const today0 = startOfDay(now).getTime();
 
@@ -74,6 +76,14 @@ export default function ScheduleView({ m }: ViewProps) {
               }}>{r.label}</button>
             ))}
           </div>
+          <button onClick={() => setShowCals((v) => !v)} title="Google Calendar" style={{
+            display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer",
+            fontFamily: mn, fontSize: 10.5, letterSpacing: 0.3, borderRadius: 9, padding: "8px 12px",
+            border: `1px solid ${showCals ? D.teal + "66" : D.border}`, background: showCals ? D.teal + "14" : "transparent",
+            color: showCals ? D.teal : D.txm,
+          }}>
+            <CalendarCheck size={13} /> Calendars
+          </button>
           <button onClick={() => openCreate("schedule")} style={{
             display: "inline-flex", alignItems: "center", gap: 7, cursor: "pointer", border: "none",
             fontFamily: mn, fontSize: 11, fontWeight: 700, letterSpacing: 0.3, borderRadius: 9, padding: "8px 15px",
@@ -83,6 +93,8 @@ export default function ScheduleView({ m }: ViewProps) {
           </button>
         </div>
       </div>
+
+      {showCals && <div style={{ marginBottom: 14 }}><GoogleCalendarsPanel /></div>}
 
       {/* Day planner */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

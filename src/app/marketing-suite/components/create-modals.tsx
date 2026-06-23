@@ -12,6 +12,7 @@ import {
   DEFAULT_CALENDARS,
 } from "../marketing-constants";
 import type { MarketingState } from "../use-marketing";
+import { useGoogle } from "../use-google";
 
 // Combine a YYYY-MM-DD date + HH:MM time into a local-time ISO datetime.
 function toISO(date: string, time?: string): string {
@@ -165,6 +166,11 @@ export function ScheduleModal({ open, prefill, m, onClose, onOpenView }: ModalPr
   const [calendarId, setCalendarId] = useState(DEFAULT_CALENDARS[0].id);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const { status: gStatus } = useGoogle();
+  const calendarOptions = useMemo(() => [
+    ...DEFAULT_CALENDARS.map((c) => ({ id: c.id, name: c.name })),
+    ...(gStatus.connected ? (gStatus.calendars || []).map((c) => ({ id: c.id, name: `Google · ${c.summary}` })) : []),
+  ], [gStatus]);
 
   useEffect(() => {
     if (!open) return;
@@ -242,7 +248,7 @@ export function ScheduleModal({ open, prefill, m, onClose, onOpenView }: ModalPr
         </Field>
         <Field label="Calendar">
           <Select value={calendarId} onChange={(e) => setCalendarId(e.target.value)}>
-            {DEFAULT_CALENDARS.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {calendarOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
         </Field>
       </Row>
@@ -250,7 +256,7 @@ export function ScheduleModal({ open, prefill, m, onClose, onOpenView }: ModalPr
         <TextArea value={notes} placeholder="Agenda, location, links…" onChange={(e) => setNotes(e.target.value)} style={{ minHeight: 56 }} />
       </Field>
       {err && <ErrLine text={err} />}
-      <Hint onOpenView={onOpenView} note="Connect Google Calendar to target a specific calendar — coming soon." />
+      {!gStatus.connected && <Hint onOpenView={onOpenView} note="Connect Google Calendar (Schedule → Calendars) to target a specific Google calendar." />}
     </Modal>
   );
 }
