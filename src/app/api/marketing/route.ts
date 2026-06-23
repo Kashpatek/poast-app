@@ -73,23 +73,27 @@ const CampaignSchema = z.object({
   payload: z.unknown().optional(),
 });
 
+const OWNER = z.string().min(1).max(60).default("shared");
 const PostSchema = z.union([
-  z.object({ kind: z.literal("event"), data: EventSchema }),
-  z.object({ kind: z.literal("campaign"), data: CampaignSchema }),
+  z.object({ kind: z.literal("event"), owner: OWNER, data: EventSchema }),
+  z.object({ kind: z.literal("campaign"), owner: OWNER, data: CampaignSchema }),
 ]);
 
 const DeleteSchema = z.object({
   kind: z.enum(["event", "campaign"]),
+  owner: OWNER,
   id: z.string().min(1).max(80),
 });
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = getSupabase();
   if (!supabase) return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
+  // Per-user: only return the signed-in owner's rows.
+  const owner = req.nextUrl.searchParams.get("owner") || "shared";
   try {
     const [ev, ca] = await Promise.all([
-      supabase.from(EVENTS).select("*").order("starts_at", { ascending: true }).limit(2000),
-      supabase.from(CAMPAIGNS).select("*").order("created_at", { ascending: false }).limit(500),
+      supabase.from(EVENTS).select("*").eq("owner", owner).order("starts_at", { ascending: true }).limit(2000),
+      supabase.from(CAMPAIGNS).select("*").eq("owner", owner).order("created_at", { ascending: false }).limit(500),
     ]);
     if (ev.error) return NextResponse.json({ error: ev.error.message }, { status: 500 });
     if (ca.error) return NextResponse.json({ error: ca.error.message }, { status: 500 });
@@ -116,7 +120,7 @@ export async function POST(req: NextRequest) {
     if (parsed.data.kind === "event") {
       const d = parsed.data.data;
       const row: Row = {
-        id: d.id, title: d.title, event_type: d.type, status: d.status,
+        id: d.id, owner: parsed.data.owner, title: d.title, event_type: d.type, status: d.status,
         starts_at: d.start, ends_at: d.end ?? null, campaign_id: d.campaignId ?? null,
         channel: d.channel ?? null, source: d.source, gcal_event_id: d.gcalEventId ?? null,
         notes: d.notes ?? null, payload: d.payload ?? {}, updated_at: now,
@@ -128,7 +132,7 @@ export async function POST(req: NextRequest) {
     } else {
       const d = parsed.data.data;
       const row: Row = {
-        id: d.id, name: d.name, color: d.color ?? null, status: d.status, goal: d.goal ?? null,
+        id: d.id, owner: parsed.data.owner, name: d.name, color: d.color ?? null, status: d.status, goal: d.goal ?? null,
         starts_at: d.start ?? null, ends_at: d.end ?? null, series: d.series ?? [],
         payload: d.payload ?? {}, updated_at: now,
       };
@@ -153,7 +157,8 @@ export async function DELETE(req: NextRequest) {
   }
   try {
     const table = parsed.data.kind === "event" ? EVENTS : CAMPAIGNS;
-    const { error } = await supabase.from(table).delete().eq("id", parsed.data.id);
+    // Scope the delete to the owner so a client can't remove another user's row.
+    const { error } = await supabase.from(table).delete().eq("id", parsed.data.id).eq("owner", parsed.data.owner);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e) {

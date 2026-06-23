@@ -1,14 +1,38 @@
 "use client";
-// MarketingSUITE data hook. Server-first, but resilient: if /api/marketing is
-// unreachable (egress 402, tables not migrated yet, network), it falls back to
-// the last localStorage cache, then to the demo dataset — so the suite always
-// renders. Mutations are optimistic + best-effort persisted; the cache mirror
-// keeps edits across refreshes during an outage.
+// MarketingSUITE data hook.
+//
+// Two explicit modes the user flips from the top bar:
+//   • DEMO — an in-memory sample dataset (a safe sandbox; never persisted, so
+//     edits here never touch the database). Great for exploring the suite.
+//   • LIVE — the signed-in user's real data from /api/marketing, scoped by
+//     owner so each teammate gets their own events/campaigns. Resilient: on an
+//     outage it falls back to the last cache, then to demo, and flags offline.
+//
+// Per-user: the owner is the signed-in POAST name (localStorage/sessionStorage
+// "poast-current-user"); GET/POST/DELETE all carry it so data never crosses
+// users. The shared task board (Board view) is intentionally NOT scoped here —
+// it remains Akash's master board, embedded as-is.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { makeDemoData, type MarketingEvent, type Campaign, type SeriesDef } from "./marketing-constants";
 
 const CACHE_KEY = "marketing-suite-cache-v1";
+const MODE_KEY = "marketing-suite-mode";
 function uid(p: string) { return p + "-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7); }
+
+export type DataMode = "demo" | "live";
+
+// Signed-in POAST identity — drives per-user scoping. Falls back to "shared".
+function currentOwner(): string {
+  try {
+    return (
+      window.localStorage.getItem("poast-current-user") ||
+      window.sessionStorage.getItem("poast-current-user") ||
+      "shared"
+    );
+  } catch { return "shared"; }
+}
+function cacheKey(owner: string) { return `${CACHE_KEY}::${owner}`; }
+function modeKey(owner: string) { return `${MODE_KEY}::${owner}`; }
 
 export interface MarketingState {
   events: MarketingEvent[];
@@ -16,6 +40,9 @@ export interface MarketingState {
   loading: boolean;
   offline: boolean;
   source: "server" | "cache" | "demo";
+  mode: DataMode;
+  owner: string;
+  setMode: (m: DataMode) => void;
   addEvent: (e: Partial<MarketingEvent>) => MarketingEvent;
   updateEvent: (id: string, patch: Partial<MarketingEvent>) => void;
   moveEvent: (id: string, newStartISO: string) => void;
@@ -39,27 +66,46 @@ export function useMarketing(): MarketingState {
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
   const [source, setSource] = useState<"server" | "cache" | "demo">("demo");
+  const [owner, setOwner] = useState<string>("shared");
+  const [mode, setModeState] = useState<DataMode>("demo");
 
-  const load = useCallback(async () => {
+  // Refs so persistence callbacks always read the latest mode/owner.
+  const modeRef = useRef<DataMode>("demo");
+  const ownerRef = useRef<string>("shared");
+  modeRef.current = mode;
+  ownerRef.current = owner;
+
+  // Resolve identity + stored mode preference once on mount.
+  useEffect(() => {
+    const o = currentOwner();
+    setOwner(o);
+    let pref: DataMode = "demo";
+    try { const s = window.localStorage.getItem(modeKey(o)); if (s === "live" || s === "demo") pref = s; } catch { /* ignore */ }
+    setModeState(pref);
+  }, []);
+
+  const load = useCallback(async (o: string, md: DataMode) => {
+    setLoading(true);
+    if (md === "demo") {
+      const demo = makeDemoData();
+      setEvents(demo.events); setCampaigns(demo.campaigns);
+      setSource("demo"); setOffline(false); setLoading(false);
+      return;
+    }
     try {
-      const res = await fetch("/api/marketing");
+      const res = await fetch(`/api/marketing?owner=${encodeURIComponent(o)}`);
       const j = await res.json();
       if (res.ok && Array.isArray(j.events)) {
-        if (j.events.length === 0 && (!j.campaigns || j.campaigns.length === 0)) {
-          // Reachable but empty (fresh table) → seed demo so it's reviewable.
-          const demo = makeDemoData();
-          setEvents(demo.events); setCampaigns(demo.campaigns); setSource("demo");
-        } else {
-          setEvents(j.events); setCampaigns(j.campaigns || []); setSource("server");
-        }
-        setOffline(false);
+        // Live = exactly what's stored for this user (empty is a valid state).
+        setEvents(j.events); setCampaigns(j.campaigns || []);
+        setSource("server"); setOffline(false);
       } else {
         throw new Error(j.error || "load failed");
       }
     } catch {
       let used = false;
       try {
-        const raw = localStorage.getItem(CACHE_KEY);
+        const raw = localStorage.getItem(cacheKey(o));
         if (raw) { const c = JSON.parse(raw); setEvents(c.events || []); setCampaigns(c.campaigns || []); setSource("cache"); used = true; }
       } catch { /* ignore */ }
       if (!used) { const demo = makeDemoData(); setEvents(demo.events); setCampaigns(demo.campaigns); setSource("demo"); }
@@ -69,19 +115,29 @@ export function useMarketing(): MarketingState {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // (Re)load whenever owner or mode changes.
+  useEffect(() => { load(owner, mode); }, [load, owner, mode]);
 
-  // Mirror to localStorage whenever data changes (post-hydration).
+  const setMode = useCallback((m: DataMode) => {
+    setModeState(m);
+    try { window.localStorage.setItem(modeKey(ownerRef.current), m); } catch { /* ignore */ }
+  }, []);
+
+  // Mirror live data to a per-user cache (so edits survive an outage). Demo is
+  // never mirrored — it must not overwrite the user's real cached data.
   useEffect(() => {
-    if (loading) return;
-    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ events, campaigns })); } catch { /* ignore */ }
-  }, [events, campaigns, loading]);
+    if (loading || mode !== "live") return;
+    try { localStorage.setItem(cacheKey(ownerRef.current), JSON.stringify({ events, campaigns })); } catch { /* ignore */ }
+  }, [events, campaigns, loading, mode]);
 
+  // Persistence is gated on LIVE mode — demo edits stay local (sandbox).
   const saveEvent = useCallback(async (e: MarketingEvent) => {
-    try { await fetch("/api/marketing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "event", data: e }) }); } catch { /* best-effort */ }
+    if (modeRef.current !== "live") return;
+    try { await fetch("/api/marketing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "event", owner: ownerRef.current, data: e }) }); } catch { /* best-effort */ }
   }, []);
   const saveCampaign = useCallback(async (c: Campaign) => {
-    try { await fetch("/api/marketing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "campaign", data: c }) }); } catch { /* best-effort */ }
+    if (modeRef.current !== "live") return;
+    try { await fetch("/api/marketing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "campaign", owner: ownerRef.current, data: c }) }); } catch { /* best-effort */ }
   }, []);
 
   const addEvent = useCallback((partial: Partial<MarketingEvent>): MarketingEvent => {
@@ -128,7 +184,8 @@ export function useMarketing(): MarketingState {
 
   const removeEvent = useCallback((id: string) => {
     setEvents((prev) => prev.filter((e) => e.id !== id));
-    try { fetch("/api/marketing", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "event", id }) }); } catch { /* best-effort */ }
+    if (modeRef.current !== "live") return;
+    try { fetch("/api/marketing", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "event", owner: ownerRef.current, id }) }); } catch { /* best-effort */ }
   }, []);
 
   const addCampaign = useCallback((partial: Partial<Campaign>): Campaign => {
@@ -165,5 +222,9 @@ export function useMarketing(): MarketingState {
     return gen;
   }, [saveEvent]);
 
-  return { events, campaigns, loading, offline, source, addEvent, updateEvent, moveEvent, removeEvent, addCampaign, addSeries, refresh: load };
+  return {
+    events, campaigns, loading, offline, source, mode, owner, setMode,
+    addEvent, updateEvent, moveEvent, removeEvent, addCampaign, addSeries,
+    refresh: () => load(ownerRef.current, modeRef.current),
+  };
 }

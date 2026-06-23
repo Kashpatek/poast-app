@@ -49,11 +49,9 @@ export default function MarketingSuiteShell() {
     }
   }
 
-  const srcChip = m.source === "server"
-    ? { label: "● Live", color: D.teal }
-    : m.source === "cache"
-      ? { label: "⚠ Offline · cached", color: D.coral }
-      : { label: "◷ Demo data", color: D.amber };
+  // Demo ⇄ Live toggle state. "Live" reads/writes this user's real data; "Demo"
+  // is an in-memory sandbox. Offline only matters in Live mode.
+  const liveOffline = m.mode === "live" && m.offline;
 
   return (
     <div style={{ minHeight: "100vh", background: D.bg, color: D.tx, fontFamily: ft }}>
@@ -75,9 +73,35 @@ export default function MarketingSuiteShell() {
           </span>
         </div>
         <span style={{ flex: 1 }} />
-        <span style={{ fontFamily: mn, fontSize: 10.5, color: srcChip.color, border: `1px solid ${srcChip.color}44`, borderRadius: 999, padding: "4px 10px" }}>
-          {srcChip.label}
+        {/* Owner + offline hint */}
+        <span style={{ fontFamily: mn, fontSize: 10, color: liveOffline ? D.coral : D.txd, display: "inline-flex", alignItems: "center", gap: 6 }}>
+          {liveOffline && <span title="Working from cache — changes will sync when back online">⚠ cached</span>}
+          {m.owner && m.owner !== "shared" && <span title="Signed-in workspace">{m.owner}</span>}
         </span>
+        {/* Demo ⇄ Live data toggle */}
+        <div style={{ display: "inline-flex", border: `1px solid ${D.border}`, borderRadius: 999, overflow: "hidden", background: D.card }}>
+          {([
+            { key: "demo", label: "◷ Demo", color: D.amber, title: "Sample data — a safe sandbox, never saved" },
+            { key: "live", label: "● Live", color: D.teal, title: "Your real saved data" },
+          ] as const).map((opt, i) => {
+            const on = m.mode === opt.key;
+            return (
+              <button
+                key={opt.key}
+                onClick={() => m.setMode(opt.key)}
+                title={opt.title}
+                style={{
+                  fontFamily: mn, fontSize: 10.5, letterSpacing: 0.3, cursor: "pointer",
+                  padding: "5px 12px", border: "none", borderLeft: i ? `1px solid ${D.border}` : "none",
+                  color: on ? opt.color : D.txm, background: on ? opt.color + "1c" : "transparent",
+                  transition: "background 0.14s, color 0.14s",
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
         <NotifBell m={m} />
         <button
           onClick={() => setPanelOpen((v) => !v)}

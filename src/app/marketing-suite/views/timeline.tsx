@@ -1,45 +1,62 @@
 "use client";
-// MarketingSUITE · Timeline — an expandable horizontal Gantt "spine" of every
-// marketing event on one time axis. Lanes are grouped by type and each lane
-// header is a clickable expander: COLLAPSED packs the whole group onto one
-// summary track; EXPANDED breaks the group into one row per task so every item
-// is individually visible and hoverable. Bars/markers are positioned from real
-// ISO dates, a live NOW playhead sweeps the axis, day ticks + week separators +
-// weekend shading sit behind everything, and the range control swaps between a
-// 2 / 4 / 6-week window. Read-only over the `m` spine; nothing here mutates.
+// MarketingSUITE · Timeline — every marketing milestone on one time axis.
+//
+// Two reads of the same spine:
+//   • GANTT  — horizontal lanes (grouped by Type or Campaign). Each lane packs
+//     its events into as few non-overlapping sub-rows as possible (interval
+//     packing) so bars/markers never override each other; expand a lane to
+//     force one row per task. A live NOW playhead sweeps the axis.
+//   • AGENDA — a clean chronological list grouped by day (Past / Today / next
+//     days). Zero overlap, dense-friendly, great for "what's coming".
+//
+// Range presets (1W / 2W / 1M / Quarter) zoom the Gantt window; day labels
+// thin out automatically as the window widens. Read-only over `m`.
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   GanttChart, CalendarRange, ChevronRight, ChevronDown, Diamond, Triangle,
-  Radio, Layers, ArrowRight,
+  Radio, Layers, ArrowRight, List, Rows3, Tag,
 } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
 import {
   TYPE_COLOR, STATUS_COLOR, STATUS_LABEL, channelOf,
-  type MarketingEvent, type EventType,
+  type MarketingEvent, type EventType, type Campaign,
 } from "../marketing-constants";
 import type { ViewProps } from "../use-marketing";
 
 // ─── Lane model ───
-// The spec's six lanes, each collecting one or more EventTypes. Order top→down.
-interface LaneDef { key: string; label: string; types: EventType[]; accent: string; }
-const LANES: LaneDef[] = [
+// A lane is just a label + accent + a predicate selecting its events, so the
+// same packing/render code serves both "group by type" and "group by campaign".
+interface Lane { key: string; label: string; accent: string; match: (e: MarketingEvent) => boolean; }
+
+interface TypeLaneDef { key: string; label: string; types: EventType[]; accent: string; }
+const TYPE_LANE_DEFS: TypeLaneDef[] = [
   { key: "production", label: "Production", types: ["production"],          accent: TYPE_COLOR.production },
   { key: "launch",     label: "Launch",     types: ["launch", "campaign"],  accent: TYPE_COLOR.launch },
   { key: "ads",        label: "Ads",        types: ["ad", "kiosk"],         accent: TYPE_COLOR.ad },
   { key: "clips",      label: "Clips",      types: ["clip", "buffer"],      accent: TYPE_COLOR.clip },
   { key: "strategy",   label: "Strategy",   types: ["strategy"],            accent: TYPE_COLOR.strategy },
-  { key: "buffer",     label: "Other",      types: ["manual"],              accent: TYPE_COLOR.manual },
+  { key: "other",      label: "Other",      types: ["manual"],              accent: TYPE_COLOR.manual },
 ];
 
 const DAY = 24 * 60 * 60 * 1000;
-const LABEL_W = 132;        // sticky lane-label gutter
+const LABEL_W = 140;        // sticky lane-label gutter
 const AXIS_H = 50;          // time-axis header height
-const LANE_PAD_Y = 7;       // vertical breathing room inside a lane
-const SUMMARY_H = 30;       // bar/marker track height when collapsed
-const TASK_ROW_H = 30;      // per-task row height when expanded
-const BAR_H = 22;           // event bar height
-const RANGES = [2, 4, 6] as const;   // selectable window in weeks
-type RangeWeeks = (typeof RANGES)[number];
+const LANE_PAD_Y = 8;       // vertical breathing room inside a lane
+const ROW_COLLAPSED = 28;   // packed sub-row height
+const ROW_EXPANDED = 30;    // per-task row height when expanded
+const BAR_H = 20;           // event bar height
+const PACK_GAP = 8;         // min px gap between two items on one packed sub-row
+const MIN_BAR = 30;         // min ranged-bar footprint for packing
+const POINT_SLOT = 26;      // horizontal slot a point marker reserves for packing
+
+// Range presets. Week-multiples keep the week bands tidy; "1M" = 4 weeks.
+const RANGES = [
+  { key: "1w", label: "1W", weeks: 1 },
+  { key: "2w", label: "2W", weeks: 2 },
+  { key: "1m", label: "1M", weeks: 4 },
+  { key: "q",  label: "Q",  weeks: 13 },
+] as const;
+type RangeKey = (typeof RANGES)[number]["key"];
 
 function startOfDay(d: Date): Date { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function startOfWeek(d: Date): Date { // Monday-anchored
@@ -50,19 +67,23 @@ function fmtTime(d: Date) { return d.toLocaleTimeString(undefined, { hour: "nume
 function isWeekend(d: Date) { const g = d.getDay(); return g === 0 || g === 6; }
 
 interface TipState { id: string; x: number; y: number; below: boolean; }
+type ViewMode = "gantt" | "agenda";
+type GroupBy = "type" | "campaign";
 
 export default function TimelineView({ m, onOpenView }: ViewProps) {
   void onOpenView;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [tip, setTip] = useState<TipState | null>(null);
-  const [range, setRange] = useState<RangeWeeks>(4);
-  // Per-lane expand + per-lane hide.
+  const [mode, setMode] = useState<ViewMode>("gantt");
+  const [groupBy, setGroupBy] = useState<GroupBy>("type");
+  const [range, setRange] = useState<RangeKey>("1m");
   const [open, setOpen] = useState<Record<string, boolean>>({ ads: true });
   const [hidden, setHidden] = useState<Record<string, boolean>>({});
   const [tick, setTick] = useState(0);          // re-render the playhead each minute
   const [pxPerDay, setPxPerDay] = useState(64);  // density derived from container width
 
   const now = useMemo(() => new Date(), [tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const weeks = RANGES.find((r) => r.key === range)!.weeks;
 
   // Keep the NOW playhead honest without thrashing.
   useEffect(() => {
@@ -70,34 +91,43 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
     return () => clearInterval(t);
   }, []);
 
-  // ─── Window: a tidy, week-aligned span around the events & today ───
-  const win = useMemo(() => {
-    let min = Infinity;
-    for (const e of m.events) {
-      const s = new Date(e.start).getTime();
-      if (s < min) min = s;
+  // ─── Lanes (Type or Campaign) ───
+  const lanes: Lane[] = useMemo(() => {
+    if (groupBy === "campaign") {
+      const byId = new Map<string, Campaign>(m.campaigns.map((c) => [c.id, c]));
+      const out: Lane[] = m.campaigns.map((c) => ({
+        key: c.id, label: c.name, accent: c.color || D.violet,
+        match: (e: MarketingEvent) => e.campaignId === c.id,
+      }));
+      out.push({ key: "_none", label: "Unassigned", accent: D.txm, match: (e) => !e.campaignId || !byId.has(e.campaignId) });
+      // Drop campaign lanes with nothing in them so the chart stays legible.
+      return out.filter((l) => m.events.some(l.match));
     }
-    const nowT = now.getTime();
-    if (!isFinite(min)) min = nowT;
-    // Anchor on the Monday a few days before the earliest event (but never far
-    // past "now" — keep today on screen).
-    const anchor = Math.min(min - 2 * DAY, nowT - 2 * DAY);
-    const from = startOfWeek(new Date(anchor));
-    const days = range * 7;
+    return TYPE_LANE_DEFS.map((d) => ({
+      key: d.key, label: d.label, accent: d.accent,
+      match: (e: MarketingEvent) => d.types.includes(e.type),
+    }));
+  }, [groupBy, m.campaigns, m.events]);
+
+  // ─── Window: a week-aligned span anchored a few days before "now" so the
+  // focus is today + upcoming; history scrolls in via a wider preset. ───
+  const win = useMemo(() => {
+    const from = startOfWeek(new Date(now.getTime() - 3 * DAY));
+    const days = weeks * 7;
     const to = startOfDay(new Date(from.getTime() + days * DAY));
     return { from, to, days };
-  }, [m.events, range, now]);
+  }, [weeks, now]);
 
   const trackW = win.days * pxPerDay;
 
-  // Fit the chosen week-range to the visible viewport width so the default
-  // window fills the canvas; horizontal scroll only kicks in when it can't.
+  // Fit the chosen window to the viewport so it fills the canvas; horizontal
+  // scroll only kicks in when day cells would get too thin to read.
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const measure = () => {
       const avail = el.clientWidth - LABEL_W - 1;
-      if (avail > 80) setPxPerDay(Math.max(34, Math.min(120, avail / win.days)));
+      if (avail > 80) setPxPerDay(Math.max(12, Math.min(120, avail / win.days)));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -108,19 +138,23 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
   const xOf = (d: Date) => ((d.getTime() - win.from.getTime()) / DAY) * pxPerDay;
   const nowX = xOf(now);
 
+  // Adaptive axis density — thin out day labels as cells shrink.
+  const showDayNum = pxPerDay >= 22;
+  const showWeekday = pxPerDay >= 40;
+
   // ─── Group events into lanes (sorted by start) ───
   const laneEvents = useMemo(() => {
     const out: Record<string, MarketingEvent[]> = {};
-    for (const lane of LANES) out[lane.key] = [];
+    for (const lane of lanes) out[lane.key] = [];
     for (const e of m.events) {
-      const lane = LANES.find((l) => l.types.includes(e.type));
+      const lane = lanes.find((l) => l.match(e));
       if (lane) out[lane.key].push(e);
     }
     for (const k of Object.keys(out)) out[k].sort((a, b) => +new Date(a.start) - +new Date(b.start));
     return out;
-  }, [m.events]);
+  }, [m.events, lanes]);
 
-  // ─── Day ticks across the axis ───
+  // ─── Day ticks ───
   const ticks = useMemo(() => {
     const arr: { i: number; x: number; date: Date; today: boolean; weekStart: boolean; weekend: boolean }[] = [];
     const today = startOfDay(now).getTime();
@@ -136,7 +170,7 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
     return arr;
   }, [win.from, win.days, pxPerDay, now]);
 
-  // Week band headers (Mon-anchored) for the top strip.
+  // Week band headers (Mon-anchored).
   const weekBands = useMemo(() => {
     const out: { x: number; w: number; label: string; hasNow: boolean }[] = [];
     for (let i = 0; i < win.days; i += 7) {
@@ -150,22 +184,47 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
     return out;
   }, [win.from, win.days, pxPerDay, now]);
 
-  const visibleLanes = LANES.filter((l) => !hidden[l.key]);
+  const visibleLanes = lanes.filter((l) => !hidden[l.key]);
 
-  // ─── Vertical layout: each lane occupies N task rows (expanded) or 1 (collapsed) ───
+  // ─── Layout: pack each lane's events into non-overlapping sub-rows ───
+  // Collapsed: greedy interval-packing (first sub-row whose last item ends
+  // before this one starts). Expanded: one sub-row per task. Either way no two
+  // items share a cell, so nothing overrides.
   const layout = useMemo(() => {
     let y = 0;
-    const rows: { lane: LaneDef; top: number; h: number; expanded: boolean; rowsCount: number }[] = [];
+    const rows: {
+      lane: Lane; top: number; h: number; expanded: boolean; rowH: number;
+      subCount: number; subOf: Map<string, number>;
+    }[] = [];
     for (const lane of visibleLanes) {
-      const evs = laneEvents[lane.key];
+      const evs = laneEvents[lane.key] || [];
       const expanded = !!open[lane.key] && evs.length > 0;
-      const rowsCount = expanded ? evs.length : 1;
-      const h = LANE_PAD_Y * 2 + rowsCount * (expanded ? TASK_ROW_H : SUMMARY_H);
-      rows.push({ lane, top: y, h, expanded, rowsCount });
+      const subOf = new Map<string, number>();
+      let subCount = 1;
+      if (expanded) {
+        evs.forEach((e, i) => subOf.set(e.id, i));
+        subCount = Math.max(1, evs.length);
+      } else {
+        const lastX: number[] = []; // rightmost x reserved per sub-row
+        for (const e of evs) {
+          const x0 = xOf(new Date(e.start));
+          const x1 = e.end ? Math.max(xOf(new Date(e.end)), x0 + MIN_BAR) : x0 + POINT_SLOT;
+          let placed = -1;
+          for (let r = 0; r < lastX.length; r++) {
+            if (x0 >= lastX[r] + PACK_GAP) { placed = r; lastX[r] = x1; break; }
+          }
+          if (placed < 0) { placed = lastX.length; lastX.push(x1); }
+          subOf.set(e.id, placed);
+        }
+        subCount = Math.max(1, lastX.length);
+      }
+      const rowH = expanded ? ROW_EXPANDED : ROW_COLLAPSED;
+      const h = LANE_PAD_Y * 2 + subCount * rowH;
+      rows.push({ lane, top: y, h, expanded, rowH, subCount, subOf });
       y += h;
     }
     return { rows, total: Math.max(y, 120) };
-  }, [visibleLanes, laneEvents, open]);
+  }, [visibleLanes, laneEvents, open, pxPerDay, win.from, win.days]);
 
   function toggleOpen(k: string) { setOpen((o) => ({ ...o, [k]: !o[k] })); }
   function toggleHide(k: string) { setHidden((h) => ({ ...h, [k]: !h[k] })); }
@@ -184,9 +243,10 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
           }}>
             <GanttChart size={22} color={D.teal} /> Production Timeline
           </h1>
-          <div style={{ marginTop: 6, fontSize: 13, color: D.txm, maxWidth: 600, lineHeight: 1.45 }}>
-            Every production and marketing milestone on one axis. Expand a lane to
-            split it into one row per task — spot collisions before they ship.
+          <div style={{ marginTop: 6, fontSize: 13, color: D.txm, maxWidth: 620, lineHeight: 1.45 }}>
+            Every production and marketing milestone on one axis. Overlapping items
+            auto-stack so nothing collides — expand a lane for one row per task, or
+            switch to Agenda for a clean chronological read.
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -198,290 +258,348 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
             <Layers size={12} color={D.teal} />
             {totalEvents} events · {rangedCount} ranged
           </div>
-          {/* Range control */}
-          <div style={{
-            display: "inline-flex", border: `1px solid ${D.border}`, borderRadius: 9,
-            overflow: "hidden", background: D.card,
-          }}>
-            {RANGES.map((r, i) => (
-              <button
-                key={r}
-                onClick={() => setRange(r)}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer",
-                  fontFamily: mn, fontSize: 10.5, letterSpacing: 0.3, padding: "6px 12px",
-                  border: "none", borderLeft: i ? `1px solid ${D.border}` : "none",
-                  color: range === r ? D.tx : D.txm, background: range === r ? D.hover : "transparent",
-                  transition: "background 0.14s, color 0.14s",
-                }}
-              >
-                {i === 0 && <CalendarRange size={12} />} {r}w
-              </button>
-            ))}
-          </div>
+          {/* View-mode switch */}
+          <Segmented
+            options={[
+              { key: "gantt", label: "Gantt", Icon: GanttChart },
+              { key: "agenda", label: "Agenda", Icon: List },
+            ]}
+            value={mode}
+            onChange={(v) => setMode(v as ViewMode)}
+          />
         </div>
       </div>
 
-      {/* ── Lane filter / expand chips ── */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14, alignItems: "center" }}>
-        {LANES.map((lane) => {
-          const on = !hidden[lane.key];
-          const count = laneEvents[lane.key].length;
-          const expanded = !!open[lane.key] && count > 0;
-          return (
-            <span key={lane.key} style={{
-              display: "inline-flex", alignItems: "center",
-              border: `1px solid ${on ? lane.accent + "55" : D.border}`,
-              background: on ? lane.accent + "10" : "transparent",
-              borderRadius: 999, overflow: "hidden", transition: "all 0.16s",
-            }}>
-              <button
-                onClick={() => toggleHide(lane.key)}
-                title={on ? "Hide lane" : "Show lane"}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 7, cursor: "pointer",
-                  fontFamily: mn, fontSize: 10.5, letterSpacing: 0.3, textTransform: "uppercase",
-                  padding: "5px 4px 5px 11px", border: "none", background: "transparent",
-                  color: on ? D.tx : D.txd,
-                }}
-              >
-                <span style={{
-                  width: 8, height: 8, borderRadius: 999,
-                  background: on ? lane.accent : D.txd,
-                  boxShadow: on ? `0 0 8px ${lane.accent}88` : "none",
-                }} />
-                {lane.label}
-                <span style={{ color: on ? lane.accent : D.txd, fontSize: 9.5 }}>{count}</span>
-              </button>
-              <button
-                onClick={() => count > 0 && on && toggleOpen(lane.key)}
-                disabled={count === 0 || !on}
-                title={expanded ? "Collapse to one track" : "Expand to per-task rows"}
-                style={{
-                  display: "inline-flex", alignItems: "center", cursor: count > 0 && on ? "pointer" : "default",
-                  padding: "5px 8px 5px 4px", border: "none", background: "transparent",
-                  color: expanded ? lane.accent : D.txd, opacity: count > 0 && on ? 1 : 0.4,
-                }}
-              >
-                {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-              </button>
-            </span>
-          );
-        })}
-      </div>
-
-      {/* ── Chart shell ── */}
-      <div style={{
-        border: `1px solid ${D.border}`, borderRadius: 14, overflow: "hidden",
-        background: D.cardGrad, boxShadow: D.glow, position: "relative",
-      }}>
-        <div ref={scrollRef} style={{ overflowX: "auto", overflowY: "hidden", position: "relative" }}>
-          <div style={{ minWidth: LABEL_W + trackW, position: "relative" }}>
-            {/* ── Time axis header ── */}
+      {mode === "gantt" ? (
+        <>
+          {/* ── Gantt controls: group-by + range ── */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 14, alignItems: "center" }}>
+            <Segmented
+              options={[
+                { key: "type", label: "By type", Icon: Rows3 },
+                { key: "campaign", label: "By campaign", Icon: Tag },
+              ]}
+              value={groupBy}
+              onChange={(v) => { setGroupBy(v as GroupBy); setOpen(v === "type" ? { ads: true } : {}); }}
+            />
             <div style={{
-              display: "flex", height: AXIS_H, position: "sticky", top: 0, zIndex: 6,
-              background: D.card, borderBottom: `1px solid ${D.border}`,
+              display: "inline-flex", border: `1px solid ${D.border}`, borderRadius: 9,
+              overflow: "hidden", background: D.card,
             }}>
-              <div style={{
-                width: LABEL_W, flex: "none", borderRight: `1px solid ${D.border}`,
-                position: "sticky", left: 0, zIndex: 7, background: D.card,
-                display: "flex", flexDirection: "column", justifyContent: "center", gap: 2,
-                padding: "0 0 0 14px",
-              }}>
-                <span style={{ fontFamily: mn, fontSize: 9, letterSpacing: 0.7, color: D.txd, textTransform: "uppercase" }}>
-                  Lanes
-                </span>
-                <span style={{ fontFamily: mn, fontSize: 9.5, color: D.teal }}>{range}-week window</span>
-              </div>
-              <div style={{ position: "relative", width: trackW, flex: "none" }}>
-                {/* Week bands */}
-                {weekBands.map((b, i) => (
-                  <div key={i} style={{
-                    position: "absolute", left: b.x, top: 6, width: b.w, height: 18,
-                    borderLeft: `1px solid ${D.border}`,
-                    display: "flex", alignItems: "center", padding: "0 8px",
-                    fontFamily: mn, fontSize: 9.5, letterSpacing: 0.3, whiteSpace: "nowrap",
-                    color: b.hasNow ? D.amber : D.txm, fontWeight: b.hasNow ? 700 : 500,
-                  }}>
-                    {b.label}{b.hasNow && <span style={{ marginLeft: 6, fontSize: 8, color: D.amber }}>· NOW</span>}
-                  </div>
-                ))}
-                {/* Day numbers */}
-                {ticks.map((t) => (
-                  <div key={t.i} style={{
-                    position: "absolute", left: t.x, top: 27, width: pxPerDay, height: 20,
-                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                    gap: 0, overflow: "hidden",
-                  }}>
-                    <span style={{
-                      fontFamily: mn, fontSize: 8.5,
-                      color: t.today ? D.amber : t.weekend ? D.txd : D.txm,
-                      fontWeight: t.today ? 700 : 500,
-                    }}>
-                      {t.date.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 2)}
-                    </span>
-                    <span style={{
-                      fontFamily: mn, fontSize: 10,
-                      color: t.today ? D.amber : D.txd, fontWeight: t.today ? 700 : 500,
-                    }}>
-                      {t.date.getDate()}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              {RANGES.map((r, i) => (
+                <button
+                  key={r.key}
+                  onClick={() => setRange(r.key)}
+                  title={r.key === "q" ? "Quarter (13 weeks)" : r.label === "1M" ? "1 month" : r.label}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer",
+                    fontFamily: mn, fontSize: 10.5, letterSpacing: 0.3, padding: "6px 13px",
+                    border: "none", borderLeft: i ? `1px solid ${D.border}` : "none",
+                    color: range === r.key ? D.tx : D.txm, background: range === r.key ? D.hover : "transparent",
+                    transition: "background 0.14s, color 0.14s",
+                  }}
+                >
+                  {i === 0 && <CalendarRange size={12} />} {r.label}
+                </button>
+              ))}
             </div>
-
-            {/* ── Lanes body ── */}
-            <div style={{ position: "relative", height: layout.total, display: "flex" }}>
-              {/* Sticky label column (rendered as one block so it scrolls vertically with rows) */}
-              <div style={{
-                width: LABEL_W, flex: "none", position: "sticky", left: 0, zIndex: 5,
-                background: D.card, borderRight: `1px solid ${D.border}`,
-              }}>
-                {layout.rows.map(({ lane, top, h, expanded, rowsCount }) => (
-                  <div
-                    key={lane.key}
-                    onClick={() => laneEvents[lane.key].length > 0 && toggleOpen(lane.key)}
-                    style={{
-                      position: "absolute", left: 0, right: 0, top, height: h,
-                      borderBottom: `1px solid ${D.border}`, cursor: laneEvents[lane.key].length ? "pointer" : "default",
-                      display: "flex", flexDirection: "column", justifyContent: "flex-start",
-                      padding: `${LANE_PAD_Y}px 0 0 12px`, transition: "background 0.15s",
-                    }}
-                    onMouseEnter={(ev) => { ev.currentTarget.style.background = D.hover; }}
-                    onMouseLeave={(ev) => { ev.currentTarget.style.background = "transparent"; }}
-                  >
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                      <span style={{ color: expanded ? lane.accent : D.txd, display: "inline-flex" }}>
-                        {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                      </span>
+            <span style={{ flex: 1 }} />
+            {/* Lane filter / expand chips */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "flex-end" }}>
+              {lanes.map((lane) => {
+                const on = !hidden[lane.key];
+                const count = (laneEvents[lane.key] || []).length;
+                const expanded = !!open[lane.key] && count > 0;
+                return (
+                  <span key={lane.key} style={{
+                    display: "inline-flex", alignItems: "center",
+                    border: `1px solid ${on ? lane.accent + "55" : D.border}`,
+                    background: on ? lane.accent + "10" : "transparent",
+                    borderRadius: 999, overflow: "hidden", transition: "all 0.16s",
+                  }}>
+                    <button
+                      onClick={() => toggleHide(lane.key)}
+                      title={on ? "Hide lane" : "Show lane"}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 7, cursor: "pointer",
+                        fontFamily: mn, fontSize: 10.5, letterSpacing: 0.3, textTransform: "uppercase",
+                        padding: "5px 4px 5px 11px", border: "none", background: "transparent",
+                        color: on ? D.tx : D.txd, maxWidth: 168,
+                      }}
+                    >
                       <span style={{
-                        fontFamily: mn, fontSize: 10, letterSpacing: 0.7, fontWeight: 700,
-                        textTransform: "uppercase", color: lane.accent,
-                      }}>
-                        {lane.label}
-                      </span>
-                    </div>
-                    <div style={{ marginTop: 3, display: "inline-flex", alignItems: "center", gap: 5, paddingLeft: 17 }}>
-                      <span style={{ width: 5, height: 5, borderRadius: 999, background: lane.accent }} />
-                      <span style={{ fontFamily: mn, fontSize: 8.5, color: D.txd, letterSpacing: 0.2 }}>
-                        {rowsCount} {expanded ? "rows" : laneEvents[lane.key].length === 1 ? "item" : "items"}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Track area */}
-              <div style={{ position: "relative", width: trackW, flex: "none" }}>
-                {/* Background: weekend shading + day grid + week separators */}
-                <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-                  {ticks.map((t) => (
-                    <React.Fragment key={t.i}>
-                      {t.weekend && (
-                        <div style={{
-                          position: "absolute", left: t.x, top: 0, bottom: 0, width: pxPerDay,
-                          background: "rgba(255,255,255,0.018)",
-                        }} />
-                      )}
-                      <div style={{
-                        position: "absolute", left: t.x, top: 0, bottom: 0, width: 1,
-                        background: t.weekStart ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.022)",
+                        width: 8, height: 8, borderRadius: 999, flex: "none",
+                        background: on ? lane.accent : D.txd,
+                        boxShadow: on ? `0 0 8px ${lane.accent}88` : "none",
                       }} />
-                    </React.Fragment>
-                  ))}
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lane.label}</span>
+                      <span style={{ color: on ? lane.accent : D.txd, fontSize: 9.5 }}>{count}</span>
+                    </button>
+                    <button
+                      onClick={() => count > 0 && on && toggleOpen(lane.key)}
+                      disabled={count === 0 || !on}
+                      title={expanded ? "Collapse to packed track" : "Expand to per-task rows"}
+                      style={{
+                        display: "inline-flex", alignItems: "center", cursor: count > 0 && on ? "pointer" : "default",
+                        padding: "5px 8px 5px 4px", border: "none", background: "transparent",
+                        color: expanded ? lane.accent : D.txd, opacity: count > 0 && on ? 1 : 0.4,
+                      }}
+                    >
+                      {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Chart shell ── */}
+          <div style={{
+            border: `1px solid ${D.border}`, borderRadius: 14, overflow: "hidden",
+            background: D.cardGrad, boxShadow: D.glow, position: "relative",
+          }}>
+            <div ref={scrollRef} style={{ overflowX: "auto", overflowY: "hidden", position: "relative" }}>
+              <div style={{ minWidth: LABEL_W + trackW, position: "relative" }}>
+                {/* ── Time axis header ── */}
+                <div style={{
+                  display: "flex", height: AXIS_H, position: "sticky", top: 0, zIndex: 6,
+                  background: D.card, borderBottom: `1px solid ${D.border}`,
+                }}>
+                  <div style={{
+                    width: LABEL_W, flex: "none", borderRight: `1px solid ${D.border}`,
+                    position: "sticky", left: 0, zIndex: 7, background: D.card,
+                    display: "flex", flexDirection: "column", justifyContent: "center", gap: 2,
+                    padding: "0 0 0 14px",
+                  }}>
+                    <span style={{ fontFamily: mn, fontSize: 9, letterSpacing: 0.7, color: D.txd, textTransform: "uppercase" }}>
+                      {groupBy === "campaign" ? "Campaigns" : "Lanes"}
+                    </span>
+                    <span style={{ fontFamily: mn, fontSize: 9.5, color: D.teal }}>
+                      {weeks === 13 ? "Quarter" : weeks === 4 ? "1-month" : `${weeks}-week`} window
+                    </span>
+                  </div>
+                  <div style={{ position: "relative", width: trackW, flex: "none" }}>
+                    {weekBands.map((b, i) => (
+                      <div key={i} style={{
+                        position: "absolute", left: b.x, top: 6, width: b.w, height: 18,
+                        borderLeft: `1px solid ${D.border}`,
+                        display: "flex", alignItems: "center", padding: "0 8px",
+                        fontFamily: mn, fontSize: 9.5, letterSpacing: 0.3, whiteSpace: "nowrap", overflow: "hidden",
+                        color: b.hasNow ? D.amber : D.txm, fontWeight: b.hasNow ? 700 : 500,
+                      }}>
+                        {b.label}{b.hasNow && <span style={{ marginLeft: 6, fontSize: 8, color: D.amber }}>· NOW</span>}
+                      </div>
+                    ))}
+                    {ticks.map((t) => (
+                      <div key={t.i} style={{
+                        position: "absolute", left: t.x, top: 27, width: pxPerDay, height: 20,
+                        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                        gap: 0, overflow: "hidden",
+                      }}>
+                        {showWeekday && (
+                          <span style={{
+                            fontFamily: mn, fontSize: 8.5,
+                            color: t.today ? D.amber : t.weekend ? D.txd : D.txm,
+                            fontWeight: t.today ? 700 : 500,
+                          }}>
+                            {t.date.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 2)}
+                          </span>
+                        )}
+                        {(showDayNum && (showWeekday || t.weekStart || t.today)) && (
+                          <span style={{
+                            fontFamily: mn, fontSize: 10,
+                            color: t.today ? D.amber : D.txd, fontWeight: t.today ? 700 : 500,
+                          }}>
+                            {t.date.getDate()}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                {/* NOW playhead */}
-                {nowX >= 0 && nowX <= trackW && (
+                {/* ── Lanes body ── */}
+                <div style={{ position: "relative", height: layout.total, display: "flex" }}>
+                  {/* Sticky label column */}
                   <div style={{
-                    position: "absolute", left: nowX, top: 0, bottom: 0, width: 2, zIndex: 4,
-                    background: `linear-gradient(180deg, ${D.amber}, ${D.amber}22)`,
-                    pointerEvents: "none", boxShadow: `0 0 14px ${D.amber}55`,
+                    width: LABEL_W, flex: "none", position: "sticky", left: 0, zIndex: 5,
+                    background: D.card, borderRight: `1px solid ${D.border}`,
                   }}>
-                    <div style={{
-                      position: "absolute", top: -2, left: -4, width: 10, height: 10, borderRadius: 999,
-                      background: D.amber, boxShadow: `0 0 12px ${D.amber}`,
-                    }} />
+                    {layout.rows.map(({ lane, top, h, expanded, subCount }) => (
+                      <div
+                        key={lane.key}
+                        onClick={() => (laneEvents[lane.key] || []).length > 0 && toggleOpen(lane.key)}
+                        style={{
+                          position: "absolute", left: 0, right: 0, top, height: h,
+                          borderBottom: `1px solid ${D.border}`, cursor: (laneEvents[lane.key] || []).length ? "pointer" : "default",
+                          display: "flex", flexDirection: "column", justifyContent: "flex-start",
+                          padding: `${LANE_PAD_Y}px 0 0 12px`, transition: "background 0.15s",
+                        }}
+                        onMouseEnter={(ev) => { ev.currentTarget.style.background = D.hover; }}
+                        onMouseLeave={(ev) => { ev.currentTarget.style.background = "transparent"; }}
+                      >
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                          <span style={{ color: expanded ? lane.accent : D.txd, display: "inline-flex" }}>
+                            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                          </span>
+                          <span style={{
+                            fontFamily: mn, fontSize: 10, letterSpacing: 0.5, fontWeight: 700,
+                            textTransform: "uppercase", color: lane.accent,
+                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: LABEL_W - 36,
+                          }}>
+                            {lane.label}
+                          </span>
+                        </div>
+                        <div style={{ marginTop: 3, display: "inline-flex", alignItems: "center", gap: 5, paddingLeft: 17 }}>
+                          <span style={{ width: 5, height: 5, borderRadius: 999, background: lane.accent }} />
+                          <span style={{ fontFamily: mn, fontSize: 8.5, color: D.txd, letterSpacing: 0.2 }}>
+                            {(laneEvents[lane.key] || []).length} {(laneEvents[lane.key] || []).length === 1 ? "item" : "items"}
+                            {!expanded && subCount > 1 ? ` · ${subCount} rows` : ""}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                )}
 
-                {/* Lane row dividers (under bars) */}
-                {layout.rows.map(({ lane, top, h }) => (
-                  <div key={lane.key} style={{
-                    position: "absolute", left: 0, right: 0, top: top + h - 1, height: 1,
-                    background: D.border, pointerEvents: "none",
-                  }} />
-                ))}
+                  {/* Track area */}
+                  <div style={{ position: "relative", width: trackW, flex: "none" }}>
+                    <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+                      {ticks.map((t) => (
+                        <React.Fragment key={t.i}>
+                          {t.weekend && (
+                            <div style={{
+                              position: "absolute", left: t.x, top: 0, bottom: 0, width: pxPerDay,
+                              background: "rgba(255,255,255,0.018)",
+                            }} />
+                          )}
+                          <div style={{
+                            position: "absolute", left: t.x, top: 0, bottom: 0, width: 1,
+                            background: t.weekStart ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.022)",
+                          }} />
+                        </React.Fragment>
+                      ))}
+                    </div>
 
-                {/* Bars / markers */}
-                {layout.rows.map(({ lane, top, expanded }) => {
-                  const evs = laneEvents[lane.key];
-                  return evs.map((e, idx) => {
-                    const rowTop = expanded
-                      ? top + LANE_PAD_Y + idx * TASK_ROW_H
-                      : top + LANE_PAD_Y;
-                    const rowH = expanded ? TASK_ROW_H : SUMMARY_H;
-                    return (
-                      <EventItem
-                        key={e.id}
-                        e={e}
-                        accent={lane.accent}
-                        xOf={xOf}
-                        trackW={trackW}
-                        rowTop={rowTop}
-                        rowH={rowH}
-                        showLabel={expanded}
-                        hovered={tip?.id === e.id}
-                        onEnter={(x, y, below) => setTip({ id: e.id, x, y, below })}
-                        onLeave={() => setTip((t) => (t?.id === e.id ? null : t))}
-                      />
-                    );
-                  });
-                })}
+                    {/* NOW playhead */}
+                    {nowX >= 0 && nowX <= trackW && (
+                      <div style={{
+                        position: "absolute", left: nowX, top: 0, bottom: 0, width: 2, zIndex: 4,
+                        background: `linear-gradient(180deg, ${D.amber}, ${D.amber}22)`,
+                        pointerEvents: "none", boxShadow: `0 0 14px ${D.amber}55`,
+                      }}>
+                        <div style={{
+                          position: "absolute", top: -2, left: -4, width: 10, height: 10, borderRadius: 999,
+                          background: D.amber, boxShadow: `0 0 12px ${D.amber}`,
+                        }} />
+                      </div>
+                    )}
 
-                {visibleLanes.length === 0 && (
-                  <div style={{
-                    position: "absolute", inset: 0, display: "flex", alignItems: "center",
-                    justifyContent: "center", fontFamily: mn, fontSize: 12, color: D.txd,
-                  }}>
-                    All lanes hidden — re-enable a chip above.
+                    {/* Lane dividers */}
+                    {layout.rows.map(({ lane, top, h }) => (
+                      <div key={lane.key} style={{
+                        position: "absolute", left: 0, right: 0, top: top + h - 1, height: 1,
+                        background: D.border, pointerEvents: "none",
+                      }} />
+                    ))}
+
+                    {/* Bars / markers (placed by packed sub-row) */}
+                    {layout.rows.map(({ lane, top, expanded, rowH, subOf }) => {
+                      const evs = laneEvents[lane.key] || [];
+                      return evs.map((e) => {
+                        const sub = subOf.get(e.id) ?? 0;
+                        const rowTop = top + LANE_PAD_Y + sub * rowH;
+                        return (
+                          <EventItem
+                            key={e.id}
+                            e={e}
+                            accent={lane.accent}
+                            xOf={xOf}
+                            trackW={trackW}
+                            rowTop={rowTop}
+                            rowH={rowH}
+                            showLabel={expanded}
+                            hovered={tip?.id === e.id}
+                            onEnter={(x, y, below) => setTip({ id: e.id, x, y, below })}
+                            onLeave={() => setTip((t) => (t?.id === e.id ? null : t))}
+                          />
+                        );
+                      });
+                    })}
+
+                    {visibleLanes.length === 0 && (
+                      <div style={{
+                        position: "absolute", inset: 0, display: "flex", alignItems: "center",
+                        justifyContent: "center", fontFamily: mn, fontSize: 12, color: D.txd,
+                      }}>
+                        {lanes.length === 0 ? "No events to plot yet." : "All lanes hidden — re-enable a chip above."}
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
+
+              {/* Floating tooltip */}
+              {tip && (() => {
+                const e = m.events.find((ev) => ev.id === tip.id);
+                if (!e) return null;
+                return <Tooltip e={e} x={tip.x} y={tip.y} below={tip.below} />;
+              })()}
             </div>
           </div>
 
-          {/* ── Floating tooltip (anchored to the scroll layer so it tracks bars) ── */}
-          {tip && (() => {
-            const e = m.events.find((ev) => ev.id === tip.id);
-            if (!e) return null;
-            return <Tooltip e={e} x={tip.x} y={tip.y} below={tip.below} />;
-          })()}
-        </div>
-      </div>
-
-      {/* ── Legend ── */}
-      <div style={{
-        marginTop: 14, display: "flex", flexWrap: "wrap", gap: 18,
-        fontFamily: mn, fontSize: 10, color: D.txd, alignItems: "center",
-      }}>
-        <LegendItem icon={<span style={{ display: "inline-block", width: 20, height: 9, borderRadius: 3, background: `linear-gradient(90deg, ${D.teal}, ${D.teal}99)`, border: `1px solid ${D.teal}66` }} />} label="ranged event (start → end)" />
-        <LegendItem icon={<Triangle size={9} color={D.amber} fill={D.amber} />} label="point milestone" />
-        <LegendItem icon={<Diamond size={9} color={D.crimson} fill={D.crimson} />} label="ad / kiosk creative" />
-        <LegendItem icon={<span style={{ display: "inline-block", width: 2, height: 12, background: D.amber, boxShadow: `0 0 8px ${D.amber}` }} />} label="NOW playhead" />
-        <LegendItem icon={<span style={{ display: "inline-block", width: 14, height: 8, background: "rgba(255,255,255,0.05)", borderRadius: 2 }} />} label="weekend" />
-        <LegendItem icon={<Radio size={10} color={D.teal} />} label="hover any bar for details — overlaps stay individually hoverable" />
-      </div>
+          {/* ── Legend ── */}
+          <div style={{
+            marginTop: 14, display: "flex", flexWrap: "wrap", gap: 18,
+            fontFamily: mn, fontSize: 10, color: D.txd, alignItems: "center",
+          }}>
+            <LegendItem icon={<span style={{ display: "inline-block", width: 20, height: 9, borderRadius: 3, background: `linear-gradient(90deg, ${D.teal}, ${D.teal}99)`, border: `1px solid ${D.teal}66` }} />} label="ranged event (start → end)" />
+            <LegendItem icon={<Triangle size={9} color={D.amber} fill={D.amber} />} label="point milestone" />
+            <LegendItem icon={<Diamond size={9} color={D.crimson} fill={D.crimson} />} label="ad / kiosk creative" />
+            <LegendItem icon={<span style={{ display: "inline-block", width: 2, height: 12, background: D.amber, boxShadow: `0 0 8px ${D.amber}` }} />} label="NOW playhead" />
+            <LegendItem icon={<Rows3 size={11} color={D.teal} />} label="overlaps auto-stack — hover any item for detail" />
+          </div>
+        </>
+      ) : (
+        <AgendaView m={m} now={now} />
+      )}
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────
-// One event on the track: a ranged bar (left/width from start→end) or a point
-// marker (diamond for ads/kiosk, triangle otherwise). Reports its anchor rect
-// up to the parent so a single shared tooltip can render above the scroll layer
-// — that keeps overlapping bars individually hoverable without z-index wars.
+// Segmented control (shared by mode / group-by switches).
+function Segmented({ options, value, onChange }: {
+  options: { key: string; label: string; Icon: React.ComponentType<{ size?: number }> }[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div style={{ display: "inline-flex", border: `1px solid ${D.border}`, borderRadius: 9, overflow: "hidden", background: D.card }}>
+      {options.map((o, i) => {
+        const on = o.key === value;
+        return (
+          <button
+            key={o.key}
+            onClick={() => onChange(o.key)}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer",
+              fontFamily: mn, fontSize: 10.5, letterSpacing: 0.3, padding: "6px 12px",
+              border: "none", borderLeft: i ? `1px solid ${D.border}` : "none",
+              color: on ? D.tx : D.txm, background: on ? D.hover : "transparent",
+              transition: "background 0.14s, color 0.14s",
+            }}
+          >
+            <o.Icon size={12} /> {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// One event on the Gantt track: a ranged bar (clamped to the visible window,
+// with edge notches when it continues off-screen) or a point marker.
 function EventItem({
   e, accent, xOf, trackW, rowTop, rowH, showLabel, hovered, onEnter, onLeave,
 }: {
@@ -506,21 +624,21 @@ function EventItem({
   function fire() {
     const el = ref.current;
     if (!el) return;
-    // Anchor at the bar's horizontal centre (clamped) within the track, plus the
-    // current row's vertical edge — both are offsets within the scroll content,
-    // so the single shared tooltip lines up regardless of scroll position.
     const x = el.offsetLeft + Math.min(el.offsetWidth / 2, 60);
     const below = rowTop < 64;
     const y = below ? rowTop + rowH : rowTop;
     onEnter(x, y, below);
   }
 
-  const x = Math.max(0, Math.min(trackW - 6, xOf(start)));
-
   // ── Ranged bar ──
   if (end) {
-    const rawX = xOf(start);
-    const w = Math.max(26, xOf(end) - rawX);
+    const rawL = xOf(start);
+    const rawR = xOf(end);
+    const left = Math.max(0, rawL);
+    const right = Math.min(trackW, rawR);
+    const w = Math.max(MIN_BAR, right - left);
+    const clipL = rawL < 0;
+    const clipR = rawR > trackW;
     return (
       <div
         ref={ref}
@@ -528,7 +646,7 @@ function EventItem({
         onMouseEnter={fire}
         onMouseLeave={onLeave}
         style={{
-          position: "absolute", left: rawX, top: rowTop + (rowH - BAR_H) / 2,
+          position: "absolute", left, top: rowTop + (rowH - BAR_H) / 2,
           width: w, height: BAR_H, cursor: "pointer", zIndex: hovered ? 9 : 2,
         }}
       >
@@ -536,14 +654,16 @@ function EventItem({
           position: "relative", height: "100%", borderRadius: 6,
           background: `linear-gradient(90deg, ${accent}3a, ${accent}1a)`,
           border: `1px solid ${accent}${hovered ? "cc" : "60"}`,
+          borderLeftStyle: clipL ? "dashed" : "solid",
+          borderRightStyle: clipR ? "dashed" : "solid",
           boxShadow: hovered ? `0 6px 20px ${accent}44` : "none",
           display: "flex", alignItems: "center", gap: 6, padding: "0 8px",
           overflow: "hidden", transition: "border-color 0.15s, box-shadow 0.15s",
         }}>
-          <span style={{
+          {!clipL && <span style={{
             position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: accent,
             borderTopLeftRadius: 6, borderBottomLeftRadius: 6,
-          }} />
+          }} />}
           <span style={{
             width: 6, height: 6, borderRadius: 999, background: statusC, flex: "none",
             boxShadow: `0 0 6px ${statusC}aa`, marginLeft: 2,
@@ -568,6 +688,7 @@ function EventItem({
   }
 
   // ── Point marker ──
+  const px = Math.max(0, Math.min(trackW - 6, xOf(start)));
   return (
     <div
       ref={ref}
@@ -575,9 +696,9 @@ function EventItem({
       onMouseEnter={fire}
       onMouseLeave={onLeave}
       style={{
-        position: "absolute", left: x - 8, top: rowTop + (rowH - BAR_H) / 2, height: BAR_H,
+        position: "absolute", left: px - 8, top: rowTop + (rowH - BAR_H) / 2, height: BAR_H,
         display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer",
-        zIndex: hovered ? 9 : 3, paddingRight: 6, maxWidth: showLabel ? trackW - x : undefined,
+        zIndex: hovered ? 9 : 3, paddingRight: 6, maxWidth: showLabel ? trackW - px : undefined,
       }}
     >
       <span style={{ position: "relative", display: "inline-flex", flex: "none", filter: hovered ? `drop-shadow(0 0 6px ${accent})` : "none" }}>
@@ -597,6 +718,123 @@ function EventItem({
           {e.title}
         </span>
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// AGENDA — chronological list grouped by day. Past collapses to a thin strip;
+// Today + upcoming days are full rows. No geometry, so nothing ever overlaps.
+function AgendaView({ m, now }: { m: ViewProps["m"]; now: Date }) {
+  const today = startOfDay(now).getTime();
+  const groups = useMemo(() => {
+    const byDay = new Map<number, MarketingEvent[]>();
+    for (const e of m.events) {
+      const k = startOfDay(new Date(e.start)).getTime();
+      if (!byDay.has(k)) byDay.set(k, []);
+      byDay.get(k)!.push(e);
+    }
+    const keys = [...byDay.keys()].sort((a, b) => a - b);
+    return keys.map((k) => ({
+      day: new Date(k),
+      key: k,
+      past: k < today,
+      isToday: k === today,
+      events: byDay.get(k)!.sort((a, b) => +new Date(a.start) - +new Date(b.start)),
+    }));
+  }, [m.events, today]);
+
+  const campaignName = (id?: string | null) => m.campaigns.find((c) => c.id === id)?.name;
+
+  if (!groups.length) {
+    return (
+      <div style={{ padding: "60px 0", textAlign: "center", fontFamily: mn, fontSize: 12, color: D.txd }}>
+        No events yet — add one and it’ll show here in order.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      border: `1px solid ${D.border}`, borderRadius: 14, overflow: "hidden",
+      background: D.cardGrad, boxShadow: D.glow,
+    }}>
+      {groups.map((g) => (
+        <div key={g.key} style={{ opacity: g.past ? 0.62 : 1, borderTop: `1px solid ${D.border}` }}>
+          {/* Day header */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10, padding: "9px 16px",
+            position: "sticky", top: 0, background: D.card, borderBottom: `1px solid ${D.border}`, zIndex: 2,
+          }}>
+            <span style={{
+              fontFamily: gf, fontSize: 14, fontWeight: 700,
+              color: g.isToday ? D.amber : g.past ? D.txm : D.tx,
+            }}>
+              {g.isToday ? "Today" : g.day.toLocaleDateString(undefined, { weekday: "long" })}
+            </span>
+            <span style={{ fontFamily: mn, fontSize: 10.5, color: D.txd }}>
+              {g.day.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+            </span>
+            {g.isToday && <span style={{ width: 6, height: 6, borderRadius: 999, background: D.amber, boxShadow: `0 0 8px ${D.amber}` }} />}
+            <span style={{ flex: 1 }} />
+            <span style={{ fontFamily: mn, fontSize: 9.5, color: D.txd }}>{g.events.length} {g.events.length === 1 ? "item" : "items"}</span>
+          </div>
+          {/* Rows */}
+          {g.events.map((e) => {
+            const accent = TYPE_COLOR[e.type];
+            const statusC = STATUS_COLOR[e.status];
+            const ch = e.channel ? channelOf(e.channel) : null;
+            const cname = campaignName(e.campaignId);
+            const start = new Date(e.start);
+            const end = e.end ? new Date(e.end) : null;
+            return (
+              <div key={e.id} style={{
+                display: "flex", alignItems: "center", gap: 12, padding: "9px 16px 9px 16px",
+                borderBottom: `1px solid ${D.border}55`,
+              }}
+                onMouseEnter={(ev) => { ev.currentTarget.style.background = D.hover; }}
+                onMouseLeave={(ev) => { ev.currentTarget.style.background = "transparent"; }}
+              >
+                <span style={{ fontFamily: mn, fontSize: 10.5, color: D.txm, width: 64, flex: "none" }}>
+                  {fmtTime(start)}
+                </span>
+                <span style={{ width: 3, height: 26, borderRadius: 2, background: accent, flex: "none", boxShadow: `0 0 8px ${accent}66` }} />
+                <span style={{
+                  fontFamily: mn, fontSize: 8, letterSpacing: 0.5, textTransform: "uppercase",
+                  color: accent, border: `1px solid ${accent}55`, borderRadius: 4, padding: "1px 5px", flex: "none",
+                }}>
+                  {e.type}
+                </span>
+                <span style={{
+                  fontFamily: ft, fontSize: 13, fontWeight: 500, color: D.tx,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>
+                  {e.title}
+                  {end && <span style={{ fontFamily: mn, fontSize: 9.5, color: D.txd }}>  → {fmtDay(end)}</span>}
+                </span>
+                <span style={{ flex: 1 }} />
+                {cname && (
+                  <span style={{ fontFamily: mn, fontSize: 9.5, color: D.txd, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160 }}>
+                    {cname}
+                  </span>
+                )}
+                {ch && (
+                  <span style={{
+                    flex: "none", fontFamily: mn, fontSize: 8, color: ch.c,
+                    border: `1px solid ${ch.c}66`, borderRadius: 4, padding: "1px 5px",
+                  }}>
+                    {ch.s}
+                  </span>
+                )}
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontFamily: mn, fontSize: 9.5, color: statusC, width: 78, flex: "none" }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 999, background: statusC }} />
+                  {STATUS_LABEL[e.status]}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }
