@@ -11,10 +11,10 @@
 //
 // Range presets (1W / 2W / 1M / Quarter) zoom the Gantt window; day labels
 // thin out automatically as the window widens. Read-only over `m`.
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   GanttChart, CalendarRange, ChevronRight, ChevronDown, Diamond, Triangle,
-  Radio, Layers, ArrowRight, List, Rows3, Tag,
+  Radio, Layers, ArrowRight, List, Rows3, Tag, ChevronLeft, CalendarDays, Crosshair,
 } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
 import {
@@ -49,14 +49,16 @@ const PACK_GAP = 8;         // min px gap between two items on one packed sub-ro
 const MIN_BAR = 30;         // min ranged-bar footprint for packing
 const POINT_SLOT = 26;      // horizontal slot a point marker reserves for packing
 
-// Range presets. Week-multiples keep the week bands tidy; "1M" = 4 weeks.
-const RANGES = [
-  { key: "1w", label: "1W", weeks: 1 },
-  { key: "2w", label: "2W", weeks: 2 },
-  { key: "1m", label: "1M", weeks: 4 },
-  { key: "q",  label: "Q",  weeks: 13 },
+// Weighted weekly scroll: one "page" shows N weeks at a fixed scale; the whole
+// track spans a 90-day cap, so you scroll week-by-week (week 1 → week 2 → …).
+// Past 90 days, hand off to the Calendar.
+const SPAN_DAYS = 90;
+const DENSITIES = [
+  { key: "1w", label: "Week",  weeks: 1 },
+  { key: "2w", label: "2 wk",  weeks: 2 },
+  { key: "4w", label: "Month", weeks: 4 },
 ] as const;
-type RangeKey = (typeof RANGES)[number]["key"];
+type DensityKey = (typeof DENSITIES)[number]["key"];
 
 function startOfDay(d: Date): Date { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function startOfWeek(d: Date): Date { // Monday-anchored
@@ -70,20 +72,25 @@ interface TipState { id: string; x: number; y: number; below: boolean; }
 type ViewMode = "gantt" | "agenda";
 type GroupBy = "type" | "campaign";
 
+const scrollBtn: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer",
+  fontFamily: mn, fontSize: 10.5, letterSpacing: 0.3, padding: "6px 11px",
+  border: "none", background: "transparent", color: D.txm,
+};
+
 export default function TimelineView({ m, onOpenView }: ViewProps) {
-  void onOpenView;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [tip, setTip] = useState<TipState | null>(null);
   const [mode, setMode] = useState<ViewMode>("gantt");
   const [groupBy, setGroupBy] = useState<GroupBy>("type");
-  const [range, setRange] = useState<RangeKey>("1m");
+  const [density, setDensity] = useState<DensityKey>("1w");
   const [open, setOpen] = useState<Record<string, boolean>>({ ads: true });
   const [hidden, setHidden] = useState<Record<string, boolean>>({});
   const [tick, setTick] = useState(0);          // re-render the playhead each minute
-  const [pxPerDay, setPxPerDay] = useState(64);  // density derived from container width
+  const [pxPerDay, setPxPerDay] = useState(64);  // pixels/day so one page = N weeks
 
   const now = useMemo(() => new Date(), [tick]); // eslint-disable-line react-hooks/exhaustive-deps
-  const weeks = RANGES.find((r) => r.key === range)!.weeks;
+  const visibleWeeks = DENSITIES.find((d) => d.key === density)!.weeks;
 
   // Keep the NOW playhead honest without thrashing.
   useEffect(() => {
@@ -109,34 +116,49 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
     }));
   }, [groupBy, m.campaigns, m.events]);
 
-  // ─── Window: a week-aligned span anchored a few days before "now" so the
-  // focus is today + upcoming; history scrolls in via a wider preset. ───
+  // ─── Window: a fixed 90-day span, week-aligned, starting a week before now so
+  // a little history scrolls in to the left and ~12 weeks of runway to the
+  // right. The viewport only ever shows `visibleWeeks` at a time. ───
   const win = useMemo(() => {
-    const from = startOfWeek(new Date(now.getTime() - 3 * DAY));
-    const days = weeks * 7;
+    const from = startOfWeek(new Date(now.getTime() - 7 * DAY));
+    const days = SPAN_DAYS;
     const to = startOfDay(new Date(from.getTime() + days * DAY));
     return { from, to, days };
-  }, [weeks, now]);
+  }, [now]);
 
   const trackW = win.days * pxPerDay;
 
-  // Fit the chosen window to the viewport so it fills the canvas; horizontal
-  // scroll only kicks in when day cells would get too thin to read.
+  // Scale so one screen-width = `visibleWeeks` weeks; the 90-day track is wider
+  // than the viewport, so you scroll week-by-week.
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const measure = () => {
       const avail = el.clientWidth - LABEL_W - 1;
-      if (avail > 80) setPxPerDay(Math.max(12, Math.min(120, avail / win.days)));
+      if (avail > 80) setPxPerDay(Math.max(14, avail / (visibleWeeks * 7)));
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [win.days]);
+  }, [visibleWeeks]);
 
   const xOf = (d: Date) => ((d.getTime() - win.from.getTime()) / DAY) * pxPerDay;
   const nowX = xOf(now);
+
+  // Recenter on "today" when the scale changes (and on first paint).
+  const scrollToToday = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ left: Math.max(0, ((now.getTime() - win.from.getTime()) / DAY) * pxPerDay - pxPerDay * 2), behavior: "smooth" });
+  }, [now, win.from, pxPerDay]);
+  const nudgeWeek = (dir: 1 | -1) => { const el = scrollRef.current; if (el) el.scrollBy({ left: dir * pxPerDay * 7, behavior: "smooth" }); };
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollLeft = Math.max(0, ((now.getTime() - win.from.getTime()) / DAY) * pxPerDay - pxPerDay * 2);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pxPerDay]);
 
   // Adaptive axis density — thin out day labels as cells shrink.
   const showDayNum = pxPerDay >= 22;
@@ -262,7 +284,7 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
           <Segmented
             options={[
               { key: "gantt", label: "Gantt", Icon: GanttChart },
-              { key: "agenda", label: "Agenda", Icon: List },
+              { key: "agenda", label: "List", Icon: List },
             ]}
             value={mode}
             onChange={(v) => setMode(v as ViewMode)}
@@ -282,20 +304,21 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
               value={groupBy}
               onChange={(v) => { setGroupBy(v as GroupBy); setOpen(v === "type" ? { ads: true } : {}); }}
             />
+            {/* Scale (how many weeks fill the screen) */}
             <div style={{
               display: "inline-flex", border: `1px solid ${D.border}`, borderRadius: 9,
               overflow: "hidden", background: D.card,
             }}>
-              {RANGES.map((r, i) => (
+              {DENSITIES.map((r, i) => (
                 <button
                   key={r.key}
-                  onClick={() => setRange(r.key)}
-                  title={r.key === "q" ? "Quarter (13 weeks)" : r.label === "1M" ? "1 month" : r.label}
+                  onClick={() => setDensity(r.key)}
+                  title={`${r.weeks} week${r.weeks > 1 ? "s" : ""} per screen`}
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer",
                     fontFamily: mn, fontSize: 10.5, letterSpacing: 0.3, padding: "6px 13px",
                     border: "none", borderLeft: i ? `1px solid ${D.border}` : "none",
-                    color: range === r.key ? D.tx : D.txm, background: range === r.key ? D.hover : "transparent",
+                    color: density === r.key ? D.tx : D.txm, background: density === r.key ? D.hover : "transparent",
                     transition: "background 0.14s, color 0.14s",
                   }}
                 >
@@ -303,6 +326,21 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
                 </button>
               ))}
             </div>
+            {/* Week scroller: ‹ prev · Today · next › */}
+            <div style={{ display: "inline-flex", border: `1px solid ${D.border}`, borderRadius: 9, overflow: "hidden", background: D.card }}>
+              <button onClick={() => nudgeWeek(-1)} title="Previous week" style={scrollBtn}><ChevronLeft size={13} /></button>
+              <button onClick={scrollToToday} title="Jump to today" style={{ ...scrollBtn, borderLeft: `1px solid ${D.border}`, borderRight: `1px solid ${D.border}`, color: D.amber }}><Crosshair size={12} /> Today</button>
+              <button onClick={() => nudgeWeek(1)} title="Next week" style={scrollBtn}><ChevronRight size={13} /></button>
+            </div>
+            {onOpenView && (
+              <button onClick={() => onOpenView("calendar")} title="See the full picture in the Calendar" style={{
+                display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer",
+                fontFamily: mn, fontSize: 10, letterSpacing: 0.3, padding: "6px 11px", borderRadius: 9,
+                border: `1px solid ${D.border}`, background: "transparent", color: D.txm,
+              }}>
+                <CalendarDays size={12} /> 90-day cap · Calendar →
+              </button>
+            )}
             <span style={{ flex: 1 }} />
             {/* Lane filter / expand chips */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "flex-end" }}>
@@ -375,7 +413,7 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
                       {groupBy === "campaign" ? "Campaigns" : "Lanes"}
                     </span>
                     <span style={{ fontFamily: mn, fontSize: 9.5, color: D.teal }}>
-                      {weeks === 13 ? "Quarter" : weeks === 4 ? "1-month" : `${weeks}-week`} window
+                      {visibleWeeks === 1 ? "Week" : `${visibleWeeks}-week`} view · 90-day span
                     </span>
                   </div>
                   <div style={{ position: "relative", width: trackW, flex: "none" }}>
