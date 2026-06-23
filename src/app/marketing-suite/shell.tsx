@@ -10,6 +10,7 @@ import { VIEWS, type ViewId } from "./marketing-constants";
 import { useMarketing, type ViewProps } from "./use-marketing";
 
 import TodayView from "./views/today";
+import ScheduleView from "./views/schedule";
 import CalendarView from "./views/calendar";
 import TimelineView from "./views/timeline";
 import BoardView from "./views/board";
@@ -20,6 +21,8 @@ import AnalyticsView from "./views/analytics";
 import BriefView from "./views/brief";
 import WidgetPanel from "./components/widget-panel";
 import NotifBell from "./components/notifications";
+import { CreateProvider } from "./create-context";
+import AssistantBar from "./components/assistant-bar";
 
 export default function MarketingSuiteShell() {
   const [active, setActive] = useState<ViewId>("today");
@@ -37,6 +40,7 @@ export default function MarketingSuiteShell() {
   function renderView() {
     switch (active) {
       case "today": return <TodayView {...vp} />;
+      case "schedule": return <ScheduleView {...vp} />;
       case "calendar": return <CalendarView {...vp} />;
       case "timeline": return <TimelineView {...vp} />;
       case "board": return <BoardView />;
@@ -54,6 +58,7 @@ export default function MarketingSuiteShell() {
   const liveOffline = m.mode === "live" && m.offline;
 
   return (
+    <CreateProvider m={m} onOpenView={vp.onOpenView}>
     <div style={{ minHeight: "100vh", background: D.bg, color: D.tx, fontFamily: ft }}>
       {/* ── Top bar ── */}
       <div style={{
@@ -72,6 +77,9 @@ export default function MarketingSuiteShell() {
             MARKETING<span style={{ color: D.amber }}>SUITE</span>
           </span>
         </div>
+        <span style={{ flex: 1 }} />
+        {/* Assistant omnibox — type/paste anything, it figures out what to create */}
+        <AssistantBar />
         <span style={{ flex: 1 }} />
         {/* Owner + offline hint */}
         <span style={{ fontFamily: mn, fontSize: 10, color: liveOffline ? D.coral : D.txd, display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -161,6 +169,7 @@ export default function MarketingSuiteShell() {
         )}
       </div>
     </div>
+    </CreateProvider>
   );
 }
 

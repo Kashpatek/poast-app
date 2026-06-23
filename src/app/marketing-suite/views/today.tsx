@@ -21,6 +21,7 @@ import {
   Clapperboard, BarChart3, ListTodo, AlarmClock, Newspaper, StickyNote,
   ArrowRight, Plus, X, GripVertical, Flame, TriangleAlert, CheckCircle2,
   Gauge, Activity, Pencil, Check, Shapes, Clock, DollarSign, Timer,
+  CalendarClock, CheckSquare,
   type LucideIcon,
 } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
@@ -31,6 +32,7 @@ import {
   type BoardTaskLite,
 } from "../marketing-constants";
 import type { MarketingState, ViewProps } from "../use-marketing";
+import { useCreate } from "../create-context";
 
 // ════════ persistence keys ════════
 const LAYOUT_KEY = "ms-today-modules-v1";
@@ -217,6 +219,7 @@ function Tile({
 // ════════════════════════════ main view ════════════════════════════
 export default function TodayView({ m, onOpenView }: ViewProps) {
   const open = (v: string) => onOpenView?.(v);
+  const { openCreate } = useCreate();
   const now = React.useMemo(() => new Date(), []);
 
   // ── layout state (persisted) ──
@@ -284,7 +287,18 @@ export default function TodayView({ m, onOpenView }: ViewProps) {
             )} {todayCount} on deck today.
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {/* Always-visible quick-create actions (full pop-up suites) */}
+          <button onClick={() => openCreate("task")} style={quickBtn(D.coral)} title="New task">
+            <CheckSquare size={13} /> Task
+          </button>
+          <button onClick={() => openCreate("schedule")} style={quickBtn(D.amber)} title="Schedule a booking / block / meeting">
+            <CalendarClock size={13} /> Schedule
+          </button>
+          <button onClick={() => openCreate("campaign")} style={quickBtn(D.violet)} title="New campaign">
+            <Megaphone size={13} /> Campaign
+          </button>
+          <div style={{ width: 1, height: 20, background: D.border, margin: "0 2px" }} />
           {edit && (
             <button onClick={resetLayout} style={ghostBtn} title="Restore default layout">
               <RotateLabel />
@@ -886,3 +900,10 @@ const primaryBtn: React.CSSProperties = {
   cursor: "pointer", border: "none", fontWeight: 700,
   background: `linear-gradient(135deg, ${D.amber}, #d88f2c)`, color: "#1a1206",
 };
+function quickBtn(c: string): React.CSSProperties {
+  return {
+    fontFamily: mn, fontSize: 11, letterSpacing: 0.3, borderRadius: 9, padding: "8px 12px",
+    cursor: "pointer", border: `1px solid ${c}55`, background: c + "14", color: c,
+    display: "inline-flex", alignItems: "center", gap: 6,
+  };
+}

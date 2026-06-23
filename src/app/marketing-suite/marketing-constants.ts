@@ -12,7 +12,7 @@
 import { D, PL } from "../shared-constants";
 import {
   LayoutDashboard, CalendarDays, GanttChart, KanbanSquare, Megaphone,
-  Clapperboard, TrendingUp, BarChart3, Newspaper, type LucideIcon,
+  Clapperboard, TrendingUp, BarChart3, Newspaper, CalendarClock, type LucideIcon,
 } from "lucide-react";
 
 // ─── Core types ───
@@ -88,11 +88,12 @@ export function channelOf(key?: string | null) {
 
 // ─── View registry (shell left-nav order) ───
 export type ViewId =
-  | "today" | "calendar" | "timeline" | "board" | "campaigns"
+  | "today" | "schedule" | "calendar" | "timeline" | "board" | "campaigns"
   | "kiosk" | "trends" | "analytics" | "brief";
 export interface ViewDef { id: ViewId; label: string; Icon: LucideIcon; accent: string; }
 export const VIEWS: ViewDef[] = [
   { id: "today",     label: "Today",    Icon: LayoutDashboard, accent: D.amber },
+  { id: "schedule",  label: "Schedule", Icon: CalendarClock,   accent: D.amber },
   { id: "calendar",  label: "Calendar", Icon: CalendarDays,    accent: D.cyan },
   { id: "timeline",  label: "Timeline", Icon: GanttChart,      accent: D.teal },
   { id: "board",     label: "Board",    Icon: KanbanSquare,    accent: D.blue },
@@ -101,6 +102,45 @@ export const VIEWS: ViewDef[] = [
   { id: "trends",    label: "Trends",   Icon: TrendingUp,      accent: D.coral },
   { id: "analytics", label: "Data",     Icon: BarChart3,       accent: D.teal },
   { id: "brief",     label: "Brief",    Icon: Newspaper,       accent: D.amber },
+];
+
+// ─── Omni-create contract (Assistant + Add buttons + modals) ───
+// Every "add" in the suite routes through one create layer. CreateKind picks
+// which rich modal opens; the Assistant classifies free text/paste into one of
+// these (or "help" for a conversational answer).
+export type CreateKind = "task" | "schedule" | "campaign" | "ad";
+
+// Schedule items are marketing events carrying payload.scheduleKind. Each kind
+// maps to an underlying EventType for the timeline/calendar lanes + a color.
+export interface ScheduleKindDef { key: string; label: string; type: EventType; color: string; }
+export const SCHEDULE_KINDS: ScheduleKindDef[] = [
+  { key: "meeting",  label: "Meeting",    type: "manual",     color: D.blue },
+  { key: "filming",  label: "Filming",    type: "production", color: D.amber },
+  { key: "review",   label: "Review",     type: "manual",     color: D.violet },
+  { key: "deadline", label: "Deadline",   type: "launch",     color: D.coral },
+  { key: "block",    label: "Time block", type: "manual",     color: D.teal },
+  { key: "booking",  label: "Booking",    type: "manual",     color: D.cyan },
+];
+export function scheduleKindOf(key?: string | null): ScheduleKindDef {
+  return SCHEDULE_KINDS.find((k) => k.key === key)
+    || { key: "block", label: "Scheduled", type: "manual", color: D.teal };
+}
+
+// Task categories mirror the master board's CATEGORIES so a task created here
+// round-trips cleanly into projects/akash-todo-master.
+export const TASK_CATEGORIES = [
+  "GRAPHIC DESIGN", "MARKETING OPS", "VIDEO PRODUCTION", "BRAND / IDENTITY",
+  "DEV / ACCESS", "CONTENT OPS", "PODCAST", "EVENTS", "RESEARCH", "ADMIN", "OTHER",
+];
+export const TASK_PRIORITIES = ["HIGH", "MEDIUM", "THIS WEEK", "ONGOING"];
+export const TASK_ASSIGNEES = ["Akash", "Daksh", "Vansh", "Max", "Michelle", "Unassigned"];
+
+// Target calendars for a scheduled item. Until Google Calendar is connected
+// (Phase 4) only the in-app SA Marketing calendar exists; connected Google
+// calendars get appended to this list at runtime.
+export interface CalendarTarget { id: string; name: string; color: string; google?: boolean; }
+export const DEFAULT_CALENDARS: CalendarTarget[] = [
+  { id: "sa-marketing", name: "SA Marketing", color: D.amber },
 ];
 
 // ─── Date helpers (demo data anchors to "now" so views stay meaningful) ───
