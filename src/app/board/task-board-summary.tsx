@@ -461,30 +461,95 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
 
   const lastSavedRef = useRef<string>("");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── Resilience + egress guards ──────────────────────────────────
+  // loadOkRef flips true ONLY after a successful server hydration —
+  // saves stay blocked until then so a failed/restricted load can never
+  // overwrite the server row with an empty board. dirtyRef marks unsaved
+  // local edits so a background poll won't stomp them. We mirror the
+  // board to localStorage, so an outage (e.g. Supabase egress 402) still
+  // renders your real tasks instead of an empty board.
+  const loadOkRef = useRef(false);
+  const dirtyRef = useRef(false);
+  const CACHE_KEY = "akash-todo-master-cache";
+  const [offline, setOffline] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch("/api/db?table=projects");
-      const j = await res.json();
-      const row = (j.data || []).find((r: { id: string; type: string }) => r.id === "akash-todo-master" && r.type === "akash-todo");
-      const data: BoardArchive = row?.data || { boards: [], activeId: "" };
-      if (data.boards.length === 0) {
-        const def: Board = { id: "b-" + Date.now(), name: "May 2026", tasks: [], createdAt: new Date().toISOString() };
-        data.boards = [def];
-        data.activeId = def.id;
-      }
-      if (!data.activeId || !data.boards.find((b) => b.id === data.activeId)) data.activeId = data.boards[0].id;
-      lastSavedRef.current = JSON.stringify(data);
-      setArchive(data);
-    } catch { /* tolerate */ }
-    setLoading(false);
+  const normalizeArchive = useCallback((data: BoardArchive): BoardArchive => {
+    if (!data.boards || data.boards.length === 0) {
+      const def: Board = { id: "b-" + Date.now(), name: "May 2026", tasks: [], createdAt: new Date().toISOString() };
+      data.boards = [def];
+      data.activeId = def.id;
+    }
+    if (!data.activeId || !data.boards.find((b) => b.id === data.activeId)) data.activeId = data.boards[0].id;
+    return data;
   }, []);
+
+  const load = useCallback(async (isPoll = false) => {
+    try {
+      // Fetch ONLY this board's row — the old `?table=projects` pulled
+      // EVERY project's full payload on mount + every poll, which is what
+      // exhausted the Supabase egress quota.
+      const res = await fetch("/api/db?table=projects&id=akash-todo-master");
+      let j: { data?: { data?: BoardArchive } | null; error?: string } = {};
+      try { j = await res.json(); } catch { /* non-JSON body */ }
+
+      if (res.ok && j.data && j.data.data) {
+        // Don't overwrite unsaved local edits during a background poll.
+        if (isPoll && dirtyRef.current) { setOffline(false); return; }
+        const data = normalizeArchive(j.data.data as BoardArchive);
+        const ser = JSON.stringify(data);
+        lastSavedRef.current = ser;
+        loadOkRef.current = true;
+        dirtyRef.current = false;
+        setArchive(data);
+        setOffline(false);
+        try { window.localStorage.setItem(CACHE_KEY, ser); } catch {}
+      } else if (res.ok && (j.data === null || j.data === undefined)) {
+        // 200 with no row → genuinely a fresh board.
+        const data = normalizeArchive({ boards: [], activeId: "" });
+        lastSavedRef.current = JSON.stringify(data);
+        loadOkRef.current = true;
+        setArchive(data);
+        setOffline(false);
+      } else {
+        const msg = j.error ? String(j.error) : "HTTP " + res.status;
+        // `.single()` on zero rows 404s with a PGRST116 message — that's a
+        // new board, not an outage. Anything else (egress 402, 5xx, RLS)
+        // is a real outage and must NOT be treated as empty.
+        if (res.status === 404 && /PGRST116|0 rows|no rows|coerce/i.test(msg)) {
+          const data = normalizeArchive({ boards: [], activeId: "" });
+          lastSavedRef.current = JSON.stringify(data);
+          loadOkRef.current = true;
+          setArchive(data);
+          setOffline(false);
+        } else {
+          throw new Error(msg);
+        }
+      }
+    } catch {
+      // Outage: fall back to the last cached board so it never looks
+      // empty, and keep saves blocked (loadOkRef stays false) so we can't
+      // clobber good server data once the quota is restored.
+      if (!loadOkRef.current) {
+        try {
+          const raw = window.localStorage.getItem(CACHE_KEY);
+          if (raw) { const cached = normalizeArchive(JSON.parse(raw)); lastSavedRef.current = JSON.stringify(cached); setArchive(cached); }
+        } catch {}
+      }
+      setOffline(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizeArchive]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     if (loading) return;
-    const id = setInterval(() => { load(); }, 20000);
-    return () => clearInterval(id);
+    // Gentler poll (60s, was 20s) and never while the tab is hidden — big
+    // egress savings vs. hammering the DB three times a minute all day.
+    const id = setInterval(() => { if (!document.hidden) load(true); }, 60000);
+    const onVis = () => { if (!document.hidden) load(true); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", onVis); };
   }, [loading, load]);
 
   const saveArchive = useCallback(async (next: BoardArchive) => {
@@ -498,17 +563,25 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
           data: { id: "akash-todo-master", name: "Akash Todo", type: "akash-todo", data: next, updated_at: new Date().toISOString() },
         }),
       });
-      if (!res.ok) { setSaveState("error"); return; }
+      if (!res.ok) { setSaveState("error"); setOffline(true); return; }
       lastSavedRef.current = JSON.stringify(next);
+      dirtyRef.current = false;
+      setOffline(false);
       setSaveState("saved");
       setTimeout(() => setSaveState((s) => s === "saved" ? "idle" : s), 1500);
-    } catch { setSaveState("error"); }
+    } catch { setSaveState("error"); setOffline(true); }
   }, []);
 
   useEffect(() => {
     if (loading) return;
     const ser = JSON.stringify(archive);
+    // Always mirror to localStorage (so a refresh mid-outage keeps your
+    // edits) — but only ever push to the server once we've safely loaded.
+    const hasContent = archive.boards.some((b) => b.tasks.length > 0);
+    if (loadOkRef.current || hasContent) { try { window.localStorage.setItem(CACHE_KEY, ser); } catch {} }
+    if (!loadOkRef.current) return;
     if (ser === lastSavedRef.current) return;
+    dirtyRef.current = true;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => saveArchive(archive), 400);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
@@ -991,6 +1064,15 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
 
   return (
     <DragCtx.Provider value={dragCtxValue}>
+    {offline && typeof document !== "undefined" && createPortal(
+      <div style={{
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
+        background: "linear-gradient(90deg," + D.coral + "," + D.crimson + ")",
+        color: "#fff", fontFamily: mn, fontSize: 12, fontWeight: 700, letterSpacing: "0.3px",
+        padding: "6px 16px", textAlign: "center", boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+      }}>
+        ⚠ Showing cached tasks — can&rsquo;t reach the database (Supabase egress quota). Your data is safe; edits won&rsquo;t sync until service is restored.
+      </div>, document.body)}
     <div style={{
       padding: narrow ? "14px 12px 80px" : (isStandalone ? "26px 36px 80px" : "20px 26px 60px"),
       fontFamily: ft, color: D.tx,
