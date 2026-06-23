@@ -4,7 +4,7 @@
 import { createPortal } from "react-dom";
 import { X, Check, RotateCcw } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
-import { useTheme, type ThemeName, type BgName } from "../../theme-context";
+import { useTheme, playThemeTransitionAndReload, type ThemeName, type BgName } from "../../theme-context";
 
 const THEMES: { id: ThemeName; name: string; desc: string; sw: string }[] = [
   { id: "classic", name: "Classic", desc: "The original POAST look — flat, focused, dark.", sw: "linear-gradient(135deg,#0D0D12,#09090D)" },
@@ -23,6 +23,15 @@ const BGS: { id: BgName; name: string }[] = [
 // that own their own tour replay just omit it).
 export function AppearancePanel({ onReplayTour }: { onReplayTour?: () => void }) {
   const { theme, bg, setTheme, setBg } = useTheme();
+  // Picking a *theme* swaps the whole home + chrome, so it "locks in" with a
+  // brief branded transition then a hard refresh (per the product model: choose
+  // your theme → cool animation → reload). Backdrop vibes stay live-preview.
+  const pickTheme = (t: ThemeName) => {
+    if (t === theme) return;
+    setTheme(t);
+    const name = THEMES.find((x) => x.id === t)?.name || "your look";
+    playThemeTransitionAndReload("Switching to " + name);
+  };
   return (
     <>
       <div style={lbl}>Appearance · Theme</div>
@@ -30,7 +39,7 @@ export function AppearancePanel({ onReplayTour }: { onReplayTour?: () => void })
         {THEMES.map((t) => {
           const on = theme === t.id;
           return (
-            <button key={t.id} onClick={() => setTheme(t.id)} style={{
+            <button key={t.id} onClick={() => pickTheme(t.id)} style={{
               textAlign: "left", cursor: "pointer", borderRadius: 14, overflow: "hidden",
               border: `1px solid ${on ? D.amber : D.border}`,
               boxShadow: on ? `0 0 0 1px ${D.amber}, 0 10px 30px ${D.amber}1c` : "none",
