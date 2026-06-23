@@ -1465,6 +1465,149 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
   </div>;
 }
 
+// ═══ STOCK HOME ═══
+// Ported from the mockup (~/poast-welcome-3.0 index.html Stock home): a
+// full-viewport welcome hero floating over the chosen aurora vibe, then a
+// scroll-down category grid of translucent ".ctile" cards. Role-adaptive via
+// the same tool set the Original home uses. The auto-hide sidebar is supplied
+// by the hub shell — this renders only the main column. Only shown when the
+// active theme is "stock"; Classic keeps the Original SplashScreen untouched.
+function CTile({ tile, color, index, onNavigate }: { tile: { id: string; label: string; sub: string; Icon: LucideIcon; href?: string; badge?: string }; color: string; index: number; onNavigate: (id: string) => void }) {
+  var _h = useState(false), hov = _h[0], setHov = _h[1];
+  var click = function() { if (tile.href) window.open(tile.href, "_blank"); else onNavigate(tile.id); };
+  return <button
+    onClick={click}
+    onMouseEnter={function() { setHov(true); }}
+    onMouseLeave={function() { setHov(false); }}
+    style={{
+      position: "relative", width: "100%", textAlign: "left", cursor: "pointer",
+      padding: 22, borderRadius: 18,
+      border: "1px solid " + (hov ? color + "99" : "rgba(255,255,255,0.08)"),
+      background: "linear-gradient(160deg, rgba(255,255,255,0.02), transparent), rgba(11,11,17,0.72)",
+      backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+      transform: hov ? "translateY(-3px)" : "translateY(0)",
+      boxShadow: hov ? "0 16px 42px " + color + "2e, inset 0 0 0 1px " + color + "38" : "none",
+      transition: "transform .15s, border-color .15s, box-shadow .2s",
+      animation: "ctilein .45s " + (index * 0.03).toFixed(2) + "s forwards", opacity: 0,
+      fontFamily: ft,
+    }}
+  >
+    {tile.badge ? <span style={{ position: "absolute", top: 15, right: 15, fontFamily: mn, fontSize: 8, letterSpacing: 0.5, textTransform: "uppercase", color: color, border: "1px solid " + color + "73", borderRadius: 999, padding: "2px 7px" }}>{tile.badge}</span> : null}
+    <div style={{ width: 54, height: 54, borderRadius: 15, display: "grid", placeItems: "center", color: color, background: color + "1f", border: "1px solid " + color + "42", marginBottom: 18 }}>
+      <tile.Icon size={25} strokeWidth={1.7} />
+    </div>
+    <div style={{ fontFamily: gf, fontWeight: 700, fontSize: 18, letterSpacing: -0.2, color: C.tx }}>{tile.label}</div>
+    <div style={{ fontFamily: ft, fontSize: 12.5, color: C.txm, marginTop: 5, lineHeight: 1.4 }}>{tile.sub}</div>
+  </button>;
+}
+
+function StockHome({ onNavigate }: { onNavigate: (id: string) => void }) {
+  var userCtx = useUser();
+  var sectionsRef = useRef<HTMLDivElement | null>(null);
+  var canDocu = canUseDocuDesign(userCtx.user);
+  var analyst = isAnalyst(userCtx.user);
+  var sections: Array<{ key: string; label: string; sub: string; color: string; tiles: { id: string; label: string; sub: string; Icon: LucideIcon; href?: string; badge?: string }[] }> = [
+    { key: "produce", label: "Produce", sub: "MAKE THE CONTENT", color: C.amber, tiles: [
+      { id: "sloptop",  label: "Slop Top",      sub: "Brief gen + arxiv.lol",   Icon: Zap },
+      { id: "carousel", label: "Carousel",      sub: "Instagram carousels",     Icon: LayoutGrid },
+      { id: "captions", label: "Capper",        sub: "Captions per platform",   Icon: Captions },
+      { id: "p2p",      label: "Press to Premier", sub: "Video production briefs", Icon: Clapperboard },
+      { id: "broll",    label: "B-Roll",        sub: "Generated b-roll library", Icon: Film },
+      { id: "chart",    label: "Chart Maker",   sub: "Quick charts",            Icon: BarChart3 },
+      { id: "chart2",   label: "POAST Studio",  sub: "Charts, tables, diagrams · saved library", Icon: GanttChart, href: "/charts" },
+      { id: "copy-studio", label: "CopySTUDIO", sub: "Draft · voice · headline · distribution", Icon: Type, href: "/copy-studio" },
+    ] },
+    { key: "podcast", label: "Podcast", sub: "SA WEEKLY + FK", color: C.coral, tiles: [
+      { id: "fk",       label: "Fab Knowledge", sub: "Doug's interview prep",   Icon: Headphones },
+      { id: "weekly",   label: "SA Weekly",     sub: "Episode → launch kit",    Icon: Radio },
+      { id: "outreach", label: "Outreach",      sub: "Guest cold emails",       Icon: Send },
+    ] },
+    { key: "prepare", label: "Prepare", sub: "FIND THE ANGLE", color: C.blue, tiles: [
+      { id: "intelligence-suite", label: "IntelligenceSUITE", sub: "Command center for trends, signals, ideas", Icon: Brain, href: "/intelligence-suite" },
+      { id: "news",     label: "News Flow",     sub: "Drafts from headlines",   Icon: Newspaper },
+      { id: "gtc",      label: "GTC Flow",      sub: "Conference desk",         Icon: Activity },
+    ] },
+    { key: "premier", label: "Premier", sub: "SCHEDULE + SHIP", color: C.teal, tiles: [
+      { id: "schedule", label: "Schedule",      sub: "Buffer queue",            Icon: Calendar },
+      { id: "assets",   label: "Asset Library", sub: "Logos, fonts, brand kit", Icon: Library },
+    ] },
+    { key: "admin",   label: "Admin",   sub: "TUNE THE STUDIO", color: C.violet, tiles: [
+      { id: "training", label: "AI Training",   sub: "Brand voice + multi-AI lab", Icon: Brain, href: "/ai-training" },
+      { id: "prompts",  label: "Saved Prompts", sub: "Reusable prompt library",  Icon: BookmarkCheck },
+      { id: "settings", label: "POAST Settings", sub: "Appearance + analytics + onboarding", Icon: Settings },
+    ] },
+  ];
+  if (canDocu) sections[0].tiles.push({ id: "docu", label: "DesignStudio", sub: "Docs · graphics · images · motion", Icon: Wand, href: "/design-studio" });
+  if (isAkash(userCtx.user)) sections[sections.length - 1].tiles.unshift({ id: "tasks", label: "Task Board", sub: "Daily planner + Focus Mode", Icon: CheckSquare });
+  // Analyst gate: only surface tools the analyst can actually open, and drop
+  // any category that empties out.
+  if (analyst) {
+    sections = sections.map(function(s) { return { key: s.key, label: s.label, sub: s.sub, color: s.color, tiles: s.tiles.filter(function(t) { return ANALYST_ALLOWED.includes(t.id); }) }; }).filter(function(s) { return s.tiles.length > 0; });
+  }
+
+  var fullName = (userCtx.user && userCtx.user.name) || "";
+  var first = fullName ? fullName.split(/\s+/)[0] : "there";
+  var initials = fullName ? fullName.split(/\s+/).map(function(p) { return p[0]; }).join("").slice(0, 2).toUpperCase() : "P";
+  var roleLabel = analyst ? "Analyst workspace" : (isAkash(userCtx.user) ? "Admin workspace" : "Marketing workspace");
+  var roleName = analyst ? "Analyst" : (isAkash(userCtx.user) ? "Admin" : "Marketing");
+  var dateStr = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  var grad = "linear-gradient(100deg, " + C.amber + ", " + C.violet + " 52%, " + C.cyan + ")";
+
+  return <div style={{ position: "relative", padding: "0 6px" }}>
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes shShim{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}@keyframes shBob{50%{transform:translateY(5px)}}@keyframes ctilein{to{opacity:1;transform:translateY(0)}}.sh-welcome{-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;background-size:200% auto;animation:shShim 7s linear infinite}" }} />
+
+    {/* Hero — fills the viewport; tools live below the fold */}
+    <section style={{ minHeight: "calc(100vh - 40px)", display: "flex", flexDirection: "column", position: "relative", padding: "20px 0 30px" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "7px 12px 7px 8px", borderRadius: 999, background: "rgba(13,12,22,0.6)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}>
+          <span style={{ width: 28, height: 28, borderRadius: 999, display: "grid", placeItems: "center", fontFamily: gf, fontWeight: 800, fontSize: 12, color: "#0b0b11", background: "linear-gradient(135deg, " + C.amber + ", " + C.coral + ")" }}>{initials}</span>
+          <span style={{ lineHeight: 1.05 }}>
+            <span style={{ display: "block", fontFamily: ft, fontWeight: 600, fontSize: 13, color: C.tx }}>{fullName || "POAST"}</span>
+            <span style={{ display: "block", fontFamily: mn, fontSize: 8.5, letterSpacing: 1, textTransform: "uppercase", color: C.txm }}>{roleName}</span>
+          </span>
+        </div>
+      </div>
+      <div style={{ margin: "auto 0", maxWidth: 920 }}>
+        <div style={{ fontFamily: mn, fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: C.amber, marginBottom: 20, display: "inline-flex", alignItems: "center", gap: 10 }}>
+          <span style={{ width: 24, height: 1, background: C.amber, boxShadow: "0 0 8px " + C.amber, display: "inline-block" }} />
+          {roleLabel} · {dateStr}
+        </div>
+        <h1 className="sh-welcome" style={{ fontFamily: gf, fontWeight: 700, fontSize: "clamp(48px, 9vw, 108px)", letterSpacing: -3, lineHeight: 0.9, margin: 0, backgroundImage: grad }}>
+          Welcome back,<br />{first}.
+        </h1>
+        <p style={{ color: C.txm, fontSize: "clamp(15px, 1.8vw, 20px)", margin: "24px 0 0", maxWidth: 540, lineHeight: 1.5 }}>
+          Good to see you — everything&rsquo;s right where you left it. Slide to the rail for any tool, or scroll for the full grid.
+        </p>
+      </div>
+      <button onClick={function() { if (sectionsRef.current) sectionsRef.current.scrollIntoView({ behavior: "smooth" }); }} style={{ position: "absolute", bottom: 20, left: 0, display: "inline-flex", alignItems: "center", gap: 10, background: "none", border: "none", color: C.txm, fontFamily: mn, fontSize: 10.5, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer" }}>
+        Jump to your tools
+        <span style={{ display: "inline-grid", placeItems: "center", width: 28, height: 28, border: "1px solid " + C.border, borderRadius: 999, animation: "shBob 1.9s ease-in-out infinite" }}>↓</span>
+      </button>
+    </section>
+
+    {/* Category grid */}
+    <div ref={sectionsRef} style={{ paddingTop: 30, borderTop: "1px solid " + C.border }}>
+      <p style={{ color: C.txm, fontSize: 14.5, lineHeight: 1.55, maxWidth: 560, margin: "0 0 38px" }}>
+        Hover the rail to peek it, dwell or drag the edge to lock it open, hover a category for just its apps — and click any tool to open it.
+      </p>
+      {sections.map(function(section) {
+        return <div key={section.key} style={{ marginBottom: 32 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "0 0 15px" }}>
+            <span style={{ width: 4, height: 18, borderRadius: 2, background: section.color, boxShadow: "0 0 8px " + section.color, display: "inline-block" }} />
+            <span style={{ fontFamily: gf, fontWeight: 700, fontSize: 18, letterSpacing: -0.2, color: section.color }}>{section.label}</span>
+            <span style={{ fontFamily: mn, fontSize: 9.5, letterSpacing: 1.6, textTransform: "uppercase", color: C.txd }}>{section.sub}</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(248px, 1fr))", gap: 16 }}>
+            {section.tiles.map(function(tile, i) {
+              return <CTile key={tile.id} tile={tile} color={section.color} index={i} onNavigate={onNavigate} />;
+            })}
+          </div>
+        </div>;
+      })}
+    </div>
+  </div>;
+}
+
 // One tile in the director home grid. Hover lifts + glows in the section's
 // accent. External tools (href) open in a new tab; everything else is an
 // in-app sec navigation.
@@ -2255,7 +2398,11 @@ export default function App() {
     <div style={{ marginLeft: contentLeft, marginTop: contentTop, position: "relative", zIndex: 1, display: sec === "assets" ? "none" : "block", transition: "margin-left 0.22s cubic-bezier(0.3,0.7,0.3,1)" }} className="poast-fadein">
       <div style={{ width: "100%", margin: "0 auto", padding: "0 32px" }}>
         <div key={sec} className="poast-section" style={{ paddingBottom: 60 }}>
-        {sec === "home" && (analyst ? <AnalystSplash onNavigate={setSec} /> : <SplashScreen onNavigate={setSec} />)}
+        {sec === "home" && (
+          themeCtx.theme === "stock"
+            ? <StockHome onNavigate={setSec} />
+            : (analyst ? <AnalystSplash onNavigate={setSec} /> : <SplashScreen onNavigate={setSec} />)
+        )}
         {sec === "settings" && !analyst && <PoastSettings />}
         {sec === "weekly" && <SAWeekly />}
         {sec === "captions" && <ClipCaptions />}
