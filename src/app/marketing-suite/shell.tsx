@@ -4,8 +4,10 @@
 // left nav rail (view switch), center active view, hideable right widget rail.
 import React, { useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, PanelRightClose, PanelRightOpen, Rocket } from "lucide-react";
+import { ChevronLeft, PanelRightClose, PanelRightOpen, Rocket, Settings as SettingsIcon } from "lucide-react";
 import { D, ft, gf, mn } from "../shared-constants";
+import AppearanceSettings from "./components/appearance-settings";
+import { MarketingTour, MARKETING_TOUR_STEPS } from "./components/tour";
 import { VIEWS, type ViewId } from "./marketing-constants";
 import { useMarketing, type ViewProps } from "./use-marketing";
 
@@ -27,6 +29,7 @@ import AssistantBar from "./components/assistant-bar";
 export default function MarketingSuiteShell() {
   const [active, setActive] = useState<ViewId>("today");
   const [panelOpen, setPanelOpen] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [focusId, setFocusId] = useState<string | undefined>(undefined);
   const m = useMarketing();
   const vp: ViewProps = {
@@ -67,7 +70,7 @@ export default function MarketingSuiteShell() {
         backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
         position: "sticky", top: 0, zIndex: 30,
       }}>
-        <Link href="/" style={{ color: D.txm, textDecoration: "none", fontFamily: mn, fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <Link href="/" data-tour="wordmark" style={{ color: D.txm, textDecoration: "none", fontFamily: mn, fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}>
           <ChevronLeft size={14} /> POAST
         </Link>
         <div style={{ width: 1, height: 20, background: D.border }} />
@@ -79,7 +82,9 @@ export default function MarketingSuiteShell() {
         </div>
         <span style={{ flex: 1 }} />
         {/* Assistant omnibox — type/paste anything, it figures out what to create */}
-        <AssistantBar />
+        <div data-tour="assistant" style={{ display: "flex", alignItems: "center" }}>
+          <AssistantBar />
+        </div>
         <span style={{ flex: 1 }} />
         {/* Owner + offline hint */}
         <span style={{ fontFamily: mn, fontSize: 10, color: liveOffline ? D.coral : D.txd, display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -111,9 +116,13 @@ export default function MarketingSuiteShell() {
           })}
         </div>
         <NotifBell m={m} />
+        <button onClick={() => setSettingsOpen(true)} title="Settings & theme" data-tour="settings" style={iconBtn}>
+          <SettingsIcon size={17} />
+        </button>
         <button
           onClick={() => setPanelOpen((v) => !v)}
           title={panelOpen ? "Hide widgets" : "Show widgets"}
+          data-tour="panel"
           style={iconBtn}
         >
           {panelOpen ? <PanelRightClose size={17} /> : <PanelRightOpen size={17} />}
@@ -123,7 +132,7 @@ export default function MarketingSuiteShell() {
       {/* ── Body: rail · main · widgets ── */}
       <div style={{ display: "flex", alignItems: "stretch", minHeight: "calc(100vh - 52px)" }}>
         {/* Left nav rail */}
-        <nav style={{
+        <nav data-tour="rail" style={{
           width: 84, flex: "none", borderRight: `1px solid ${D.border}`,
           display: "flex", flexDirection: "column", gap: 4, padding: "12px 8px",
           position: "sticky", top: 52, height: "calc(100vh - 52px)", background: D.bg,
@@ -168,6 +177,9 @@ export default function MarketingSuiteShell() {
           </aside>
         )}
       </div>
+
+      <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <MarketingTour steps={MARKETING_TOUR_STEPS} storageKey="marketing.v1" owner={m.owner || "shared"} />
     </div>
     </CreateProvider>
   );
