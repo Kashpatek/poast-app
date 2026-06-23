@@ -46,3 +46,6 @@ apps/opencut/**/node_modules
 apps/opencut/**/.next
 apps/opencut/**/.turbo
 apps/opencut/**/dist
+.env*.local
+.migration-data/
+scripts/_*

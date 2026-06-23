@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/app/lib/neon-db";
 
 export const dynamic = "force-dynamic";
 

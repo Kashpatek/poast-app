@@ -6,7 +6,7 @@
 // client can't write into someone else's library by spoofing the owner.
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/app/lib/neon-db";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -73,8 +73,8 @@ export async function GET(req: NextRequest) {
       .order("updated_at", { ascending: false })
       .limit(500);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    const docs = (data || []).map((row) => {
-      const r = row as Record<string, unknown>;
+    const docs = (data || []).map((row: Record<string, unknown>) => {
+      const r = row;
       return {
         id: r.id, owner: r.owner, type: r.type, name: r.name,
         thumbnail: r.thumbnail, payload: r.payload,

@@ -7,7 +7,7 @@
 // so even with no profile saved the model gets the basic "don't sound
 // like a press release" guardrails.
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/app/lib/neon-db";
 
 export interface VoiceTone {
   // 0=institutional, 1=direct, 2=casual, 3=playful

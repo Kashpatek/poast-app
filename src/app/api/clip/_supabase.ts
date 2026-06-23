@@ -8,10 +8,9 @@
 // generated Database type — same effect as the `as any` casts in /api/studio,
 // but centralized so the clip routes can read/write rows without per-call casts.
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@/app/lib/neon-db";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type LooseClient = SupabaseClient<any, any, any>;
+type LooseClient = SupabaseClient;
 
 let _client: LooseClient | null = null;
 

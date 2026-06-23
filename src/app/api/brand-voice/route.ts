@@ -2,7 +2,7 @@
 // POST → saves the archive. Body: { archive: VoicesArchive }.
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/app/lib/neon-db";
 import {
   BRAND_VOICE_ID,
   defaultArchive,

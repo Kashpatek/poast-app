@@ -8,7 +8,7 @@
 // error and the client falls back to local demo data — the suite stays usable.
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/app/lib/neon-db";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -94,8 +94,8 @@ export async function GET() {
     if (ev.error) return NextResponse.json({ error: ev.error.message }, { status: 500 });
     if (ca.error) return NextResponse.json({ error: ca.error.message }, { status: 500 });
     return NextResponse.json({
-      events: (ev.data || []).map((r) => eventFromRow(r as Row)),
-      campaigns: (ca.data || []).map((r) => campaignFromRow(r as Row)),
+      events: (ev.data || []).map((r: Row) => eventFromRow(r)),
+      campaigns: (ca.data || []).map((r: Row) => campaignFromRow(r)),
     });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await supabase.from(EVENTS).upsert(row as any, { onConflict: "id" }).select();
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      return NextResponse.json({ data: (data || []).map((r) => eventFromRow(r as Row)) });
+      return NextResponse.json({ data: (data || []).map((r: Row) => eventFromRow(r)) });
     } else {
       const d = parsed.data.data;
       const row: Row = {
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await supabase.from(CAMPAIGNS).upsert(row as any, { onConflict: "id" }).select();
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      return NextResponse.json({ data: (data || []).map((r) => campaignFromRow(r as Row)) });
+      return NextResponse.json({ data: (data || []).map((r: Row) => campaignFromRow(r)) });
     }
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

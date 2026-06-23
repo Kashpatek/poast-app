@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/app/lib/neon-db";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { streamClaude, transformAnthropicSSE, StreamMessage } from "@/lib/anthropic-stream";
 import { buildSystemPrompt, DesignSystem, ProjectMeta } from "@/app/design-studio/design-context";
