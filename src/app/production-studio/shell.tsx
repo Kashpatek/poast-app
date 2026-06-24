@@ -19,7 +19,7 @@ export function ProductionStudioShell({ children, title, subtitle }: ProductionS
     <div
       style={{
         minHeight: "100vh",
-        background: D.bg,
+        background: "var(--page-bg, " + D.bg + ")",
         color: D.tx,
         fontFamily: ft,
       }}

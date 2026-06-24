@@ -34,7 +34,7 @@ export default function ChartsPage() {
 
   if (!legacy) {
     return (
-      <div style={{ background: "#06060A", minHeight: "100vh", color: C.tx }}>
+      <div style={{ background: "var(--page-bg, #06060A)", minHeight: "100vh", color: C.tx }}>
         <StudioShell />
       </div>
     );

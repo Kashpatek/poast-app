@@ -118,7 +118,7 @@ export default function CommandCenterShell({ children, activeId }: CommandCenter
   const showStickyBar = !isHub || scrollY >= STICKY_THRESHOLD_PX;
 
   return (
-    <div style={{ minHeight: "100vh", background: D.bg, color: D.tx, fontFamily: ft }}>
+    <div style={{ minHeight: "100vh", background: "var(--page-bg, " + D.bg + ")", color: D.tx, fontFamily: ft }}>
       <div
         ref={scrollRef}
         style={{

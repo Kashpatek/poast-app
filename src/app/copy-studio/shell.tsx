@@ -24,7 +24,7 @@ export function CopyShell({ children, title, subtitle }: CopyShellProps) {
   const isHub = pathname === "/copy-studio";
 
   return (
-    <div style={{ minHeight: "100vh", background: D.bg, color: D.tx, fontFamily: ft }}>
+    <div style={{ minHeight: "100vh", background: "var(--page-bg, " + D.bg + ")", color: D.tx, fontFamily: ft }}>
       {/* Top bar */}
       <div style={{
         display: "flex", alignItems: "center", padding: "0 20px",

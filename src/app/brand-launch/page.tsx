@@ -36,7 +36,7 @@ export default function BrandLaunchPage() {
   if (!ok) return null;
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "#06060A" }}>
+    <div style={{ position: "fixed", inset: 0, background: "var(--page-bg, #06060A)" }}>
       <iframe
         src="https://broadcast-builder.vercel.app/viewer"
         title="SemiAnalysis Brand Launch · Viewer"

@@ -56,6 +56,9 @@
     radial-gradient(1050px 720px at 88% 96%, color-mix(in srgb, var(--violet) 34%, transparent), transparent 68%),
     radial-gradient(820px 600px at 74% 12%, color-mix(in srgb, var(--cyan) 18%, transparent), transparent 66%),
     #070611;
+  /* Standalone routes read this for their outermost page bg; transparent lets
+     the RouteChrome backdrop show through. Classic never sets it → fallback hex. */
+  --page-bg: transparent;
 }
 [data-theme="stock"][data-bg="iridescent"] {
   --app-backdrop:
@@ -88,6 +91,7 @@
     radial-gradient(1100px 820px at 50% 104%, color-mix(in srgb, var(--teal) 30%, transparent), transparent 62%),
     radial-gradient(700px 500px at 12% 50%, color-mix(in srgb, var(--violet) 20%, transparent), transparent 60%),
     #06070e;
+  --page-bg: transparent;
 }
 [data-theme="glass"] .lg,
 [data-theme="glass"] [data-glass] {

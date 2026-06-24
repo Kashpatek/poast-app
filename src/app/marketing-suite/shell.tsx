@@ -62,7 +62,7 @@ export default function MarketingSuiteShell() {
 
   return (
     <CreateProvider m={m} onOpenView={vp.onOpenView}>
-    <div style={{ minHeight: "100vh", background: D.bg, color: D.tx, fontFamily: ft }}>
+    <div style={{ minHeight: "100vh", background: "var(--page-bg, " + D.bg + ")", color: D.tx, fontFamily: ft }}>
       {/* ── Top bar ── */}
       <div style={{
         display: "flex", alignItems: "center", gap: 14, padding: "0 18px", height: 52,

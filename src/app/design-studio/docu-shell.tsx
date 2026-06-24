@@ -95,7 +95,7 @@ export function DocuShell({ children, title, rightSlot, hideNav = false }: DocuS
       <div
         style={{
           minHeight: "100vh",
-          background: D.bg,
+          background: "var(--page-bg, #06060C)",
           color: D.tx,
           fontFamily: ft,
           display: "flex",
