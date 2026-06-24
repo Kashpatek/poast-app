@@ -96,30 +96,50 @@ function FluidCanvas({ colors }: { colors: [string, string, string] }) {
 
 const GRAIN = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/></svg>\")";
 
+// The SemiAnalysis chip-octagon die-frame motif (matches the SA box-logo
+// silhouette) — amber outline + a cobalt "via" dot per cell. Tiles 40×46 as the
+// cockpit's structural grid (the "octagon look" from the brand pattern memory).
+const OCTA = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='46'><polygon points='12,2 28,2 38,12 38,34 28,44 12,44 2,34 2,12' fill='none' stroke='%23F7B041' stroke-opacity='0.5' stroke-width='1'/><circle cx='20' cy='23' r='1.3' fill='%230B86D1' fill-opacity='0.55'/></svg>\")";
+
 export default function StockBackdrop({ bg }: { bg: BgName }) {
+  // Brightness/scrim are var-driven so the "pop" is tunable (defaults below are
+  // the lifted look — a touch brighter + more saturated than the raw shader, a
+  // lighter scrim, and a soft center lift glow). Overridable via --sbk-* vars.
   const rootStyle = {
     position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden",
-    background: "#070611",
+    background: "#0A0816",
     ["--bg0" as string]: PAL[0], ["--bg1" as string]: PAL[1], ["--bg2" as string]: PAL[2],
+    filter: "brightness(var(--sbk-bright,1.18)) saturate(var(--sbk-sat,1.14)) contrast(var(--sbk-contrast,1.02))",
   } as React.CSSProperties;
 
   return (
     <div style={rootStyle} aria-hidden="true">
       <style>{`
         @keyframes sbk-ckscan{0%{transform:translateY(0)}100%{transform:translateY(120vh)}}
+        @keyframes sbk-ckscan2{0%{transform:translateY(40vh)}100%{transform:translateY(140vh)}}
         @keyframes sbk-irid{0%{transform:scale(1.12) rotate(0deg)}100%{transform:scale(1.28) rotate(16deg)}}
+        @keyframes sbk-irid2{0%{transform:scale(1.14) rotate(0deg)}100%{transform:scale(1.34) rotate(-22deg)}}
+        @keyframes sbk-ckdrift{0%{transform:translate3d(-1.6%,-1%,0) scale(1.02)}100%{transform:translate3d(2.2%,1.6%,0) scale(1.09)}}
+        @keyframes sbk-octapulse{0%,100%{opacity:.42}50%{opacity:.62}}
         .sbk-layer{position:absolute;inset:0;pointer-events:none}
-        .sbk-grain{opacity:.32;mix-blend-mode:overlay;background-image:${GRAIN}}
-        .sbk-scrim{background:radial-gradient(ellipse 72% 62% at 50% 42%, rgba(6,6,12,.18), rgba(6,6,12,.55) 100%)}
-        .sbk-ckfield{background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:36px 36px;mask-image:radial-gradient(125% 92% at 50% 0%,#000 32%,transparent 92%);-webkit-mask-image:radial-gradient(125% 92% at 50% 0%,#000 32%,transparent 92%)}
-        .sbk-ckglows{background:radial-gradient(600px 600px at 6% -10%, color-mix(in srgb,var(--bg0) 50%,transparent), transparent 60%),radial-gradient(560px 560px at 94% -8%, color-mix(in srgb,var(--bg1) 46%,transparent), transparent 60%),radial-gradient(680px 420px at 50% 112%, color-mix(in srgb,var(--bg2) 38%,transparent), transparent 64%)}
-        .sbk-ckscan{left:0;right:0;top:-220px;height:200px;background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--bg1) 22%,transparent),transparent);animation:sbk-ckscan 9s linear infinite}
-        .sbk-irid{background:conic-gradient(from 120deg at 36% 30%, color-mix(in srgb,var(--bg0) 52%,transparent), color-mix(in srgb,var(--bg2) 44%,transparent) 28%, color-mix(in srgb,var(--bg1) 50%,transparent) 58%, color-mix(in srgb,var(--bg0) 52%,transparent));filter:blur(58px) saturate(1.25);animation:sbk-irid 26s ease-in-out infinite alternate}
+        .sbk-grain{opacity:.28;mix-blend-mode:overlay;background-image:${GRAIN}}
+        .sbk-scrim{background:radial-gradient(ellipse 76% 66% at 50% 40%, rgb(8 6 16 / var(--sbk-scrim-c,.03)), rgb(8 6 16 / var(--sbk-scrim-e,.40)) 100%)}
+        .sbk-lift{background:radial-gradient(56% 46% at 50% 37%, rgba(255,255,255,.07), rgba(170,120,235,.06) 40%, transparent 72%);mix-blend-mode:screen}
+        /* COCKPIT — SA chip-octagon die-grid + vivid drifting glows + dual scan */
+        .sbk-ckocta{background-image:${OCTA};background-size:40px 46px;mask-image:radial-gradient(132% 100% at 50% 8%,#000 30%,transparent 88%);-webkit-mask-image:radial-gradient(132% 100% at 50% 8%,#000 30%,transparent 88%);animation:sbk-octapulse 7s ease-in-out infinite}
+        .sbk-ckglows{background:radial-gradient(640px 640px at 6% -8%, color-mix(in srgb,var(--bg0) 72%,transparent), transparent 60%),radial-gradient(580px 580px at 96% -6%, color-mix(in srgb,var(--bg1) 68%,transparent), transparent 60%),radial-gradient(720px 460px at 50% 114%, color-mix(in srgb,var(--bg2) 60%,transparent), transparent 64%),radial-gradient(460px 460px at 80% 66%, color-mix(in srgb,var(--bg0) 34%,transparent), transparent 70%),radial-gradient(420px 420px at 18% 78%, color-mix(in srgb,var(--bg1) 30%,transparent), transparent 72%);animation:sbk-ckdrift 18s ease-in-out infinite alternate}
+        .sbk-ckscan{left:0;right:0;top:-220px;height:200px;background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--bg1) 30%,transparent),transparent);animation:sbk-ckscan 9s linear infinite}
+        .sbk-ckscan2{left:0;right:0;top:-160px;height:140px;background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--bg0) 26%,transparent),transparent);animation:sbk-ckscan2 13s linear infinite}
+        /* IRIDESCENT — layered counter-drifting oil-slick conics + central bloom */
+        .sbk-irid{background:conic-gradient(from 120deg at 38% 32%, color-mix(in srgb,var(--bg0) 72%,transparent), color-mix(in srgb,var(--bg2) 62%,transparent) 26%, color-mix(in srgb,var(--bg1) 66%,transparent) 54%, color-mix(in srgb,var(--bg0) 72%,transparent));filter:blur(60px) saturate(1.5);animation:sbk-irid 28s ease-in-out infinite alternate}
+        .sbk-irid2{background:conic-gradient(from -40deg at 66% 70%, color-mix(in srgb,var(--bg1) 56%,transparent), transparent 28%, color-mix(in srgb,var(--bg2) 52%,transparent) 58%, transparent 84%);filter:blur(82px) saturate(1.4);mix-blend-mode:screen;animation:sbk-irid2 40s ease-in-out infinite alternate}
+        .sbk-iridbloom{background:radial-gradient(52% 44% at 50% 44%, rgba(184,132,242,.18), rgba(46,107,230,.08) 46%, transparent 72%);mix-blend-mode:screen}
       `}</style>
 
       {bg === "aurora" && (
         <>
           <FluidCanvas colors={PAL} />
+          <div className="sbk-layer sbk-lift" />
           <div className="sbk-layer sbk-scrim" />
           <div className="sbk-layer sbk-grain" />
         </>
@@ -127,14 +147,17 @@ export default function StockBackdrop({ bg }: { bg: BgName }) {
       {bg === "cockpit" && (
         <>
           <div className="sbk-layer sbk-ckglows" />
-          <div className="sbk-layer sbk-ckfield" />
+          <div className="sbk-layer sbk-ckocta" />
           <div className="sbk-layer sbk-ckscan" />
+          <div className="sbk-layer sbk-ckscan2" />
           <div className="sbk-layer sbk-grain" />
         </>
       )}
       {bg === "iridescent" && (
         <>
           <div className="sbk-layer sbk-irid" />
+          <div className="sbk-layer sbk-irid2" />
+          <div className="sbk-layer sbk-iridbloom" />
           <div className="sbk-layer sbk-grain" />
         </>
       )}

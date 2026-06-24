@@ -142,15 +142,28 @@ export function playThemeTransitionAndReload(label?: string) {
   ov.setAttribute("data-theme-transition", "1");
   ov.style.cssText = [
     "position:fixed", "inset:0", "z-index:99999", "display:flex",
-    "align-items:center", "justify-content:center", "flex-direction:column", "gap:18px",
-    "background:radial-gradient(1200px 800px at 50% 30%, rgba(247,176,65,0.18), transparent 60%), #06060C",
-    "opacity:0", "transition:opacity .32s ease", "font-family:var(--ft,sans-serif)", "color:#E8E4DD",
+    "align-items:center", "justify-content:center", "flex-direction:column", "gap:22px",
+    "background:#06060C", "opacity:0", "transition:opacity .26s ease",
+    "font-family:var(--ft,sans-serif)", "color:#E8E4DD", "overflow:hidden",
   ].join(";");
   ov.innerHTML =
-    '<div style="width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,#F7B041,#905CCB);box-shadow:0 0 40px rgba(247,176,65,.5);animation:ptt-pulse 1s ease-in-out infinite"></div>' +
-    '<div style="font-family:var(--mn,monospace);font-size:11px;letter-spacing:3px;text-transform:uppercase;opacity:.85">' + (label || "Applying your look") + "</div>" +
-    '<style>@keyframes ptt-pulse{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.12);opacity:1}}</style>';
+    // expanding brand wash
+    '<div style="position:absolute;inset:0;background:radial-gradient(900px 900px at 50% 42%, rgba(247,176,65,0.20), rgba(144,92,203,0.12) 40%, transparent 66%);animation:ptt-wash 1.05s cubic-bezier(.2,.7,.2,1) forwards"></div>' +
+    // the mark: gradient chip that scales + rotates in, with a shimmer sweep
+    '<div style="position:relative;width:58px;height:58px;border-radius:16px;background:linear-gradient(135deg,#F7B041,#905CCB);box-shadow:0 0 50px rgba(247,176,65,.45),0 10px 30px rgba(0,0,0,.5);overflow:hidden;animation:ptt-mark 1.05s cubic-bezier(.2,.8,.2,1) forwards">' +
+      '<div style="position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.55) 50%,transparent 70%);transform:translateX(-120%);animation:ptt-shine .85s .18s ease-out forwards"></div></div>' +
+    // label
+    '<div style="position:relative;font-family:var(--mn,monospace);font-size:11px;letter-spacing:3px;text-transform:uppercase;opacity:0;animation:ptt-fade .4s .12s ease forwards">' + (label || "Applying your look") + "</div>" +
+    // progress sweep
+    '<div style="position:relative;width:130px;height:2px;border-radius:2px;background:rgba(255,255,255,.1);overflow:hidden"><div style="position:absolute;inset:0;width:40%;border-radius:2px;background:linear-gradient(90deg,transparent,#F7B041,transparent);animation:ptt-bar 1.05s ease-in-out forwards"></div></div>' +
+    '<style>' +
+      '@keyframes ptt-wash{0%{transform:scale(.6);opacity:0}40%{opacity:1}100%{transform:scale(1.25);opacity:1}}' +
+      '@keyframes ptt-mark{0%{transform:scale(.5) rotate(-14deg);opacity:0}55%{transform:scale(1.06) rotate(2deg);opacity:1}100%{transform:scale(1) rotate(0)}}' +
+      '@keyframes ptt-shine{0%{transform:translateX(-120%)}100%{transform:translateX(120%)}}' +
+      '@keyframes ptt-fade{to{opacity:.9}}' +
+      '@keyframes ptt-bar{0%{left:-40%}100%{left:120%}}' +
+    "</style>";
   document.body.appendChild(ov);
   requestAnimationFrame(() => { ov.style.opacity = "1"; });
-  setTimeout(() => { try { window.location.reload(); } catch { /* noop */ } }, 920);
+  setTimeout(() => { try { window.location.reload(); } catch { /* noop */ } }, 1080);
 }
