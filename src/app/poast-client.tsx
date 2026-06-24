@@ -1837,29 +1837,38 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
   var owner = (userCtx.user && userCtx.user.name) || "";
   var hp = useHomePrefs(owner);
   var organized = organizeHome(sections, hp.pins, hp.recent);
+  var sectionsRef = useRef<HTMLDivElement | null>(null);
 
-  return <div style={{ minHeight: "100%", padding: "80px 0 64px", position: "relative" }}>
-    <style dangerouslySetInnerHTML={{ __html: "@keyframes ssRise{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}@keyframes ssShim{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}.ss-headline{background:linear-gradient(120deg,#F7B041 0%,#26C9D8 50%,#F7B041 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:ssShim 8s ease-in-out infinite}" + HOME_PIN_CSS }} />
+  return <div style={{ minHeight: "100%", padding: "0 0 64px", position: "relative" }}>
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes ssRise{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}@keyframes ssShim{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}@keyframes ssBob{50%{transform:translateY(5px)}}.ss-headline{background:linear-gradient(120deg,#F7B041 0%,#26C9D8 50%,#F7B041 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:ssShim 8s ease-in-out infinite}" + HOME_PIN_CSS }} />
 
-    {/* Hero — given room to breathe + a soft lift glow behind the welcome */}
-    <div style={{ animation: "ssRise 0.5s ease forwards", opacity: 0, marginBottom: 64, position: "relative" }}>
-      <div style={{ position: "absolute", left: -60, top: -56, width: 620, height: 280, background: "radial-gradient(58% 64% at 22% 42%, rgba(247,176,65,0.12), rgba(38,201,216,0.05) 55%, transparent 72%)", filter: "blur(18px)", pointerEvents: "none", zIndex: 0 }} />
-      <div style={{ position: "relative", zIndex: 1 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 22 }}>
-          <img src="/poast-logo.png" alt="" style={{ width: 34, height: 34, borderRadius: 8 }} />
-          <div style={{ fontFamily: mn, fontSize: 11, fontWeight: 700, color: C.amber, letterSpacing: 4, textTransform: "uppercase" }}>POAST</div>
+    {/* Hero — fills the viewport so only the welcome + "Your tools" cue show on
+        first paint; the grid lives below the fold (matches Stock/Glass). */}
+    <section style={{ minHeight: "calc(100dvh - 8px)", display: "flex", flexDirection: "column", justifyContent: "center", position: "relative", padding: "20px 0 30px" }}>
+      <div style={{ animation: "ssRise 0.5s ease forwards", opacity: 0, position: "relative" }}>
+        <div style={{ position: "absolute", left: -60, top: -56, width: 620, height: 280, background: "radial-gradient(58% 64% at 22% 42%, rgba(247,176,65,0.12), rgba(38,201,216,0.05) 55%, transparent 72%)", filter: "blur(18px)", pointerEvents: "none", zIndex: 0 }} />
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 22 }}>
+            <img src="/poast-logo.png" alt="" style={{ width: 34, height: 34, borderRadius: 8 }} />
+            <div style={{ fontFamily: mn, fontSize: 11, fontWeight: 700, color: C.amber, letterSpacing: 4, textTransform: "uppercase" }}>POAST</div>
+          </div>
+          <h1 className="ss-headline" style={{ fontFamily: gf, fontSize: "clamp(52px, 8.5vw, 104px)", fontWeight: 900, lineHeight: 0.98, letterSpacing: -2.5, margin: 0, marginBottom: 20 }}>
+            Welcome back{userCtx.user ? ", " + userCtx.user.name : ""}.
+          </h1>
+          <div style={{ fontFamily: ft, fontSize: 17, fontWeight: 500, color: "rgba(232,228,221,0.6)", maxWidth: 660, lineHeight: 1.6 }}>
+            Pick where you're working today. Your sidebar has every tool — this grid is the same set, grouped by what they're for.
+          </div>
         </div>
-        <h1 className="ss-headline" style={{ fontFamily: gf, fontSize: "clamp(52px, 8.5vw, 104px)", fontWeight: 900, lineHeight: 0.98, letterSpacing: -2.5, margin: 0, marginBottom: 20 }}>
-          Welcome back{userCtx.user ? ", " + userCtx.user.name : ""}.
-        </h1>
-        <div style={{ fontFamily: ft, fontSize: 17, fontWeight: 500, color: "rgba(232,228,221,0.6)", maxWidth: 660, lineHeight: 1.6 }}>
-          Pick where you're working today. Your sidebar has every tool — this grid is the same set, grouped by what they're for.
-        </div>
+        <div style={{ marginTop: 34, height: 1, background: "linear-gradient(90deg, " + C.amber + "55, rgba(255,255,255,0.07) 38%, transparent 80%)" }} />
       </div>
-      <div style={{ marginTop: 34, height: 1, background: "linear-gradient(90deg, " + C.amber + "55, rgba(255,255,255,0.07) 38%, transparent 80%)" }} />
-    </div>
+      <button onClick={function() { if (sectionsRef.current) sectionsRef.current.scrollIntoView({ behavior: "smooth" }); }} style={{ position: "absolute", bottom: 20, left: "50%", transform: "translateX(-50%)", display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 9, background: "none", border: "none", color: C.txm, fontFamily: mn, fontSize: 10.5, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer" }}>
+        Your tools
+        <span style={{ display: "inline-grid", placeItems: "center", width: 28, height: 28, border: "1px solid " + C.border, borderRadius: 999, animation: "ssBob 1.9s ease-in-out infinite" }}>↓</span>
+      </button>
+    </section>
 
     {/* Sections — Recently used + Favorites lead, then the system grid */}
+    <div ref={sectionsRef}>
     {organized.map(function(section, sIdx) {
       return <div key={section.key} style={{ marginBottom: 44, animation: "ssRise 0.5s ease " + (0.15 + sIdx * 0.08) + "s forwards", opacity: 0 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginBottom: 16, paddingLeft: 4 }}>
@@ -1875,6 +1884,7 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
         </div>
       </div>;
     })}
+    </div>
 
     {/* Footer */}
     <div style={{ marginTop: 56, textAlign: "center", fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.18)", letterSpacing: 3, animation: "ssRise 0.5s ease 0.6s forwards", opacity: 0 }}>
@@ -1996,7 +2006,7 @@ function StockHome({ onNavigate }: { onNavigate: (id: string) => void }) {
     <style dangerouslySetInnerHTML={{ __html: "@keyframes shShim{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}@keyframes shBob{50%{transform:translateY(5px)}}@keyframes ctilein{to{opacity:1;transform:translateY(0)}}.sh-welcome{-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;background-size:200% auto;animation:shShim 7s linear infinite}" + HOME_PIN_CSS }} />
 
     {/* Hero — fills the viewport; tools live below the fold */}
-    <section style={{ minHeight: "calc(100vh - 40px)", display: "flex", flexDirection: "column", position: "relative", padding: "20px 0 30px" }}>
+    <section style={{ minHeight: "calc(100dvh - 8px)", display: "flex", flexDirection: "column", position: "relative", padding: "20px 0 30px" }}>
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "7px 12px 7px 8px", borderRadius: 999, background: "rgba(13,12,22,0.6)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}>
           <span style={{ width: 28, height: 28, borderRadius: 999, display: "grid", placeItems: "center", fontFamily: gf, fontWeight: 800, fontSize: 12, color: "#0b0b11", background: "linear-gradient(135deg, " + C.amber + ", " + C.coral + ")" }}>{initials}</span>
@@ -2018,8 +2028,8 @@ function StockHome({ onNavigate }: { onNavigate: (id: string) => void }) {
           Good to see you — everything&rsquo;s right where you left it. Slide to the rail for any tool, or scroll for the full grid.
         </p>
       </div>
-      <button onClick={function() { if (sectionsRef.current) sectionsRef.current.scrollIntoView({ behavior: "smooth" }); }} style={{ position: "absolute", bottom: 20, left: 0, display: "inline-flex", alignItems: "center", gap: 10, background: "none", border: "none", color: C.txm, fontFamily: mn, fontSize: 10.5, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer" }}>
-        Jump to your tools
+      <button onClick={function() { if (sectionsRef.current) sectionsRef.current.scrollIntoView({ behavior: "smooth" }); }} style={{ position: "absolute", bottom: 20, left: "50%", transform: "translateX(-50%)", display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 9, background: "none", border: "none", color: C.txm, fontFamily: mn, fontSize: 10.5, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer" }}>
+        Your tools
         <span style={{ display: "inline-grid", placeItems: "center", width: 28, height: 28, border: "1px solid " + C.border, borderRadius: 999, animation: "shBob 1.9s ease-in-out infinite" }}>↓</span>
       </button>
     </section>
