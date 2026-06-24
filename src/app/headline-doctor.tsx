@@ -168,7 +168,7 @@ export default function HeadlineDoctor() {
     <div style={{ flex: stack ? "0 0 auto" : "0 0 320px", minWidth: 0 }}>
       <div style={lbl}>Recent rewrites</div>
       {history.length === 0 ? (
-        <div style={{ fontFamily: ft, fontSize: 12, color: D.txd, padding: "12px 14px", background: D.surface, border: `1px dashed ${D.border}`, borderRadius: 8, lineHeight: 1.4 }}>
+        <div data-glass="" style={{ fontFamily: ft, fontSize: 12, color: D.txd, padding: "12px 14px", background: D.surface, border: `1px dashed ${D.border}`, borderRadius: 8, lineHeight: 1.4 }}>
           Doctored headlines will appear here. Click any row to restore it.
         </div>
       ) : (
@@ -177,6 +177,7 @@ export default function HeadlineDoctor() {
             const hov = hoverHistory === h.id;
             return (
               <button
+                data-glass=""
                 key={h.id}
                 type="button"
                 onClick={() => restore(h)}
@@ -317,7 +318,7 @@ export default function HeadlineDoctor() {
             {result.alternates.map((a, i) => {
               const scoreColor = a.score >= 8 ? D.teal : a.score >= 6 ? D.amber : D.coral;
               return (
-                <div key={i} style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 10, padding: "14px 16px" }}>
+                <div key={i} data-glass="" style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 10, padding: "14px 16px" }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginBottom: 6 }}>
                     <div style={{ fontFamily: mn, fontSize: 22, fontWeight: 900, color: scoreColor, letterSpacing: -0.6, minWidth: 32 }}>
                       {a.score}

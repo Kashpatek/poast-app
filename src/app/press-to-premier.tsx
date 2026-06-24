@@ -473,7 +473,7 @@ function Step4({ data, onNext, onBack }: { data: ProjectData; onNext: () => void
           (script.body || []).map(function(b, i) { return { l: "BODY " + (i + 1), t: b, c: D.txl }; }),
           [{ l: "OUTRO", t: script.outro, c: D.teal }]
         ).map(function(s, i) {
-          return <div key={i} style={{ padding: "16px 20px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, marginBottom: 10 }}>
+          return <div key={i} data-glass="" style={{ padding: "16px 20px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, marginBottom: 10 }}>
             <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 600, color: s.c, letterSpacing: 2, marginBottom: 6 }}>{s.l}</div>
             <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 500, color: D.txb, lineHeight: 1.8 }}>{s.t}</div>
           </div>;
@@ -483,7 +483,7 @@ function Step4({ data, onNext, onBack }: { data: ProjectData; onNext: () => void
       <div>
         <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.blue, letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>B-Roll Shots</div>
         {(script.broll || []).map(function(shot, i) {
-          return <div key={i} style={{ padding: "16px 20px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, marginBottom: 10 }}>
+          return <div key={i} data-glass="" style={{ padding: "16px 20px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, marginBottom: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
               <span style={{ fontFamily: mn, fontSize: 10, fontWeight: 600, color: D.blue, letterSpacing: 1 }}>SHOT {i + 1}</span>
               <span style={{ fontFamily: mn, fontSize: 10, color: D.txh }}>{shot.timing}</span>
@@ -874,7 +874,7 @@ function VoiceSelector({ assets, data, setData }: { assets: Assets; data: Projec
     setRegenning(false);
   };
 
-  return <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 20, marginBottom: 20 }}>
+  return <div data-glass="" style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 20, marginBottom: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
       <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.amber, letterSpacing: 3, textTransform: "uppercase" }}>Voiceover</div>
       <button onClick={regen} disabled={regenning} style={{ padding: "6px 14px", background: "transparent", border: "1px solid " + D.amber + "30", color: D.amber, borderRadius: 8, fontFamily: ft, fontSize: 11, fontWeight: 600, cursor: regenning ? "wait" : "pointer", opacity: regenning ? 0.5 : 1 }}>{regenning ? "Regenerating..." : "Regenerate"}</button>
@@ -995,7 +995,7 @@ function Step7({ data, setData, onNext, onBack }: { data: ProjectData; setData: 
     })}
 
     {/* Music */}
-    {assets.music && <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 20, marginBottom: 20 }}>
+    {assets.music && <div data-glass="" style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 20, marginBottom: 20 }}>
       <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.violet, letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>Background Music</div>
       <audio controls loop src={assets.music} style={{ width: "100%", height: 44 }} />
     </div>}
@@ -1136,7 +1136,7 @@ function Step8({ data, setData, onNext, onBack }: { data: ProjectData; setData: 
     <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 28 }}>Assembled preview with all your selected assets.</div>
 
     {/* Video player */}
-    <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 20 }}>
+    <div data-glass="" style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 20 }}>
       <div style={Object.assign({}, dimStyle, { aspectRatio: aspect === "9:16" ? "9/16" : aspect === "1:1" ? "1/1" : "16/9", background: D.bg, borderRadius: 10, border: "1px solid " + D.border, overflow: "hidden" as const, position: "relative" as const })}>
         {orderedClips.length > 0 ? <video ref={videoRef} src={orderedClips[currentClip] ? orderedClips[currentClip].videoUrl || "" : ""} onEnded={handleClipEnd} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
@@ -1182,7 +1182,7 @@ function Step8({ data, setData, onNext, onBack }: { data: ProjectData; setData: 
     </div>
 
     {/* Metadata */}
-    {data.options && <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 20 }}>
+    {data.options && <div data-glass="" style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 20 }}>
       <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txl, letterSpacing: 3, textTransform: "uppercase", marginBottom: 8 }}>Metadata</div>
       <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: D.tx, marginBottom: 8 }}>{data.options.titles[data.selTitle || 0]}</div>
       <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 500, color: D.txb, lineHeight: 1.7 }}>{data.options.descriptions[data.selDesc || 0]}</div>
@@ -1502,7 +1502,7 @@ function Step9({ data, onPremier, onDraft }: { data: ProjectData; onPremier: () 
     {renderDone && <div style={{ marginTop: 24 }}>
       <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.teal, letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>Step 2: Review & Distribute</div>
 
-      {renderVideo && <div style={{ background: D.surface, border: "1px solid " + D.teal + "30", borderRadius: 12, padding: 18, marginBottom: 16 }}>
+      {renderVideo && <div data-glass="" style={{ background: D.surface, border: "1px solid " + D.teal + "30", borderRadius: 12, padding: 18, marginBottom: 16 }}>
         <video controls src={renderVideo.url} style={{ width: "100%", borderRadius: 8, marginBottom: 10 }} />
         <div style={{ display: "flex", gap: 8 }}>
           <a href={renderVideo.url} download={"poast-video.mp4"} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", height: 44, background: "linear-gradient(135deg, " + D.teal + ", " + D.blue + ")", color: D.bg, borderRadius: 8, fontFamily: ft, fontSize: 14, fontWeight: 700, textDecoration: "none" }}>Download MP4</a>
@@ -1573,6 +1573,7 @@ function SuiteHub({
             var isHover = hover === t.id;
             return (
               <button
+                data-glass=""
                 type="button"
                 key={t.id}
                 onClick={function() { onOpenTile(t.id); }}
@@ -1616,6 +1617,7 @@ function SuiteHub({
             {recent.map(function(p) {
               return (
                 <button
+                  data-glass=""
                   type="button"
                   key={p.id}
                   onClick={function() { onOpenProject(p.id); }}
@@ -1671,7 +1673,7 @@ function SuiteSubView({ view, onBack }: { view: SuiteView; onBack: () => void; p
       </div>
       <div style={{ fontFamily: ft, fontSize: 38, fontWeight: 900, letterSpacing: -1, color: D.tx, marginBottom: 10 }}>{label}</div>
       <div style={{ fontFamily: ft, fontSize: 15, color: D.txb, maxWidth: 640, lineHeight: 1.5, marginBottom: 28 }}>{sub}</div>
-      <div style={{ border: "1px dashed " + D.border, borderRadius: 12, padding: 28, background: D.surface, color: D.txb, fontFamily: ft, fontSize: 14, lineHeight: 1.5 }}>
+      <div data-glass="" style={{ border: "1px dashed " + D.border, borderRadius: 12, padding: 28, background: D.surface, color: D.txb, fontFamily: ft, fontSize: 14, lineHeight: 1.5 }}>
         This experience is wired up in a follow-up commit so we could ship the hub + aspect-aware production fixes today. The article-to-video flagship (with the new cinematic SAVideo composition, aspect-first prompts, and bigger captions) is fully live — click <strong>Article to Video</strong> back on the hub to try it. Bigger fonts, aspect-aware Grok prompts, ken burns, film grain, vignette, glow, the whole movie treatment.
       </div>
     </div>
@@ -1700,7 +1702,7 @@ function ProjectList({ projects, onOpen, onNew }: { projects: Project[]; onOpen:
       return <div key={sec.l} style={{ marginBottom: 28 }}>
         <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: sec.c, letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>{sec.l} ({sec.items.length})</div>
         {sec.items.map(function(p, i) {
-          return <div key={i} onClick={function() { onOpen(p); }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "18px 22px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, marginBottom: 10, cursor: "pointer", transition: "all 0.2s" }} onMouseEnter={function(e: React.MouseEvent<HTMLDivElement>) { e.currentTarget.style.borderColor = D.borderHover; e.currentTarget.style.background = D.elevated; }} onMouseLeave={function(e: React.MouseEvent<HTMLDivElement>) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.background = D.surface; }}>
+          return <div key={i} data-glass="" onClick={function() { onOpen(p); }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "18px 22px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, marginBottom: 10, cursor: "pointer", transition: "all 0.2s" }} onMouseEnter={function(e: React.MouseEvent<HTMLDivElement>) { e.currentTarget.style.borderColor = D.borderHover; e.currentTarget.style.background = D.elevated; }} onMouseLeave={function(e: React.MouseEvent<HTMLDivElement>) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.background = D.surface; }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: D.tx }}>{p.title || "Untitled"}</div>
               <div style={{ fontFamily: ft, fontSize: 12, fontWeight: 500, color: D.txl, marginTop: 2 }}>{new Date(p.ts).toLocaleDateString("en-US", { month: "short", day: "numeric" })} // Step {(p.step || 0) + 1} of 9</div>

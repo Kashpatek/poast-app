@@ -14,6 +14,24 @@ import { OnboardingProvider } from "./onboarding-context";
 // below and the ThemeProvider defaults so a no-pref visit has no flash/mismatch.
 const THEME_BOOT = `(function(){try{var p=JSON.parse(localStorage.getItem('poast-theme')||'{}');var r=document.documentElement;var t=['classic','stock','glass'].indexOf(p.theme)>=0?p.theme:'stock';var b=['aurora','cockpit','iridescent'].indexOf(p.bg)>=0?p.bg:'aurora';r.setAttribute('data-theme',t);r.setAttribute('data-bg',b);}catch(e){}})();`;
 
+// The Glass frosted-glass rule MUST live in a runtime <style>, not an imported
+// .css file: the build CSS transform (Lightning/Turbopack) strips `backdrop-filter`
+// from stylesheet rules (no browserslist → treated as unsupported), leaving an
+// empty rule. Inline <style> text isn't run through that transform, so the blur
+// survives verbatim and still reads --frost (the appearance slider). Any element
+// tagged .lg or [data-glass] becomes frosted glass under the Glass theme.
+const GLASS_FROST = `
+[data-theme="glass"] .lg,
+[data-theme="glass"] [data-glass]{
+  -webkit-backdrop-filter:blur(var(--frost,14px)) saturate(1.4) brightness(1.03);
+  backdrop-filter:blur(var(--frost,14px)) saturate(1.4) brightness(1.03);
+}
+@media (prefers-reduced-transparency: reduce){
+  [data-theme="glass"] .lg,[data-theme="glass"] [data-glass]{
+    -webkit-backdrop-filter:none;backdrop-filter:none;
+  }
+}`;
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -50,6 +68,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+        <style dangerouslySetInnerHTML={{ __html: GLASS_FROST }} />
         <ErrorBoundary>
           <UserProvider>
             <ThemeProvider>

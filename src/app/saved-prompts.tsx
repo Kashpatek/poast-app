@@ -202,13 +202,13 @@ export default function SavedPromptsLibrary() {
       {loading ? (
         <div style={{ fontFamily: mn, fontSize: 12, color: D.txm, padding: 20 }}>Loading…</div>
       ) : filtered.length === 0 ? (
-        <div style={emptyBox}>
+        <div data-glass="" style={emptyBox}>
           No prompts yet. Click "+ New prompt" and save something the team can reuse.
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 12 }}>
           {filtered.map((p) => (
-            <div key={p.id} style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div key={p.id} data-glass="" style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
                 <div style={{ fontFamily: gf, fontSize: 16, fontWeight: 700, color: D.tx, letterSpacing: -0.3, flex: 1 }}>{p.name}</div>
                 <span style={{ fontFamily: mn, fontSize: 9, padding: "2px 8px", background: D.amber + "1c", color: D.amber, border: `1px solid ${D.amber}55`, borderRadius: 4, letterSpacing: 0.6, textTransform: "uppercase" }}>{p.tool}</span>

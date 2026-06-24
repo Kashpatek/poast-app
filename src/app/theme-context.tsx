@@ -14,7 +14,9 @@ export interface GlassVars { frost: number; glassOp: number; spec: number; specS
 const THEMES: ThemeName[] = ["classic", "stock", "glass"];
 const BGS: BgName[] = ["aurora", "cockpit", "iridescent"];
 const MATS: GlassMat[] = ["clarity", "depth"];
-const GLASS_DEFAULT: GlassVars = { frost: 2, glassOp: 0.18, spec: 0.58, specSat: 0.43, refraction: 0.61 };
+// frost defaults to a real blur (not ~0) so Glass reads as frosted out of the box;
+// the appearance "Frost / blur" slider adjusts from here.
+const GLASS_DEFAULT: GlassVars = { frost: 14, glassOp: 0.18, spec: 0.58, specSat: 0.43, refraction: 0.61 };
 const LS_KEY = "poast-theme";
 
 interface ThemeContextValue {

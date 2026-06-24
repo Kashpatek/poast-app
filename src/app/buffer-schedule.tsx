@@ -107,7 +107,7 @@ function StatRow({ data }: { data: BufferData | null }) {
     { l: "Drafts", v: (data.drafts || []).length, c: D.blue },
     { l: "Channels", v: (data.channels || []).length, c: D.violet },
   ];
-  return <div style={{ display: "flex", gap: 0, background: D.card, border: "1px solid " + D.border, borderRadius: 8, overflow: "hidden", marginBottom: 20 }}>
+  return <div data-glass="" style={{ display: "flex", gap: 0, background: D.card, border: "1px solid " + D.border, borderRadius: 8, overflow: "hidden", marginBottom: 20 }}>
     {chips.map(function(ch, i) {
       return <div key={i} style={{ flex: 1, display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", borderRight: i < 3 ? "1px solid " + D.border : "none" }}>
         <div style={{ width: 8, height: 8, borderRadius: "50%", background: ch.c, flexShrink: 0 }} />
@@ -223,7 +223,7 @@ function DraftCard({ post, channels, onDelete, onRefresh, selected, onToggleSele
   if (exiting) return <div style={{ overflow: "hidden", transition: "all 0.25s ease", maxHeight: 0, opacity: 0, marginBottom: 0 }} />;
 
   return (
-    <div style={{ background: selected ? D.cardActive : editing ? D.card : D.card, border: editing ? "1px solid " + D.amber : delConfirm ? "1px solid " + D.crimson : "1px solid " + D.border, borderLeft: selected ? "3px solid " + D.amber : editing ? "3px solid " + D.amber : "1px solid " + D.border, borderRadius: 8, marginBottom: 16, padding: 0, transition: "all 0.15s ease", overflow: "hidden" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!editing && !delConfirm) { e.currentTarget.style.borderColor = "rgba(247,176,65,0.4)"; e.currentTarget.style.background = D.cardHover; } }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!editing && !delConfirm) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.background = D.card; } }}>
+    <div data-glass="" style={{ background: selected ? D.cardActive : editing ? D.card : D.card, border: editing ? "1px solid " + D.amber : delConfirm ? "1px solid " + D.crimson : "1px solid " + D.border, borderLeft: selected ? "3px solid " + D.amber : editing ? "3px solid " + D.amber : "1px solid " + D.border, borderRadius: 8, marginBottom: 16, padding: 0, transition: "all 0.15s ease", overflow: "hidden" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!editing && !delConfirm) { e.currentTarget.style.borderColor = "rgba(247,176,65,0.4)"; e.currentTarget.style.background = D.cardHover; } }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!editing && !delConfirm) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.background = D.card; } }}>
 
       {/* ZONE 1: Top row */}
       <div style={{ display: "flex", alignItems: "center", padding: "14px 20px", gap: 10 }}>
@@ -347,7 +347,7 @@ function DraftsTab({ drafts, channels, onRefresh }: { drafts: BufferPost[]; chan
     <PlatFilter channels={channels} active={platF} setActive={setPlatF} />
 
     {/* Bulk bar */}
-    {sel.length > 0 && <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px", background: D.card, border: "1px solid " + D.border, borderRadius: 8, marginBottom: 16, position: "sticky", top: 0, zIndex: 10 }}>
+    {sel.length > 0 && <div data-glass="" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px", background: D.card, border: "1px solid " + D.border, borderRadius: 8, marginBottom: 16, position: "sticky", top: 0, zIndex: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span onClick={toggleAll} style={{ width: 18, height: 18, borderRadius: 4, border: "2px solid " + D.amber, background: allSelected ? D.amber : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: D.bg }}>{allSelected ? "\u2713" : ""}</span>
         <span style={{ fontFamily: ft, fontSize: 13, color: D.tx }}>{sel.length} selected</span>
@@ -433,7 +433,7 @@ function PostList({ posts, channels, emptyLabel, showSearch, showEdit, onDelete,
       var time = p.dueAt ? new Date(p.dueAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
       var sentTime = p.sentAt ? new Date(p.sentAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 
-      return <div key={p.id} style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, marginBottom: 16, transition: "all 0.15s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = "rgba(247,176,65,0.4)"; e.currentTarget.style.background = D.cardHover; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.background = D.card; }}>
+      return <div key={p.id} data-glass="" style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, marginBottom: 16, transition: "all 0.15s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = "rgba(247,176,65,0.4)"; e.currentTarget.style.background = D.cardHover; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.borderColor = D.border; e.currentTarget.style.background = D.card; }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 32, height: 32, borderRadius: "50%", background: pl2.c + "18", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>{pl2.i}</div>
@@ -534,7 +534,7 @@ function ChannelsTab({ channels, data, onFilter }: { channels: BufferChannel[]; 
       var sched = (data.scheduled || []).filter(function(p) { return p.channel && p.channel.id === ch.id; }).length;
       var sent = (data.sent || []).filter(function(p) { return p.channel && p.channel.id === ch.id; }).length;
       var last = (data.sent || []).filter(function(p) { return p.channel && p.channel.id === ch.id; }).sort(function(a, b) { return new Date(b.sentAt || 0).getTime() - new Date(a.sentAt || 0).getTime(); })[0];
-      return <div key={ch.id} onClick={function() { onFilter(ch.service); }} style={{ padding: "16px 18px", background: D.card, borderRadius: 8, border: "1px solid " + D.border, borderLeft: "3px solid " + pp.c, cursor: "pointer", transition: "all 0.15s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.boxShadow = D.glow; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.boxShadow = "none"; }}>
+      return <div key={ch.id} data-glass="" onClick={function() { onFilter(ch.service); }} style={{ padding: "16px 18px", background: D.card, borderRadius: 8, border: "1px solid " + D.border, borderLeft: "3px solid " + pp.c, cursor: "pointer", transition: "all 0.15s ease" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.boxShadow = D.glow; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.boxShadow = "none"; }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
           <div style={{ width: 40, height: 40, borderRadius: 10, background: pp.c + "15", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{pp.i}</div>
           <div><div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: pp.c }}>{ch.name}</div><div style={{ fontFamily: mn, fontSize: 9, color: D.txs }}>{pp.n}</div></div>
@@ -575,7 +575,7 @@ function HomeTab({ data, onTab, onCompose }: { data: BufferData; onTab: (tab: st
 
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
       {/* Today's Queue */}
-      <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: 20 }}>
+      <div data-glass="" style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: 20 }}>
         <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>Today's Queue</div>
         {todayPosts.length === 0 ? <div style={{ fontFamily: ft, fontSize: 12, color: D.txs, padding: "12px 0" }}>Nothing scheduled for today.</div>
         : todayPosts.map(function(p, i) {
@@ -597,7 +597,7 @@ function HomeTab({ data, onTab, onCompose }: { data: BufferData; onTab: (tab: st
       </div>
 
       {/* Next Up */}
-      <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: 20 }}>
+      <div data-glass="" style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: 20 }}>
         <div style={{ fontFamily: mn, fontSize: 10, color: D.blue, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>Next Up</div>
         {nextUp.length === 0 ? <div style={{ fontFamily: ft, fontSize: 12, color: D.txs, padding: "12px 0" }}>Queue is empty.</div>
         : nextUp.map(function(p, i) {
@@ -614,7 +614,7 @@ function HomeTab({ data, onTab, onCompose }: { data: BufferData; onTab: (tab: st
     </div>
 
     {/* Channel Health */}
-    <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: 20, marginBottom: 24 }}>
+    <div data-glass="" style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: 20, marginBottom: 24 }}>
       <div style={{ fontFamily: mn, fontSize: 10, color: D.violet, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>Channel Health</div>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         {channels.map(function(ch) {
@@ -629,7 +629,7 @@ function HomeTab({ data, onTab, onCompose }: { data: BufferData; onTab: (tab: st
     </div>
 
     {/* Recent Activity */}
-    <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: 20 }}>
+    <div data-glass="" style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ fontFamily: mn, fontSize: 10, color: D.teal, textTransform: "uppercase", letterSpacing: 1.5 }}>Recent Activity</div>
         <span onClick={function() { onTab("sent"); }} style={{ fontFamily: mn, fontSize: 9, color: D.amber, cursor: "pointer" }}>View all</span>
@@ -658,11 +658,11 @@ function StatsTab({ data }: { data: BufferData }) {
   return (<div>
     <div style={{ display: "flex", gap: 12, marginBottom: 28 }}>
       {[{ l: "Scheduled", v: (data.scheduled || []).length, c: D.amber }, { l: "Sent", v: (data.sent || []).length, c: D.teal }, { l: "Drafts", v: (data.drafts || []).length, c: D.blue }, { l: "Channels", v: (data.channels || []).length, c: D.violet }].map(function(s, i) {
-        return <div key={i} style={{ flex: 1, background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: "18px 14px", textAlign: "center" }}><div style={{ fontFamily: mn, fontSize: 28, fontWeight: 900, color: s.c }}>{s.v}</div><div style={{ fontFamily: mn, fontSize: 9, color: D.txs, textTransform: "uppercase", letterSpacing: 1.5, marginTop: 4 }}>{s.l}</div></div>;
+        return <div key={i} data-glass="" style={{ flex: 1, background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: "18px 14px", textAlign: "center" }}><div style={{ fontFamily: mn, fontSize: 28, fontWeight: 900, color: s.c }}>{s.v}</div><div style={{ fontFamily: mn, fontSize: 9, color: D.txs, textTransform: "uppercase", letterSpacing: 1.5, marginTop: 4 }}>{s.l}</div></div>;
       })}
     </div>
     <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 14 }}>Posts Sent by Platform</div>
-    <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: 20, marginBottom: 28 }}>
+    <div data-glass="" style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: 20, marginBottom: 28 }}>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 12, height: 160 }}>
         {Object.keys(byPlat).sort(function(a, b) { return byPlat[b] - byPlat[a]; }).map(function(s) { var pp = pl(s); return <div key={s} style={{ flex: 1, textAlign: "center" }}><div style={{ fontFamily: mn, fontSize: 12, fontWeight: 700, color: pp.c, marginBottom: 4 }}>{byPlat[s]}</div><div style={{ height: (byPlat[s] / max * 100) + "%", minHeight: 4, background: "linear-gradient(180deg, " + pp.c + ", " + pp.c + "60)", borderRadius: "4px 4px 0 0" }} /><div style={{ fontFamily: mn, fontSize: 8, color: D.txs, marginTop: 6 }}>{pp.s}</div></div>; })}
       </div>
@@ -691,7 +691,7 @@ function StatsTab({ data }: { data: BufferData }) {
 
     {/* Time distribution */}
     <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 14 }}>Posting by Hour</div>
-    <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: 20, marginBottom: 28 }}>
+    <div data-glass="" style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: 20, marginBottom: 28 }}>
       {(function() {
         var hours = new Array(24).fill(0);
         (data.sent || []).forEach(function(p) { if (p.sentAt) hours[new Date(p.sentAt).getHours()]++; });
@@ -741,7 +741,7 @@ function StatsTab({ data }: { data: BufferData }) {
           { l: "Posting Streak", v: streak + " days", c: D.teal },
           { l: "Top Day", v: dayNames[topIdx], c: D.violet },
         ].map(function(s, i) {
-          return <div key={i} style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: "16px 12px", textAlign: "center" }}>
+          return <div key={i} data-glass="" style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 8, padding: "16px 12px", textAlign: "center" }}>
             <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: s.c }}>{s.v}</div>
             <div style={{ fontFamily: mn, fontSize: 9, color: D.txs, textTransform: "uppercase", letterSpacing: 1, marginTop: 4 }}>{s.l}</div>
           </div>;
@@ -752,7 +752,7 @@ function StatsTab({ data }: { data: BufferData }) {
     {/* By platform */}
     <div style={{ fontFamily: mn, fontSize: 10, color: D.amber, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 14 }}>By Platform</div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
-      {Object.keys(byFull).sort().map(function(s) { var d2 = byFull[s]; var pp = pl(s); return <div key={s} style={{ padding: "14px 16px", background: D.card, borderRadius: 8, border: "1px solid " + D.border, borderLeft: "3px solid " + pp.c }}><div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}><span style={{ fontSize: 16 }}>{pp.i}</span><span style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: pp.c }}>{pp.n}</span></div><div style={{ display: "flex", gap: 16, fontFamily: mn }}><div><span style={{ color: D.blue, fontWeight: 700, fontSize: 18 }}>{d2.q}</span><div style={{ fontSize: 8, color: D.txs }}>Queued</div></div><div><span style={{ color: D.teal, fontWeight: 700, fontSize: 18 }}>{d2.s}</span><div style={{ fontSize: 8, color: D.txs }}>Sent</div></div></div></div>; })}
+      {Object.keys(byFull).sort().map(function(s) { var d2 = byFull[s]; var pp = pl(s); return <div key={s} data-glass="" style={{ padding: "14px 16px", background: D.card, borderRadius: 8, border: "1px solid " + D.border, borderLeft: "3px solid " + pp.c }}><div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}><span style={{ fontSize: 16 }}>{pp.i}</span><span style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: pp.c }}>{pp.n}</span></div><div style={{ display: "flex", gap: 16, fontFamily: mn }}><div><span style={{ color: D.blue, fontWeight: 700, fontSize: 18 }}>{d2.q}</span><div style={{ fontSize: 8, color: D.txs }}>Queued</div></div><div><span style={{ color: D.teal, fontWeight: 700, fontSize: 18 }}>{d2.s}</span><div style={{ fontSize: 8, color: D.txs }}>Sent</div></div></div></div>; })}
     </div>
   </div>);
 }
@@ -1064,7 +1064,7 @@ export default function BufferSchedule() {
     </div>
 
     {loading ? <div style={{ textAlign: "center", padding: 80 }}><style dangerouslySetInnerHTML={{ __html: "@keyframes bL{0%{opacity:0.3}50%{opacity:1}100%{opacity:0.3}}" }} /><div style={{ fontFamily: mn, fontSize: 12, color: D.amber, animation: "bL 1.5s ease-in-out infinite" }}>Loading Buffer...</div></div>
-    : error ? <div style={{ textAlign: "center", padding: 50, maxWidth: 440, margin: "0 auto" }}><div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: D.tx, marginBottom: 8 }}>Connect Buffer</div><div style={{ fontFamily: ft, fontSize: 12, color: D.txs, lineHeight: 1.7, marginBottom: 16 }}>Generate an API key from your Buffer settings.</div><div style={{ padding: "14px 16px", background: D.card, borderRadius: 8, border: "1px solid " + D.border, textAlign: "left", marginBottom: 14, fontFamily: mn, fontSize: 10, color: D.tx, lineHeight: 2.2 }}><span style={{ color: D.amber }}>1.</span> Go to publish.buffer.com/settings/api{"\n"}<span style={{ color: D.amber }}>2.</span> Generate a key{"\n"}<span style={{ color: D.amber }}>3.</span> Add to Vercel as <span style={{ color: D.amber }}>BUFFER_API_KEY</span>{"\n"}<span style={{ color: D.amber }}>4.</span> Redeploy</div><a href="https://publish.buffer.com/settings/api" target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", fontFamily: ft, fontSize: 13, fontWeight: 700, color: D.bg, background: D.amber, padding: "10px 24px", borderRadius: 6, textDecoration: "none" }}>Get API Key</a>{error !== "BUFFER_API_KEY not configured" && <div style={{ fontFamily: mn, fontSize: 9, color: D.coral, marginTop: 14 }}>{error}</div>}</div>
+    : error ? <div style={{ textAlign: "center", padding: 50, maxWidth: 440, margin: "0 auto" }}><div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: D.tx, marginBottom: 8 }}>Connect Buffer</div><div style={{ fontFamily: ft, fontSize: 12, color: D.txs, lineHeight: 1.7, marginBottom: 16 }}>Generate an API key from your Buffer settings.</div><div data-glass="" style={{ padding: "14px 16px", background: D.card, borderRadius: 8, border: "1px solid " + D.border, textAlign: "left", marginBottom: 14, fontFamily: mn, fontSize: 10, color: D.tx, lineHeight: 2.2 }}><span style={{ color: D.amber }}>1.</span> Go to publish.buffer.com/settings/api{"\n"}<span style={{ color: D.amber }}>2.</span> Generate a key{"\n"}<span style={{ color: D.amber }}>3.</span> Add to Vercel as <span style={{ color: D.amber }}>BUFFER_API_KEY</span>{"\n"}<span style={{ color: D.amber }}>4.</span> Redeploy</div><a href="https://publish.buffer.com/settings/api" target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", fontFamily: ft, fontSize: 13, fontWeight: 700, color: D.bg, background: D.amber, padding: "10px 24px", borderRadius: 6, textDecoration: "none" }}>Get API Key</a>{error !== "BUFFER_API_KEY not configured" && <div style={{ fontFamily: mn, fontSize: 9, color: D.coral, marginTop: 14 }}>{error}</div>}</div>
     : <div>
       {tab === "home" && <HomeTab data={data!} onTab={setTab} onCompose={function() { setCompose(true); }} />}
       {tab === "calendar" && <CalendarTab posts={allPosts} channels={data!.channels} />}

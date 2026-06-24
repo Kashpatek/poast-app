@@ -929,7 +929,7 @@ export default function AkashTodo() {
       </div>
 
       {/* ── Quick add ──────────────────────────────────────────── */}
-      <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 18, background: D.surface, border: `1px solid ${D.border}`, borderRadius: 10, padding: "6px 6px 6px 14px" }}>
+      <div data-glass="" style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 18, background: D.surface, border: `1px solid ${D.border}`, borderRadius: 10, padding: "6px 6px 6px 14px" }}>
         <span style={{ fontFamily: mn, fontSize: 11, color: D.amber, letterSpacing: 0.6 }}>＋</span>
         <input
           ref={quickRef}
@@ -994,7 +994,7 @@ export default function AkashTodo() {
       {loading ? (
         <SkeletonView />
       ) : visibleTasks.length === 0 && view !== "calendar" && view !== "week" ? (
-        <div style={emptyBox}>
+        <div data-glass="" style={emptyBox}>
           {filter || filterChip !== "all" || tagFilter
             ? "No tasks match the current filters."
             : "No tasks yet. Type something into Quick Add, paste a Slack thread into From Prompt, or drop a screenshot into From Image."}
@@ -1220,7 +1220,7 @@ function ListView({ tasks, groupBy, sortBy, handlers }: { tasks: Task[]; groupBy
         </DropGroup>
       ))}
       {grouped.length === 0 && pinned.length === 0 ? (
-        <div style={emptyBox}>No tasks match the current filters.</div>
+        <div data-glass="" style={emptyBox}>No tasks match the current filters.</div>
       ) : null}
     </div>
   );
@@ -1370,6 +1370,7 @@ function TaskRow({ task, handlers }: { task: Task; handlers: Handlers }) {
 
   return (
     <div
+      data-glass=""
       style={{
         background: selected ? "rgba(247,176,65,0.10)" : justDone ? "rgba(46,173,142,0.10)" : D.surface,
         border: `1px solid ${selected ? D.amber : justDone ? D.teal : hover ? D.amber + "44" : D.border}`,
@@ -1717,6 +1718,7 @@ function BoardColumn({ label, color, tasks, onDropTask, handlers }: { label: str
   const [over, setOver] = useState(false);
   return (
     <div
+      data-glass=""
       onDragOver={(e) => { e.preventDefault(); setOver(true); }}
       onDragLeave={() => setOver(false)}
       onDrop={(e) => { e.preventDefault(); setOver(false); const id = e.dataTransfer.getData("text/plain"); if (id) onDropTask(id); }}
@@ -1965,7 +1967,7 @@ function DayDetailModal({ iso, tasks, onClose, handlers }: { iso: string; tasks:
           <button type="button" onClick={onClose} style={ghostBtn}>Close</button>
         </div>
         {tasks.length === 0 ? (
-          <div style={emptyBox}>No tasks scheduled for this day.</div>
+          <div data-glass="" style={emptyBox}>No tasks scheduled for this day.</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {tasks.map((t) => <TaskRow key={t.id} task={t} handlers={handlers} />)}
@@ -2044,6 +2046,7 @@ function WeekColumn({ date, isToday, tasks, overdueCount, onDrop, handlers }: { 
   const [over, setOver] = useState(false);
   return (
     <div
+      data-glass=""
       onDragOver={(e) => { e.preventDefault(); setOver(true); }}
       onDragLeave={() => setOver(false)}
       onDrop={(e) => { e.preventDefault(); setOver(false); const id = e.dataTransfer.getData("text/plain"); if (id) onDrop(id); }}
@@ -2198,7 +2201,7 @@ function FocusView({ tasks, handlers }: { tasks: Task[]; handlers: Handlers }) {
       {/* ── PLANNER GRID ────────────────────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", gap: 18 }}>
         {/* LEFT — hour timeline */}
-        <div style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, padding: 12 }}>
+        <div data-glass="" style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, padding: 12 }}>
           <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>Time block · today</div>
           <Timeline
             today={today}
@@ -2227,7 +2230,7 @@ function FocusView({ tasks, handlers }: { tasks: Task[]; handlers: Handlers }) {
             <QueueGroup label={`Unscheduled · ${noDate.length}`} color={D.txm} tasks={noDate} handlers={handlers} />
           ) : null}
           {overdue.length === 0 && dueTodayUnsched.length === 0 && thisWeek.length === 0 && pinned.length === 0 && noDate.length === 0 ? (
-            <div style={emptyBox}>Inbox zero. Or just no tasks queued for this stretch. Add some via Quick Add.</div>
+            <div data-glass="" style={emptyBox}>Inbox zero. Or just no tasks queued for this stretch. Add some via Quick Add.</div>
           ) : null}
         </div>
       </div>
@@ -2272,7 +2275,7 @@ function CategoryView({ tasks, handlers }: { tasks: Task[]; handlers: Handlers }
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {filtered.length === 0 ? (
-          <div style={emptyBox}>No tasks in this category.</div>
+          <div data-glass="" style={emptyBox}>No tasks in this category.</div>
         ) : filtered.map((t) => <TaskRow key={t.id} task={t} handlers={handlers} />)}
       </div>
     </div>
@@ -2461,7 +2464,7 @@ function TimelineSlot({ hour, minute, onHour, top, onDrop }: { hour: number; min
 // ── Queue group (right side of planner) ──────────────────────────────
 function QueueGroup({ label, color, tasks, handlers, pulse }: { label: string; color: string; tasks: Task[]; handlers: Handlers; pulse?: boolean }) {
   return (
-    <div style={{ background: D.surface, border: `1px solid ${color}33`, borderRadius: 10, padding: 10 }}>
+    <div data-glass="" style={{ background: D.surface, border: `1px solid ${color}33`, borderRadius: 10, padding: 10 }}>
       <div style={{ fontFamily: mn, fontSize: 10, color, letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700, marginBottom: 8, animation: pulse ? "tbPulseRed 1.8s ease-in-out infinite" : undefined }}>{label}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
         {tasks.map((t) => <QueueCard key={t.id} task={t} handlers={handlers} />)}
@@ -2577,7 +2580,7 @@ function FocusMode({ task, onClose, onUpdate, onComplete, onSkipToNext }: { task
         </div>
 
         {/* Timer */}
-        <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "12px 16px", background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12 }}>
+        <div data-glass="" style={{ display: "flex", alignItems: "center", gap: 18, padding: "12px 16px", background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12 }}>
           <div style={{ fontFamily: mn, fontSize: 36, fontWeight: 800, color: secs < 60 ? D.coral : D.tx, letterSpacing: 1, minWidth: 96 }}>
             {String(mm).padStart(2, "0")}:{String(ss).padStart(2, "0")}
           </div>
@@ -2594,7 +2597,7 @@ function FocusMode({ task, onClose, onUpdate, onComplete, onSkipToNext }: { task
 
         {/* Subtasks */}
         {subtasks.length > 0 ? (
-          <div style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, padding: "14px 18px" }}>
+          <div data-glass="" style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, padding: "14px 18px" }}>
             <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700, marginBottom: 10 }}>Checklist · {doneSubs}/{subtasks.length}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {subtasks.map((s) => (
@@ -3245,7 +3248,7 @@ function BoardModal({ archive, onCancel, onSave }: { archive: BoardArchive; onCa
         <div style={{ fontFamily: gf, fontSize: 20, fontWeight: 800, color: D.tx, letterSpacing: -0.5, marginBottom: 14 }}>Boards</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
           {archive.boards.map((b) => (
-            <div key={b.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: D.surface, border: `1px solid ${D.border}`, borderRadius: 8 }}>
+            <div key={b.id} data-glass="" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: D.surface, border: `1px solid ${D.border}`, borderRadius: 8 }}>
               <div>
                 <div style={{ fontFamily: ft, fontSize: 13, color: D.tx, fontWeight: 700 }}>{b.name}</div>
                 {b.description ? <div style={{ fontFamily: mn, fontSize: 10, color: D.txd }}>{b.description}</div> : null}
@@ -3764,7 +3767,7 @@ function TodayHero({ tasks, onStartFocus, onOpenTask }: { tasks: Task[]; onStart
   })();
 
   return (
-    <div style={{ marginBottom: 16, position: "relative", overflow: "hidden", borderRadius: 14, border: `1px solid ${D.amber}33`, background: `linear-gradient(135deg, rgba(247,176,65,0.10) 0%, rgba(11,134,209,0.06) 60%, transparent 100%), ${D.surface}`, padding: 16 }}>
+    <div data-glass="" style={{ marginBottom: 16, position: "relative", overflow: "hidden", borderRadius: 14, border: `1px solid ${D.amber}33`, background: `linear-gradient(135deg, rgba(247,176,65,0.10) 0%, rgba(11,134,209,0.06) 60%, transparent 100%), ${D.surface}`, padding: 16 }}>
       <div aria-hidden="true" style={{ position: "absolute", top: -40, right: -40, width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle, rgba(247,176,65,0.18), transparent 70%)", pointerEvents: "none" }} />
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
         <div>
@@ -3834,6 +3837,7 @@ function PriorityCounter({ label, count, color }: { label: string; count: number
   const [hover, setHover] = useState(false);
   return (
     <div
+      data-glass=""
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{

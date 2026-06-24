@@ -271,7 +271,7 @@ export default function GTCFlow(){
     </div>
 
     {/* Stats */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:20,padding:18,background:"var(--card)",borderRadius:10,border:"1px solid "+BDR}}>
+    <div data-glass="" style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:20,padding:18,background:"var(--card)",borderRadius:10,border:"1px solid "+BDR}}>
       {[{l:"Published",v:pub.length,c:GRN},{l:"Remaining",v:sched.length,c:AMB},{l:"Cadence",v:cad.label,c:"rgba(255,255,255,0.55)"},{l:"Full Ep",v:"8AM PST",c:AMB},{l:"Clips",v:"10AM PST",c:BLU}].map(function(s,i){return <div key={i} style={{textAlign:"center"}}><div style={{fontFamily:MONO,fontSize:22,fontWeight:900,color:s.c}}>{s.v}</div><div style={{fontFamily:MONO,fontSize:9,fontWeight:600,color:"rgba(255,255,255,0.2)",textTransform:"uppercase",letterSpacing:1.5,marginTop:4}}>{s.l}</div></div>})}
     </div>
 
@@ -283,7 +283,7 @@ export default function GTCFlow(){
       </div>})}</div>
     </div>}
 
-    {edit&&<div style={{padding:16,background:BG1,borderRadius:8,border:"2px solid "+AMB+"40",marginBottom:18}}>
+    {edit&&<div data-glass="" style={{padding:16,background:BG1,borderRadius:8,border:"2px solid "+AMB+"40",marginBottom:18}}>
       <div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:10}}>Drag to reorder. Checkmarks: RCV=Received, SCH=Scheduled. Pub=mark published.</div>
       {sched.map(function(ep,idx){var d=slotDate(ep.slot,cad.days);return <div key={ep.id} draggable onDragStart={function(){setDragId(ep.id)}} onDragOver={function(ev){ev.preventDefault()}} onDrop={function(){doDrop(ep.id)}} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 12px",marginBottom:2,borderRadius:6,background:dragId===ep.id?AMB+"18":"rgba(255,255,255,0.015)",border:dragId===ep.id?"1px solid "+AMB:"1px solid transparent",cursor:"grab"}}>
         <span style={{fontSize:11,color:"#4b5563",fontWeight:700,width:20}}>{idx+1}</span>
@@ -339,7 +339,7 @@ export default function GTCFlow(){
 
     {subV==="calendar"&&<CalV eps={sched} cad={cad} onSel={function(ep){setSel(ep);setView("ep")}}/>}
 
-    <div style={{padding:16,background:BG1,borderRadius:8,border:"1px solid "+BDR,marginTop:24}}>
+    <div data-glass="" style={{padding:16,background:BG1,borderRadius:8,border:"1px solid "+BDR,marginTop:24}}>
       <div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:2,fontWeight:700,marginBottom:8}}>Rollout</div>
       <p style={{fontSize:12,color:"#9ca3af",lineHeight:1.8,margin:0}}>{cad.label} Wednesdays at 8AM PST. Clip #1 Thursday 10AM. Clip #2 following Tuesday 10AM. All clips go to X, YT Shorts, IG Reels, TikTok (stagger 4-6hr), Story. LinkedIn and Facebook get longer captions. Caithrin/Kai episodes are SAIL's.</p>
     </div>
@@ -349,7 +349,7 @@ export default function GTCFlow(){
 
 function CalV(p: { eps: Episode[]; cad: Cadence; onSel: (ep: Episode) => void }){var eps=p.eps,cad=p.cad,onSel=p.onSel;var mo: Record<string, CalMonth>={};eps.forEach(function(ep){var d=slotDate(ep.slot,cad.days);var k=d.getFullYear()+"-"+d.getMonth();if(!mo[k])mo[k]={y:d.getFullYear(),m:d.getMonth(),eps:[]};mo[k].eps.push(Object.assign({},ep,{date:d}))});
 return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>{Object.values(mo).map(function(m: CalMonth,mi: number){var fd=new Date(m.y,m.m,1).getDay();var dim=new Date(m.y,m.m+1,0).getDate();var cells: (number|null)[] =[];for(var i=0;i<fd;i++)cells.push(null);for(var d=1;d<=dim;d++)cells.push(d);
-return <div key={mi} style={{padding:14,background:BG1,borderRadius:8,border:"1px solid "+BDR}}>
+return <div key={mi} data-glass="" style={{padding:14,background:BG1,borderRadius:8,border:"1px solid "+BDR}}>
   <div style={{fontSize:13,fontWeight:700,color:AMB,marginBottom:8}}>{new Date(m.y,m.m).toLocaleDateString("en-US",{month:"long",year:"numeric"})}</div>
   <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,fontSize:9}}>
     {["Su","Mo","Tu","We","Th","Fr","Sa"].map(function(dn){return <div key={dn} style={{textAlign:"center",color:"#4b5563",padding:3,fontWeight:700}}>{dn}</div>})}
@@ -672,7 +672,7 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
 
   function speakersPanel(){
     var missing = !gBio.trim() || !hBio.trim();
-    return <div style={{marginBottom:12,padding:14,background:BG1,border:"1px solid "+(missing?AMB+"30":BDR),borderRadius:8}}>
+    return <div data-glass="" style={{marginBottom:12,padding:14,background:BG1,border:"1px solid "+(missing?AMB+"30":BDR),borderRadius:8}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,fontFamily:MONO}}>Speakers</div>
         {missing&&<div style={{fontSize:10,color:AMB,fontFamily:MONO,letterSpacing:0.5}}>Add bios so captions know who is who</div>}
@@ -782,7 +782,7 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
         {/* Transcript box — shared with the YT Description tab. Pasting
             here enriches the launch kit captions AND auto-loads chapters
             into the YouTube description section. */}
-        <div style={{marginBottom:10,padding:10,background:BG1,border:"1px solid "+(hasTx?GRN+"40":BDR),borderRadius:8}}>
+        <div data-glass="" style={{marginBottom:10,padding:10,background:BG1,border:"1px solid "+(hasTx?GRN+"40":BDR),borderRadius:8}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
             <div style={{fontSize:10,color:hasTx?GRN:AMB,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,fontFamily:MONO}}>Transcript (optional)</div>
             <div style={{fontSize:9,color:"#6b7280",fontFamily:MONO}}>{hasTx?ytTranscript.length.toLocaleString()+" chars · chapters will auto-load":"Paste to enrich captions + auto-add chapters"}</div>
@@ -794,12 +794,12 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
           {kitOut&&<Btn on={false} onClick={function(){doCopy(kitOut,"kit")}} sx={{borderColor:AMB+"60",color:AMB}}>{cp==="kit"?"Copied!":"Copy All"}</Btn>}
           {kitOut&&<Btn on={false} onClick={function(){downloadDocx("Launch Kit - "+ep.guest,kitOut,"LaunchKit_"+epSlug)}} sx={{borderColor:GRN+"60",color:GRN}}>Download .docx</Btn>}
         </div>
-        {!kitOut&&<div style={{padding:40,background:BG1,borderRadius:8,border:"1px solid "+BDR,color:"#4b5563",fontSize:12,textAlign:"center"}}>Click Generate to create the full launch kit — title, thumbnail headline, and all social captions.</div>}
+        {!kitOut&&<div data-glass="" style={{padding:40,background:BG1,borderRadius:8,border:"1px solid "+BDR,color:"#4b5563",fontSize:12,textAlign:"center"}}>Click Generate to create the full launch kit — title, thumbnail headline, and all social captions.</div>}
         {kitOut&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
           {cards.map(function(card){
             var content = sections[card.key] || "";
             if (!content) return null;
-            return <div key={card.key} style={{background:BG1,border:"1px solid "+card.color+"25",borderRadius:10,padding:14}}>
+            return <div key={card.key} data-glass="" style={{background:BG1,border:"1px solid "+card.color+"25",borderRadius:10,padding:14}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                 <div style={{fontSize:10,color:card.color,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,fontFamily:MONO}}>{card.label}</div>
                 <div style={{display:"flex",gap:6}}>
@@ -818,7 +818,7 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
 
     {tab==="yt"&&<div>
       {speakersPanel()}
-      <div style={{marginBottom:12,padding:14,background:BG1,border:"1px solid "+BDR,borderRadius:8}}>
+      <div data-glass="" style={{marginBottom:12,padding:14,background:BG1,border:"1px solid "+BDR,borderRadius:8}}>
         <div style={{fontSize:10,color:AMB,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,fontFamily:MONO,marginBottom:8}}>Transcript (optional)</div>
         <textarea value={ytTranscript} onChange={function(e){setYtTranscript(e.target.value)}} placeholder="Paste full interview transcript. AI will pull specific technical details, numbers, and claims from it to make the description richer..." style={{width:"100%",minHeight:140,padding:10,background:BG0,border:"1px solid "+BDR,borderRadius:6,color:"#d1d5db",fontFamily:FONT,fontSize:11,resize:"vertical",outline:"none",boxSizing:"border-box"}}/>
         <div style={{fontSize:10,color:"#6b7280",fontFamily:MONO,marginTop:6}}>Transcript makes para 1 sharper — real quotes, real numbers, real claims. Timestamped chapters are added manually on YouTube.</div>
@@ -828,8 +828,8 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
         {ytOut&&<Btn on={false} onClick={function(){doCopy(ytOut,"yt")}} sx={{borderColor:AMB+"60",color:AMB}}>{cp==="yt"?"Copied!":"Copy"}</Btn>}
         {ytOut&&<Btn on={false} onClick={function(){downloadDocx("YouTube Description - "+ep.guest,ytOut,"YTDescription_"+ep.guest.replace(/[^a-zA-Z0-9]/g,"_"))}} sx={{borderColor:GRN+"60",color:GRN}}>Download .docx</Btn>}
       </div>
-      {ytOut&&<pre style={{fontSize:12,color:"#d1d5db",lineHeight:1.7,padding:16,background:BG1,borderRadius:8,border:"1px solid "+BDR,whiteSpace:"pre-wrap",fontFamily:FONT,maxHeight:560,overflow:"auto"}}>{ytOut}</pre>}
-      {!ytOut&&<div style={{padding:40,background:BG1,borderRadius:8,border:"1px solid "+BDR,color:"#4b5563",fontSize:12,textAlign:"center"}}>Generate the 3-paragraph YT description. Paste transcript above for richer, more specific writing.</div>}
+      {ytOut&&<pre data-glass="" style={{fontSize:12,color:"#d1d5db",lineHeight:1.7,padding:16,background:BG1,borderRadius:8,border:"1px solid "+BDR,whiteSpace:"pre-wrap",fontFamily:FONT,maxHeight:560,overflow:"auto"}}>{ytOut}</pre>}
+      {!ytOut&&<div data-glass="" style={{padding:40,background:BG1,borderRadius:8,border:"1px solid "+BDR,color:"#4b5563",fontSize:12,textAlign:"center"}}>Generate the 3-paragraph YT description. Paste transcript above for richer, more specific writing.</div>}
     </div>}
 
     {tab==="clips"&&<div>
@@ -853,8 +853,8 @@ function EpDet(p: { ep: Episode; cad: Cadence; onBack: () => void; onUpdate: (ep
         {clipOut&&<Btn on={false} onClick={function(){doCopy(clipOut,"clips")}} sx={{borderColor:AMB+"60",color:AMB}}>{cp==="clips"?"Copied!":"Copy"}</Btn>}
         {clipOut&&<Btn on={false} onClick={function(){downloadDocx("Clips Kit - "+ep.guest,clipOut,"ClipsKit_"+ep.guest.replace(/[^a-zA-Z0-9]/g,"_"))}} sx={{borderColor:GRN+"60",color:GRN}}>Download .docx</Btn>}
       </div>
-      {clipOut&&<pre style={{fontSize:11,color:"#9ca3af",lineHeight:1.7,padding:14,background:BG1,borderRadius:8,border:"1px solid "+BDR,whiteSpace:"pre-wrap",fontFamily:FONT,maxHeight:520,overflow:"auto"}}>{clipOut}</pre>}
-      {!clipOut&&<div style={{padding:40,background:BG1,borderRadius:8,border:"1px solid "+BDR,color:"#4b5563",fontSize:12,textAlign:"center"}}>Paste transcripts and generate.</div>}
+      {clipOut&&<pre data-glass="" style={{fontSize:11,color:"#9ca3af",lineHeight:1.7,padding:14,background:BG1,borderRadius:8,border:"1px solid "+BDR,whiteSpace:"pre-wrap",fontFamily:FONT,maxHeight:520,overflow:"auto"}}>{clipOut}</pre>}
+      {!clipOut&&<div data-glass="" style={{padding:40,background:BG1,borderRadius:8,border:"1px solid "+BDR,color:"#4b5563",fontSize:12,textAlign:"center"}}>Paste transcripts and generate.</div>}
     </div>}
   </div></div>
 }

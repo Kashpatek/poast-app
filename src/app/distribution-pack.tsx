@@ -266,6 +266,7 @@ export default function DistributionPack() {
             const active = activeArticle?.url === a.url;
             return (
               <button
+                data-glass=""
                 type="button"
                 key={a.url}
                 onClick={() => pickArticle(a)}
@@ -310,7 +311,7 @@ export default function DistributionPack() {
 
       {/* Composer */}
       {activeArticle ? (
-        <div style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 14, padding: 22, marginBottom: 24 }}>
+        <div data-glass="" style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 14, padding: 22, marginBottom: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
             <div>
               <div style={lbl}>Launch post · same copy across all 4 platforms</div>
@@ -442,13 +443,13 @@ export default function DistributionPack() {
           </div>
         </div>
       ) : (
-        <div style={{ ...emptyBox, marginBottom: 24 }}>
+        <div data-glass="" style={{ ...emptyBox, marginBottom: 24 }}>
           Pick an article above to compose the launch post. The template fills in title, subtitle, and the READ NOW link automatically.
         </div>
       )}
 
       {/* Advanced (legacy) */}
-      <div style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, marginBottom: 24 }}>
+      <div data-glass="" style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, marginBottom: 24 }}>
         <button
           type="button"
           onClick={() => setAdvancedOpen((v) => !v)}
@@ -549,12 +550,12 @@ function PoastSuite() {
         />
       </div>
       {openTool === "headline" ? (
-        <div style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, padding: "20px 24px" }}>
+        <div data-glass="" style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, padding: "20px 24px" }}>
           <HeadlineDoctor />
         </div>
       ) : null}
       {openTool === "voice" ? (
-        <div style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, padding: "20px 24px" }}>
+        <div data-glass="" style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 12, padding: "20px 24px" }}>
           <VoiceScorer />
         </div>
       ) : null}
@@ -565,6 +566,7 @@ function PoastSuite() {
 function SuiteCard({ open, onToggle, title, sub }: { open: boolean; onToggle: () => void; title: string; sub: string }) {
   return (
     <button
+      data-glass=""
       type="button"
       onClick={onToggle}
       style={{

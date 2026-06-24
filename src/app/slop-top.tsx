@@ -449,6 +449,7 @@ function SlopCard({ title, content, onCopy, copyLabel, extraButton }: { title?: 
   }
 
   return <div
+    data-glass=""
     onMouseEnter={function() { setHov(true); }}
     onMouseLeave={function() { setHov(false); }}
     style={{
@@ -1530,7 +1531,7 @@ export default function SlopTop() {
         </div>
 
         {/* Slop results */}
-        {slopLoading && <div style={{ padding: 40, textAlign: "center", background: D.card, borderRadius: 12, border: "1px solid " + D.border, marginBottom: 24 }}>
+        {slopLoading && <div data-glass="" style={{ padding: 40, textAlign: "center", background: D.card, borderRadius: 12, border: "1px solid " + D.border, marginBottom: 24 }}>
           <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 16 }}>{[0, 1, 2].map(function(i) { return <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: D.amber, animation: "slopPulse 1.4s ease-in-out infinite", animationDelay: i * 0.2 + "s" }} />; })}</div>
           <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 600, color: D.txm }}>{loadingPhrase}</div>
         </div>}
@@ -1552,7 +1553,7 @@ export default function SlopTop() {
           {/* Thread Idea */}
           {slopResults.thread_idea && <div style={{ marginBottom: 20 }}>
             <div style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, color: D.violet, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>{"🧠 Thread Idea"}</div>
-            <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 18 }}>
+            <div data-glass="" style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 18 }}>
               {(Array.isArray(slopResults.thread_idea) ? slopResults.thread_idea : [slopResults.thread_idea]).map(function(post, i) {
                 return <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8 }}>
                   <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, background: D.violet + "20", border: "1px solid " + D.violet + "40", color: D.violet, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 9, fontWeight: 800 }}>{i + 1}</div>
@@ -1626,7 +1627,7 @@ export default function SlopTop() {
       </div>
 
       {/* Generated meme image */}
-      {memeImgLoading && <div style={{ marginTop: 24, padding: 40, textAlign: "center", background: D.card, borderRadius: 12, border: "1px solid " + D.border }}>
+      {memeImgLoading && <div data-glass="" style={{ marginTop: 24, padding: 40, textAlign: "center", background: D.card, borderRadius: 12, border: "1px solid " + D.border }}>
         <div style={{ width: 40, height: 40, borderRadius: "50%", border: "3px solid " + D.border, borderTopColor: D.violet, margin: "0 auto 16px", animation: "slopSpin 1s linear infinite" }} />
         <div style={{ fontFamily: ft, fontSize: 14, color: D.txm }}>{loadingPhrase} 🔥</div>
       </div>}
@@ -1635,7 +1636,7 @@ export default function SlopTop() {
         <div style={{ fontFamily: mn, fontSize: 10, color: D.teal, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
           {SUCCESS_MESSAGES[Math.floor(Math.random() * SUCCESS_MESSAGES.length)]}
         </div>
-        <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 16, textAlign: "center" }}>
+        <div data-glass="" style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 16, textAlign: "center" }}>
           <img src={memeImg} style={{ maxWidth: "100%", maxHeight: 500, borderRadius: 8 }} />
           <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 16 }}>
             <a href={memeImg} download="slop-meme.png" style={{
@@ -1651,7 +1652,7 @@ export default function SlopTop() {
       </div>}
 
       {/* Generated video */}
-      {videoLoading && !videoUrl && <div style={{ marginTop: 24, padding: 40, textAlign: "center", background: D.card, borderRadius: 12, border: "1px solid " + D.cyan + "20" }}>
+      {videoLoading && !videoUrl && <div data-glass="" style={{ marginTop: 24, padding: 40, textAlign: "center", background: D.card, borderRadius: 12, border: "1px solid " + D.cyan + "20" }}>
         <div style={{ width: 40, height: 40, borderRadius: "50%", border: "3px solid " + D.border, borderTopColor: D.cyan, margin: "0 auto 16px", animation: "slopSpin 1s linear infinite" }} />
         <div style={{ fontFamily: ft, fontSize: 14, color: D.txm }}>{videoStatus || loadingPhrase} 🎥</div>
       </div>}
@@ -1664,7 +1665,7 @@ export default function SlopTop() {
         <div style={{ fontFamily: mn, fontSize: 10, color: D.cyan, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
           <span>{"🎥"}</span>{" absolute cinema "}<span>{"🔥"}</span>
         </div>
-        <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 16, textAlign: "center" }}>
+        <div data-glass="" style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 16, textAlign: "center" }}>
           <video src={videoUrl} controls style={{ maxWidth: "100%", maxHeight: 500, borderRadius: 8 }} />
           <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 16 }}>
             <a href={videoUrl} download="slop-video.mp4" style={{
@@ -1687,7 +1688,7 @@ export default function SlopTop() {
     <div style={{ display: "flex", gap: 28, alignItems: "flex-start" }}>
 
       {/* ═══ INPUT PANEL (left, ~40%) ═══ */}
-      <div style={{
+      <div data-glass="" style={{
         width: "40%", flexShrink: 0,
         background: D.card, border: "1px solid " + D.border,
         borderRadius: 12, padding: 28,
@@ -1834,7 +1835,7 @@ export default function SlopTop() {
       {/* ═══ OUTPUT PANEL (right, ~60%) ═══ */}
       <div style={{ flex: 1, minWidth: 0 }}>
         {/* Empty state */}
-        {!briefs && !loading && <div style={{
+        {!briefs && !loading && <div data-glass="" style={{
           background: D.card, border: "1px solid " + D.border, borderRadius: 12,
           padding: "80px 40px", textAlign: "center",
         }}>
@@ -1846,7 +1847,7 @@ export default function SlopTop() {
         </div>}
 
         {/* Loading state */}
-        {loading && <div style={{
+        {loading && <div data-glass="" style={{
           background: D.card, border: "1px solid " + D.border, borderRadius: 12,
           padding: "80px 40px", textAlign: "center",
         }}>
@@ -1938,7 +1939,7 @@ export default function SlopTop() {
       </div>
 
       {/* Submit Section */}
-      <div style={{
+      <div data-glass="" style={{
         background: D.card, border: "1px solid " + D.border, borderRadius: 14,
         padding: "24px 28px", marginBottom: 24,
       }}>
@@ -1990,7 +1991,7 @@ export default function SlopTop() {
           <span>{"📚"}</span> Slop Queue <span style={{ color: D.txd, fontSize: 8, textTransform: "none" }}>// {arxivQueue.length} paper{arxivQueue.length !== 1 ? "s" : ""} in the lab</span>
         </div>
 
-        {arxivQueue.length === 0 && <div style={{
+        {arxivQueue.length === 0 && <div data-glass="" style={{
           background: D.card, border: "1px solid " + D.border, borderRadius: 12,
           padding: "60px 40px", textAlign: "center",
         }}>
@@ -2003,7 +2004,7 @@ export default function SlopTop() {
           {arxivQueue.map(function(job) {
             var isReady = job.status === "ready";
             var isProcessing = job.status === "processing";
-            return <div key={job.paperId + "-" + job.submittedAt} style={{
+            return <div key={job.paperId + "-" + job.submittedAt} data-glass="" style={{
               background: D.card,
               border: "1px solid " + (isReady ? D.teal + "50" : D.border),
               borderRadius: 12, padding: "20px 24px",

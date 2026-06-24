@@ -313,7 +313,7 @@ export default function Outreach() {
             {TEAM.map(function(m) {
               var sel = selMember === m.id;
               return (
-                <div key={m.id} onClick={function() { setSelMember(sel ? null : m.id); }}
+                <div key={m.id} data-glass="" onClick={function() { setSelMember(sel ? null : m.id); }}
                   style={{
                     minWidth: 220, padding: "18px 20px", background: sel ? D.hover : D.card, border: "1px solid " + (sel ? m.color + "60" : D.border),
                     borderRadius: 12, cursor: "pointer", transition: "all 0.15s", flexShrink: 0,
@@ -355,7 +355,7 @@ export default function Outreach() {
 
           {/* Add Form */}
           {showForm && (
-            <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 24 }}>
+            <div data-glass="" style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 24 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                 <div>
                   <label style={labelStyle}>Show Name</label>
@@ -417,7 +417,7 @@ export default function Outreach() {
               var fitScores = selTeam ? [{ member: selTeam, score: calcFit(selTeam.expertise, opp.topicFocus) }] : TEAM.map(function(m) { return { member: m, score: calcFit(m.expertise, opp.topicFocus) }; });
 
               return (
-                <div key={opp.id} style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: "18px 22px", transition: "all 0.15s" }}>
+                <div key={opp.id} data-glass="" style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: "18px 22px", transition: "all 0.15s" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
@@ -530,7 +530,7 @@ export default function Outreach() {
                       var assigned = teamById(opp.assignedTo);
                       var notesOpen = expandedNotes[opp.id];
                       return (
-                        <div key={opp.id} style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 10, padding: 14, transition: "all 0.15s" }}>
+                        <div key={opp.id} data-glass="" style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 10, padding: 14, transition: "all 0.15s" }}>
                           <div style={{ fontSize: 13, fontWeight: 700, color: D.tx, marginBottom: 4 }}>{opp.showName}</div>
                           <div style={{ fontFamily: mn, fontSize: 10, color: opp.hostName ? D.txm : D.txd, marginBottom: 4, fontStyle: opp.hostName ? "normal" : "italic" }}>{opp.hostName || "No host"}</div>
                           {(function() { var fkMatch = findFKMatch(opp.hostName); if (fkMatch) return <div style={{ marginBottom: 6 }}><span style={{ padding: "2px 6px", borderRadius: 4, fontFamily: mn, fontSize: 8, fontWeight: 700, background: D.teal + "18", color: D.teal, border: "1px solid " + D.teal + "30" }}>FK Guest {fkMatch.tier ? "(" + fkMatch.tier + ")" : ""}</span></div>; return null; })()}

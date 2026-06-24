@@ -147,6 +147,7 @@ function TrendCard({ item, sourceKey }: { item: TrendItem; sourceKey: string }) 
   var _hov = useState(false), hov = _hov[0], setHov = _hov[1];
   var ta = timeAgo(item.timestamp);
   return <div
+    data-glass=""
     onMouseEnter={function() { setHov(true); }}
     onMouseLeave={function() { setHov(false); }}
     onClick={function() { if (item.url) window.open(item.url, "_blank", "noopener,noreferrer"); }}
@@ -181,6 +182,7 @@ function ManualTrendCard({ trend, onRemove }: { trend: ManualTrend; onRemove: ()
   var pc = PLATFORMS_MANUAL[trend.platform as keyof typeof PLATFORMS_MANUAL];
   var c = pc ? pc.color : D.amber;
   return <div
+    data-glass=""
     onMouseEnter={function() { setHov(true); }}
     onMouseLeave={function() { setHov(false); }}
     style={{ width: 240, minWidth: 240, height: 180, background: hov ? D.hover : D.card, border: "1px solid " + (hov ? c + "40" : D.border), borderRadius: 12, overflow: "hidden", transition: "all 0.2s ease", transform: hov ? "translateY(-2px)" : "translateY(0)", boxShadow: hov ? "0 8px 24px rgba(0,0,0,0.4)" : "none", flexShrink: 0, display: "flex", flexDirection: "column" }}
@@ -465,7 +467,7 @@ export default function Trends() {
     }
 
     if (!hasAny && !loading) {
-      return <div style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: "48px 24px", textAlign: "center", marginTop: 8 }}>
+      return <div data-glass="" style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: "48px 24px", textAlign: "center", marginTop: 8 }}>
         <div style={{ fontSize: 28, marginBottom: 12, opacity: 0.3 }}>&#128225;</div>
         <div style={{ fontFamily: ft, fontSize: 14, color: D.txm, marginBottom: 6 }}>No data for this tab yet</div>
         <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, lineHeight: 1.6 }}>API keys may not be configured, or sources have not returned data.<br />Try refreshing or add trends manually with the + button.</div>

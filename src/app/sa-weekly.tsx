@@ -559,7 +559,7 @@ function CopyBtn({ text }: { text: string }) { var _s = useState<boolean>(false)
 function Divider() { return <div style={{ borderBottom: "1px solid " + D.border, margin: "28px 0" }} />; }
 
 function Pick({ text, picked, onPick, onRedo, rLoading }: { text: string; picked: boolean; onPick: () => void; onRedo?: () => void; rLoading?: boolean }) {
-  return (<div onClick={onPick} style={{ background: picked ? "linear-gradient(135deg, " + ACC + "0A 0%, " + ACC + "05 100%)" : D.elevated, border: "1px solid " + (picked ? ACC + "60" : D.border), borderRadius: 12, padding: "16px 20px", marginBottom: 8, cursor: "pointer", boxShadow: picked ? "0 0 24px rgba(224,99,71,0.06)" : "none", transition: "all 0.2s ease" }}>
+  return (<div data-glass="" onClick={onPick} style={{ background: picked ? "linear-gradient(135deg, " + ACC + "0A 0%, " + ACC + "05 100%)" : D.elevated, border: "1px solid " + (picked ? ACC + "60" : D.border), borderRadius: 12, padding: "16px 20px", marginBottom: 8, cursor: "pointer", boxShadow: picked ? "0 0 24px rgba(224,99,71,0.06)" : "none", transition: "all 0.2s ease" }}>
     <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
       <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, marginTop: 2, border: "2px solid " + (picked ? ACC : D.borderHover), background: picked ? ACC : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s ease" }}>{picked && <div style={{ width: 8, height: 8, borderRadius: "50%", background: D.bg }} />}</div>
       <div style={{ flex: 1, fontFamily: ft, fontSize: 14, color: picked ? D.tx : D.txb, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{text}</div>
@@ -579,7 +579,7 @@ function TitlePick({ option, epNum, guests, picked, onPick, onRedo, rLoading }: 
   var ytOver = ytLen > 100;
   var spOver = spLen > 200;
   var copyVal = "YouTube:\n" + yt + "\n\nSpotify:\n" + sp;
-  return (<div onClick={onPick} style={{ background: picked ? "linear-gradient(135deg, " + ACC + "0A 0%, " + ACC + "05 100%)" : D.elevated, border: "1px solid " + (picked ? ACC + "60" : D.border), borderRadius: 12, padding: "16px 20px", marginBottom: 8, cursor: "pointer", boxShadow: picked ? "0 0 24px rgba(224,99,71,0.06)" : "none", transition: "all 0.2s ease" }}>
+  return (<div data-glass="" onClick={onPick} style={{ background: picked ? "linear-gradient(135deg, " + ACC + "0A 0%, " + ACC + "05 100%)" : D.elevated, border: "1px solid " + (picked ? ACC + "60" : D.border), borderRadius: 12, padding: "16px 20px", marginBottom: 8, cursor: "pointer", boxShadow: picked ? "0 0 24px rgba(224,99,71,0.06)" : "none", transition: "all 0.2s ease" }}>
     <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
       <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, marginTop: 2, border: "2px solid " + (picked ? ACC : D.borderHover), background: picked ? ACC : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s ease" }}>{picked && <div style={{ width: 8, height: 8, borderRadius: "50%", background: D.bg }} />}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -610,7 +610,7 @@ function SecHead({ label, onRedoAll, rL }: { label: string; onRedoAll?: () => vo
 }
 
 function OutCard({ title, content, color, onRedo, rLoading }: { title: string; content: string; color?: string; onRedo?: () => void; rLoading?: boolean }) {
-  return (<div style={{ background: D.elevated, border: "1px solid " + D.border, borderLeft: "3px solid " + (color || ACC), borderRadius: 12, padding: "16px 20px", marginBottom: 10, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
+  return (<div data-glass="" style={{ background: D.elevated, border: "1px solid " + D.border, borderLeft: "3px solid " + (color || ACC), borderRadius: 12, padding: "16px 20px", marginBottom: 10, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
       <div style={{ fontFamily: mn, fontSize: 11, color: color || ACC, textTransform: "uppercase", letterSpacing: "2px" }}>{title}</div>
       <div style={{ display: "flex", gap: 5 }}>
@@ -790,7 +790,7 @@ function GuestManager({ guests, setGuests }: { guests: Guest[]; setGuests: (g: G
       </div>
     </div>
     {/* Frequent guests quick-pick. Click a chip → adds (with handle). */}
-    {quickOpen && <div style={{ background: D.elevated, border: "1px solid " + D.amber + "30", borderRadius: 12, padding: 14, marginBottom: 12 }}>
+    {quickOpen && <div data-glass="" style={{ background: D.elevated, border: "1px solid " + D.amber + "30", borderRadius: 12, padding: 14, marginBottom: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
         <div style={{ fontFamily: mn, fontSize: 9.5, color: D.amber, letterSpacing: "1.5px", fontWeight: 700, textTransform: "uppercase" }}>Frequent · click to add</div>
         <span onClick={function() { setQuickOpen(false); }} style={{ fontFamily: mn, fontSize: 10, color: D.txl, cursor: "pointer" }}>Close</span>
@@ -820,7 +820,7 @@ function GuestManager({ guests, setGuests }: { guests: Guest[]; setGuests: (g: G
       </div>
     </div>}
     {/* FK Prospects Browse Panel */}
-    {guestBrowseOpen && <div style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 14, marginBottom: 12, maxHeight: 280, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+    {guestBrowseOpen && <div data-glass="" style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 14, marginBottom: 12, maxHeight: 280, overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <input value={fkSearch} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { setFkSearch(e.target.value); }} placeholder="Search FK prospects..." style={{ width: "100%", padding: "8px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 8, color: D.tx, fontFamily: mn, fontSize: 11, outline: "none", boxSizing: "border-box", marginBottom: 8, transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
       <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
         {fkLoading && <div style={{ fontFamily: mn, fontSize: 10, color: D.txl, textAlign: "center", padding: 16 }}>Loading...</div>}
@@ -836,7 +836,7 @@ function GuestManager({ guests, setGuests }: { guests: Guest[]; setGuests: (g: G
         })}
       </div>
     </div>}
-    {guests.length === 0 && <div onClick={function() { setGuests([{ name: "", handle: "" }]); }} style={{ background: D.surface, border: "1px dashed " + D.border, borderRadius: 10, padding: "16px", cursor: "pointer", textAlign: "center", fontFamily: ft, fontSize: 13, color: D.txl }}>Click to add guests</div>}
+    {guests.length === 0 && <div data-glass="" onClick={function() { setGuests([{ name: "", handle: "" }]); }} style={{ background: D.surface, border: "1px dashed " + D.border, borderRadius: 10, padding: "16px", cursor: "pointer", textAlign: "center", fontFamily: ft, fontSize: 13, color: D.txl }}>Click to add guests</div>}
     {guests.map(function(g: Guest, i: number) { return (<div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
       <input value={g.name} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { var c = guests.slice(); c[i] = { name: e.target.value, handle: g.handle }; setGuests(c); }} placeholder="Name" style={{ flex: 1, padding: "10px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, color: D.tx, fontFamily: ft, fontSize: 14, outline: "none", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
       <input value={g.handle} onChange={function(e: React.ChangeEvent<HTMLInputElement>) { var c = guests.slice(); c[i] = { name: g.name, handle: e.target.value }; setGuests(c); }} placeholder="@handle" style={{ flex: 1, padding: "10px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 10, color: D.tx, fontFamily: mn, fontSize: 13, outline: "none", transition: "border-color 0.2s ease" }} onFocus={function(e) { e.target.style.borderColor = ACC; }} onBlur={function(e) { e.target.style.borderColor = D.border; }} />
@@ -1143,7 +1143,7 @@ function StepGenerate({ ep, guests, opts, setOpts, sel, setSel, fin, setFin, des
     <div style={{ marginBottom: 24 }}>
       <Label>Description Length</Label>
       <div style={{ display: "flex", gap: 8 }}>
-        {[{ id: "short", l: "Short", sub: "2-4 sentences" }, { id: "medium", l: "Medium", sub: "2 paragraphs" }, { id: "long", l: "Long", sub: "3-5 paragraphs" }].map(function(m) { var s2 = descLen === m.id; return <div key={m.id} onClick={function() { setDescLen(m.id); }} style={{ flex: 1, padding: "14px 16px", borderRadius: 12, cursor: "pointer", background: s2 ? ACC + "0A" : D.elevated, border: "1px solid " + (s2 ? ACC + "60" : D.border), textAlign: "center", boxShadow: s2 ? "0 0 24px rgba(224,99,71,0.06)" : "none", transition: "all 0.2s ease" }}><div style={{ fontFamily: ft, fontSize: 14, fontWeight: s2 ? 800 : 500, color: s2 ? ACC : D.tx }}>{m.l}</div><div style={{ fontFamily: mn, fontSize: 9, color: s2 ? ACC : D.txl, marginTop: 3 }}>{m.sub}</div></div>; })}
+        {[{ id: "short", l: "Short", sub: "2-4 sentences" }, { id: "medium", l: "Medium", sub: "2 paragraphs" }, { id: "long", l: "Long", sub: "3-5 paragraphs" }].map(function(m) { var s2 = descLen === m.id; return <div key={m.id} data-glass="" onClick={function() { setDescLen(m.id); }} style={{ flex: 1, padding: "14px 16px", borderRadius: 12, cursor: "pointer", background: s2 ? ACC + "0A" : D.elevated, border: "1px solid " + (s2 ? ACC + "60" : D.border), textAlign: "center", boxShadow: s2 ? "0 0 24px rgba(224,99,71,0.06)" : "none", transition: "all 0.2s ease" }}><div style={{ fontFamily: ft, fontSize: 14, fontWeight: s2 ? 800 : 500, color: s2 ? ACC : D.tx }}>{m.l}</div><div style={{ fontFamily: mn, fontSize: 9, color: s2 ? ACC : D.txl, marginTop: 3 }}>{m.sub}</div></div>; })}
       </div>
     </div>
 
@@ -1445,7 +1445,7 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
     <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 32 }}>Preview, double check, A/B test, then finalize your selections.</div>
 
     {/* Selections summary */}
-    <div style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 24, boxShadow: "0 0 24px rgba(224,99,71,0.06)" }}>
+    <div data-glass="" style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 24, marginBottom: 24, boxShadow: "0 0 24px rgba(224,99,71,0.06)" }}>
       <div style={{ fontFamily: mn, fontSize: 11, color: ACC, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 18, fontWeight: 700 }}>Your Selections</div>
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
@@ -1465,7 +1465,7 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
     </div>
 
     {/* YouTube Preview */}
-    <div style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, overflow: "hidden", marginBottom: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
+    <div data-glass="" style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, overflow: "hidden", marginBottom: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
       <div style={{ width: "100%", aspectRatio: "16/9", background: D.surface, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>{thumb ? <img src={thumb} alt="Thumb" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ textAlign: "center" }}><div style={{ fontFamily: ft, fontSize: 15, color: D.txl }}>Thumbnail Preview</div></div>}<div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.8)", borderRadius: 4, padding: "3px 8px", fontFamily: mn, fontSize: 10, color: "#fff" }}>42:18</div></div>
       <div style={{ padding: "16px 20px" }}><div style={{ fontFamily: ft, fontSize: 16, fontWeight: 800, color: D.tx, lineHeight: 1.4, marginBottom: 10 }}>{curFin.title}</div><div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 28, height: 28, borderRadius: "50%", background: ACC, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 11, fontWeight: 800, color: D.tx }}>SA</div><div style={{ fontFamily: ft, fontSize: 12, color: D.txb, fontWeight: 600 }}>SemiAnalysis Weekly</div></div></div>
     </div>
@@ -1499,7 +1499,7 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
     </div>
 
     {/* Advanced thumbnail controls — platform / model / prompt / cost. */}
-    <div style={{ background: D.elevated, border: "1px solid " + (thumbAdv ? D.amber + "40" : D.border), borderRadius: 12, padding: thumbAdv ? "14px 16px 18px" : "10px 16px", marginBottom: 16, transition: "all 0.2s ease" }}>
+    <div data-glass="" style={{ background: D.elevated, border: "1px solid " + (thumbAdv ? D.amber + "40" : D.border), borderRadius: 12, padding: thumbAdv ? "14px 16px 18px" : "10px 16px", marginBottom: 16, transition: "all 0.2s ease" }}>
       <div onClick={function() { setThumbAdv(function(v) { return !v; }); }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
         <div style={{ fontFamily: mn, fontSize: 10, color: thumbAdv ? D.amber : D.txb, letterSpacing: "1.5px", fontWeight: 800, textTransform: "uppercase" }}>
           {thumbAdv ? "▾" : "▸"} Thumbnail Settings
@@ -1653,7 +1653,7 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
 
     {thumbGenL && <ProgressBar label={"Generating with " + thumbModelLabel(thumbProvider)} />}
 
-    {thumbVariants && thumbVariants.length > 0 && <div style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 16, marginBottom: 20 }}>
+    {thumbVariants && thumbVariants.length > 0 && <div data-glass="" style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 16, marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <div style={{ fontFamily: mn, fontSize: 11, color: D.amber, textTransform: "uppercase", letterSpacing: "2px", fontWeight: 700 }}>Generated · pick one</div>
         {thumbActualProvider && <span style={{
@@ -1696,7 +1696,7 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
     {/* Double Check */}
     <div style={{ marginBottom: 28 }}><div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: D.tx, marginBottom: 10, letterSpacing: -0.5 }}>Double Check</div><Btn onClick={doubleCheck} loading={checkL} sec>Run Double Check</Btn>
       {checkL && <ProgressBar label="Evaluating cohesion" />}
-      {checkR && <div style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 20, marginTop: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}><div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}><div style={{ width: 48, height: 48, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: (checkR.score >= 8 ? D.teal : checkR.score >= 5 ? D.amber : ACC) + "15", border: "2px solid " + (checkR.score >= 8 ? D.teal : checkR.score >= 5 ? D.amber : ACC), fontFamily: mn, fontSize: 18, fontWeight: 700, color: checkR.score >= 8 ? D.teal : checkR.score >= 5 ? D.amber : ACC }}>{checkR.score}</div><div><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: D.tx }}>Cohesion Score</div></div></div><div style={{ fontFamily: ft, fontSize: 14, color: D.txb, lineHeight: 1.7, marginBottom: 14 }}>{checkR.feedback}</div>{checkR.suggestions && checkR.suggestions.map(function(s, i) { return <div key={i} style={{ fontFamily: ft, fontSize: 13, color: D.txb, paddingLeft: 12, borderLeft: "2px solid " + D.border, marginBottom: 6, lineHeight: 1.6 }}>{s}</div>; })}</div>}
+      {checkR && <div data-glass="" style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 20, marginTop: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}><div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}><div style={{ width: 48, height: 48, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: (checkR.score >= 8 ? D.teal : checkR.score >= 5 ? D.amber : ACC) + "15", border: "2px solid " + (checkR.score >= 8 ? D.teal : checkR.score >= 5 ? D.amber : ACC), fontFamily: mn, fontSize: 18, fontWeight: 700, color: checkR.score >= 8 ? D.teal : checkR.score >= 5 ? D.amber : ACC }}>{checkR.score}</div><div><div style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: D.tx }}>Cohesion Score</div></div></div><div style={{ fontFamily: ft, fontSize: 14, color: D.txb, lineHeight: 1.7, marginBottom: 14 }}>{checkR.feedback}</div>{checkR.suggestions && checkR.suggestions.map(function(s, i) { return <div key={i} style={{ fontFamily: ft, fontSize: 13, color: D.txb, paddingLeft: 12, borderLeft: "2px solid " + D.border, marginBottom: 6, lineHeight: 1.6 }}>{s}</div>; })}</div>}
     </div>
 
     <Divider />
@@ -1710,7 +1710,7 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
           {[{ key: "option_a" as const, label: "Option A // Current", color: D.txb }, { key: "option_b" as const, label: "Option B // Recommended", color: ACC }].map(function(col) {
             var opt = abR![col.key];
-            return <div key={col.key} style={{ background: D.elevated, border: "1px solid " + (col.key === "option_b" ? ACC + "40" : D.border), borderRadius: 12, padding: 20, boxShadow: col.key === "option_b" ? "0 0 24px rgba(224,99,71,0.06)" : "0 2px 12px rgba(0,0,0,0.3)" }}>
+            return <div key={col.key} data-glass="" style={{ background: D.elevated, border: "1px solid " + (col.key === "option_b" ? ACC + "40" : D.border), borderRadius: 12, padding: 20, boxShadow: col.key === "option_b" ? "0 0 24px rgba(224,99,71,0.06)" : "0 2px 12px rgba(0,0,0,0.3)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <div style={{ fontFamily: mn, fontSize: 9, color: col.color, textTransform: "uppercase", letterSpacing: "2px" }}>{col.label}</div>
                 <div style={{ width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: col.color + "15", border: "2px solid " + col.color, fontFamily: mn, fontSize: 15, fontWeight: 700, color: col.color }}>{opt.score}</div>
@@ -1721,7 +1721,7 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
             </div>;
           })}
         </div>
-        <div style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 10, padding: "14px 18px", marginBottom: 16 }}>
+        <div data-glass="" style={{ background: D.surface, border: "1px solid " + D.border, borderRadius: 10, padding: "14px 18px", marginBottom: 16 }}>
           <div style={{ fontFamily: ft, fontSize: 13, color: D.txb, lineHeight: 1.6 }}>{abR.verdict}</div>
         </div>
         <Btn onClick={applyAB} sm>Apply Option B</Btn>
@@ -1731,7 +1731,7 @@ function StepReview({ ep, guests, opts, sel, fin, setFin, thumb, setThumb, onDon
     <Divider />
 
     {/* Finalize */}
-    <div style={{ background: fin ? D.teal + "08" : D.surface, border: "1px solid " + (fin ? D.teal : D.border), borderRadius: 12, padding: 24 }}>
+    <div data-glass="" style={{ background: fin ? D.teal + "08" : D.surface, border: "1px solid " + (fin ? D.teal : D.border), borderRadius: 12, padding: 24 }}>
       <div style={{ fontFamily: ft, fontSize: 18, fontWeight: 800, color: fin ? D.teal : D.tx, marginBottom: 8, letterSpacing: -0.5 }}>{fin ? "Finalized" : "Ready to Finalize?"}</div>
       {!fin ? <Btn onClick={function() { saveFin(); onDone(); }}>Finalize Selections</Btn> : <Btn onClick={onDone}>Continue to Social</Btn>}
     </div>
@@ -1782,7 +1782,7 @@ function StepSocial({ ep, guests, fin, socialRes, setSocialRes }: { ep: EpState;
     <div style={{ fontFamily: ft, fontSize: 42, fontWeight: 900, color: D.tx, letterSpacing: -2, marginBottom: 8 }}>Social</div>
     <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 32 }}>Generate social media posts for all platforms.</div>
 
-    <div style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 26, marginBottom: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
+    <div data-glass="" style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 26, marginBottom: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
       <div style={{ fontFamily: mn, fontSize: 11, color: ACC, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 8 }}>{"Episode #" + ep.number + " // Full Launch"}</div>
       <div style={{ fontFamily: ft, fontSize: 24, fontWeight: 900, color: D.tx, letterSpacing: -1 }}>{fin.title}</div>
       <div style={{ fontFamily: ft, fontSize: 13, color: D.txb, marginTop: 6 }}>{gs}</div>
@@ -1954,7 +1954,7 @@ function StepClips({ ep, guests, fin, clips, setClips, editingLogId, onSavedToLo
       {clips.map(function(clip, i) {
         var loading = !!busy[i];
         var hasInput = Object.values(clip.inputs).some(function(v) { return v && v.trim(); });
-        return <div key={i} style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
+        return <div key={i} data-glass="" style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: "20px 22px", boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
             <div style={{ width: 38, height: 38, borderRadius: 10, background: ACC + "15", border: "1px solid " + ACC + "40", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: gf, fontSize: 16, fontWeight: 900, color: ACC, flexShrink: 0 }}>{i + 1}</div>
             <div style={{ flex: 1 }}>
@@ -2094,7 +2094,7 @@ function StepExport({ ep, guests, fin, socialRes, clips, onComplete }: { ep: EpS
     <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 500, color: D.txb, marginBottom: 32 }}>Download your launch kit and copy all content.</div>
 
     {/* Summary */}
-    <div style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 26, marginBottom: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
+    <div data-glass="" style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 26, marginBottom: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
       <div style={{ fontFamily: mn, fontSize: 11, color: ACC, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 8 }}>{"Episode #" + ep.number}</div>
       <div style={{ fontFamily: ft, fontSize: 24, fontWeight: 900, color: D.tx, letterSpacing: -1, marginBottom: 6 }}>{fin.title}</div>
       <div style={{ fontFamily: ft, fontSize: 13, color: D.txb }}>{gs}</div>
@@ -2109,7 +2109,7 @@ function StepExport({ ep, guests, fin, socialRes, clips, onComplete }: { ep: EpS
       <div style={{ fontFamily: ft, fontSize: 14, color: D.txb, lineHeight: 1.7, whiteSpace: "pre-wrap", marginTop: 6, maxHeight: 200, overflow: "auto", padding: "10px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 8 }}>{fullDescription}</div>
     </div>
 
-    {socialRes && <div style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 20, marginBottom: 24 }}>
+    {socialRes && <div data-glass="" style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: 20, marginBottom: 24 }}>
       <div style={{ fontFamily: mn, fontSize: 9, color: D.txb, textTransform: "uppercase", letterSpacing: "2px", marginBottom: 12 }}>Social Captions</div>
       {FIELDS.map(function(f) { if (!socialRes![f.key]) return null; return <div key={f.key} style={{ marginBottom: 10, padding: "12px 14px", background: D.surface, borderRadius: 10, border: "1px solid " + D.border }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}><div style={{ fontFamily: mn, fontSize: 9, color: ACC, textTransform: "uppercase", letterSpacing: "1.5px" }}>{f.label}</div><CopyBtn text={socialRes![f.key] || ""} /></div>
@@ -2244,7 +2244,7 @@ function StepLog({ logData, setLogData, onDevelopClips, onEditEntry, onOpenTimel
 
     {/* Save current draft → log (without going through the full Export
         flow). When the user is mid-episode and wants to bookmark progress. */}
-    {hasDraftToSave && <div style={{
+    {hasDraftToSave && <div data-glass="" style={{
       background: D.elevated, border: "1px solid " + D.teal + "40", borderRadius: 12,
       padding: 18, marginBottom: 22,
       boxShadow: "0 0 24px rgba(46,173,142,0.06)",
@@ -2272,7 +2272,7 @@ function StepLog({ logData, setLogData, onDevelopClips, onEditEntry, onOpenTimel
       {logData.length > 0 && <span onClick={function() { setEditing(!editing); }} style={{ fontFamily: mn, fontSize: 10, color: editing ? ACC : D.txl, cursor: "pointer", padding: "5px 12px", borderRadius: 8, border: "1px solid " + (editing ? ACC + "40" : D.border), transition: "all 0.2s ease" }}>{editing ? "Done" : "Edit"}</span>}
     </div>
     {logData.length === 0 ? <div style={{ textAlign: "center", padding: 60, color: D.txl, fontFamily: ft, fontSize: 14 }}>No completed episodes yet.</div>
-      : logData.map(function(e, i) { return (<div key={i} style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: "18px 20px", marginBottom: 10, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
+      : logData.map(function(e, i) { return (<div key={i} data-glass="" style={{ background: D.elevated, border: "1px solid " + D.border, borderRadius: 12, padding: "18px 20px", marginBottom: 10, boxShadow: "0 2px 12px rgba(0,0,0,0.3)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
           {editing && <span onClick={function() { removeEntry(i); }} style={{ width: 24, height: 24, borderRadius: "50%", background: ACC + "15", border: "1px solid " + ACC, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 13, color: ACC, cursor: "pointer", flexShrink: 0 }}>x</span>}
           <div style={{ width: 42, height: 42, borderRadius: 10, background: D.surface, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 12, color: ACC, fontWeight: 700, border: "1px solid " + D.border, flexShrink: 0 }}>{"#" + e.episode}</div>

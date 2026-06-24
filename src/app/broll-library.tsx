@@ -97,7 +97,7 @@ function TagEditor({ asset, onUpdate }: { asset: Asset; onUpdate: (asset: Asset)
     toast("Tags updated");
   }
 
-  return <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 16, background: D.surface, borderRadius: 10, border: "1px solid " + D.border }}>
+  return <div data-glass="" style={{ display: "flex", flexDirection: "column", gap: 10, padding: 16, background: D.surface, borderRadius: 10, border: "1px solid " + D.border }}>
     <div style={{ fontFamily: ft, fontSize: 10, fontWeight: 600, color: D.txd, letterSpacing: 2, textTransform: "uppercase" }}>Edit Tags</div>
     <select value={cat} onChange={function(e) { setCat(e.target.value); }} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid " + D.border, background: D.card, color: D.tx, fontFamily: ft, fontSize: 12, outline: "none" }}>
       {CATEGORIES.map(function(c) { return <option key={c} value={c}>{c}</option>; })}
@@ -119,7 +119,7 @@ function AssetCard({ asset, onUpdate, onDelete }: { asset: Asset; onUpdate: (ass
     toast("URL copied to clipboard");
   }
 
-  return <div style={{ background: D.card, border: "1px solid " + (hover ? D.amber + "30" : D.border), borderRadius: 12, overflow: "hidden", transition: "all 0.2s" }}
+  return <div data-glass="" style={{ background: D.card, border: "1px solid " + (hover ? D.amber + "30" : D.border), borderRadius: 12, overflow: "hidden", transition: "all 0.2s" }}
     onMouseEnter={function() { setHover(true); }} onMouseLeave={function() { setHover(false); }}>
     {/* Thumbnail */}
     <div style={{ position: "relative", width: "100%", paddingTop: "56.25%", background: D.surface, overflow: "hidden" }}>

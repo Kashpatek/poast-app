@@ -332,7 +332,7 @@ function AngleCard({ angle, starred, onToggleStar, onTrash, showSendTo }: {
   const provColor = PROVIDER_COLORS[angle.provider];
 
   return (
-    <div style={{
+    <div data-glass="" style={{
       background: D.surface,
       border: "1px solid " + (starred ? D.amber + "55" : D.border),
       borderLeft: "3px solid " + (starred ? D.amber : provColor),
@@ -420,7 +420,7 @@ function PackageCard({ angle }: { angle: Angle }) {
   if (!pkg) return null;
   const provColor = PROVIDER_COLORS[angle.provider];
   return (
-    <div style={{
+    <div data-glass="" style={{
       background: D.surface,
       border: "1px solid " + D.border,
       borderLeft: "3px solid " + provColor,
@@ -839,7 +839,7 @@ export default function Brainstorm() {
       </div>
 
       {/* ── Setup card ── */}
-      <div style={{
+      <div data-glass="" style={{
         background: D.cardGrad,
         border: "1px solid " + D.border,
         borderRadius: 14,

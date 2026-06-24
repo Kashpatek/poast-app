@@ -170,7 +170,7 @@ export default function ApprovalQueue() {
       </div>
 
       {filtered.length === 0 && !loading ? (
-        <div style={emptyBox}>
+        <div data-glass="" style={emptyBox}>
           {items.length === 0
             ? "No items in the queue yet. Click '+ Submit for review' to send your first draft."
             : "Nothing matches this filter."}
@@ -190,6 +190,7 @@ export default function ApprovalQueue() {
 function StatCard({ label, count, color, active, onClick }: { label: string; count: number; color: string; active: boolean; onClick: () => void }) {
   return (
     <button
+      data-glass=""
       type="button"
       onClick={onClick}
       style={{
@@ -212,7 +213,7 @@ function ReviewCard({ item, me, onOpen, onRemove }: { item: ReviewItem; me: stri
   const statusColor = item.status === "approved" ? D.teal : item.status === "rejected" ? D.txd : item.status === "changes_requested" ? D.coral : D.amber;
   const statusLabel = item.status === "pending_review" ? "PENDING" : item.status === "changes_requested" ? "CHANGES" : item.status.toUpperCase();
   return (
-    <div style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 10, padding: "14px 16px", cursor: "pointer" }} onClick={onOpen}>
+    <div data-glass="" style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 10, padding: "14px 16px", cursor: "pointer" }} onClick={onOpen}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
         <div style={{ fontFamily: gf, fontSize: 16, fontWeight: 700, color: D.tx, letterSpacing: -0.3 }}>{item.title}</div>
         <span style={{ fontFamily: mn, fontSize: 10, padding: "2px 8px", background: statusColor + "1c", color: statusColor, border: `1px solid ${statusColor}55`, borderRadius: 4, letterSpacing: 0.8 }}>

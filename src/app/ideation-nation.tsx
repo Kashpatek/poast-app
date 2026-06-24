@@ -497,6 +497,7 @@ function IdeaCard({ idea, onSendSlopTop, onSendCapper, onExport, onDismiss, onSa
   };
 
   return <div
+    data-glass=""
     onMouseEnter={function() { setHovered(true); }}
     onMouseLeave={function() { setHovered(false); }}
     style={{

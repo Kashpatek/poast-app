@@ -311,7 +311,7 @@ function TextArea(p: TextAreaProps) {
 }
 
 function Card(p: CardProps) {
-  return <div onClick={p.onClick} style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: p.pad || 20, cursor: p.onClick ? "pointer" : "default", transition: "all 0.15s", ...(p.sx || {}) }}>{p.children}</div>;
+  return <div data-glass="" onClick={p.onClick} style={{ background: D.card, border: "1px solid " + D.border, borderRadius: 12, padding: p.pad || 20, cursor: p.onClick ? "pointer" : "default", transition: "all 0.15s", ...(p.sx || {}) }}>{p.children}</div>;
 }
 
 function SectionLabel(p: SectionLabelProps) {

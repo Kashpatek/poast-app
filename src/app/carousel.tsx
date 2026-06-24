@@ -904,7 +904,7 @@ function InputStep({ state, setState, onNext, generatedSlideCount }: { state: Ca
             <div onClick={function() { setState(function(s) { var imgs = (s.articleImages || []).filter(function(u) { return u !== imgUrl; }); var sel = s.selectedArticleImage === imgUrl ? null : s.selectedArticleImage; return Object.assign({}, s, { articleImages: imgs, selectedArticleImage: sel }); }); }} style={{ position: "absolute", top: -4, right: -4, width: 18, height: 18, borderRadius: "50%", background: C.coral, color: "#fff", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontWeight: 700, lineHeight: 1 }}>{"\u00D7"}</div>
           </div>;
         })}
-      </div> : <div style={{ padding: "20px", background: C.card, border: "1px dashed " + C.border, borderRadius: 8, textAlign: "center" }}>
+      </div> : <div data-glass="" style={{ padding: "20px", background: C.card, border: "1px dashed " + C.border, borderRadius: 8, textAlign: "center" }}>
         <div style={{ fontFamily: ft, fontSize: 12, color: C.txd, marginBottom: 4 }}>No images yet</div>
         <div style={{ fontFamily: ft, fontSize: 10, color: C.txd }}>Upload images above{(state.url || "").trim() ? " or fetch from article URL" : ""}</div>
       </div>}
@@ -2011,7 +2011,7 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
 
     {/* Last Slide CTA */}
     <div style={{ fontFamily: mn, fontSize: 10, color: C.amber, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 10 }}>Last Slide CTA</div>
-    <div style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: "16px 18px", marginBottom: 28 }}>
+    <div data-glass="" style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: "16px 18px", marginBottom: 28 }}>
       <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, marginBottom: 4 }}>CTA Text</div>
@@ -2049,7 +2049,7 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
         var optColors = [C.amber, C.blue, C.teal];
         var oc = optColors[oi] || C.amber;
         var igPreview = opt.instagram ? (opt.instagram.caption || "").slice(0, 80) : "";
-        return <div key={oi} onClick={function() { handleSelectOption(oi); }} style={{ flex: 1, padding: "14px 16px", borderRadius: 10, cursor: "pointer", background: isSel ? oc + "10" : C.card, border: "1px solid " + (isSel ? oc + "50" : C.border), transition: "all 0.2s", boxShadow: isSel ? "0 0 16px " + oc + "15" : "none" }} onMouseEnter={function(e) { if (!isSel) e.currentTarget.style.borderColor = oc + "30"; }} onMouseLeave={function(e) { if (!isSel) e.currentTarget.style.borderColor = isSel ? oc + "50" : C.border; }}>
+        return <div key={oi} data-glass="" onClick={function() { handleSelectOption(oi); }} style={{ flex: 1, padding: "14px 16px", borderRadius: 10, cursor: "pointer", background: isSel ? oc + "10" : C.card, border: "1px solid " + (isSel ? oc + "50" : C.border), transition: "all 0.2s", boxShadow: isSel ? "0 0 16px " + oc + "15" : "none" }} onMouseEnter={function(e) { if (!isSel) e.currentTarget.style.borderColor = oc + "30"; }} onMouseLeave={function(e) { if (!isSel) e.currentTarget.style.borderColor = isSel ? oc + "50" : C.border; }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <div style={{ width: 24, height: 24, borderRadius: 6, background: isSel ? oc : oc + "20", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 11, fontWeight: 800, color: isSel ? C.bg : oc }}>{oi + 1}</div>
             <div style={{ fontFamily: ft, fontSize: 13, fontWeight: 700, color: isSel ? oc : C.tx }}>{opt.label || "Option " + (oi + 1)}</div>
@@ -2094,7 +2094,7 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
           var charCount = text.length;
           var overLimit = charCount > plat.charLimit;
 
-          return <div style={{ background: C.card, border: "1px solid " + plat.color + "20", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+          return <div data-glass="" style={{ background: C.card, border: "1px solid " + plat.color + "20", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <div style={{ fontFamily: mn, fontSize: 9, color: plat.color, textTransform: "uppercase", letterSpacing: "1px" }}>{plat.label} {plat.key === "shorts" ? "Title" : "Caption"}</div>
               <div style={{ display: "flex", gap: 6 }}>
@@ -2790,7 +2790,7 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
         var text = plat.key === "shorts" ? String(data.title || "") : String(data.caption || "");
         var isCopied = copied[plat.key];
 
-        return <div style={{ background: C.card, border: "1px solid " + plat.color + "20", borderRadius: 10, padding: "14px 16px" }}>
+        return <div data-glass="" style={{ background: C.card, border: "1px solid " + plat.color + "20", borderRadius: 10, padding: "14px 16px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <div style={{ fontFamily: mn, fontSize: 9, color: plat.color, textTransform: "uppercase", letterSpacing: "1px" }}>{plat.label} {plat.key === "shorts" ? "Title" : "Caption"}</div>
             {text && <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -2808,7 +2808,7 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
       })()}
     </div>}
 
-    {!selectedCaption && <div style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: "24px", textAlign: "center", marginBottom: 28 }}>
+    {!selectedCaption && <div data-glass="" style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: "24px", textAlign: "center", marginBottom: 28 }}>
       <div style={{ fontFamily: ft, fontSize: 13, color: C.txd }}>No captions generated yet. Go back to Review to generate captions.</div>
     </div>}
 
@@ -2903,12 +2903,12 @@ function ArchiveView({
       <button onClick={onRefresh} title="Refresh" style={{ padding: "8px 12px", background: "transparent", border: "1px solid " + C.border, borderRadius: 8, fontFamily: mn, fontSize: 10, fontWeight: 700, color: C.txm, cursor: "pointer" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.violet + "55"; e.currentTarget.style.color = C.violet; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.txm; }}>Refresh</button>
     </div>
 
-    {loading && <div style={{ padding: 60, textAlign: "center", fontFamily: ft, fontSize: 13, color: C.txm, background: C.card, border: "1px solid " + C.border, borderRadius: 12 }}>Loading archive…</div>}
-    {!loading && items.length === 0 && <div style={{ padding: 60, textAlign: "center", background: C.card, border: "1px dashed " + C.border, borderRadius: 12 }}>
+    {loading && <div data-glass="" style={{ padding: 60, textAlign: "center", fontFamily: ft, fontSize: 13, color: C.txm, background: C.card, border: "1px solid " + C.border, borderRadius: 12 }}>Loading archive…</div>}
+    {!loading && items.length === 0 && <div data-glass="" style={{ padding: 60, textAlign: "center", background: C.card, border: "1px dashed " + C.border, borderRadius: 12 }}>
       <div style={{ fontFamily: ft, fontSize: 15, fontWeight: 700, color: C.tx, marginBottom: 6 }}>No saved carousels yet</div>
       <div style={{ fontFamily: ft, fontSize: 12, color: C.txd }}>Build a carousel and click Save to Archive on the Export step. It will show up here.</div>
     </div>}
-    {!loading && items.length > 0 && visible.length === 0 && <div style={{ padding: 40, textAlign: "center", background: C.card, border: "1px dashed " + C.border, borderRadius: 12, fontFamily: ft, fontSize: 12, color: C.txd }}>No carousels match your search.</div>}
+    {!loading && items.length > 0 && visible.length === 0 && <div data-glass="" style={{ padding: 40, textAlign: "center", background: C.card, border: "1px dashed " + C.border, borderRadius: 12, fontFamily: ft, fontSize: 12, color: C.txd }}>No carousels match your search.</div>}
     {!loading && visible.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
       {visible.map(function(item) {
         var d = item.data || {} as Record<string, unknown>;
@@ -2921,7 +2921,7 @@ function ArchiveView({
         var theme = String(d.theme || "general");
         var themeColor = (THEMES[theme as ThemeKey] && THEMES[theme as ThemeKey].color) || C.violet;
         var sourceUrl = String(d.sourceUrl || "");
-        return <div key={item.id} onClick={function() { onOpen(item); }} style={{ padding: "18px 20px", background: C.card, border: "1px solid " + C.border, borderRadius: 12, cursor: "pointer", transition: "all 0.15s", position: "relative" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = themeColor + "55"; e.currentTarget.style.background = themeColor + "06"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.card; }}>
+        return <div key={item.id} data-glass="" onClick={function() { onOpen(item); }} style={{ padding: "18px 20px", background: C.card, border: "1px solid " + C.border, borderRadius: 12, cursor: "pointer", transition: "all 0.15s", position: "relative" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = themeColor + "55"; e.currentTarget.style.background = themeColor + "06"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.card; }}>
           <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 12 }}>
             <div style={{ width: 48, height: 48, borderRadius: 10, background: themeColor + "15", border: "1px solid " + themeColor + "30", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 16, fontWeight: 800, color: themeColor, flexShrink: 0 }}>{slideCount}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -2981,7 +2981,7 @@ function WelcomeView({
 
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 32 }}>
       {cards.map(function(card) {
-        return <div key={card.key} onClick={card.onClick} style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 14, padding: "22px 22px 20px", cursor: "pointer", transition: "all 0.2s", position: "relative", overflow: "hidden" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = card.color + "60"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 12px 32px " + card.color + "10"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}>
+        return <div key={card.key} data-glass="" onClick={card.onClick} style={{ background: C.card, border: "1px solid " + C.border, borderRadius: 14, padding: "22px 22px 20px", cursor: "pointer", transition: "all 0.2s", position: "relative", overflow: "hidden" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = card.color + "60"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 12px 32px " + card.color + "10"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}>
           <div style={{ position: "absolute", top: 14, right: 14, fontFamily: mn, fontSize: 8, color: card.color, letterSpacing: "1.5px", fontWeight: 700 }}>{card.tag}</div>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: card.color + "15", border: "1px solid " + card.color + "30", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
             <div style={{ width: 12, height: 12, borderRadius: "50%", background: card.color, boxShadow: "0 0 12px " + card.color + "80" }} />
@@ -2997,8 +2997,8 @@ function WelcomeView({
       <button onClick={onOpenArchive} style={{ padding: "4px 10px", background: "transparent", border: "1px solid " + C.border, borderRadius: 6, fontFamily: mn, fontSize: 9, fontWeight: 700, color: C.txm, cursor: "pointer", textTransform: "uppercase", letterSpacing: 0.5 }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.violet + "55"; e.currentTarget.style.color = C.violet; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.txm; }}>See all</button>
     </div>
 
-    {recentLoading && <div style={{ padding: 24, textAlign: "center", fontFamily: ft, fontSize: 12, color: C.txm, background: C.card, border: "1px solid " + C.border, borderRadius: 10 }}>Loading drafts…</div>}
-    {!recentLoading && recent.length === 0 && <div style={{ padding: 28, textAlign: "center", background: C.card, border: "1px dashed " + C.border, borderRadius: 10 }}>
+    {recentLoading && <div data-glass="" style={{ padding: 24, textAlign: "center", fontFamily: ft, fontSize: 12, color: C.txm, background: C.card, border: "1px solid " + C.border, borderRadius: 10 }}>Loading drafts…</div>}
+    {!recentLoading && recent.length === 0 && <div data-glass="" style={{ padding: 28, textAlign: "center", background: C.card, border: "1px dashed " + C.border, borderRadius: 10 }}>
       <div style={{ fontFamily: ft, fontSize: 13, color: C.txm, marginBottom: 4 }}>No saved carousels yet.</div>
       <div style={{ fontFamily: ft, fontSize: 11, color: C.txd }}>Pick a path above to start one. Save to Archive on the Export step keeps it here.</div>
     </div>}
@@ -3011,7 +3011,7 @@ function WelcomeView({
         var theme = String(d.theme || "general");
         var author = d.createdBy ? String(d.createdBy) : "Unknown";
         var themeColor = (THEMES[theme as ThemeKey] && THEMES[theme as ThemeKey].color) || C.violet;
-        return <div key={item.id} onClick={function() { onResume(item); }} style={{ padding: "14px 16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", display: "flex", gap: 14, alignItems: "center", transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = themeColor + "55"; e.currentTarget.style.background = themeColor + "06"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.card; }}>
+        return <div key={item.id} data-glass="" onClick={function() { onResume(item); }} style={{ padding: "14px 16px", background: C.card, border: "1px solid " + C.border, borderRadius: 10, cursor: "pointer", display: "flex", gap: 14, alignItems: "center", transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = themeColor + "55"; e.currentTarget.style.background = themeColor + "06"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.card; }}>
           <div style={{ width: 40, height: 40, borderRadius: 8, background: themeColor + "15", border: "1px solid " + themeColor + "30", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 14, fontWeight: 800, color: themeColor, flexShrink: 0 }}>{slideCount}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: ft, fontSize: 14, fontWeight: 700, color: C.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name || "Untitled carousel"}</div>
@@ -3275,7 +3275,7 @@ export default function Carousel() {
       var visibleItems = archiveFilter === "mine"
         ? archiveItems.filter(function(item) { return item.data && (item.data as Record<string, unknown>).createdBy === (userCtx.user && userCtx.user.name); })
         : archiveItems;
-      return <div style={{ marginBottom: 24, background: C.card, border: "1px solid " + C.violet + "25", borderRadius: 12, padding: "20px 24px" }}>
+      return <div data-glass="" style={{ marginBottom: 24, background: C.card, border: "1px solid " + C.violet + "25", borderRadius: 12, padding: "20px 24px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div style={{ fontFamily: mn, fontSize: 10, color: C.violet, textTransform: "uppercase", letterSpacing: "1.5px" }}>Saved Carousels</div>
         <div style={{ display: "flex", gap: 6 }}>
@@ -3296,7 +3296,7 @@ export default function Carousel() {
           var author = d.createdBy ? String(d.createdBy) : "Unknown";
           var isAnalystSave = d.createdByRole === "Analyst";
           var authorColor = isAnalystSave ? C.violet : C.amber;
-          return <div key={item.id} onClick={function() { loadFromArchive(item); }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 16px", background: C.surface, border: "1px solid " + C.border, borderRadius: 8, cursor: "pointer", transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.violet + "50"; e.currentTarget.style.background = C.violet + "06"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.surface; }}>
+          return <div key={item.id} data-glass="" onClick={function() { loadFromArchive(item); }} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 16px", background: C.surface, border: "1px solid " + C.border, borderRadius: 8, cursor: "pointer", transition: "all 0.15s" }} onMouseEnter={function(e) { e.currentTarget.style.borderColor = C.violet + "50"; e.currentTarget.style.background = C.violet + "06"; }} onMouseLeave={function(e) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.surface; }}>
             <div style={{ width: 36, height: 36, borderRadius: 8, background: C.violet + "12", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: mn, fontSize: 14, fontWeight: 700, color: C.violet, flexShrink: 0 }}>{String(d.slideCount || "?")}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
@@ -3319,7 +3319,7 @@ export default function Carousel() {
     {view === "wizard" && <StepBar step={step} setStep={function(n) { if (n <= maxStep) goStep(n); }} maxStep={maxStep} />}
 
     {/* Variant picker dropdown */}
-    {view === "wizard" && showVariantPicker && variants && <div style={{ marginBottom: 20, background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: 16 }}>
+    {view === "wizard" && showVariantPicker && variants && <div data-glass="" style={{ marginBottom: 20, background: C.card, border: "1px solid " + C.border, borderRadius: 10, padding: 16 }}>
       <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 10 }}>Switch Variant</div>
       <div style={{ display: "flex", gap: 10 }}>
         {Object.keys(variants!).filter(function(k) { return variants![k] && variants![k].slides; }).map(function(k) {

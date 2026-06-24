@@ -202,7 +202,7 @@ export default function VoiceScorer() {
         </div>
 
         {/* Result */}
-        <div style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 14, padding: 20, alignSelf: "start" }}>
+        <div data-glass="" style={{ background: D.surface, border: `1px solid ${D.border}`, borderRadius: 14, padding: 20, alignSelf: "start" }}>
           <div style={lbl}>SA voice score</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 14 }}>
             <div style={{ fontFamily: gf, fontSize: 64, fontWeight: 900, color: scoreColor, letterSpacing: -2, lineHeight: 1 }}>
