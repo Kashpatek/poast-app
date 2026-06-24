@@ -97,25 +97,30 @@ function PreviewTab() {
   var userCtx = useUser();
   var current = userCtx.user ? userCtx.user.name : null;
 
+  function emailFor(name: string): string {
+    var p = PERSONAS.find(function(x) { return x.name === name; });
+    return p ? p.email : "akash@semianalysis.com";
+  }
+
+  // Identity is bound to the verified session cookie now, so "become" a persona
+  // by minting a real session for them via the local dev sign-in (not a
+  // localStorage flag the gate would override). ?to=home lands on their hub.
   function previewAs(name: string) {
     try {
-      localStorage.setItem("poast-current-user", name);
-      sessionStorage.removeItem("poast-current-user");
       if (fresh) {
         localStorage.removeItem("poast-onboarding-v1-" + name);
-        // Analyst's intro also includes the personal-handle gate.
         if (name === "Analyst") localStorage.removeItem("poast-analyst-name");
       }
     } catch {}
-    window.location.assign("/");
+    window.location.assign("/api/auth/google/start?dev=" + encodeURIComponent(emailFor(name)) + "&to=home");
   }
 
   function showIntroPicker() {
+    // Sign out (clear the session cookie) so the gate falls back to the sign-in
+    // landing, then reload.
     try {
-      localStorage.removeItem("poast-current-user");
-      sessionStorage.removeItem("poast-current-user");
-    } catch {}
-    window.location.assign("/");
+      fetch("/api/auth/signout", { method: "POST" }).finally(function() { window.location.assign("/"); });
+    } catch { window.location.assign("/"); }
   }
 
   // Walk the FULL first-run for a persona: clear that role's state, then mint a

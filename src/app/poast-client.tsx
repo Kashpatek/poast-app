@@ -35,7 +35,7 @@ import { trackEvent } from "../lib/poast-track";
 import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings, Wand, ShieldCheck, Sparkles, BookmarkCheck, ClipboardCheck, TrendingUp, Layers, CheckSquare, Brain, Type, Rocket, Home, Sun, Search, Bell, Heart, X as XIcon } from "lucide-react";
 type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>;
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
-import { useUser, isAnalyst, canUseDocuDesign, isAkash } from "./user-context";
+import { useUser, isAnalyst, canUseDocuDesign, isAkash, emailToUserName } from "./user-context";
 import { pushRecent, useHomePrefs, togglePin, removePin, isPinned } from "./home-prefs";
 import GlassClarityHome from "./home-glass-clarity";
 import GlassDepthHome, { DepthBackdrop } from "./home-glass-depth";
@@ -2582,37 +2582,37 @@ export default function App() {
   // chooser shows (used by the per-role "Walk first-run as…" launcher).
   var _seed = useState<{ email?: string | null; name?: string | null }>({}), seed = _seed[0], setSeed = _seed[1];
   useEffect(function() {
-    // Respect "Stay logged in" everywhere, including on the root path.
-    // Previously `/` always showed the intro picker regardless of saved
-    // session — that's why the checkbox felt broken even though the
-    // user-context was correctly writing localStorage. Now we check
-    // both localStorage and sessionStorage so the session-only path
-    // also skips the picker until the tab closes.
-    var hasUser = false;
-    if (typeof window !== "undefined") {
-      try {
-        hasUser = !!localStorage.getItem("poast-current-user") || !!sessionStorage.getItem("poast-current-user");
-      } catch { /* ignore */ }
-    }
     var qs = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
     // ?setup=1 forces the first-run flow even for a returning session (dev
-    // walkthrough); ?email=/?name= pre-seed the Google account chooser.
+    // walkthrough); ?email=/?name= pre-seed the legacy chooser (unused now).
     var forceSetup = qs?.get("setup") === "1";
     setSeed({ email: qs?.get("email"), name: qs?.get("name") });
-    if (forceSetup) { setIntroState("show"); return; }
-    // Returning from Google sign-in (/?signed_in=1) or reporting an auth error
-    // must always show the first-run flow so it can resolve the verified
-    // identity (/api/auth/me) and resume at the theme picker — even if a stale
-    // poast-current-user is present (which would otherwise skip the intro).
-    if (qs?.get("signed_in") === "1" || qs?.get("auth")) { setIntroState("show"); return; }
-    // Honor ?user= bookmark even when a session exists — lets a user
-    // override "I'm signed in as X" by visiting ?user=Y explicitly.
-    var explicitUser = qs?.get("user");
-    if (explicitUser && !hasUser) {
-      setIntroState("show");
-      return;
-    }
-    setIntroState(hasUser ? "skip" : "show");
+    var signedInParam = qs?.get("signed_in") === "1";
+    // A sign-in error (?auth=denied/unconfigured/error) → show the landing so the
+    // onboarding can render its banner.
+    if (qs?.get("auth")) { setIntroState("show"); return; }
+    if (typeof window === "undefined") { setIntroState("show"); return; }
+    // Access + identity are authoritative from the SERVER session cookie, not
+    // localStorage — that's what makes the Google gate real (the proxy enforces
+    // it server-side; this mirrors it for the UI). Ask /api/auth/me and derive
+    // the user from the VERIFIED email; localStorage is only a fast cache.
+    var decide = function(me: { signedIn?: boolean; email?: string } | null) {
+      if (!me || !me.signedIn || !me.email) {
+        // Not signed in → must sign in. Drop any stale cached identity so the
+        // hub can never render from a leftover localStorage value.
+        if (!signedInParam) { try { userCtx.setUser(null); } catch (e) {} }
+        setIntroState("show");
+        return;
+      }
+      try { userCtx.setUser(emailToUserName(me.email), true); } catch (e) {}
+      // Just signed in (?signed_in=1) or an explicit re-walk (?setup=1) → run the
+      // onboarding; a returning signed-in user goes straight to the hub.
+      setIntroState((signedInParam || forceSetup) ? "show" : "skip");
+    };
+    fetch("/api/auth/me")
+      .then(function(r) { return r.ok ? r.json() : { signedIn: false }; })
+      .then(decide)
+      .catch(function() { decide({ signedIn: false }); });
   }, []);
   var _askPoast = useState(false), askPoastOpen = _askPoast[0], setAskPoastOpen = _askPoast[1];
   // Default landing is the home splash, not a tool. Previously defaulted

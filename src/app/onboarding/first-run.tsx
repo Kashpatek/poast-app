@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { ChevronLeft, UserPlus, Lock, Check } from "lucide-react";
-import { useUser } from "../user-context";
+import { useUser, emailToUserName } from "../user-context";
 import { useTheme } from "../theme-context";
 import { D as C, ft, gf, mn } from "../shared-constants";
 import IgnitionBloom from "./ignition-bloom";
@@ -20,14 +20,6 @@ import IgnitionBloom from "./ignition-bloom";
 
 type Phase = "landing" | "google" | "theme" | "detail" | "bloom";
 
-// Email → canonical poast-app user (USERS keys). Unmapped → the shared Analyst
-// seat (mirrors the mockup ROLE_MAP collapsed onto named users).
-const EMAIL_USER: Record<string, string> = {
-  "akash@semianalysis.com": "Akash",
-  "michelle@semianalysis.com": "Michelle",
-  "vansh@semianalysis.com": "Vansh",
-  "daksh@semianalysis.com": "Daksh",
-};
 // Nice display names for the seeded Google account card.
 const EMAIL_DISPLAY: Record<string, string> = {
   "akash@semianalysis.com": "Akash Patel",
@@ -35,9 +27,9 @@ const EMAIL_DISPLAY: Record<string, string> = {
   "vansh@semianalysis.com": "Vansh",
   "daksh@semianalysis.com": "Daksh",
 };
-function userForEmail(email: string): string {
-  return EMAIL_USER[email.trim().toLowerCase()] || "Analyst";
-}
+// Email → canonical user comes from the shared map in user-context (the same one
+// the session gate uses), so a Google identity resolves identically everywhere.
+const userForEmail = emailToUserName;
 function firstNameOf(name: string): string {
   return (name || "").trim().split(/\s+/)[0] || "";
 }

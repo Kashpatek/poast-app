@@ -21,6 +21,24 @@ const USERS: Record<string, User> = {
   Analyst: { name: "Analyst", role: "Analyst" },
 };
 
+// Canonical @semianalysis.com email → POAST user key. Any verified address that
+// isn't a named teammate maps to the shared Analyst seat. This is the single
+// source of truth used by BOTH the onboarding (first-run.tsx) and the session
+// gate (poast-client.tsx) so a Google identity always resolves the same way.
+const EMAIL_TO_USER: Record<string, string> = {
+  "akash@semianalysis.com": "Akash",
+  "michelle@semianalysis.com": "Michelle",
+  "vansh@semianalysis.com": "Vansh",
+  "daksh@semianalysis.com": "Daksh",
+};
+export function emailToUserName(email: string): string {
+  return EMAIL_TO_USER[(email || "").trim().toLowerCase()] || "Analyst";
+}
+export const ADMIN_USER = "Akash";
+export function isValidUserName(name: string | null | undefined): boolean {
+  return !!name && Object.prototype.hasOwnProperty.call(USERS, name);
+}
+
 interface UserContextValue {
   user: User | null;
   // Set the current user. If `remember=true` we persist to localStorage

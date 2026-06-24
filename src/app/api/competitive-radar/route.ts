@@ -54,9 +54,11 @@ function pickSnippet(content: string | undefined, contentSnippet: string | undef
   return raw.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 360);
 }
 
-async function readCache(origin: string): Promise<Record<string, string>> {
+// Forward the caller's session cookie — same-origin route-to-route fetches that
+// re-enter the access gate and would otherwise be 401'd (dead cache).
+async function readCache(origin: string, cookie: string): Promise<Record<string, string>> {
   try {
-    const r = await fetch(`${origin}/api/db?table=${CACHE_TABLE}&id=${CACHE_ID}`, { cache: "no-store" });
+    const r = await fetch(`${origin}/api/db?table=${CACHE_TABLE}&id=${CACHE_ID}`, { cache: "no-store", headers: { cookie } });
     if (!r.ok) return {};
     const d = (await r.json()) as { data?: CacheRow };
     return d.data?.angles || {};
@@ -65,12 +67,12 @@ async function readCache(origin: string): Promise<Record<string, string>> {
   }
 }
 
-async function writeCache(origin: string, angles: Record<string, string>): Promise<void> {
+async function writeCache(origin: string, angles: Record<string, string>, cookie: string): Promise<void> {
   try {
     const row: CacheRow = { id: CACHE_ID, type: "radar-cache", angles, updated_at: Date.now() };
     await fetch(`${origin}/api/db`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", cookie },
       body: JSON.stringify({ table: CACHE_TABLE, data: row }),
     });
   } catch {
@@ -139,6 +141,7 @@ export async function POST(req: NextRequest) {
       : FEEDS;
 
     const origin = req.nextUrl.origin;
+    const cookie = req.headers.get("cookie") || "";
     const cutoff = Date.now() - ONE_DAY_MS;
 
     // Pull every feed in parallel — failures don't break the rest.
@@ -147,7 +150,7 @@ export async function POST(req: NextRequest) {
     raw.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
     raw = raw.slice(0, 20);
 
-    const cache = await readCache(origin);
+    const cache = await readCache(origin, cookie);
     const items: RadarItem[] = [];
     const cacheUpdates: Record<string, string> = {};
 
@@ -173,7 +176,7 @@ export async function POST(req: NextRequest) {
       const trimmed: Record<string, string> = {};
       const keys = Object.keys(merged).slice(-200);
       for (const k of keys) trimmed[k] = merged[k];
-      await writeCache(origin, trimmed);
+      await writeCache(origin, trimmed, cookie);
     }
 
     return NextResponse.json({

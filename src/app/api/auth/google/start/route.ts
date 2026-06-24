@@ -20,7 +20,10 @@ export async function GET(req: NextRequest) {
   if (devAuthEnabled()) {
     const dev = (req.nextUrl.searchParams.get("dev") || `akash@${allowedDomain()}`).trim().toLowerCase();
     if (!emailAllowed(dev)) return to("/?auth=denied");
-    const res = to("/?signed_in=1");
+    // ?to=home lands straight on the hub (preview an existing persona); default
+    // goes to /?signed_in=1 so the onboarding runs (fresh first-run walk).
+    const dest = req.nextUrl.searchParams.get("to") === "home" ? "/" : "/?signed_in=1";
+    const res = to(dest);
     res.cookies.set(SESSION_COOKIE, await mintSession(dev, dev.split("@")[0]), sessionCookieOptions());
     return res;
   }

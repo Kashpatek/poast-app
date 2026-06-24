@@ -53,9 +53,11 @@ interface BriefPayload {
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
-async function pullNews(origin: string): Promise<NewsItem[]> {
+async function pullNews(origin: string, cookie: string): Promise<NewsItem[]> {
   try {
-    const res = await fetch(`${origin}/api/news`, { cache: "no-store" });
+    // Forward the caller's session cookie — these are same-origin route-to-route
+    // fetches that re-enter the access gate and would otherwise be 401'd.
+    const res = await fetch(`${origin}/api/news`, { cache: "no-store", headers: { cookie } });
     if (!res.ok) return [];
     const data = (await res.json()) as { items?: NewsItem[] };
     const cutoff = Date.now() - ONE_DAY_MS;
@@ -68,9 +70,9 @@ async function pullNews(origin: string): Promise<NewsItem[]> {
   }
 }
 
-async function pullTrends(origin: string): Promise<TrendItem[]> {
+async function pullTrends(origin: string, cookie: string): Promise<TrendItem[]> {
   try {
-    const res = await fetch(`${origin}/api/trends-feed`, { cache: "no-store" });
+    const res = await fetch(`${origin}/api/trends-feed`, { cache: "no-store", headers: { cookie } });
     if (!res.ok) return [];
     const data = (await res.json()) as { sources?: TrendSourceResult[] };
     const flat: TrendItem[] = [];
@@ -180,7 +182,8 @@ export async function POST(req: NextRequest) {
     const provider: LLMProvider = body.provider || "claude";
 
     const origin = req.nextUrl.origin;
-    const [news, trends] = await Promise.all([pullNews(origin), pullTrends(origin)]);
+    const cookie = req.headers.get("cookie") || "";
+    const [news, trends] = await Promise.all([pullNews(origin, cookie), pullTrends(origin, cookie)]);
 
     const prompt = buildPrompt(news, trends);
 
