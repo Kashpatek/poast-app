@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronLeft, UserPlus, Lock, Check } from "lucide-react";
 import { useUser } from "../user-context";
 import { useTheme } from "../theme-context";
@@ -8,11 +8,15 @@ import { D as C, ft, gf, mn } from "../shared-constants";
 import IgnitionBloom from "./ignition-bloom";
 
 // ─── First-run onboarding (ported from ~/poast-welcome-3.0/onboarding) ───────
-// landing → google (stub) → theme → detail → bloom. Runs INSIDE the Intro gate
-// so the app shell only mounts on completion. Google is simulated (no real
-// OAuth): the chosen email maps to a canonical user; identity + theme are
-// committed atomically on the reveal's "Let's go", then onDone("home") lets the
-// app render the themed home (where OnboardingHost auto-fires the welcome tour).
+// landing → [real Google OAuth] → theme → detail → bloom. Runs INSIDE the Intro
+// gate so the app shell only mounts on completion. "Continue with Google" does a
+// full-page redirect to /api/auth/google/start (real consent, or a guarded local
+// dev sign-in); Google bounces back to /?signed_in=1, where this component reads
+// /api/auth/me for the SERVER-VERIFIED email and resumes at the theme picker.
+// That verified email maps to a canonical user; identity + theme are committed
+// on the reveal's "Let's go", then onDone("home") renders the themed home (where
+// OnboardingHost auto-fires the welcome tour). The legacy in-page Google chooser
+// (`google` phase) is retained but no longer reached in the normal flow.
 
 type Phase = "landing" | "google" | "theme" | "detail" | "bloom";
 
@@ -69,10 +73,39 @@ export default function Onboarding({
   const initialEmail = (seedEmail || "akash@semianalysis.com").trim().toLowerCase();
   const initialName = (seedName || EMAIL_DISPLAY[initialEmail] || firstNameOf(initialEmail.split("@")[0])).trim() || "Akash Patel";
 
-  // "Use another account" inline form
+  // "Use another account" inline form (legacy stub chooser; unreached in the
+  // real-OAuth flow but kept so the component stays self-contained).
   const [useOther, setUseOther] = useState(false);
   const [otherName, setOtherName] = useState("");
   const [otherEmail, setOtherEmail] = useState("");
+
+  // We arrive back from Google at /?signed_in=1 — resolve the server-verified
+  // identity and resume at the theme picker. ?auth=<code> reports a failure.
+  const [resolving, setResolving] = useState<boolean>(() => {
+    try { return new URLSearchParams(window.location.search).get("signed_in") === "1"; } catch { return false; }
+  });
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const qs = new URLSearchParams(window.location.search);
+    const strip = () => { try { window.history.replaceState({}, "", window.location.pathname + window.location.hash); } catch {} };
+    const ae = qs.get("auth");
+    if (ae) { setAuthError(ae); strip(); return; }
+    if (qs.get("signed_in") !== "1") return;
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && d.signedIn && d.email) {
+          setAcct({ name: (d.name || "").trim() || firstNameOf(d.email.split("@")[0]), email: String(d.email).toLowerCase() });
+          setPhase("theme");
+        } else {
+          setAuthError("error");
+        }
+      })
+      .catch(() => setAuthError("error"))
+      .finally(() => { setResolving(false); strip(); });
+  }, []);
 
   function signIn(name: string, email: string) {
     setAcct({ name: name.trim(), email: email.trim() });
@@ -109,6 +142,17 @@ export default function Onboarding({
     );
   }
 
+  // ── Resolving the Google round-trip (/?signed_in=1 → /api/auth/me) ──
+  if (resolving && phase === "landing") {
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: AURORA_BG, color: C.tx, fontFamily: ft, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18 }}>
+        <span style={{ width: 30, height: 30, borderRadius: "50%", border: "2.5px solid " + C.border, borderTopColor: C.amber, animation: "obSpin .8s linear infinite" }} />
+        <div style={{ fontFamily: mn, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: C.txm }}>Signing you in…</div>
+        <style dangerouslySetInnerHTML={{ __html: "@keyframes obSpin{to{transform:rotate(360deg)}}" }} />
+      </div>
+    );
+  }
+
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, overflow: "auto", background: AURORA_BG, color: C.tx, fontFamily: ft }}>
       <style dangerouslySetInnerHTML={{ __html:
@@ -128,7 +172,7 @@ export default function Onboarding({
       {/* back chevron */}
       {phase !== "landing" && (
         <button
-          onClick={() => setPhase(phase === "google" ? "landing" : phase === "theme" ? "google" : "theme")}
+          onClick={() => setPhase(phase === "google" ? "landing" : phase === "theme" ? "landing" : "theme")}
           style={{ position: "fixed", top: 84, left: 30, zIndex: 6, display: "inline-flex", alignItems: "center", gap: 6, fontFamily: mn, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: C.txm, background: "rgba(255,255,255,.03)", border: "1px solid " + C.border, borderRadius: 999, padding: "8px 14px", cursor: "pointer" }}
         >
           <ChevronLeft size={13} /> Back
@@ -149,9 +193,18 @@ export default function Onboarding({
               Plan podcasts, draft posts, brief the team and ship — across every SemiAnalysis surface, in one calm cockpit.
             </div>
             <div style={{ marginTop: 38, display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-              <button onClick={() => setPhase("google")} style={{ display: "inline-flex", alignItems: "center", gap: 12, fontFamily: ft, fontWeight: 600, fontSize: 16, color: "#1f1f1f", background: "#fff", border: "none", borderRadius: 14, padding: "15px 26px", cursor: "pointer", boxShadow: "0 10px 34px rgba(0,0,0,.4)" }}>
+              <button onClick={() => { window.location.href = "/api/auth/google/start"; }} style={{ display: "inline-flex", alignItems: "center", gap: 12, fontFamily: ft, fontWeight: 600, fontSize: 16, color: "#1f1f1f", background: "#fff", border: "none", borderRadius: 14, padding: "15px 26px", cursor: "pointer", boxShadow: "0 10px 34px rgba(0,0,0,.4)" }}>
                 <GoogleG /> Continue with Google
               </button>
+              {authError && (
+                <div role="alert" style={{ fontFamily: ft, fontSize: 13, color: C.coral, background: C.coral + "14", border: "1px solid " + C.coral + "44", borderRadius: 10, padding: "9px 14px", maxWidth: "44ch", lineHeight: 1.45 }}>
+                  {authError === "denied"
+                    ? "That account isn’t allowed. Use your @semianalysis.com Google account."
+                    : authError === "unconfigured"
+                    ? "Google sign-in isn’t configured yet. Contact your admin."
+                    : "Sign-in didn’t complete. Please try again."}
+                </div>
+              )}
               <div style={{ fontFamily: mn, fontSize: 10.5, letterSpacing: "0.1em", color: C.txd, maxWidth: "42ch" }}>
                 Sign in with your <b style={{ color: C.amber, fontWeight: 500 }}>@semianalysis.com</b> account. Your workspace &amp; access are set up automatically.
               </div>

@@ -1033,7 +1033,7 @@ function Sidebar({ active, onNav, onAskPoast, locked, onToggleLock }: { active: 
       {/* Footer */}
       <div style={{ padding: "14px 18px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <BugButton sec={active} />
-        {userCtx.user && <div onClick={function() { userCtx.setUser(null); }} title={analyst ? "Lock studio" : "Switch user"} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "6px 8px", borderRadius: 6, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}>
+        {userCtx.user && <div onClick={function() { try { fetch("/api/auth/signout", { method: "POST" }); } catch (e) {} userCtx.setUser(null); }} title={analyst ? "Lock studio" : "Switch user"} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "6px 8px", borderRadius: 6, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}>
           <div style={{ width: 22, height: 22, borderRadius: 6, background: analyst ? "#905CCB20" : C.amber + "20", border: "1px solid " + (analyst ? "#905CCB40" : C.amber + "40"), display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 10, fontWeight: 800, color: analyst ? "#905CCB" : C.amber }}>{userCtx.user.name[0]}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 700, color: "#E8E4DD", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userCtx.user.name}</div>
@@ -1318,7 +1318,7 @@ function GlassTopNav({ active, onNav }: { active: string; onNav: (id: string) =>
           {userCtx.user && <div className="gnav-wx" title="San Francisco · Clear"><Sun size={15} strokeWidth={1.9} /><span>61° SF · Clear</span></div>}
           <button className="gnav-btn" onClick={openSearch} aria-label="Search" title="Search"><Search size={18} strokeWidth={1.8} /></button>
           <button className="gnav-btn" aria-label="Notifications" title="Notifications"><Bell size={18} strokeWidth={1.8} /></button>
-          {userCtx.user && <div className="gnav-user" onClick={function() { userCtx.setUser(null); }} title="Switch user">
+          {userCtx.user && <div className="gnav-user" onClick={function() { try { fetch("/api/auth/signout", { method: "POST" }); } catch (e) {} userCtx.setUser(null); }} title="Switch user">
             <span className="gnav-av">{initials}</span>
           </div>}
         </div>
@@ -2600,6 +2600,11 @@ export default function App() {
     var forceSetup = qs?.get("setup") === "1";
     setSeed({ email: qs?.get("email"), name: qs?.get("name") });
     if (forceSetup) { setIntroState("show"); return; }
+    // Returning from Google sign-in (/?signed_in=1) or reporting an auth error
+    // must always show the first-run flow so it can resolve the verified
+    // identity (/api/auth/me) and resume at the theme picker — even if a stale
+    // poast-current-user is present (which would otherwise skip the intro).
+    if (qs?.get("signed_in") === "1" || qs?.get("auth")) { setIntroState("show"); return; }
     // Honor ?user= bookmark even when a session exists — lets a user
     // override "I'm signed in as X" by visiting ?user=Y explicitly.
     var explicitUser = qs?.get("user");

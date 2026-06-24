@@ -118,9 +118,11 @@ function PreviewTab() {
     window.location.assign("/");
   }
 
-  // Walk the FULL first-run for a persona: clear that role's state and enter the
-  // ported flow (Google sign-in stub → theme picker → Ignition Bloom) pre-seeded
-  // with the persona's Google account via ?setup=1&email=.
+  // Walk the FULL first-run for a persona: clear that role's state, then mint a
+  // verified session for the persona via the LOCAL dev sign-in and bounce to
+  // /?signed_in=1 — the onboarding resolves /api/auth/me and resumes at the theme
+  // picker as that user (real-auth-shaped, exercising the verified-identity path).
+  // Requires POAST_DEV_AUTH=1 locally; in production this routes to real Google.
   function walkFirstRun(p: Persona) {
     try {
       localStorage.removeItem("poast-current-user");
@@ -129,7 +131,7 @@ function PreviewTab() {
       localStorage.removeItem("poast-analyst-name");
       localStorage.removeItem("poast-theme");
     } catch {}
-    window.location.assign("/?setup=1&email=" + encodeURIComponent(p.email) + "&name=" + encodeURIComponent(p.display));
+    window.location.assign("/api/auth/google/start?dev=" + encodeURIComponent(p.email));
   }
 
   return (
