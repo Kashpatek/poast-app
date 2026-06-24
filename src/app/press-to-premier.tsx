@@ -122,8 +122,8 @@ interface RenderVideo {
 
 // ═══ DESIGN ═══
 var D = {
-  bg: "#060608", surface: "#09090D", elevated: "#0D0D12",
-  border: "rgba(255,255,255,0.06)", borderHover: "rgba(255,255,255,0.12)",
+  bg: "var(--bg)", surface: "var(--card)", elevated: "var(--surface)",
+  border: "var(--border)", borderHover: "rgba(255,255,255,0.12)",
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347", violet: "#905CCB",
   tx: "#ffffff", txb: "rgba(255,255,255,0.55)", txl: "rgba(255,255,255,0.25)", txh: "rgba(255,255,255,0.12)",
 };

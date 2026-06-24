@@ -82,7 +82,7 @@ interface CalMonth {
   eps: (Episode & { date: Date })[];
 }
 
-var AMB = "#F7B041", BLU = "#0B86D1", BG0 = "#060608", BG1 = "#09090D", BDR = "rgba(255,255,255,0.06)", GRN = "#2EAD8E", RED = "#E06347", CYN = "#26C9D8";
+var AMB = "#F7B041", BLU = "#0B86D1", BG0 = "var(--bg)", BG1 = "var(--card)", BDR = "var(--border)", GRN = "#2EAD8E", RED = "#E06347", CYN = "#26C9D8";
 var FONT = "'Outfit',sans-serif";
 var MONO = "'JetBrains Mono',monospace";
 var TC: Record<string, string> = {"Cloud/Infra":"#3b82f6","AI/ML":"#8b5cf6","Hardware":"#ef4444","GPU Optimization":"#f97316","Internal":"#6b7280","AI Safety":"#f59e0b","Neocloud":"#0ea5e9","AMD Ecosystem":"#dc2626","Energy/Infra":"#22c55e"};
@@ -265,13 +265,13 @@ export default function GTCFlow(){
       <button onClick={function(){setCadLocked(!cadLocked)}} style={{padding:"5px 12px",border:"1px solid "+(cadLocked?GRN+"40":RED+"40"),borderRadius:8,background:"transparent",color:cadLocked?GRN:RED,cursor:"pointer",fontFamily:FONT,fontSize:11,fontWeight:600,transition:"all 0.15s"}}>{cadLocked?"Locked":"Unlock"}</button>
       <span style={{width:1,height:16,background:BDR,margin:"0 8px"}}/>
       <span style={{fontFamily:MONO,fontSize:10,fontWeight:600,color:"rgba(255,255,255,0.25)",letterSpacing:2}}>HOST</span>
-      <select value={hostF} onChange={function(e){setHostF(e.target.value)}} style={{padding:"6px 10px",background:"#09090D",border:"1px solid "+BDR,borderRadius:8,color:AMB,fontFamily:FONT,fontSize:12}}>{HOSTS.map(function(h){return <option key={h} value={h}>{h}</option>})}</select>
+      <select value={hostF} onChange={function(e){setHostF(e.target.value)}} style={{padding:"6px 10px",background:"var(--card)",border:"1px solid "+BDR,borderRadius:8,color:AMB,fontFamily:FONT,fontSize:12}}>{HOSTS.map(function(h){return <option key={h} value={h}>{h}</option>})}</select>
       <span style={{fontFamily:MONO,fontSize:10,fontWeight:600,color:"rgba(255,255,255,0.25)",letterSpacing:2}}>TOPIC</span>
-      <select value={tagF} onChange={function(e){setTagF(e.target.value)}} style={{padding:"6px 10px",background:"#09090D",border:"1px solid "+BDR,borderRadius:8,color:BLU,fontFamily:FONT,fontSize:12}}><option value="All">All</option>{allTags.map(function(t){return <option key={t} value={t}>{t}</option>})}</select>
+      <select value={tagF} onChange={function(e){setTagF(e.target.value)}} style={{padding:"6px 10px",background:"var(--card)",border:"1px solid "+BDR,borderRadius:8,color:BLU,fontFamily:FONT,fontSize:12}}><option value="All">All</option>{allTags.map(function(t){return <option key={t} value={t}>{t}</option>})}</select>
     </div>
 
     {/* Stats */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:20,padding:18,background:"#09090D",borderRadius:10,border:"1px solid "+BDR}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:20,padding:18,background:"var(--card)",borderRadius:10,border:"1px solid "+BDR}}>
       {[{l:"Published",v:pub.length,c:GRN},{l:"Remaining",v:sched.length,c:AMB},{l:"Cadence",v:cad.label,c:"rgba(255,255,255,0.55)"},{l:"Full Ep",v:"8AM PST",c:AMB},{l:"Clips",v:"10AM PST",c:BLU}].map(function(s,i){return <div key={i} style={{textAlign:"center"}}><div style={{fontFamily:MONO,fontSize:22,fontWeight:900,color:s.c}}>{s.v}</div><div style={{fontFamily:MONO,fontSize:9,fontWeight:600,color:"rgba(255,255,255,0.2)",textTransform:"uppercase",letterSpacing:1.5,marginTop:4}}>{s.l}</div></div>})}
     </div>
 
@@ -384,7 +384,7 @@ function AddEpisodeModal(p: { onAdd: (ep: Episode) => void; onClose: () => void;
   var ta: React.CSSProperties={width:"100%",minHeight:70,padding:"8px 10px",background:BG0,border:"1px solid "+BDR,borderRadius:8,color:"#d1d5db",fontFamily:FONT,fontSize:12,resize:"vertical",outline:"none",boxSizing:"border-box"};
 
   return <div style={{position:"fixed",inset:0,zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.7)",backdropFilter:"blur(4px)"}}>
-    <div style={{width:540,maxHeight:"85vh",overflow:"auto",background:"#0F0F18",borderRadius:12,border:"1px solid "+BDR,padding:28,fontFamily:FONT}}>
+    <div style={{width:540,maxHeight:"85vh",overflow:"auto",background:"var(--hover)",borderRadius:12,border:"1px solid "+BDR,padding:28,fontFamily:FONT}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
         <div style={{fontSize:20,fontWeight:900,color:"#E8E4DD",letterSpacing:-0.5}}>Add Episode</div>
         <button onClick={onClose} style={{background:"transparent",border:"1px solid "+BDR,borderRadius:6,color:"rgba(255,255,255,0.4)",cursor:"pointer",fontFamily:FONT,fontSize:16,padding:"4px 10px",lineHeight:1}}>X</button>

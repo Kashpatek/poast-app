@@ -82,8 +82,8 @@ interface ProgressBarProps {
 
 // ═══ DESIGN ═══
 var D = {
-  bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)",
-  surface: "#0D0D12", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
+  bg: "var(--bg)", card: "var(--card)", border: "var(--border)",
+  surface: "var(--surface)", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
   violet: "#905CCB", cyan: "#26C9D8",
 };
@@ -313,10 +313,10 @@ function WizardOverlay({ open, onClose, onGenerate, loading }: WizardOverlayProp
     <div onClick={handleClose} style={{ position: "fixed", inset: 0, background: "radial-gradient(ellipse at center, rgba(144,92,203,0.08) 0%, rgba(6,6,8,0.96) 60%)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)" }} />
 
     {/* Wizard card */}
-    <div style={{ position: "relative", width: 560, maxWidth: "100%", maxHeight: "80vh", overflow: "auto", background: "linear-gradient(135deg, #0F0F18 0%, #0A0A12 100%)", borderRadius: 18, padding: "36px 40px", boxShadow: "0 0 80px rgba(144,92,203,0.08), 0 0 120px rgba(247,176,65,0.04), 0 24px 60px rgba(0,0,0,0.7)" }}>
+    <div style={{ position: "relative", width: 560, maxWidth: "100%", maxHeight: "80vh", overflow: "auto", background: "linear-gradient(135deg, var(--hover) 0%, #0A0A12 100%)", borderRadius: 18, padding: "36px 40px", boxShadow: "0 0 80px rgba(144,92,203,0.08), 0 0 120px rgba(247,176,65,0.04), 0 24px 60px rgba(0,0,0,0.7)" }}>
       {/* Gradient border effect */}
       <div style={{ position: "absolute", inset: -1, borderRadius: 19, background: "linear-gradient(135deg, " + D.amber + "40, " + D.violet + "30, " + D.blue + "20, " + D.teal + "30)", zIndex: -1, padding: 1 }}>
-        <div style={{ width: "100%", height: "100%", borderRadius: 18, background: "linear-gradient(135deg, #0F0F18 0%, #0A0A12 100%)" }} />
+        <div style={{ width: "100%", height: "100%", borderRadius: 18, background: "linear-gradient(135deg, var(--hover) 0%, #0A0A12 100%)" }} />
       </div>
 
       {/* Ambient orbs */}
@@ -500,7 +500,7 @@ function IdeaCard({ idea, onSendSlopTop, onSendCapper, onExport, onDismiss, onSa
     onMouseEnter={function() { setHovered(true); }}
     onMouseLeave={function() { setHovered(false); }}
     style={{
-      background: hovered ? "linear-gradient(135deg, #0F0F18 0%, #0C0C14 100%)" : D.card,
+      background: hovered ? "linear-gradient(135deg, var(--hover) 0%, #0C0C14 100%)" : D.card,
       border: "1px solid " + (hovered ? badgeColor + "35" : D.border),
       borderRadius: 12,
       padding: 0,

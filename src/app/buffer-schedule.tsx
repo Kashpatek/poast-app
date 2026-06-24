@@ -55,7 +55,7 @@ interface APIContentBlock {
 
 // ═══ DESIGN LANGUAGE ═══
 var D = {
-  bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)", cardHover: "#0D0D12", cardActive: "#101018",
+  bg: "var(--bg)", card: "var(--card)", border: "var(--border)", cardHover: "var(--surface)", cardActive: "var(--hover)",
   amber: "#F7B041", teal: "#2EAD8E", blue: "#0B86D1", coral: "#E06347", violet: "#905CCB", crimson: "#D1334A",
   tx: "#E8E4DD", txs: "rgba(255,255,255,0.4)", accent: "#F7B041",
   glow: "0 2px 12px rgba(0,0,0,0.4)",
@@ -465,7 +465,7 @@ function PostList({ posts, channels, emptyLabel, showSearch, showEdit, onDelete,
             {saveErr ? <div style={{ marginTop: 8, fontFamily: mn, fontSize: 10, color: D.coral, padding: "6px 10px", background: D.coral + "10", border: "1px solid " + D.coral + "40", borderRadius: 6 }}>{saveErr}</div> : null}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 8 }}>
               <span onClick={cancelEdit} style={{ fontFamily: mn, fontSize: 10, color: D.txs, cursor: "pointer", padding: "5px 12px", borderRadius: 6, border: "1px solid " + D.border }}>Cancel</span>
-              <span onClick={saveEdit} style={{ fontFamily: mn, fontSize: 10, color: "#060608", background: saving ? D.amber + "55" : D.amber, cursor: saving ? "wait" : "pointer", padding: "5px 14px", borderRadius: 6, fontWeight: 700, letterSpacing: 0.4 }}>{saving ? "Saving…" : "Save"}</span>
+              <span onClick={saveEdit} style={{ fontFamily: mn, fontSize: 10, color: "var(--bg)", background: saving ? D.amber + "55" : D.amber, cursor: saving ? "wait" : "pointer", padding: "5px 14px", borderRadius: 6, fontWeight: 700, letterSpacing: 0.4 }}>{saving ? "Saving…" : "Save"}</span>
             </div>
           </div>
         ) : (

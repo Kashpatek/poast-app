@@ -169,8 +169,8 @@ interface ArchiveForm {
 
 // ═══ DESIGN ═══
 var D = {
-  bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)", hover: "#0D0D12",
-  surface: "#0D0D12", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
+  bg: "var(--bg)", card: "var(--card)", border: "var(--border)", hover: "var(--hover)",
+  surface: "var(--surface)", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
   violet: "#905CCB", cyan: "#26C9D8",
 };
@@ -919,7 +919,7 @@ export default function FabricatedKnowledge() {
   ];
   var totalPipeline = stageCounts[0] + stageCounts[1] + stageCounts[3]; // active (not double-counting Scheduled)
 
-  return <div style={{ minHeight: "100vh", background: D.bg, color: D.tx, fontFamily: ft, padding: "0 0 60px 0" }}>
+  return <div style={{ minHeight: "100vh", background: "var(--page-bg, var(--bg))", color: D.tx, fontFamily: ft, padding: "0 0 60px 0" }}>
     <Toasts />
     <style dangerouslySetInnerHTML={{ __html: "@keyframes fkLive{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.2)}}.fk-tab:hover{color:" + D.tx + " !important}.fk-tab-badge{transition:background .15s ease, color .15s ease}" }} />
 

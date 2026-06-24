@@ -24,8 +24,8 @@ interface Prospect {
 
 // ═══ DESIGN ═══
 var D = {
-  bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)", hover: "#0D0D12",
-  surface: "#0D0D12", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
+  bg: "var(--bg)", card: "var(--card)", border: "var(--border)", hover: "var(--hover)",
+  surface: "var(--surface)", tx: "#E8E4DD", txm: "#8A8690", txd: "#4E4B56",
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
   violet: "#905CCB", cyan: "#26C9D8",
 };
@@ -281,7 +281,7 @@ export default function Outreach() {
   var labelStyle = { fontFamily: mn, fontSize: 10, color: D.txm, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 6, display: "block" };
 
   return (
-    <div style={{ minHeight: "100vh", background: D.bg, color: D.tx, fontFamily: ft, padding: "32px 40px" }}>
+    <div style={{ minHeight: "100vh", background: "var(--page-bg, var(--bg))", color: D.tx, fontFamily: ft, padding: "32px 40px" }}>
       <style dangerouslySetInnerHTML={{ __html: ".kanban-scroll::-webkit-scrollbar{display:none}.kanban-scroll{-ms-overflow-style:none;scrollbar-width:none}" }} />
       {/* Header */}
       <div style={{ marginBottom: 28 }}>

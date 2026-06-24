@@ -23,8 +23,8 @@ interface ToastItem {
 }
 
 var D = {
-  bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)",
-  surface: "#0D0D12", tx: "#E8E4DD", txm: "#9A969F", txd: "#5A5766",
+  bg: "var(--bg)", card: "var(--card)", border: "var(--border)",
+  surface: "var(--surface)", tx: "#E8E4DD", txm: "#9A969F", txd: "#5A5766",
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
 };
 var ft = "'Outfit',sans-serif";

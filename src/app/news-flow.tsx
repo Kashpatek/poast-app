@@ -100,7 +100,7 @@ interface WidgetMeta {
 
 // ═══ THEME (matches POAST design system) ═══
 var T = {
-  bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)", surface: "#0D0D12",
+  bg: "var(--bg)", card: "var(--card)", border: "var(--border)", surface: "var(--surface)",
   accent: "#F7B041", accent2: "#2EAD8E", accent3: "#E06347", accent4: "#0B86D1",
   tx: "#E8E4DD", txm: "rgba(255,255,255,0.55)", txd: "rgba(255,255,255,0.25)",
   glow: "0 2px 12px rgba(0,0,0,0.4)",

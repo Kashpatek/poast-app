@@ -48,8 +48,8 @@ interface ContentIdea {
 
 // ═══ DESIGN LANGUAGE ═══
 var D = {
-  bg: "#060608", card: "#09090D", border: "rgba(255,255,255,0.06)", hover: "#0D0D12",
-  surface: "#0D0D12", tx: "#E8E4DD", txm: "#9A969F", txd: "#5A5766",
+  bg: "var(--bg)", card: "var(--card)", border: "var(--border)", hover: "var(--hover)",
+  surface: "var(--surface)", tx: "#E8E4DD", txm: "#9A969F", txd: "#5A5766",
   amber: "#F7B041", blue: "#0B86D1", teal: "#2EAD8E", coral: "#E06347",
   violet: "#905CCB", cyan: "#26C9D8",
 };
@@ -475,7 +475,7 @@ export default function Trends() {
     return <div>{rows}</div>;
   }
 
-  return <div style={{ minHeight: "100vh", background: D.bg, color: D.tx, fontFamily: ft, position: "relative" }}>
+  return <div style={{ minHeight: "100vh", background: "var(--page-bg, var(--bg))", color: D.tx, fontFamily: ft, position: "relative" }}>
     {/* Global scrollbar-hiding styles + animations */}
     <style dangerouslySetInnerHTML={{ __html: ".hscroll-row::-webkit-scrollbar{display:none}.hscroll-row{-ms-overflow-style:none;scrollbar-width:none}@keyframes toastIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes toastDrain{from{width:100%}to{width:0}}@keyframes wizGlow{0%,100%{box-shadow:0 0 16px rgba(247,176,65,0.4)}50%{box-shadow:0 0 28px rgba(247,176,65,0.7)}}@keyframes overlayIn{from{opacity:0}to{opacity:1}}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}" }} />
     <ToastContainer />
