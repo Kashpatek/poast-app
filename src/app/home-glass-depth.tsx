@@ -33,9 +33,13 @@ import {
   TrendingUp,
   Calendar,
   ChevronDown,
+  Heart,
+  X,
+  AppWindow,
   type LucideIcon,
 } from "lucide-react";
 import { D, ft, gf, mn } from "./shared-constants";
+import { useHomePrefs, togglePin, removePin, isPinned } from "./home-prefs";
 
 // ─── Stat + shelf model (ambient "Today's shelves") ──────────────────────────
 // The ambient home shows contextual workspace stats in the hero, then a row of
@@ -52,21 +56,11 @@ const STATS: Stat[] = [
 interface ShelfTile { name: string; sub: string; Icon: LucideIcon; status: string; badge?: "new" | "akash"; nav?: string; href?: string; }
 interface Shelf { key: string; label: string; ring: string; Icon: LucideIcon; count: string; desc: string; tiles: ShelfTile[]; ghost?: boolean; }
 
+// NOTE: the "Recently used" + "Favorites" shelves are NOT in this array — they
+// are rendered dynamically from the per-user home-prefs store (see below), so
+// they reflect real usage/pins rather than a static demo list. SHELVES holds
+// only the fixed system categories that follow them.
 const SHELVES: Shelf[] = [
-  { key: "fav", label: "Favorites", ring: D.amber, Icon: Star, count: "pinned", desc: "Set from your home · unique to you", ghost: true, tiles: [
-    { name: "MarketingSUITE", sub: "The launch cockpit", Icon: SatelliteDish, status: "Pinned", badge: "new", href: "/marketing-suite" },
-    { name: "Slop Top", sub: "Brief gen + arxiv.lol", Icon: Zap, status: "Most used", nav: "sloptop" },
-    { name: "SA Weekly", sub: "Episode pipeline", Icon: Radio, status: "EP18 soon", nav: "weekly" },
-    { name: "Chart Maker", sub: "Quick charts", Icon: GanttChart, status: "12 saved", href: "/charts" },
-    { name: "Daily Brief", sub: "Standup digest", Icon: Newspaper, status: "Updated 6:00", nav: "news" },
-  ]},
-  { key: "recent", label: "Recently used", ring: "#E8E6EE", Icon: History, count: "this week", desc: "Your latest on this device", tiles: [
-    { name: "Production Studio", sub: "Full post suite", Icon: Clapperboard, status: "2h ago", nav: "production-studio" },
-    { name: "Trends", sub: "What's rising", Icon: TrendingUp, status: "Yesterday", href: "/intelligence-suite" },
-    { name: "Carousel", sub: "Instagram carousels", Icon: LayoutGrid, status: "Yesterday", nav: "carousel" },
-    { name: "Intelligence", sub: "Signals & research", Icon: Brain, status: "Mon", href: "/intelligence-suite" },
-    { name: "Clip Engine", sub: "Cut & caption", Icon: Scissors, status: "Mon", nav: "production-studio" },
-  ]},
   { key: "produce", label: "Produce", ring: D.amber, Icon: Wand2, count: "9 tools", desc: "Make the content", tiles: [
     { name: "Slop Top", sub: "Brief gen", Icon: Zap, status: "Most used", nav: "sloptop" },
     { name: "Carousel", sub: "Carousels", Icon: LayoutGrid, status: "3 templates", nav: "carousel" },
@@ -101,6 +95,66 @@ const SHELVES: Shelf[] = [
     { name: "Settings", sub: "Workspace config", Icon: Settings, status: "Brand defaults", nav: "settings" },
   ]},
 ];
+
+// ─── Home-organization resolver (Recently used + Favorites) ──────────────────
+// The shared store keeps per-user `recent` + `pins` as plain string ids. To turn
+// an id into a renderable tile we first look it up in the existing SHELVES (so it
+// reuses the real label/icon/ring/nav target), and otherwise fall back to a small
+// label map + titleized id with a generic icon. The id stored in the store is the
+// tile's nav target (`nav`) when present, else its href — so a tile's pin id and
+// its navigation are the same value (see tileId).
+
+/** Stable id used both as the store key and the nav/href target for a tile. */
+function tileId(t: ShelfTile): string {
+  return t.nav ?? t.href ?? t.name;
+}
+
+// First matching SHELVES tile for each id (skips the dynamic shelves, which are
+// added at render time and not part of SHELVES).
+const TILE_BY_ID: Record<string, ShelfTile> = (() => {
+  const m: Record<string, ShelfTile> = {};
+  for (const s of SHELVES) for (const t of s.tiles) {
+    const id = tileId(t);
+    if (!(id in m)) m[id] = t;
+  }
+  return m;
+})();
+
+// Friendly names for ids that have no SHELVES tile (e.g. tools reachable only via
+// nav elsewhere in the app). Unknown ids fall through to titleize().
+const SEC_LABELS: Record<string, string> = {
+  sloptop: "Slop Top",
+  captions: "Capper",
+  news: "News Flow",
+  chart2: "POAST Studio",
+  p2p: "Press to Premier",
+  broll: "B-Roll",
+  trends: "Trends",
+  ideation: "Ideation Nation",
+  voice: "Voice Scorer",
+  headline: "Headline Doctor",
+};
+
+function titleize(id: string): string {
+  return id
+    .replace(/[-_/]+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase()) || id;
+}
+
+interface ResolvedTile { id: string; name: string; sub: string; Icon: LucideIcon; status: string; nav?: string; href?: string; }
+
+/** Resolve a store id (recent/pinned) into a tile descriptor for rendering. */
+function resolveTile(id: string): ResolvedTile {
+  const hit = TILE_BY_ID[id];
+  if (hit) {
+    return { id, name: hit.name, sub: hit.sub, Icon: hit.Icon, status: hit.status, nav: hit.nav, href: hit.href };
+  }
+  const name = SEC_LABELS[id] ?? titleize(id);
+  // An id that looks like a path is treated as an href; otherwise a nav target.
+  const isHref = id.startsWith("/") || id.startsWith("http");
+  return { id, name, sub: "Open", Icon: AppWindow, status: "Saved", nav: isHref ? undefined : id, href: isHref ? id : undefined };
+}
 
 const DAYS = [
   "SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY",
@@ -158,6 +212,130 @@ const SKY_CSS = `
 @media (prefers-reduced-motion: reduce) { .gd-stars, .gd-stars2 { animation: none !important; } .gd-shoot, .gd-shoot2 { animation: none !important; opacity: 0 !important; } }
 `;
 
+// ─── Shared gd-tile with pin + long-hold-remove ─────────────────────────────
+// One tile renderer used by every shelf (system + the dynamic Recently/Favorites
+// shelves) so the pin affordance behaves identically everywhere:
+//   • heart top-right — visible on hover or when pinned; filled accent = pinned.
+//     click toggles the pin and never navigates.
+//   • long-hold 2000ms — enters a per-tile "remove" state (red ✕ badge); ✕ removes
+//     the pin. a quick tap still navigates (longFired ref suppresses the click).
+function GdTile({
+  id, name, sub, Icon, status, ring, badge, isHref, pinned, owner, onActivate,
+}: {
+  id: string;
+  name: string;
+  sub: string;
+  Icon: LucideIcon;
+  status: string;
+  ring: string;
+  badge?: "new" | "akash";
+  isHref?: boolean;
+  pinned: boolean;
+  owner: string;
+  onActivate: () => void;
+}) {
+  const [removing, setRemoving] = useState(false);
+  const holdTimer = useRef<number | null>(null);
+  const longFired = useRef(false);
+
+  function clearHold() {
+    if (holdTimer.current !== null) {
+      window.clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+  }
+  function onPointerDown() {
+    longFired.current = false;
+    clearHold();
+    holdTimer.current = window.setTimeout(() => {
+      longFired.current = true;
+      setRemoving(true);
+    }, 2000);
+  }
+  function onClick() {
+    // Suppress the click that follows a long-press (it already entered remove mode).
+    if (longFired.current) {
+      longFired.current = false;
+      return;
+    }
+    onActivate();
+  }
+
+  return (
+    <div
+      className="gd-tile lglass glow gd-pinhost"
+      onClick={onClick}
+      onPointerDown={onPointerDown}
+      onPointerUp={clearHold}
+      onPointerCancel={clearHold}
+      onPointerLeave={() => { clearHold(); setRemoving(false); }}
+      title={isHref ? name + " — opens in a new tab" : name}
+      style={{ background: GLASS_BG, border: GLASS_BORDER, boxShadow: GLASS_INSET + ", 0 18px 44px rgba(0,0,0,0.42)", ["--lgac" as string]: ring } as CSSProperties}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = ring + "66"; e.currentTarget.style.boxShadow = GLASS_INSET + `, 0 24px 44px -16px ${ring}55, 0 18px 44px rgba(0,0,0,0.5)`; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"; e.currentTarget.style.boxShadow = GLASS_INSET + ", 0 18px 44px rgba(0,0,0,0.42)"; }}
+    >
+      <span style={{ position: "absolute", top: 0, left: 14, right: 14, height: 2, borderRadius: 2, background: `linear-gradient(90deg, transparent, ${ring}, transparent)`, opacity: 0.55 }} />
+
+      {/* Pin heart (top-right) — hidden until hover unless pinned. */}
+      <button
+        type="button"
+        className="gd-heart"
+        aria-label={pinned ? "Unpin" : "Pin"}
+        aria-pressed={pinned}
+        onClick={(e) => { e.stopPropagation(); longFired.current = false; togglePin(owner, id); }}
+        onPointerDown={(e) => e.stopPropagation()}
+        style={{
+          position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: 8,
+          display: "grid", placeItems: "center", flex: "none", cursor: "pointer", padding: 0, zIndex: 3,
+          border: pinned ? `1px solid ${ring}66` : "1px solid rgba(255,255,255,0.12)",
+          background: pinned ? `color-mix(in srgb, ${ring} 22%, transparent)` : "rgba(10,8,18,0.45)",
+          color: pinned ? ring : D.txm,
+          opacity: pinned ? 1 : 0,
+          transition: "opacity .2s, background .2s, border-color .2s",
+        }}
+      >
+        <Heart size={14} strokeWidth={2} fill={pinned ? ring : "none"} />
+      </button>
+
+      {/* Long-hold remove badge (red ✕) — appears once the 2s hold fires. */}
+      {removing && (
+        <button
+          type="button"
+          aria-label="Remove pin"
+          onClick={(e) => { e.stopPropagation(); removePin(owner, id); setRemoving(false); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: 8,
+            display: "grid", placeItems: "center", flex: "none", cursor: "pointer", padding: 0, zIndex: 4,
+            border: `1px solid ${D.crimson}88`, background: `color-mix(in srgb, ${D.crimson} 30%, rgba(10,8,18,0.7))`,
+            color: "#fff", boxShadow: `0 0 0 3px ${D.crimson}33`,
+          }}
+        >
+          <X size={14} strokeWidth={2.6} />
+        </button>
+      )}
+
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
+        <span style={{ width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center", flex: "none", background: `radial-gradient(70% 70% at 50% 28%, ${ring}33, rgba(255,255,255,0.04) 72%)`, border: `1px solid ${ring}44`, color: ring }}>
+          <Icon size={17} strokeWidth={1.8} />
+        </span>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, paddingRight: 24 }}>
+            <span style={{ fontFamily: gf, fontWeight: 600, fontSize: 15, color: D.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
+            {badge === "new" && <span style={{ fontFamily: mn, fontSize: 7.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#fff", background: ring, borderRadius: 5, padding: "2px 5px" }}>new</span>}
+            {badge === "akash" && <span style={{ fontFamily: mn, fontSize: 7.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: ring, border: `1px solid ${ring}66`, borderRadius: 5, padding: "2px 5px" }}>akash</span>}
+          </div>
+          <div style={{ fontFamily: ft, fontSize: 12, color: D.txm, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 13 }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", flex: "none", background: ring, boxShadow: `0 0 6px ${ring}` }} />
+        <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: "0.04em", color: D.txm }}>{status}</span>
+      </div>
+    </div>
+  );
+}
+
 export function DepthBackdrop() {
   return (
     <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, overflow: "hidden", pointerEvents: "none" }}>
@@ -211,10 +389,14 @@ export function DepthBackdrop() {
 export default function GlassDepthHome({
   onNavigate,
   userName,
+  allow,
 }: {
   onNavigate: (id: string) => void;
   userName: string;
+  // When set (analyst), restrict every shelf + pins/recent to these ids.
+  allow?: string[];
 }) {
+  const permits = (id: string): boolean => !allow || allow.includes(id);
   const [now, setNow] = useState<Date>(() => new Date());
 
   // Live clock — re-render every second, tearing the interval down on unmount.
@@ -222,6 +404,12 @@ export default function GlassDepthHome({
     const t = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(t);
   }, []);
+
+  // Site-wide home organization: this user's recent + pinned ids, live-updating.
+  // Analyst gate (allow) trims both lists to permitted tools.
+  const hp = useHomePrefs(userName);
+  const pins = hp.pins.filter(permits);
+  const recent = hp.recent.filter(permits);
 
   let hours = now.getHours();
   const ampm = hours >= 12 ? "PM" : "AM";
@@ -240,6 +428,17 @@ export default function GlassDepthHome({
     if (t.href) window.open(t.href, "_blank");
     else if (t.nav) onNavigate(t.nav);
   }
+  function goResolved(r: ResolvedTile) {
+    if (r.href) window.open(r.href, "_blank");
+    else if (r.nav) onNavigate(r.nav);
+  }
+
+  // ── Dynamic shelves (Recently used → Favorites), built from the store ──
+  // "Recently used" renders only when non-empty; "Favorites" always renders.
+  const recentTiles = recent.map(resolveTile);
+  const favoriteTiles = pins.map(resolveTile);
+  const RECENT_RING = "#E8E6EE";
+  const FAV_RING = D.amber;
 
   return (
     <div
@@ -261,6 +460,9 @@ export default function GlassDepthHome({
 .gd-track::-webkit-scrollbar { display: none; }
 .gd-tile { position: relative; flex: 0 0 auto; width: 236px; min-height: 120px; border-radius: 18px; padding: 15px 16px 14px; text-align: left; cursor: pointer; overflow: hidden; transition: transform .26s cubic-bezier(.2,.7,.3,1), border-color .26s, box-shadow .26s; }
 .gd-tile:hover { transform: translateY(-5px); }
+/* Pin heart: hidden until hover; stays visible when pinned (inline opacity:1 wins). */
+.gd-pinhost:hover .gd-heart { opacity: 1 !important; }
+.gd-heart:hover { filter: brightness(1.18); }
 .gd-cue { display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; }
 .gd-mouse { width: 22px; height: 34px; border-radius: 12px; border: 1.5px solid rgba(255,255,255,.32); position: relative; }
 .gd-mouse::before { content: ''; position: absolute; top: 6px; left: 50%; width: 3px; height: 6px; border-radius: 2px; background: #B98BE6; transform: translateX(-50%); animation: gdMouse 1.7s ease-in-out infinite; }
@@ -469,8 +671,73 @@ export default function GlassDepthHome({
           <span style={{ flex: 1, height: 1, background: "linear-gradient(90deg, rgba(255,255,255,.14), transparent)" }} />
         </div>
 
+        {/* ── Recently used (dynamic) — only when non-empty ── */}
+        {recentTiles.length > 0 && (
+          <div style={{ marginBottom: 30 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 13, padding: "0 2px", flexWrap: "wrap" }}>
+              <span style={{ width: 30, height: 30, borderRadius: 9, display: "grid", placeItems: "center", flex: "none", background: `color-mix(in srgb, ${RECENT_RING} 18%, transparent)`, border: `1px solid ${RECENT_RING}55`, color: RECENT_RING }}>
+                <History size={15} strokeWidth={1.9} />
+              </span>
+              <span style={{ fontFamily: gf, fontWeight: 700, fontSize: 16, color: D.tx }}>Recently used</span>
+              <span style={{ fontFamily: mn, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: RECENT_RING, border: `1px solid ${RECENT_RING}44`, borderRadius: 6, padding: "3px 7px" }}>this device</span>
+              <span style={{ fontFamily: ft, fontSize: 12.5, color: D.txd, marginLeft: 2 }}>Your latest, most-recent first</span>
+            </div>
+            <div className="gd-track">
+              {recentTiles.map((r) => (
+                <GdTile
+                  key={"recent-" + r.id}
+                  id={r.id} name={r.name} sub={r.sub} Icon={r.Icon} status={r.status}
+                  ring={RECENT_RING} isHref={!!r.href} owner={userName}
+                  pinned={isPinned(userName, r.id)}
+                  onActivate={() => goResolved(r)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Favorites (dynamic) — always shown, with empty hint ── */}
+        <div style={{ marginBottom: 30 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 13, padding: "0 2px", flexWrap: "wrap" }}>
+            <span style={{ width: 30, height: 30, borderRadius: 9, display: "grid", placeItems: "center", flex: "none", background: `color-mix(in srgb, ${FAV_RING} 18%, transparent)`, border: `1px solid ${FAV_RING}55`, color: FAV_RING }}>
+              <Star size={15} strokeWidth={1.9} />
+            </span>
+            <span style={{ fontFamily: gf, fontWeight: 700, fontSize: 16, color: D.tx }}>Favorites</span>
+            <span style={{ fontFamily: mn, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: FAV_RING, border: `1px solid ${FAV_RING}44`, borderRadius: 6, padding: "3px 7px" }}>pinned</span>
+            <span style={{ fontFamily: ft, fontSize: 12.5, color: D.txd, marginLeft: 2 }}>Set from your home · unique to you</span>
+          </div>
+          {favoriteTiles.length > 0 ? (
+            <div className="gd-track">
+              {favoriteTiles.map((r) => (
+                <GdTile
+                  key={"fav-" + r.id}
+                  id={r.id} name={r.name} sub={r.sub} Icon={r.Icon} status={r.status}
+                  ring={FAV_RING} isHref={!!r.href} owner={userName}
+                  pinned
+                  onActivate={() => goResolved(r)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="gd-track">
+              <div
+                className="gd-tile"
+                title="Pin apps from any shelf"
+                style={{ display: "grid", placeItems: "center", cursor: "default", border: "1px dashed rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.02)" }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: D.txm, textAlign: "center", padding: "0 10px" }}>
+                  <Heart size={20} strokeWidth={1.8} />
+                  <span style={{ fontFamily: mn, fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase" }}>Pin apps from any shelf</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         {SHELVES.map((shelf) => {
           const SIcon = shelf.Icon;
+          const tiles = shelf.tiles.filter((t) => permits(tileId(t)));
+          if (tiles.length === 0) return null; // drop a category emptied by the gate
           return (
             <div key={shelf.key} style={{ marginBottom: 30 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 13, padding: "0 2px", flexWrap: "wrap" }}>
@@ -483,37 +750,16 @@ export default function GlassDepthHome({
               </div>
 
               <div className="gd-track">
-                {shelf.tiles.map((t) => {
-                  const TIcon = t.Icon;
+                {tiles.map((t) => {
+                  const id = tileId(t);
                   return (
-                    <div
+                    <GdTile
                       key={t.name}
-                      className="gd-tile lglass glow"
-                      onClick={() => goTile(t)}
-                      title={t.href ? t.name + " — opens in a new tab" : t.name}
-                      style={{ background: GLASS_BG, border: GLASS_BORDER, boxShadow: GLASS_INSET + ", 0 18px 44px rgba(0,0,0,0.42)", ["--lgac" as string]: shelf.ring } as CSSProperties}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = shelf.ring + "66"; e.currentTarget.style.boxShadow = GLASS_INSET + `, 0 24px 44px -16px ${shelf.ring}55, 0 18px 44px rgba(0,0,0,0.5)`; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"; e.currentTarget.style.boxShadow = GLASS_INSET + ", 0 18px 44px rgba(0,0,0,0.42)"; }}
-                    >
-                      <span style={{ position: "absolute", top: 0, left: 14, right: 14, height: 2, borderRadius: 2, background: `linear-gradient(90deg, transparent, ${shelf.ring}, transparent)`, opacity: 0.55 }} />
-                      <div style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
-                        <span style={{ width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center", flex: "none", background: `radial-gradient(70% 70% at 50% 28%, ${shelf.ring}33, rgba(255,255,255,0.04) 72%)`, border: `1px solid ${shelf.ring}44`, color: shelf.ring }}>
-                          <TIcon size={17} strokeWidth={1.8} />
-                        </span>
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                            <span style={{ fontFamily: gf, fontWeight: 600, fontSize: 15, color: D.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</span>
-                            {t.badge === "new" && <span style={{ fontFamily: mn, fontSize: 7.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#fff", background: shelf.ring, borderRadius: 5, padding: "2px 5px" }}>new</span>}
-                            {t.badge === "akash" && <span style={{ fontFamily: mn, fontSize: 7.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: shelf.ring, border: `1px solid ${shelf.ring}66`, borderRadius: 5, padding: "2px 5px" }}>akash</span>}
-                          </div>
-                          <div style={{ fontFamily: ft, fontSize: 12, color: D.txm, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.sub}</div>
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 13 }}>
-                        <span style={{ width: 6, height: 6, borderRadius: "50%", flex: "none", background: shelf.ring, boxShadow: `0 0 6px ${shelf.ring}` }} />
-                        <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: "0.04em", color: D.txm }}>{t.status}</span>
-                      </div>
-                    </div>
+                      id={id} name={t.name} sub={t.sub} Icon={t.Icon} status={t.status}
+                      ring={shelf.ring} badge={t.badge} isHref={!!t.href} owner={userName}
+                      pinned={isPinned(userName, id)}
+                      onActivate={() => goTile(t)}
+                    />
                   );
                 })}
 

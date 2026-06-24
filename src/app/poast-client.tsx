@@ -32,10 +32,11 @@ import HubPalette, { type PaletteItem } from "./hub-palette";
 import { BugButton } from "./bug-report";
 import { trackEvent } from "../lib/poast-track";
 
-import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings, Wand, ShieldCheck, Sparkles, BookmarkCheck, ClipboardCheck, TrendingUp, Layers, CheckSquare, Brain, Type, Rocket, Home, Sun, Search, Bell, X as XIcon } from "lucide-react";
+import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings, Wand, ShieldCheck, Sparkles, BookmarkCheck, ClipboardCheck, TrendingUp, Layers, CheckSquare, Brain, Type, Rocket, Home, Sun, Search, Bell, Heart, X as XIcon } from "lucide-react";
 type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>;
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
 import { useUser, isAnalyst, canUseDocuDesign, isAkash } from "./user-context";
+import { pushRecent, useHomePrefs, togglePin, removePin, isPinned } from "./home-prefs";
 import GlassClarityHome from "./home-glass-clarity";
 import GlassDepthHome, { DepthBackdrop } from "./home-glass-depth";
 import StockBackdrop, { GlassBackdrop } from "./stock-backdrop";
@@ -1197,6 +1198,21 @@ function GlassTopNav({ active, onNav }: { active: string; onNav: (id: string) =>
   function openSearch() { setOpen(null); setAnchor(null); setSearching(true); }
   function closeSearch() { setSearching(false); setQuery(""); }
   useEffect(function() { if (searching && inputRef.current) inputRef.current.focus(); }, [searching]);
+  // Dismiss the search bar / open flyout on an outside pointerdown.
+  useEffect(function() {
+    if (!searching && !open) return;
+    function onDown(e: PointerEvent) {
+      var wrap = document.querySelector(".gnav-wrap");
+      var fly = flyRef.current;
+      var t = e.target as Node;
+      if (wrap && wrap.contains(t)) return;
+      if (fly && fly.contains(t)) return;
+      if (searching) closeSearch();
+      setOpen(null); setAnchor(null);
+    }
+    document.addEventListener("pointerdown", onDown);
+    return function() { document.removeEventListener("pointerdown", onDown); };
+  }, [searching, open]);
 
   var openCat = open ? SIDEBAR_CATS[open] : null;
   var openItems = openCat ? itemsFor(openCat) : [];
@@ -1207,21 +1223,67 @@ function GlassTopNav({ active, onNav }: { active: string; onNav: (id: string) =>
   var nmParts = nm.trim().split(/\s+/);
   var initials = (nmParts.length > 1 ? nmParts[0].charAt(0) + nmParts[1].charAt(0) : nm.slice(0, 2)).toUpperCase();
 
+  // Live search results across the visible categories' items (label / sub / id).
+  var searchResults: { item: SidebarCatItem; color: string }[] = [];
+  if (searching) {
+    var q = query.trim().toLowerCase();
+    if (q) {
+      visibleCats.forEach(function(ck) {
+        var cat = SIDEBAR_CATS[ck];
+        itemsFor(cat).forEach(function(it) {
+          if (searchResults.length >= 8) return;
+          var hay = (it.l + " " + (it.sub || "") + " " + it.id).toLowerCase();
+          if (hay.indexOf(q) >= 0) searchResults.push({ item: it, color: cat.color });
+        });
+      });
+    }
+  }
+
   return <>
     <style dangerouslySetInnerHTML={{ __html: GNAV_CSS }} />
     <div className="gnav-wrap" data-tour="glass-nav">
       {searching ? (
+        <>
         <div className="gnav-search">
           <Search size={18} color="rgba(255,255,255,0.6)" strokeWidth={1.8} />
           <input
             ref={inputRef}
             value={query}
             onChange={function(e) { setQuery(e.target.value); }}
-            onKeyDown={function(e) { if (e.key === "Escape") closeSearch(); }}
+            onKeyDown={function(e) {
+              if (e.key === "Escape") closeSearch();
+              else if (e.key === "Enter" && searchResults.length) itemClick(searchResults[0].item);
+            }}
             placeholder="Search tools, episodes, drafts…"
           />
           <button className="gnav-btn" onClick={closeSearch} aria-label="Close search" title="Close"><XIcon size={18} strokeWidth={1.9} /></button>
         </div>
+        {query.trim() ? (
+          <div className="gnav-results" style={{ pointerEvents: "auto", marginTop: 8, background: "linear-gradient(180deg,rgba(46,38,66,0.5),rgba(22,17,36,0.62))", backdropFilter: "blur(42px) saturate(1.8)", WebkitBackdropFilter: "blur(42px) saturate(1.8)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 16, padding: 7, boxShadow: "0 26px 64px rgba(0,0,0,0.5)" }}>
+            {searchResults.length ? searchResults.map(function(r) {
+              var RIcon = r.item.Icon;
+              return <div
+                key={r.item.id}
+                role="button"
+                tabIndex={0}
+                onClick={function() { itemClick(r.item); }}
+                style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 12px", borderRadius: 11, cursor: "pointer" }}
+                onMouseEnter={function(e) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}
+                onMouseLeave={function(e) { e.currentTarget.style.background = "transparent"; }}
+              >
+                <span style={{ width: 30, height: 30, borderRadius: 9, display: "grid", placeItems: "center", flex: "none", color: r.color, background: "color-mix(in srgb, " + r.color + " 18%, rgba(255,255,255,0.05))", border: "1px solid color-mix(in srgb, " + r.color + " 40%, transparent)" }}>
+                  <RIcon size={15} strokeWidth={1.9} />
+                </span>
+                <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                  <span style={{ fontFamily: gf, fontWeight: 700, fontSize: 14, color: "#F4F1EC" }}>{r.item.l}</span>
+                  {r.item.sub ? <span style={{ fontFamily: ft, fontSize: 11.5, color: "rgba(244,241,236,0.6)" }}>{r.item.sub}</span> : null}
+                </span>
+                {r.item.href ? <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 10, color: "rgba(244,241,236,0.5)" }}>↗ new tab</span> : null}
+              </div>;
+            }) : <div style={{ padding: "13px 14px", fontFamily: ft, fontSize: 13, color: "rgba(244,241,236,0.55)" }}>No tools match “{query.trim()}”.</div>}
+          </div>
+        ) : null}
+        </>
       ) : (
         <div className="gnav">
           <div className="gnav-logo" onClick={function() { onNav("home"); setOpen(null); setAnchor(null); }} title="Home">
@@ -1610,6 +1672,118 @@ function GlitchTransition({ onDone }: { onDone: () => void }) {
 // the old useState("weekly") default — it never got real user testing
 // because nobody actually landed here. Built to match the polish of
 // AnalystSplash with category coloring, hover lift, and a calm hero.
+// ─── Site-wide home organization (Recently used → Favorites → system) ─────────
+// Both the Classic (SplashScreen) and Stock (StockHome) grids feed their fixed
+// system `sections` through organizeHome(), which prepends two virtual sections
+// built from the per-user home-prefs store: "Recently used" (most-recent first,
+// only when non-empty) and "Favorites" (pinned, always shown). This is the same
+// model the two glass homes use, so ordering is identical site-wide.
+interface HomeTileSpec { id: string; label: string; sub: string; Icon: LucideIcon; href?: string; badge?: string }
+interface HomeSectionSpec { key: string; label: string; sub: string; color: string; tiles: HomeTileSpec[] }
+
+// Friendly labels for recent ids that have no system home tile; everything else
+// titleizes its id. Generic Sparkles tile is the visual fallback.
+var HOME_SEC_LABELS: Record<string, string> = {
+  sloptop: "Slop Top", captions: "Capper", news: "News Flow",
+  chart2: "POAST Studio", p2p: "Press to Premier", broll: "B-Roll",
+  "intelligence-suite": "IntelligenceSUITE", "copy-studio": "CopySTUDIO",
+  "design-studio": "DesignStudio", "ai-training": "AI Training",
+};
+function homeTitleize(id: string): string {
+  return id.replace(/[-_/]+/g, " ").trim().replace(/\b\w/g, function(c) { return c.toUpperCase(); }) || id;
+}
+function organizeHome(sections: HomeSectionSpec[], pins: string[], recent: string[]): HomeSectionSpec[] {
+  var byId: Record<string, HomeTileSpec> = {};
+  sections.forEach(function(s) { s.tiles.forEach(function(t) { if (!(t.id in byId)) byId[t.id] = t; }); });
+  function resolve(id: string): HomeTileSpec {
+    if (byId[id]) return byId[id];
+    return { id: id, label: HOME_SEC_LABELS[id] || homeTitleize(id), sub: "Open", Icon: Sparkles };
+  }
+  var out: HomeSectionSpec[] = [];
+  var recentTiles = recent.map(resolve);
+  if (recentTiles.length) out.push({ key: "__recent", label: "Recently used", sub: "MOST RECENT FIRST", color: C.violet, tiles: recentTiles });
+  out.push({ key: "__fav", label: "Favorites", sub: "PINNED · UNIQUE TO YOU", color: C.amber, tiles: pins.map(resolve) });
+  return out.concat(sections);
+}
+
+// Heart toggle for a home tile. Rendered as a span (the tiles are <button>s, so a
+// nested <button> would be invalid) — stops propagation so it never navigates.
+// Hidden until the tile is hovered unless the tile is pinned (filled accent).
+function PinHeart({ owner, id, pinned, color }: { owner: string; id: string; pinned: boolean; color: string }) {
+  return <span
+    role="button"
+    aria-label={pinned ? "Unpin" : "Pin"}
+    className="home-heart"
+    onClick={function(e) { e.stopPropagation(); e.preventDefault(); togglePin(owner, id); }}
+    onPointerDown={function(e) { e.stopPropagation(); }}
+    style={{
+      position: "absolute", top: 10, right: 10, width: 26, height: 26, borderRadius: 8,
+      display: "grid", placeItems: "center", cursor: "pointer", zIndex: 3,
+      border: pinned ? "1px solid " + color + "66" : "1px solid rgba(255,255,255,0.12)",
+      background: pinned ? "color-mix(in srgb, " + color + " 22%, transparent)" : "rgba(10,8,18,0.5)",
+      color: pinned ? color : C.txm,
+      opacity: pinned ? 1 : 0,
+      transition: "opacity .18s, background .18s, border-color .18s",
+    }}
+  >
+    <Heart size={14} strokeWidth={2} fill={pinned ? color : "none"} />
+  </span>;
+}
+
+// Red ✕ shown once a 2s long-hold flips a tile into remove mode; removes the pin.
+function RemoveBadge({ owner, id, onDone }: { owner: string; id: string; onDone: () => void }) {
+  return <span
+    role="button"
+    aria-label="Remove pin"
+    onClick={function(e) { e.stopPropagation(); e.preventDefault(); removePin(owner, id); onDone(); }}
+    onPointerDown={function(e) { e.stopPropagation(); }}
+    style={{
+      position: "absolute", top: 10, right: 10, width: 26, height: 26, borderRadius: 8,
+      display: "grid", placeItems: "center", cursor: "pointer", zIndex: 4,
+      border: "1px solid " + C.crimson + "88", background: "color-mix(in srgb, " + C.crimson + " 30%, rgba(10,8,18,0.7))",
+      color: "#fff", boxShadow: "0 0 0 3px " + C.crimson + "33",
+    }}
+  >
+    <XIcon size={14} strokeWidth={2.6} />
+  </span>;
+}
+
+// 2s long-hold state machine shared by both home tiles. Returns handlers to spread
+// on the tile <button>, a `removing` flag, and `wasLong()` to suppress the click
+// that immediately follows a long-press (so a quick tap still navigates).
+function usePinHold() {
+  var _r = useState(false), removing = _r[0], setRemoving = _r[1];
+  var holdTimer = useRef<number | null>(null);
+  var longFired = useRef(false);
+  function clearHold() { if (holdTimer.current !== null) { window.clearTimeout(holdTimer.current); holdTimer.current = null; } }
+  var handlers = {
+    onPointerDown: function() { longFired.current = false; clearHold(); holdTimer.current = window.setTimeout(function() { longFired.current = true; setRemoving(true); }, 2000); },
+    onPointerUp: clearHold,
+    onPointerCancel: clearHold,
+    onPointerLeave: function() { clearHold(); setRemoving(false); },
+  };
+  function wasLong() { if (longFired.current) { longFired.current = false; return true; } return false; }
+  return { removing, setRemoving, handlers, wasLong };
+}
+
+// CSS (injected once per home) that reveals the heart on tile hover.
+var HOME_PIN_CSS = ".home-pinhost:hover .home-heart{opacity:1 !important}.home-heart:hover{filter:brightness(1.18)}";
+
+// Empty-state tile for the Favorites section: a dashed "pin from any category"
+// hint shown when the user has no pins yet. Matches the grid tile footprint.
+function HomeFavGhost() {
+  return <div style={{
+    display: "grid", placeItems: "center", minHeight: 120, borderRadius: 14,
+    border: "1px dashed rgba(255,255,255,0.20)", background: "rgba(255,255,255,0.02)",
+    fontFamily: ft, color: C.txm, textAlign: "center", padding: "0 14px",
+  }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 9 }}>
+      <Heart size={20} strokeWidth={1.8} />
+      <span style={{ fontFamily: mn, fontSize: 9.5, letterSpacing: 1.6, textTransform: "uppercase" }}>Tap the heart on any tool to pin it here</span>
+    </div>
+  </div>;
+}
+
 function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
   var userCtx = useUser();
   var canDocu = canUseDocuDesign(userCtx.user);
@@ -1658,8 +1832,13 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
     sections[sections.length - 1].tiles.unshift({ id: "tasks", label: "Task Board", sub: "Daily planner + Focus Mode", Icon: CheckSquare });
   }
 
+  // Site-wide ordering: Recently used → Favorites → the system sections above.
+  var owner = (userCtx.user && userCtx.user.name) || "";
+  var hp = useHomePrefs(owner);
+  var organized = organizeHome(sections, hp.pins, hp.recent);
+
   return <div style={{ minHeight: "100%", padding: "80px 0 64px", position: "relative" }}>
-    <style dangerouslySetInnerHTML={{ __html: "@keyframes ssRise{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}@keyframes ssShim{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}.ss-headline{background:linear-gradient(120deg,#F7B041 0%,#26C9D8 50%,#F7B041 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:ssShim 8s ease-in-out infinite}" }} />
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes ssRise{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}@keyframes ssShim{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}.ss-headline{background:linear-gradient(120deg,#F7B041 0%,#26C9D8 50%,#F7B041 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:ssShim 8s ease-in-out infinite}" + HOME_PIN_CSS }} />
 
     {/* Hero — given room to breathe + a soft lift glow behind the welcome */}
     <div style={{ animation: "ssRise 0.5s ease forwards", opacity: 0, marginBottom: 64, position: "relative" }}>
@@ -1679,8 +1858,8 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
       <div style={{ marginTop: 34, height: 1, background: "linear-gradient(90deg, " + C.amber + "55, rgba(255,255,255,0.07) 38%, transparent 80%)" }} />
     </div>
 
-    {/* Sections */}
-    {sections.map(function(section, sIdx) {
+    {/* Sections — Recently used + Favorites lead, then the system grid */}
+    {organized.map(function(section, sIdx) {
       return <div key={section.key} style={{ marginBottom: 44, animation: "ssRise 0.5s ease " + (0.15 + sIdx * 0.08) + "s forwards", opacity: 0 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginBottom: 16, paddingLeft: 4 }}>
           <span style={{ width: 4, height: 18, borderRadius: 2, background: section.color, boxShadow: "0 0 12px " + section.color + "55, 0 0 24px " + section.color + "20", display: "inline-block", alignSelf: "center" }} />
@@ -1689,8 +1868,9 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
           {section.tiles.map(function(tile) {
-            return <SplashTile key={tile.id} tile={tile} color={section.color} onNavigate={onNavigate} />;
+            return <SplashTile key={tile.id} tile={tile} color={section.color} owner={owner} onNavigate={onNavigate} />;
           })}
+          {section.key === "__fav" && section.tiles.length === 0 ? <HomeFavGhost /> : null}
         </div>
       </div>;
     })}
@@ -1709,13 +1889,19 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
 // the same tool set the Original home uses. The auto-hide sidebar is supplied
 // by the hub shell — this renders only the main column. Only shown when the
 // active theme is "stock"; Classic keeps the Original SplashScreen untouched.
-function CTile({ tile, color, index, onNavigate }: { tile: { id: string; label: string; sub: string; Icon: LucideIcon; href?: string; badge?: string }; color: string; index: number; onNavigate: (id: string) => void }) {
+function CTile({ tile, color, index, owner, onNavigate }: { tile: { id: string; label: string; sub: string; Icon: LucideIcon; href?: string; badge?: string }; color: string; index: number; owner: string; onNavigate: (id: string) => void }) {
   var _h = useState(false), hov = _h[0], setHov = _h[1];
-  var click = function() { if (tile.href) window.open(tile.href, "_blank"); else onNavigate(tile.id); };
+  var pin = usePinHold();
+  var pinned = isPinned(owner, tile.id);
+  var click = function() { if (pin.wasLong()) return; if (tile.href) window.open(tile.href, "_blank"); else onNavigate(tile.id); };
   return <button
+    className="home-pinhost"
     onClick={click}
     onMouseEnter={function() { setHov(true); }}
-    onMouseLeave={function() { setHov(false); }}
+    onMouseLeave={function() { setHov(false); pin.handlers.onPointerLeave(); }}
+    onPointerDown={pin.handlers.onPointerDown}
+    onPointerUp={pin.handlers.onPointerUp}
+    onPointerCancel={pin.handlers.onPointerCancel}
     style={{
       position: "relative", width: "100%", textAlign: "left", cursor: "pointer",
       padding: 22, borderRadius: 18,
@@ -1729,6 +1915,9 @@ function CTile({ tile, color, index, onNavigate }: { tile: { id: string; label: 
       fontFamily: ft,
     }}
   >
+    {pin.removing
+      ? <RemoveBadge owner={owner} id={tile.id} onDone={function() { pin.setRemoving(false); }} />
+      : <PinHeart owner={owner} id={tile.id} pinned={pinned} color={color} />}
     {tile.badge === "NEW"
       ? <span title="New" style={{ position: "absolute", top: 17, right: 17, width: 9, height: 9, borderRadius: "50%", background: "radial-gradient(circle at 32% 30%, color-mix(in srgb," + color + " 30%, #fff), " + color + " 72%)", boxShadow: "0 0 5px " + color + ", 0 0 13px " + color + "99, inset 0 0 2px rgba(255,255,255,0.55)" }} />
       : tile.badge ? <span style={{ position: "absolute", top: 15, right: 15, fontFamily: mn, fontSize: 8, letterSpacing: 0.5, textTransform: "uppercase", color: color, border: "1px solid " + color + "73", borderRadius: 999, padding: "2px 7px" }}>{tile.badge}</span> : null}
@@ -1784,6 +1973,14 @@ function StockHome({ onNavigate }: { onNavigate: (id: string) => void }) {
     sections = sections.map(function(s) { return { key: s.key, label: s.label, sub: s.sub, color: s.color, tiles: s.tiles.filter(function(t) { return ANALYST_ALLOWED.includes(t.id); }) }; }).filter(function(s) { return s.tiles.length > 0; });
   }
 
+  // Site-wide ordering: Recently used → Favorites → the system sections above.
+  // For analyst, drop any recent/pin that isn't an allowed tool.
+  var owner = (userCtx.user && userCtx.user.name) || "";
+  var hp = useHomePrefs(owner);
+  var hpPins = analyst ? hp.pins.filter(function(id) { return ANALYST_ALLOWED.includes(id); }) : hp.pins;
+  var hpRecent = analyst ? hp.recent.filter(function(id) { return ANALYST_ALLOWED.includes(id); }) : hp.recent;
+  var organized = organizeHome(sections, hpPins, hpRecent);
+
   var fullName = (userCtx.user && userCtx.user.name) || "";
   var first = fullName ? fullName.split(/\s+/)[0] : "there";
   var initials = fullName ? fullName.split(/\s+/).map(function(p) { return p[0]; }).join("").slice(0, 2).toUpperCase() : "P";
@@ -1795,7 +1992,7 @@ function StockHome({ onNavigate }: { onNavigate: (id: string) => void }) {
   var grad = "linear-gradient(100deg, #D1334A, #905CCB 55%, #2E6BE6)";
 
   return <div style={{ position: "relative", padding: "0 6px" }}>
-    <style dangerouslySetInnerHTML={{ __html: "@keyframes shShim{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}@keyframes shBob{50%{transform:translateY(5px)}}@keyframes ctilein{to{opacity:1;transform:translateY(0)}}.sh-welcome{-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;background-size:200% auto;animation:shShim 7s linear infinite}" }} />
+    <style dangerouslySetInnerHTML={{ __html: "@keyframes shShim{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}@keyframes shBob{50%{transform:translateY(5px)}}@keyframes ctilein{to{opacity:1;transform:translateY(0)}}.sh-welcome{-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;background-size:200% auto;animation:shShim 7s linear infinite}" + HOME_PIN_CSS }} />
 
     {/* Hero — fills the viewport; tools live below the fold */}
     <section style={{ minHeight: "calc(100vh - 40px)", display: "flex", flexDirection: "column", position: "relative", padding: "20px 0 30px" }}>
@@ -1831,7 +2028,7 @@ function StockHome({ onNavigate }: { onNavigate: (id: string) => void }) {
       <p style={{ color: C.txm, fontSize: 14.5, lineHeight: 1.55, maxWidth: 560, margin: "0 0 38px" }}>
         Hover the rail to peek it, dwell or drag the edge to lock it open, hover a category for just its apps — and click any tool to open it.
       </p>
-      {sections.map(function(section) {
+      {organized.map(function(section) {
         return <div key={section.key} style={{ marginBottom: 32 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "0 0 15px" }}>
             <span style={{ width: 4, height: 18, borderRadius: 2, background: section.color, boxShadow: "0 0 8px " + section.color, display: "inline-block" }} />
@@ -1840,8 +2037,9 @@ function StockHome({ onNavigate }: { onNavigate: (id: string) => void }) {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(248px, 1fr))", gap: 16 }}>
             {section.tiles.map(function(tile, i) {
-              return <CTile key={tile.id} tile={tile} color={section.color} index={i} onNavigate={onNavigate} />;
+              return <CTile key={tile.id} tile={tile} color={section.color} index={i} owner={owner} onNavigate={onNavigate} />;
             })}
+            {section.key === "__fav" && section.tiles.length === 0 ? <HomeFavGhost /> : null}
           </div>
         </div>;
       })}
@@ -1852,22 +2050,29 @@ function StockHome({ onNavigate }: { onNavigate: (id: string) => void }) {
 // One tile in the director home grid. Hover lifts + glows in the section's
 // accent. External tools (href) open in a new tab; everything else is an
 // in-app sec navigation.
-function SplashTile({ tile, color, onNavigate }: { tile: { id: string; label: string; sub: string; Icon: LucideIcon; href?: string }; color: string; onNavigate: (id: string) => void }) {
+function SplashTile({ tile, color, owner, onNavigate }: { tile: { id: string; label: string; sub: string; Icon: LucideIcon; href?: string }; color: string; owner: string; onNavigate: (id: string) => void }) {
   var _hov = useState(false), hov = _hov[0], setHov = _hov[1];
   // Off-Classic themes use a translucent, blurred panel (mockup .ctile) with a
   // per-accent tint so the aurora reads behind/between tiles. Classic keeps the
   // flat opaque hex — byte-identical.
   var nc = useTheme().theme !== "classic";
-  var click = function() { if (tile.href) window.open(tile.href, "_blank"); else onNavigate(tile.id); };
+  var pin = usePinHold();
+  var pinned = isPinned(owner, tile.id);
+  var click = function() { if (pin.wasLong()) return; if (tile.href) window.open(tile.href, "_blank"); else onNavigate(tile.id); };
   var restBg = nc ? "linear-gradient(160deg, rgba(255,255,255,0.03), transparent), rgba(13,12,22,0.72)" : "#0A0A0F";
   var hovBg = nc ? "linear-gradient(160deg, " + color + "20, " + color + "08), rgba(16,15,26,0.80)" : "linear-gradient(135deg, " + color + "12, " + color + "04)";
   var restChipBg = nc ? color + "16" : "#0F0F1A";
   var restChipBorder = nc ? color + "33" : "rgba(255,255,255,0.06)";
   return <button
+    className="home-pinhost"
     onClick={click}
     onMouseEnter={function() { setHov(true); }}
-    onMouseLeave={function() { setHov(false); }}
+    onMouseLeave={function() { setHov(false); pin.handlers.onPointerLeave(); }}
+    onPointerDown={pin.handlers.onPointerDown}
+    onPointerUp={pin.handlers.onPointerUp}
+    onPointerCancel={pin.handlers.onPointerCancel}
     style={{
+      position: "relative",
       width: "100%", textAlign: "left", cursor: "pointer",
       background: hov ? hovBg : restBg,
       backdropFilter: nc ? "blur(7px)" : undefined,
@@ -1881,6 +2086,9 @@ function SplashTile({ tile, color, onNavigate }: { tile: { id: string; label: st
       fontFamily: ft,
     }}
   >
+    {pin.removing
+      ? <RemoveBadge owner={owner} id={tile.id} onDone={function() { pin.setRemoving(false); }} />
+      : <PinHeart owner={owner} id={tile.id} pinned={pinned} color={color} />}
     <div style={{
       width: 44, height: 44, borderRadius: 11,
       background: hov ? color + "1F" : restChipBg,
@@ -2411,6 +2619,12 @@ export default function App() {
   // into SA Weekly on app load and bypassed the home screen entirely.
   var _s = useState("home"), sec = _s[0], setSec = _s[1];
   var userCtx = useUser();
+  // Record every tool open so all homes can surface "Recently used" (most-recent
+  // first), site-wide. `home` and empty are ignored by pushRecent.
+  useEffect(function() {
+    var owner = userCtx.user ? userCtx.user.name : "";
+    if (owner) pushRecent(owner, sec);
+  }, [sec, userCtx.user]);
   // Theme-conditional nav: Glass → top bar (no sidebar, full-width content);
   // Classic/Stock → smart sidebar (dock 240 / collapse 72, peek on hover).
   var themeCtx = useTheme();
@@ -2656,8 +2870,8 @@ export default function App() {
         {sec === "home" && (
           themeCtx.theme === "glass"
             ? (themeCtx.glassMat === "depth"
-                ? <GlassDepthHome onNavigate={setSec} userName={userCtx.user ? userCtx.user.name : ""} />
-                : <GlassClarityHome onNavigate={setSec} userName={userCtx.user ? userCtx.user.name : ""} />)
+                ? <GlassDepthHome onNavigate={setSec} userName={userCtx.user ? userCtx.user.name : ""} allow={analyst ? ANALYST_ALLOWED : undefined} />
+                : <GlassClarityHome onNavigate={setSec} userName={userCtx.user ? userCtx.user.name : ""} allow={analyst ? ANALYST_ALLOWED : undefined} />)
             : themeCtx.theme === "stock"
               ? <StockHome onNavigate={setSec} />
               : (analyst ? <AnalystSplash onNavigate={setSec} /> : <SplashScreen onNavigate={setSec} />)
