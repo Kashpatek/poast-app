@@ -38,6 +38,7 @@ import { D as C, PL, ft, gf, mn } from "./shared-constants";
 import { useUser, isAnalyst, canUseDocuDesign, isAkash } from "./user-context";
 import GlassClarityHome from "./home-glass-clarity";
 import GlassDepthHome from "./home-glass-depth";
+import GlassDock from "./home-glass-dock";
 import StockBackdrop from "./stock-backdrop";
 import { useTheme } from "./theme-context";
 import { OnboardingHost } from "./onboarding/onboarding-host";
@@ -2464,6 +2465,10 @@ export default function App() {
         position:fixed resolves to the viewport, not the .poast-fadein
         transform's containing block. */}
     {sec === "assets" && <AssetLibraryEmbed left={contentLeft} top={contentTop} />}
+    {/* Glass Hover bar — the floating liquid-glass dock shown on both Reflect
+        homes (Clarity + Depth). Hoisted out of the transformed content wrapper
+        so its position:fixed resolves to the viewport (same as Asset Library). */}
+    {isGlass && sec === "home" && <GlassDock onNavigate={setSec} active={sec} />}
     <div style={{ marginLeft: contentLeft, marginTop: contentTop, position: "relative", zIndex: 1, display: sec === "assets" ? "none" : "block", transition: "margin-left 0.22s cubic-bezier(0.3,0.7,0.3,1)" }} className="poast-fadein">
       <div style={{ width: "100%", margin: "0 auto", padding: "0 32px" }}>
         <div key={sec} className="poast-section" style={{ paddingBottom: 60 }}>
