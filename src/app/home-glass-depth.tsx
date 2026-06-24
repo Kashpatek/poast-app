@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Zap,
   LayoutGrid,
@@ -14,43 +14,93 @@ import {
   Film,
   Type,
   Library,
+  Star,
+  History,
+  Wand2,
+  SatelliteDish,
+  Scissors,
+  Table2,
+  Bot,
+  SquareCheckBig,
+  Shield,
+  Settings,
+  Send,
+  Rocket,
+  ShieldCheck,
+  Plus,
+  PenLine,
+  Megaphone,
+  TrendingUp,
+  Calendar,
+  ChevronDown,
   type LucideIcon,
 } from "lucide-react";
 import { D, ft, gf, mn } from "./shared-constants";
 
-// ─── Tool model ──────────────────────────────────────────────────────────────
-// The full roster lives here; the ambient home surfaces a focused row of the
-// most-used five (those without an href open in-app via onNavigate; the rest
-// open in a new tab). Each carries its own accent so the glass pills read
-// "cosmic" rather than monochrome.
-interface Tool {
-  id: string;
-  label: string;
-  Icon: LucideIcon;
-  accent: string;
-  href?: string;
-}
-
-const ALL_TOOLS: Tool[] = [
-  { id: "sloptop", label: "Slop Top", Icon: Zap, accent: D.amber },
-  { id: "carousel", label: "Carousel", Icon: LayoutGrid, accent: D.violet },
-  { id: "captions", label: "Capper", Icon: Captions, accent: D.cyan },
-  { id: "weekly", label: "SA Weekly", Icon: Radio, accent: D.coral },
-  { id: "fk", label: "Fab Knowledge", Icon: Headphones, accent: D.teal },
-  { id: "chart2", label: "POAST Studio", Icon: GanttChart, accent: D.amber, href: "/charts" },
-  { id: "news", label: "News Flow", Icon: Newspaper, accent: D.blue },
-  { id: "intelligence-suite", label: "Intelligence", Icon: Brain, accent: D.teal, href: "/intelligence-suite" },
-  { id: "p2p", label: "Press to Premier", Icon: Clapperboard, accent: D.violet },
-  { id: "broll", label: "B-Roll", Icon: Film, accent: D.coral },
-  { id: "copy-studio", label: "CopySTUDIO", Icon: Type, accent: D.cyan, href: "/copy-studio" },
-  { id: "assets", label: "Asset Library", Icon: Library, accent: D.blue },
+// ─── Stat + shelf model (ambient "Today's shelves") ──────────────────────────
+// The ambient home shows contextual workspace stats in the hero, then a row of
+// horizontally-scrollable shelves below — a faithful port of the mockup
+// ambient.html (~/poast-welcome-3.0 concepts/ambient.html "Today's shelves").
+interface Stat { Icon: LucideIcon; value: string; label: string; accent: string; }
+const STATS: Stat[] = [
+  { Icon: PenLine,    value: "3",    label: "drafts",              accent: D.violet },
+  { Icon: Calendar,   value: "12",   label: "scheduled this week", accent: D.blue },
+  { Icon: Megaphone,  value: "2",    label: "live flights",        accent: D.coral },
+  { Icon: TrendingUp, value: "+18%", label: "reach",               accent: D.cyan },
 ];
 
-// The five quick-access tiles shown in the ambient row.
-const QUICK_IDS = ["sloptop", "carousel", "captions", "weekly", "intelligence-suite"];
-const QUICK_TOOLS: Tool[] = QUICK_IDS
-  .map((id) => ALL_TOOLS.find((t) => t.id === id))
-  .filter((t): t is Tool => Boolean(t));
+interface ShelfTile { name: string; sub: string; Icon: LucideIcon; status: string; badge?: "new" | "akash"; nav?: string; href?: string; }
+interface Shelf { key: string; label: string; ring: string; Icon: LucideIcon; count: string; desc: string; tiles: ShelfTile[]; ghost?: boolean; }
+
+const SHELVES: Shelf[] = [
+  { key: "fav", label: "Favorites", ring: D.amber, Icon: Star, count: "pinned", desc: "Set from your home · unique to you", ghost: true, tiles: [
+    { name: "MarketingSUITE", sub: "The launch cockpit", Icon: SatelliteDish, status: "Pinned", badge: "new", href: "/marketing-suite" },
+    { name: "Slop Top", sub: "Brief gen + arxiv.lol", Icon: Zap, status: "Most used", nav: "sloptop" },
+    { name: "SA Weekly", sub: "Episode pipeline", Icon: Radio, status: "EP18 soon", nav: "weekly" },
+    { name: "Chart Maker", sub: "Quick charts", Icon: GanttChart, status: "12 saved", href: "/charts" },
+    { name: "Daily Brief", sub: "Standup digest", Icon: Newspaper, status: "Updated 6:00", nav: "news" },
+  ]},
+  { key: "recent", label: "Recently used", ring: "#E8E6EE", Icon: History, count: "this week", desc: "Your latest on this device", tiles: [
+    { name: "Production Studio", sub: "Full post suite", Icon: Clapperboard, status: "2h ago", nav: "production-studio" },
+    { name: "Trends", sub: "What's rising", Icon: TrendingUp, status: "Yesterday", href: "/intelligence-suite" },
+    { name: "Carousel", sub: "Instagram carousels", Icon: LayoutGrid, status: "Yesterday", nav: "carousel" },
+    { name: "Intelligence", sub: "Signals & research", Icon: Brain, status: "Mon", href: "/intelligence-suite" },
+    { name: "Clip Engine", sub: "Cut & caption", Icon: Scissors, status: "Mon", nav: "production-studio" },
+  ]},
+  { key: "produce", label: "Produce", ring: D.amber, Icon: Wand2, count: "9 tools", desc: "Make the content", tiles: [
+    { name: "Slop Top", sub: "Brief gen", Icon: Zap, status: "Most used", nav: "sloptop" },
+    { name: "Carousel", sub: "Carousels", Icon: LayoutGrid, status: "3 templates", nav: "carousel" },
+    { name: "Capper", sub: "Captions", Icon: Captions, status: "Auto-fit", nav: "captions" },
+    { name: "Chart Maker", sub: "Quick charts", Icon: GanttChart, status: "12 saved", href: "/charts" },
+    { name: "POAST Studio", sub: "Charts · tables", Icon: Table2, status: "Pro", href: "/charts" },
+    { name: "CopySTUDIO", sub: "Draft · voice", Icon: Type, status: "Brand voice", href: "/copy-studio" },
+    { name: "Assets", sub: "Brand library", Icon: Library, status: "248 files", nav: "assets" },
+    { name: "DesignStudio", sub: "Docs · graphics", Icon: Wand2, status: "New", href: "/design-studio" },
+    { name: "B-Roll", sub: "B-roll library", Icon: Film, status: "Library", nav: "broll" },
+  ]},
+  { key: "podcast", label: "Podcast", ring: D.coral, Icon: Radio, count: "4 tools", desc: "SA Weekly + FK", tiles: [
+    { name: "Fab Knowledge", sub: "Interview brain", Icon: Headphones, status: "Indexed", nav: "fk" },
+    { name: "SA Weekly", sub: "Episode pipeline", Icon: Radio, status: "EP18", nav: "weekly" },
+    { name: "Clip Engine", sub: "Cut & caption", Icon: Scissors, status: "6 ready", nav: "production-studio" },
+    { name: "Production Studio", sub: "Full post suite", Icon: Clapperboard, status: "3 stages left", nav: "production-studio" },
+  ]},
+  { key: "prepare", label: "Prepare", ring: D.teal, Icon: Brain, count: "3 tools", desc: "Research & signals", tiles: [
+    { name: "Intelligence", sub: "Signals", Icon: Brain, status: "Live", href: "/intelligence-suite" },
+    { name: "Trends", sub: "What's rising", Icon: TrendingUp, status: "7 hot topics", href: "/intelligence-suite" },
+    { name: "Daily Brief", sub: "Standup digest", Icon: Newspaper, status: "Updated 6:00", nav: "news" },
+  ]},
+  { key: "premier", label: "Premier", ring: D.violet, Icon: Rocket, count: "2 tools", desc: "Launch & rollout", tiles: [
+    { name: "Press to Premier", sub: "Launch rollouts", Icon: Clapperboard, status: "Live in 2d", nav: "p2p" },
+    { name: "Outreach", sub: "Cold email + lists", Icon: Send, status: "Drafts", nav: "outreach" },
+  ]},
+  { key: "admin", label: "Admin", ring: D.blue, Icon: ShieldCheck, count: "5 tools", desc: "Workspace", tiles: [
+    { name: "MarketingSUITE", sub: "The cockpit", Icon: SatelliteDish, status: "All systems ok", badge: "new", href: "/marketing-suite" },
+    { name: "AI Training", sub: "Brand voice", Icon: Bot, status: "Trained", href: "/ai-training" },
+    { name: "Task Board", sub: "Master queue", Icon: SquareCheckBig, status: "9 open", nav: "tasks" },
+    { name: "Admin Dashboard", sub: "Files · users", Icon: Shield, status: "62% of plan", badge: "akash", href: "/marketing-suite" },
+    { name: "Settings", sub: "Workspace config", Icon: Settings, status: "Brand defaults", nav: "settings" },
+  ]},
+];
 
 const DAYS = [
   "SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY",
@@ -102,25 +152,20 @@ export default function GlassDepthHome({
 
   const firstName = (userName || "").trim().split(/\s+/)[0] || "there";
 
-  function openTool(tool: Tool) {
-    if (tool.href) {
-      window.open(tool.href, "_blank");
-    } else {
-      onNavigate(tool.id);
-    }
+  const shelvesRef = useRef<HTMLDivElement | null>(null);
+  function toShelves() {
+    if (shelvesRef.current) shelvesRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  function goTile(t: ShelfTile) {
+    if (t.href) window.open(t.href, "_blank");
+    else if (t.nav) onNavigate(t.nav);
   }
 
   return (
     <div
       style={{
         position: "relative",
-        minHeight: "calc(100vh - 96px)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        textAlign: "center",
-        padding: "72px 0 80px",
+        width: "100%",
         isolation: "isolate",
         overflow: "hidden",
       }}
@@ -152,6 +197,17 @@ export default function GlassDepthHome({
 .gd-shoot { position: absolute; top: 9%; left: 6%; width: 170px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.85) 88%, #fff 100%); filter: drop-shadow(0 0 6px rgba(255,255,255,.85)) drop-shadow(0 0 14px rgba(170,200,255,.5)); opacity: 0; transform: rotate(20deg); animation: gdShoot 11s ease-in 2.5s infinite; }
 .gd-shoot2 { top: 5%; left: 36%; width: 130px; animation: gdShoot2 14s ease-in 8s infinite; }
 @media (prefers-reduced-motion: reduce) { .gd-shoot, .gd-shoot2 { animation: none !important; opacity: 0 !important; } }
+.gd-track { display: flex; gap: 14px; overflow-x: auto; overflow-y: hidden; padding: 6px 2px 12px; scroll-behavior: smooth; scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg, transparent, #000 2.5%, #000 97.5%, transparent); mask-image: linear-gradient(90deg, transparent, #000 2.5%, #000 97.5%, transparent); }
+.gd-track::-webkit-scrollbar { display: none; }
+.gd-tile { position: relative; flex: 0 0 auto; width: 236px; min-height: 120px; border-radius: 18px; padding: 15px 16px 14px; text-align: left; cursor: pointer; overflow: hidden; transition: transform .26s cubic-bezier(.2,.7,.3,1), border-color .26s, box-shadow .26s; }
+.gd-tile:hover { transform: translateY(-5px); }
+.gd-cue { display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; }
+.gd-mouse { width: 22px; height: 34px; border-radius: 12px; border: 1.5px solid rgba(255,255,255,.32); position: relative; }
+.gd-mouse::before { content: ''; position: absolute; top: 6px; left: 50%; width: 3px; height: 6px; border-radius: 2px; background: #B98BE6; transform: translateX(-50%); animation: gdMouse 1.7s ease-in-out infinite; }
+@keyframes gdMouse { 0% { opacity: 0; transform: translate(-50%, 0); } 30% { opacity: 1; } 65% { opacity: 1; transform: translate(-50%, 9px); } 100% { opacity: 0; transform: translate(-50%, 11px); } }
+.gd-chev { animation: gdBob 1.7s ease-in-out infinite; }
+@keyframes gdBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
+@media (prefers-reduced-motion: reduce) { .gd-mouse::before, .gd-chev { animation: none !important; } }
 `,
         }}
       />
@@ -211,6 +267,21 @@ export default function GlassDepthHome({
           pointerEvents: "none",
         }}
       />
+
+      {/* ════ HERO ════ */}
+      <section
+        style={{
+          position: "relative",
+          zIndex: 0,
+          minHeight: "calc(100vh - 116px)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          textAlign: "center",
+          padding: "44px 16px 78px",
+        }}
+      >
 
       {/* ── Eyebrow ─────────────────────────────────────────────────────── */}
       <div
@@ -312,92 +383,159 @@ export default function GlassDepthHome({
           animation: "gdHomeRise 1s cubic-bezier(.2,.7,.3,1) 0.52s forwards",
         }}
       >
-        Your command center is ready — a calm glance at everything in motion.
+        Your command center is ready — a calm glance at everything in motion, just below.
       </p>
 
-      {/* ── Quick-access glass pills ────────────────────────────────────── */}
+      {/* ── Contextual stat pills ───────────────────────────────────────── */}
       <div
         style={{
           display: "flex",
-          gap: 14,
-          marginTop: 38,
+          gap: 12,
+          marginTop: 34,
           flexWrap: "wrap",
           justifyContent: "center",
           opacity: 0,
           animation: "gdHomeRise 1s cubic-bezier(.2,.7,.3,1) 0.62s forwards",
         }}
       >
-        {QUICK_TOOLS.map((tool) => {
-          const Icon = tool.Icon;
+        {STATS.map((s) => {
+          const SIcon = s.Icon;
           return (
-            <button
-              key={tool.id}
-              type="button"
-              onClick={() => openTool(tool)}
-              title={tool.label}
+            <div
+              key={s.label}
               style={{
-                position: "relative",
                 display: "flex",
-                flexDirection: "column",
                 alignItems: "center",
                 gap: 11,
-                width: 124,
-                padding: "18px 14px 16px",
-                borderRadius: 18,
-                cursor: "pointer",
+                padding: "11px 17px 11px 13px",
+                borderRadius: 14,
                 background: GLASS_BG,
                 backdropFilter: GLASS_BLUR,
                 WebkitBackdropFilter: GLASS_BLUR,
                 border: GLASS_BORDER,
-                boxShadow: GLASS_INSET + ", 0 22px 52px rgba(0,0,0,0.45)",
-                color: D.tx,
-                transition:
-                  "transform .26s cubic-bezier(.2,.7,.3,1), border-color .26s, box-shadow .26s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-6px)";
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.26)";
-                e.currentTarget.style.boxShadow =
-                  GLASS_INSET +
-                  `, 0 26px 46px -18px ${tool.accent}55, 0 22px 52px rgba(0,0,0,0.5)`;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)";
-                e.currentTarget.style.boxShadow =
-                  GLASS_INSET + ", 0 22px 52px rgba(0,0,0,0.45)";
+                boxShadow: GLASS_INSET + ", 0 16px 40px rgba(0,0,0,0.4)",
               }}
             >
               <span
                 style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 13,
+                  width: 32,
+                  height: 32,
+                  borderRadius: 9,
                   display: "grid",
                   placeItems: "center",
-                  background: `radial-gradient(70% 70% at 50% 28%, ${tool.accent}33, rgba(255,255,255,0.04) 72%)`,
-                  border: `1px solid ${tool.accent}40`,
-                  color: tool.accent,
+                  flex: "none",
+                  background: `radial-gradient(70% 70% at 50% 28%, ${s.accent}33, rgba(255,255,255,0.04) 72%)`,
+                  border: `1px solid ${s.accent}44`,
+                  color: s.accent,
                 }}
               >
-                <Icon size={21} strokeWidth={1.7} />
+                <SIcon size={16} strokeWidth={1.9} />
               </span>
-              <span
-                style={{
-                  fontFamily: gf,
-                  fontWeight: 600,
-                  fontSize: 12.5,
-                  letterSpacing: "0.005em",
-                  lineHeight: 1.15,
-                  color: D.tx,
-                }}
-              >
-                {tool.label}
+              <span style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                <span style={{ fontFamily: gf, fontWeight: 700, fontSize: 19, color: D.tx, lineHeight: 1 }}>{s.value}</span>
+                <span style={{ fontFamily: ft, fontSize: 12.5, color: D.txm }}>{s.label}</span>
               </span>
-            </button>
+            </div>
           );
         })}
       </div>
+
+      {/* ── Scroll cue ──────────────────────────────────────────────────── */}
+      <div
+        className="gd-cue"
+        onClick={toShelves}
+        style={{ position: "absolute", left: "50%", bottom: 18, transform: "translateX(-50%)", opacity: 0, animation: "gdHomeRise 1s ease 1.1s forwards" }}
+      >
+        <div className="gd-mouse" />
+        <ChevronDown className="gd-chev" size={16} color={D.txd} />
+        <span style={{ fontFamily: mn, fontSize: 9.5, letterSpacing: "0.22em", textTransform: "uppercase", color: D.txd }}>
+          Scroll for your shelves
+        </span>
+      </div>
+      </section>
+
+      {/* ════ TODAY'S SHELVES ════ */}
+      <section
+        ref={shelvesRef}
+        style={{ position: "relative", zIndex: 0, width: "100%", maxWidth: 1320, margin: "0 auto", padding: "6px clamp(16px,5vw,64px) 52px" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}>
+          <span style={{ fontFamily: mn, fontSize: 11, letterSpacing: "0.26em", textTransform: "uppercase", color: D.txm }}>Today&apos;s shelves</span>
+          <span style={{ flex: 1, height: 1, background: "linear-gradient(90deg, rgba(255,255,255,.14), transparent)" }} />
+        </div>
+
+        {SHELVES.map((shelf) => {
+          const SIcon = shelf.Icon;
+          return (
+            <div key={shelf.key} style={{ marginBottom: 30 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 13, padding: "0 2px", flexWrap: "wrap" }}>
+                <span style={{ width: 30, height: 30, borderRadius: 9, display: "grid", placeItems: "center", flex: "none", background: `color-mix(in srgb, ${shelf.ring} 18%, transparent)`, border: `1px solid ${shelf.ring}55`, color: shelf.ring }}>
+                  <SIcon size={15} strokeWidth={1.9} />
+                </span>
+                <span style={{ fontFamily: gf, fontWeight: 700, fontSize: 16, color: D.tx }}>{shelf.label}</span>
+                <span style={{ fontFamily: mn, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: shelf.ring, border: `1px solid ${shelf.ring}44`, borderRadius: 6, padding: "3px 7px" }}>{shelf.count}</span>
+                <span style={{ fontFamily: ft, fontSize: 12.5, color: D.txd, marginLeft: 2 }}>{shelf.desc}</span>
+              </div>
+
+              <div className="gd-track">
+                {shelf.tiles.map((t) => {
+                  const TIcon = t.Icon;
+                  return (
+                    <div
+                      key={t.name}
+                      className="gd-tile"
+                      onClick={() => goTile(t)}
+                      title={t.href ? t.name + " — opens in a new tab" : t.name}
+                      style={{ background: GLASS_BG, backdropFilter: GLASS_BLUR, WebkitBackdropFilter: GLASS_BLUR, border: GLASS_BORDER, boxShadow: GLASS_INSET + ", 0 18px 44px rgba(0,0,0,0.42)" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = shelf.ring + "66"; e.currentTarget.style.boxShadow = GLASS_INSET + `, 0 24px 44px -16px ${shelf.ring}55, 0 18px 44px rgba(0,0,0,0.5)`; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"; e.currentTarget.style.boxShadow = GLASS_INSET + ", 0 18px 44px rgba(0,0,0,0.42)"; }}
+                    >
+                      <span style={{ position: "absolute", top: 0, left: 14, right: 14, height: 2, borderRadius: 2, background: `linear-gradient(90deg, transparent, ${shelf.ring}, transparent)`, opacity: 0.55 }} />
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
+                        <span style={{ width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center", flex: "none", background: `radial-gradient(70% 70% at 50% 28%, ${shelf.ring}33, rgba(255,255,255,0.04) 72%)`, border: `1px solid ${shelf.ring}44`, color: shelf.ring }}>
+                          <TIcon size={17} strokeWidth={1.8} />
+                        </span>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                            <span style={{ fontFamily: gf, fontWeight: 600, fontSize: 15, color: D.tx, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</span>
+                            {t.badge === "new" && <span style={{ fontFamily: mn, fontSize: 7.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#fff", background: shelf.ring, borderRadius: 5, padding: "2px 5px" }}>new</span>}
+                            {t.badge === "akash" && <span style={{ fontFamily: mn, fontSize: 7.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: shelf.ring, border: `1px solid ${shelf.ring}66`, borderRadius: 5, padding: "2px 5px" }}>akash</span>}
+                          </div>
+                          <div style={{ fontFamily: ft, fontSize: 12, color: D.txm, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.sub}</div>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 13 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", flex: "none", background: shelf.ring, boxShadow: `0 0 6px ${shelf.ring}` }} />
+                        <span style={{ fontFamily: mn, fontSize: 10, letterSpacing: "0.04em", color: D.txm }}>{t.status}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {shelf.ghost && (
+                  <div
+                    className="gd-tile"
+                    onClick={() => onNavigate("assets")}
+                    title="Pin an app"
+                    style={{ display: "grid", placeItems: "center", border: "1px dashed rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.02)" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.42)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)"; }}
+                  >
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: D.txm }}>
+                      <Plus size={20} strokeWidth={1.8} />
+                      <span style={{ fontFamily: mn, fontSize: 9.5, letterSpacing: "0.18em", textTransform: "uppercase" }}>Pin an app</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        <div style={{ textAlign: "center", marginTop: 6, fontFamily: ft, fontSize: 12.5, color: D.txd }}>
+          Swipe a shelf to glance across each category
+        </div>
+      </section>
     </div>
   );
 }

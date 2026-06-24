@@ -294,3 +294,30 @@ export default function StockBackdrop({ bg }: { bg: BgName }) {
     </div>
   );
 }
+
+// ═══ GLASS BACKDROP (Reflect · Clarity) ═══
+// The live liquid-glass refraction backdrop ported from the mockup glass.html
+// `#fluid` canvas (~/poast-welcome-3.0 concepts/glass.html §1–2). Reuses the SAME
+// fbm-smoke shader as the Stock aurora (identical red/blue/violet PAL), then lays
+// the glass.html scrim (radial vignette + vertical fade for legibility) and a
+// grain plane over it. This is what was missing — without it the Reflect/Clarity
+// home floated glass tiles over a flat dark base (the "dark aura page"). Mounted
+// only for Clarity; Depth paints its own night-sky.
+export function GlassBackdrop() {
+  return (
+    <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
+      <FluidCanvas colors={PAL} />
+      {/* scrim — radial vignette + top/bottom vertical fade (glass.html §2.1) */}
+      <div
+        style={{
+          position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none",
+          background:
+            "radial-gradient(120% 90% at 50% 28%, transparent 42%, rgba(6,4,14,.5) 100%)," +
+            "linear-gradient(180deg, rgba(6,4,14,.42) 0%, transparent 22%, transparent 70%, rgba(6,4,14,.5) 100%)",
+        }}
+      />
+      {/* grain — subtle film overlay (glass.html §2.2) */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none", backgroundImage: GRAIN, opacity: 0.16, mixBlendMode: "overlay" }} />
+    </div>
+  );
+}

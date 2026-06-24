@@ -32,14 +32,13 @@ import HubPalette, { type PaletteItem } from "./hub-palette";
 import { BugButton } from "./bug-report";
 import { trackEvent } from "../lib/poast-track";
 
-import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings, Wand, ShieldCheck, Sparkles, BookmarkCheck, ClipboardCheck, TrendingUp, Layers, CheckSquare, Brain, Type, Rocket, Home } from "lucide-react";
+import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings, Wand, ShieldCheck, Sparkles, BookmarkCheck, ClipboardCheck, TrendingUp, Layers, CheckSquare, Brain, Type, Rocket, Home, Sun, Search, Bell, X as XIcon } from "lucide-react";
 type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>;
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
 import { useUser, isAnalyst, canUseDocuDesign, isAkash } from "./user-context";
 import GlassClarityHome from "./home-glass-clarity";
 import GlassDepthHome from "./home-glass-depth";
-import GlassDock from "./home-glass-dock";
-import StockBackdrop from "./stock-backdrop";
+import StockBackdrop, { GlassBackdrop } from "./stock-backdrop";
 import { useTheme } from "./theme-context";
 import { OnboardingHost } from "./onboarding/onboarding-host";
 import { ChartTourTrigger } from "./onboarding/chart-tour-trigger";
@@ -110,6 +109,9 @@ interface SidebarCatItem {
   href?: string;
   // Optional badge label shown to the right (e.g., "BETA")
   badge?: string;
+  // One-line subtitle shown under the label in the glass nav flyout
+  // (mockup .gflyout .fs — e.g. "Brief gen + arxiv.lol").
+  sub?: string;
 }
 
 interface SidebarCat {
@@ -118,6 +120,9 @@ interface SidebarCat {
   glow: string;
   Icon: LucideIcon;   // representative icon for the collapsed (mini) rail
   items: SidebarCatItem[];
+  // Mono uppercase subcaption shown in the glass nav flyout header
+  // (mockup .gflyout .fc — e.g. "MAKE THE CONTENT").
+  sub?: string;
 }
 
 
@@ -800,32 +805,32 @@ function FloatingChippy({ onAsk }: { onAsk: () => void }) {
 
 // ═══ SIDEBAR ═══
 var SIDEBAR_CATS: Record<string, SidebarCat> = {
-  produce: { label: "PRODUCE", color: C.amber, glow: "rgba(247,176,65,", Icon: Clapperboard, items: [
-    { id: "production-studio", l: "ProductionSTUDIO", Icon: Clapperboard, href: "/production-studio", badge: "NEW" },
-    { id: "brainstorm", l: "Brainstorm",     Icon: Lightbulb },
-    { id: "carousel", l: "Carousel",         Icon: LayoutGrid },
-    { id: "chart",    l: "ChartMAKER",       Icon: GanttChart, href: "/charts", badge: "NEW" },
-    { id: "docu",     l: "DesignSTUDIO",     Icon: Wand,       href: "/design-studio", badge: "NEW" },
-    { id: "copy-studio", l: "CopySTUDIO",   Icon: Type,       href: "/copy-studio", badge: "NEW" },
-    { id: "assets",   l: "Asset Library",    Icon: Library },
+  produce: { label: "PRODUCE", color: C.amber, glow: "rgba(247,176,65,", Icon: Clapperboard, sub: "MAKE THE CONTENT", items: [
+    { id: "production-studio", l: "ProductionSTUDIO", Icon: Clapperboard, href: "/production-studio", badge: "NEW", sub: "Full post suite" },
+    { id: "brainstorm", l: "Brainstorm",     Icon: Lightbulb,  sub: "Ideas & angles" },
+    { id: "carousel", l: "Carousel",         Icon: LayoutGrid, sub: "Instagram carousels" },
+    { id: "chart",    l: "ChartMAKER",       Icon: GanttChart, href: "/charts", badge: "NEW", sub: "Quick charts" },
+    { id: "docu",     l: "DesignSTUDIO",     Icon: Wand,       href: "/design-studio", badge: "NEW", sub: "Docs · graphics · motion" },
+    { id: "copy-studio", l: "CopySTUDIO",   Icon: Type,       href: "/copy-studio", badge: "NEW", sub: "Draft · voice · headline" },
+    { id: "assets",   l: "Asset Library",    Icon: Library,    sub: "Brand library" },
   ]},
-  podcast: { label: "PODCAST", color: C.coral, glow: "rgba(224,99,71,", Icon: Headphones, items: [
-    { id: "fk",       l: "Fab Knowledge",    Icon: Headphones },
-    { id: "weekly",   l: "SA Weekly",        Icon: Radio },
-    { id: "outreach", l: "Outreach",         Icon: Send },
+  podcast: { label: "PODCAST", color: C.coral, glow: "rgba(224,99,71,", Icon: Headphones, sub: "SA WEEKLY + FK", items: [
+    { id: "fk",       l: "Fab Knowledge",    Icon: Headphones, sub: "Deep interview brain" },
+    { id: "weekly",   l: "SA Weekly",        Icon: Radio,      sub: "Episode pipeline" },
+    { id: "outreach", l: "Outreach",         Icon: Send,       sub: "Cold email + lists" },
   ]},
-  prepare: { label: "PREPARE", color: C.blue, glow: "rgba(11,134,209,", Icon: Brain, items: [
-    { id: "intelligence-suite", l: "IntelligenceSUITE", Icon: Brain, href: "/intelligence-suite", badge: "NEW" },
-    { id: "gtc",      l: "GTC Flow",         Icon: Activity },
+  prepare: { label: "PREPARE", color: C.blue, glow: "rgba(11,134,209,", Icon: Brain, sub: "RESEARCH & SIGNALS", items: [
+    { id: "intelligence-suite", l: "IntelligenceSUITE", Icon: Brain, href: "/intelligence-suite", badge: "NEW", sub: "Signals & research" },
+    { id: "gtc",      l: "GTC Flow",         Icon: Activity,   sub: "Conference ops" },
   ]},
-  premier: { label: "PREMIER", color: C.teal, glow: "rgba(46,173,142,", Icon: Calendar, items: [
-    { id: "schedule", l: "Schedule",         Icon: Calendar, href: "https://brianna-bhakta.vercel.app/" },
+  premier: { label: "PREMIER", color: C.teal, glow: "rgba(46,173,142,", Icon: Calendar, sub: "LAUNCH & ROLLOUT", items: [
+    { id: "schedule", l: "Schedule",         Icon: Calendar, href: "https://brianna-bhakta.vercel.app/", sub: "Launch calendar" },
   ]},
-  admin:   { label: "ADMIN",   color: C.violet, glow: "rgba(144,92,203,", Icon: ShieldCheck, items: [
-    { id: "marketing-suite", l: "MarketingSUITE", Icon: Rocket,    href: "/marketing-suite", badge: "NEW" },
-    { id: "training", l: "AI Training",      Icon: Brain,          href: "/ai-training", badge: "NEW" },
-    { id: "tasks",    l: "Task Board",       Icon: CheckSquare,    badge: "AKASH" },
-    { id: "settings", l: "POAST Settings",   Icon: Settings },
+  admin:   { label: "ADMIN",   color: C.violet, glow: "rgba(144,92,203,", Icon: ShieldCheck, sub: "WORKSPACE", items: [
+    { id: "marketing-suite", l: "MarketingSUITE", Icon: Rocket,    href: "/marketing-suite", badge: "NEW", sub: "The cockpit" },
+    { id: "training", l: "AI Training",      Icon: Brain,          href: "/ai-training", badge: "NEW", sub: "Brand voice" },
+    { id: "tasks",    l: "Task Board",       Icon: CheckSquare,    badge: "AKASH", sub: "Master queue" },
+    { id: "settings", l: "POAST Settings",   Icon: Settings,       sub: "Workspace config" },
   ]},
 };
 
@@ -1083,47 +1088,217 @@ function Sidebar({ active, onNav, onAskPoast, locked, onToggleLock }: { active: 
 // Glass theme has no sidebar — navigation lives in a top bar with category
 // buttons that drop down their tools (mirrors the mockup glass homebar).
 // Reuses SIDEBAR_CATS + the same analyst/docu/akash visibility rules.
+// Glass top-nav + flyout CSS — a faithful port of the mockup `.navcats` icon row
+// and the `.gflyout` dropdown (~/poast-welcome-3.0 concepts/glass.html §7): each
+// category is an icon button that lights to its accent on hover/active and drops
+// a rich flyout (accent bar + mono subcaption + icon-chip items with subtitles).
+var GNAV_CSS = `
+@keyframes gnavRise{from{opacity:0;transform:translate(-50%,-12px)}to{opacity:1;transform:translate(-50%,0)}}
+@keyframes gflyIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.gnav-wrap{position:fixed;top:14px;left:50%;transform:translateX(-50%);width:min(1180px,calc(100% - 32px));z-index:100;pointer-events:none;animation:gnavRise .55s cubic-bezier(.2,.7,.3,1) both}
+.gnav{pointer-events:auto;position:relative;display:flex;align-items:center;gap:5px;height:58px;padding:0 12px 0 14px;border-radius:19px;background:linear-gradient(180deg,rgba(40,32,60,0.42),rgba(18,14,30,0.5));backdrop-filter:blur(28px) saturate(1.7) brightness(1.06);-webkit-backdrop-filter:blur(28px) saturate(1.7) brightness(1.06);border:1px solid rgba(255,255,255,0.14);box-shadow:inset 1.2px 1.2px 0 rgba(255,255,255,0.22),inset 0 -2px 6px rgba(255,255,255,0.04),0 22px 54px rgba(0,0,0,0.5)}
+.gnav-logo{display:flex;align-items:center;gap:8px;cursor:pointer;margin-right:4px;flex:none}
+.gnav-mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none;background:linear-gradient(150deg,#F7B041,#E06347);color:#1a1206;font-family:var(--gf,'Grift',sans-serif);font-weight:900;font-size:15px;box-shadow:0 3px 10px rgba(247,176,65,.4)}
+.gnav-logo b{font-family:var(--gf,'Grift',sans-serif);font-weight:900;font-size:16px;color:#fff;letter-spacing:1.2px}
+.gnav-ver{font-family:var(--mn,monospace);font-size:8.5px;font-weight:700;letter-spacing:1px;color:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:2px 5px}
+.gnav-cats{display:flex;align-items:center;gap:2px;margin-left:6px}
+.gnav-nc{position:relative;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:none;border:1px solid transparent;color:rgba(255,255,255,.62);cursor:pointer;transition:color .16s,background .16s,box-shadow .16s}
+.gnav-nc:hover{color:#fff;background:rgba(255,255,255,.08)}
+.gnav-nc.on{color:#fff;background:color-mix(in srgb,var(--sc) 22%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--sc) 50%,transparent)}
+.gnav-nc.on svg{color:var(--sc);filter:drop-shadow(0 0 7px color-mix(in srgb,var(--sc) 70%,transparent))}
+.gnav-nc::after{content:'';position:absolute;bottom:-2px;left:50%;transform:translateX(-50%);width:0;height:2px;border-radius:2px;background:var(--sc);transition:width .18s}
+.gnav-nc.on::after{width:16px}
+.gnav-sp{flex:1}
+.gnav-wx{display:flex;align-items:center;gap:7px;padding:7px 10px;border-radius:11px;font-family:var(--ft,sans-serif);font-size:12px;font-weight:600;color:rgba(255,255,255,.78);white-space:nowrap}
+.gnav-wx svg{color:#F7B041}
+.gnav-btn{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:none;border:1px solid transparent;color:rgba(255,255,255,.7);cursor:pointer;transition:all .15s}
+.gnav-btn:hover{color:#fff;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.12)}
+.gnav-user{display:flex;align-items:center;cursor:pointer;padding:4px;margin-left:3px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04)}
+.gnav-user:hover{background:rgba(255,255,255,.09)}
+.gnav-av{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--ft,sans-serif);font-size:11px;font-weight:800;background:linear-gradient(150deg,rgba(247,176,65,.92),rgba(224,99,71,.92));color:#1a1206}
+.gnav-search{pointer-events:auto;display:flex;align-items:center;gap:11px;height:58px;padding:0 10px 0 16px;border-radius:19px;background:linear-gradient(180deg,rgba(40,32,60,0.5),rgba(18,14,30,0.56));backdrop-filter:blur(30px) saturate(1.7) brightness(1.06);-webkit-backdrop-filter:blur(30px) saturate(1.7) brightness(1.06);border:1px solid rgba(255,255,255,0.18);box-shadow:inset 1.2px 1.2px 0 rgba(255,255,255,0.22),0 22px 54px rgba(0,0,0,0.5);animation:gflyIn .18s ease-out both}
+.gnav-search input{flex:1;background:none;border:none;outline:none;color:#fff;font-family:var(--ft,sans-serif);font-size:15px;font-weight:500}
+.gnav-search input::placeholder{color:rgba(255,255,255,.42)}
+.gfly{position:fixed;z-index:200;min-width:252px;max-width:292px;padding:9px;border-radius:17px;background:linear-gradient(180deg,rgba(46,38,66,0.46),rgba(22,17,36,0.54));backdrop-filter:blur(42px) saturate(1.8) brightness(1.08);-webkit-backdrop-filter:blur(42px) saturate(1.8) brightness(1.08);border:1px solid rgba(255,255,255,.18);box-shadow:0 30px 70px rgba(0,0,0,0.5),inset 1px 1px 0 rgba(255,255,255,0.14),inset 0 -2px 8px rgba(255,255,255,0.04);animation:gflyIn .15s ease-out both}
+.gfly-h{display:flex;align-items:center;gap:9px;padding:5px 8px 9px;border-bottom:1px solid rgba(255,255,255,.12);margin-bottom:6px}
+.gfly-bar{width:4px;height:17px;border-radius:2px;flex:none}
+.gfly-n{font-family:var(--gf,'Grift',sans-serif);font-weight:800;font-size:14px;color:#fff;line-height:1}
+.gfly-c{font-family:var(--mn,monospace);font-size:8px;letter-spacing:1px;color:rgba(255,255,255,.5);text-transform:uppercase;margin-top:3px}
+.gfly-i{display:flex;align-items:center;gap:11px;padding:8px 9px;border-radius:11px;cursor:pointer;transition:background .14s}
+.gfly-i:hover{background:color-mix(in srgb,var(--fc) 22%,transparent)}
+.gfly-i.cur{background:color-mix(in srgb,var(--fc) 24%,transparent)}
+.gfly-ic{width:31px;height:31px;border-radius:9px;display:grid;place-items:center;flex:none;background:color-mix(in srgb,var(--fc) 22%,transparent);color:var(--fc);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--fc) 30%,transparent)}
+.gfly-ic svg{filter:drop-shadow(0 0 5px color-mix(in srgb,var(--fc) 55%,transparent))}
+.gfly-tx{display:flex;flex-direction:column;min-width:0}
+.gfly-l{font-family:var(--ft,sans-serif);font-size:13.5px;font-weight:600;color:#fff;white-space:nowrap}
+.gfly-s{font-family:var(--ft,sans-serif);font-size:11px;color:rgba(255,255,255,.55);margin-top:1px;white-space:nowrap}
+.gfly-nd{margin-left:auto;align-self:center;font-family:var(--mn,monospace);font-size:8px;text-transform:uppercase;letter-spacing:.6px;padding:3px 6px;border-radius:6px;background:color-mix(in srgb,var(--fc) 34%,transparent);color:#fff}
+@media (prefers-reduced-motion:reduce){.gnav-wrap,.gfly,.gnav-search{animation:none}}
+`;
+
 function GlassTopNav({ active, onNav }: { active: string; onNav: (id: string) => void }) {
   var userCtx = useUser();
   var analyst = isAnalyst(userCtx.user);
   var canDocu = canUseDocuDesign(userCtx.user);
   var akash = isAkash(userCtx.user);
   var _open = useState<string | null>(null), open = _open[0], setOpen = _open[1];
+  var _anchor = useState<{ left: number; top: number } | null>(null), anchor = _anchor[0], setAnchor = _anchor[1];
+  var hostRef = useRef<HTMLElement | null>(null);
+  var flyRef = useRef<HTMLDivElement | null>(null);
+  var dwellRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  var hideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  var _searching = useState(false), searching = _searching[0], setSearching = _searching[1];
+  var _query = useState(""), query = _query[0], setQuery = _query[1];
+  var inputRef = useRef<HTMLInputElement | null>(null);
   var visibleCats = analyst ? ["produce"] : Object.keys(SIDEBAR_CATS);
-  function itemClick(item: SidebarCatItem) { if (item.href) { window.open(item.href, "_blank"); } else { onNav(item.id); } setOpen(null); }
-  return <div data-tour="glass-nav" style={{ position: "fixed", top: 0, left: 0, right: 0, height: 52, zIndex: 100, display: "flex", alignItems: "center", gap: 4, padding: "0 16px", background: "rgba(10,10,18,0.55)", backdropFilter: "blur(16px) saturate(1.4)", WebkitBackdropFilter: "blur(16px) saturate(1.4)", borderBottom: "1px solid var(--border)" }}>
-    <div onClick={function() { onNav("home"); setOpen(null); }} title="Home" style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginRight: 10 }}>
-      <img src="/poast-logo.png" style={{ width: 26, height: 26, borderRadius: 6 }} />
-      <span style={{ fontFamily: gf, fontWeight: 900, fontSize: 16, color: C.amber, letterSpacing: 1.5 }}>POAST</span>
+
+  function itemsFor(cat: SidebarCat) {
+    return cat.items
+      .filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); })
+      .filter(function(it) { return it.id !== "docu" || canDocu; })
+      .filter(function(it) { return it.id !== "tasks" || akash; });
+  }
+  function clearDwell() { if (dwellRef.current) { clearTimeout(dwellRef.current); dwellRef.current = null; } }
+  function clearHide() { if (hideRef.current) { clearTimeout(hideRef.current); hideRef.current = null; } }
+  // Center the flyout under the hovered icon, clamped to the viewport (mockup show()).
+  function place(catKey: string, btn: HTMLElement) {
+    var r = btn.getBoundingClientRect();
+    var w = 268;
+    var vw = typeof window !== "undefined" ? window.innerWidth : 1280;
+    var left = Math.max(14, Math.min(r.left + r.width / 2 - w / 2, vw - w - 14));
+    setAnchor({ left: left, top: r.bottom + 11 });
+    setOpen(catKey);
+  }
+  // Hover-intent: 0.5s dwell to open the first flyout; instant switch once one's open.
+  function onEnter(catKey: string, e: React.MouseEvent<HTMLButtonElement>) {
+    clearDwell(); clearHide();
+    var btn = e.currentTarget;
+    if (open) place(catKey, btn);
+    else { dwellRef.current = setTimeout(function() { place(catKey, btn); }, 500); }
+  }
+  function maybeHide() {
+    clearHide();
+    hideRef.current = setTimeout(function() {
+      var f = flyRef.current, h = hostRef.current;
+      if (f && f.matches(":hover")) return;
+      if (h && h.matches(":hover")) return;
+      setOpen(null); setAnchor(null);
+    }, 150);
+  }
+  function leaveCats() { clearDwell(); maybeHide(); }
+  useEffect(function() { return function() { clearDwell(); clearHide(); }; }, []);
+
+  function itemClick(item: SidebarCatItem) {
+    if (item.href) { window.open(item.href, "_blank"); } else { onNav(item.id); }
+    setOpen(null); setAnchor(null);
+  }
+
+  function openSearch() { setOpen(null); setAnchor(null); setSearching(true); }
+  function closeSearch() { setSearching(false); setQuery(""); }
+  useEffect(function() { if (searching && inputRef.current) inputRef.current.focus(); }, [searching]);
+
+  var openCat = open ? SIDEBAR_CATS[open] : null;
+  var openItems = openCat ? itemsFor(openCat) : [];
+  var openColor = openCat ? openCat.color : "";
+  var openSub = openCat ? (openCat.sub || "") : "";
+  var titleCase = openCat ? openCat.label.charAt(0) + openCat.label.slice(1).toLowerCase() : "";
+  var nm = userCtx.user ? userCtx.user.name : "";
+  var nmParts = nm.trim().split(/\s+/);
+  var initials = (nmParts.length > 1 ? nmParts[0].charAt(0) + nmParts[1].charAt(0) : nm.slice(0, 2)).toUpperCase();
+
+  return <>
+    <style dangerouslySetInnerHTML={{ __html: GNAV_CSS }} />
+    <div className="gnav-wrap" data-tour="glass-nav">
+      {searching ? (
+        <div className="gnav-search">
+          <Search size={18} color="rgba(255,255,255,0.6)" strokeWidth={1.8} />
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={function(e) { setQuery(e.target.value); }}
+            onKeyDown={function(e) { if (e.key === "Escape") closeSearch(); }}
+            placeholder="Search tools, episodes, drafts…"
+          />
+          <button className="gnav-btn" onClick={closeSearch} aria-label="Close search" title="Close"><XIcon size={18} strokeWidth={1.9} /></button>
+        </div>
+      ) : (
+        <div className="gnav">
+          <div className="gnav-logo" onClick={function() { onNav("home"); setOpen(null); setAnchor(null); }} title="Home">
+            <span className="gnav-mark">P</span>
+            <b>POAST</b>
+            <span className="gnav-ver">3.0</span>
+          </div>
+          <nav className="gnav-cats" ref={hostRef} onMouseLeave={leaveCats}>
+            {visibleCats.map(function(catKey) {
+              var cat = SIDEBAR_CATS[catKey];
+              var its = itemsFor(cat);
+              if (!its.length) return null;
+              var on = open === catKey;
+              var hasActive = its.some(function(it) { return it.id === active; });
+              var CIcon = cat.Icon;
+              var titled = cat.label.charAt(0) + cat.label.slice(1).toLowerCase();
+              return <button
+                key={catKey}
+                className={"gnav-nc" + (on || hasActive ? " on" : "")}
+                style={{ ["--sc" as string]: cat.color } as React.CSSProperties}
+                title={titled}
+                aria-label={cat.label}
+                onMouseEnter={function(e) { onEnter(catKey, e); }}
+                onClick={function(e) { clearDwell(); place(catKey, e.currentTarget); }}
+              >
+                <CIcon size={19} strokeWidth={1.8} />
+              </button>;
+            })}
+          </nav>
+          <span className="gnav-sp" />
+          {userCtx.user && <div className="gnav-wx" title="San Francisco · Clear"><Sun size={15} strokeWidth={1.9} /><span>61° SF · Clear</span></div>}
+          <button className="gnav-btn" onClick={openSearch} aria-label="Search" title="Search"><Search size={18} strokeWidth={1.8} /></button>
+          <button className="gnav-btn" aria-label="Notifications" title="Notifications"><Bell size={18} strokeWidth={1.8} /></button>
+          {userCtx.user && <div className="gnav-user" onClick={function() { userCtx.setUser(null); }} title="Switch user">
+            <span className="gnav-av">{initials}</span>
+          </div>}
+        </div>
+      )}
     </div>
-    {visibleCats.map(function(catKey) {
-      var cat = SIDEBAR_CATS[catKey];
-      var items = cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).filter(function(it) { return it.id !== "docu" || canDocu; }).filter(function(it) { return it.id !== "tasks" || akash; });
-      if (!items.length) return null;
-      var on = open === catKey;
-      var hasActive = items.some(function(it) { return it.id === active; });
-      return <div key={catKey} style={{ position: "relative" }} onMouseEnter={function() { setOpen(catKey); }} onMouseLeave={function() { setOpen(function(o) { return o === catKey ? null : o; }); }}>
-        <button onClick={function() { setOpen(on ? null : catKey); }} style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 12px", borderRadius: 10, border: "1px solid " + (on || hasActive ? cat.color + "55" : "transparent"), background: on || hasActive ? cat.color + "14" : "transparent", color: on || hasActive ? cat.color : "rgba(255,255,255,0.62)", cursor: "pointer", fontFamily: ft, fontWeight: 700, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase", transition: "all 0.15s" }}>{cat.label}</button>
-        {on && <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, minWidth: 232, padding: 8, borderRadius: 14, background: "rgba(16,16,26,0.94)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid var(--border)", boxShadow: "0 24px 60px rgba(0,0,0,0.55)" }}>
-          {items.map(function(item) {
-            var isA = active === item.id;
-            return <div key={item.id} onClick={function() { itemClick(item); }} title={item.href ? "Open " + item.l + " in a new tab" : undefined} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 9, cursor: "pointer", background: isA ? cat.color + "16" : "transparent", color: isA ? cat.color : "rgba(255,255,255,0.72)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!isA) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!isA) e.currentTarget.style.background = "transparent"; }}>
-              <item.Icon size={15} color={isA ? cat.color : "rgba(255,255,255,0.6)"} />
-              <span style={{ fontFamily: ft, fontSize: 13, fontWeight: isA ? 700 : 500 }}>{item.l}</span>
-              {item.badge === "NEW"
-                ? <NewDot color={cat.color} />
-                : item.badge && <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 7, fontWeight: 800, color: cat.color, letterSpacing: 1, padding: "2px 5px", border: "1px solid " + cat.color + "55", borderRadius: 3 }}>{item.badge}</span>}
-            </div>;
-          })}
-        </div>}
-      </div>;
-    })}
-    <span style={{ flex: 1 }} />
-    {userCtx.user && <div onClick={function() { userCtx.setUser(null); }} title="Switch user" style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "5px 10px", borderRadius: 999, border: "1px solid var(--border)" }}>
-      <span style={{ width: 22, height: 22, borderRadius: 6, background: C.amber + "20", border: "1px solid " + C.amber + "40", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 10, fontWeight: 800, color: C.amber }}>{userCtx.user.name[0]}</span>
-      <span style={{ fontFamily: ft, fontSize: 12, fontWeight: 700, color: C.tx }}>{userCtx.user.name}</span>
+
+    {!searching && openCat && anchor && <div
+      ref={flyRef}
+      className="gfly"
+      style={{ left: anchor.left, top: anchor.top, ["--fc" as string]: openColor } as React.CSSProperties}
+      role="menu"
+      onMouseEnter={clearHide}
+      onMouseLeave={maybeHide}
+    >
+      <div className="gfly-h">
+        <span className="gfly-bar" style={{ background: openColor }} />
+        <div>
+          <div className="gfly-n">{titleCase}</div>
+          <div className="gfly-c">{openSub}</div>
+        </div>
+      </div>
+      {openItems.map(function(item) {
+        var isA = active === item.id;
+        var Icon = item.Icon;
+        return <div
+          key={item.id}
+          className={"gfly-i" + (isA ? " cur" : "")}
+          role="menuitem"
+          tabIndex={0}
+          onClick={function() { itemClick(item); }}
+          title={item.href ? "Opens in a new tab" : undefined}
+        >
+          <span className="gfly-ic"><Icon size={16} strokeWidth={1.9} /></span>
+          <span className="gfly-tx">
+            <span className="gfly-l">{item.l}</span>
+            {item.sub ? <span className="gfly-s">{item.sub}</span> : null}
+          </span>
+          {item.badge === "NEW"
+            ? <NewDot color={openColor} />
+            : item.badge ? <span className="gfly-nd">{item.badge.toLowerCase()}</span> : null}
+        </div>;
+      })}
     </div>}
-  </div>;
+  </>;
 }
 
 // ═══ CLIP CAPTIONS ═══
@@ -2253,7 +2428,7 @@ export default function App() {
   useEffect(function() { try { setNavLocked(localStorage.getItem("poast-sidebar-locked") === "1"); } catch (e) {} }, []);
   var toggleLock = function() { setNavLocked(function(v) { var n = !v; try { localStorage.setItem("poast-sidebar-locked", n ? "1" : "0"); } catch (e) {} return n; }); };
   var contentLeft = isGlass ? 0 : (navLocked ? 240 : 0);
-  var contentTop = isGlass ? 52 : 0;
+  var contentTop = isGlass ? 84 : 0;
   var analyst = isAnalyst(userCtx.user);
   // Analyst name capture: shared role-user means we need a personal
   // handle to tell different humans apart. Hydrate from localStorage
@@ -2449,6 +2624,9 @@ export default function App() {
       </div>;
     })()}
     {themeCtx.theme === "stock" && <StockBackdrop bg={themeCtx.bg} />}
+    {/* Reflect · Clarity — the live liquid-glass refraction backdrop (the fix for
+        the "dark aura page"). Depth paints its own night-sky, so gate it out. */}
+    {isGlass && themeCtx.glassMat !== "depth" && <GlassBackdrop />}
 
     {isGlass
       ? <GlassTopNav active={sec} onNav={setSec} />
@@ -2465,10 +2643,6 @@ export default function App() {
         position:fixed resolves to the viewport, not the .poast-fadein
         transform's containing block. */}
     {sec === "assets" && <AssetLibraryEmbed left={contentLeft} top={contentTop} />}
-    {/* Glass Hover bar — the floating liquid-glass dock shown on both Reflect
-        homes (Clarity + Depth). Hoisted out of the transformed content wrapper
-        so its position:fixed resolves to the viewport (same as Asset Library). */}
-    {isGlass && sec === "home" && <GlassDock onNavigate={setSec} active={sec} />}
     <div style={{ marginLeft: contentLeft, marginTop: contentTop, position: "relative", zIndex: 1, display: sec === "assets" ? "none" : "block", transition: "margin-left 0.22s cubic-bezier(0.3,0.7,0.3,1)" }} className="poast-fadein">
       <div style={{ width: "100%", margin: "0 auto", padding: "0 32px" }}>
         <div key={sec} className="poast-section" style={{ paddingBottom: 60 }}>
