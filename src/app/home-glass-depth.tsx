@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   Zap,
   LayoutGrid,
@@ -403,6 +403,7 @@ export default function GlassDepthHome({
           return (
             <div
               key={s.label}
+              className="lglass"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -410,8 +411,6 @@ export default function GlassDepthHome({
                 padding: "11px 17px 11px 13px",
                 borderRadius: 14,
                 background: GLASS_BG,
-                backdropFilter: GLASS_BLUR,
-                WebkitBackdropFilter: GLASS_BLUR,
                 border: GLASS_BORDER,
                 boxShadow: GLASS_INSET + ", 0 16px 40px rgba(0,0,0,0.4)",
               }}
@@ -483,10 +482,10 @@ export default function GlassDepthHome({
                   return (
                     <div
                       key={t.name}
-                      className="gd-tile"
+                      className="gd-tile lglass glow"
                       onClick={() => goTile(t)}
                       title={t.href ? t.name + " — opens in a new tab" : t.name}
-                      style={{ background: GLASS_BG, backdropFilter: GLASS_BLUR, WebkitBackdropFilter: GLASS_BLUR, border: GLASS_BORDER, boxShadow: GLASS_INSET + ", 0 18px 44px rgba(0,0,0,0.42)" }}
+                      style={{ background: GLASS_BG, border: GLASS_BORDER, boxShadow: GLASS_INSET + ", 0 18px 44px rgba(0,0,0,0.42)", ["--lgac" as string]: shelf.ring } as CSSProperties}
                       onMouseEnter={(e) => { e.currentTarget.style.borderColor = shelf.ring + "66"; e.currentTarget.style.boxShadow = GLASS_INSET + `, 0 24px 44px -16px ${shelf.ring}55, 0 18px 44px rgba(0,0,0,0.5)`; }}
                       onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"; e.currentTarget.style.boxShadow = GLASS_INSET + ", 0 18px 44px rgba(0,0,0,0.42)"; }}
                     >

@@ -110,7 +110,7 @@ function Tile({ tool, onNavigate }: { tool: Tool; onNavigate: (id: string) => vo
   };
   return (
     <div
-      className="gc-tile"
+      className="gc-tile lglass glow"
       role="button"
       tabIndex={0}
       onClick={click}
@@ -124,6 +124,8 @@ function Tile({ tool, onNavigate }: { tool: Tool; onNavigate: (id: string) => vo
       onMouseLeave={() => setHover(false)}
       style={{
         ...glassSurface,
+        backdropFilter: undefined,
+        WebkitBackdropFilter: undefined,
         borderRadius: 26,
         padding: 20,
         cursor: "pointer",
@@ -301,8 +303,11 @@ export default function GlassClarityHome({
           <button
             type="button"
             onClick={scrollToTools}
+            className="lglass glow"
             style={{
               ...glassSurface,
+              backdropFilter: undefined,
+              WebkitBackdropFilter: undefined,
               display: "inline-flex",
               alignItems: "center",
               gap: 8,

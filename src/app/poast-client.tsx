@@ -39,6 +39,7 @@ import { useUser, isAnalyst, canUseDocuDesign, isAkash } from "./user-context";
 import GlassClarityHome from "./home-glass-clarity";
 import GlassDepthHome from "./home-glass-depth";
 import StockBackdrop, { GlassBackdrop } from "./stock-backdrop";
+import GlassLens from "./glass-lens";
 import { useTheme } from "./theme-context";
 import { OnboardingHost } from "./onboarding/onboarding-host";
 import { ChartTourTrigger } from "./onboarding/chart-tour-trigger";
@@ -2627,6 +2628,9 @@ export default function App() {
     {/* Reflect · Clarity — the live liquid-glass refraction backdrop (the fix for
         the "dark aura page"). Depth paints its own night-sky, so gate it out. */}
     {isGlass && themeCtx.glassMat !== "depth" && <GlassBackdrop />}
+    {/* Liquid-glass lens: refraction + spectral rim + cursor glow on every
+        .lglass surface (both Reflect homes). */}
+    {isGlass && <GlassLens />}
 
     {isGlass
       ? <GlassTopNav active={sec} onNav={setSec} />
