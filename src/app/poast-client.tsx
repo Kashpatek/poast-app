@@ -37,7 +37,7 @@ type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: nu
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
 import { useUser, isAnalyst, canUseDocuDesign, isAkash } from "./user-context";
 import GlassClarityHome from "./home-glass-clarity";
-import GlassDepthHome from "./home-glass-depth";
+import GlassDepthHome, { DepthBackdrop } from "./home-glass-depth";
 import StockBackdrop, { GlassBackdrop } from "./stock-backdrop";
 import GlassLens from "./glass-lens";
 import { useTheme } from "./theme-context";
@@ -2628,6 +2628,9 @@ export default function App() {
     {/* Reflect · Clarity — the live liquid-glass refraction backdrop (the fix for
         the "dark aura page"). Depth paints its own night-sky, so gate it out. */}
     {isGlass && themeCtx.glassMat !== "depth" && <GlassBackdrop />}
+    {/* Reflect · Depth — the night-sky as a full-viewport fixed sibling so the
+        stars stretch edge-to-edge behind the window (not the padded column). */}
+    {isGlass && themeCtx.glassMat === "depth" && <DepthBackdrop />}
     {/* Liquid-glass lens: refraction + spectral rim + cursor glow on every
         .lglass surface (both Reflect homes). */}
     {isGlass && <GlassLens />}
