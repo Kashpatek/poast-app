@@ -96,9 +96,69 @@ function FluidCanvas({ colors }: { colors: [string, string, string] }) {
 
 const GRAIN = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/></svg>\")";
 
-// Cockpit HUD reticle — concentric rings + crosshair + tick marks, the kind of
-// targeting overlay a flight/command HUD draws. Slowly rotates behind the grid.
-const RETICLE = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><g fill='none'><circle cx='120' cy='120' r='112' stroke='%23F7B041' stroke-opacity='0.5'/><circle cx='120' cy='120' r='80' stroke='%230B86D1' stroke-opacity='0.45' stroke-dasharray='3 7'/><circle cx='120' cy='120' r='40' stroke='%232EAD8E' stroke-opacity='0.4'/><circle cx='120' cy='120' r='3' stroke='%23F7B041' stroke-opacity='0.6'/><line x1='120' y1='2' x2='120' y2='22' stroke='%23F7B041' stroke-opacity='0.55'/><line x1='120' y1='218' x2='120' y2='238' stroke='%23F7B041' stroke-opacity='0.55'/><line x1='2' y1='120' x2='22' y2='120' stroke='%23F7B041' stroke-opacity='0.55'/><line x1='218' y1='120' x2='238' y2='120' stroke='%23F7B041' stroke-opacity='0.55'/><line x1='120' y1='40' x2='120' y2='62' stroke='%230B86D1' stroke-opacity='0.4'/><line x1='120' y1='178' x2='120' y2='200' stroke='%230B86D1' stroke-opacity='0.4'/></g></svg>\")";
+// Cockpit detection marker — an octagonal target-lock box with corner ticks +
+// center crosshair. These pop up at random spots ("detecting something") on
+// staggered loops, like a radar/TV tracking interface. Color is pre-URL-encoded
+// (%23rrggbb). Drawn as a CSS background-image so it animates cheaply.
+const octa = (c: string) =>
+  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'>"
+  + "<g fill='none' stroke='" + c + "'>"
+  + "<path d='M44 8 76 8 112 44 112 76 76 112 44 112 8 76 8 44Z' stroke-opacity='0.85' stroke-width='1.4'/>"
+  + "<path d='M44 8 76 8 112 44 112 76 76 112 44 112 8 76 8 44Z' stroke-opacity='0.14' stroke-width='5'/></g>"
+  + "<g stroke='" + c + "' stroke-width='1.4' stroke-opacity='0.9'>"
+  + "<line x1='60' y1='42' x2='60' y2='52'/><line x1='60' y1='68' x2='60' y2='78'/>"
+  + "<line x1='42' y1='60' x2='52' y2='60'/><line x1='68' y1='60' x2='78' y2='60'/></g>"
+  + "<circle cx='60' cy='60' r='2.2' fill='" + c + "' fill-opacity='0.9'/></svg>\")";
+
+// Fixed scatter of detection markers — center coords, size, color, cycle length
+// and stagger. Long durations + a mostly-invisible tail make them feel random.
+const OCT_AMBER = "%23F7B041", OCT_TEAL = "%232EAD8E", OCT_BLUE = "%230B86D1";
+const OCTS: { x: string; y: string; s: number; c: string; d: string; dl: string }[] = [
+  { x: "16%", y: "31%", s: 78, c: OCT_AMBER, d: "9s", dl: "0s" },
+  { x: "69%", y: "23%", s: 108, c: OCT_TEAL, d: "12s", dl: "3.4s" },
+  { x: "83%", y: "59%", s: 70, c: OCT_BLUE, d: "10s", dl: "6.1s" },
+  { x: "34%", y: "67%", s: 124, c: OCT_AMBER, d: "13s", dl: "1.8s" },
+  { x: "53%", y: "41%", s: 62, c: OCT_TEAL, d: "11s", dl: "8.2s" },
+  { x: "24%", y: "52%", s: 56, c: OCT_BLUE, d: "14s", dl: "4.9s" },
+];
+
+// Low-poly "map" mesh for Iridescent — a deterministically-jittered triangle
+// grid (no Math.random ⇒ no SSR/hydration mismatch). Edge points stay on the
+// grid so the tile seams cleanly when repeated. Screen/overlay-blended with a
+// slow warp + hue cycle, it reads as a refracting, wave-displaced faceted sheet.
+function buildPolyMesh(): string {
+  const W = 600, H = 600, cols = 6, rows = 6;
+  const cw = W / cols, ch = H / rows;
+  const rnd = (i: number) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+  const pts: [number, number][] = [];
+  for (let r = 0; r <= rows; r++) {
+    for (let c = 0; c <= cols; c++) {
+      const k = r * (cols + 1) + c;
+      const edge = c === 0 || c === cols || r === 0 || r === rows;
+      const jx = edge ? 0 : (rnd(k) - 0.5) * cw * 0.7;
+      const jy = edge ? 0 : (rnd(k + 97) - 0.5) * ch * 0.7;
+      pts.push([+(c * cw + jx).toFixed(1), +(r * ch + jy).toFixed(1)]);
+    }
+  }
+  const P = (c: number, r: number) => pts[r * (cols + 1) + c];
+  const tri = (i: number, A: [number, number], B: [number, number], C: [number, number]) => {
+    const h = rnd(i);
+    const op = (0.015 + h * 0.06).toFixed(3);
+    const fill = h > 0.84 ? "%23bfe8ff" : h < 0.16 ? "%23e9c9ff" : "%23ffffff";
+    return "<path d='M" + A[0] + " " + A[1] + "L" + B[0] + " " + B[1] + "L" + C[0] + " " + C[1] + "Z' fill='" + fill + "' fill-opacity='" + op + "'/>";
+  };
+  let tris = "";
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const a = P(c, r), b = P(c + 1, r), d = P(c, r + 1), e = P(c + 1, r + 1);
+      tris += tri(r * cols + c, a, b, e) + tri(r * cols + c + 50, a, e, d);
+    }
+  }
+  const svg = "<svg xmlns='http://www.w3.org/2000/svg' width='" + W + "' height='" + H + "'>"
+    + "<g stroke='%23ffffff' stroke-opacity='0.07' stroke-width='1'>" + tris + "</g></svg>";
+  return "url(\"data:image/svg+xml;utf8," + svg + "\")";
+}
+const POLY = buildPolyMesh();
 
 // Tiled starfields (two parallax layers). Dense small dots + sparser large/tinted
 // dots — used by Iridescent (cosmic aura) and the Glass lock screen (night sky).
@@ -128,7 +188,12 @@ export default function StockBackdrop({ bg }: { bg: BgName }) {
         @keyframes sbk-irid2{0%{transform:scale(1.12) rotate(0deg)}100%{transform:scale(1.24) rotate(-16deg)}}
         @keyframes sbk-ckdrift{0%{transform:translate3d(-1.6%,-1%,0) scale(1.02)}100%{transform:translate3d(2.2%,1.6%,0) scale(1.09)}}
         @keyframes sbk-ckgrid{from{background-position:0 0}to{background-position:0 60px}}
-        @keyframes sbk-ckspin{to{transform:rotate(360deg)}}
+        @keyframes sbk-ckdetect{0%{opacity:0;transform:scale(.6)}6%{opacity:0;transform:scale(.62)}10%{opacity:.9;transform:scale(1.06)}14%{opacity:.4;transform:scale(.99)}18%{opacity:.72;transform:scale(1.01)}24%{opacity:.3;transform:scale(1)}30%{opacity:.58;transform:scale(1)}40%{opacity:0;transform:scale(1)}100%{opacity:0;transform:scale(1)}}
+        @keyframes sbk-cktv{0%,100%{opacity:.5}48%{opacity:.34}50%{opacity:.62}52%{opacity:.4}}
+        @keyframes sbk-iridwarp{0%{transform:translate(-3%,-2%) skewX(0deg) skewY(0deg) scale(1.06)}25%{transform:translate(2%,-1%) skewX(2deg) skewY(-1.4deg) scale(1.1)}50%{transform:translate(3%,3%) skewX(0deg) skewY(1.4deg) scale(1.08)}75%{transform:translate(-1%,2%) skewX(-2deg) skewY(1deg) scale(1.12)}100%{transform:translate(-3%,-2%) skewX(0deg) skewY(0deg) scale(1.06)}}
+        @keyframes sbk-iridwarp2{0%{transform:translate(2%,1%) skewX(-1.5deg) scale(1.12)}50%{transform:translate(-2%,-2%) skewX(1.6deg) scale(1.16)}100%{transform:translate(2%,1%) skewX(-1.5deg) scale(1.12)}}
+        @keyframes sbk-iridhue{0%{filter:hue-rotate(0deg)}100%{filter:hue-rotate(38deg)}}
+        @keyframes sbk-iridsweep{0%{transform:translateX(-42%) rotate(8deg)}100%{transform:translateX(42%) rotate(8deg)}}
         @keyframes sbk-twinkle{0%,100%{opacity:.35}50%{opacity:.8}}
         @keyframes sbk-twinkle2{0%,100%{opacity:.55}50%{opacity:.28}}
         @keyframes sbk-stardrift{0%{transform:translate3d(0,0,0)}100%{transform:translate3d(-2.4%,-3.2%,0)}}
@@ -143,9 +208,10 @@ export default function StockBackdrop({ bg }: { bg: BgName }) {
         /* COCKPIT — command-center HUD: receding perspective grid (floor+ceiling),
            rotating targeting reticle, corner brackets, scan sweeps, tech glows */
         .sbk-ckglows{background:radial-gradient(680px 680px at 8% -10%, rgba(11,134,209,.42), transparent 60%),radial-gradient(560px 560px at 94% -6%, rgba(46,173,142,.34), transparent 60%),radial-gradient(820px 520px at 50% 116%, rgba(11,134,209,.40), transparent 64%),radial-gradient(440px 440px at 82% 70%, rgba(247,176,65,.16), transparent 70%);animation:sbk-ckdrift 20s ease-in-out infinite alternate}
-        .sbk-ckfloor{left:-30%;right:-30%;bottom:-12%;top:auto;height:62%;background-image:linear-gradient(to right, rgba(11,134,209,.5) 1px, transparent 1px),linear-gradient(to bottom, rgba(11,134,209,.5) 1px, transparent 1px);background-size:60px 60px;transform:perspective(420px) rotateX(66deg);transform-origin:50% 100%;-webkit-mask-image:linear-gradient(to top,#000 2%,transparent 82%);mask-image:linear-gradient(to top,#000 2%,transparent 82%);opacity:.5;animation:sbk-ckgrid 5.5s linear infinite}
-        .sbk-ckceil{left:-30%;right:-30%;top:-12%;bottom:auto;height:52%;background-image:linear-gradient(to right, rgba(247,176,65,.26) 1px, transparent 1px),linear-gradient(to bottom, rgba(247,176,65,.26) 1px, transparent 1px);background-size:60px 60px;transform:perspective(420px) rotateX(-66deg);transform-origin:50% 0%;-webkit-mask-image:linear-gradient(to bottom,#000 2%,transparent 80%);mask-image:linear-gradient(to bottom,#000 2%,transparent 80%);opacity:.3;animation:sbk-ckgrid 7s linear infinite}
-        .sbk-ckreticle{background-image:${RETICLE};background-repeat:no-repeat;background-position:center;background-size:min(560px,48vw) auto;opacity:.24;animation:sbk-ckspin 70s linear infinite}
+        .sbk-ckfloor{left:-30%;right:-30%;bottom:-12%;top:auto;height:62%;background-image:linear-gradient(to right, rgba(11,134,209,.5) 1px, transparent 1px),linear-gradient(to bottom, rgba(11,134,209,.5) 1px, transparent 1px);background-size:60px 60px;transform:perspective(420px) rotateX(66deg);transform-origin:50% 100%;-webkit-mask-image:linear-gradient(to top,#000 2%,transparent 82%);mask-image:linear-gradient(to top,#000 2%,transparent 82%);opacity:.6;animation:sbk-ckgrid 5.5s linear infinite}
+        .sbk-ckceil{left:-30%;right:-30%;top:-12%;bottom:auto;height:52%;background-image:linear-gradient(to right, rgba(247,176,65,.26) 1px, transparent 1px),linear-gradient(to bottom, rgba(247,176,65,.26) 1px, transparent 1px);background-size:60px 60px;transform:perspective(420px) rotateX(-66deg);transform-origin:50% 0%;-webkit-mask-image:linear-gradient(to bottom,#000 2%,transparent 80%);mask-image:linear-gradient(to bottom,#000 2%,transparent 80%);opacity:.42;animation:sbk-ckgrid 7s linear infinite}
+        .sbk-ckoct{position:absolute;background-repeat:no-repeat;background-position:center;background-size:contain;opacity:0;transform-origin:50% 50%;animation:sbk-ckdetect var(--d,11s) ease-in-out infinite;animation-delay:var(--dl,0s);filter:drop-shadow(0 0 6px rgba(120,200,255,.25));will-change:opacity,transform}
+        .sbk-cktv{background-image:repeating-linear-gradient(to bottom, rgba(180,220,255,.05) 0px, rgba(180,220,255,.05) 1px, transparent 1px, transparent 3px);mix-blend-mode:overlay;animation:sbk-cktv 5s ease-in-out infinite}
         .sbk-ckhud{position:absolute;inset:24px;pointer-events:none}
         .sbk-ckbk{position:absolute;width:42px;height:42px;border:2px solid rgba(247,176,65,.5);box-shadow:0 0 14px rgba(247,176,65,.25)}
         .sbk-ckbk.tl{top:0;left:0;border-right:none;border-bottom:none}
@@ -159,6 +225,12 @@ export default function StockBackdrop({ bg }: { bg: BgName }) {
         .sbk-irid2{background:conic-gradient(from -40deg at 66% 70%, color-mix(in srgb,var(--bg1) 44%,transparent), transparent 30%, color-mix(in srgb,var(--bg2) 42%,transparent) 60%, transparent 86%);filter:blur(92px) saturate(1.2);mix-blend-mode:screen;opacity:.7;animation:sbk-irid2 48s ease-in-out infinite alternate}
         .sbk-iridflow{width:62%;height:58%;left:40%;top:28%;background:radial-gradient(closest-side, rgba(180,140,240,.16), rgba(70,120,220,.06) 60%, transparent);filter:blur(70px);mix-blend-mode:screen;animation:sbk-iridflow 26s ease-in-out infinite}
         .sbk-iridbloom{background:radial-gradient(52% 44% at 50% 44%, rgba(184,132,242,.12), rgba(46,107,230,.05) 46%, transparent 72%);mix-blend-mode:screen}
+        /* low-poly refracting "map": two parallax facet sheets that slowly warp +
+           hue-shift, plus a sweeping iridescent band ⇒ wave-displacement feel */
+        .sbk-iridpoly{background-image:${POLY};background-repeat:repeat;background-size:62vw 62vw;mix-blend-mode:screen;opacity:.6;transform-origin:50% 50%;animation:sbk-iridwarp 32s ease-in-out infinite, sbk-iridhue 22s ease-in-out infinite alternate;will-change:transform,filter}
+        .sbk-iridpoly2{background-image:${POLY};background-repeat:repeat;background-size:44vw 44vw;mix-blend-mode:overlay;opacity:.42;transform-origin:50% 50%;animation:sbk-iridwarp2 26s ease-in-out infinite, sbk-iridhue 18s ease-in-out infinite alternate-reverse;will-change:transform,filter}
+        .sbk-iridrefract{left:-30%;right:-30%;top:-20%;bottom:-20%;background:linear-gradient(72deg, transparent 30%, rgba(120,220,255,.06) 44%, rgba(200,150,255,.085) 50%, rgba(255,200,150,.05) 56%, transparent 70%);mix-blend-mode:screen;animation:sbk-iridsweep 22s ease-in-out infinite alternate;will-change:transform}
+        @media (prefers-reduced-motion: reduce){.sbk-ckoct,.sbk-cktv,.sbk-iridpoly,.sbk-iridpoly2,.sbk-iridrefract{animation:none}.sbk-iridpoly{opacity:.4}.sbk-iridpoly2{opacity:.3}}
         .sbk-stars{background-image:${STARS};background-repeat:repeat;background-size:480px 480px;animation:sbk-twinkle 4.6s ease-in-out infinite, sbk-stardrift 70s linear infinite alternate}
         .sbk-stars2{background-image:${STARS2};background-repeat:repeat;background-size:760px 760px;animation:sbk-twinkle2 6.8s ease-in-out infinite, sbk-stardrift 110s linear infinite alternate-reverse}
       `}</style>
@@ -178,7 +250,18 @@ export default function StockBackdrop({ bg }: { bg: BgName }) {
             <div className="sbk-layer sbk-ckglows" />
             <div className="sbk-layer sbk-ckceil" />
             <div className="sbk-layer sbk-ckfloor" />
-            <div className="sbk-layer sbk-ckreticle" />
+            {OCTS.map((o, i) => (
+              <span
+                key={i}
+                className="sbk-ckoct"
+                style={{
+                  left: o.x, top: o.y, width: o.s, height: o.s,
+                  marginLeft: -o.s / 2, marginTop: -o.s / 2,
+                  backgroundImage: octa(o.c),
+                  ["--d" as string]: o.d, ["--dl" as string]: o.dl,
+                }}
+              />
+            ))}
             <div className="sbk-ckhud">
               <span className="sbk-ckbk tl" />
               <span className="sbk-ckbk tr" />
@@ -187,6 +270,7 @@ export default function StockBackdrop({ bg }: { bg: BgName }) {
             </div>
             <div className="sbk-layer sbk-ckscan" />
             <div className="sbk-layer sbk-ckscan2" />
+            <div className="sbk-layer sbk-cktv" />
             <div className="sbk-layer sbk-grain" />
           </>
         )}
@@ -194,6 +278,9 @@ export default function StockBackdrop({ bg }: { bg: BgName }) {
           <>
             <div className="sbk-layer sbk-irid" />
             <div className="sbk-layer sbk-irid2" />
+            <div className="sbk-layer sbk-iridpoly" />
+            <div className="sbk-layer sbk-iridpoly2" />
+            <div className="sbk-layer sbk-iridrefract" />
             <div className="sbk-layer sbk-stars" />
             <div className="sbk-layer sbk-stars2" />
             <div className="sbk-layer sbk-iridflow" />
