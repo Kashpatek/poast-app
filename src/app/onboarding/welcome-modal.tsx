@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { D, ft, gf, mn } from "../shared-constants";
+import { useTheme } from "../theme-context";
 import type { WelcomeStep } from "./tours";
 
 interface WelcomeModalProps {
@@ -13,11 +14,27 @@ interface WelcomeModalProps {
 }
 
 export function WelcomeModal({ onClose, onComplete, steps }: WelcomeModalProps) {
+  const { theme } = useTheme();
   const [idx, setIdx] = useState(0);
   const total = steps.length;
   const step = steps[idx];
   const isLast = idx === total - 1;
   if (!step) return null;
+
+  // Theme-aware surfaces. Classic stays byte-identical to the static consts
+  // below; stock/glass go translucent + blurred so the backdrop reads through.
+  const overlayStyle: React.CSSProperties =
+    theme === "classic" ? overlay : { ...overlay, background: "rgba(6,6,12,0.55)" };
+  const panelStyle: React.CSSProperties =
+    theme === "classic"
+      ? panel
+      : {
+          ...panel,
+          background: theme === "glass" ? "rgba(24,22,40,0.62)" : "rgba(18,16,28,0.82)",
+          backdropFilter: "blur(26px) saturate(1.5)",
+          WebkitBackdropFilter: "blur(26px) saturate(1.5)",
+          border: "1px solid rgba(255,255,255,0.14)",
+        };
 
   useEffect(() => {
     var onKey = function (e: KeyboardEvent) {
@@ -30,8 +47,8 @@ export function WelcomeModal({ onClose, onComplete, steps }: WelcomeModalProps) 
   }, [onClose, total]);
 
   return (
-    <div style={overlay} onClick={onClose}>
-      <div style={panel} onClick={function (e) { e.stopPropagation(); }}>
+    <div style={overlayStyle} onClick={onClose}>
+      <div style={panelStyle} onClick={function (e) { e.stopPropagation(); }}>
         <div style={badgeRow}>
           <span style={badge}>HELLO</span>
           <span style={stepCount}>{idx + 1} / {total}</span>

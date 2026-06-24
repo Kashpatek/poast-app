@@ -2,6 +2,7 @@
 
 import React, { useEffect } from "react";
 import { D, ft, gf, mn } from "../shared-constants";
+import { useTheme } from "../theme-context";
 import type { CoachContent } from "./tours";
 
 interface CoachMarkProps {
@@ -17,6 +18,7 @@ interface CoachMarkProps {
 // time. Bottom-right corner so it doesn't block the work area. Click outside to
 // dismiss. No backdrop — coach marks shouldn't feel modal.
 export function CoachMark({ content, onDismiss, onHidePermanent, primaryAction }: CoachMarkProps) {
+  const { theme } = useTheme();
   useEffect(() => {
     var onKey = function (e: KeyboardEvent) {
       if (e.key === "Escape") onDismiss();
@@ -25,8 +27,21 @@ export function CoachMark({ content, onDismiss, onHidePermanent, primaryAction }
     return function () { window.removeEventListener("keydown", onKey); };
   }, [onDismiss]);
 
+  // Theme-aware card. Classic stays byte-identical to the static `wrap` const;
+  // stock/glass go translucent + blurred so the backdrop reads through.
+  const wrapStyle: React.CSSProperties =
+    theme === "classic"
+      ? wrap
+      : {
+          ...wrap,
+          background: theme === "glass" ? "rgba(24,22,40,0.62)" : "rgba(18,16,28,0.82)",
+          backdropFilter: "blur(26px) saturate(1.5)",
+          WebkitBackdropFilter: "blur(26px) saturate(1.5)",
+          border: "1px solid rgba(255,255,255,0.14)",
+        };
+
   return (
-    <div style={wrap} role="dialog" aria-label={content.title}>
+    <div style={wrapStyle} role="dialog" aria-label={content.title}>
       <div style={badgeRow}>
         <span style={badge}>QUICK NOTE</span>
         <button type="button" onClick={onDismiss} aria-label="Close" style={closeBtn}>×</button>
