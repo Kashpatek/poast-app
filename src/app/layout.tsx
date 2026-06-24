@@ -8,9 +8,11 @@ import { ThemeProvider } from "./theme-context";
 import { DialogProvider } from "./dialog-context";
 import { OnboardingProvider } from "./onboarding-context";
 
-// Pre-hydration: set data-theme/data-bg from the saved pref BEFORE first paint
-// so returning Stock/Glass users never flash the Classic default.
-const THEME_BOOT = `(function(){try{var p=JSON.parse(localStorage.getItem('poast-theme')||'{}');var r=document.documentElement;var t=['classic','stock','glass'].indexOf(p.theme)>=0?p.theme:'classic';var b=['aurora','cockpit','iridescent'].indexOf(p.bg)>=0?p.bg:'aurora';r.setAttribute('data-theme',t);r.setAttribute('data-bg',b);}catch(e){}})();`;
+// Pre-hydration: set data-theme/data-bg from the saved pref BEFORE first paint.
+// Default is Fresh (stock) — Classic only shows when the user has explicitly
+// saved it. This fallback MUST match the static <html data-theme> attribute
+// below and the ThemeProvider defaults so a no-pref visit has no flash/mismatch.
+const THEME_BOOT = `(function(){try{var p=JSON.parse(localStorage.getItem('poast-theme')||'{}');var r=document.documentElement;var t=['classic','stock','glass'].indexOf(p.theme)>=0?p.theme:'stock';var b=['aurora','cockpit','iridescent'].indexOf(p.bg)>=0?p.bg:'aurora';r.setAttribute('data-theme',t);r.setAttribute('data-bg',b);}catch(e){}})();`;
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,7 +44,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      data-theme="classic"
+      data-theme="stock"
       data-bg="aurora"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >

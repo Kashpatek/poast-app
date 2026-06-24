@@ -27,13 +27,14 @@ interface ThemeContextValue {
   setBg: (b: BgName) => void;
   setGlassMat: (m: GlassMat) => void;
   setThemeMat: (t: ThemeName, m: GlassMat) => void;
+  setThemeBg: (t: ThemeName, b: BgName) => void;
   setGlass: (patch: Partial<GlassVars>) => void;
   setGlassLocked: (v: boolean) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: "classic", bg: "aurora", glassMat: "clarity", glass: GLASS_DEFAULT, glassLocked: false,
-  setTheme: () => {}, setBg: () => {}, setGlassMat: () => {}, setThemeMat: () => {}, setGlass: () => {}, setGlassLocked: () => {},
+  theme: "stock", bg: "aurora", glassMat: "clarity", glass: GLASS_DEFAULT, glassLocked: false,
+  setTheme: () => {}, setBg: () => {}, setGlassMat: () => {}, setThemeMat: () => {}, setThemeBg: () => {}, setGlass: () => {}, setGlassLocked: () => {},
 });
 
 // the signed-in identity key the rest of the app uses (poast-current-user)
@@ -65,17 +66,18 @@ function readLocal(): { theme: ThemeName; bg: BgName; glassMat: GlassMat; glass:
   try {
     const o = JSON.parse(localStorage.getItem(LS_KEY) || "{}");
     return {
-      theme: THEMES.includes(o.theme) ? o.theme : "classic",
+      // Default Fresh (stock); Classic only when the user explicitly saved it.
+      theme: THEMES.includes(o.theme) ? o.theme : "stock",
       bg: BGS.includes(o.bg) ? o.bg : "aurora",
       glassMat: MATS.includes(o.glassMat) ? o.glassMat : "clarity",
       glass: o.glass && typeof o.glass === "object" ? { ...GLASS_DEFAULT, ...o.glass } : GLASS_DEFAULT,
       glassLocked: !!o.glassLocked,
     };
-  } catch { return { theme: "classic", bg: "aurora", glassMat: "clarity", glass: GLASS_DEFAULT, glassLocked: false }; }
+  } catch { return { theme: "stock", bg: "aurora", glassMat: "clarity", glass: GLASS_DEFAULT, glassLocked: false }; }
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeS] = useState<ThemeName>("classic");
+  const [theme, setThemeS] = useState<ThemeName>("stock");
   const [bg, setBgS] = useState<BgName>("aurora");
   const [glassMat, setGlassMatS] = useState<GlassMat>("clarity");
   const [glass, setGlassS] = useState<GlassVars>(GLASS_DEFAULT);
@@ -120,6 +122,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Glass Home (clarity). Doing both in one persist avoids the stale-closure race
   // two separate setters would hit (each persists the *other* field as stale).
   const setThemeMat = (t: ThemeName, m: GlassMat) => { setThemeS(t); setGlassMatS(m); apply(t, bg, m, glass); persist({ theme: t, bg, glassMat: m, glass, glassLocked }); };
+  // Atomic theme+backdrop swap — same stale-closure guard as setThemeMat, used by
+  // the first-run picker so choosing Stock + a backdrop applies both at once
+  // (calling setTheme then setBg would clobber data-theme with a stale closure).
+  const setThemeBg = (t: ThemeName, b: BgName) => { setThemeS(t); setBgS(b); apply(t, b, glassMat, glass); persist({ theme: t, bg: b, glassMat, glass, glassLocked }); };
   const setGlass = (patch: Partial<GlassVars>) => {
     if (glassLocked) return; // locked ⇒ frozen
     const g = { ...glass, ...patch };
@@ -128,7 +134,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const setGlassLocked = (v: boolean) => { setGlassLockedS(v); persist({ theme, bg, glassMat, glass, glassLocked: v }); };
 
   return (
-    <ThemeContext.Provider value={{ theme, bg, glassMat, glass, glassLocked, setTheme, setBg, setGlassMat, setThemeMat, setGlass, setGlassLocked }}>
+    <ThemeContext.Provider value={{ theme, bg, glassMat, glass, glassLocked, setTheme, setBg, setGlassMat, setThemeMat, setThemeBg, setGlass, setGlassLocked }}>
       {children}
     </ThemeContext.Provider>
   );
