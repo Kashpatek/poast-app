@@ -70,6 +70,14 @@ const GLASS_BORDER = "1px solid rgba(255,255,255,0.14)";
 const GLASS_INSET =
   "inset 1.4px 1.4px 0 rgba(255,255,255,0.30), inset -1px -2px 4px rgba(255,255,255,0.06)";
 
+// ─── Night-sky starfields (two parallax/twinkle layers) ──────────────────────
+// Tiled SVG dots; the layers twinkle at different rates so individual stars
+// appear to fade in and out independently. Pure CSS, no JS per-frame cost.
+const STAR_S =
+  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='420' height='420'><g fill='%23ffffff'><circle cx='30' cy='44' r='0.9' opacity='0.85'/><circle cx='98' cy='20' r='0.6' opacity='0.6'/><circle cx='154' cy='88' r='1' opacity='0.9'/><circle cx='214' cy='38' r='0.7' opacity='0.7'/><circle cx='276' cy='112' r='0.8' opacity='0.75'/><circle cx='338' cy='58' r='0.6' opacity='0.55'/><circle cx='398' cy='128' r='1' opacity='0.85'/><circle cx='62' cy='142' r='0.7' opacity='0.65'/><circle cx='122' cy='182' r='0.9' opacity='0.8'/><circle cx='192' cy='150' r='0.6' opacity='0.5'/><circle cx='252' cy='202' r='1' opacity='0.85'/><circle cx='312' cy='172' r='0.7' opacity='0.6'/><circle cx='366' cy='232' r='0.8' opacity='0.7'/><circle cx='42' cy='250' r='1' opacity='0.8'/><circle cx='104' cy='300' r='0.7' opacity='0.6'/><circle cx='172' cy='272' r='0.9' opacity='0.75'/><circle cx='234' cy='332' r='0.6' opacity='0.55'/><circle cx='292' cy='292' r='1' opacity='0.85'/><circle cx='352' cy='342' r='0.8' opacity='0.7'/><circle cx='30' cy='362' r='0.7' opacity='0.6'/><circle cx='142' cy='366' r='0.9' opacity='0.8'/><circle cx='208' cy='396' r='0.6' opacity='0.5'/><circle cx='392' cy='384' r='0.9' opacity='0.75'/><circle cx='72' cy='208' r='0.5' opacity='0.45'/></g></svg>\")";
+const STAR_L =
+  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='720' height='720'><circle cx='80' cy='120' r='1.4' fill='%23ffffff' opacity='0.85'/><circle cx='300' cy='80' r='1.2' fill='%23cdbdf2' opacity='0.7'/><circle cx='520' cy='200' r='1.5' fill='%23ffffff' opacity='0.9'/><circle cx='640' cy='110' r='1.1' fill='%23ffffff' opacity='0.6'/><circle cx='180' cy='300' r='1.3' fill='%23bcd6f2' opacity='0.75'/><circle cx='430' cy='350' r='1.4' fill='%23ffffff' opacity='0.8'/><circle cx='600' cy='420' r='1.2' fill='%23ffffff' opacity='0.65'/><circle cx='120' cy='510' r='1.5' fill='%23cdbdf2' opacity='0.85'/><circle cx='350' cy='560' r='1.2' fill='%23ffffff' opacity='0.7'/><circle cx='560' cy='600' r='1.4' fill='%23ffffff' opacity='0.8'/><circle cx='680' cy='650' r='1.1' fill='%23bcd6f2' opacity='0.6'/><circle cx='250' cy='680' r='1.3' fill='%23ffffff' opacity='0.75'/></svg>\")";
+
 export default function GlassDepthHome({
   onNavigate,
   userName,
@@ -124,13 +132,34 @@ export default function GlassDepthHome({
 @keyframes gdHomeBlink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.32; } }
 @keyframes gdHomeDrift { 0% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(2.5%,-2%,0) scale(1.06); } 100% { transform: translate3d(-2%,2.5%,0) scale(1.03); } }
 @keyframes gdHomeSwirl { to { transform: rotate(360deg); } }
+@keyframes gdTwinkle { 0%,100% { opacity: .32; } 50% { opacity: .85; } }
+@keyframes gdTwinkle2 { 0%,100% { opacity: .6; } 50% { opacity: .24; } }
+@keyframes gdStarDrift { 0% { transform: translate3d(0,0,0); } 100% { transform: translate3d(-2%,1.6%,0); } }
+@keyframes gdShoot {
+  0%, 4% { opacity: 0; transform: translate3d(-12vw,-8vh,0) rotate(20deg) scaleX(.7); }
+  6% { opacity: 1; }
+  11% { opacity: 1; transform: translate3d(34vw,18vh,0) rotate(20deg) scaleX(1); }
+  14%, 100% { opacity: 0; transform: translate3d(40vw,21vh,0) rotate(20deg) scaleX(1); }
+}
+@keyframes gdShoot2 {
+  0%, 3% { opacity: 0; transform: translate3d(8vw,-10vh,0) rotate(28deg) scaleX(.7); }
+  5% { opacity: 1; }
+  10% { opacity: 1; transform: translate3d(44vw,12vh,0) rotate(28deg) scaleX(1); }
+  13%, 100% { opacity: 0; transform: translate3d(50vw,15vh,0) rotate(28deg) scaleX(1); }
+}
+.gd-stars { background-repeat: repeat; background-size: 420px 420px; animation: gdTwinkle 5s ease-in-out infinite, gdStarDrift 90s linear infinite alternate; }
+.gd-stars2 { background-repeat: repeat; background-size: 720px 720px; animation: gdTwinkle2 7.5s ease-in-out infinite, gdStarDrift 130s linear infinite alternate-reverse; }
+.gd-shoot { position: absolute; top: 9%; left: 6%; width: 170px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.85) 88%, #fff 100%); filter: drop-shadow(0 0 6px rgba(255,255,255,.85)) drop-shadow(0 0 14px rgba(170,200,255,.5)); opacity: 0; transform: rotate(20deg); animation: gdShoot 11s ease-in 2.5s infinite; }
+.gd-shoot2 { top: 5%; left: 36%; width: 130px; animation: gdShoot2 14s ease-in 8s infinite; }
+@media (prefers-reduced-motion: reduce) { .gd-shoot, .gd-shoot2 { animation: none !important; opacity: 0 !important; } }
 `,
         }}
       />
 
-      {/* ── Ambient cosmic background ───────────────────────────────────────
-          Rendered by the component but kept translucent so the page backdrop
-          still shows through. Reads darker / deeper than the clarity home. */}
+      {/* ── Night sky ───────────────────────────────────────────────────────
+          Deep dark base with the color bleed concentrated toward the TOP
+          (violet crown + blue/teal corners), darkening to near-black below.
+          Stars twinkle in/out via two layers; shooting stars streak past. */}
       <div
         aria-hidden
         style={{
@@ -138,16 +167,17 @@ export default function GlassDepthHome({
           inset: "-20%",
           zIndex: -3,
           background:
-            "radial-gradient(48% 55% at 18% 6%, rgba(144,92,203,0.40), transparent 70%)," +
-            "radial-gradient(44% 52% at 88% 12%, rgba(11,134,209,0.32), transparent 72%)," +
-            "radial-gradient(52% 58% at 72% 96%, rgba(38,201,216,0.20), transparent 70%)," +
-            "radial-gradient(40% 45% at 6% 90%, rgba(209,51,74,0.18), transparent 72%)",
-          filter: "saturate(1.06)",
-          animation: "gdHomeDrift 28s ease-in-out infinite alternate",
+            "radial-gradient(72% 42% at 50% -10%, rgba(144,92,203,0.34), transparent 62%)," +
+            "radial-gradient(50% 30% at 16% -2%, rgba(11,134,209,0.22), transparent 64%)," +
+            "radial-gradient(52% 32% at 86% 2%, rgba(38,201,216,0.18), transparent 66%)," +
+            "radial-gradient(40% 26% at 50% 4%, rgba(209,51,74,0.10), transparent 62%)," +
+            "linear-gradient(180deg, #0a0818 0%, #08060f 46%, #050409 78%, #030208 100%)",
+          filter: "saturate(1.05)",
+          animation: "gdHomeDrift 40s ease-in-out infinite alternate",
           pointerEvents: "none",
         }}
       />
-      {/* swirling aurora accent */}
+      {/* slow swirl of faint aurora near the crown */}
       <div
         aria-hidden
         style={{
@@ -155,15 +185,21 @@ export default function GlassDepthHome({
           inset: "-20%",
           zIndex: -2,
           mixBlendMode: "screen",
-          opacity: 0.45,
+          opacity: 0.32,
           background:
-            "conic-gradient(from 200deg at 30% 28%, rgba(38,201,216,0), rgba(38,201,216,0.16), rgba(144,92,203,0) 45%)",
-          filter: "blur(46px)",
-          animation: "gdHomeSwirl 36s linear infinite",
+            "conic-gradient(from 200deg at 38% 14%, rgba(38,201,216,0), rgba(144,92,203,0.14), rgba(38,201,216,0) 48%)",
+          filter: "blur(54px)",
+          animation: "gdHomeSwirl 48s linear infinite",
           pointerEvents: "none",
         }}
       />
-      {/* warm crown + bottom vignette toward deep space */}
+      {/* starfields */}
+      <div className="gd-stars" aria-hidden style={{ position: "absolute", inset: 0, zIndex: -2, backgroundImage: STAR_S, pointerEvents: "none" }} />
+      <div className="gd-stars2" aria-hidden style={{ position: "absolute", inset: 0, zIndex: -2, backgroundImage: STAR_L, pointerEvents: "none" }} />
+      {/* shooting stars — staggered cycles read as "random every ~10s" */}
+      <div className="gd-shoot" aria-hidden />
+      <div className="gd-shoot gd-shoot2" aria-hidden />
+      {/* bottom vignette toward deep space */}
       <div
         aria-hidden
         style={{
@@ -171,8 +207,7 @@ export default function GlassDepthHome({
           inset: 0,
           zIndex: -1,
           background:
-            "radial-gradient(60% 42% at 50% -10%, rgba(247,176,65,0.08), transparent 60%)," +
-            "linear-gradient(180deg, rgba(6,6,12,0) 30%, rgba(6,6,12,0.34) 72%, rgba(6,6,12,0.72) 100%)",
+            "linear-gradient(180deg, rgba(5,4,9,0) 38%, rgba(5,4,9,0.42) 76%, rgba(3,2,8,0.8) 100%)",
           pointerEvents: "none",
         }}
       />

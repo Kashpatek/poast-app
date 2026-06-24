@@ -96,20 +96,27 @@ function FluidCanvas({ colors }: { colors: [string, string, string] }) {
 
 const GRAIN = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/></svg>\")";
 
-// The SemiAnalysis chip-octagon die-frame motif (matches the SA box-logo
-// silhouette) — amber outline + a cobalt "via" dot per cell. Tiles 40×46 as the
-// cockpit's structural grid (the "octagon look" from the brand pattern memory).
-const OCTA = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='46'><polygon points='12,2 28,2 38,12 38,34 28,44 12,44 2,34 2,12' fill='none' stroke='%23F7B041' stroke-opacity='0.5' stroke-width='1'/><circle cx='20' cy='23' r='1.3' fill='%230B86D1' fill-opacity='0.55'/></svg>\")";
+// Cockpit HUD reticle — concentric rings + crosshair + tick marks, the kind of
+// targeting overlay a flight/command HUD draws. Slowly rotates behind the grid.
+const RETICLE = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><g fill='none'><circle cx='120' cy='120' r='112' stroke='%23F7B041' stroke-opacity='0.5'/><circle cx='120' cy='120' r='80' stroke='%230B86D1' stroke-opacity='0.45' stroke-dasharray='3 7'/><circle cx='120' cy='120' r='40' stroke='%232EAD8E' stroke-opacity='0.4'/><circle cx='120' cy='120' r='3' stroke='%23F7B041' stroke-opacity='0.6'/><line x1='120' y1='2' x2='120' y2='22' stroke='%23F7B041' stroke-opacity='0.55'/><line x1='120' y1='218' x2='120' y2='238' stroke='%23F7B041' stroke-opacity='0.55'/><line x1='2' y1='120' x2='22' y2='120' stroke='%23F7B041' stroke-opacity='0.55'/><line x1='218' y1='120' x2='238' y2='120' stroke='%23F7B041' stroke-opacity='0.55'/><line x1='120' y1='40' x2='120' y2='62' stroke='%230B86D1' stroke-opacity='0.4'/><line x1='120' y1='178' x2='120' y2='200' stroke='%230B86D1' stroke-opacity='0.4'/></g></svg>\")";
+
+// Tiled starfields (two parallax layers). Dense small dots + sparser large/tinted
+// dots — used by Iridescent (cosmic aura) and the Glass lock screen (night sky).
+const STARS = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><g fill='%23ffffff'><circle cx='28' cy='46' r='0.9' opacity='0.85'/><circle cx='96' cy='22' r='0.6' opacity='0.6'/><circle cx='150' cy='90' r='1' opacity='0.9'/><circle cx='210' cy='40' r='0.7' opacity='0.7'/><circle cx='270' cy='110' r='0.8' opacity='0.75'/><circle cx='330' cy='60' r='0.6' opacity='0.55'/><circle cx='380' cy='130' r='1.1' opacity='0.9'/><circle cx='60' cy='140' r='0.7' opacity='0.65'/><circle cx='120' cy='180' r='0.9' opacity='0.8'/><circle cx='190' cy='150' r='0.6' opacity='0.5'/><circle cx='250' cy='200' r='1' opacity='0.85'/><circle cx='310' cy='170' r='0.7' opacity='0.6'/><circle cx='360' cy='230' r='0.8' opacity='0.7'/><circle cx='40' cy='250' r='1' opacity='0.8'/><circle cx='100' cy='300' r='0.7' opacity='0.6'/><circle cx='170' cy='270' r='0.9' opacity='0.75'/><circle cx='230' cy='330' r='0.6' opacity='0.55'/><circle cx='290' cy='290' r='1' opacity='0.85'/><circle cx='350' cy='340' r='0.8' opacity='0.7'/><circle cx='30' cy='360' r='0.7' opacity='0.6'/><circle cx='140' cy='360' r='0.9' opacity='0.8'/><circle cx='200' cy='390' r='0.6' opacity='0.5'/><circle cx='380' cy='380' r='0.9' opacity='0.75'/><circle cx='70' cy='200' r='0.5' opacity='0.45'/></g></svg>\")";
+const STARS2 = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='760' height='760'><circle cx='80' cy='120' r='1.4' fill='%23ffffff' opacity='0.8'/><circle cx='300' cy='80' r='1.2' fill='%23cdbdf2' opacity='0.7'/><circle cx='520' cy='200' r='1.5' fill='%23ffffff' opacity='0.85'/><circle cx='660' cy='120' r='1.1' fill='%23ffffff' opacity='0.6'/><circle cx='180' cy='300' r='1.3' fill='%23cdbdf2' opacity='0.75'/><circle cx='440' cy='360' r='1.4' fill='%23ffffff' opacity='0.8'/><circle cx='620' cy='420' r='1.2' fill='%23ffffff' opacity='0.65'/><circle cx='120' cy='520' r='1.5' fill='%23cdbdf2' opacity='0.85'/><circle cx='360' cy='560' r='1.2' fill='%23ffffff' opacity='0.7'/><circle cx='560' cy='620' r='1.4' fill='%23ffffff' opacity='0.8'/><circle cx='700' cy='680' r='1.1' fill='%23cdbdf2' opacity='0.6'/><circle cx='260' cy='700' r='1.3' fill='%23ffffff' opacity='0.75'/><circle cx='40' cy='360' r='1' fill='%23ffffff' opacity='0.55'/><circle cx='700' cy='300' r='1.2' fill='%23ffffff' opacity='0.65'/></svg>\")";
 
 export default function StockBackdrop({ bg }: { bg: BgName }) {
-  // Brightness/scrim are var-driven so the "pop" is tunable (defaults below are
-  // the lifted look — a touch brighter + more saturated than the raw shader, a
-  // lighter scrim, and a soft center lift glow). Overridable via --sbk-* vars.
+  // Two-plane architecture so text always reads:
+  //   .sbk-fx   — the colorful backdrop, carries the brightness/saturate "pop"
+  //   .sbk-readscrim — a TRUE-dark legibility scrim rendered OUTSIDE that filter,
+  //                    so it can't be brightened away. Left-anchored (behind the
+  //                    hero copy) + a soft bottom/vignette. Applies to every vibe.
+  // The pop is intentionally modest now (brightness ~1.05) — the user wanted the
+  // darkness back; legibility comes from the scrim, not from dimming the art.
   const rootStyle = {
     position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden",
-    background: "#0A0816",
+    background: "#08060F",
     ["--bg0" as string]: PAL[0], ["--bg1" as string]: PAL[1], ["--bg2" as string]: PAL[2],
-    filter: "brightness(var(--sbk-bright,1.18)) saturate(var(--sbk-sat,1.14)) contrast(var(--sbk-contrast,1.02))",
   } as React.CSSProperties;
 
   return (
@@ -117,50 +124,86 @@ export default function StockBackdrop({ bg }: { bg: BgName }) {
       <style>{`
         @keyframes sbk-ckscan{0%{transform:translateY(0)}100%{transform:translateY(120vh)}}
         @keyframes sbk-ckscan2{0%{transform:translateY(40vh)}100%{transform:translateY(140vh)}}
-        @keyframes sbk-irid{0%{transform:scale(1.12) rotate(0deg)}100%{transform:scale(1.28) rotate(16deg)}}
-        @keyframes sbk-irid2{0%{transform:scale(1.14) rotate(0deg)}100%{transform:scale(1.34) rotate(-22deg)}}
+        @keyframes sbk-irid{0%{transform:scale(1.1) rotate(0deg)}100%{transform:scale(1.2) rotate(12deg)}}
+        @keyframes sbk-irid2{0%{transform:scale(1.12) rotate(0deg)}100%{transform:scale(1.24) rotate(-16deg)}}
         @keyframes sbk-ckdrift{0%{transform:translate3d(-1.6%,-1%,0) scale(1.02)}100%{transform:translate3d(2.2%,1.6%,0) scale(1.09)}}
-        @keyframes sbk-octapulse{0%,100%{opacity:.42}50%{opacity:.62}}
+        @keyframes sbk-ckgrid{from{background-position:0 0}to{background-position:0 60px}}
+        @keyframes sbk-ckspin{to{transform:rotate(360deg)}}
+        @keyframes sbk-twinkle{0%,100%{opacity:.35}50%{opacity:.8}}
+        @keyframes sbk-twinkle2{0%,100%{opacity:.55}50%{opacity:.28}}
+        @keyframes sbk-stardrift{0%{transform:translate3d(0,0,0)}100%{transform:translate3d(-2.4%,-3.2%,0)}}
+        @keyframes sbk-iridflow{0%{transform:translate(-4%,2%) scale(1.04)}50%{transform:translate(3%,-3%) scale(1.12)}100%{transform:translate(-4%,2%) scale(1.04)}}
         .sbk-layer{position:absolute;inset:0;pointer-events:none}
-        .sbk-grain{opacity:.28;mix-blend-mode:overlay;background-image:${GRAIN}}
-        .sbk-scrim{background:radial-gradient(ellipse 76% 66% at 50% 40%, rgb(8 6 16 / var(--sbk-scrim-c,.03)), rgb(8 6 16 / var(--sbk-scrim-e,.40)) 100%)}
-        .sbk-lift{background:radial-gradient(56% 46% at 50% 37%, rgba(255,255,255,.07), rgba(170,120,235,.06) 40%, transparent 72%);mix-blend-mode:screen}
-        /* COCKPIT — SA chip-octagon die-grid + vivid drifting glows + dual scan */
-        .sbk-ckocta{background-image:${OCTA};background-size:40px 46px;mask-image:radial-gradient(132% 100% at 50% 8%,#000 30%,transparent 88%);-webkit-mask-image:radial-gradient(132% 100% at 50% 8%,#000 30%,transparent 88%);animation:sbk-octapulse 7s ease-in-out infinite}
-        .sbk-ckglows{background:radial-gradient(640px 640px at 6% -8%, color-mix(in srgb,var(--bg0) 72%,transparent), transparent 60%),radial-gradient(580px 580px at 96% -6%, color-mix(in srgb,var(--bg1) 68%,transparent), transparent 60%),radial-gradient(720px 460px at 50% 114%, color-mix(in srgb,var(--bg2) 60%,transparent), transparent 64%),radial-gradient(460px 460px at 80% 66%, color-mix(in srgb,var(--bg0) 34%,transparent), transparent 70%),radial-gradient(420px 420px at 18% 78%, color-mix(in srgb,var(--bg1) 30%,transparent), transparent 72%);animation:sbk-ckdrift 18s ease-in-out infinite alternate}
-        .sbk-ckscan{left:0;right:0;top:-220px;height:200px;background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--bg1) 30%,transparent),transparent);animation:sbk-ckscan 9s linear infinite}
-        .sbk-ckscan2{left:0;right:0;top:-160px;height:140px;background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--bg0) 26%,transparent),transparent);animation:sbk-ckscan2 13s linear infinite}
-        /* IRIDESCENT — layered counter-drifting oil-slick conics + central bloom */
-        .sbk-irid{background:conic-gradient(from 120deg at 38% 32%, color-mix(in srgb,var(--bg0) 72%,transparent), color-mix(in srgb,var(--bg2) 62%,transparent) 26%, color-mix(in srgb,var(--bg1) 66%,transparent) 54%, color-mix(in srgb,var(--bg0) 72%,transparent));filter:blur(60px) saturate(1.5);animation:sbk-irid 28s ease-in-out infinite alternate}
-        .sbk-irid2{background:conic-gradient(from -40deg at 66% 70%, color-mix(in srgb,var(--bg1) 56%,transparent), transparent 28%, color-mix(in srgb,var(--bg2) 52%,transparent) 58%, transparent 84%);filter:blur(82px) saturate(1.4);mix-blend-mode:screen;animation:sbk-irid2 40s ease-in-out infinite alternate}
-        .sbk-iridbloom{background:radial-gradient(52% 44% at 50% 44%, rgba(184,132,242,.18), rgba(46,107,230,.08) 46%, transparent 72%);mix-blend-mode:screen}
+        .sbk-fx{position:absolute;inset:0;filter:brightness(var(--sbk-bright,1.05)) saturate(var(--sbk-sat,1.08)) contrast(var(--sbk-contrast,1))}
+        .sbk-grain{opacity:.26;mix-blend-mode:overlay;background-image:${GRAIN}}
+        .sbk-scrim{background:radial-gradient(ellipse 76% 66% at 50% 40%, rgb(8 6 16 / var(--sbk-scrim-c,.05)), rgb(8 6 16 / var(--sbk-scrim-e,.46)) 100%)}
+        .sbk-lift{background:radial-gradient(56% 46% at 50% 37%, rgba(255,255,255,.05), rgba(170,120,235,.05) 40%, transparent 72%);mix-blend-mode:screen}
+        /* LEGIBILITY — true-dark scrim OUTSIDE the brightness filter; every vibe. */
+        .sbk-readscrim{background:linear-gradient(90deg, rgba(7,5,15,.72) 0%, rgba(7,5,15,.46) 27%, rgba(7,5,15,.12) 55%, transparent 74%),linear-gradient(0deg, rgba(7,5,15,.48) 0%, rgba(7,5,15,.10) 22%, transparent 38%),radial-gradient(135% 95% at 50% -8%, transparent 50%, rgba(7,5,15,.32) 100%)}
+        /* COCKPIT — command-center HUD: receding perspective grid (floor+ceiling),
+           rotating targeting reticle, corner brackets, scan sweeps, tech glows */
+        .sbk-ckglows{background:radial-gradient(680px 680px at 8% -10%, rgba(11,134,209,.42), transparent 60%),radial-gradient(560px 560px at 94% -6%, rgba(46,173,142,.34), transparent 60%),radial-gradient(820px 520px at 50% 116%, rgba(11,134,209,.40), transparent 64%),radial-gradient(440px 440px at 82% 70%, rgba(247,176,65,.16), transparent 70%);animation:sbk-ckdrift 20s ease-in-out infinite alternate}
+        .sbk-ckfloor{left:-30%;right:-30%;bottom:-12%;top:auto;height:62%;background-image:linear-gradient(to right, rgba(11,134,209,.5) 1px, transparent 1px),linear-gradient(to bottom, rgba(11,134,209,.5) 1px, transparent 1px);background-size:60px 60px;transform:perspective(420px) rotateX(66deg);transform-origin:50% 100%;-webkit-mask-image:linear-gradient(to top,#000 2%,transparent 82%);mask-image:linear-gradient(to top,#000 2%,transparent 82%);opacity:.5;animation:sbk-ckgrid 5.5s linear infinite}
+        .sbk-ckceil{left:-30%;right:-30%;top:-12%;bottom:auto;height:52%;background-image:linear-gradient(to right, rgba(247,176,65,.26) 1px, transparent 1px),linear-gradient(to bottom, rgba(247,176,65,.26) 1px, transparent 1px);background-size:60px 60px;transform:perspective(420px) rotateX(-66deg);transform-origin:50% 0%;-webkit-mask-image:linear-gradient(to bottom,#000 2%,transparent 80%);mask-image:linear-gradient(to bottom,#000 2%,transparent 80%);opacity:.3;animation:sbk-ckgrid 7s linear infinite}
+        .sbk-ckreticle{background-image:${RETICLE};background-repeat:no-repeat;background-position:center;background-size:min(560px,48vw) auto;opacity:.24;animation:sbk-ckspin 70s linear infinite}
+        .sbk-ckhud{position:absolute;inset:24px;pointer-events:none}
+        .sbk-ckbk{position:absolute;width:42px;height:42px;border:2px solid rgba(247,176,65,.5);box-shadow:0 0 14px rgba(247,176,65,.25)}
+        .sbk-ckbk.tl{top:0;left:0;border-right:none;border-bottom:none}
+        .sbk-ckbk.tr{top:0;right:0;border-left:none;border-bottom:none}
+        .sbk-ckbk.bl{bottom:0;left:0;border-right:none;border-top:none}
+        .sbk-ckbk.br{bottom:0;right:0;border-left:none;border-top:none}
+        .sbk-ckscan{left:0;right:0;top:-220px;height:200px;background:linear-gradient(180deg,transparent,rgba(46,173,142,.22),transparent);animation:sbk-ckscan 9s linear infinite}
+        .sbk-ckscan2{left:0;right:0;top:-160px;height:140px;background:linear-gradient(180deg,transparent,rgba(11,134,209,.2),transparent);animation:sbk-ckscan2 13s linear infinite}
+        /* IRIDESCENT — calmer oil-slick conics + cosmic starfield + soft fluid bloom */
+        .sbk-irid{background:conic-gradient(from 120deg at 38% 32%, color-mix(in srgb,var(--bg0) 58%,transparent), color-mix(in srgb,var(--bg2) 50%,transparent) 26%, color-mix(in srgb,var(--bg1) 54%,transparent) 54%, color-mix(in srgb,var(--bg0) 58%,transparent));filter:blur(70px) saturate(1.2);opacity:.8;animation:sbk-irid 34s ease-in-out infinite alternate}
+        .sbk-irid2{background:conic-gradient(from -40deg at 66% 70%, color-mix(in srgb,var(--bg1) 44%,transparent), transparent 30%, color-mix(in srgb,var(--bg2) 42%,transparent) 60%, transparent 86%);filter:blur(92px) saturate(1.2);mix-blend-mode:screen;opacity:.7;animation:sbk-irid2 48s ease-in-out infinite alternate}
+        .sbk-iridflow{width:62%;height:58%;left:40%;top:28%;background:radial-gradient(closest-side, rgba(180,140,240,.16), rgba(70,120,220,.06) 60%, transparent);filter:blur(70px);mix-blend-mode:screen;animation:sbk-iridflow 26s ease-in-out infinite}
+        .sbk-iridbloom{background:radial-gradient(52% 44% at 50% 44%, rgba(184,132,242,.12), rgba(46,107,230,.05) 46%, transparent 72%);mix-blend-mode:screen}
+        .sbk-stars{background-image:${STARS};background-repeat:repeat;background-size:480px 480px;animation:sbk-twinkle 4.6s ease-in-out infinite, sbk-stardrift 70s linear infinite alternate}
+        .sbk-stars2{background-image:${STARS2};background-repeat:repeat;background-size:760px 760px;animation:sbk-twinkle2 6.8s ease-in-out infinite, sbk-stardrift 110s linear infinite alternate-reverse}
       `}</style>
 
-      {bg === "aurora" && (
-        <>
-          <FluidCanvas colors={PAL} />
-          <div className="sbk-layer sbk-lift" />
-          <div className="sbk-layer sbk-scrim" />
-          <div className="sbk-layer sbk-grain" />
-        </>
-      )}
-      {bg === "cockpit" && (
-        <>
-          <div className="sbk-layer sbk-ckglows" />
-          <div className="sbk-layer sbk-ckocta" />
-          <div className="sbk-layer sbk-ckscan" />
-          <div className="sbk-layer sbk-ckscan2" />
-          <div className="sbk-layer sbk-grain" />
-        </>
-      )}
-      {bg === "iridescent" && (
-        <>
-          <div className="sbk-layer sbk-irid" />
-          <div className="sbk-layer sbk-irid2" />
-          <div className="sbk-layer sbk-iridbloom" />
-          <div className="sbk-layer sbk-grain" />
-        </>
-      )}
+      {/* colorful plane — carries the brightness "pop" */}
+      <div className="sbk-fx">
+        {bg === "aurora" && (
+          <>
+            <FluidCanvas colors={PAL} />
+            <div className="sbk-layer sbk-lift" />
+            <div className="sbk-layer sbk-scrim" />
+            <div className="sbk-layer sbk-grain" />
+          </>
+        )}
+        {bg === "cockpit" && (
+          <>
+            <div className="sbk-layer sbk-ckglows" />
+            <div className="sbk-layer sbk-ckceil" />
+            <div className="sbk-layer sbk-ckfloor" />
+            <div className="sbk-layer sbk-ckreticle" />
+            <div className="sbk-ckhud">
+              <span className="sbk-ckbk tl" />
+              <span className="sbk-ckbk tr" />
+              <span className="sbk-ckbk bl" />
+              <span className="sbk-ckbk br" />
+            </div>
+            <div className="sbk-layer sbk-ckscan" />
+            <div className="sbk-layer sbk-ckscan2" />
+            <div className="sbk-layer sbk-grain" />
+          </>
+        )}
+        {bg === "iridescent" && (
+          <>
+            <div className="sbk-layer sbk-irid" />
+            <div className="sbk-layer sbk-irid2" />
+            <div className="sbk-layer sbk-stars" />
+            <div className="sbk-layer sbk-stars2" />
+            <div className="sbk-layer sbk-iridflow" />
+            <div className="sbk-layer sbk-iridbloom" />
+            <div className="sbk-layer sbk-grain" />
+          </>
+        )}
+      </div>
+      {/* legibility plane — TRUE dark, outside the filter, on every vibe */}
+      <div className="sbk-layer sbk-readscrim" />
     </div>
   );
 }

@@ -8,18 +8,19 @@ import { useTheme, playThemeTransitionAndReload, type ThemeName, type BgName, ty
 
 const THEMES: { id: ThemeName; name: string; desc: string; sw: string }[] = [
   { id: "classic", name: "Classic", desc: "The original POAST look — flat, focused, dark.", sw: "linear-gradient(135deg,#0D0D12,#09090D)" },
-  { id: "stock", name: "Clean", desc: "Smokey aurora — pick from three backdrops.", sw: "linear-gradient(135deg,#D1334A,#905CCB 55%,#2E6BE6)" },
-  { id: "glass", name: "Glass", desc: "Translucent liquid-glass surfaces over ambient light.", sw: "linear-gradient(135deg,rgba(52,166,230,.5),rgba(46,173,142,.4))" },
+  { id: "stock", name: "Fresh", desc: "Smokey aurora — pick from three backdrops.", sw: "linear-gradient(135deg,#D1334A,#905CCB 55%,#2E6BE6)" },
+  { id: "glass", name: "Reflect", desc: "Translucent liquid-glass surfaces over ambient light.", sw: "linear-gradient(135deg,rgba(52,166,230,.5),rgba(46,173,142,.4))" },
 ];
 const BGS: { id: BgName; name: string }[] = [
   { id: "aurora", name: "Aurora" },
   { id: "iridescent", name: "Iridescent" },
   { id: "cockpit", name: "Cockpit" },
 ];
-// Glass home layouts (the "home screen choice" the user picks while on Glass).
+// Reflect home layouts (the "home screen choice" the user picks while on Glass).
+// Switching *into* Reflect always lands on Clarity; Depth is opt-in here.
 const MATS: { id: GlassMat; name: string; desc: string }[] = [
-  { id: "clarity", name: "Clarity", desc: "Liquid-glass dock home over the fluid." },
-  { id: "depth", name: "Depth", desc: "Ambient lock screen — live clock + shelves." },
+  { id: "clarity", name: "Clarity", desc: "Liquid-glass home — welcome hero, dock + tool tiles." },
+  { id: "depth", name: "Depth", desc: "Ambient night-sky lock screen — live clock, stars + shooting stars." },
 ];
 // Glass material sliders + presets — faithful to the mockup gpanel (glass.html).
 const GLASS_SLIDERS: { key: keyof GlassVars; label: string; min: number; max: number; step: number }[] = [
@@ -40,13 +41,16 @@ const GLASS_PRESETS: { id: string; name: string; v: GlassVars }[] = [
 // Help · Replay-tour action (the modal wires it to close-then-replay; surfaces
 // that own their own tour replay just omit it).
 export function AppearancePanel({ onReplayTour }: { onReplayTour?: () => void }) {
-  const { theme, bg, glassMat, glass, glassLocked, setTheme, setBg, setGlassMat, setGlass, setGlassLocked } = useTheme();
+  const { theme, bg, glassMat, glass, glassLocked, setTheme, setBg, setGlassMat, setThemeMat, setGlass, setGlassLocked } = useTheme();
   // Picking a *theme* swaps the whole home + chrome, so it "locks in" with a
   // brief branded transition then a hard refresh (per the product model: choose
   // your theme → cool animation → reload). Backdrop vibes stay live-preview.
   const pickTheme = (t: ThemeName) => {
     if (t === theme) return;
-    setTheme(t);
+    // Entering Glass always opens the Glass Home (clarity); the Lock screen is
+    // an opt-in choice below — never the landing screen on a theme switch.
+    if (t === "glass") setThemeMat("glass", "clarity");
+    else setTheme(t);
     const name = THEMES.find((x) => x.id === t)?.name || "your look";
     playThemeTransitionAndReload("Switching to " + name);
   };
@@ -55,8 +59,8 @@ export function AppearancePanel({ onReplayTour }: { onReplayTour?: () => void })
   const pickMat = (m: GlassMat) => {
     if (m === glassMat) return;
     setGlassMat(m);
-    const name = MATS.find((x) => x.id === m)?.name || "Glass";
-    playThemeTransitionAndReload("Switching to Glass · " + name);
+    const name = MATS.find((x) => x.id === m)?.name || "Reflect";
+    playThemeTransitionAndReload("Switching to Reflect · " + name);
   };
   return (
     <>
@@ -85,7 +89,7 @@ export function AppearancePanel({ onReplayTour }: { onReplayTour?: () => void })
 
       {theme === "stock" && (
         <>
-          <div style={{ ...lbl, marginTop: 22 }}>Clean · Backdrop</div>
+          <div style={{ ...lbl, marginTop: 22 }}>Fresh · Backdrop</div>
           <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
             {BGS.map((b) => {
               const on = bg === b.id;
@@ -104,7 +108,7 @@ export function AppearancePanel({ onReplayTour }: { onReplayTour?: () => void })
 
       {theme === "glass" && (
         <>
-          <div style={{ ...lbl, marginTop: 22 }}>Glass · Home screen</div>
+          <div style={{ ...lbl, marginTop: 22 }}>Reflect · Home screen</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
             {MATS.map((m) => {
               const on = glassMat === m.id;
@@ -126,7 +130,7 @@ export function AppearancePanel({ onReplayTour }: { onReplayTour?: () => void })
           </div>
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 22 }}>
-            <div style={lbl}>Glass · Material</div>
+            <div style={lbl}>Reflect · Material</div>
             <button onClick={() => setGlassLocked(!glassLocked)} title={glassLocked ? "Unlock to adjust" : "Lock these settings"} style={{
               display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", borderRadius: 999,
               padding: "4px 10px", fontFamily: mn, fontSize: 9.5, letterSpacing: ".12em", textTransform: "uppercase", fontWeight: 700,

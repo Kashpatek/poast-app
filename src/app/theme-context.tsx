@@ -26,13 +26,14 @@ interface ThemeContextValue {
   setTheme: (t: ThemeName) => void;
   setBg: (b: BgName) => void;
   setGlassMat: (m: GlassMat) => void;
+  setThemeMat: (t: ThemeName, m: GlassMat) => void;
   setGlass: (patch: Partial<GlassVars>) => void;
   setGlassLocked: (v: boolean) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
   theme: "classic", bg: "aurora", glassMat: "clarity", glass: GLASS_DEFAULT, glassLocked: false,
-  setTheme: () => {}, setBg: () => {}, setGlassMat: () => {}, setGlass: () => {}, setGlassLocked: () => {},
+  setTheme: () => {}, setBg: () => {}, setGlassMat: () => {}, setThemeMat: () => {}, setGlass: () => {}, setGlassLocked: () => {},
 });
 
 // the signed-in identity key the rest of the app uses (poast-current-user)
@@ -115,6 +116,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const setTheme = (t: ThemeName) => { setThemeS(t); apply(t, bg, glassMat, glass); persist({ theme: t, bg, glassMat, glass, glassLocked }); };
   const setBg = (b: BgName) => { setBgS(b); apply(theme, b, glassMat, glass); persist({ theme, bg: b, glassMat, glass, glassLocked }); };
   const setGlassMat = (m: GlassMat) => { setGlassMatS(m); apply(theme, bg, m, glass); persist({ theme, bg, glassMat: m, glass, glassLocked }); };
+  // Atomic theme+home swap — used when entering Glass so it always lands on the
+  // Glass Home (clarity). Doing both in one persist avoids the stale-closure race
+  // two separate setters would hit (each persists the *other* field as stale).
+  const setThemeMat = (t: ThemeName, m: GlassMat) => { setThemeS(t); setGlassMatS(m); apply(t, bg, m, glass); persist({ theme: t, bg, glassMat: m, glass, glassLocked }); };
   const setGlass = (patch: Partial<GlassVars>) => {
     if (glassLocked) return; // locked ⇒ frozen
     const g = { ...glass, ...patch };
@@ -123,7 +128,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const setGlassLocked = (v: boolean) => { setGlassLockedS(v); persist({ theme, bg, glassMat, glass, glassLocked: v }); };
 
   return (
-    <ThemeContext.Provider value={{ theme, bg, glassMat, glass, glassLocked, setTheme, setBg, setGlassMat, setGlass, setGlassLocked }}>
+    <ThemeContext.Provider value={{ theme, bg, glassMat, glass, glassLocked, setTheme, setBg, setGlassMat, setThemeMat, setGlass, setGlassLocked }}>
       {children}
     </ThemeContext.Provider>
   );
