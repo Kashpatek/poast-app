@@ -254,6 +254,8 @@ export default function GlassDepthHome({
         dangerouslySetInnerHTML={{
           __html: `
 @keyframes gdHomeRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+/* Cue rise — preserves the translateX(-50%) centering the generic gdHomeRise would clobber. */
+@keyframes gdCueRise { from { opacity: 0; transform: translate(-50%, 16px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes gdHomeBlink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.32; } }
 .gd-track { display: flex; gap: 14px; overflow-x: auto; overflow-y: hidden; padding: 6px 2px 12px; scroll-behavior: smooth; scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg, transparent, #000 2.5%, #000 97.5%, transparent); mask-image: linear-gradient(90deg, transparent, #000 2.5%, #000 97.5%, transparent); }
 .gd-track::-webkit-scrollbar { display: none; }
@@ -275,7 +277,9 @@ export default function GlassDepthHome({
         style={{
           position: "relative",
           zIndex: 0,
-          minHeight: "calc(100vh - 116px)",
+          // Fill the viewport exactly (84px contentTop sits above the hero) so on
+          // first paint only the hero text shows; "Today's shelves" sits below the fold.
+          minHeight: "calc(100vh - 84px)",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -445,7 +449,7 @@ export default function GlassDepthHome({
       <div
         className="gd-cue"
         onClick={toShelves}
-        style={{ position: "absolute", left: "50%", bottom: 18, transform: "translateX(-50%)", opacity: 0, animation: "gdHomeRise 1s ease 1.1s forwards" }}
+        style={{ position: "absolute", left: "50%", bottom: 18, transform: "translateX(-50%)", opacity: 0, animation: "gdCueRise 1s ease 1.1s forwards" }}
       >
         <div className="gd-mouse" />
         <ChevronDown className="gd-chev" size={16} color={D.txd} />

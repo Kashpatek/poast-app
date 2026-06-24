@@ -238,7 +238,10 @@ export default function GlassClarityHome({
       {/* ── Hero ── */}
       <section
         style={{
-          minHeight: "calc(100vh - 160px)",
+          // Fill the viewport exactly (84px contentTop + 8px container pad = 92px
+          // above the hero) so on first paint only the hero + "Your tools" cue show;
+          // the tool shelves sit just below the fold.
+          minHeight: "calc(100vh - 92px)",
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
