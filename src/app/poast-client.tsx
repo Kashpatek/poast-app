@@ -846,13 +846,33 @@ function Sidebar({ active, onNav, onAskPoast, locked, onToggleLock }: { active: 
   // Faithful to the mockup .srail: HIDDEN off-canvas by default. Hover the left
   // edge to PEEK it in (overlay, no content shift); click the edge arrow to LOCK
   // it open (docks, content shifts) or to CLOSE it. Never a condensed rail.
+  // Three states (faithful to mockup .srail): HIDDEN (off-canvas) → PEEK (70px
+  // icon rail; hover a category for its flyout) → EXP (240px docked full bar).
+  // `locked` (from parent) is the EXP/docked state; `peek` is the transient rail.
   var _peek = useState(false), peek = _peek[0], setPeek = _peek[1];
   var _hovArrow = useState(false), hovArrow = _hovArrow[0], setHovArrow = _hovArrow[1];
+  var _armed = useState(false), armed = _armed[0], setArmed = _armed[1];
+  var _flyCat = useState<string | null>(null), flyCat = _flyCat[0], setFlyCat = _flyCat[1];
+  var _flyTop = useState(120), flyTop = _flyTop[0], setFlyTop = _flyTop[1];
   var peekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  var shown = locked || peek;
-  function peekOn() { if (peekTimer.current) { clearTimeout(peekTimer.current); peekTimer.current = null; } setPeek(true); }
-  function peekOffSoon() { if (peekTimer.current) clearTimeout(peekTimer.current); peekTimer.current = setTimeout(function() { setPeek(false); }, 200); }
-  useEffect(function() { return function() { if (peekTimer.current) clearTimeout(peekTimer.current); }; }, []);
+  var armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  var flyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  var exp = locked;            // EXP = docked full sidebar
+  var shown = locked || peek;  // on-screen at all
+  function peekOn() { if (peekTimer.current) { clearTimeout(peekTimer.current); peekTimer.current = null; } setPeek(true); if (armTimer.current) clearTimeout(armTimer.current); armTimer.current = setTimeout(function() { setArmed(true); }, 280); }
+  function peekOffSoon() { if (peekTimer.current) clearTimeout(peekTimer.current); peekTimer.current = setTimeout(function() { setPeek(false); setFlyCat(null); setArmed(false); }, 200); }
+  function closeFly() { if (flyTimer.current) { clearTimeout(flyTimer.current); flyTimer.current = null; } setFlyCat(null); }
+  function flyEnter(catKey: string, e: React.MouseEvent<HTMLElement>) {
+    if (flyTimer.current) clearTimeout(flyTimer.current);
+    var r = e.currentTarget.getBoundingClientRect();
+    var vh = typeof window !== "undefined" ? window.innerHeight : 900;
+    var n = visibleItems(SIDEBAR_CATS[catKey]).length;
+    var h = Math.min(n * 46 + 58, vh - 40);
+    var top = Math.max(64, Math.min(r.top - 6, vh - h - 18));
+    if (flyCat) { setFlyCat(catKey); setFlyTop(top); }
+    else { flyTimer.current = setTimeout(function() { setFlyCat(catKey); setFlyTop(top); }, 500); }
+  }
+  useEffect(function() { return function() { if (peekTimer.current) clearTimeout(peekTimer.current); if (armTimer.current) clearTimeout(armTimer.current); if (flyTimer.current) clearTimeout(flyTimer.current); }; }, []);
   var goHome = function() {
     onNav("home");
     if (analyst && pathname !== "/analyst") { try { router.replace("/analyst"); } catch (e) {} }
@@ -888,10 +908,23 @@ function Sidebar({ active, onNav, onAskPoast, locked, onToggleLock }: { active: 
     </div>;
   }
   function visibleItems(cat: SidebarCat) { return cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).filter(function(it) { return it.id !== "docu" || canDocu; }).filter(function(it) { return it.id !== "tasks" || akash; }); }
+  // Compact-rail icon (peek state) — centered icon, active glow bar on the left.
+  function railIcon(o: { key: string; Icon: LucideIcon; color: string; active: boolean; onClick: (e: React.MouseEvent<HTMLElement>) => void; onEnter?: (e: React.MouseEvent<HTMLElement>) => void; onLeave?: () => void; title?: string }) {
+    var IconC = o.Icon; var a = o.active;
+    return <div key={o.key} title={o.title} onClick={o.onClick}
+      onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!a) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; if (o.onEnter) o.onEnter(e); }}
+      onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!a) e.currentTarget.style.background = "transparent"; if (o.onLeave) o.onLeave(); }}
+      style={{ position: "relative", height: 46, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 13, cursor: "pointer", flex: "none", background: a ? ("color-mix(in srgb, " + o.color + " 15%, transparent)") : "transparent", transition: "background .15s" }}>
+      <span style={{ position: "absolute", left: 5, top: "50%", transform: "translateY(-50%)", width: 3, height: a ? 22 : 0, borderRadius: 2, background: o.color, boxShadow: "0 0 8px " + o.color, transition: "height .16s" }} />
+      <IconC size={20} strokeWidth={1.75} color={a ? o.color : "rgba(255,255,255,0.62)"} />
+    </div>;
+  }
+
+  var titleCase = function(s: string) { return s.charAt(0) + s.slice(1).toLowerCase(); };
 
   return (<>
-    {/* left-edge hover zone with a subtle grabber — summons the peek. Only when
-        the sidebar is hidden (not locked, not already peeking). */}
+    {/* left-edge hover zone with a subtle grabber — summons the peek rail. Only
+        when hidden (not docked, not already peeking). */}
     {!shown && (
       <div onMouseEnter={peekOn} style={{ position: "fixed", left: 0, top: 0, width: 16, height: "100vh", zIndex: 99, display: "flex", alignItems: "center", cursor: "pointer" }}>
         <div style={{ width: 4, height: 48, borderRadius: "0 4px 4px 0", background: "linear-gradient(180deg, " + C.amber + "cc, " + C.amber + "55)", boxShadow: "0 0 12px " + C.amber + "66" }} />
@@ -901,7 +934,23 @@ function Sidebar({ active, onNav, onAskPoast, locked, onToggleLock }: { active: 
     <div
       onMouseEnter={peekOn}
       onMouseLeave={function() { if (!locked) peekOffSoon(); }}
-      style={{ width: 240, height: "100vh", background: "linear-gradient(180deg, #08080F 0%, #0A0A14 100%)", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100, transform: shown ? "translateX(0)" : "translateX(-104%)", transition: "transform 0.30s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.3s", boxShadow: (peek && !locked) ? "24px 0 60px rgba(0,0,0,0.5)" : "none", overflow: "hidden" }}>
+      style={{ width: exp ? 240 : 70, height: "100vh", background: "linear-gradient(180deg, #08080F 0%, #0A0A14 100%)", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", position: "fixed", left: 0, top: 0, zIndex: 100, transform: shown ? "translateX(0)" : "translateX(-104%)", transition: "transform 0.30s cubic-bezier(0.2,0.8,0.2,1), width 0.28s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.3s", boxShadow: (shown && !locked) ? "24px 0 60px rgba(0,0,0,0.5)" : "none", overflow: "hidden" }}>
+
+      {!exp ? (
+      /* ── PEEK — 70px icon rail; hover a category for its flyout ── */
+      <div style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%", padding: "18px 11px 14px", gap: 5 }}>
+        <div onClick={goHome} title="Home" style={{ width: 34, height: 34, borderRadius: 10, flex: "none", display: "grid", placeItems: "center", color: "#0b0b11", fontFamily: gf, fontWeight: 800, fontSize: 16, background: "linear-gradient(135deg, " + C.amber + ", " + C.coral + ")", boxShadow: "0 0 18px " + C.amber + "73", margin: "0 auto 14px", cursor: "pointer" }}>P</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+          {railIcon({ key: "home", Icon: Home, color: C.amber, active: active === "home", onClick: function() { closeFly(); onNav("home"); }, onEnter: closeFly })}
+          {visibleCats.map(function(catKey) {
+            var cat = SIDEBAR_CATS[catKey];
+            return railIcon({ key: catKey, Icon: cat.Icon, color: cat.color, active: activeCat === catKey, title: titleCase(cat.label), onClick: function(e) { flyEnter(catKey, e); setFlyCat(catKey); }, onEnter: function(e) { flyEnter(catKey, e); }, onLeave: function() { if (flyTimer.current) clearTimeout(flyTimer.current); } });
+          })}
+        </div>
+        {!analyst && railIcon({ key: "settings", Icon: Settings, color: C.violet, active: active === "settings", title: "POAST Settings", onClick: function() { closeFly(); onNav("settings"); }, onEnter: closeFly })}
+      </div>
+      ) : (
+      <>
       {/* Logo — click to go home (splash) without re-auth */}
       <div
         onClick={goHome}
@@ -985,18 +1034,45 @@ function Sidebar({ active, onNav, onAskPoast, locked, onToggleLock }: { active: 
         </div>}
         <div style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v3.2 // SEMIANALYSIS</div>
       </div>
+      </>
+      )}
     </div>
 
-    {/* edge arrow — the lock / close control. Shown while peeking, locked, or
-        hovering the arrow itself. Peek → amber, points right (lock open).
-        Locked → subtle, points left (close). Rides the sidebar edge. */}
-    {(shown || hovArrow) && (
+    {/* per-category flyout — peek state only; lists that category's tools */}
+    {!exp && flyCat && SIDEBAR_CATS[flyCat] && (
+      <div onMouseEnter={function() { if (flyTimer.current) clearTimeout(flyTimer.current); if (peekTimer.current) clearTimeout(peekTimer.current); }}
+        onMouseLeave={function() { setFlyCat(null); if (!locked) peekOffSoon(); }}
+        style={{ position: "fixed", left: 74, top: flyTop, zIndex: 103, minWidth: 236, maxWidth: 262, padding: 9, borderRadius: 16, background: "linear-gradient(180deg, rgba(17,17,25,0.98), rgba(10,10,16,0.99))", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 30px 70px rgba(0,0,0,0.62)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "5px 8px 9px", borderBottom: "1px solid rgba(255,255,255,0.06)", marginBottom: 6 }}>
+          <span style={{ width: 4, height: 16, borderRadius: 2, background: SIDEBAR_CATS[flyCat].color, flex: "none" }} />
+          <div>
+            <div style={{ fontFamily: gf, fontWeight: 700, fontSize: 14, color: "#E8E4DD" }}>{titleCase(SIDEBAR_CATS[flyCat].label)}</div>
+            <div style={{ fontFamily: mn, fontSize: 8, letterSpacing: 1, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginTop: 2 }}>{visibleItems(SIDEBAR_CATS[flyCat]).length + " tools"}</div>
+          </div>
+        </div>
+        {visibleItems(SIDEBAR_CATS[flyCat]).map(function(item) {
+          var col = SIDEBAR_CATS[flyCat as string].color;
+          return <div key={item.id} onClick={function() { if (item.href) { window.open(item.href, "_blank"); } else { onNav(item.id); } setFlyCat(null); }} title={item.href ? "Open " + item.l + " in a new tab" : undefined}
+            style={{ display: "flex", alignItems: "center", gap: 11, padding: "8px 9px", borderRadius: 11, cursor: "pointer", transition: "background .13s" }}
+            onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "color-mix(in srgb, " + col + " 16%, transparent)"; }}
+            onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "transparent"; }}>
+            <span style={{ width: 32, height: 32, borderRadius: 9, flex: "none", display: "grid", placeItems: "center", color: col, background: "color-mix(in srgb, " + col + " 14%, transparent)", border: "1px solid color-mix(in srgb, " + col + " 26%, transparent)" }}><item.Icon size={16} strokeWidth={1.8} /></span>
+            <span style={{ minWidth: 0, flex: 1, overflow: "hidden" }}><span style={{ display: "block", fontFamily: gf, fontWeight: 600, fontSize: 13.5, color: "#E8E4DD", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.l}</span></span>
+            {item.badge === "NEW" ? <NewDot color={col} /> : (item.badge ? <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 7, fontWeight: 800, color: col, letterSpacing: 1, padding: "2px 5px", border: "1px solid " + col + "55", borderRadius: 3, flex: "none" }}>{item.badge}</span> : null)}
+          </div>;
+        })}
+      </div>
+    )}
+
+    {/* edge arrow — expand (peek → dock) when peeking · collapse (dock → hidden)
+        when docked. Peek arm delays ~280ms so the rail settles first. */}
+    {((!exp && peek && (armed || hovArrow)) || exp) && (
       <button onClick={onToggleLock}
-        onMouseEnter={function() { setHovArrow(true); peekOn(); }}
-        onMouseLeave={function() { setHovArrow(false); if (!locked) peekOffSoon(); }}
-        title={locked ? "Close the sidebar" : "Lock the sidebar open"}
-        style={{ position: "fixed", left: shown ? 240 : 0, top: "50%", transform: "translateY(-50%)", zIndex: 104, width: 22, height: 46, borderRadius: "0 13px 13px 0", borderTop: locked ? "1px solid rgba(255,255,255,0.12)" : "none", borderRight: locked ? "1px solid rgba(255,255,255,0.12)" : "none", borderBottom: locked ? "1px solid rgba(255,255,255,0.12)" : "none", borderLeft: "none", background: locked ? "rgba(18,18,26,0.96)" : ("linear-gradient(135deg, " + C.amber + ", " + C.amber + "aa)"), color: locked ? C.amber : "#0b0b11", cursor: "pointer", display: "grid", placeItems: "center", boxShadow: "4px 0 14px rgba(0,0,0,0.4)", transition: "left 0.30s cubic-bezier(0.2,0.8,0.2,1)" }}>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d={locked ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6"} /></svg>
+        onMouseEnter={function() { setHovArrow(true); if (!exp) peekOn(); }}
+        onMouseLeave={function() { setHovArrow(false); if (!exp && !locked) peekOffSoon(); }}
+        title={exp ? "Collapse the sidebar" : "Dock the sidebar open"}
+        style={{ position: "fixed", left: exp ? 240 : 70, top: "50%", transform: "translateY(-50%)", zIndex: 104, width: exp ? 24 : 28, height: exp ? 42 : 46, borderRadius: "0 13px 13px 0", borderTop: exp ? "1px solid rgba(255,255,255,0.12)" : "none", borderRight: exp ? "1px solid rgba(255,255,255,0.12)" : "none", borderBottom: exp ? "1px solid rgba(255,255,255,0.12)" : "none", borderLeft: "none", background: exp ? "rgba(18,18,26,0.96)" : ("linear-gradient(135deg, " + C.amber + ", " + C.amber + "aa)"), color: exp ? C.amber : "#0b0b11", cursor: "pointer", display: "grid", placeItems: "center", boxShadow: "4px 0 14px rgba(0,0,0,0.4)", opacity: exp ? 0.85 : 1, transition: "left 0.30s cubic-bezier(0.2,0.8,0.2,1), opacity .2s" }}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d={exp ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6"} /></svg>
       </button>
     )}
   </>);
