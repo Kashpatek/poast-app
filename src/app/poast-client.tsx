@@ -828,6 +828,13 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
   ]},
 };
 
+// A "new" marker: a small glowing circle dot (replaces the old "NEW" text pill).
+// Tinted to the item's accent; static double-shadow glow reads as lit without
+// needing a keyframe injected per surface.
+function NewDot({ color, size = 8 }: { color: string; size?: number }) {
+  return <span aria-label="New" title="New" style={{ marginLeft: "auto", flex: "none", width: size, height: size, borderRadius: "50%", background: "radial-gradient(circle at 32% 30%, color-mix(in srgb," + color + " 30%, #fff), " + color + " 72%)", boxShadow: "0 0 5px " + color + ", 0 0 12px " + color + "88, inset 0 0 2px rgba(255,255,255,0.55)" }} />;
+}
+
 function Sidebar({ active, onNav, onAskPoast, locked, onToggleLock }: { active: string; onNav: (id: string) => void; onAskPoast: () => void; locked: boolean; onToggleLock: () => void }) {
   var userCtx = useUser();
   var analyst = isAnalyst(userCtx.user);
@@ -875,7 +882,9 @@ function Sidebar({ active, onNav, onAskPoast, locked, onToggleLock }: { active: 
       <div style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 3, height: ia ? 22 : 0, borderRadius: "0 3px 3px 0", background: "linear-gradient(180deg, color-mix(in srgb," + o.color + " 66%,#fff), " + o.color + " 52%, color-mix(in srgb," + o.color + " 58%,#fff))", boxShadow: "0 0 9px " + o.color + ", 0 0 3px " + o.color, opacity: ia ? 1 : 0, transition: "height .18s cubic-bezier(.2,.8,.2,1), opacity .18s" }} />
       <IconC size={18} strokeWidth={1.8} color={ia ? o.color : "rgba(255,255,255,0.62)"} style={{ flex: "none" }} />
       <span style={{ minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.label}</span>
-      {o.badge && <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 7, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", color: o.color, border: "1px solid color-mix(in srgb," + o.color + " 45%,transparent)", borderRadius: 999, padding: "2px 5px", flex: "none" }}>{o.badge}</span>}
+      {o.badge === "NEW"
+        ? <NewDot color={o.color} />
+        : o.badge && <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 7, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", color: o.color, border: "1px solid color-mix(in srgb," + o.color + " 45%,transparent)", borderRadius: 999, padding: "2px 5px", flex: "none" }}>{o.badge}</span>}
     </div>;
   }
   function visibleItems(cat: SidebarCat) { return cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).filter(function(it) { return it.id !== "docu" || canDocu; }).filter(function(it) { return it.id !== "tasks" || akash; }); }
@@ -948,7 +957,8 @@ function Sidebar({ active, onNav, onAskPoast, locked, onToggleLock }: { active: 
                   <item.Icon size={15} strokeWidth={isActive ? 2.2 : 1.8} color={isActive ? cat.color : "rgba(255,255,255,0.65)"} />
                 </span>
                 <span style={{ fontFamily: ft, fontSize: 13, fontWeight: isActive ? 800 : 500, color: isActive ? cat.color : "rgba(255,255,255,0.5)", transition: "all 0.2s", textShadow: isActive ? "0 0 20px " + cat.glow + "0.5), 0 0 40px " + cat.glow + "0.12)" : "none" }}>{item.l}</span>
-                {item.badge && <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 7, fontWeight: 800, color: cat.color, letterSpacing: 1, padding: "2px 5px", border: "1px solid " + cat.color + "55", borderRadius: 3, background: cat.color + "12" }}>{item.badge}</span>}
+                {item.badge === "NEW" && <NewDot color={cat.color} />}
+                {item.badge && item.badge !== "NEW" && <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 7, fontWeight: 800, color: cat.color, letterSpacing: 1, padding: "2px 5px", border: "1px solid " + cat.color + "55", borderRadius: 3, background: cat.color + "12" }}>{item.badge}</span>}
                 {!item.badge && isActive && <div style={{ width: 5, height: 5, borderRadius: "50%", background: cat.color, marginLeft: "auto", boxShadow: "0 0 8px " + cat.color + "70, 0 0 16px " + cat.color + "30" }} />}
               </div>;
             })}
@@ -1023,7 +1033,9 @@ function GlassTopNav({ active, onNav }: { active: string; onNav: (id: string) =>
             return <div key={item.id} onClick={function() { itemClick(item); }} title={item.href ? "Open " + item.l + " in a new tab" : undefined} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 9, cursor: "pointer", background: isA ? cat.color + "16" : "transparent", color: isA ? cat.color : "rgba(255,255,255,0.72)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!isA) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!isA) e.currentTarget.style.background = "transparent"; }}>
               <item.Icon size={15} color={isA ? cat.color : "rgba(255,255,255,0.6)"} />
               <span style={{ fontFamily: ft, fontSize: 13, fontWeight: isA ? 700 : 500 }}>{item.l}</span>
-              {item.badge && <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 7, fontWeight: 800, color: cat.color, letterSpacing: 1, padding: "2px 5px", border: "1px solid " + cat.color + "55", borderRadius: 3 }}>{item.badge}</span>}
+              {item.badge === "NEW"
+                ? <NewDot color={cat.color} />
+                : item.badge && <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 7, fontWeight: 800, color: cat.color, letterSpacing: 1, padding: "2px 5px", border: "1px solid " + cat.color + "55", borderRadius: 3 }}>{item.badge}</span>}
             </div>;
           })}
         </div>}
@@ -1464,7 +1476,9 @@ function CTile({ tile, color, index, onNavigate }: { tile: { id: string; label: 
       fontFamily: ft,
     }}
   >
-    {tile.badge ? <span style={{ position: "absolute", top: 15, right: 15, fontFamily: mn, fontSize: 8, letterSpacing: 0.5, textTransform: "uppercase", color: color, border: "1px solid " + color + "73", borderRadius: 999, padding: "2px 7px" }}>{tile.badge}</span> : null}
+    {tile.badge === "NEW"
+      ? <span title="New" style={{ position: "absolute", top: 17, right: 17, width: 9, height: 9, borderRadius: "50%", background: "radial-gradient(circle at 32% 30%, color-mix(in srgb," + color + " 30%, #fff), " + color + " 72%)", boxShadow: "0 0 5px " + color + ", 0 0 13px " + color + "99, inset 0 0 2px rgba(255,255,255,0.55)" }} />
+      : tile.badge ? <span style={{ position: "absolute", top: 15, right: 15, fontFamily: mn, fontSize: 8, letterSpacing: 0.5, textTransform: "uppercase", color: color, border: "1px solid " + color + "73", borderRadius: 999, padding: "2px 7px" }}>{tile.badge}</span> : null}
     <div style={{ width: 54, height: 54, borderRadius: 15, display: "grid", placeItems: "center", color: color, background: color + "1f", border: "1px solid " + color + "42", marginBottom: 18 }}>
       <tile.Icon size={25} strokeWidth={1.7} />
     </div>
