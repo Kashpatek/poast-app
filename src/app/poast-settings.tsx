@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Bug, BarChart3, RefreshCw, CheckCircle, Circle, HelpCircle, Palette } from "lucide-react";
+import { Bug, BarChart3, RefreshCw, CheckCircle, Circle, HelpCircle, Palette, Users, ArrowRight, RotateCcw } from "lucide-react";
 import { D as C, ft, mn, gf } from "./shared-constants";
 import { useOnboarding } from "./onboarding-context";
+import { useUser, isAkash } from "./user-context";
 import { showToast } from "./toast-context";
 import { STEP_WELCOME, STEP_CHART2_DEEP } from "./onboarding/tours";
 import { AppearancePanel } from "./marketing-suite/components/appearance-settings";
@@ -32,22 +33,28 @@ type AnalyticsFilter = "all" | "today" | "7d" | "analyst";
 // POAST Settings page · Director / Marketing / Social Media Manager.
 // Two tabs: Analytics (usage metrics) and Bugs (analyst submissions).
 export default function PoastSettings() {
-  var _t = useState<"analytics" | "bugs" | "onboarding" | "appearance">("appearance"), tab = _t[0], setTab = _t[1];
+  var _t = useState<"analytics" | "bugs" | "onboarding" | "appearance" | "preview">("appearance"), tab = _t[0], setTab = _t[1];
+  // The role-preview tab impersonates other personas — dev-only, gated to Akash.
+  var userCtx = useUser();
+  var showPreview = isAkash(userCtx.user);
+
+  var tabs = ([
+    { id: "appearance" as const, l: "Appearance", Icon: Palette },
+    { id: "analytics" as const, l: "Analytics", Icon: BarChart3 },
+    { id: "bugs" as const, l: "Bugs", Icon: Bug },
+    { id: "onboarding" as const, l: "Onboarding", Icon: HelpCircle },
+  ] as Array<{ id: "appearance" | "analytics" | "bugs" | "onboarding" | "preview"; l: string; Icon: typeof Palette }>);
+  if (showPreview) tabs.push({ id: "preview", l: "Preview as…", Icon: Users });
 
   return (
     <div style={{ padding: "32px 0 0", maxWidth: 1200, margin: "0 auto" }}>
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontFamily: gf, fontSize: 28, fontWeight: 900, color: C.tx, letterSpacing: -0.5 }}>POAST Settings</div>
-        <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 4, letterSpacing: 1 }}>APPEARANCE // USAGE ANALYTICS // BUG REPORTS // ONBOARDING</div>
+        <div style={{ fontFamily: mn, fontSize: 10, color: C.txm, marginTop: 4, letterSpacing: 1 }}>APPEARANCE // USAGE ANALYTICS // BUG REPORTS // ONBOARDING{showPreview ? " // ROLE PREVIEW" : ""}</div>
       </div>
 
       <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "1px solid " + C.border }}>
-        {([
-          { id: "appearance" as const, l: "Appearance", Icon: Palette },
-          { id: "analytics" as const, l: "Analytics", Icon: BarChart3 },
-          { id: "bugs" as const, l: "Bugs", Icon: Bug },
-          { id: "onboarding" as const, l: "Onboarding", Icon: HelpCircle },
-        ]).map(function(t) {
+        {tabs.map(function(t) {
           var on = tab === t.id;
           return <div key={t.id} onClick={function() { setTab(t.id); }} style={{
             padding: "10px 18px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
@@ -65,6 +72,124 @@ export default function PoastSettings() {
       {tab === "analytics" && <AnalyticsTab />}
       {tab === "bugs" && <BugsTab />}
       {tab === "onboarding" && <OnboardingTab />}
+      {tab === "preview" && showPreview && <PreviewTab />}
+    </div>
+  );
+}
+
+// ─── Role preview (dev-only, Akash) ──────────────────────────────────────────
+// Impersonate any persona to walk the app exactly as they'd see it — the three
+// experiences (Admin / Marketing / Analyst) plus the first-run intro. Switching
+// writes poast-current-user and hard-reloads so every per-user surface (home,
+// theme, onboarding, analyst handle) re-initializes cleanly. "Fresh intro" also
+// clears that persona's welcome-tour flag so the onboarding replays.
+interface Persona { name: string; role: string; experience: string; accent: string; note: string }
+const PERSONAS: Persona[] = [
+  { name: "Akash", role: "Brand and Creative Director", experience: "Admin", accent: "#F7B041", note: "Full toolset + Task Board + this preview panel." },
+  { name: "Michelle", role: "Chief of Staff", experience: "Marketing", accent: "#0B86D1", note: "Full marketing toolset (DesignStudio included)." },
+  { name: "Vansh", role: "Social Media Manager", experience: "Marketing", accent: "#2EAD8E", note: "Identical to Michelle / Daksh." },
+  { name: "Daksh", role: "Intern", experience: "Marketing", accent: "#905CCB", note: "Identical to Michelle / Vansh." },
+  { name: "Analyst", role: "Analyst", experience: "Analyst", accent: "#E06347", note: "Locked-down: 8 tools, no Settings, name-gated." },
+];
+
+function PreviewTab() {
+  var _fresh = useState(false), fresh = _fresh[0], setFresh = _fresh[1];
+  var userCtx = useUser();
+  var current = userCtx.user ? userCtx.user.name : null;
+
+  function previewAs(name: string) {
+    try {
+      localStorage.setItem("poast-current-user", name);
+      sessionStorage.removeItem("poast-current-user");
+      if (fresh) {
+        localStorage.removeItem("poast-onboarding-v1-" + name);
+        // Analyst's intro also includes the personal-handle gate.
+        if (name === "Analyst") localStorage.removeItem("poast-analyst-name");
+      }
+    } catch {}
+    window.location.assign("/");
+  }
+
+  function showIntroPicker() {
+    try {
+      localStorage.removeItem("poast-current-user");
+      sessionStorage.removeItem("poast-current-user");
+    } catch {}
+    window.location.assign("/");
+  }
+
+  return (
+    <div style={{ maxWidth: 760 }}>
+      <div style={{ background: C.amber + "12", border: "1px solid " + C.amber + "40", borderRadius: 10, padding: "12px 16px", marginBottom: 20, display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <Users size={16} strokeWidth={2} color={C.amber} style={{ marginTop: 1, flexShrink: 0 }} />
+        <div style={{ fontFamily: ft, fontSize: 12.5, color: C.txm, lineHeight: 1.55 }}>
+          Dev tool — this actually <b style={{ color: C.tx }}>signs you in as that person</b> on this device and reloads. Come back here (as Akash) to switch back.
+        </div>
+      </div>
+
+      <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, cursor: "pointer", userSelect: "none" }}>
+        <span onClick={function() { setFresh(!fresh); }} style={{
+          width: 38, height: 22, borderRadius: 999, flexShrink: 0, position: "relative", transition: "background 0.2s",
+          background: fresh ? C.amber : C.border, border: "1px solid " + (fresh ? C.amber : C.border),
+        }}>
+          <span style={{ position: "absolute", top: 2, left: fresh ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: fresh ? "#060608" : C.txm, transition: "left 0.2s" }} />
+        </span>
+        <span onClick={function() { setFresh(!fresh); }} style={{ fontFamily: ft, fontSize: 13, color: C.tx, fontWeight: 600 }}>
+          Start with a fresh first-run
+          <span style={{ color: C.txm, fontWeight: 400 }}> — replays the welcome tour (and analyst name gate)</span>
+        </span>
+      </label>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))", gap: 14 }}>
+        {PERSONAS.map(function(p) {
+          var isCurrent = current === p.name;
+          var initials = p.name.slice(0, 2).toUpperCase();
+          return <div key={p.name} style={{
+            background: C.card, border: "1px solid " + (isCurrent ? p.accent + "66" : C.border), borderRadius: 12, padding: 16,
+            boxShadow: "0 2px 12px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", gap: 12,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, display: "grid", placeItems: "center", fontFamily: gf, fontWeight: 800, fontSize: 14, color: "#060608", background: "linear-gradient(135deg, " + p.accent + ", " + p.accent + "AA)" }}>{initials}</span>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontFamily: ft, fontSize: 15, fontWeight: 800, color: C.tx }}>{p.name}</span>
+                  {isCurrent && <span style={{ fontFamily: mn, fontSize: 8, letterSpacing: 0.6, textTransform: "uppercase", color: p.accent, border: "1px solid " + p.accent + "66", borderRadius: 5, padding: "2px 6px" }}>you</span>}
+                </div>
+                <div style={{ fontFamily: mn, fontSize: 9.5, letterSpacing: 0.5, color: C.txm, marginTop: 2, textTransform: "uppercase" }}>{p.experience} · {p.role}</div>
+              </div>
+            </div>
+            <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, lineHeight: 1.5 }}>{p.note}</div>
+            <button
+              type="button"
+              disabled={isCurrent && !fresh}
+              onClick={function() { previewAs(p.name); }}
+              style={{
+                marginTop: "auto", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+                padding: "9px 14px", borderRadius: 8, cursor: isCurrent && !fresh ? "default" : "pointer",
+                background: isCurrent && !fresh ? "transparent" : p.accent,
+                color: isCurrent && !fresh ? C.txd : "#060608",
+                border: isCurrent && !fresh ? "1px solid " + C.border : "none",
+                fontFamily: ft, fontSize: 13, fontWeight: 800, letterSpacing: 0.2,
+                opacity: isCurrent && !fresh ? 0.6 : 1,
+              }}
+            >
+              {isCurrent && !fresh ? "Currently active" : (isCurrent ? "Replay intro as " + p.name : "Preview as " + p.name)}
+              {!(isCurrent && !fresh) && <ArrowRight size={14} strokeWidth={2.4} />}
+            </button>
+          </div>;
+        })}
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        <button
+          type="button"
+          onClick={showIntroPicker}
+          style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 14px", borderRadius: 8, cursor: "pointer", background: "transparent", color: C.txm, border: "1px solid " + C.border, fontFamily: ft, fontSize: 13, fontWeight: 600 }}
+        >
+          <RotateCcw size={14} strokeWidth={2} />
+          Sign out → show the intro role-picker (the very first screen)
+        </button>
+      </div>
     </div>
   );
 }
