@@ -43,6 +43,7 @@ import StockBackdrop, { GlassBackdrop } from "./stock-backdrop";
 import GlassLens from "./glass-lens";
 import { useTheme } from "./theme-context";
 import { OnboardingHost } from "./onboarding/onboarding-host";
+import Onboarding from "./onboarding/first-run";
 import { ChartTourTrigger } from "./onboarding/chart-tour-trigger";
 import { useOnboarding } from "./onboarding-context";
 import { useRouter, usePathname } from "next/navigation";
@@ -2383,37 +2384,14 @@ function SplashCTA({ Icon, label, sub, color, onHoverColor, onClick, delay }: { 
   );
 }
 
-function Intro({ onDone }: { onDone: (id?: string) => void }) {
-  var _phase = useState<string>("select"), phase = _phase[0], setPhase = _phase[1];
-  var _user = useState<string | null>(null), user = _user[0], setUser = _user[1];
-  var _glitch = useState(false), glitch = _glitch[0], setGlitch = _glitch[1];
-  var userCtx = useUser();
-  var router = useRouter();
-
-  var handleUserSelect = function(name: string, remember?: boolean) {
-    setUser(name);
-    userCtx.setUser(name, remember !== false);
-    // Analysts: drop straight into the main app. The main app renders the
-    // analyst splash when sec === "home" (default), and the OnboardingHost
-    // fires the welcome modal automatically for first-time analysts.
-    // Don't render an in-Intro splash on top — that was the duplicate
-    // "home is gone" UX bug.
-    if (name === "Analyst") { router.replace("/analyst"); onDone(); return; }
-    setPhase("boot");
-    try { var audio = new Audio("/splash-sound.mp3"); audio.volume = 0.7; audio.play().catch(function() {}); } catch (e) {}
-  };
-  // Marketing path: keep the boot+glitch flourish for vibe, then drop into
-  // the main app on home. No in-Intro splash phase.
-  var handleBootDone = function() {
-    setGlitch(true);
-    setTimeout(function() { setGlitch(false); onDone(); }, 350);
-  };
-
-  return <div>
-    {phase === "select" && <UserSelect onSelect={handleUserSelect} />}
-    {phase === "boot" && <TerminalBoot user={user} onDone={handleBootDone} />}
-    {glitch && <GlitchTransition onDone={function() {}} />}
-  </div>;
+// The first-run gate. The full flow (Google sign-in stub → theme/detail picker →
+// Ignition Bloom reveal) lives in <Onboarding/>, which commits identity + theme
+// on the reveal's "Let's go" and then calls onDone("home") to drop into the
+// themed hub (where OnboardingHost auto-fires the role's welcome tour). The
+// older UserSelect/TerminalBoot/GlitchTransition components are retained in this
+// file but no longer mounted — replaced by the ported welcome-3.0 flow.
+function Intro({ onDone, seedEmail, seedName }: { onDone: (id?: string) => void; seedEmail?: string | null; seedName?: string | null }) {
+  return <Onboarding seedEmail={seedEmail} seedName={seedName} onDone={onDone} />;
 }
 
 // Asset Library embedded inside POAST. Fetches the standalone HTML
@@ -2590,6 +2568,9 @@ export default function App() {
   // re-pick on subsequent re-renders.
   var _sp = useState<"loading" | "show" | "skip">("loading"), introState = _sp[0], setIntroState = _sp[1];
   var showIntro = introState === "show";
+  // Pre-seed for the first-run flow: ?email=/?name= pick which Google account the
+  // chooser shows (used by the per-role "Walk first-run as…" launcher).
+  var _seed = useState<{ email?: string | null; name?: string | null }>({}), seed = _seed[0], setSeed = _seed[1];
   useEffect(function() {
     // Respect "Stay logged in" everywhere, including on the root path.
     // Previously `/` always showed the intro picker regardless of saved
@@ -2603,9 +2584,14 @@ export default function App() {
         hasUser = !!localStorage.getItem("poast-current-user") || !!sessionStorage.getItem("poast-current-user");
       } catch { /* ignore */ }
     }
+    var qs = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    // ?setup=1 forces the first-run flow even for a returning session (dev
+    // walkthrough); ?email=/?name= pre-seed the Google account chooser.
+    var forceSetup = qs?.get("setup") === "1";
+    setSeed({ email: qs?.get("email"), name: qs?.get("name") });
+    if (forceSetup) { setIntroState("show"); return; }
     // Honor ?user= bookmark even when a session exists — lets a user
     // override "I'm signed in as X" by visiting ?user=Y explicitly.
-    var qs = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
     var explicitUser = qs?.get("user");
     if (explicitUser && !hasUser) {
       setIntroState("show");
@@ -2723,7 +2709,7 @@ export default function App() {
   // Brief blank during localStorage hydration so the picker doesn't flash
   // for returning users. introState becomes "show" or "skip" right after mount.
   if (introState === "loading") return <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: 9999 }} />;
-  if (showIntro) return <><Intro onDone={function(id) { if (id) setSec(id); setIntroState("skip"); }} /></>;
+  if (showIntro) return <><Intro seedEmail={seed.email} seedName={seed.name} onDone={function(id) { if (id) setSec(id); setIntroState("skip"); try { if (window.location.search) window.history.replaceState({}, "", window.location.pathname); } catch {} }} /></>;
 
   // Flatten SIDEBAR_CATS into a searchable list for HubPalette. Mirror the
   // sidebar visibility rules (analyst gate, docu access, tasks=akash-only)
