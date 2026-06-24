@@ -83,13 +83,13 @@ export default function PoastSettings() {
 // writes poast-current-user and hard-reloads so every per-user surface (home,
 // theme, onboarding, analyst handle) re-initializes cleanly. "Fresh intro" also
 // clears that persona's welcome-tour flag so the onboarding replays.
-interface Persona { name: string; role: string; experience: string; accent: string; note: string }
+interface Persona { name: string; role: string; experience: string; accent: string; note: string; email: string; display: string }
 const PERSONAS: Persona[] = [
-  { name: "Akash", role: "Brand and Creative Director", experience: "Admin", accent: "#F7B041", note: "Full toolset + Task Board + this preview panel." },
-  { name: "Michelle", role: "Chief of Staff", experience: "Marketing", accent: "#0B86D1", note: "Full marketing toolset (DesignStudio included)." },
-  { name: "Vansh", role: "Social Media Manager", experience: "Marketing", accent: "#2EAD8E", note: "Identical to Michelle / Daksh." },
-  { name: "Daksh", role: "Intern", experience: "Marketing", accent: "#905CCB", note: "Identical to Michelle / Vansh." },
-  { name: "Analyst", role: "Analyst", experience: "Analyst", accent: "#E06347", note: "Locked-down: 8 tools, no Settings, name-gated." },
+  { name: "Akash", role: "Brand and Creative Director", experience: "Admin", accent: "#F7B041", note: "Full toolset + Task Board + this preview panel.", email: "akash@semianalysis.com", display: "Akash Patel" },
+  { name: "Michelle", role: "Chief of Staff", experience: "Marketing", accent: "#0B86D1", note: "Full marketing toolset (DesignStudio included).", email: "michelle@semianalysis.com", display: "Michelle" },
+  { name: "Vansh", role: "Social Media Manager", experience: "Marketing", accent: "#2EAD8E", note: "Identical to Michelle / Daksh.", email: "vansh@semianalysis.com", display: "Vansh" },
+  { name: "Daksh", role: "Intern", experience: "Marketing", accent: "#905CCB", note: "Identical to Michelle / Vansh.", email: "daksh@semianalysis.com", display: "Daksh" },
+  { name: "Analyst", role: "Analyst", experience: "Analyst", accent: "#E06347", note: "Locked-down: 8 tools, no Settings, name-gated.", email: "analyst@semianalysis.com", display: "Analyst" },
 ];
 
 function PreviewTab() {
@@ -118,12 +118,26 @@ function PreviewTab() {
     window.location.assign("/");
   }
 
+  // Walk the FULL first-run for a persona: clear that role's state and enter the
+  // ported flow (Google sign-in stub → theme picker → Ignition Bloom) pre-seeded
+  // with the persona's Google account via ?setup=1&email=.
+  function walkFirstRun(p: Persona) {
+    try {
+      localStorage.removeItem("poast-current-user");
+      sessionStorage.removeItem("poast-current-user");
+      localStorage.removeItem("poast-onboarding-v1-" + p.name);
+      localStorage.removeItem("poast-analyst-name");
+      localStorage.removeItem("poast-theme");
+    } catch {}
+    window.location.assign("/?setup=1&email=" + encodeURIComponent(p.email) + "&name=" + encodeURIComponent(p.display));
+  }
+
   return (
     <div style={{ maxWidth: 760 }}>
       <div style={{ background: C.amber + "12", border: "1px solid " + C.amber + "40", borderRadius: 10, padding: "12px 16px", marginBottom: 20, display: "flex", gap: 10, alignItems: "flex-start" }}>
         <Users size={16} strokeWidth={2} color={C.amber} style={{ marginTop: 1, flexShrink: 0 }} />
         <div style={{ fontFamily: ft, fontSize: 12.5, color: C.txm, lineHeight: 1.55 }}>
-          Dev tool — this actually <b style={{ color: C.tx }}>signs you in as that person</b> on this device and reloads. Come back here (as Akash) to switch back.
+          Dev tool — <b style={{ color: C.tx }}>Walk first-run</b> runs the full Google → theme picker → reveal flow for that role (to bug-hunt the intro). <b style={{ color: C.tx }}>Jump to home</b> signs in instantly and skips the intro. Either way you become that person on this device.
         </div>
       </div>
 
@@ -135,8 +149,8 @@ function PreviewTab() {
           <span style={{ position: "absolute", top: 2, left: fresh ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: fresh ? "#060608" : C.txm, transition: "left 0.2s" }} />
         </span>
         <span onClick={function() { setFresh(!fresh); }} style={{ fontFamily: ft, fontSize: 13, color: C.tx, fontWeight: 600 }}>
-          Start with a fresh first-run
-          <span style={{ color: C.txm, fontWeight: 400 }}> — replays the welcome tour (and analyst name gate)</span>
+          Jump-to-home replays the welcome tour
+          <span style={{ color: C.txm, fontWeight: 400 }}> — clears that persona&apos;s tour flag (and analyst name gate). &quot;Walk first-run&quot; always starts clean.</span>
         </span>
       </label>
 
@@ -159,23 +173,37 @@ function PreviewTab() {
               </div>
             </div>
             <div style={{ fontFamily: ft, fontSize: 12, color: C.txm, lineHeight: 1.5 }}>{p.note}</div>
-            <button
-              type="button"
-              disabled={isCurrent && !fresh}
-              onClick={function() { previewAs(p.name); }}
-              style={{
-                marginTop: "auto", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-                padding: "9px 14px", borderRadius: 8, cursor: isCurrent && !fresh ? "default" : "pointer",
-                background: isCurrent && !fresh ? "transparent" : p.accent,
-                color: isCurrent && !fresh ? C.txd : "#060608",
-                border: isCurrent && !fresh ? "1px solid " + C.border : "none",
-                fontFamily: ft, fontSize: 13, fontWeight: 800, letterSpacing: 0.2,
-                opacity: isCurrent && !fresh ? 0.6 : 1,
-              }}
-            >
-              {isCurrent && !fresh ? "Currently active" : (isCurrent ? "Replay intro as " + p.name : "Preview as " + p.name)}
-              {!(isCurrent && !fresh) && <ArrowRight size={14} strokeWidth={2.4} />}
-            </button>
+            <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+              <button
+                type="button"
+                onClick={function() { walkFirstRun(p); }}
+                style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  padding: "10px 14px", borderRadius: 8, cursor: "pointer",
+                  background: p.accent, color: "#060608", border: "none",
+                  fontFamily: ft, fontSize: 13, fontWeight: 800, letterSpacing: 0.2,
+                }}
+              >
+                Walk first-run as {p.name}
+                <ArrowRight size={14} strokeWidth={2.4} />
+              </button>
+              <button
+                type="button"
+                disabled={isCurrent && !fresh}
+                onClick={function() { previewAs(p.name); }}
+                style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
+                  padding: "8px 14px", borderRadius: 8, cursor: isCurrent && !fresh ? "default" : "pointer",
+                  background: "transparent",
+                  color: isCurrent && !fresh ? C.txd : C.txm,
+                  border: "1px solid " + C.border,
+                  fontFamily: ft, fontSize: 12, fontWeight: 600, letterSpacing: 0.2,
+                  opacity: isCurrent && !fresh ? 0.6 : 1,
+                }}
+              >
+                {isCurrent && !fresh ? "Currently active" : (fresh ? "Jump to home (fresh)" : "Jump to home")}
+              </button>
+            </div>
           </div>;
         })}
       </div>
@@ -187,7 +215,7 @@ function PreviewTab() {
           style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 14px", borderRadius: 8, cursor: "pointer", background: "transparent", color: C.txm, border: "1px solid " + C.border, fontFamily: ft, fontSize: 13, fontWeight: 600 }}
         >
           <RotateCcw size={14} strokeWidth={2} />
-          Sign out → show the intro role-picker (the very first screen)
+          Sign out → show the first-run (Google sign-in, the very first screen)
         </button>
       </div>
     </div>
