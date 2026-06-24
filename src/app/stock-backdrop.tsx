@@ -321,3 +321,28 @@ export function GlassBackdrop() {
     </div>
   );
 }
+
+// ─── StaticBackdrop ─────────────────────────────────────────────────────────
+// A zero-cost themed backdrop for the standalone routes. The live WebGL fluid
+// shader is invisible there (route content covers z:0) yet keeps shading every
+// frame and pairs with GlassLens's body-wide MutationObserver — a sustained
+// reflow/jank cost on timer-heavy routes (marketing-suite). This paints the
+// static `--app-backdrop` gradient instead (already theme- AND data-bg-aware
+// via tokens.css) plus the same scrim + grain, with no canvas and no observer.
+// The hub home keeps the live shader where it's actually seen.
+export function StaticBackdrop() {
+  return (
+    <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", overflow: "hidden" }}>
+      <div style={{ position: "absolute", inset: 0, background: "var(--app-backdrop)" }} />
+      <div
+        style={{
+          position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none",
+          background:
+            "radial-gradient(120% 90% at 50% 28%, transparent 42%, rgba(6,4,14,.5) 100%)," +
+            "linear-gradient(180deg, rgba(6,4,14,.42) 0%, transparent 22%, transparent 70%, rgba(6,4,14,.5) 100%)",
+        }}
+      />
+      <div style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none", backgroundImage: GRAIN, opacity: 0.16, mixBlendMode: "overlay" }} />
+    </div>
+  );
+}

@@ -2,9 +2,8 @@
 
 import { ArrowLeft } from "lucide-react";
 import { useTheme } from "./theme-context";
-import StockBackdrop, { GlassBackdrop } from "./stock-backdrop";
+import { StaticBackdrop } from "./stock-backdrop";
 import { DepthBackdrop } from "./home-glass-depth";
-import GlassLens from "./glass-lens";
 
 // ─── Shared themed shell for the standalone (new-tab) routes ────────────────
 // The 8 internal tools that open in their own tab (/charts, /intelligence-suite,
@@ -41,7 +40,7 @@ export default function RouteChrome({
   showBack?: boolean;
   backSide?: "left" | "right";
 }) {
-  const { theme, bg, glassMat } = useTheme();
+  const { theme, glassMat } = useTheme();
   const isGlass = theme === "glass";
   const isStock = theme === "stock";
 
@@ -49,10 +48,8 @@ export default function RouteChrome({
 
   return (
     <>
-      {isStock && <StockBackdrop bg={bg} />}
-      {isGlass && glassMat !== "depth" && <GlassBackdrop />}
+      {(isStock || (isGlass && glassMat !== "depth")) && <StaticBackdrop />}
       {isGlass && glassMat === "depth" && <DepthBackdrop />}
-      {isGlass && <GlassLens />}
 
       {/* Return-to-hub pill — floating frosted glass, above shell chrome. Opt-in. */}
       {showBack && (
