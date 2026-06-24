@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, Search } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
+import DevOnly from "../../dev-only";
 
 // ─── Studio palette ───
 // PRODUCE amber, DESIGN green, COPY coral E0556B, INTELLIGENCE violet/cyan, POAST main D.amber
@@ -85,7 +86,13 @@ var STUDIO_ORDER: Array<keyof typeof STUDIO_META> = ["produce", "design", "copy"
 
 type StatusFilter = "all" | StatusKind;
 
+// Dev-only like the sibling test pages — 404s in production so the internal
+// route inventory isn't reachable on the live site.
 export default function PoastStatusPage() {
+  return <DevOnly><PoastStatusPageImpl /></DevOnly>;
+}
+
+function PoastStatusPageImpl() {
   var _ok = useState(false), ok = _ok[0], setOk = _ok[1];
   var _query = useState(""), query = _query[0], setQuery = _query[1];
   var _filter = useState<StatusFilter>("all"), filter = _filter[0], setFilter = _filter[1];
