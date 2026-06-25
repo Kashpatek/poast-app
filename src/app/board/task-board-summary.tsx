@@ -298,6 +298,7 @@ function SubtaskRing({ done, total, color, size = 22 }: { done: number; total: n
 // Gradient banner with greeting + OVERDUE/TODAY/DONE stats + 3 numbered "Start here"
 // suggestions. Ranked by priority with overdue/today/pinned boosts.
 function TodayHero({ tasks, doneRecent, onFocus }: { tasks: Task[]; doneRecent: number; onFocus: (t: Task) => void }) {
+  const drag = useDrag();
   const todayStr = todayIso();
   const live = tasks.filter((t) => !t.done && t.priority !== "DONE");
   const overdueN = live.filter(isOverdue).length;
@@ -355,7 +356,9 @@ function TodayHero({ tasks, doneRecent, onFocus }: { tasks: Task[]; doneRecent: 
                   href="/board"
                   target="_blank"
                   rel="noopener"
-                  onClick={(e) => { e.preventDefault(); onFocus(t); }}
+                  title="Open task"
+                  onClick={(e) => { e.preventDefault(); drag.openEdit(t); }}
+                  onDoubleClick={(e) => { e.preventDefault(); onFocus(t); }}
                   style={{
                     display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
                     background: i === 0 ? "rgba(247,176,65,0.10)" : "rgba(255,255,255,0.02)",
@@ -369,12 +372,17 @@ function TodayHero({ tasks, doneRecent, onFocus }: { tasks: Task[]; doneRecent: 
                   <span style={{ fontFamily: mn, fontSize: 8.5, color: pColor, letterSpacing: 0.6, padding: "1px 6px", border: "1px solid " + pColor + "55", borderRadius: 3, textTransform: "uppercase" }}>{t.priority}</span>
                   <span style={{ flex: 1, minWidth: 0, fontFamily: gf, fontSize: 13, fontWeight: 700, color: D.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
                   {due && <span style={{ fontFamily: mn, fontSize: 9.5, color: urgent ? D.coral : D.txm, letterSpacing: 0.4 }}>{due}</span>}
-                  <span style={{
-                    background: i === 0 ? D.amber : "transparent",
-                    color: i === 0 ? "#060608" : D.amber,
-                    border: "1px solid " + D.amber, padding: "4px 10px", borderRadius: 6,
-                    fontFamily: mn, fontSize: 9, letterSpacing: 0.6, fontWeight: 800, textTransform: "uppercase",
-                  }}>Focus →</span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onFocus(t); }}
+                    title="Open in Focus mode"
+                    style={{
+                      background: i === 0 ? D.amber : "transparent",
+                      color: i === 0 ? "#060608" : D.amber,
+                      border: "1px solid " + D.amber, padding: "4px 10px", borderRadius: 6, cursor: "pointer",
+                      fontFamily: mn, fontSize: 9, letterSpacing: 0.6, fontWeight: 800, textTransform: "uppercase",
+                    }}
+                  >Focus →</button>
                 </a>
               );
             })}
@@ -1074,9 +1082,9 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
         ⚠ Showing cached tasks — can&rsquo;t reach the database (Supabase egress quota). Your data is safe; edits won&rsquo;t sync until service is restored.
       </div>, document.body)}
     <div style={{
-      padding: narrow ? "14px 12px 80px" : (isStandalone ? "26px 36px 80px" : "20px 26px 60px"),
+      padding: narrow ? "14px 12px 80px" : (isStandalone ? "26px 36px 80px" : "22px clamp(26px, 3.4vw, 56px) 60px"),
       fontFamily: ft, color: D.tx,
-      maxWidth: isStandalone ? 1820 : 1500,
+      maxWidth: isStandalone ? 1820 : "min(1720px, 95vw)",
       margin: "0 auto", position: "relative",
     }}>
       <style>{`
@@ -4406,6 +4414,140 @@ function PlannerHourBlock({ hour, tasks, onToggle }: {
 // Linear / Height all use a right-side drawer for fast in-context edits
 // while keeping the board visible behind it. Auto-saves on blur.
 
+// Read-only detail shown first when a task opens. Press "✎ Edit" to flip the
+// drawer into the full edit form (EditDrawer owns the mode state).
+function TaskViewBody({ task, onToggleDone, onToggleSub, onEdit }: {
+  task: Task;
+  onToggleDone: () => void;
+  onToggleSub: (idx: number) => void;
+  onEdit: () => void;
+}) {
+  const pColor = PRI_COLOR[task.priority] || D.txd;
+  const cColor = CAT_COLOR[task.category] || D.txd;
+  const aColor = ASSIGNEE_COLOR[task.assignee || "Unassigned"] || D.txd;
+  const subtasks = task.subtasks || [];
+  const doneSubs = subtasks.filter((s) => s.done).length;
+  const overdue = isOverdue(task);
+
+  const chip = (label: string, value: string, color: string) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+      <div style={{ fontFamily: mn, fontSize: 9.5, color: D.txd, letterSpacing: 0.8, fontWeight: 700, textTransform: "uppercase" }}>{label}</div>
+      <div style={{
+        display: "inline-flex", alignItems: "center", gap: 6, alignSelf: "flex-start", maxWidth: "100%",
+        padding: "5px 10px", background: color + "14", border: "1px solid " + color + "44", borderRadius: 7,
+        color, fontFamily: mn, fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>{value}</div>
+    </div>
+  );
+
+  const labelStyle: React.CSSProperties = {
+    fontFamily: mn, fontSize: 9.5, color: D.txd, letterSpacing: 0.8,
+    fontWeight: 700, textTransform: "uppercase", marginBottom: 5,
+  };
+
+  return (
+    <>
+      {/* Title + done + pencil */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <button
+          type="button"
+          onClick={onToggleDone}
+          title={task.done ? "Reopen" : "Mark done"}
+          style={{
+            marginTop: 5, width: 22, height: 22, flexShrink: 0,
+            background: task.done ? D.teal : "transparent",
+            border: "1.5px solid " + (task.done ? D.teal : D.border),
+            borderRadius: 6, cursor: "pointer",
+            color: "#060608", fontFamily: mn, fontSize: 12, fontWeight: 900,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >{task.done ? "✓" : ""}</button>
+        <h2 style={{
+          flex: 1, minWidth: 0, margin: 0, color: D.tx, fontFamily: gf, fontWeight: 900,
+          fontSize: 24, lineHeight: 1.22, letterSpacing: -0.6, wordBreak: "break-word",
+          textDecoration: task.done ? "line-through" : "none", opacity: task.done ? 0.55 : 1,
+        }}>{task.title}</h2>
+        <button
+          type="button"
+          onClick={onEdit}
+          title="Edit this task"
+          style={{
+            flexShrink: 0, padding: "7px 12px",
+            background: D.amber + "18", border: "1px solid " + D.amber + "66", color: D.amber,
+            fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.5,
+            borderRadius: 7, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
+          }}
+        >✎ Edit</button>
+      </div>
+
+      {/* Status chips */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {chip("Priority", task.priority, pColor)}
+        {chip("Category", task.category, cColor)}
+        {chip("Assignee", task.assignee || "Unassigned", aColor)}
+        {chip("Due date", task.dueDate ? dueLabel(task.dueDate) : "No date", task.dueDate ? (overdue ? D.coral : D.amber) : D.txd)}
+        {chip("Estimate", fmtMins(estOf(task)), D.txm)}
+        {chip("Status", task.done ? "Done" : "Open", task.done ? D.teal : D.txm)}
+      </div>
+
+      {/* Notes */}
+      {task.description ? (
+        <div>
+          <div style={labelStyle}>Notes</div>
+          <div style={{
+            padding: "10px 12px", background: D.surface, border: "1px solid " + D.border, borderRadius: 8,
+            color: D.tx, fontFamily: ft, fontSize: 13, lineHeight: 1.55, whiteSpace: "pre-wrap",
+          }}>{task.description}</div>
+        </div>
+      ) : null}
+
+      {/* Subtasks (checkable, still read-only on text) */}
+      {subtasks.length > 0 && (
+        <div>
+          <div style={labelStyle}>Subtasks · {doneSubs}/{subtasks.length}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {subtasks.map((s, i) => (
+              <div key={s.id} style={{
+                display: "flex", alignItems: "center", gap: 8, padding: "7px 10px",
+                background: D.surface, border: "1px solid " + D.border, borderRadius: 7,
+              }}>
+                <button
+                  type="button"
+                  onClick={() => onToggleSub(i)}
+                  style={{
+                    width: 16, height: 16, flexShrink: 0,
+                    background: s.done ? D.teal : "transparent",
+                    border: "1.5px solid " + (s.done ? D.teal : D.border),
+                    borderRadius: 4, cursor: "pointer",
+                    color: "#060608", fontFamily: mn, fontSize: 10, fontWeight: 900,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}
+                >{s.done ? "✓" : ""}</button>
+                <span style={{
+                  flex: 1, fontFamily: ft, fontSize: 13, color: D.tx,
+                  textDecoration: s.done ? "line-through" : "none", opacity: s.done ? 0.55 : 1,
+                }}>{s.title}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Metadata */}
+      <div style={{
+        fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 0.4,
+        display: "flex", flexDirection: "column", gap: 3,
+        padding: "10px 0 0", borderTop: "1px solid " + D.border,
+      }}>
+        <span>Added {new Date(task.addedAt).toLocaleString()}</span>
+        {task.updatedAt && <span>Updated {new Date(task.updatedAt).toLocaleString()}</span>}
+        {task.source && <span>Source · {task.source}</span>}
+      </div>
+    </>
+  );
+}
+
 function EditDrawer({
   task, onClose, onPatch, onDelete, onDuplicate, onFocus, onToggleDone,
 }: {
@@ -4420,6 +4562,9 @@ function EditDrawer({
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description || "");
   const [newSubtask, setNewSubtask] = useState("");
+  // View-first: open read-only, press the pencil to edit. Reset to view
+  // whenever the drawer is reused for a different task (effect below).
+  const [editing, setEditing] = useState(false);
   const pColor = PRI_COLOR[task.priority] || D.txd;
   const cColor = CAT_COLOR[task.category] || D.txd;
   const aColor = ASSIGNEE_COLOR[task.assignee || "Unassigned"] || D.txd;
@@ -4431,6 +4576,10 @@ function EditDrawer({
     setTitle(task.title);
     setDescription(task.description || "");
   }, [task.id, task.title, task.description]);
+
+  // A different task → drop back to read-only view (keyed on id ONLY, so an
+  // in-flight edit that patches the task doesn't kick us out of edit mode).
+  useEffect(() => { setEditing(false); }, [task.id]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -4509,6 +4658,19 @@ function EditDrawer({
             Task · <span style={{ color: cColor }}>{task.category}</span>
           </div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+            {editing && (
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                title="Done editing — back to view"
+                style={{
+                  padding: "5px 10px", background: D.teal + "18",
+                  border: "1px solid " + D.teal + "66", color: D.teal,
+                  fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.6,
+                  borderRadius: 6, cursor: "pointer",
+                }}
+              >✓ Done</button>
+            )}
             <button
               type="button"
               onClick={onFocus}
@@ -4535,6 +4697,15 @@ function EditDrawer({
 
         {/* Scrollable body */}
         <div style={{ flex: 1, overflowY: "auto", padding: "18px 22px", display: "flex", flexDirection: "column", gap: 18 }}>
+          {!editing && (
+            <TaskViewBody
+              task={task}
+              onToggleDone={onToggleDone}
+              onToggleSub={toggleSub}
+              onEdit={() => setEditing(true)}
+            />
+          )}
+          {editing && (<>
           {/* Title + done toggle */}
           <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
             <button
@@ -4780,6 +4951,7 @@ function EditDrawer({
             {task.updatedAt && <span>Updated {new Date(task.updatedAt).toLocaleString()}</span>}
             {task.source && <span>Source · {task.source}</span>}
           </div>
+          </>)}
         </div>
 
         {/* Footer actions */}
