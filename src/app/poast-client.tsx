@@ -21,6 +21,7 @@ import ChartMaker from "./chart-maker";
 import ChartMaker2 from "./chart-maker-2";
 import BrandLaunchTile from "./brand-launch-tile";
 import PoastSettings from "./poast-settings";
+import AccountTray from "./account-tray";
 import VoiceScorer from "./voice-scorer";
 import HeadlineDoctor from "./headline-doctor";
 import SavedPromptsLibrary from "./saved-prompts";
@@ -1033,14 +1034,7 @@ function Sidebar({ active, onNav, onAskPoast, locked, onToggleLock }: { active: 
       {/* Footer */}
       <div style={{ padding: "14px 18px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <BugButton sec={active} />
-        {userCtx.user && <div onClick={function() { try { fetch("/api/auth/signout", { method: "POST" }); } catch (e) {} userCtx.setUser(null); }} title={analyst ? "Lock studio" : "Switch user"} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "6px 8px", borderRadius: 6, cursor: "pointer", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}>
-          <div style={{ width: 22, height: 22, borderRadius: 6, background: analyst ? "#905CCB20" : C.amber + "20", border: "1px solid " + (analyst ? "#905CCB40" : C.amber + "40"), display: "flex", alignItems: "center", justifyContent: "center", fontFamily: ft, fontSize: 10, fontWeight: 800, color: analyst ? "#905CCB" : C.amber }}>{userCtx.user.name[0]}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: ft, fontSize: 11, fontWeight: 700, color: "#E8E4DD", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userCtx.user.name}</div>
-            <div style={{ fontFamily: ft, fontSize: 8, fontWeight: 600, color: "rgba(255,255,255,0.35)", letterSpacing: 1 }}>{userCtx.user.role}</div>
-          </div>
-          <span style={{ fontFamily: mn, fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.35)", letterSpacing: 1, padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.08)" }}>{analyst ? "LOCK" : "SWITCH"}</span>
-        </div>}
+        <AccountTray variant="sidebar" />
         <div style={{ fontFamily: ft, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.12)", letterSpacing: 2 }}>v3.2 // SEMIANALYSIS</div>
       </div>
       </>
@@ -1318,9 +1312,7 @@ function GlassTopNav({ active, onNav }: { active: string; onNav: (id: string) =>
           {userCtx.user && <div className="gnav-wx" title="San Francisco · Clear"><Sun size={15} strokeWidth={1.9} /><span>61° SF · Clear</span></div>}
           <button className="gnav-btn" onClick={openSearch} aria-label="Search" title="Search"><Search size={18} strokeWidth={1.8} /></button>
           <button className="gnav-btn" aria-label="Notifications" title="Notifications"><Bell size={18} strokeWidth={1.8} /></button>
-          {userCtx.user && <div className="gnav-user" onClick={function() { try { fetch("/api/auth/signout", { method: "POST" }); } catch (e) {} userCtx.setUser(null); }} title="Switch user">
-            <span className="gnav-av">{initials}</span>
-          </div>}
+          <AccountTray variant="glass" />
         </div>
       )}
     </div>
@@ -1845,6 +1837,9 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
     {/* Hero — fills the viewport so only the welcome + "Your tools" cue show on
         first paint; the grid lives below the fold (matches Stock/Glass). */}
     <section style={{ minHeight: "calc(100dvh - 8px)", display: "flex", flexDirection: "column", justifyContent: "center", position: "relative", padding: "20px 0 30px" }}>
+      <div style={{ position: "absolute", top: 20, right: 0, zIndex: 2 }}>
+        <AccountTray variant="hero" />
+      </div>
       <div style={{ animation: "ssRise 0.5s ease forwards", opacity: 0, position: "relative" }}>
         <div style={{ position: "absolute", left: -60, top: -56, width: 620, height: 280, background: "radial-gradient(58% 64% at 22% 42%, rgba(247,176,65,0.12), rgba(38,201,216,0.05) 55%, transparent 72%)", filter: "blur(18px)", pointerEvents: "none", zIndex: 0 }} />
         <div style={{ position: "relative", zIndex: 1 }}>
@@ -2008,13 +2003,7 @@ function StockHome({ onNavigate }: { onNavigate: (id: string) => void }) {
     {/* Hero — fills the viewport; tools live below the fold */}
     <section style={{ minHeight: "calc(100dvh - 8px)", display: "flex", flexDirection: "column", position: "relative", padding: "20px 0 30px" }}>
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "7px 12px 7px 8px", borderRadius: 999, background: "rgba(13,12,22,0.6)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}>
-          <span style={{ width: 28, height: 28, borderRadius: 999, display: "grid", placeItems: "center", fontFamily: gf, fontWeight: 800, fontSize: 12, color: "#0b0b11", background: "linear-gradient(135deg, " + C.amber + ", " + C.coral + ")" }}>{initials}</span>
-          <span style={{ lineHeight: 1.05 }}>
-            <span style={{ display: "block", fontFamily: ft, fontWeight: 600, fontSize: 13, color: C.tx }}>{fullName || "POAST"}</span>
-            <span style={{ display: "block", fontFamily: mn, fontSize: 8.5, letterSpacing: 1, textTransform: "uppercase", color: C.txm }}>{roleName}</span>
-          </span>
-        </div>
+        <AccountTray variant="hero" />
       </div>
       <div style={{ margin: "auto 0", maxWidth: 920 }}>
         <div style={{ fontFamily: mn, fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: C.amber, marginBottom: 20, display: "inline-flex", alignItems: "center", gap: 10 }}>
