@@ -2655,6 +2655,11 @@ function EditTaskModal({ task, currentUser, onCancel, onSave, onRemove }: { task
   // Threaded notes: keep the existing list and let the user append.
   const [notesLog, setNotesLog] = useState<NoteEntry[]>(task.notesLog || []);
   const [logDraft, setLogDraft] = useState("");
+  // Clicking a task opens this modal in read-only "view" first; the pencil
+  // switches to the full "edit" form. Esc / overlay closes either mode.
+  const [mode, setMode] = useState<"view" | "edit">("view");
+  // If the modal instance is reused for a different task, reset to view.
+  useEffect(() => { setMode("view"); }, [task.id]);
 
   function addSub() {
     const t = subDraft.trim();
@@ -2706,10 +2711,68 @@ function EditTaskModal({ task, currentUser, onCancel, onSave, onRemove }: { task
     });
   }
 
+  const pill = (c: string): React.CSSProperties => ({ fontFamily: mn, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: c, background: c + "1c", border: `1px solid ${c}44`, borderRadius: 999, padding: "3px 9px" });
+  const pColorV = PRIORITY_COLORS[(task.done ? "DONE" : task.priority) as Priority] || D.txd;
+  const cColorV = CATEGORY_COLORS[task.category] || D.txm;
+  const dueStrV = task.dueDate ? new Date(task.dueDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "—";
+  const viewBlock = (
+    <>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: gf, fontSize: 20, fontWeight: 800, color: D.tx, letterSpacing: -0.4, lineHeight: 1.25, textDecoration: task.done ? "line-through" : "none", opacity: task.done ? 0.65 : 1 }}>{task.title}</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 9 }}>
+            <span style={pill(pColorV)}>{task.done ? "DONE" : task.priority}</span>
+            <span style={pill(cColorV)}>{task.category}</span>
+            {task.pinned ? <span style={pill(D.amber)}>★ Pinned</span> : null}
+            {task.assignee ? <span style={pill(D.txm)}>{task.assignee}</span> : null}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+          <button type="button" onClick={() => setMode("edit")} title="Edit task" style={{ background: D.amber, color: "#060608", border: "none", padding: "7px 14px", borderRadius: 8, fontFamily: ft, fontSize: 12.5, fontWeight: 700, cursor: "pointer", letterSpacing: 0.2 }}>✎ Edit</button>
+          <button type="button" onClick={onCancel} title="Close" style={{ background: "transparent", border: `1px solid ${D.border}`, color: D.txm, width: 32, height: 32, borderRadius: 8, cursor: "pointer", fontFamily: mn, fontSize: 15, lineHeight: 1 }}>×</button>
+        </div>
+      </div>
+      {task.description ? <div style={{ fontFamily: ft, fontSize: 14, color: D.tx, lineHeight: 1.55, whiteSpace: "pre-wrap", marginBottom: 14, padding: "12px 14px", background: D.surface, border: `1px solid ${D.border}`, borderRadius: 10 }}>{task.description}</div> : null}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+        <div><div style={lbl}>Assignee</div><div style={{ fontFamily: ft, fontSize: 13.5, color: D.tx, marginTop: 3 }}>{task.assignee || "Unassigned"}</div></div>
+        <div><div style={lbl}>Due date</div><div style={{ fontFamily: ft, fontSize: 13.5, color: D.tx, marginTop: 3 }}>{dueStrV}</div></div>
+      </div>
+      {task.tags && task.tags.length ? (
+        <div style={{ marginBottom: 14 }}>
+          <div style={lbl}>Tags</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 5 }}>{task.tags.map((t) => <span key={t} style={{ fontFamily: mn, fontSize: 10, color: D.txm, background: D.surface, border: `1px solid ${D.border}`, borderRadius: 999, padding: "3px 10px" }}>#{t}</span>)}</div>
+        </div>
+      ) : null}
+      {task.subtasks && task.subtasks.length ? (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}><div style={lbl}>Subtasks</div><div style={{ fontFamily: mn, fontSize: 9, color: D.txd }}>{task.subtasks.filter((s) => s.done).length}/{task.subtasks.length} done</div></div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>{task.subtasks.map((s) => (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 9px", background: D.surface, border: `1px solid ${D.border}`, borderRadius: 6 }}>
+              <span style={{ width: 13, height: 13, borderRadius: 3, background: s.done ? D.teal : "transparent", border: `1.5px solid ${s.done ? D.teal : D.border}`, flexShrink: 0, display: "grid", placeItems: "center", color: "#060608", fontSize: 9 }}>{s.done ? "✓" : ""}</span>
+              <span style={{ flex: 1, fontFamily: ft, fontSize: 13, color: s.done ? D.txd : D.tx, textDecoration: s.done ? "line-through" : "none" }}>{s.title}</span>
+            </div>
+          ))}</div>
+        </div>
+      ) : null}
+      {task.notes ? (
+        <div style={{ marginBottom: 14 }}><div style={lbl}>Notes</div><div style={{ fontFamily: ft, fontSize: 13, color: D.tx, lineHeight: 1.5, whiteSpace: "pre-wrap", marginTop: 4 }}>{task.notes}</div></div>
+      ) : null}
+      {task.notesLog && task.notesLog.length ? (
+        <div><div style={lbl}>Activity</div><div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 5, maxHeight: 220, overflowY: "auto" }}>{task.notesLog.map((e) => (
+          <div key={e.id} style={{ padding: "6px 10px", background: D.surface, border: `1px solid ${D.border}`, borderRadius: 6 }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, marginBottom: 2 }}>{new Date(e.ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}{e.author ? ` · ${e.author}` : ""}</div>
+            <div style={{ fontFamily: ft, fontSize: 12.5, color: D.tx, lineHeight: 1.4, whiteSpace: "pre-wrap" }}>{e.text}</div>
+          </div>
+        ))}</div></div>
+      ) : null}
+    </>
+  );
+
   return (
     <ModalPortal>
     <div style={overlay} onClick={onCancel}>
       <div style={{ ...panel, width: "min(640px, 96vw)" }} onClick={(e) => e.stopPropagation()}>
+        {mode === "view" ? viewBlock : (<>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div style={{ fontFamily: gf, fontSize: 20, fontWeight: 800, color: D.tx, letterSpacing: -0.5 }}>Edit task</div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -2850,6 +2913,7 @@ function EditTaskModal({ task, currentUser, onCancel, onSave, onRemove }: { task
             <button type="button" onClick={save} disabled={!title.trim()} style={{ ...primaryBtn, opacity: title.trim() ? 1 : 0.5 }}>Save</button>
           </div>
         </div>
+        </>)}
       </div>
     </div>
     </ModalPortal>
