@@ -25,6 +25,7 @@ import WidgetPanel from "./components/widget-panel";
 import NotifBell from "./components/notifications";
 import { CreateProvider } from "./create-context";
 import AssistantBar from "./components/assistant-bar";
+import CalendarStatusPill from "./components/calendar-status-pill";
 
 export default function MarketingSuiteShell() {
   const [active, setActive] = useState<ViewId>("today");
@@ -91,6 +92,8 @@ export default function MarketingSuiteShell() {
           {liveOffline && <span title="Working from cache — changes will sync when back online">⚠ cached</span>}
           {m.owner && m.owner !== "shared" && <span title="Signed-in workspace">{m.owner}</span>}
         </span>
+        {/* Google Calendar status + connect prompt — visible from every view */}
+        <CalendarStatusPill onManage={() => setActive("schedule")} />
         {/* Demo ⇄ Live data toggle */}
         <div style={{ display: "inline-flex", border: `1px solid ${D.border}`, borderRadius: 999, overflow: "hidden", background: D.card }}>
           {([

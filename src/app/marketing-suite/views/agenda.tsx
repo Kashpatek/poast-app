@@ -23,6 +23,7 @@ import { useCreate } from "../create-context";
 import { useBoardTasks } from "../use-board-tasks";
 import GoogleCalendarsPanel from "../components/google-calendars";
 import AgendaWizard from "../components/agenda-wizard";
+import { useGoogle } from "../use-google";
 
 // Day-grid geometry.
 const START_HOUR = 6, END_HOUR = 23;          // 6am → 11pm
@@ -51,6 +52,17 @@ export default function AgendaView({ m, onOpenView }: ViewProps) {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [tick, setTick] = useState(0);
   useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 30_000); return () => clearInterval(t); }, []);
+
+  // Surface the calendar panel by default while Google isn't connected yet, so
+  // the Connect prompt is visible the moment you land on Agenda (auto-open once).
+  const { status: gcalStatus, loading: gcalLoading } = useGoogle();
+  const promptedCals = useRef(false);
+  useEffect(() => {
+    if (!gcalLoading && gcalStatus.configured && !gcalStatus.connected && !promptedCals.current) {
+      promptedCals.current = true;
+      setShowCals(true);
+    }
+  }, [gcalLoading, gcalStatus.configured, gcalStatus.connected]);
   const now = useMemo(() => new Date(), [tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isToday = startOfDay(now).getTime() === date.getTime();
