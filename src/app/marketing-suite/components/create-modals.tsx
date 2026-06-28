@@ -12,7 +12,7 @@ import {
   DEFAULT_CALENDARS,
 } from "../marketing-constants";
 import type { MarketingState } from "../use-marketing";
-import { useGoogle } from "../use-google";
+import { useGoogle, isCalSelected } from "../use-google";
 
 // Combine a YYYY-MM-DD date + HH:MM time into a local-time ISO datetime.
 function toISO(date: string, time?: string): string {
@@ -169,7 +169,11 @@ export function ScheduleModal({ open, prefill, m, onClose, onOpenView }: ModalPr
   const { status: gStatus } = useGoogle();
   const calendarOptions = useMemo(() => [
     ...DEFAULT_CALENDARS.map((c) => ({ id: c.id, name: c.name })),
-    ...(gStatus.connected ? (gStatus.calendars || []).map((c) => ({ id: c.id, name: `Google · ${c.summary}` })) : []),
+    ...(gStatus.connected
+      ? (gStatus.calendars || [])
+          .filter((c) => isCalSelected(gStatus.prefs, c.id))
+          .map((c) => ({ id: c.id, name: `Google · ${c.summary}` }))
+      : []),
   ], [gStatus]);
 
   useEffect(() => {

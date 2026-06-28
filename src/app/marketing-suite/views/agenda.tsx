@@ -109,7 +109,7 @@ export default function AgendaView({ m, onOpenView }: ViewProps) {
         </div>
       </div>
 
-      {showCals && <div style={{ marginBottom: 14 }}><GoogleCalendarsPanel /></div>}
+      {showCals && <div style={{ marginBottom: 14 }}><GoogleCalendarsPanel onChanged={() => m.refresh()} /></div>}
 
       {/* Day-nav (day view only) */}
       {view === "day" && (

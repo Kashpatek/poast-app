@@ -3,13 +3,24 @@
 import { useCallback, useEffect, useState } from "react";
 
 export interface GoogleCalendarInfo { id: string; summary: string; primary?: boolean; backgroundColor?: string; }
+export interface GooglePrefs {
+  // Which calendars feed MarketingSUITE. A calendar is on unless explicitly
+  // false (default-on), so a fresh connection shows everything until narrowed.
+  selected?: Record<string, boolean>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [k: string]: any;
+}
 export interface GoogleStatus {
   configured: boolean;
   connected: boolean;
   email?: string;
   calendars?: GoogleCalendarInfo[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  prefs?: Record<string, any>;
+  prefs?: GooglePrefs;
+}
+
+// A calendar feeds the suite unless its pref is explicitly false (default-on).
+export function isCalSelected(prefs: GooglePrefs | undefined, calId: string): boolean {
+  return prefs?.selected?.[calId] !== false;
 }
 
 export function currentOwner(): string {
@@ -57,5 +68,33 @@ export function useGoogle() {
     return res.json();
   }, [owner]);
 
-  return { status, loading, owner, reload, connect, disconnect, syncCalendar };
+  // Select / deselect one calendar. Optimistically flips status.prefs so the
+  // checkbox responds instantly; the server persists the choice and applies it
+  // live (on → pulls the calendar, off → purges its events).
+  const setCalendarSelected = useCallback(async (calendarId: string, on: boolean) => {
+    setStatus((s) => ({ ...s, prefs: { ...s.prefs, selected: { ...s.prefs?.selected, [calendarId]: on } } }));
+    try {
+      const res = await fetch("/api/google/sync", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ owner, setCalendar: { id: calendarId, on } }),
+      });
+      return await res.json();
+    } catch (e) {
+      reload(owner); // re-sync from the server if the write failed
+      return { ok: false, error: String(e) };
+    }
+  }, [owner, reload]);
+
+  // Push+pull every selected calendar at once (and purge de-selected ones).
+  const syncSelected = useCallback(async () => {
+    const res = await fetch("/api/google/sync", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ owner, syncSelected: true }),
+    });
+    return res.json();
+  }, [owner]);
+
+  const isSelected = useCallback((calId: string) => isCalSelected(status.prefs, calId), [status.prefs]);
+
+  return { status, loading, owner, reload, connect, disconnect, syncCalendar, setCalendarSelected, syncSelected, isSelected };
 }
