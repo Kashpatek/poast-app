@@ -12,7 +12,7 @@
 import { D, PL } from "../shared-constants";
 import {
   LayoutDashboard, CalendarDays, GanttChart, KanbanSquare, Megaphone,
-  Clapperboard, TrendingUp, BarChart3, Newspaper, CalendarClock, type LucideIcon,
+  Clapperboard, TrendingUp, BarChart3, Newspaper, CalendarClock, Rocket, type LucideIcon,
 } from "lucide-react";
 
 // ─── Core types ───
@@ -185,7 +185,7 @@ export function channelOf(key?: string | null) {
 // ─── View registry (shell left-nav order) ───
 export type ViewId =
   | "today" | "schedule" | "calendar" | "timeline" | "board" | "campaigns"
-  | "kiosk" | "trends" | "analytics" | "brief";
+  | "rollouts" | "kiosk" | "trends" | "analytics" | "brief";
 export interface ViewDef { id: ViewId; label: string; Icon: LucideIcon; accent: string; }
 export const VIEWS: ViewDef[] = [
   { id: "today",     label: "Today",    Icon: LayoutDashboard, accent: D.amber },
@@ -194,6 +194,7 @@ export const VIEWS: ViewDef[] = [
   { id: "timeline",  label: "Timeline", Icon: GanttChart,      accent: D.teal },
   { id: "board",     label: "Board",    Icon: KanbanSquare,    accent: D.blue },
   { id: "campaigns", label: "Campaigns",Icon: Megaphone,       accent: D.violet },
+  { id: "rollouts",  label: "Rollouts", Icon: Rocket,          accent: D.coral },
   { id: "kiosk",     label: "Ad Kiosk", Icon: Clapperboard,    accent: D.violet },
   { id: "trends",    label: "Trends",   Icon: TrendingUp,      accent: D.coral },
   { id: "analytics", label: "Data",     Icon: BarChart3,       accent: D.teal },

@@ -18,6 +18,7 @@ import CalendarView from "./views/calendar";
 import TimelineView from "./views/timeline";
 import BoardView from "./views/board";
 import CampaignsView from "./views/campaigns";
+import RolloutsView from "./views/rollouts";
 import KioskView from "./views/kiosk";
 import TrendsView from "./views/trends";
 import AnalyticsView from "./views/analytics";
@@ -76,6 +77,7 @@ export default function MarketingSuiteShell() {
       case "timeline": return <TimelineView {...vp} />;
       case "board": return <BoardView />;
       case "campaigns": return <CampaignsView {...vp} />;
+      case "rollouts": return <RolloutsView {...vp} />;
       case "kiosk": return <KioskView {...vp} />;
       case "trends": return <TrendsView {...vp} />;
       case "analytics": return <AnalyticsView {...vp} />;
