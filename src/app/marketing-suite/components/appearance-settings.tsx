@@ -3,11 +3,18 @@
 // and a "Replay tour" action. Wired to ThemeProvider (localStorage + Neon).
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Check, RotateCcw, Lock, Unlock, Star } from "lucide-react";
+import { X, Check, RotateCcw, Lock, Unlock, Star, ArrowRight } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
 import { useTheme, playThemeTransitionAndReload, type ThemeName, type BgName, type GlassMat, type GlassVars } from "../../theme-context";
 import { useGoogle, calendarTargets, getDefaultCalendarId, setDefaultCalendarId, resolveDefaultCalendarId } from "../use-google";
+import { eventCalendarId, type MarketingEvent } from "../marketing-constants";
 import type { MarketingState } from "../use-marketing";
+
+// An event that lives only in-app (not synced from Google) — safe to re-target
+// its calendar lane without a Google-side move.
+function isInAppEvent(e: MarketingEvent): boolean {
+  return !e.gcalEventId && e.source !== "gcal" && typeof e.payload?.gcalEventId !== "string";
+}
 
 // Demo ⇄ Live data mode — moved here from the top bar. "Live" reads/writes this
 // user's real saved data; "Demo" is a safe in-memory sandbox.
@@ -45,15 +52,39 @@ function DataModeSection({ m }: { m: MarketingState }) {
 }
 
 // Default calendar — mirror of the Calendars-panel gate, so the choice can be
-// changed any time. Change-on-select persists immediately (per owner).
-function DefaultCalendarSection() {
+// changed any time. Change-on-select persists immediately (per owner). When the
+// default changes and in-app items still sit on the previous calendar, we OFFER
+// to move them (opt-in, never automatic) — the user's chosen merge-on-change.
+function DefaultCalendarSection({ m }: { m?: MarketingState }) {
   const { status, owner, loading } = useGoogle();
   const targets = calendarTargets(status);
   const [val, setVal] = useState<string>(() => resolveDefaultCalendarId());
+  const [merge, setMerge] = useState<{ from: string; to: string } | null>(null);
   useEffect(() => { setVal(resolveDefaultCalendarId(owner)); }, [owner, status.connected]);
   const isSet = !!getDefaultCalendarId(owner);
   const current = targets.find((t) => t.id === val);
-  function choose(id: string) { setVal(id); setDefaultCalendarId(owner, id); }
+  const nameOf = (id: string) => targets.find((t) => t.id === id)?.name || id;
+
+  // In-app items currently sitting on the previous default (candidates to move).
+  const movable = m && merge ? m.events.filter((e) => isInAppEvent(e) && eventCalendarId(e) === merge.from) : [];
+
+  function choose(id: string) {
+    const prev = val;
+    setVal(id);
+    setDefaultCalendarId(owner, id);
+    // Offer to bring existing in-app items along (only if any actually live on
+    // the previous calendar). Purely opt-in — nothing moves until confirmed.
+    if (m && prev && prev !== id) {
+      const has = m.events.some((e) => isInAppEvent(e) && eventCalendarId(e) === prev);
+      setMerge(has ? { from: prev, to: id } : null);
+    }
+  }
+  function doMerge() {
+    if (!m || !merge) return;
+    movable.forEach((e) => m.updateEvent(e.id, { payload: { ...(e.payload || {}), calendarId: merge.to } }));
+    setMerge(null);
+  }
+
   return (
     <>
       <div style={lbl}>Default calendar</div>
@@ -74,6 +105,28 @@ function DefaultCalendarSection() {
         New events, content and dated tasks are added here.
         {!loading && !status.connected && " Connect Google Calendar from the Agenda to target a Google calendar."}
       </div>
+
+      {/* Merge-on-change offer (opt-in) */}
+      {merge && movable.length > 0 && (
+        <div style={{
+          marginTop: 12, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+          border: `1px solid ${D.amber}44`, background: D.amber + "10", borderRadius: 11, padding: "11px 13px",
+        }}>
+          <span style={{ fontFamily: mn, fontSize: 11.5, color: D.tx, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ color: D.amber, fontWeight: 700 }}>{movable.length}</span> item{movable.length === 1 ? "" : "s"} on {nameOf(merge.from)}
+            <ArrowRight size={12} color={D.txm} /> {nameOf(merge.to)}?
+          </span>
+          <span style={{ flex: 1 }} />
+          <button onClick={doMerge} style={{
+            fontFamily: mn, fontSize: 11, fontWeight: 700, cursor: "pointer", borderRadius: 8, padding: "6px 12px",
+            border: `1px solid ${D.amber}77`, background: D.amber + "18", color: D.amber,
+          }}>Move them here</button>
+          <button onClick={() => setMerge(null)} style={{
+            fontFamily: mn, fontSize: 11, cursor: "pointer", borderRadius: 8, padding: "6px 11px",
+            border: `1px solid ${D.border}`, background: "transparent", color: D.txm,
+          }}>Leave</button>
+        </div>
+      )}
       <div style={{ height: 1, background: D.border, margin: "22px 0 0" }} />
     </>
   );
@@ -282,7 +335,7 @@ export default function AppearanceSettings({ open, onClose, m }: { open: boolean
         <div style={{ padding: 22 }}>
           {m && <DataModeSection m={m} />}
           <div style={{ marginTop: m ? 22 : 0 }}>
-            <DefaultCalendarSection />
+            <DefaultCalendarSection m={m} />
           </div>
           <div style={{ marginTop: 22 }}>
             <AppearancePanel onReplayTour={() => { onClose(); setTimeout(() => window.dispatchEvent(new Event("poast:replay-tour")), 60); }} />
