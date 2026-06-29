@@ -11,9 +11,12 @@
 //     last week, then older ranges).
 //   • WEEKLY OPS — the standing operational list (ongoing / ops-category tasks)
 //     that accretes as the week goes; check items off here (synced to the board).
-//   • WEEKLY DIGEST — a copyable standup-style write-up built from the above.
-//     NOTE: the prose format here is a sensible default; it will be tuned to the
-//     user's "Standups" skill once that skill is available on this machine.
+//   • WEEKLY DIGEST — a copyable standup, written in Akash's exact weekly-ops
+//     format (the `weekly-ops-standup` skill): ALL-CAPS workstream headers
+//     (VIDEOS / SOCIALS / ADS / WEBSITES / POAST / MARKETING), "* " bullets,
+//     three-space sub-bullets, no bold / colons / em dashes / emojis. Each
+//     completed, in-flight, ongoing and near-deadline item is routed into its
+//     workstream so the whole week reads in his voice, ready to paste.
 //
 // Read-mostly aggregation over m.events + the shared board store. Toggling a
 // Weekly Ops item writes through the store (mode-gated, safe in demo).
@@ -25,7 +28,7 @@ import {
 import { D, ft, gf, mn } from "../../shared-constants";
 import {
   TYPE_COLOR, scheduleKindOf,
-  type MarketingEvent, type BoardTaskLite,
+  type MarketingEvent, type BoardTaskLite, type EventType,
 } from "../marketing-constants";
 import type { ViewProps } from "../use-marketing";
 import { useBoardStore } from "../board-store";
@@ -48,6 +51,50 @@ interface DoneItem {
   id: string; title: string; kind: "event" | "task";
   when: Date; group: string | null; accent: string; tag: string;
 }
+
+/* ── Weekly-ops standup format (the `weekly-ops-standup` skill is the law) ──
+   His sections are workstreams, not statuses. We route every item — shipped,
+   in-flight, ongoing, near-deadline — into the right ALL-CAPS section so the
+   copy reads exactly like his standup. */
+const SECTION_ORDER = ["VIDEOS", "SOCIALS", "ADS", "WEBSITES", "POAST", "MARKETING"] as const;
+
+// His format bans em/en dashes and emojis, and has its own shorthand vocabulary
+// (x for collabs/multipliers, plain words for destinations). Normalize the
+// app's stylistic symbols into his voice so the copy is paste-ready as-is.
+function cleanLine(s: string): string {
+  return s
+    .replace(/[‒–—―−]/g, "-")               // em/en/figure dashes + minus → hyphen
+    .replace(/[×✕✖]/g, "x")                  // multiplication sign → his "x"
+    .replace(/\s*[→➜➝⟶⇒⟹]\s*/g, " to ")      // destination arrows → "to"
+    .replace(/\s*·\s*/g, " ")                // middot separator (app styling) → space
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Classify a piece of work into one of his workstreams. `hay` is title + group
+// (campaign/category) so name-based context counts; channel/source refine it.
+function classify(hay: string, type: EventType | "task", channel?: string | null, source?: string): string {
+  const h = hay.toLowerCase();
+  if (/poast/.test(h)) return "POAST";
+  if (/capital|merch|brass hands|web ?site|main site|landing|homepage|\.com\b/.test(h)) return "WEBSITES";
+  if (source === "brianna" || /brianna/.test(h)) return "SOCIALS";
+  const social = /^(x|tiktok|youtube|instagram|linkedin|facebook)$/.test((channel || "").toLowerCase());
+  if (type === "ad" || type === "kiosk") return "ADS";
+  if (type === "buffer") return "SOCIALS";
+  if (type === "production" || type === "launch" || type === "clip") return "VIDEOS";
+  if (type === "task") {
+    if (/\bads?\b|cpc|\bmeta\b|\bbid\b|budget|\bspend\b/.test(h)) return "ADS";
+    if (/clip|edit|film|record|video|episode|\bep\s?\d|podcast|reel|youtube/.test(h)) return "VIDEOS";
+    if (social || /social|post|thread|carousel|follower|competition/.test(h)) return "SOCIALS";
+    return "MARKETING";
+  }
+  // strategy / campaign / manual
+  if (social || /social|post|thread|follower|competition|milestone/.test(h)) return "SOCIALS";
+  return "MARKETING";
+}
+const wsEvent = (e: MarketingEvent, names: Map<string, string>): string =>
+  classify(`${e.title} ${e.campaignId ? names.get(e.campaignId) || "" : ""}`, e.type, e.channel, e.source);
+const wsTask = (t: BoardTaskLite): string => classify(`${t.title} ${t.category || ""}`, "task");
 
 export default function ArchiveView({ m, onOpenView }: ViewProps) {
   const { events, campaigns } = m;
@@ -117,22 +164,53 @@ export default function ArchiveView({ m, onOpenView }: ViewProps) {
       .slice(0, 8);
   }, [events, now]);
 
-  // ── The copyable standup-style digest (format provisional → Standups skill) ──
+  // ── The copyable standup, in Akash's weekly-ops format (skill is the law) ──
+  // Workstream sections, "* " bullets, three-space sub-bullets, no bold/emoji/
+  // em dashes. Every shipped / in-flight / ongoing / near-deadline item routes
+  // into its section (done > in-flight > deadline > ongoing; first owner wins).
   const digest = useMemo(() => {
-    const line = (d: DoneItem) => `- ${d.title}${d.group ? ` — ${d.group}` : ""}`;
-    const evLine = (e: MarketingEvent) => `- ${e.title}${e.campaignId && campName.get(e.campaignId) ? ` — ${campName.get(e.campaignId)}` : ""}`;
+    const used = new Set<string>();
+    const sections = new Map<string, { title: string; sub?: string; ord: number }[]>();
+    const add = (sec: string, key: string, title: string, ord: number, sub?: string) => {
+      if (used.has(key)) return;
+      used.add(key);
+      const arr = sections.get(sec) || [];
+      arr.push({ title: cleanLine(title), sub: sub ? cleanLine(sub) : undefined, ord });
+      sections.set(sec, arr);
+    };
+
+    // 1) shipped this week — the wins
+    for (const e of events) {
+      if (e.status !== "done" || new Date(e.start) < weekStart) continue;
+      add(wsEvent(e, campName), "e:" + e.id, e.title, 0);
+    }
+    for (const t of store.tasks) {
+      if (!t.done) continue;
+      if (new Date(t.updatedAt || t.addedAt || 0) < weekStart) continue;
+      add(wsTask(t), "t:" + t.id, t.title, 0);
+    }
+    // 2) in flight  3) near-term deadlines  4) ongoing ops
+    for (const e of inFlight) add(wsEvent(e, campName), "e:" + e.id, e.title, 1, e.status === "live" ? "Live" : "In progress");
+    for (const e of nextUp) add(wsEvent(e, campName), "e:" + e.id, e.title, 2, "Due " + fmtDay(new Date(e.start)));
+    for (const t of weeklyOps) add(wsTask(t), "t:" + t.id, t.title, 3, t.done ? "done" : undefined);
+
+    const rendered = SECTION_ORDER.filter((s) => sections.get(s)?.length);
+    if (!rendered.length) return "Nothing to report this week yet — check items off and they roll up here in your standup format.";
+
     const L: string[] = [];
-    L.push(`*Marketing — week of ${weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })}*`, "");
-    L.push(`✅ Shipped (${thisWeek.length})`);
-    L.push(...(thisWeek.length ? thisWeek.map(line) : ["- —"]), "");
-    L.push(`🟢 In flight (${inFlight.length})`);
-    L.push(...(inFlight.length ? inFlight.map(evLine) : ["- —"]), "");
-    L.push(`⏭️ Next up (${nextUp.length})`);
-    L.push(...(nextUp.length ? nextUp.map((e) => `${evLine(e)} · ${fmtDay(new Date(e.start))}`) : ["- —"]), "");
-    L.push(`🔁 Weekly Ops (${opsDone}/${weeklyOps.length})`);
-    L.push(...(weeklyOps.length ? weeklyOps.map((t) => `- ${t.done ? "✓" : "·"} ${t.title}`) : ["- —"]));
+    rendered.forEach((sec, i) => {
+      const items = sections.get(sec)!.slice().sort((a, b) => a.ord - b.ord || a.title.localeCompare(b.title));
+      // His real standups front-load a descriptor on a heavy lead section.
+      const header = i === 0 && sec === "VIDEOS" && items.length >= 4 ? "HEAVY Production Week VIDEOS" : sec;
+      if (i > 0) L.push("");
+      L.push(header, "");
+      for (const it of items) {
+        L.push(`* ${it.title}`);
+        if (it.sub) L.push(`   * ${it.sub}`);
+      }
+    });
     return L.join("\n");
-  }, [thisWeek, inFlight, nextUp, weeklyOps, opsDone, weekStart, campName]);
+  }, [events, store.tasks, inFlight, nextUp, weeklyOps, weekStart, campName]);
 
   const copyDigest = async () => {
     try { await navigator.clipboard.writeText(digest); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* ignore */ }
@@ -202,6 +280,7 @@ export default function ArchiveView({ m, onOpenView }: ViewProps) {
               <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
                 <ClipboardList size={14} color={D.violet} />
                 <span style={{ fontFamily: mn, fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: D.tx }}>Weekly digest</span>
+                <span style={{ fontFamily: mn, fontSize: 9.5, color: D.txd, letterSpacing: 0.4 }}>· {fmtRange(weekStart)}</span>
                 <span style={{ flex: 1 }} />
                 <button onClick={copyDigest} title="Copy the standup" style={{
                   display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontFamily: mn, fontSize: 10.5, fontWeight: 700,
@@ -216,7 +295,7 @@ export default function ArchiveView({ m, onOpenView }: ViewProps) {
                 color: D.txm, background: D.surface, border: `1px solid ${D.border}`, borderRadius: 10, padding: "12px 13px", maxHeight: 360, overflow: "auto",
               }}>{digest}</pre>
               <div style={{ fontFamily: mn, fontSize: 8.5, color: D.txd, marginTop: 7, lineHeight: 1.5 }}>
-                Format will be tuned to your Standups skill once it&apos;s on this machine.
+                Written in your weekly-ops standup format — workstream sections, paste-ready. Punch up the wins and add stats before posting.
               </div>
             </div>
 
