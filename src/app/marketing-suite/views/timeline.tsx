@@ -15,11 +15,12 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import {
   GanttChart, CalendarRange, ChevronRight, ChevronDown, Diamond, Triangle,
   Radio, Layers, ArrowRight, List, Rows3, Tag, ChevronLeft, CalendarDays, Crosshair,
-  Pencil, Check, Copy, Trash2, MoveRight,
+  Pencil, Check, Copy, Trash2, MoveRight, Repeat,
 } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
 import {
   TYPE_COLOR, STATUS_COLOR, STATUS_LABEL, channelOf,
+  eventRollout, eventSeries, eventEpisodeNo,
   type MarketingEvent, type EventType, type Campaign,
 } from "../marketing-constants";
 import type { ViewProps } from "../use-marketing";
@@ -74,7 +75,7 @@ function isWeekend(d: Date) { const g = d.getDay(); return g === 0 || g === 6; }
 
 interface TipState { id: string; x: number; y: number; below: boolean; }
 type ViewMode = "gantt" | "agenda";
-type GroupBy = "type" | "campaign";
+type GroupBy = "type" | "campaign" | "rollout" | "series";
 
 const scrollBtn: React.CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer",
@@ -167,7 +168,7 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
     return () => window.removeEventListener("resize", calc);
   }, [mode]);
 
-  // ─── Lanes (Type or Campaign) ───
+  // ─── Lanes (Type / Campaign / Rollout / Series) ───
   const lanes: Lane[] = useMemo(() => {
     if (groupBy === "campaign") {
       const byId = new Map<string, Campaign>(m.campaigns.map((c) => [c.id, c]));
@@ -177,6 +178,32 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
       }));
       out.push({ key: "_none", label: "Unassigned", accent: D.txm, match: (e) => !e.campaignId || !byId.has(e.campaignId) });
       // Drop campaign lanes with nothing in them so the chart stays legible.
+      return out.filter((l) => m.events.some(l.match));
+    }
+    if (groupBy === "rollout") {
+      // One lane per Rollout (release cycle): episodes read left-to-right
+      // topic→film→edit→release→clips. Only tagged events appear here.
+      const seen = new Map<string, { label: string; accent: string; first: number }>();
+      m.events.forEach((e) => {
+        const r = eventRollout(e); if (!r) return;
+        const camp = m.campaigns.find((c) => c.id === e.campaignId);
+        const epNo = eventEpisodeNo(e);
+        const t = +new Date(e.start);
+        const cur = seen.get(r);
+        if (!cur) seen.set(r, { label: epNo != null ? `EP${epNo}` : r, accent: camp?.color || D.cyan, first: t });
+        else if (t < cur.first) cur.first = t;
+      });
+      return Array.from(seen.entries())
+        .sort((a, b) => a[1].first - b[1].first)
+        .map(([id, meta]) => ({ key: id, label: meta.label, accent: meta.accent, match: (e: MarketingEvent) => eventRollout(e) === id }));
+    }
+    if (groupBy === "series") {
+      // One lane per Series (flattened across campaigns).
+      const defs = m.campaigns.flatMap((c) => c.series.map((s) => ({ s, c })));
+      const out: Lane[] = defs.map(({ s, c }) => ({
+        key: s.id, label: s.name, accent: c.color || D.cyan,
+        match: (e: MarketingEvent) => eventSeries(e) === s.id,
+      }));
       return out.filter((l) => m.events.some(l.match));
     }
     return TYPE_LANE_DEFS.map((d) => ({
@@ -372,6 +399,8 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
               options={[
                 { key: "type", label: "By type", Icon: Rows3 },
                 { key: "campaign", label: "By campaign", Icon: Tag },
+                { key: "rollout", label: "By rollout", Icon: Repeat },
+                { key: "series", label: "By series", Icon: Radio },
               ]}
               value={groupBy}
               onChange={(v) => { setGroupBy(v as GroupBy); setOpen(v === "type" ? { ads: true } : {}); }}
@@ -482,7 +511,7 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
                     padding: "0 0 0 14px",
                   }}>
                     <span style={{ fontFamily: mn, fontSize: 9, letterSpacing: 0.7, color: D.txd, textTransform: "uppercase" }}>
-                      {groupBy === "campaign" ? "Campaigns" : "Lanes"}
+                      {groupBy === "campaign" ? "Campaigns" : groupBy === "rollout" ? "Rollouts" : groupBy === "series" ? "Series" : "Lanes"}
                     </span>
                     <span style={{ fontFamily: mn, fontSize: 9.5, color: D.teal }}>
                       {visibleWeeks === 1 ? "Week" : `${visibleWeeks}-week`} view · 90-day span

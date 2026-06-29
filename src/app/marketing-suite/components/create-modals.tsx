@@ -7,6 +7,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { CheckSquare, CalendarClock, Video, ExternalLink, Trash2 } from "lucide-react";
 import { D, mn } from "../../shared-constants";
 import { Modal, Field, TextInput, TextArea, Select, Row, GhostBtn, PrimaryBtn, ChipPicker } from "./modal";
+import { DatePicker } from "./date-picker";
 import {
   SCHEDULE_KINDS, scheduleKindOf, TASK_CATEGORIES, TASK_PRIORITIES, TASK_ASSIGNEES,
   eventCalendarId, eventLocation, eventAttendees, eventMeetLink, eventHtmlLink, isAllDayEvent,
@@ -144,7 +145,7 @@ export function TaskModal({ open, prefill, m, onClose, onOpenView }: ModalProps)
       </Row>
       <Row cols={2}>
         <Field label="Due date">
-          <TextInput type="date" value={dueDate} onChange={(e) => { setDueDate(e.target.value); if (e.target.value) setAddToCal(true); }} />
+          <DatePicker value={dueDate} onChange={(v) => { setDueDate(v); if (v) setAddToCal(true); }} placeholder="Due date" />
         </Field>
         <Field label="Time" hint={dueDate ? undefined : "Set a date first"}>
           <TextInput type="time" value={time} disabled={!dueDate} onChange={(e) => setTime(e.target.value)} />
@@ -250,7 +251,7 @@ export function ScheduleModal({ open, prefill, m, onClose, onOpenView }: ModalPr
       </Field>
       <Row cols={3}>
         <Field label="Date">
-          <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <DatePicker value={date} onChange={setDate} placeholder="Pick a date" />
         </Field>
         <Field label="Start">
           <TextInput type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
@@ -394,7 +395,7 @@ export function EventEditModal({ event, m, onClose, onOpenView }: {
         </Field>
       </Row>
       <Row cols={allDay ? 1 : 3}>
-        <Field label="Date"><TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+        <Field label="Date"><DatePicker value={date} onChange={setDate} placeholder="Pick a date" /></Field>
         {!allDay && <Field label="Start"><TextInput type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} /></Field>}
         {!allDay && <Field label="End" hint="Optional"><TextInput type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} /></Field>}
       </Row>

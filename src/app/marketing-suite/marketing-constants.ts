@@ -44,6 +44,67 @@ export interface SeriesDef {
   firstRelease: string;     // ISO date
   count: number;
   channel?: string;
+  // ─ Rollout lifecycle (optional, back-compatible) ─
+  // A "podcast" series fans each release into a full lifecycle (a Rollout);
+  // a "simple"/undefined series keeps the legacy one-event-per-release behavior.
+  kind?: "podcast" | "simple";
+  stages?: StageDef[];
+  guests?: string[];
+  baseTitle?: string;       // drives episodeTitles() for the release/clip events
+}
+
+// ─── Rollout lifecycle stages ───
+// A Rollout is one release cycle of a campaign: a release date + the lead-up
+// work (topic → film → edit) → release → post (clips). Offsets are relative to
+// the release day (day 0). Stages reuse existing EventTypes + SCHEDULE_KINDS so
+// no closed union changes are needed.
+export type EpisodeStageKey = "topic" | "film" | "edit" | "release" | "clips";
+export interface StageDef {
+  key: EpisodeStageKey;
+  label: string;
+  type: EventType;
+  scheduleKind?: string;
+  offsetDays: number;       // relative to release (0 = release day)
+  durationMins?: number;
+  status: EventStatus;
+}
+export const PODCAST_LIFECYCLE: StageDef[] = [
+  { key: "topic",   label: "Topic lock", type: "strategy",   offsetDays: -10, status: "idea" },
+  { key: "film",    label: "Film",       type: "production", scheduleKind: "filming",  offsetDays: -7, durationMins: 180, status: "idea" },
+  { key: "edit",    label: "Edit",       type: "production", scheduleKind: "editing",  offsetDays: -3, status: "idea" },
+  { key: "release", label: "Release",    type: "launch",     scheduleKind: "deadline", offsetDays: 0,  status: "idea" },
+  { key: "clips",   label: "Clips",      type: "clip",       offsetDays: 1,  status: "idea" },
+];
+export function stageOf(key?: string | null): StageDef | undefined {
+  return PODCAST_LIFECYCLE.find((s) => s.key === key);
+}
+
+// SA Weekly title format (see memory sa_weekly_title_format): YouTube caps at
+// 100 chars off the base title; Spotify appends ` | guest, guest…` up to 200.
+export function episodeTitles(base: string, guests: string[] = []): { youtube: string; spotify: string } {
+  const youtube = base.slice(0, 100);
+  const spotify = (base + (guests.length ? ` | ${guests.join(", ")}` : "")).slice(0, 200);
+  return { youtube, spotify };
+}
+// Canonical frequent-guest roster seeded into the lifecycle guest quick-pick.
+export const SA_FREQUENT_GUESTS = [
+  "Dylan Patel", "Daniel Nishball", "Doug O'Laughlin", "Jon Peddie", "Wei Chen",
+];
+
+// Spread `count` prep dates leading UP TO `releaseISO` (the last task lands the
+// day before release, earlier tasks step back one day each). Earliest-first.
+// This is the inverse of the old forward `start + i` spread.
+export function leadUpDates(releaseISO: string, count: number): string[] {
+  if (count <= 0) return [];
+  const rel = new Date(releaseISO);
+  const out: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const back = count - i;           // i=count-1 → back=1 (day before release)
+    const d = new Date(rel);
+    d.setDate(d.getDate() - back);
+    out.push(d.toISOString());
+  }
+  return out;
 }
 
 export type CampaignStatus = "planning" | "active" | "wrapping" | "done";
@@ -117,6 +178,7 @@ export interface ScheduleKindDef { key: string; label: string; type: EventType; 
 export const SCHEDULE_KINDS: ScheduleKindDef[] = [
   { key: "meeting",  label: "Meeting",    type: "manual",     color: D.blue },
   { key: "filming",  label: "Filming",    type: "production", color: D.amber },
+  { key: "editing",  label: "Editing",    type: "production", color: D.violet },
   { key: "review",   label: "Review",     type: "manual",     color: D.violet },
   { key: "deadline", label: "Deadline",   type: "launch",     color: D.coral },
   { key: "block",    label: "Time block", type: "manual",     color: D.teal },
@@ -167,6 +229,32 @@ export function eventHtmlLink(e: MarketingEvent): string {
   const v = e.payload?.gcalHtmlLink ?? e.payload?.htmlLink;
   return typeof v === "string" ? v : "";
 }
+// ─ Rollout / lifecycle accessors (parallel to payload.calendarId) ─
+export function eventSeries(e: MarketingEvent): string | null {
+  const v = e.payload?.series;
+  return typeof v === "string" && v ? v : null;
+}
+export function eventRollout(e: MarketingEvent): string | null {
+  const v = e.payload?.rollout;
+  return typeof v === "string" && v ? v : null;
+}
+export function eventStage(e: MarketingEvent): string | null {
+  const v = e.payload?.stage;
+  return typeof v === "string" && v ? v : null;
+}
+export function eventEpisodeNo(e: MarketingEvent): number | null {
+  const v = e.payload?.episodeNo;
+  return typeof v === "number" ? v : null;
+}
+export function eventRelease(e: MarketingEvent): string | null {
+  const v = e.payload?.release;
+  return typeof v === "string" && v ? v : null;
+}
+// Prep tasks created with the "unassigned" toggle carry no real date.
+export function isUnscheduled(e: MarketingEvent): boolean {
+  return e.payload?.unscheduled === true;
+}
+
 // True for Google all-day events. Uses the explicit flag when present, else a
 // heuristic for events synced before the flag existed (midnight start spanning
 // ~a full day) so they don't render as a giant block over the whole grid.
@@ -194,20 +282,24 @@ export function makeDemoData(): { events: MarketingEvent[]; campaigns: Campaign[
   const campaigns: Campaign[] = [
     { id: "camp-ep", name: "EP Series · Memory Wars", color: D.amber, status: "active",
       goal: "Drive subs off the HBM4 episode arc", start: atDay(now, -6), end: atDay(now, 20),
-      series: [{ id: "s1", name: "Weekly short", frequencyDays: 7, firstRelease: atDay(now, 1, 11), count: 6, channel: "tiktok" }] },
+      series: [{ id: "s1", name: "SemiAnalysis Weekly", frequencyDays: 7, firstRelease: atDay(now, 5, 9), count: 4,
+        channel: "youtube", kind: "podcast", stages: PODCAST_LIFECYCLE, baseTitle: "The Memory Wars", guests: ["Dylan Patel"] }] },
     { id: "camp-launch", name: "Q3 Recap Launch", color: D.teal, status: "planning",
       goal: "Coordinated multi-channel recap drop", start: atDay(now, 8), end: atDay(now, 14), series: [] },
     { id: "camp-ad", name: "Always-On Acquisition", color: D.crimson, status: "active",
       goal: "Meta + OpenAI retargeting", start: atDay(now, -20), end: atDay(now, 30), series: [] },
   ];
+  // EP18 — a demo Rollout (one release cycle) so the rollout views light up.
+  const ep18 = { series: "s1", rollout: "s1-ep18", episodeNo: 18, release: atDay(now, 5, 9) };
   const events: MarketingEvent[] = [
     { id: "e1", title: "EP17 short → IG", type: "buffer", status: "scheduled", start: atDay(now, 0, 11), source: "buffer", channel: "instagram", campaignId: "camp-ep" },
     { id: "e2", title: "EP17 short → TikTok", type: "buffer", status: "scheduled", start: atDay(now, 0, 14), source: "buffer", channel: "tiktok", campaignId: "camp-ep" },
     { id: "e3", title: "EP17 hook → X", type: "buffer", status: "live", start: atDay(now, 0, 9), source: "buffer", channel: "x", campaignId: "camp-ep" },
-    { id: "e4", title: "Record EP18", type: "production", status: "scheduled", start: atDay(now, 2, 13), end: atDay(now, 2, 16), source: "poast" },
-    { id: "e5", title: "EP18 thumbnail review", type: "production", status: "draft", start: atDay(now, 1, 15), source: "poast" },
-    { id: "e6", title: "Clip batch 14", type: "clip", status: "scheduled", start: atDay(now, 1, 10), source: "poast", campaignId: "camp-ep" },
-    { id: "e7", title: "EP18 launch", type: "launch", status: "idea", start: atDay(now, 5, 9), source: "manual", campaignId: "camp-ep" },
+    { id: "e-ep18-topic", title: "Topic lock: The Memory Wars", type: "strategy", status: "done", start: atDay(now, -5, 10), source: "poast", campaignId: "camp-ep", payload: { ...ep18, stage: "topic" } },
+    { id: "e4", title: "Record EP18", type: "production", status: "scheduled", start: atDay(now, 2, 13), end: atDay(now, 2, 16), source: "poast", campaignId: "camp-ep", payload: { ...ep18, stage: "film", scheduleKind: "filming" } },
+    { id: "e5", title: "Edit EP18", type: "production", status: "draft", start: atDay(now, 1, 15), source: "poast", campaignId: "camp-ep", payload: { ...ep18, stage: "edit", scheduleKind: "editing" } },
+    { id: "e6", title: "Clip batch 14", type: "clip", status: "scheduled", start: atDay(now, 6, 10), source: "poast", campaignId: "camp-ep", payload: { ...ep18, stage: "clips" } },
+    { id: "e7", title: "EP18 launch", type: "launch", status: "idea", start: atDay(now, 5, 9), source: "manual", campaignId: "camp-ep", payload: { ...ep18, stage: "release", scheduleKind: "deadline" } },
     { id: "e8", title: "Meta flight · EP series", type: "ad", status: "live", start: atDay(now, -3, 9), end: atDay(now, 12, 9), source: "manual", channel: "meta", campaignId: "camp-ad" },
     { id: "e9", title: "OpenAI retarget flight", type: "ad", status: "live", start: atDay(now, -1, 9), end: atDay(now, 9, 9), source: "manual", channel: "meta", campaignId: "camp-ad" },
     { id: "e10", title: "Q3 recap thread → X", type: "buffer", status: "draft", start: atDay(now, 3, 12), source: "buffer", channel: "x", campaignId: "camp-launch" },

@@ -12,16 +12,20 @@ import {
   Megaphone, Plus, CalendarDays, CalendarPlus, Wand2, GitBranch, Repeat,
   TriangleAlert, ChevronRight, Clapperboard, Layers, Rocket, Radio,
   ArrowUpRight, DollarSign, MousePointerClick, Eye, Target, Sparkles,
-  Activity, Flame, Hash,
+  Activity, Flame, Hash, Pencil, Trash2, Mic,
 } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
 import {
   STATUS_COLOR, STATUS_LABEL, channelOf, adPlatform, adPayload,
   AD_PLATFORMS, AD_OBJECTIVES,
+  eventSeries, eventRollout, eventStage, eventRelease, eventEpisodeNo,
+  PODCAST_LIFECYCLE, SA_FREQUENT_GUESTS, episodeTitles,
   type Campaign, type MarketingEvent, type EventStatus, type CampaignStatus,
+  type SeriesDef,
 } from "../marketing-constants";
 import type { ViewProps } from "../use-marketing";
 import { useCreate } from "../create-context";
+import { DatePicker } from "../components/date-picker";
 import PageHeader from "../components/page-header";
 
 // ─── Static maps ───
@@ -105,6 +109,18 @@ export default function CampaignsView({ m, onOpenView }: ViewProps) {
     openCreate("campaign");
   }
 
+  // ── Edit campaign → reopen the same modal in edit mode (prefill.editId).
+  function editCampaign(c: Campaign) {
+    openCreate("campaign", {
+      editId: c.id, name: c.name,
+      type: (c.payload as { type?: string })?.type || "Launch",
+      status: c.status, goal: c.goal || "",
+      start: c.start ? toDateInput(c.start) : "",
+      end: c.end ? toDateInput(c.end) : "",
+      color: c.color, payload: c.payload,
+    });
+  }
+
   // ── + New ad → mint a type:'ad' event, then deep-link into the Ad Kiosk.
   function newAd(campaignId: string, platformKey = "meta") {
     const plat = adPlatform(platformKey);
@@ -172,6 +188,8 @@ export default function CampaignsView({ m, onOpenView }: ViewProps) {
           ads={adsFor(featured.id)}
           onNewAd={(plat) => newAd(featured.id, plat)}
           onOpenAd={(id) => onOpenView?.("kiosk", id)}
+          onEdit={() => editCampaign(featured)}
+          onDelete={() => { m.removeCampaign(featured.id); setSelectedId(null); }}
         />
       )}
 
@@ -206,11 +224,13 @@ export default function CampaignsView({ m, onOpenView }: ViewProps) {
 }
 
 /* ══════════════ Featured campaign panel ══════════════ */
-function Feature({ campaign, events, ads, onNewAd, onOpenAd }: {
+function Feature({ campaign, events, ads, onNewAd, onOpenAd, onEdit, onDelete }: {
   campaign: Campaign; events: MarketingEvent[]; ads: MarketingEvent[];
   onNewAd: (platform?: string) => void; onOpenAd: (id: string) => void;
+  onEdit: () => void; onDelete: () => void;
 }) {
   const st = CAMP_STATUS[campaign.status];
+  const [confirm, setConfirm] = useState(false);
   const counts = useMemo(() => {
     const c: Record<string, number> = { idea: 0, draft: 0, scheduled: 0, live: 0, done: 0, blocked: 0 };
     events.forEach((e) => { c[e.status] = (c[e.status] || 0) + 1; });
@@ -233,9 +253,52 @@ function Feature({ campaign, events, ads, onNewAd, onOpenAd }: {
   const liveAds = ads.filter((a) => a.status === "live").length;
   const nonAdItems = events.filter((e) => !isAd(e));
 
+  // Rollouts = the campaign's events grouped by payload.rollout (one release
+  // cycle each), sorted by release date. This is the segmentation the ROLLOUT
+  // bar implies but never had behind it.
+  const rollouts = useMemo(() => {
+    const byId = new Map<string, { id: string; release: string | null; episodeNo: number | null; events: MarketingEvent[] }>();
+    events.forEach((e) => {
+      const r = eventRollout(e);
+      if (!r) return;
+      let g = byId.get(r);
+      if (!g) { g = { id: r, release: null, episodeNo: null, events: [] }; byId.set(r, g); }
+      g.events.push(e);
+      if (!g.release) g.release = eventRelease(e);
+      if (g.episodeNo == null) g.episodeNo = eventEpisodeNo(e);
+    });
+    return Array.from(byId.values()).sort((a, b) =>
+      (a.release ? +new Date(a.release) : 0) - (b.release ? +new Date(b.release) : 0));
+  }, [events]);
+
   return (
     <div style={featureWrap}>
       <div style={{ position: "absolute", inset: "0 0 auto 0", height: 3, background: `linear-gradient(90deg, ${campaign.color}, ${campaign.color}33)` }} />
+
+      {/* edit / delete actions */}
+      <div style={{ position: "absolute", top: 14, right: 16, display: "flex", alignItems: "center", gap: 7, zIndex: 2 }}>
+        {!confirm ? (
+          <>
+            <button title="Edit campaign" onClick={onEdit} style={featureIconBtn}
+              onMouseEnter={(e) => (e.currentTarget.style.color = D.tx)} onMouseLeave={(e) => (e.currentTarget.style.color = D.txm)}>
+              <Pencil size={14} />
+            </button>
+            <button title="Delete campaign" onClick={() => setConfirm(true)} style={featureIconBtn}
+              onMouseEnter={(e) => (e.currentTarget.style.color = D.coral)} onMouseLeave={(e) => (e.currentTarget.style.color = D.txm)}>
+              <Trash2 size={14} />
+            </button>
+          </>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: D.surface, border: `1px solid ${D.coral}55`, borderRadius: 10, padding: "6px 10px" }}>
+            <span style={{ fontFamily: mn, fontSize: 10.5, color: D.txm }}>
+              Delete <b style={{ color: D.tx }}>{campaign.name}</b>{events.length ? ` + ${events.length} item${events.length === 1 ? "" : "s"}` : ""}?
+            </span>
+            <button onClick={() => { setConfirm(false); onDelete(); }} style={{ ...confBtn, color: "#15100a", background: D.coral, border: "none" }}>Delete</button>
+            <button onClick={() => setConfirm(false)} style={confBtn}>Cancel</button>
+          </div>
+        )}
+      </div>
+
       {/* left */}
       <div style={{ padding: "26px 26px 24px", minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -300,6 +363,18 @@ function Feature({ campaign, events, ads, onNewAd, onOpenAd }: {
         <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginTop: 6 }}>
           {nextItem ? `next: ${nextItem.title}` : "all shipped"}
         </div>
+
+        {/* rollouts — per-release segmentation (lead-up → release → clips) */}
+        {rollouts.length > 0 && (
+          <>
+            <div style={{ fontFamily: mn, fontSize: 9, letterSpacing: 1, color: D.txd, margin: "20px 0 8px", display: "flex", alignItems: "center", gap: 6 }}>
+              <Repeat size={11} color={D.cyan} /> ROLLOUTS · {rollouts.length}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {rollouts.map((r) => <RolloutRow key={r.id} rollout={r} />)}
+            </div>
+          </>
+        )}
       </div>
 
       {/* right: items + linked ads */}
@@ -370,6 +445,47 @@ function Feature({ campaign, events, ads, onNewAd, onOpenAd }: {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ══════════════ Rollout row (per-release lifecycle segment) ══════════════ */
+function RolloutRow({ rollout }: {
+  rollout: { id: string; release: string | null; episodeNo: number | null; events: MarketingEvent[] };
+}) {
+  const total = rollout.events.length || 1;
+  const advanced = rollout.events.filter((e) => e.status === "live" || e.status === "done").length;
+  const pct = Math.round((advanced / total) * 100);
+  const stageMap = new Map(rollout.events.map((e) => [eventStage(e), e] as const));
+  const hasStages = PODCAST_LIFECYCLE.some((st) => stageMap.has(st.key));
+  const label = rollout.episodeNo != null ? `EP${rollout.episodeNo}` : "Rollout";
+  return (
+    <div style={{ border: `1px solid ${D.border}`, borderRadius: 10, padding: "9px 11px", background: D.card }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: hasStages ? 7 : 0 }}>
+        <span style={{ fontFamily: mn, fontSize: 11, color: D.tx, fontWeight: 600 }}>{label}</span>
+        <span style={{ fontFamily: mn, fontSize: 9.5, color: D.txd }}>
+          {rollout.release ? `releases ${fmtShort(rollout.release)}` : "no release date"}
+        </span>
+        <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 9.5, color: pct === 100 ? D.teal : D.txm }}>{pct}%</span>
+      </div>
+      {hasStages && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {PODCAST_LIFECYCLE.map((st) => {
+            const ev = stageMap.get(st.key);
+            const c = ev ? STATUS_COLOR[ev.status] : D.border;
+            return (
+              <span key={st.key} title={ev ? `${st.label} · ${STATUS_LABEL[ev.status]}` : `${st.label} · not planned`} style={{
+                fontFamily: mn, fontSize: 9.5, letterSpacing: 0.2, borderRadius: 999, padding: "3px 8px",
+                border: `1px solid ${ev ? c + "55" : D.border}`, color: ev ? c : D.txd, opacity: ev ? 1 : 0.45,
+                display: "inline-flex", alignItems: "center", gap: 5,
+              }}>
+                <span style={{ width: 6, height: 6, borderRadius: 999, background: ev ? c : D.txd }} />
+                {st.label}
+              </span>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -600,19 +716,42 @@ function MiniGantt({ events, campaign }: { events: MarketingEvent[]; campaign: C
 }
 
 /* ══════════════ Series scheduler ══════════════ */
+function slugify(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 32) || "series";
+}
+
 function SeriesScheduler({ m, campaign }: { m: ViewProps["m"]; campaign?: Campaign }) {
-  const [name, setName] = useState("The Capex Reckoning");
+  const [name, setName] = useState("SemiAnalysis Weekly");
   const [freq, setFreq] = useState(7);
   const [date, setDate] = useState(() => toDateInput(new Date(Date.now() + 8 * 86400000).toISOString()));
   const [count, setCount] = useState(5);
   const [channel, setChannel] = useState("youtube");
+  const [podcast, setPodcast] = useState(true);
+  const [baseTitle, setBaseTitle] = useState("");
+  const [guests, setGuests] = useState<string[]>([]);
   const [lastSeriesId, setLastSeriesId] = useState<string | null>(null);
 
-  const releaseEvents = useMemo(() => {
+  // Reflect the selected campaign's existing series so Re-project replaces it.
+  React.useEffect(() => {
+    const s = campaign?.series[0];
+    if (!s) { setLastSeriesId(null); return; }
+    setName(s.name); setFreq(s.frequencyDays); setCount(s.count);
+    setChannel(s.channel || "youtube"); setDate(toDateInput(s.firstRelease));
+    setPodcast(s.kind === "podcast"); setBaseTitle(s.baseTitle || ""); setGuests(s.guests || []);
+    setLastSeriesId(s.id);
+  }, [campaign?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Projected rollouts: distinct (rollout → release date) for this series.
+  const projected = useMemo(() => {
     if (!campaign || !lastSeriesId) return [];
-    return m.events
-      .filter((e) => e.campaignId === campaign.id && (e.payload as { series?: string } | undefined)?.series === lastSeriesId)
-      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    const byRollout = new Map<string, string>();
+    m.events.forEach((e) => {
+      if (e.campaignId !== campaign.id || eventSeries(e) !== lastSeriesId) return;
+      const r = eventRollout(e) || e.id;
+      const rel = eventRelease(e) || (eventStage(e) === "release" ? e.start : e.start);
+      if (!byRollout.has(r)) byRollout.set(r, rel);
+    });
+    return Array.from(byRollout.values()).sort((a, b) => +new Date(a) - +new Date(b));
   }, [m.events, campaign, lastSeriesId]);
 
   const preview = useMemo(() => {
@@ -626,44 +765,64 @@ function SeriesScheduler({ m, campaign }: { m: ViewProps["m"]; campaign?: Campai
     });
   }, [date, freq, count]);
 
-  const chips = releaseEvents.length
-    ? releaseEvents.map((e) => ({ iso: e.start, locked: true }))
+  const chips = projected.length
+    ? projected.map((iso) => ({ iso, locked: true }))
     : preview.map((iso) => ({ iso, locked: false }));
 
   const disabled = !campaign;
+  const titles = useMemo(() => episodeTitles(baseTitle.trim() || name.trim() || "Episode", guests), [baseTitle, name, guests]);
 
   function project() {
     if (!campaign) return;
     const base = new Date(date + "T12:00:00");
     if (isNaN(base.getTime())) return;
-    const id = "s-" + Date.now().toString(36);
-    m.addSeries(campaign.id, {
-      id,
-      name: name.trim() || "Series",
-      frequencyDays: freq,
-      firstRelease: base.toISOString(),
-      count: Math.max(1, Math.min(16, count || 1)),
-      channel,
-    });
+    // Stable id → re-projecting REPLACES the same series in place (no dupes).
+    const id = lastSeriesId || `s-${campaign.id}-${slugify(name)}`;
+    const def: SeriesDef = {
+      id, name: name.trim() || "Series", frequencyDays: freq,
+      firstRelease: base.toISOString(), count: Math.max(1, Math.min(16, count || 1)), channel,
+    };
+    if (podcast) {
+      def.kind = "podcast"; def.stages = PODCAST_LIFECYCLE;
+      def.baseTitle = baseTitle.trim() || name.trim() || "Episode"; def.guests = guests;
+    }
+    m.addSeries(campaign.id, def);
     setLastSeriesId(id);
   }
 
   const epLabel = (name.trim() || "Ep").split(" ")[0];
   const lastChip = chips[chips.length - 1];
+  const toggleGuest = (g: string) => setGuests((p) => p.includes(g) ? p.filter((x) => x !== g) : [...p, g]);
 
   return (
     <div style={seriesWrap}>
-      <p style={{ fontFamily: mn, fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: D.cyan, margin: "0 0 4px", display: "flex", alignItems: "center", gap: 7 }}>
-        <CalendarPlus size={12} /> Series scheduler
-      </p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <p style={{ fontFamily: mn, fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: D.cyan, margin: "0 0 4px", display: "flex", alignItems: "center", gap: 7 }}>
+          <CalendarPlus size={12} /> Rollout scheduler
+        </p>
+        {/* Podcast-lifecycle toggle: fans each release into topic→film→edit→release→clips */}
+        <button onClick={() => setPodcast((p) => !p)} title="Each release fans into a full lifecycle rollout"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 7, fontFamily: mn, fontSize: 10.5, cursor: "pointer",
+            borderRadius: 999, padding: "5px 11px", border: `1px solid ${podcast ? D.cyan + "88" : D.border}`,
+            background: podcast ? "rgba(38,201,216,0.1)" : "transparent", color: podcast ? D.cyan : D.txm,
+          }}>
+          <Mic size={12} /> Podcast lifecycle
+          <span style={{
+            width: 22, height: 12, borderRadius: 999, background: podcast ? D.cyan : D.border, position: "relative", flex: "none",
+          }}>
+            <span style={{ position: "absolute", top: 1, left: podcast ? 11 : 1, width: 10, height: 10, borderRadius: 999, background: "#06121a", transition: "left .15s" }} />
+          </span>
+        </button>
+      </div>
       <div style={{ color: D.txm, fontSize: 13, marginBottom: 14 }}>
-        Designate a cadence + first release. Projecting locks the dates into{" "}
+        Set a cadence + first release. Projecting locks the rollouts into{" "}
         <b style={{ color: campaign?.color || D.tx, fontWeight: 600 }}>{campaign?.name || "a campaign"}</b>{" "}
-        — they show up on the calendar &amp; launch rollouts.
+        — {podcast ? "each release fans into topic → film → edit → release → clips" : "each release becomes a dated item"}, synced across Calendar, Agenda &amp; Timeline.
       </div>
 
       <div style={seriesForm}>
-        <Field label="Series name">
+        <Field label="Show name">
           <input style={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Series name" />
         </Field>
         <Field label="Frequency">
@@ -686,7 +845,7 @@ function SeriesScheduler({ m, campaign }: { m: ViewProps["m"]; campaign?: Campai
           </div>
         </Field>
         <Field label="First release">
-          <input style={input} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <DatePicker value={date} onChange={setDate} accent={D.cyan} placeholder="First release" />
         </Field>
         <Field label="Channel">
           <select style={input} value={channel} onChange={(e) => setChannel(e.target.value)}>
@@ -705,9 +864,35 @@ function SeriesScheduler({ m, campaign }: { m: ViewProps["m"]; campaign?: Campai
           onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
         >
           <Wand2 size={13} style={{ verticalAlign: -2, marginRight: 5 }} />
-          {releaseEvents.length ? "Re-project" : "Project"}
+          {projected.length ? "Re-project" : "Project"}
         </button>
       </div>
+
+      {/* Podcast lifecycle options — base title + frequent-guest quick-pick */}
+      {podcast && (
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1fr) 1.4fr", gap: 14, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${D.border}` }}>
+          <Field label="Episode base title">
+            <input style={input} value={baseTitle} onChange={(e) => setBaseTitle(e.target.value)} placeholder="e.g. The Memory Wars" />
+            <span style={{ display: "block", marginTop: 5, fontFamily: mn, fontSize: 9.5, color: D.txd }}>
+              YT: {titles.youtube.length}/100 · Spotify: {titles.spotify.length}/200
+            </span>
+          </Field>
+          <Field label="Guests (frequent)">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {SA_FREQUENT_GUESTS.map((g) => {
+                const on = guests.includes(g);
+                return (
+                  <button key={g} onClick={() => toggleGuest(g)} style={{
+                    fontFamily: mn, fontSize: 10.5, borderRadius: 999, padding: "5px 10px", cursor: "pointer",
+                    border: `1px solid ${on ? D.cyan + "88" : D.border}`, background: on ? "rgba(38,201,216,0.12)" : "transparent",
+                    color: on ? D.cyan : D.txm,
+                  }}>{g}</button>
+                );
+              })}
+            </div>
+          </Field>
+        </div>
+      )}
 
       {/* generated / projected release chips */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}>
@@ -730,15 +915,15 @@ function SeriesScheduler({ m, campaign }: { m: ViewProps["m"]; campaign?: Campai
 
       <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}>
         <GitBranch size={11} />
-        {releaseEvents.length ? (
+        {projected.length ? (
           <span>
-            Locked into <b style={{ color: D.tx, fontWeight: 600 }}>{campaign?.name}</b> — {releaseEvents.length} releases now on the calendar, last on {lastChip ? fmtShort(lastChip.iso) : "—"}.
+            Locked into <b style={{ color: D.tx, fontWeight: 600 }}>{campaign?.name}</b> — {projected.length} rollouts now synced, last on {lastChip ? fmtShort(lastChip.iso) : "—"}.
           </span>
         ) : (
           <span>
             {campaign
-              ? `Preview cadence — ${chips.length} releases through ${lastChip ? fmtShort(lastChip.iso) : "—"}. Hit Project to lock them in.`
-              : "Select a campaign to project a series into it."}
+              ? `Preview cadence — ${chips.length} rollouts through ${lastChip ? fmtShort(lastChip.iso) : "—"}. Hit Project to lock them in.`
+              : "Select a campaign to project a rollout series into it."}
           </span>
         )}
       </div>
@@ -945,6 +1130,15 @@ const ghostBtn: React.CSSProperties = {
 const miniAddBtn: React.CSSProperties = {
   fontFamily: mn, fontSize: 10, letterSpacing: 0.3, color: D.crimson, background: "transparent",
   border: "none", cursor: "pointer", padding: 0, transition: "color .15s",
+};
+const featureIconBtn: React.CSSProperties = {
+  width: 30, height: 30, borderRadius: 8, flex: "none", cursor: "pointer",
+  border: `1px solid ${D.border}`, background: "rgba(10,10,16,0.6)", color: D.txm,
+  display: "inline-flex", alignItems: "center", justifyContent: "center", transition: "color .15s",
+};
+const confBtn: React.CSSProperties = {
+  fontFamily: mn, fontSize: 10.5, letterSpacing: 0.3, borderRadius: 7, padding: "5px 10px", cursor: "pointer",
+  border: `1px solid ${D.border}`, background: "transparent", color: D.txm,
 };
 const statusPill: React.CSSProperties = {
   fontFamily: mn, fontSize: 9, letterSpacing: 1, padding: "3px 9px", borderRadius: 999, border: "1px solid currentColor",

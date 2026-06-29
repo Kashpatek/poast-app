@@ -13,7 +13,7 @@
 // users. The shared task board (Board view) is intentionally NOT scoped here —
 // it remains Akash's master board, embedded as-is.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { makeDemoData, type MarketingEvent, type Campaign, type SeriesDef } from "./marketing-constants";
+import { makeDemoData, episodeTitles, type MarketingEvent, type Campaign, type SeriesDef } from "./marketing-constants";
 
 const CACHE_KEY = "marketing-suite-cache-v1";
 const MODE_KEY = "marketing-suite-mode";
@@ -48,6 +48,8 @@ export interface MarketingState {
   moveEvent: (id: string, newStartISO: string) => void;
   removeEvent: (id: string) => void;
   addCampaign: (c: Partial<Campaign>) => Campaign;
+  updateCampaign: (id: string, patch: Partial<Campaign>) => void;
+  removeCampaign: (id: string) => void;
   addSeries: (campaignId: string, s: SeriesDef) => MarketingEvent[];
   refresh: () => void;
 }
@@ -205,26 +207,103 @@ export function useMarketing(): MarketingState {
     return c;
   }, [saveCampaign]);
 
+  const updateCampaign = useCallback((id: string, patch: Partial<Campaign>) => {
+    setCampaigns((prev) => prev.map((c) => {
+      if (c.id !== id) return c;
+      const nc = { ...c, ...patch };
+      void saveCampaign(nc);
+      return nc;
+    }));
+  }, [saveCampaign]);
+
+  const removeCampaign = useCallback((id: string) => {
+    // Cascade: drop the campaign AND its events (rollouts/items live as events
+    // tagged campaignId). Best-effort server deletes in live mode only.
+    const removedEventIds = events.filter((e) => e.campaignId === id).map((e) => e.id);
+    setCampaigns((prev) => prev.filter((c) => c.id !== id));
+    setEvents((prev) => prev.filter((e) => e.campaignId !== id));
+    if (modeRef.current !== "live") return;
+    const del = (body: object) => {
+      try { fetch("/api/marketing", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); } catch { /* best-effort */ }
+    };
+    del({ kind: "campaign", owner: ownerRef.current, id });
+    removedEventIds.forEach((eid) => del({ kind: "event", owner: ownerRef.current, id: eid }));
+  }, [events]);
+
+  // Project a Series into Rollouts. A "podcast" series fans each release into
+  // its full lifecycle (topic→film→edit→release→clips, lead-up dated off the
+  // release); a simple series keeps one release event per occurrence. Ids are
+  // DETERMINISTIC (`<series>-r<n>[-<stage>]`) so re-projecting REPLACES in place
+  // (no duplicates) and cleans up events from a prior, larger projection.
   const addSeries = useCallback((campaignId: string, s: SeriesDef): MarketingEvent[] => {
+    const count = Math.min(s.count, 52);
+    const stages = s.kind === "podcast" && s.stages?.length ? s.stages : null;
+    const titles = episodeTitles(s.baseTitle || s.name, s.guests || []);
     const gen: MarketingEvent[] = [];
-    for (let i = 0; i < Math.min(s.count, 52); i++) {
-      const d = new Date(s.firstRelease);
-      d.setDate(d.getDate() + i * s.frequencyDays);
-      gen.push({
-        id: uid("e"), title: s.name + " #" + (i + 1), type: "buffer", status: "idea",
-        start: d.toISOString(), end: null, campaignId, channel: s.channel ?? null,
-        source: "manual", notes: null, payload: { series: s.id },
+    for (let i = 0; i < count; i++) {
+      const episodeNo = i + 1;
+      const release = new Date(s.firstRelease);
+      release.setDate(release.getDate() + i * s.frequencyDays);
+      const releaseISO = release.toISOString();
+      const rolloutId = `${s.id}-r${episodeNo}`;
+      if (stages) {
+        for (const st of stages) {
+          const d = new Date(release);
+          d.setDate(d.getDate() + st.offsetDays);
+          const end = st.durationMins ? new Date(d.getTime() + st.durationMins * 60_000).toISOString() : null;
+          const onAir = st.key === "release" || st.key === "clips";
+          gen.push({
+            id: `${rolloutId}-${st.key}`,
+            title: `${st.label}: ${s.baseTitle || s.name} #${episodeNo}`,
+            type: st.type, status: st.status,
+            start: d.toISOString(), end,
+            campaignId, channel: onAir ? (s.channel ?? null) : null,
+            source: "manual", notes: null,
+            payload: { series: s.id, rollout: rolloutId, stage: st.key, episodeNo, release: releaseISO, scheduleKind: st.scheduleKind, titles },
+          });
+        }
+      } else {
+        gen.push({
+          id: rolloutId, title: `${s.name} #${episodeNo}`, type: "buffer", status: "idea",
+          start: releaseISO, end: null, campaignId, channel: s.channel ?? null,
+          source: "manual", notes: null,
+          payload: { series: s.id, rollout: rolloutId, episodeNo, release: releaseISO },
+        });
+      }
+    }
+    const genIds = new Set(gen.map((e) => e.id));
+    const isStale = (e: MarketingEvent) =>
+      e.campaignId === campaignId &&
+      (e.payload as { series?: string } | undefined)?.series === s.id &&
+      !genIds.has(e.id);
+    const staleIds = events.filter(isStale).map((e) => e.id);
+    setEvents((prev) => {
+      const byId = new Map(prev.filter((e) => !isStale(e)).map((e) => [e.id, e] as const));
+      gen.forEach((e) => byId.set(e.id, e));
+      return Array.from(byId.values());
+    });
+    // Persist the campaign's series[] (replace-in-place by id) — addSeries used
+    // to skip this, so the campaign row drifted from its generated events.
+    const existing = campaigns.find((c) => c.id === campaignId);
+    const nextSeries = existing
+      ? (existing.series.some((x) => x.id === s.id)
+          ? existing.series.map((x) => (x.id === s.id ? s : x))
+          : [...existing.series, s])
+      : [s];
+    if (existing) void saveCampaign({ ...existing, series: nextSeries });
+    setCampaigns((prev) => prev.map((c) => (c.id === campaignId ? { ...c, series: nextSeries } : c)));
+    gen.forEach((e) => void saveEvent(e));
+    if (modeRef.current === "live" && staleIds.length) {
+      staleIds.forEach((id) => {
+        try { fetch("/api/marketing", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "event", owner: ownerRef.current, id }) }); } catch { /* best-effort */ }
       });
     }
-    setEvents((prev) => [...prev, ...gen]);
-    setCampaigns((prev) => prev.map((c) => c.id === campaignId ? { ...c, series: [...c.series, s] } : c));
-    gen.forEach((e) => void saveEvent(e));
     return gen;
-  }, [saveEvent]);
+  }, [events, campaigns, saveEvent, saveCampaign]);
 
   return {
     events, campaigns, loading, offline, source, mode, owner, setMode,
-    addEvent, updateEvent, moveEvent, removeEvent, addCampaign, addSeries,
+    addEvent, updateEvent, moveEvent, removeEvent, addCampaign, updateCampaign, removeCampaign, addSeries,
     refresh: () => load(ownerRef.current, modeRef.current),
   };
 }
