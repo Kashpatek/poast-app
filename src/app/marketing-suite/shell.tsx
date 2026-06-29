@@ -158,7 +158,12 @@ export default function MarketingSuiteShell() {
         <main style={{ flex: 1, minWidth: 0, height: "100vh", overflow: "auto" }}>
           <div key={active} className="ms-view" style={{ minHeight: "100%" }}>
             {isBoard ? renderView() : (
-              <div style={{ maxWidth: 1520, margin: "0 auto", width: "100%" }}>
+              <div style={{
+                maxWidth: 1560, margin: "0 auto", width: "100%", boxSizing: "border-box",
+                // Consistent breathing room on every view — the chrome auto-hides, so
+                // the view is the whole surface; keep it off the screen/rail edges.
+                paddingInline: "clamp(12px, 2vw, 40px)",
+              }}>
                 {renderView()}
               </div>
             )}

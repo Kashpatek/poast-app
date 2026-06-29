@@ -28,6 +28,7 @@ import {
 } from "../marketing-constants";
 import type { ViewProps } from "../use-marketing";
 import { LiveStatsDashboard } from "../components/ad-charts";
+import PageHeader from "../components/page-header";
 
 // ─── Per-platform creative guidance (the "what to put in" block) ───
 interface PlatGuide {
@@ -120,20 +121,17 @@ export default function KioskView({ m, onOpenView, focusId }: ViewProps) {
   return (
     <div style={page}>
       {/* ── Header + mode toggle ── */}
-      <div style={headRow}>
-        <div>
-          <h1 style={h1Style}>
-            <Megaphone size={22} color={D.violet} /> Ad Kiosk
-          </h1>
-          <div style={subStyle}>
-            Build, ship and read your live ad flights across OpenAI, X, Meta, LinkedIn and AdSense — one cockpit.
+      <PageHeader
+        id="kiosk"
+        title="Ad Kiosk"
+        subtitle="Build, ship and read your live ad flights across OpenAI, X, Meta, LinkedIn and AdSense — one cockpit."
+        right={
+          <div style={modeToggle}>
+            <ModeBtn on={mode === "build"} onClick={() => setMode("build")} icon={<Wand2 size={14} />} label="Build" accent={D.violet} />
+            <ModeBtn on={mode === "live"} onClick={() => setMode("live")} icon={<Radio size={14} />} label="Live ads" accent={D.teal} count={ads.length} />
           </div>
-        </div>
-        <div style={modeToggle}>
-          <ModeBtn on={mode === "build"} onClick={() => setMode("build")} icon={<Wand2 size={14} />} label="Build" accent={D.violet} />
-          <ModeBtn on={mode === "live"} onClick={() => setMode("live")} icon={<Radio size={14} />} label="Live ads" accent={D.teal} count={ads.length} />
-        </div>
-      </div>
+        }
+      />
 
       {mode === "build"
         ? <BuildMode m={m} focusAd={focusAd} onSaved={() => setMode("live")} onOpenView={onOpenView} />
@@ -750,15 +748,6 @@ function NumField({ label, value, onChange }: { label: string; value: string; on
 
 // ════════════════════════ styles ════════════════════════
 const page: React.CSSProperties = { padding: "22px 26px 48px" };
-const headRow: React.CSSProperties = {
-  display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-  gap: 16, marginBottom: 22, flexWrap: "wrap",
-};
-const h1Style: React.CSSProperties = {
-  margin: 0, fontFamily: gf, fontSize: 26, fontWeight: 700, letterSpacing: 0.3,
-  display: "flex", alignItems: "center", gap: 10, color: D.tx,
-};
-const subStyle: React.CSSProperties = { marginTop: 6, fontSize: 12.5, color: D.txm, maxWidth: 640, lineHeight: 1.5 };
 const modeToggle: React.CSSProperties = {
   display: "inline-flex", gap: 3, padding: 3, borderRadius: 12,
   border: `1px solid ${D.border}`, background: D.card,

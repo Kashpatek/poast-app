@@ -12,7 +12,7 @@ import {
   type DragStartEvent, type DragEndEvent,
 } from "@dnd-kit/core";
 import {
-  CalendarDays, LayoutGrid, Columns3, List, Plus, Rocket, Clapperboard,
+  LayoutGrid, Columns3, List, Plus, Rocket, Clapperboard,
   Scissors, Radio, Palette, Send, GripVertical,
   Pencil, Check, Copy, Trash2, MoveRight,
 } from "lucide-react";
@@ -25,6 +25,7 @@ import { type ViewProps } from "../use-marketing";
 import { useCreate } from "../create-context";
 import { EventHoverCard } from "../components/event-hover-card";
 import { ContextMenu, type MenuItem, type MenuState } from "../components/context-menu";
+import PageHeader from "../components/page-header";
 
 // ─── Local helpers ───
 type Mode = "month" | "week" | "agenda";
@@ -177,17 +178,11 @@ export default function CalendarView({ m, onOpenView }: ViewProps) {
     <CalMenuCtx.Provider value={openEventMenu}>
     <div style={{ padding: "22px 26px 60px", fontFamily: ft }}>
       {/* ── Page head ── */}
-      <div style={S.phead}>
-        <div>
-          <h1 style={S.h1}>
-            <CalendarDays size={22} color={D.cyan} style={{ verticalAlign: -3, marginRight: 6 }} />
-            Marketing Calendar
-          </h1>
-          <div style={S.sub}>
-            {monthLabel} · one item, every view. Production flows in automatically; you add the marketing layer.
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <PageHeader
+        id="calendar"
+        title="Marketing Calendar"
+        subtitle={`${monthLabel} · one item, every view. Production flows in automatically; you add the marketing layer.`}
+        right={<>
           {/* Prev / today / next */}
           <div style={S.navGroup}>
             <button style={S.navBtn} title="Previous"
@@ -215,8 +210,8 @@ export default function CalendarView({ m, onOpenView }: ViewProps) {
             onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; }}>
             <Plus size={13} style={{ verticalAlign: -2, marginRight: 5 }} /> Event
           </button>
-        </div>
-      </div>
+        </>}
+      />
 
       {/* ── Filter chips + buffer toggle ── */}
       <div style={S.chips}>

@@ -15,6 +15,7 @@ import {
 import { D, ft, gf, mn, copyText } from "../../shared-constants";
 import { channelOf } from "../marketing-constants";
 import type { ViewProps } from "../use-marketing";
+import PageHeader from "../components/page-header";
 
 // ─── Types for the per-platform signal rows ───
 type PlatKey = "all" | "tiktok" | "youtube" | "x" | "ig" | "reddit" | "spotify";
@@ -280,15 +281,11 @@ export default function TrendsView({ m, onOpenView }: ViewProps) {
       <style>{KEYFRAMES}</style>
 
       {/* ── Page head ── */}
-      <div style={S.phead}>
-        <div>
-          <h1 style={S.h1}><TrendingUp size={22} color={D.coral} /> Trends</h1>
-          <div style={S.sub}>
-            Full diagnosis — what&apos;s hot right now, what&apos;s proven to work, and what to stop doing.
-            Catch a rising signal in the 3–5 day window before it peaks.
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
+      <PageHeader
+        id="trends"
+        title="Trends"
+        subtitle={<>Full diagnosis — what&apos;s hot right now, what&apos;s proven to work, and what to stop doing. Catch a rising signal in the 3–5 day window before it peaks.</>}
+        right={<>
           <button
             style={S.btn}
             onClick={() => setTick((t) => t + 1)}
@@ -305,8 +302,8 @@ export default function TrendsView({ m, onOpenView }: ViewProps) {
           >
             {copied ? <CheckCircle2 size={13} color={D.teal} /> : <Copy size={13} />} {copied ? "copied" : "Copy playbook"}
           </button>
-        </div>
-      </div>
+        </>}
+      />
 
       {/* ── Diagnosis stat strip ── */}
       <div style={S.statStrip}>

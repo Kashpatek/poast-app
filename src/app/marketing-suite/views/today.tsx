@@ -17,7 +17,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  Rocket, Sparkles, CalendarDays, Megaphone, Radio, TrendingUp,
+  Sparkles, CalendarDays, Megaphone, Radio, TrendingUp,
   Clapperboard, BarChart3, ListTodo, AlarmClock, Newspaper, StickyNote,
   ArrowRight, Plus, X, GripVertical, Flame, TriangleAlert, CheckCircle2,
   Gauge, Activity, Pencil, Check, Shapes, Clock, DollarSign, Timer,
@@ -33,6 +33,7 @@ import {
 } from "../marketing-constants";
 import type { MarketingState, ViewProps } from "../use-marketing";
 import { useCreate } from "../create-context";
+import PageHeader from "../components/page-header";
 
 // ════════ persistence keys ════════
 const LAYOUT_KEY = "ms-today-modules-v1";
@@ -275,19 +276,16 @@ export default function TodayView({ m, onOpenView }: ViewProps) {
   return (
     <div style={{ padding: "22px 26px 48px", fontFamily: ft, color: D.tx }}>
       {/* ── page head ── */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginBottom: 18, flexWrap: "wrap" }}>
-        <div>
-          <h1 style={{ fontFamily: gf, fontWeight: 700, fontSize: 30, letterSpacing: -0.8, margin: 0, display: "flex", alignItems: "center", gap: 10 }}>
-            <Rocket size={24} color={D.amber} />
-            Today <span style={{ color: D.txm, fontWeight: 400 }}>· {todayLabel}</span>
-          </h1>
-          <div style={{ color: D.txm, fontSize: 13, marginTop: 4 }}>
-            Your launch control — modular, editable, all live. {liveCount > 0 && (
-              <span style={{ color: D.teal }}>{liveCount} live now ·</span>
-            )} {todayCount} on deck today.
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <PageHeader
+        id="today"
+        title="Today"
+        aside={`· ${todayLabel}`}
+        subtitle={<>
+          Your launch control — modular, editable, all live. {liveCount > 0 && (
+            <span style={{ color: D.teal }}>{liveCount} live now ·</span>
+          )} {todayCount} on deck today.
+        </>}
+        right={<>
           {/* Always-visible quick-create actions (full pop-up suites) */}
           <button onClick={() => openCreate("task")} style={quickBtn(D.coral)} title="New task">
             <CheckSquare size={13} /> Task
@@ -312,8 +310,8 @@ export default function TodayView({ m, onOpenView }: ViewProps) {
               ? (<><Check size={13} style={{ verticalAlign: -2, marginRight: 5 }} /> Done editing</>)
               : (<><Pencil size={13} style={{ verticalAlign: -2, marginRight: 5 }} /> Edit layout</>)}
           </button>
-        </div>
-      </div>
+        </>}
+      />
 
       {/* ── edit-mode hint + add panel ── */}
       {edit && (

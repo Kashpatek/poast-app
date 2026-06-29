@@ -28,6 +28,7 @@ import GoogleCalendarsPanel from "../components/google-calendars";
 import AgendaWizard from "../components/agenda-wizard";
 import { EventHoverCard } from "../components/event-hover-card";
 import LockIn from "../components/lock-in";
+import PageHeader from "../components/page-header";
 import { ContextMenu, type MenuItem } from "../components/context-menu";
 import { useGoogle, calendarTargets, type GoogleStatus } from "../use-google";
 
@@ -97,16 +98,11 @@ export default function AgendaView({ m, onOpenView }: ViewProps) {
   return (
     <div style={{ padding: "24px 30px 52px", fontFamily: ft, color: D.tx }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
-        <div style={{ flex: 1, minWidth: 260 }}>
-          <h1 style={{ margin: 0, fontFamily: gf, fontSize: 27, fontWeight: 800, letterSpacing: -0.4, display: "inline-flex", alignItems: "center", gap: 11 }}>
-            <span style={{ width: 34, height: 34, borderRadius: 9, display: "inline-flex", alignItems: "center", justifyContent: "center", background: D.amber + "14", border: `1px solid ${D.amber}33` }}><CalendarClock size={20} color={D.amber} /></span> Agenda
-          </h1>
-          <div style={{ marginTop: 6, fontSize: 13, color: D.txm, maxWidth: 620, lineHeight: 1.45 }}>
-            Your day, blocked out morning to night. Slot tasks, drag to re-time, and let the wizard build the rest.
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
+      <PageHeader
+        id="schedule"
+        title="Agenda"
+        subtitle="Your day, blocked out morning to night. Slot tasks, drag to re-time, and let the wizard build the rest."
+        right={<>
           <div style={{ display: "inline-flex", border: `1px solid ${D.border}`, borderRadius: 9, overflow: "hidden", background: D.card }}>
             <ModeBtn on={view === "day"} onClick={() => setView("day")} icon={<Rows3 size={12} />} label="Day" />
             <ModeBtn on={view === "list"} onClick={() => setView("list")} icon={<ListChecks size={12} />} label="List" left />
@@ -140,8 +136,8 @@ export default function AgendaView({ m, onOpenView }: ViewProps) {
           }}>
             <Plus size={14} /> Schedule
           </button>
-        </div>
-      </div>
+        </>}
+      />
 
       {showCals && <div style={{ marginBottom: 14 }}><GoogleCalendarsPanel onChanged={() => m.refresh()} /></div>}
 

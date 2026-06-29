@@ -25,6 +25,7 @@ import {
 import type { ViewProps } from "../use-marketing";
 import { useCreate } from "../create-context";
 import { ContextMenu, type MenuItem, type MenuState } from "../components/context-menu";
+import PageHeader from "../components/page-header";
 
 // ─── Lane model ───
 // A lane is just a label + accent + a predicate selecting its events, so the
@@ -311,21 +312,11 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
   return (
     <div style={{ padding: "22px 26px 48px", fontFamily: ft, color: D.tx }}>
       {/* ── Page header ── */}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
-        <div style={{ flex: 1, minWidth: 280 }}>
-          <h1 style={{
-            margin: 0, fontFamily: gf, fontSize: 25, fontWeight: 700, letterSpacing: 0.3,
-            display: "inline-flex", alignItems: "center", gap: 10,
-          }}>
-            <GanttChart size={22} color={D.teal} /> Production Timeline
-          </h1>
-          <div style={{ marginTop: 6, fontSize: 13, color: D.txm, maxWidth: 620, lineHeight: 1.45 }}>
-            Every production and marketing milestone on one axis. Overlapping items
-            auto-stack so nothing collides — expand a lane for one row per task, or
-            switch to Agenda for a clean chronological read.
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <PageHeader
+        id="timeline"
+        title="Production Timeline"
+        subtitle="Every production and marketing milestone on one axis. Overlapping items auto-stack so nothing collides — expand a lane for one row per task, or switch to Agenda for a clean chronological read."
+        right={<>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 6, fontFamily: mn, fontSize: 9.5,
             letterSpacing: 0.4, color: D.txd, textTransform: "uppercase",
@@ -343,8 +334,8 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
             value={mode}
             onChange={(v) => setMode(v as ViewMode)}
           />
-        </div>
-      </div>
+        </>}
+      />
 
       {mode === "gantt" ? (
         <>

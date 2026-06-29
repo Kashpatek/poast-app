@@ -8,13 +8,14 @@
 // All viz is hand-rolled CSS/SVG — no chart libs. Inline styles + D tokens.
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  BarChart3, Activity, Timer, Gauge, Users, Layers, TriangleAlert,
+  Activity, Timer, Gauge, Users, Layers, TriangleAlert,
   CheckCircle2, Clock, TrendingUp, TrendingDown, Minus, Zap, Target,
   Flame, AlarmClock, ArrowUpRight, Hash,
 } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
 import { readBoardTasks, type BoardTaskLite } from "../marketing-constants";
 import type { ViewProps } from "../use-marketing";
+import PageHeader from "../components/page-header";
 
 // ───────────────────────────────────────── time helpers
 const DAY = 86_400_000;
@@ -304,21 +305,16 @@ export default function AnalyticsView({ m, onOpenView }: ViewProps) {
         @keyframes anGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}`}</style>
 
       {/* ── head ── */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
-        <div>
-          <h1 style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: gf, fontSize: 27, fontWeight: 700, margin: 0, letterSpacing: 0.3 }}>
-            <BarChart3 size={22} color={D.teal} /> Work Efficiency
-          </h1>
-          <div style={{ fontSize: 12.5, color: D.txm, marginTop: 6, maxWidth: 620, lineHeight: 1.5 }}>
-            How much work is going in, how much is getting done, and how fast it moves from assignment to complete. Computed from the live task board.
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <PageHeader
+        id="analytics"
+        title="Work Efficiency"
+        subtitle="How much work is going in, how much is getting done, and how fast it moves from assignment to complete. Computed from the live task board."
+        right={<>
           <SourcePill label={live ? "Live board" : "Demo data"} on={live} />
           {bufferSent != null && <SourcePill label={`${bufferSent} shipped`} on subtle />}
           {m.offline && <SourcePill label="Spine offline" on={false} />}
-        </div>
-      </div>
+        </>}
+      />
 
       {/* ── KPI header row ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12, marginBottom: 16 }}>

@@ -8,7 +8,7 @@
 // "copy as standup" button that synthesizes a plain-text summary from `m`.
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Newspaper, Copy, RefreshCw, Rocket, Clapperboard, Radio, CheckCircle2,
+  Copy, RefreshCw, Rocket, Clapperboard, Radio, CheckCircle2,
   TriangleAlert, Sparkles, ExternalLink, Clock, Sunrise, Sun, CloudSun, Moon,
   Megaphone, Eye, Flame, ArrowUpRight, ArrowRight, Target, DollarSign,
   MousePointerClick, Gauge, CircleCheck, AlarmClock, Activity,
@@ -19,6 +19,7 @@ import {
   type MarketingEvent, type EventType,
 } from "../marketing-constants";
 import type { ViewProps } from "../use-marketing";
+import PageHeader from "../components/page-header";
 
 // ─── Lead-story payload (subset of /api/morning-brief) ───
 interface LeadStory {
@@ -278,14 +279,11 @@ export default function BriefView({ m, onOpenView }: ViewProps) {
   return (
     <div style={wrap}>
       {/* ── Page head ── */}
-      <div style={phead}>
-        <div>
-          <h1 style={pTitle}>
-            <Newspaper size={20} color={D.amber} style={{ verticalAlign: -3, marginRight: 9 }} />Daily Brief
-          </h1>
-          <div style={pSub}>{headerDate} · the calm read — same spine as the launchboard, set to digest.</div>
-        </div>
-        <div style={{ display: "flex", gap: 9 }}>
+      <PageHeader
+        id="brief"
+        title="Daily Brief"
+        subtitle={`${headerDate} · the calm read — same spine as the launchboard, set to digest.`}
+        right={<>
           <button style={btn(copied ? D.teal : undefined)} onClick={handleCopy} onMouseEnter={hov} onMouseLeave={unhov}>
             {copied ? <CheckCircle2 size={14} /> : <Copy size={14} />}
             {copied ? "Copied" : "Copy as standup"}
@@ -294,8 +292,8 @@ export default function BriefView({ m, onOpenView }: ViewProps) {
             <RefreshCw size={14} style={leadState === "loading" ? { animation: "bf-spin 0.9s linear infinite" } : undefined} />
             Regenerate
           </button>
-        </div>
-      </div>
+        </>}
+      />
 
       {/* ── Hero: greeting + state of the day + day-load ring ── */}
       <section style={hero}>
@@ -716,11 +714,6 @@ const wrap: React.CSSProperties = {
   padding: "22px 26px 48px", maxWidth: 1320, margin: "0 auto", fontFamily: ft, color: D.tx,
   display: "flex", flexDirection: "column", gap: 18,
 };
-const phead: React.CSSProperties = {
-  display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap",
-};
-const pTitle: React.CSSProperties = { fontFamily: gf, fontSize: 24, margin: 0, letterSpacing: 0.2, color: D.tx };
-const pSub: React.CSSProperties = { color: D.txm, fontSize: 12.5, marginTop: 5 };
 
 const hero: React.CSSProperties = {
   position: "relative", overflow: "hidden",

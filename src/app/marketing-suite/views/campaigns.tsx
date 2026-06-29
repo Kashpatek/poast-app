@@ -22,6 +22,7 @@ import {
 } from "../marketing-constants";
 import type { ViewProps } from "../use-marketing";
 import { useCreate } from "../create-context";
+import PageHeader from "../components/page-header";
 
 // ─── Static maps ───
 const PIPELINE: { key: EventStatus; label: string }[] = [
@@ -120,17 +121,11 @@ export default function CampaignsView({ m, onOpenView }: ViewProps) {
   return (
     <div style={page}>
       {/* ── Page head ── */}
-      <div style={pheadRow}>
-        <div>
-          <h1 style={h1}>
-            <Megaphone size={22} color={D.violet} style={{ verticalAlign: -4, marginRight: 8 }} />
-            Campaigns
-          </h1>
-          <div style={sub}>
-            The container that turns scattered dots into a story — campaigns, the ads that ride inside them, and recurring series.
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <PageHeader
+        id="campaigns"
+        title="Campaigns"
+        subtitle="The container that turns scattered dots into a story — campaigns, the ads that ride inside them, and recurring series."
+        right={<>
           <button style={ghostBtn} onClick={() => featured && newAd(featured.id)}
             disabled={!featured}
             onMouseEnter={(e) => { if (featured) e.currentTarget.style.borderColor = D.crimson + "99"; }}
@@ -146,8 +141,8 @@ export default function CampaignsView({ m, onOpenView }: ViewProps) {
             <Plus size={13} style={{ verticalAlign: -2, marginRight: 5 }} />
             New campaign
           </button>
-        </div>
-      </div>
+        </>}
+      />
 
       {/* ── Tabs ── */}
       <div style={tabRow}>
@@ -930,9 +925,6 @@ function SumCell({ label, value, Icon, color }: { label: string; value: string; 
 
 /* ══════════════ Style objects ══════════════ */
 const page: React.CSSProperties = { padding: "22px 26px 48px", fontFamily: ft, width: "100%" };
-const pheadRow: React.CSSProperties = { display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginBottom: 16, flexWrap: "wrap" };
-const h1: React.CSSProperties = { fontFamily: gf, fontWeight: 700, fontSize: 30, letterSpacing: -0.8, margin: 0, color: D.tx };
-const sub: React.CSSProperties = { color: D.txm, fontSize: 13, marginTop: 3, maxWidth: 620 };
 const tabRow: React.CSSProperties = { display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" };
 const tabBtn: React.CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 7, fontFamily: mn, fontSize: 12, letterSpacing: 0.3,
