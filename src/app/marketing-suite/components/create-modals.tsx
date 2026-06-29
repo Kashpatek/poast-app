@@ -75,7 +75,7 @@ export function TaskModal({ open, prefill, m, onClose, onOpenView }: ModalProps)
     try {
       // 1) If dated + add-to-calendar, mint the event first so we can link it.
       let eventId: string | undefined;
-      const calId = resolveDefaultCalendarId();
+      const calId = resolveDefaultCalendarId(m.owner);
       if (addToCal && dueDate) {
         const e = m.addEvent({
           title: title.trim(), type: "manual", status: "scheduled",

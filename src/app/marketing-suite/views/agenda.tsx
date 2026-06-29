@@ -33,7 +33,7 @@ import { EventHoverCard } from "../components/event-hover-card";
 import LockIn from "../components/lock-in";
 import PageHeader from "../components/page-header";
 import { ContextMenu, type MenuItem } from "../components/context-menu";
-import { useGoogle, calendarTargets, type GoogleStatus } from "../use-google";
+import { useGoogle, calendarTargets, resolveDefaultCalendarId, type GoogleStatus } from "../use-google";
 
 // id → { name, color } for showing which calendar an event belongs to.
 function calLookup(status: GoogleStatus | undefined): Record<string, { name: string; color: string }> {
@@ -406,7 +406,7 @@ function DayGrid({ m, date, now, isToday, openCreate, onOpenEdit, gStatus, isMob
     m.addEvent({
       title: t.title, type: "manual", status: "scheduled",
       start: isoAt(date, startMin), end: isoAt(date, Math.min(END_HOUR * 60, startMin + dur)),
-      source: "poast", payload: { scheduleKind: "block", sourceTaskId: t.id },
+      source: "poast", payload: { scheduleKind: "block", sourceTaskId: t.id, calendarId: resolveDefaultCalendarId(m.owner) },
     });
   };
 
@@ -422,7 +422,7 @@ function DayGrid({ m, date, now, isToday, openCreate, onOpenEdit, gStatus, isMob
     m.addEvent({
       title: t.title, type: "manual", status: "scheduled",
       start: isoAt(date, s), end: isoAt(date, Math.min(END_HOUR * 60, s + dur)),
-      source: "poast", payload: { scheduleKind: "block", sourceTaskId: t.id },
+      source: "poast", payload: { scheduleKind: "block", sourceTaskId: t.id, calendarId: resolveDefaultCalendarId(m.owner) },
     });
   };
   // Queue a subtask onto today — same naming agent ("name: subtask"), blocked
@@ -433,7 +433,7 @@ function DayGrid({ m, date, now, isToday, openCreate, onOpenEdit, gStatus, isMob
     m.addEvent({
       title, type: "manual", status: "scheduled",
       start: isoAt(date, s), end: isoAt(date, Math.min(END_HOUR * 60, s + dur)),
-      source: "poast", payload: { scheduleKind: "block", ...(sourceTaskId ? { sourceTaskId } : {}) },
+      source: "poast", payload: { scheduleKind: "block", calendarId: resolveDefaultCalendarId(m.owner), ...(sourceTaskId ? { sourceTaskId } : {}) },
     });
   };
   const setLen = (ev: MarketingEvent, startMin: number, dur: number) => {

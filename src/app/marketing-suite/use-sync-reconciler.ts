@@ -32,6 +32,7 @@
 import { useEffect, useRef } from "react";
 import { projectEventTitle, type MarketingEvent, type BoardTaskLite } from "./marketing-constants";
 import { useBoardStore, boardUpdateTask } from "./board-store";
+import { resolveDefaultCalendarId } from "./use-google";
 import type { MarketingState } from "./use-marketing";
 
 type Sub = NonNullable<BoardTaskLite["subtasks"]>[number];
@@ -162,7 +163,9 @@ export function useSyncReconciler(m: MarketingState) {
             start: dateWithTimeOf(s.dueDate!, null), end: null,
             campaignId: m.campaigns.find((c) => c.name === t.category)?.id ?? null,
             source: "poast", notes: null,
-            payload: { scheduleKind: "deadline", sourceTaskId: t.id, subtaskId: s.id },
+            // Honor the default calendar so dated subtasks land where everything
+            // else does (Agenda/Calendar/Timeline lane), not just the fallback.
+            payload: { scheduleKind: "deadline", sourceTaskId: t.id, subtaskId: s.id, calendarId: resolveDefaultCalendarId(m.owner) },
           });
           setSub(t, s.id, { spawnedEventId: created.id });
           subSig.current.set(created.id, { eDone: !!s.done, eDue: s.dueDate || null, tDone: !!s.done, tDue: s.dueDate || null });
