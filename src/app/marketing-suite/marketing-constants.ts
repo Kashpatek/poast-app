@@ -107,6 +107,40 @@ export function leadUpDates(releaseISO: string, count: number): string[] {
   return out;
 }
 
+// ─── Project / Rollout phase model ───
+// A release unit has ONE identity (its payload.rollout group id) that rides
+// through two phases:
+//   • "project" — the building block: lead-up work (topic → film → edit) with
+//     no locked premiere (events flagged payload.unscheduled until dated).
+//   • "rollout" — green-lit & locked: a finalized premiere (payload.release)
+//     with the build steps re-dated against it + release/clip follow-ups.
+// Build stages = offsetDays < 0; follow-ups (release, clips) = offsetDays ≥ 0.
+export const BUILD_STAGES: StageDef[] = PODCAST_LIFECYCLE.filter((s) => s.offsetDays < 0);
+export const FOLLOWUP_STAGES: StageDef[] = PODCAST_LIFECYCLE.filter((s) => s.offsetDays >= 0);
+export function isBuildStage(key?: string | null): boolean {
+  const s = stageOf(key);
+  return !!s && s.offsetDays < 0;
+}
+
+// The canonical "naming agent": anything project/campaign-linked that lands on
+// the Calendar / Agenda / Timeline is titled "Name: detail" so you know the
+// project AND the action at a glance. Reused EVERYWHERE a dated task/subtask is
+// minted — keep this the single formatter so the convention never drifts.
+export function projectEventTitle(name: string, detail: string): string {
+  const n = (name || "").trim();
+  const d = (detail || "").trim();
+  if (!n) return d || "Untitled";
+  if (!d) return n;
+  if (d.toLowerCase().startsWith(n.toLowerCase() + ":")) return d; // no double prefix
+  return `${n}: ${d}`;
+}
+
+// The Taskboard groups by `category`; a campaign/project's tasks live under its
+// NAME so "XYZ" on the board shows exactly that work (board caps category ≤60).
+export function campaignCategory(name: string): string {
+  return (name || "").trim().slice(0, 60) || "MARKETING OPS";
+}
+
 export type CampaignStatus = "planning" | "active" | "wrapping" | "done";
 export interface Campaign {
   id: string;
@@ -250,6 +284,18 @@ export function eventRelease(e: MarketingEvent): string | null {
   const v = e.payload?.release;
   return typeof v === "string" && v ? v : null;
 }
+// "project" (building block) vs "rollout" (premiere locked). Back-compat: a
+// grouped event with a locked release reads as a rollout even without the flag.
+export function eventPhase(e: MarketingEvent): "project" | "rollout" | null {
+  const p = e.payload?.phase;
+  if (p === "project" || p === "rollout") return p;
+  if (eventRollout(e)) return eventRelease(e) ? "rollout" : "project";
+  return null;
+}
+export function eventProjectName(e: MarketingEvent): string | null {
+  const v = e.payload?.projectName;
+  return typeof v === "string" && v ? v : null;
+}
 // Prep tasks created with the "unassigned" toggle carry no real date.
 export function isUnscheduled(e: MarketingEvent): boolean {
   return e.payload?.unscheduled === true;
@@ -291,6 +337,9 @@ export function makeDemoData(): { events: MarketingEvent[]; campaigns: Campaign[
   ];
   // EP18 — a demo Rollout (one release cycle) so the rollout views light up.
   const ep18 = { series: "s1", rollout: "s1-ep18", episodeNo: 18, release: atDay(now, 5, 9) };
+  // A building-block Project (no premiere locked yet) so PROJECTS lights up; it
+  // promotes to a Rollout when a premiere is finalized.
+  const projFoundry = { rollout: "camp-ep-proj-foundry", phase: "project" as const, episodeNo: 19, projectName: "The Foundry Wars" };
   const events: MarketingEvent[] = [
     { id: "e1", title: "EP17 short → IG", type: "buffer", status: "scheduled", start: atDay(now, 0, 11), source: "buffer", channel: "instagram", campaignId: "camp-ep" },
     { id: "e2", title: "EP17 short → TikTok", type: "buffer", status: "scheduled", start: atDay(now, 0, 14), source: "buffer", channel: "tiktok", campaignId: "camp-ep" },
@@ -311,6 +360,10 @@ export function makeDemoData(): { events: MarketingEvent[]; campaigns: Campaign[
     { id: "e16", title: "Weekly short #2 → TikTok", type: "buffer", status: "scheduled", start: atDay(now, 8, 11), source: "buffer", channel: "tiktok", campaignId: "camp-ep" },
     { id: "e17", title: "BRIANNA: retention dip flag", type: "strategy", status: "blocked", start: atDay(now, -1, 16), source: "brianna" },
     { id: "e18", title: "EP16 recap → YouTube", type: "buffer", status: "done", start: atDay(now, -2, 12), source: "buffer", channel: "youtube" },
+    // ── Building-block Project "The Foundry Wars" (topic/film/edit, undated) ──
+    { id: "camp-ep-proj-foundry-topic", title: "The Foundry Wars: Topic lock", type: "strategy", status: "draft", start: atDay(now, 0, 9), source: "poast", campaignId: "camp-ep", payload: { ...projFoundry, stage: "topic", unscheduled: true } },
+    { id: "camp-ep-proj-foundry-film", title: "The Foundry Wars: Film", type: "production", status: "idea", start: atDay(now, 0, 9), source: "poast", campaignId: "camp-ep", payload: { ...projFoundry, stage: "film", unscheduled: true, scheduleKind: "filming" } },
+    { id: "camp-ep-proj-foundry-edit", title: "The Foundry Wars: Edit", type: "production", status: "idea", start: atDay(now, 0, 9), source: "poast", campaignId: "camp-ep", payload: { ...projFoundry, stage: "edit", unscheduled: true, scheduleKind: "editing" } },
   ];
   return { events: [...events, ...demoAds(now)], campaigns };
 }
@@ -365,8 +418,12 @@ export const DEFAULT_MODULES = ["schedule", "weekheat", "campaigns", "ads", "dea
 export interface BoardTaskLite {
   id: string; title: string; category?: string; assignee?: string; priority?: string;
   done?: boolean; addedAt?: string; updatedAt?: string; dueDate?: string;
-  estimateMins?: number; description?: string;
-  subtasks?: { id: string; title: string; done?: boolean }[];
+  scheduledFor?: string; estimateMins?: number; description?: string;
+  notes?: string; marketingEventId?: string;
+  // Subtasks can carry their own dueDate — a dated subtask surfaces on the
+  // Calendar as "name: subtask" (see projectEventTitle). spawnedEventId links it.
+  subtasks?: { id: string; title: string; done?: boolean; dueDate?: string; spawnedEventId?: string }[];
+  notesLog?: { id: string; ts: string; author?: string; text: string }[];
 }
 export function readBoardTasks(): BoardTaskLite[] {
   try {

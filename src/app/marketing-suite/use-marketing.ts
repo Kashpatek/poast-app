@@ -13,7 +13,14 @@
 // users. The shared task board (Board view) is intentionally NOT scoped here —
 // it remains Akash's master board, embedded as-is.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { makeDemoData, episodeTitles, type MarketingEvent, type Campaign, type SeriesDef } from "./marketing-constants";
+import {
+  makeDemoData, episodeTitles, projectEventTitle, stageOf, BUILD_STAGES, FOLLOWUP_STAGES,
+  type MarketingEvent, type Campaign, type SeriesDef,
+} from "./marketing-constants";
+
+// A building-block Project seeds these (topic→film→edit, undated); finalizing a
+// premiere re-dates them and adds the follow-ups (release, clips).
+export interface ProjectInput { title: string; episodeNo?: number; guests?: string[]; baseTitle?: string }
 
 const CACHE_KEY = "marketing-suite-cache-v1";
 const MODE_KEY = "marketing-suite-mode";
@@ -51,6 +58,8 @@ export interface MarketingState {
   updateCampaign: (id: string, patch: Partial<Campaign>) => void;
   removeCampaign: (id: string) => void;
   addSeries: (campaignId: string, s: SeriesDef) => MarketingEvent[];
+  addProject: (campaignId: string, opts: ProjectInput) => MarketingEvent[];
+  finalizeRollout: (groupId: string, premiereISO: string) => void;
   refresh: () => void;
 }
 
@@ -301,9 +310,88 @@ export function useMarketing(): MarketingState {
     return gen;
   }, [events, campaigns, saveEvent, saveCampaign]);
 
+  // Create a building-block Project: seeds the build steps (topic → film →
+  // edit) UNDATED (payload.unscheduled) under one rollout group id, phase
+  // "project". Titled "name: step" via the canonical naming agent. No premiere
+  // yet — finalizeRollout locks one later.
+  const addProject = useCallback((campaignId: string, opts: ProjectInput): MarketingEvent[] => {
+    const name = (opts.title || "Untitled project").trim();
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 32) || "project";
+    const groupId = `${campaignId}-proj-${slug}-${Math.random().toString(36).slice(2, 6)}`;
+    const titles = episodeTitles(opts.baseTitle || name, opts.guests || []);
+    const nowISO = new Date().toISOString();
+    const gen: MarketingEvent[] = BUILD_STAGES.map((st) => ({
+      id: `${groupId}-${st.key}`,
+      title: projectEventTitle(name, st.label),
+      type: st.type, status: st.status,
+      start: nowISO, end: null,
+      campaignId, channel: null, source: "poast", notes: null,
+      payload: { rollout: groupId, phase: "project", stage: st.key, episodeNo: opts.episodeNo ?? null, projectName: name, titles, scheduleKind: st.scheduleKind, unscheduled: true },
+    }));
+    setEvents((prev) => [...prev, ...gen]);
+    gen.forEach((e) => void saveEvent(e));
+    return gen;
+  }, [saveEvent]);
+
+  // Promote a Project → Rollout: lock the finalized premiere, re-date the build
+  // steps as lead-up to it, and mint the follow-ups (release, clips) that didn't
+  // exist yet. Everything stays titled "name: detail". Idempotent on stage ids.
+  const finalizeRollout = useCallback((groupId: string, premiereISO: string) => {
+    const premiere = new Date(premiereISO);
+    if (isNaN(premiere.getTime())) return;
+    const created: MarketingEvent[] = [];
+    setEvents((prev) => {
+      const group = prev.filter((e) => (e.payload as { rollout?: string } | undefined)?.rollout === groupId);
+      if (!group.length) return prev;
+      const pget = <T,>(k: string): T | undefined => {
+        const hit = group.find((e) => (e.payload as Record<string, unknown> | undefined)?.[k] != null);
+        return hit ? ((hit.payload as Record<string, unknown>)[k] as T) : undefined;
+      };
+      const name = pget<string>("projectName") || group[0].title.split(":")[0].trim();
+      const episodeNo = pget<number>("episodeNo") ?? null;
+      const titles = pget<unknown>("titles");
+      const existingStages = new Set(
+        group.map((e) => (e.payload as { stage?: string } | undefined)?.stage).filter(Boolean) as string[],
+      );
+      // 1) Promote + re-date the group's existing events.
+      const updated = prev.map((e) => {
+        if ((e.payload as { rollout?: string } | undefined)?.rollout !== groupId) return e;
+        const stageKey = (e.payload as { stage?: string } | undefined)?.stage;
+        const st = stageKey ? stageOf(stageKey) : undefined;
+        let start = e.start; let end = e.end ?? null;
+        if (st) {
+          const d = new Date(premiere); d.setDate(d.getDate() + st.offsetDays);
+          start = d.toISOString();
+          end = st.durationMins ? new Date(d.getTime() + st.durationMins * 60_000).toISOString() : null;
+        }
+        const ne: MarketingEvent = { ...e, start, end, payload: { ...(e.payload || {}), phase: "rollout", release: premiereISO, unscheduled: false } };
+        void saveEvent(ne);
+        return ne;
+      });
+      // 2) Mint any missing follow-ups (release, clips).
+      FOLLOWUP_STAGES.forEach((st) => {
+        if (existingStages.has(st.key)) return;
+        const d = new Date(premiere); d.setDate(d.getDate() + st.offsetDays);
+        const ev: MarketingEvent = {
+          id: `${groupId}-${st.key}`,
+          title: projectEventTitle(name, st.label),
+          type: st.type, status: st.status,
+          start: d.toISOString(),
+          end: st.durationMins ? new Date(d.getTime() + st.durationMins * 60_000).toISOString() : null,
+          campaignId: group[0].campaignId ?? null, channel: null, source: "manual", notes: null,
+          payload: { rollout: groupId, phase: "rollout", stage: st.key, episodeNo, projectName: name, titles, release: premiereISO, scheduleKind: st.scheduleKind },
+        };
+        void saveEvent(ev);
+        created.push(ev);
+      });
+      return [...updated, ...created];
+    });
+  }, [saveEvent]);
+
   return {
     events, campaigns, loading, offline, source, mode, owner, setMode,
     addEvent, updateEvent, moveEvent, removeEvent, addCampaign, updateCampaign, removeCampaign, addSeries,
+    addProject, finalizeRollout,
     refresh: () => load(ownerRef.current, modeRef.current),
   };
 }

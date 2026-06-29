@@ -19,7 +19,7 @@ import {
   STATUS_COLOR, STATUS_LABEL, channelOf, adPlatform, adPayload,
   AD_PLATFORMS, AD_OBJECTIVES,
   eventSeries, eventRollout, eventStage, eventRelease, eventEpisodeNo,
-  PODCAST_LIFECYCLE, SA_FREQUENT_GUESTS, episodeTitles,
+  eventPhase, eventProjectName, PODCAST_LIFECYCLE, BUILD_STAGES, SA_FREQUENT_GUESTS, episodeTitles,
   type Campaign, type MarketingEvent, type EventStatus, type CampaignStatus,
   type SeriesDef,
 } from "../marketing-constants";
@@ -78,6 +78,13 @@ function compact(n?: number): string {
   return String(n);
 }
 const isAd = (e: MarketingEvent) => e.type === "ad";
+
+// A release unit grouped by payload.rollout — a building-block "project" until a
+// premiere is locked, then a "rollout".
+type Group = {
+  id: string; phase: "project" | "rollout"; release: string | null;
+  episodeNo: number | null; name: string | null; events: MarketingEvent[];
+};
 
 export default function CampaignsView({ m, onOpenView }: ViewProps) {
   const { campaigns, events } = m;
@@ -183,6 +190,7 @@ export default function CampaignsView({ m, onOpenView }: ViewProps) {
       {/* ── Featured detail panel (shared across tabs) ── */}
       {featured && (
         <Feature
+          m={m}
           campaign={featured}
           events={eventsFor(featured.id)}
           ads={adsFor(featured.id)}
@@ -224,8 +232,8 @@ export default function CampaignsView({ m, onOpenView }: ViewProps) {
 }
 
 /* ══════════════ Featured campaign panel ══════════════ */
-function Feature({ campaign, events, ads, onNewAd, onOpenAd, onEdit, onDelete }: {
-  campaign: Campaign; events: MarketingEvent[]; ads: MarketingEvent[];
+function Feature({ m, campaign, events, ads, onNewAd, onOpenAd, onEdit, onDelete }: {
+  m: ViewProps["m"]; campaign: Campaign; events: MarketingEvent[]; ads: MarketingEvent[];
   onNewAd: (platform?: string) => void; onOpenAd: (id: string) => void;
   onEdit: () => void; onDelete: () => void;
 }) {
@@ -253,23 +261,32 @@ function Feature({ campaign, events, ads, onNewAd, onOpenAd, onEdit, onDelete }:
   const liveAds = ads.filter((a) => a.status === "live").length;
   const nonAdItems = events.filter((e) => !isAd(e));
 
-  // Rollouts = the campaign's events grouped by payload.rollout (one release
-  // cycle each), sorted by release date. This is the segmentation the ROLLOUT
-  // bar implies but never had behind it.
-  const rollouts = useMemo(() => {
-    const byId = new Map<string, { id: string; release: string | null; episodeNo: number | null; events: MarketingEvent[] }>();
+  // A campaign's release units, grouped by payload.rollout. Each is in one of
+  // two phases: "project" (building block, no premiere) or "rollout" (green-lit,
+  // premiere locked). Split so the panel shows building blocks vs what's live.
+  const groups = useMemo(() => {
+    const byId = new Map<string, Group>();
     events.forEach((e) => {
       const r = eventRollout(e);
       if (!r) return;
       let g = byId.get(r);
-      if (!g) { g = { id: r, release: null, episodeNo: null, events: [] }; byId.set(r, g); }
+      if (!g) { g = { id: r, phase: "project", release: null, episodeNo: null, name: null, events: [] }; byId.set(r, g); }
       g.events.push(e);
       if (!g.release) g.release = eventRelease(e);
       if (g.episodeNo == null) g.episodeNo = eventEpisodeNo(e);
+      if (!g.name) g.name = eventProjectName(e);
+      if (eventPhase(e) === "rollout") g.phase = "rollout";
     });
-    return Array.from(byId.values()).sort((a, b) =>
-      (a.release ? +new Date(a.release) : 0) - (b.release ? +new Date(b.release) : 0));
+    return Array.from(byId.values());
   }, [events]);
+  const projects = useMemo(
+    () => groups.filter((g) => g.phase !== "rollout").sort((a, b) => (a.name || "").localeCompare(b.name || "")),
+    [groups],
+  );
+  const rollouts = useMemo(
+    () => groups.filter((g) => g.phase === "rollout").sort((a, b) => (a.release ? +new Date(a.release) : 0) - (b.release ? +new Date(b.release) : 0)),
+    [groups],
+  );
 
   return (
     <div style={featureWrap}>
@@ -364,11 +381,22 @@ function Feature({ campaign, events, ads, onNewAd, onOpenAd, onEdit, onDelete }:
           {nextItem ? `next: ${nextItem.title}` : "all shipped"}
         </div>
 
-        {/* rollouts — per-release segmentation (lead-up → release → clips) */}
+        {/* projects — building blocks; promote to a rollout by locking a premiere */}
+        <div style={{ fontFamily: mn, fontSize: 9, letterSpacing: 1, color: D.txd, margin: "20px 0 8px", display: "flex", alignItems: "center", gap: 6 }}>
+          <GitBranch size={11} color={D.violet} /> PROJECTS · {projects.length}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {projects.map((p) => (
+            <ProjectRow key={p.id} project={p} onFinalize={(iso) => m.finalizeRollout(p.id, iso)} />
+          ))}
+          <NewProjectForm onAdd={(opts) => m.addProject(campaign.id, opts)} />
+        </div>
+
+        {/* rollouts — green-lit & locked (lead-up → release → clips) */}
         {rollouts.length > 0 && (
           <>
             <div style={{ fontFamily: mn, fontSize: 9, letterSpacing: 1, color: D.txd, margin: "20px 0 8px", display: "flex", alignItems: "center", gap: 6 }}>
-              <Repeat size={11} color={D.cyan} /> ROLLOUTS · {rollouts.length}
+              <Rocket size={11} color={D.cyan} /> ROLLOUTS · {rollouts.length}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {rollouts.map((r) => <RolloutRow key={r.id} rollout={r} />)}
@@ -486,6 +514,86 @@ function RolloutRow({ rollout }: {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ══════════════ Project row (building block → finalize premiere) ══════════════ */
+function ProjectRow({ project, onFinalize }: { project: Group; onFinalize: (premiereISO: string) => void }) {
+  const [date, setDate] = useState("");
+  const [open, setOpen] = useState(false);
+  const label = project.name || (project.episodeNo != null ? `EP${project.episodeNo}` : "Project");
+  const stageMap = new Map(project.events.map((e) => [eventStage(e), e] as const));
+  const done = project.events.filter((e) => e.status === "done").length;
+  const total = project.events.length || 1;
+  function finalize() {
+    if (!date) return;
+    onFinalize(new Date(date + "T09:00:00").toISOString());
+    setOpen(false); setDate("");
+  }
+  return (
+    <div style={{ border: `1px solid ${D.violet}33`, borderRadius: 10, padding: "9px 11px", background: D.card }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <GitBranch size={12} color={D.violet} />
+        <span style={{ fontFamily: mn, fontSize: 11, color: D.tx, fontWeight: 600 }}>{label}</span>
+        <span style={{ fontFamily: mn, fontSize: 9.5, color: D.txd }}>building · {done}/{total}</span>
+        <button onClick={() => setOpen((v) => !v)} title="Lock a premiere date → promote to a rollout"
+          style={{ ...confBtn, marginLeft: "auto", color: D.violet, borderColor: D.violet + "55", display: "inline-flex", alignItems: "center", gap: 5 }}>
+          <Rocket size={11} /> Finalize premiere
+        </button>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 7 }}>
+        {BUILD_STAGES.map((st) => {
+          const ev = stageMap.get(st.key);
+          const c = ev ? STATUS_COLOR[ev.status] : D.border;
+          return (
+            <span key={st.key} title={ev ? `${st.label} · ${STATUS_LABEL[ev.status]}` : `${st.label} · not planned`} style={{
+              fontFamily: mn, fontSize: 9.5, letterSpacing: 0.2, borderRadius: 999, padding: "3px 8px",
+              border: `1px solid ${ev ? c + "55" : D.border}`, color: ev ? c : D.txd, opacity: ev ? 1 : 0.45,
+              display: "inline-flex", alignItems: "center", gap: 5,
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: 999, background: ev ? c : D.txd }} />
+              {st.label}
+            </span>
+          );
+        })}
+      </div>
+      {open && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 9 }}>
+          <div style={{ flex: 1 }}>
+            <DatePicker value={date} onChange={setDate} accent={D.violet} placeholder="Premiere date" />
+          </div>
+          <button onClick={finalize} disabled={!date}
+            style={{ ...primaryBtn, background: `linear-gradient(135deg, ${D.violet}, ${D.blue})`, color: "#fff", opacity: date ? 1 : 0.5, cursor: date ? "pointer" : "not-allowed" }}>
+            <Rocket size={12} style={{ verticalAlign: -2, marginRight: 5 }} /> Lock &amp; roll out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════ New project (building block) inline form ══════════════ */
+function NewProjectForm({ onAdd }: { onAdd: (opts: { title: string; episodeNo?: number }) => void }) {
+  const [title, setTitle] = useState("");
+  function add() {
+    const t = title.trim();
+    if (!t) return;
+    const num = t.match(/(\d+)\s*$/);   // trailing number → episodeNo ("EP21" → 21)
+    onAdd({ title: t, episodeNo: num ? parseInt(num[1], 10) : undefined });
+    setTitle("");
+  }
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, border: `1px dashed ${D.border}`, borderRadius: 10, padding: "8px 10px" }}>
+      <GitBranch size={12} color={D.txd} />
+      <input value={title} onChange={(e) => setTitle(e.target.value)}
+        placeholder="New project — e.g. The HBM4 Deep-Dive"
+        onKeyDown={(e) => { if (e.key === "Enter") add(); }}
+        style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: D.tx, fontFamily: ft, fontSize: 13 }} />
+      <button onClick={add} disabled={!title.trim()}
+        style={{ ...confBtn, color: D.violet, borderColor: D.violet + "55", opacity: title.trim() ? 1 : 0.5, display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <Plus size={11} /> Add
+      </button>
     </div>
   );
 }
