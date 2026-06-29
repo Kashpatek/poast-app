@@ -14,6 +14,11 @@ import { OnboardingProvider } from "./onboarding-context";
 // below and the ThemeProvider defaults so a no-pref visit has no flash/mismatch.
 const THEME_BOOT = `(function(){try{var p=JSON.parse(localStorage.getItem('poast-theme')||'{}');var r=document.documentElement;var t=['classic','stock','glass'].indexOf(p.theme)>=0?p.theme:'stock';var b=['aurora','cockpit','iridescent'].indexOf(p.bg)>=0?p.bg:'aurora';r.setAttribute('data-theme',t);r.setAttribute('data-bg',b);}catch(e){}})();`;
 
+// Auto-hiding scrollbars: paint the bar only while actively scrolling (see the
+// scrollbar block in globals.css). Capture-phase so it catches scrolls in any
+// nested overflow container; clears ~900ms after scroll stops.
+const SCROLL_MOTION = `(function(){var r=document.documentElement,t;function on(){r.classList.add('is-scrolling');clearTimeout(t);t=setTimeout(function(){r.classList.remove('is-scrolling');},900);}window.addEventListener('scroll',on,true);window.addEventListener('wheel',on,{capture:true,passive:true});})();`;
+
 // The Glass frosted-glass rule MUST live in a runtime <style>, not an imported
 // .css file: the build CSS transform (Lightning/Turbopack) strips `backdrop-filter`
 // from stylesheet rules (no browserslist → treated as unsupported), leaving an
@@ -68,6 +73,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+        <script dangerouslySetInnerHTML={{ __html: SCROLL_MOTION }} />
         <style dangerouslySetInnerHTML={{ __html: GLASS_FROST }} />
         <ErrorBoundary>
           <UserProvider>

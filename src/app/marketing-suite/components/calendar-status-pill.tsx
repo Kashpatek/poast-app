@@ -20,7 +20,7 @@ export default function CalendarStatusPill({ onManage }: { onManage: () => void 
   if (loading) {
     return (
       <span style={{ ...base, cursor: "default", border: `1px solid ${D.border}`, background: "transparent", color: D.txd }}>
-        <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> Calendar
+        <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> Sync
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </span>
     );
@@ -47,7 +47,7 @@ export default function CalendarStatusPill({ onManage }: { onManage: () => void 
       title={`Google Calendar connected${status.email ? " · " + status.email : ""} — manage in Agenda`}
       style={{ ...base, cursor: "pointer", border: `1px solid ${D.teal}55`, background: D.teal + "14", color: D.teal }}
     >
-      <CalendarCheck size={13} /> Calendar
+      <CalendarCheck size={13} /> Sync
       <span style={{ width: 5, height: 5, borderRadius: 999, background: D.teal, boxShadow: `0 0 6px ${D.teal}` }} />
     </button>
   );

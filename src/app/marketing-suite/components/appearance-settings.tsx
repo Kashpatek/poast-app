@@ -5,6 +5,42 @@ import { createPortal } from "react-dom";
 import { X, Check, RotateCcw, Lock, Unlock } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
 import { useTheme, playThemeTransitionAndReload, type ThemeName, type BgName, type GlassMat, type GlassVars } from "../../theme-context";
+import type { MarketingState } from "../use-marketing";
+
+// Demo ⇄ Live data mode — moved here from the top bar. "Live" reads/writes this
+// user's real saved data; "Demo" is a safe in-memory sandbox.
+function DataModeSection({ m }: { m: MarketingState }) {
+  const OPTS = [
+    { key: "demo", label: "Demo", desc: "Sample data — a safe sandbox, never saved.", color: D.amber },
+    { key: "live", label: "Live", desc: "Your real saved data.", color: D.teal },
+  ] as const;
+  return (
+    <>
+      <div style={lbl}>Data</div>
+      <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+        {OPTS.map((opt) => {
+          const on = m.mode === opt.key;
+          return (
+            <button key={opt.key} onClick={() => m.setMode(opt.key)} style={{
+              flex: 1, textAlign: "left", cursor: "pointer", borderRadius: 12, padding: "12px 14px",
+              border: `1px solid ${on ? opt.color : D.border}`,
+              boxShadow: on ? `0 0 0 1px ${opt.color}, 0 8px 24px ${opt.color}1c` : "none",
+              background: on ? opt.color + "12" : D.surface, color: D.tx, transition: "all .16s",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 999, background: opt.color, boxShadow: on ? `0 0 8px ${opt.color}` : "none" }} />
+                <span style={{ fontFamily: gf, fontWeight: 700, fontSize: 14, color: on ? opt.color : D.tx }}>{opt.label}</span>
+                {on && <span style={{ marginLeft: "auto", width: 18, height: 18, borderRadius: 999, background: opt.color, color: "#0c0c14", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Check size={11} /></span>}
+              </div>
+              <div style={{ fontSize: 11.5, color: D.txm, marginTop: 4, lineHeight: 1.45 }}>{opt.desc}</div>
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ height: 1, background: D.border, margin: "22px 0 0" }} />
+    </>
+  );
+}
 
 const THEMES: { id: ThemeName; name: string; desc: string; sw: string }[] = [
   { id: "classic", name: "Classic", desc: "The original POAST look — flat, focused, dark.", sw: "linear-gradient(135deg,#0D0D12,#09090D)" },
@@ -188,7 +224,7 @@ export function AppearancePanel({ onReplayTour }: { onReplayTour?: () => void })
   );
 }
 
-export default function AppearanceSettings({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function AppearanceSettings({ open, onClose, m }: { open: boolean; onClose: () => void; m?: MarketingState }) {
   if (!open || typeof document === "undefined") return null;
 
   const ui = (
@@ -207,7 +243,10 @@ export default function AppearanceSettings({ open, onClose }: { open: boolean; o
         </div>
 
         <div style={{ padding: 22 }}>
-          <AppearancePanel onReplayTour={() => { onClose(); setTimeout(() => window.dispatchEvent(new Event("poast:replay-tour")), 60); }} />
+          {m && <DataModeSection m={m} />}
+          <div style={{ marginTop: m ? 22 : 0 }}>
+            <AppearancePanel onReplayTour={() => { onClose(); setTimeout(() => window.dispatchEvent(new Event("poast:replay-tour")), 60); }} />
+          </div>
         </div>
       </div>
     </div>

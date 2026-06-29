@@ -30,29 +30,41 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* ── Site-wide scrollbars ──
-   The app is dark everywhere, so the OS default (a bright/white track) reads as
-   a visual artifact. Replace it with a quiet, inset thumb that brightens on
-   hover. Components that deliberately hide their scrollbar (carousels, tab
-   strips) use a higher-specificity selector and still win over these defaults. */
+/* ── Site-wide auto-hiding scrollbars ──
+   The app is dark everywhere, so an always-on bar reads as a visual artifact.
+   The bar is INVISIBLE at rest and only paints while the user is actively
+   scrolling: a tiny pre-hydration script (layout.tsx) toggles `is-scrolling`
+   on <html> for ~900ms after any scroll. A thin gutter is always reserved, so
+   nothing reflows when the thumb fades in/out. Components that deliberately
+   hide their scrollbar (carousels, tab strips) use a higher-specificity
+   selector and still win over these defaults.
+   Modern Chrome/Firefox honor the standard scrollbar-color (and prefer it over
+   ::-webkit-* when set); the ::-webkit block mirrors it for older Chromium. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+  scrollbar-color: transparent transparent;   /* hidden at rest */
+}
+html.is-scrolling * {
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;  /* only while scrolling */
 }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-corner { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: transparent;
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
+html.is-scrolling ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.20);
+  background-clip: padding-box;
+}
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.30);
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:active {
-  background: rgba(247, 176, 65, 0.45);
+  background: rgba(247, 176, 65, 0.5);
   background-clip: padding-box;
 }
