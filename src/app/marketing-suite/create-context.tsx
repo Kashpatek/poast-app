@@ -5,14 +5,15 @@
 // their views (Phase 2/3 swap in full modals); task/schedule are full modals.
 import React, { createContext, useCallback, useContext, useState } from "react";
 import type { MarketingState } from "./use-marketing";
-import type { CreateKind } from "./marketing-constants";
-import { TaskModal, ScheduleModal } from "./components/create-modals";
+import type { CreateKind, MarketingEvent } from "./marketing-constants";
+import { TaskModal, ScheduleModal, EventEditModal } from "./components/create-modals";
 import { CampaignModal } from "./components/campaign-modal";
 
 interface CreateApi {
   openCreate: (kind: CreateKind, prefill?: Record<string, unknown>) => void;
+  openEdit: (event: MarketingEvent) => void;
 }
-const Ctx = createContext<CreateApi>({ openCreate: () => {} });
+const Ctx = createContext<CreateApi>({ openCreate: () => {}, openEdit: () => {} });
 export function useCreate() { return useContext(Ctx); }
 
 export function CreateProvider({
@@ -24,6 +25,7 @@ export function CreateProvider({
 }) {
   const [kind, setKind] = useState<CreateKind | null>(null);
   const [prefill, setPrefill] = useState<Record<string, unknown>>({});
+  const [editEvent, setEditEvent] = useState<MarketingEvent | null>(null);
 
   const openCreate = useCallback((k: CreateKind, pf?: Record<string, unknown>) => {
     if (k === "ad") { onOpenView?.("kiosk"); return; } // Phase 3: full ad modal
@@ -31,14 +33,17 @@ export function CreateProvider({
     setKind(k);
   }, [onOpenView]);
 
+  const openEdit = useCallback((event: MarketingEvent) => setEditEvent(event), []);
+
   const close = useCallback(() => setKind(null), []);
 
   return (
-    <Ctx.Provider value={{ openCreate }}>
+    <Ctx.Provider value={{ openCreate, openEdit }}>
       {children}
       <TaskModal open={kind === "task"} prefill={prefill} m={m} onOpenView={onOpenView} onClose={close} />
       <ScheduleModal open={kind === "schedule"} prefill={prefill} m={m} onOpenView={onOpenView} onClose={close} />
       <CampaignModal open={kind === "campaign"} prefill={prefill} m={m} onOpenView={onOpenView} onClose={close} />
+      <EventEditModal event={editEvent} m={m} onOpenView={onOpenView} onClose={() => setEditEvent(null)} />
     </Ctx.Provider>
   );
 }

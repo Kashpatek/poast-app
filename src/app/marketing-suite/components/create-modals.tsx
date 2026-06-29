@@ -4,15 +4,16 @@
 // record, and syncs it everywhere (board + event spine). House style: inline
 // styles + D tokens; built on the shared Modal primitive.
 import React, { useEffect, useMemo, useState } from "react";
-import { CheckSquare, CalendarClock } from "lucide-react";
+import { CheckSquare, CalendarClock, Video, ExternalLink, Trash2 } from "lucide-react";
 import { D, mn } from "../../shared-constants";
 import { Modal, Field, TextInput, TextArea, Select, Row, GhostBtn, PrimaryBtn, ChipPicker } from "./modal";
 import {
   SCHEDULE_KINDS, scheduleKindOf, TASK_CATEGORIES, TASK_PRIORITIES, TASK_ASSIGNEES,
-  DEFAULT_CALENDARS,
+  eventCalendarId, eventLocation, eventAttendees, eventMeetLink, eventHtmlLink, isAllDayEvent,
+  type MarketingEvent,
 } from "../marketing-constants";
 import type { MarketingState } from "../use-marketing";
-import { useGoogle, isCalSelected } from "../use-google";
+import { useGoogle, calendarTargets } from "../use-google";
 
 // Combine a YYYY-MM-DD date + HH:MM time into a local-time ISO datetime.
 function toISO(date: string, time?: string): string {
@@ -26,6 +27,10 @@ function nowTimeStr() {
   return `${String(d.getHours()).padStart(2, "0")}:00`;
 }
 function str(v: unknown, fallback = ""): string { return typeof v === "string" ? v : fallback; }
+function pad2(n: number): string { return String(n).padStart(2, "0"); }
+function localDate(iso: string): string { const d = new Date(iso); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+function localTime(iso: string): string { const d = new Date(iso); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
+const linkStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, fontFamily: mn, fontSize: 11, color: D.cyan, textDecoration: "none" };
 
 interface ModalProps {
   open: boolean;
@@ -163,18 +168,11 @@ export function ScheduleModal({ open, prefill, m, onClose, onOpenView }: ModalPr
   const [endTime, setEndTime] = useState("");
   const [notes, setNotes] = useState("");
   const [campaignId, setCampaignId] = useState("");
-  const [calendarId, setCalendarId] = useState(DEFAULT_CALENDARS[0].id);
+  const [calendarId, setCalendarId] = useState("sa-marketing");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const { status: gStatus } = useGoogle();
-  const calendarOptions = useMemo(() => [
-    ...DEFAULT_CALENDARS.map((c) => ({ id: c.id, name: c.name })),
-    ...(gStatus.connected
-      ? (gStatus.calendars || [])
-          .filter((c) => isCalSelected(gStatus.prefs, c.id))
-          .map((c) => ({ id: c.id, name: `Google · ${c.summary}` }))
-      : []),
-  ], [gStatus]);
+  const { status: gStatus, owner } = useGoogle();
+  const calOptions = useMemo(() => calendarTargets(gStatus), [gStatus]);
 
   useEffect(() => {
     if (!open) return;
@@ -185,7 +183,7 @@ export function ScheduleModal({ open, prefill, m, onClose, onOpenView }: ModalPr
     setEndTime(str(prefill.endTime));
     setNotes(str(prefill.notes));
     setCampaignId("");
-    setCalendarId(DEFAULT_CALENDARS[0].id);
+    setCalendarId(str(prefill.calendarId) || "sa-marketing");
     setErr(null);
   }, [open, prefill]);
 
@@ -195,12 +193,29 @@ export function ScheduleModal({ open, prefill, m, onClose, onOpenView }: ModalPr
     if (!title.trim() || !date || busy) return;
     setBusy(true); setErr(null);
     try {
-      m.addEvent({
+      const target = calOptions.find((c) => c.id === calendarId);
+      const startISO = toISO(date, startTime);
+      const endISO = endTime ? toISO(date, endTime) : null;
+      const ev = m.addEvent({
         title: title.trim(), type: kindDef.type, status: "scheduled",
-        start: toISO(date, startTime), end: endTime ? toISO(date, endTime) : null,
+        start: startISO, end: endISO,
         campaignId: campaignId || null, notes: notes.trim() || null, source: "manual",
         payload: { scheduleKind: kind, calendarId },
       });
+      // If targeting a connected Google calendar, create it on Google now and
+      // stamp the returned id back so it stays in sync (best-effort).
+      if (target?.google && gStatus.connected && m.mode === "live") {
+        try {
+          const r = await fetch("/api/google/event", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ owner, calendarId, title: title.trim(), description: notes.trim() || undefined, start: startISO, end: endISO }),
+          });
+          const j = await r.json();
+          if (j.ok && j.gcalEventId) {
+            m.updateEvent(ev.id, { gcalEventId: j.gcalEventId, payload: { scheduleKind: kind, calendarId, gcalHtmlLink: j.htmlLink, meetLink: j.meetLink } });
+          }
+        } catch { /* keep the local event even if the Google push fails */ }
+      }
       onClose();
       onOpenView?.("schedule");
     } catch (e) {
@@ -250,9 +265,9 @@ export function ScheduleModal({ open, prefill, m, onClose, onOpenView }: ModalPr
             {m.campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
         </Field>
-        <Field label="Calendar">
+        <Field label="Calendar" hint="Which calendar it syncs to">
           <Select value={calendarId} onChange={(e) => setCalendarId(e.target.value)}>
-            {calendarOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {calOptions.map((c) => <option key={c.id} value={c.id}>{c.name}{c.google ? " · Google" : ""}</option>)}
           </Select>
         </Field>
       </Row>
@@ -261,6 +276,140 @@ export function ScheduleModal({ open, prefill, m, onClose, onOpenView }: ModalPr
       </Field>
       {err && <ErrLine text={err} />}
       {!gStatus.connected && <Hint onOpenView={onOpenView} note="Connect Google Calendar (Schedule → Calendars) to target a specific Google calendar." />}
+    </Modal>
+  );
+}
+
+// ════════ EDIT EXISTING EVENT (rich editor + Google write-back) ════════
+export function EventEditModal({ event, m, onClose, onOpenView }: {
+  event: MarketingEvent | null;
+  m: MarketingState;
+  onClose: () => void;
+  onOpenView?: (v: string, focusId?: string) => void;
+}) {
+  const open = !!event;
+  const { status: gStatus, owner } = useGoogle();
+  const calOptions = useMemo(() => calendarTargets(gStatus), [gStatus]);
+
+  const [title, setTitle] = useState("");
+  const [calendarId, setCalendarId] = useState("sa-marketing");
+  const [allDay, setAllDay] = useState(false);
+  const [date, setDate] = useState(todayStr());
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("");
+  const [location, setLocation] = useState("");
+  const [guests, setGuests] = useState("");
+  const [description, setDescription] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!event) return;
+    setTitle(event.title || "");
+    setCalendarId(eventCalendarId(event));
+    setAllDay(isAllDayEvent(event));
+    setDate(localDate(event.start));
+    setStartTime(localTime(event.start));
+    setEndTime(event.end ? localTime(event.end) : "");
+    setLocation(eventLocation(event));
+    setGuests(eventAttendees(event).join(", "));
+    setDescription(event.notes || "");
+    setErr(null); setBusy(false);
+  }, [event]);
+
+  if (!open || !event) return null;
+
+  const fromCalendarId = eventCalendarId(event);
+  const gcalEventId = event.gcalEventId || (typeof event.payload?.gcalEventId === "string" ? event.payload.gcalEventId : null);
+  const meetLink = eventMeetLink(event);
+  const htmlLink = eventHtmlLink(event);
+  const target = calOptions.find((c) => c.id === calendarId);
+  const attendeesArr = guests.split(",").map((s) => s.trim()).filter((s) => s.includes("@"));
+
+  async function save() {
+    if (!title.trim() || busy || !event) return;
+    setBusy(true); setErr(null);
+    try {
+      const startISO = allDay ? toISO(date, "00:00") : toISO(date, startTime || "09:00");
+      const endISO = allDay ? null : (endTime ? toISO(date, endTime) : null);
+      const payload: Record<string, unknown> = {
+        ...(event.payload || {}),
+        calendarId, allDay, location: location.trim() || null, attendees: attendeesArr,
+      };
+      m.updateEvent(event.id, { title: title.trim(), start: startISO, end: endISO, notes: description.trim() || null, payload });
+
+      if (target?.google && gStatus.connected && m.mode === "live") {
+        const r = await fetch("/api/google/event", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            owner, calendarId, fromCalendarId, gcalEventId,
+            title: title.trim(), description: description.trim(),
+            location: location.trim(), attendees: attendeesArr,
+            start: startISO, end: endISO, allDay,
+          }),
+        });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error || "Google sync failed");
+        if (j.gcalEventId) {
+          m.updateEvent(event.id, { gcalEventId: j.gcalEventId, payload: { ...payload, gcalEventId: j.gcalEventId, gcalHtmlLink: j.htmlLink, meetLink: j.meetLink } });
+        }
+      }
+      onClose();
+    } catch (e) {
+      setErr(String(e instanceof Error ? e.message : e));
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <Modal
+      open={open} title="Edit event"
+      subtitle={target?.google ? "Changes write back to Google Calendar" : "Saved in MarketingSUITE"}
+      accent={target?.color || D.amber} icon={<CalendarClock size={17} />} onClose={onClose}
+      footer={<>
+        <GhostBtn onClick={() => { m.removeEvent(event.id); onClose(); }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Trash2 size={12} /> Delete</span>
+        </GhostBtn>
+        <span style={{ flex: 1 }} />
+        <GhostBtn onClick={onClose}>Cancel</GhostBtn>
+        <PrimaryBtn onClick={save} disabled={!title.trim() || busy} accent={target?.color || D.amber}>
+          {busy ? "Saving…" : "Save"}
+        </PrimaryBtn>
+      </>}
+    >
+      <Field label="Title">
+        <TextInput autoFocus value={title} onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) save(); }} />
+      </Field>
+      <Row cols={2}>
+        <Field label="Calendar" hint="Which calendar it lives on">
+          <Select value={calendarId} onChange={(e) => setCalendarId(e.target.value)}>
+            {calOptions.map((c) => <option key={c.id} value={c.id}>{c.name}{c.google ? " · Google" : ""}</option>)}
+          </Select>
+        </Field>
+        <Field label="Span">
+          <label style={{ display: "flex", alignItems: "center", gap: 8, height: 38, fontFamily: mn, fontSize: 11, color: D.txm, cursor: "pointer" }}>
+            <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} /> All-day
+          </label>
+        </Field>
+      </Row>
+      <Row cols={allDay ? 1 : 3}>
+        <Field label="Date"><TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+        {!allDay && <Field label="Start"><TextInput type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} /></Field>}
+        {!allDay && <Field label="End" hint="Optional"><TextInput type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} /></Field>}
+      </Row>
+      <Field label="Location"><TextInput value={location} placeholder="Place or video link" onChange={(e) => setLocation(e.target.value)} /></Field>
+      <Field label="Guests" hint="Comma-separated emails — invited on save (Google calendars)">
+        <TextInput value={guests} placeholder="alex@example.com, sam@example.com" onChange={(e) => setGuests(e.target.value)} />
+      </Field>
+      <Field label="Description"><TextArea value={description} placeholder="Agenda, links, notes…" onChange={(e) => setDescription(e.target.value)} /></Field>
+      {(meetLink || htmlLink) && (
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          {meetLink && <a href={meetLink} target="_blank" rel="noopener" style={linkStyle}><Video size={12} /> Join Meet</a>}
+          {htmlLink && <a href={htmlLink} target="_blank" rel="noopener" style={linkStyle}><ExternalLink size={12} /> Open in Google Calendar</a>}
+        </div>
+      )}
+      {err && <ErrLine text={err} />}
+      {!target?.google && <Hint onOpenView={onOpenView} note="This calendar is local to MarketingSUITE — pick a Google calendar to push it to Google." />}
     </Modal>
   );
 }

@@ -32,6 +32,7 @@ export interface MarketingEvent {
   campaignId?: string | null;
   channel?: string | null;  // tiktok | youtube | x | instagram | linkedin | facebook
   source: EventSource;
+  gcalEventId?: string | null;  // set once the event exists on Google
   notes?: string | null;
   payload?: Record<string, unknown>;
 }
@@ -142,6 +143,40 @@ export interface CalendarTarget { id: string; name: string; color: string; googl
 export const DEFAULT_CALENDARS: CalendarTarget[] = [
   { id: "sa-marketing", name: "SA Marketing", color: D.amber },
 ];
+
+// ─── Event field accessors ───
+// Google-synced events stash their extra fields in payload; these read them
+// safely so the editor, hover card and write-back all agree on one shape.
+export function eventCalendarId(e: MarketingEvent): string {
+  const c = e.payload?.calendarId;
+  return typeof c === "string" && c ? c : "sa-marketing";
+}
+export function eventLocation(e: MarketingEvent): string {
+  const v = e.payload?.location;
+  return typeof v === "string" ? v : "";
+}
+export function eventAttendees(e: MarketingEvent): string[] {
+  const v = e.payload?.attendees;
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+}
+export function eventMeetLink(e: MarketingEvent): string {
+  const v = e.payload?.meetLink ?? e.payload?.hangoutLink;
+  return typeof v === "string" ? v : "";
+}
+export function eventHtmlLink(e: MarketingEvent): string {
+  const v = e.payload?.gcalHtmlLink ?? e.payload?.htmlLink;
+  return typeof v === "string" ? v : "";
+}
+// True for Google all-day events. Uses the explicit flag when present, else a
+// heuristic for events synced before the flag existed (midnight start spanning
+// ~a full day) so they don't render as a giant block over the whole grid.
+export function isAllDayEvent(e: MarketingEvent): boolean {
+  if (e.payload?.allDay === true) return true;
+  const s = new Date(e.start);
+  if (s.getHours() !== 0 || s.getMinutes() !== 0) return false;
+  if (!e.end) return false;
+  return new Date(e.end).getTime() - s.getTime() >= 23 * 3600_000;
+}
 
 // ─── Date helpers (demo data anchors to "now" so views stay meaningful) ───
 function atDay(base: Date, deltaDays: number, hour = 9, min = 0): string {

@@ -156,3 +156,9 @@ export async function insertEvent(token: string, calendarId: string, resource: a
 export async function patchEvent(token: string, calendarId: string, eventId: string, resource: any): Promise<any> {
   return gapi(token, `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, { method: "PATCH", body: JSON.stringify(resource) });
 }
+// Move an event to a different calendar (Google requires this rather than a
+// plain patch when the calendar changes).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function moveCalendarEvent(token: string, fromCalendarId: string, eventId: string, toCalendarId: string): Promise<any> {
+  return gapi(token, `/calendars/${encodeURIComponent(fromCalendarId)}/events/${encodeURIComponent(eventId)}/move?destination=${encodeURIComponent(toCalendarId)}`, { method: "POST" });
+}

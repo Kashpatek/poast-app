@@ -9,13 +9,16 @@
 //
 // "Plan my day" opens the Agenda Wizard (auto-builds your day from your tasks).
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   CalendarClock, Plus, ArrowRight, CalendarCheck, Rows3, ListChecks, Wand2,
-  ChevronLeft, ChevronRight, Crosshair, GripVertical, AlertTriangle, Clock,
+  ChevronLeft, ChevronRight, Crosshair, GripVertical, AlertTriangle, Clock, Zap,
+  Pencil, Check, Copy, Trash2, MoveRight, CalendarPlus,
 } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
 import {
   STATUS_COLOR, STATUS_LABEL, scheduleKindOf, channelOf, TYPE_COLOR,
+  isAllDayEvent, eventCalendarId,
   type MarketingEvent, type BoardTaskLite,
 } from "../marketing-constants";
 import type { ViewProps } from "../use-marketing";
@@ -23,14 +26,28 @@ import { useCreate } from "../create-context";
 import { useBoardTasks } from "../use-board-tasks";
 import GoogleCalendarsPanel from "../components/google-calendars";
 import AgendaWizard from "../components/agenda-wizard";
-import { useGoogle } from "../use-google";
+import { EventHoverCard } from "../components/event-hover-card";
+import LockIn from "../components/lock-in";
+import { useGoogle, calendarTargets, type GoogleStatus } from "../use-google";
 
-// Day-grid geometry.
-const START_HOUR = 6, END_HOUR = 23;          // 6am → 11pm
-const HOUR_PX = 58;
-const GUTTER_W = 62;
-const SNAP = 15;                              // minute snap for slotting
+// id → { name, color } for showing which calendar an event belongs to.
+function calLookup(status: GoogleStatus | undefined): Record<string, { name: string; color: string }> {
+  const map: Record<string, { name: string; color: string }> = {};
+  for (const c of calendarTargets(status)) map[c.id] = { name: c.name, color: c.color };
+  return map;
+}
+
+// Day-grid geometry. The grid spans the full day (midnight→midnight) but sits in
+// a scroll viewport that auto-locks to the current hour, so you land on "now" and
+// can scroll up to revisit earlier hours.
+const START_HOUR = 0, END_HOUR = 24;          // full day
+const HOUR_PX = 60;
+const GUTTER_W = 64;
+const SNAP = 15;                              // minute snap when dragging/resizing
+const BOOK_SNAP = 30;                         // hover-to-book snaps to clean :30 slots
 const DAY_MS = 86_400_000;
+const MIN_VIEW_H = 440;                        // floor for the viewport-filling grid height
+const NON_TODAY_START = 8;                     // other days open scrolled to ~8am
 
 function startOfDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function addDays(d: Date, n: number) { return new Date(d.getTime() + n * DAY_MS); }
@@ -40,16 +57,19 @@ function minsOfDay(d: Date) { return d.getHours() * 60 + d.getMinutes(); }
 function yOfMin(min: number) { return ((min - START_HOUR * 60) / 60) * HOUR_PX; }
 function minOfY(y: number) { return START_HOUR * 60 + (y / HOUR_PX) * 60; }
 function snap(min: number) { return Math.round(min / SNAP) * SNAP; }
+function snapBook(min: number) { return Math.round(min / BOOK_SNAP) * BOOK_SNAP; }
+function estMins(t: BoardTaskLite) { return t.estimateMins && t.estimateMins > 0 ? t.estimateMins : 45; }
 function clampMin(min: number) { return Math.max(START_HOUR * 60, Math.min(END_HOUR * 60, min)); }
 function isoAt(date: Date, minutes: number) { const d = new Date(date); d.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0); return d.toISOString(); }
 function hhmm(minutes: number) { const h = Math.floor(minutes / 60), m = Math.round(minutes % 60); return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`; }
 
 export default function AgendaView({ m, onOpenView }: ViewProps) {
-  const { openCreate } = useCreate();
+  const { openCreate, openEdit } = useCreate();
   const [view, setView] = useState<"day" | "list">("day");
   const [date, setDate] = useState<Date>(() => startOfDay(new Date()));
   const [showCals, setShowCals] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [lockOpen, setLockOpen] = useState(false);
   const [tick, setTick] = useState(0);
   useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 30_000); return () => clearInterval(t); }, []);
 
@@ -91,6 +111,13 @@ export default function AgendaView({ m, onOpenView }: ViewProps) {
           }}>
             <Wand2 size={13} /> Plan my day
           </button>
+          <button onClick={() => setLockOpen(true)} title="Lock in — fill your free time with focused work" style={{
+            display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", border: `1px solid ${D.amber}77`,
+            fontFamily: mn, fontSize: 11, fontWeight: 800, letterSpacing: 0.4, borderRadius: 9, padding: "8px 14px",
+            color: D.amber, background: D.amber + "16",
+          }}>
+            <Zap size={13} /> Lock In
+          </button>
           <button onClick={() => setShowCals((v) => !v)} title="Google Calendar" style={{
             display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer",
             fontFamily: mn, fontSize: 10.5, borderRadius: 9, padding: "8px 12px",
@@ -111,53 +138,109 @@ export default function AgendaView({ m, onOpenView }: ViewProps) {
 
       {showCals && <div style={{ marginBottom: 14 }}><GoogleCalendarsPanel onChanged={() => m.refresh()} /></div>}
 
-      {/* Day-nav (day view only) */}
+      {/* Day-nav (day view only) — big, clean, white date so the day reads at a glance */}
       {view === "day" && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
           <button onClick={() => setDate((d) => addDays(d, -1))} style={navBtn}><ChevronLeft size={15} /></button>
           <button onClick={() => setDate(startOfDay(new Date()))} style={{ ...navBtn, width: "auto", padding: "0 13px", gap: 6, color: isToday ? D.amber : D.txm }}>
             <Crosshair size={12} /> Today
           </button>
           <button onClick={() => setDate((d) => addDays(d, 1))} style={navBtn}><ChevronRight size={15} /></button>
-          <span style={{ fontFamily: gf, fontSize: 16, fontWeight: 700, marginLeft: 4, color: isToday ? D.amber : D.tx }}>
-            {date.toLocaleDateString(undefined, { weekday: "long" })}
-          </span>
-          <span style={{ fontFamily: mn, fontSize: 11, color: D.txd }}>{date.toLocaleDateString(undefined, { month: "long", day: "numeric" })}</span>
+          <div style={{ marginLeft: 8, display: "flex", alignItems: "baseline", gap: 11 }}>
+            <span style={{ fontFamily: gf, fontSize: 27, fontWeight: 800, letterSpacing: -0.6, color: D.tx }}>
+              {date.toLocaleDateString(undefined, { weekday: "long" })}
+            </span>
+            <span style={{ fontFamily: gf, fontSize: 27, fontWeight: 400, letterSpacing: -0.6, color: D.tx }}>
+              {date.toLocaleDateString(undefined, { month: "long", day: "numeric" })}
+            </span>
+            {isToday && (
+              <span style={{ fontFamily: mn, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: D.amber, border: `1px solid ${D.amber}66`, background: D.amber + "16", borderRadius: 999, padding: "2px 9px", alignSelf: "center" }}>Today</span>
+            )}
+          </div>
         </div>
       )}
 
       {view === "day"
-        ? <DayGrid m={m} date={date} now={now} isToday={isToday} openCreate={openCreate} />
-        : <ListView m={m} now={now} openCreate={openCreate} />}
+        ? <DayGrid m={m} date={date} now={now} isToday={isToday} openCreate={openCreate} onOpenEdit={openEdit} gStatus={gcalStatus} />
+        : <ListView m={m} now={now} openCreate={openCreate} onOpenEdit={openEdit} />}
 
       <AgendaWizard open={wizardOpen} m={m} date={date} onClose={() => setWizardOpen(false)} onOpenView={onOpenView} />
+      {lockOpen && <LockIn m={m} onClose={() => setLockOpen(false)} />}
     </div>
   );
 }
 
 // ════════ DAY GRID ════════
 interface Placed { e: MarketingEvent; startMin: number; endMin: number; col: number; cols: number; }
+type DragMode = "move" | "resize" | "resize-top";
+type MenuItem = { label?: string; icon?: React.ReactNode; onClick?: () => void; danger?: boolean; sep?: boolean; hint?: string };
+type Menu =
+  | { kind: "block"; x: number; y: number; items: MenuItem[] }
+  | { kind: "task"; x: number; y: number; items: MenuItem[] }
+  | null;
 
-function DayGrid({ m, date, now, isToday, openCreate }: {
+function DayGrid({ m, date, now, isToday, openCreate, onOpenEdit, gStatus }: {
   m: ViewProps["m"]; date: Date; now: Date; isToday: boolean;
   openCreate: (k: "schedule", pf?: Record<string, unknown>) => void;
+  onOpenEdit: (e: MarketingEvent) => void;
+  gStatus: GoogleStatus | undefined;
 }) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
-  const [drag, setDrag] = useState<{ id: string; offMin: number } | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [drag, setDrag] = useState<{ id: string; offMin: number; startY: number; moved: boolean; mode: DragMode; startMin: number; endMin: number } | null>(null);
   const [dragY, setDragY] = useState(0);
+  const [hover, setHover] = useState<{ e: MarketingEvent; rect: DOMRect } | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [ghostMin, setGhostMin] = useState<number | null>(null);
+  const [menu, setMenu] = useState<Menu>(null);
 
   const tasks = useBoardTasks();
   const dayKey = startOfDay(date).getTime();
+  const cals = useMemo(() => calLookup(gStatus), [gStatus]);
 
-  // Events on this day, with overlap columns.
+  // Fill the viewport: the grid + rail share whatever height is left below the
+  // header, so you never page-scroll and the current hour is never clipped.
+  const [availH, setAvailH] = useState(620);
+  useEffect(() => {
+    const calc = () => {
+      const el = wrapRef.current; if (!el) return;
+      setAvailH(Math.max(MIN_VIEW_H, Math.floor(window.innerHeight - el.getBoundingClientRect().top - 22)));
+    };
+    calc(); window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
+  }, []);
+
+  // Esc clears any selection / context menu.
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape") { setSelectedId(null); setMenu(null); } };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, []);
+
+  // All-day events get a banner row so they don't fill the whole timed grid.
+  const allDayEvents = useMemo(
+    () => m.events.filter((e) => startOfDay(new Date(e.start)).getTime() === dayKey && isAllDayEvent(e)),
+    [m.events, dayKey],
+  );
+
+  // Timed events on this day, with overlap columns.
   const placed = useMemo<Placed[]>(() => {
     const evs = m.events
-      .filter((e) => startOfDay(new Date(e.start)).getTime() === dayKey)
+      .filter((e) => startOfDay(new Date(e.start)).getTime() === dayKey && !isAllDayEvent(e))
       .map((e) => {
         const s = new Date(e.start);
         const startMin = clampMin(minsOfDay(s));
-        const endMin = clampMin(e.end ? minsOfDay(new Date(e.end)) : startMin + 30);
-        return { e, startMin, endMin: Math.max(endMin, startMin + 20) };
+        // End: same-day uses its real minute; an event ending on a later calendar
+        // day runs to the bottom of the grid rather than collapsing to a stub.
+        let rawEnd = startMin + 30;
+        if (e.end) {
+          const eEnd = new Date(e.end);
+          const dayDiff = startOfDay(eEnd).getTime() - startOfDay(s).getTime();
+          rawEnd = dayDiff > 0 ? END_HOUR * 60 : minsOfDay(eEnd);
+        }
+        const endMin = clampMin(Math.max(rawEnd, startMin + 20));
+        return { e, startMin, endMin };
       })
       .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
     // Column packing per overlap cluster (Google-calendar style).
@@ -184,34 +267,96 @@ function DayGrid({ m, date, now, isToday, openCreate }: {
   const gridH = (END_HOUR - START_HOUR) * HOUR_PX;
   const nowMin = minsOfDay(now);
   const nowVisible = isToday && nowMin >= START_HOUR * 60 && nowMin <= END_HOUR * 60;
+  // Scroll slack so "now" can always sit near the TOP and roll, even late at night
+  // when there's little day left below it (otherwise the scroll clamps and dumps
+  // you at the bottom). Only as much empty tail as actually needed.
+  const tailPad = isToday ? Math.max(0, yOfMin(nowMin) - 44 + availH - gridH) : 0;
 
-  // ── drag-to-reslot ──
-  const onBlockPointerDown = (e: React.PointerEvent, p: Placed) => {
-    e.preventDefault();
+  // Land with "now" near the TOP and the rest of the day rolling below; scroll up
+  // for earlier hours. Other days open at the morning. Re-runs on day change only,
+  // so it never yanks the scroll out from under you mid-read.
+  useEffect(() => {
+    const sc = scrollRef.current;
+    if (!sc) return;
+    sc.scrollTop = isToday
+      ? Math.max(0, yOfMin(minsOfDay(new Date())) - 44)
+      : Math.max(0, yOfMin(NON_TODAY_START * 60) - 12);
+  }, [dayKey, isToday, availH]);
+
+  // Push a time change to Google for synced events (best-effort, time-only so it
+  // never wipes description/location/guests on the Google side).
+  const pushTime = useCallback(async (ev: MarketingEvent, startISO: string, endISO: string | null) => {
+    const calId = eventCalendarId(ev);
+    const tgt = calendarTargets(gStatus).find((c) => c.id === calId);
+    if (!tgt?.google || !gStatus?.connected || m.mode !== "live") return;
+    const gcalEventId = ev.gcalEventId || (typeof ev.payload?.gcalEventId === "string" ? ev.payload.gcalEventId : null);
+    if (!gcalEventId) return;
+    try {
+      await fetch("/api/google/event", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ owner: m.owner, calendarId: calId, fromCalendarId: calId, gcalEventId, title: ev.title, start: startISO, end: endISO, allDay: isAllDayEvent(ev) }),
+      });
+    } catch { /* best-effort */ }
+  }, [gStatus, m.mode, m.owner]);
+
+  // ── pointer: move (body) · resize (top/bottom handle) · click → select ──
+  const onBlockPointerDown = (e: React.PointerEvent, p: Placed, mode: DragMode) => {
+    if (e.button === 2) return;                          // leave right-click to the menu
+    e.preventDefault(); e.stopPropagation();
+    setHover(null); setMenu(null);
     const rect = canvasRef.current!.getBoundingClientRect();
     const y = e.clientY - rect.top;
-    setDrag({ id: p.e.id, offMin: minOfY(y) - p.startMin });
+    setDrag({ id: p.e.id, offMin: minOfY(y) - p.startMin, startY: y, moved: false, mode, startMin: p.startMin, endMin: p.endMin });
     setDragY(y);
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
   const onPointerMove = (e: React.PointerEvent) => {
-    if (!drag) return;
+    if (drag) {
+      const rect = canvasRef.current!.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      setDragY(y);
+      if (!drag.moved && Math.abs(y - drag.startY) > 4) setDrag((d) => d ? { ...d, moved: true } : d);
+      return;
+    }
+    // hover ghost on empty canvas → a clean :30 slot you can click to book
+    const t = e.target as HTMLElement;
+    if (t.closest("[data-block]")) { setGhostMin(null); return; }
     const rect = canvasRef.current!.getBoundingClientRect();
-    setDragY(e.clientY - rect.top);
+    setGhostMin(snapBook(clampMin(minOfY(e.clientY - rect.top))));
   };
   const onPointerUp = () => {
     if (!drag) return;
-    const newStart = snap(clampMin(minOfY(dragY) - drag.offMin));
-    m.moveEvent(drag.id, isoAt(date, newStart));
+    const ev = m.events.find((x) => x.id === drag.id);
+    if (!drag.moved) {
+      setSelectedId(drag.id);                            // click selects → stretch handles appear
+    } else if (ev && drag.mode === "resize") {
+      const endMin = snap(clampMin(Math.max(drag.startMin + SNAP, minOfY(dragY))));
+      const endISO = isoAt(date, endMin);
+      m.updateEvent(drag.id, { end: endISO });
+      void pushTime(ev, ev.start, endISO);
+    } else if (ev && drag.mode === "resize-top") {
+      const startMin = snap(clampMin(Math.min(drag.endMin - SNAP, minOfY(dragY))));
+      const startISO = isoAt(date, startMin);
+      const endISO = isoAt(date, drag.endMin);
+      m.updateEvent(drag.id, { start: startISO, end: endISO });
+      void pushTime(ev, startISO, endISO);
+    } else if (ev) {
+      const newStartMin = snap(clampMin(minOfY(dragY) - drag.offMin));
+      const newStartISO = isoAt(date, newStartMin);
+      m.moveEvent(drag.id, newStartISO);
+      const newEndISO = ev.end ? new Date(new Date(newStartISO).getTime() + (new Date(ev.end).getTime() - new Date(ev.start).getTime())).toISOString() : null;
+      void pushTime(ev, newStartISO, newEndISO);
+    }
     setDrag(null);
   };
 
-  // ── click empty → slot ──
+  // ── click empty → book a clean :30 slot ──
   const onCanvasClick = (e: React.MouseEvent) => {
     if (drag) return;
     if ((e.target as HTMLElement).closest("[data-block]")) return;
+    setSelectedId(null); setMenu(null);
     const rect = canvasRef.current!.getBoundingClientRect();
-    const min = snap(clampMin(minOfY(e.clientY - rect.top)));
+    const min = snapBook(clampMin(minOfY(e.clientY - rect.top)));
     openCreate("schedule", { date: toDateStr(date), startTime: hhmm(min) });
   };
 
@@ -222,8 +367,8 @@ function DayGrid({ m, date, now, isToday, openCreate }: {
     if (!raw) return;
     const t = JSON.parse(raw) as BoardTaskLite;
     const rect = canvasRef.current!.getBoundingClientRect();
-    const startMin = snap(clampMin(minOfY(e.clientY - rect.top)));
-    const dur = t.estimateMins && t.estimateMins > 0 ? t.estimateMins : 30;
+    const startMin = snapBook(clampMin(minOfY(e.clientY - rect.top)));
+    const dur = estMins(t);
     m.addEvent({
       title: t.title, type: "manual", status: "scheduled",
       start: isoAt(date, startMin), end: isoAt(date, Math.min(END_HOUR * 60, startMin + dur)),
@@ -231,15 +376,82 @@ function DayGrid({ m, date, now, isToday, openCreate }: {
     });
   };
 
+  // ── quick-scheduling helpers (used by the right-click menus) ──
+  const dayBusy = (): [number, number][] => placed.map((p) => [p.startMin, p.endMin] as [number, number]).sort((a, b) => a[0] - b[0]);
+  const nextFreeStart = (dur: number) => {
+    let cur = snap(clampMin(isToday ? Math.max(minsOfDay(now) + 5, START_HOUR * 60) : 9 * 60));
+    for (const [s, en] of dayBusy()) { if (s - cur >= dur) break; if (en > cur) cur = snap(en); }
+    return clampMin(Math.min(cur, END_HOUR * 60 - dur));
+  };
+  const quickBlock = (t: BoardTaskLite, dur: number) => {
+    const s = nextFreeStart(dur);
+    m.addEvent({
+      title: t.title, type: "manual", status: "scheduled",
+      start: isoAt(date, s), end: isoAt(date, Math.min(END_HOUR * 60, s + dur)),
+      source: "poast", payload: { scheduleKind: "block", sourceTaskId: t.id },
+    });
+  };
+  const setLen = (ev: MarketingEvent, startMin: number, dur: number) => {
+    const endISO = isoAt(date, clampMin(startMin + dur));
+    m.updateEvent(ev.id, { end: endISO }); void pushTime(ev, ev.start, endISO);
+  };
+  const blockMenuItems = (ev: MarketingEvent, startMin: number): MenuItem[] => [
+    { label: "Edit", icon: <Pencil size={13} />, onClick: () => onOpenEdit(ev) },
+    { label: ev.status === "done" ? "Mark not done" : "Mark done", icon: <Check size={13} />, onClick: () => m.updateEvent(ev.id, { status: ev.status === "done" ? "scheduled" : "done" }) },
+    { label: "Duplicate", icon: <Copy size={13} />, onClick: () => m.addEvent({ title: ev.title + " (copy)", type: ev.type, status: "scheduled", start: ev.start, end: ev.end, channel: ev.channel, campaignId: ev.campaignId, source: "poast", payload: { ...(ev.payload || {}) } }) },
+    { sep: true },
+    { label: "30 min", hint: "length", onClick: () => setLen(ev, startMin, 30) },
+    { label: "45 min", onClick: () => setLen(ev, startMin, 45) },
+    { label: "1 hour", onClick: () => setLen(ev, startMin, 60) },
+    { label: "1.5 hours", onClick: () => setLen(ev, startMin, 90) },
+    { label: "2 hours", onClick: () => setLen(ev, startMin, 120) },
+    { sep: true },
+    { label: "Move to tomorrow", icon: <MoveRight size={13} />, onClick: () => m.moveEvent(ev.id, new Date(new Date(ev.start).getTime() + DAY_MS).toISOString()) },
+    { label: "Delete", icon: <Trash2 size={13} />, danger: true, onClick: () => { m.removeEvent(ev.id); setSelectedId(null); } },
+  ];
+  const taskMenuItems = (t: BoardTaskLite): MenuItem[] => [
+    { label: "Block next free time", icon: <Zap size={13} />, hint: `${estMins(t)}m`, onClick: () => quickBlock(t, estMins(t)) },
+    { label: "Block 30 min", onClick: () => quickBlock(t, 30) },
+    { label: "Block 1 hour", onClick: () => quickBlock(t, 60) },
+    { label: "Block 2 hours", onClick: () => quickBlock(t, 120) },
+    { sep: true },
+    { label: "Schedule…", icon: <CalendarPlus size={13} />, onClick: () => openCreate("schedule", { title: t.title, date: toDateStr(date), startTime: hhmm(nextFreeStart(estMins(t))) }) },
+  ];
+
   return (
-    <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+    <div ref={wrapRef} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
       {/* Grid */}
-      <div style={{ flex: 1, minWidth: 0, border: `1px solid ${D.border}`, borderRadius: 14, background: D.cardGrad, overflow: "hidden" }}>
+      <div style={{ flex: 1, minWidth: 0, border: `1px solid ${D.border}`, borderRadius: 14, background: D.cardGrad, overflow: "hidden", height: availH, display: "flex", flexDirection: "column" }}>
+        {allDayEvents.length > 0 && (
+          <div style={{ flex: "none", display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 12px 8px 0", borderBottom: `1px solid ${D.border}` }}>
+            <div style={{ width: GUTTER_W - 8, flex: "none", textAlign: "right", fontFamily: mn, fontSize: 9, color: D.txd, paddingTop: 5, textTransform: "uppercase", letterSpacing: 0.4 }}>all-day</div>
+            <div style={{ flex: 1, display: "flex", flexWrap: "wrap", gap: 6, minWidth: 0 }}>
+              {allDayEvents.map((e) => {
+                const c = cals[eventCalendarId(e)];
+                return (
+                  <button key={e.id} type="button"
+                    onClick={() => onOpenEdit(e)}
+                    onContextMenu={(ev) => { ev.preventDefault(); setMenu({ kind: "block", x: ev.clientX, y: ev.clientY, items: blockMenuItems(e, minsOfDay(new Date(e.start))) }); }}
+                    onMouseEnter={(ev) => setHover({ e, rect: ev.currentTarget.getBoundingClientRect() })}
+                    onMouseLeave={() => setHover(null)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: "100%", cursor: "pointer",
+                      padding: "4px 9px", borderRadius: 7, border: `1px solid ${(c?.color || D.amber)}66`,
+                      background: `${c?.color || D.amber}1c`, color: D.tx, fontFamily: ft, fontSize: 11.5, fontWeight: 600 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: 2, background: c?.color || D.amber, flex: "none" }} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <div ref={scrollRef} onPointerLeave={() => setGhostMin(null)} style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
         <div
           ref={canvasRef}
           onClick={onCanvasClick}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
+          onContextMenu={(e) => { if ((e.target as HTMLElement).closest("[data-block]")) return; e.preventDefault(); }}
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
           onDrop={onDrop}
           style={{ position: "relative", height: gridH, cursor: drag ? "grabbing" : "copy" }}
@@ -250,24 +462,41 @@ function DayGrid({ m, date, now, isToday, openCreate }: {
             const y = i * HOUR_PX;
             return (
               <React.Fragment key={hour}>
-                <div style={{ position: "absolute", left: 0, right: 0, top: y, height: 1, background: "rgba(255,255,255,0.05)" }} />
-                <div style={{ position: "absolute", left: 0, top: y - 6, width: GUTTER_W - 8, textAlign: "right", fontFamily: mn, fontSize: 9.5, color: D.txd }}>
-                  {hour % 12 === 0 ? 12 : hour % 12}{hour < 12 ? "a" : "p"}
+                <div style={{ position: "absolute", left: GUTTER_W - 4, right: 0, top: y, height: 1, background: "rgba(255,255,255,0.06)" }} />
+                <div style={{ position: "absolute", left: 0, top: y - 6, width: GUTTER_W - 10, textAlign: "right", fontFamily: mn, fontSize: 9.5, color: D.txd }}>
+                  {(hour % 24) % 12 === 0 ? 12 : (hour % 24) % 12}{(hour % 24) < 12 ? "a" : "p"}
                 </div>
               </React.Fragment>
             );
           })}
-          {/* half-hour faint lines */}
+          {/* half-hour + quarter-hour ticks (the bookable :30 / :15 grid) */}
           {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => (
-            <div key={"h" + i} style={{ position: "absolute", left: GUTTER_W, right: 0, top: i * HOUR_PX + HOUR_PX / 2, height: 1, background: "rgba(255,255,255,0.022)" }} />
+            <React.Fragment key={"t" + i}>
+              <div style={{ position: "absolute", left: GUTTER_W, right: 0, top: i * HOUR_PX + HOUR_PX / 2, height: 1, background: "rgba(255,255,255,0.035)" }} />
+              <div style={{ position: "absolute", left: GUTTER_W, right: 0, top: i * HOUR_PX + HOUR_PX / 4, height: 1, borderTop: "1px dotted rgba(255,255,255,0.025)" }} />
+              <div style={{ position: "absolute", left: GUTTER_W, right: 0, top: i * HOUR_PX + (HOUR_PX * 3) / 4, height: 1, borderTop: "1px dotted rgba(255,255,255,0.025)" }} />
+            </React.Fragment>
           ))}
+
+          {/* :30 hover ghost — click to book a clean slot */}
+          {ghostMin != null && !drag && (
+            <div style={{ position: "absolute", left: GUTTER_W, right: 6, top: yOfMin(ghostMin), height: (BOOK_SNAP / 60) * HOUR_PX - 2, borderRadius: 7, border: `1px dashed ${D.amber}88`, background: `${D.amber}12`, pointerEvents: "none", display: "flex", alignItems: "center", gap: 6, padding: "0 9px", zIndex: 2 }}>
+              <Plus size={11} color={D.amber} />
+              <span style={{ fontFamily: mn, fontSize: 9.5, color: D.amber }}>{hhmmLabel(ghostMin)} · click to book</span>
+            </div>
+          )}
 
           {/* Blocks */}
           {placed.map((p) => (
             <DayBlock
               key={p.e.id} p={p} date={date} now={now} isToday={isToday}
-              dragging={drag?.id === p.e.id} dragY={dragY} dragOff={drag?.offMin || 0}
+              dragging={drag?.id === p.e.id} dragMode={drag?.id === p.e.id ? drag.mode : undefined}
+              dragY={dragY} dragOff={drag?.offMin || 0} selected={selectedId === p.e.id}
+              cal={cals[eventCalendarId(p.e)]}
               onPointerDown={onBlockPointerDown}
+              onEdit={onOpenEdit}
+              onContext={(ev, pl) => setMenu({ kind: "block", x: ev.clientX, y: ev.clientY, items: blockMenuItems(pl.e, pl.startMin) })}
+              onHover={(rect) => setHover(rect ? { e: p.e, rect } : null)}
             />
           ))}
 
@@ -280,106 +509,225 @@ function DayGrid({ m, date, now, isToday, openCreate }: {
             </div>
           )}
         </div>
+        {tailPad > 0 && <div style={{ height: tailPad }} />}
+        </div>
       </div>
 
       {/* Task rail */}
-      <TaskRail tasks={tasks} date={date} openCreate={openCreate} now={now} />
+      <TaskRail tasks={tasks} date={date} openCreate={openCreate} now={now} availH={availH}
+        onTaskContext={(e, t) => setMenu({ kind: "task", x: e.clientX, y: e.clientY, items: taskMenuItems(t) })} />
+
+      {/* Hover preview (suppressed while dragging) */}
+      {hover && !drag && (
+        <EventHoverCard e={hover.e} rect={hover.rect}
+          calName={cals[eventCalendarId(hover.e)]?.name} calColor={cals[eventCalendarId(hover.e)]?.color} />
+      )}
+
+      {/* Right-click context menu */}
+      {menu && <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}
     </div>
   );
 }
 
-function DayBlock({ p, date, now, isToday, dragging, dragY, dragOff, onPointerDown }: {
+// Portaled right-click menu — closes on outside click / Esc / scroll.
+function ContextMenu({ x, y, items, onClose }: { x: number; y: number; items: MenuItem[]; onClose: () => void }) {
+  useEffect(() => {
+    const close = () => onClose();
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("keydown", k);
+    return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("scroll", close, true); window.removeEventListener("keydown", k); };
+  }, [onClose]);
+  if (typeof document === "undefined") return null;
+  const W = 214;
+  const left = Math.min(x, window.innerWidth - W - 8);
+  const top = Math.min(y, window.innerHeight - (items.length * 33 + 16));
+  return createPortal(
+    <div onPointerDown={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()}
+      style={{ position: "fixed", left, top, width: W, zIndex: 14000, background: D.bg, border: `1px solid ${D.border}`, borderRadius: 11, boxShadow: "0 20px 56px rgba(0,0,0,0.62)", padding: 6, fontFamily: ft }}>
+      {items.map((it, i) => it.sep ? (
+        <div key={i} style={{ height: 1, background: D.border, margin: "5px 6px" }} />
+      ) : (
+        <button key={i} onClick={() => { onClose(); it.onClick?.(); }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = D.hover; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", textAlign: "left", border: "none", background: "transparent", color: it.danger ? D.coral : D.tx, cursor: "pointer", padding: "7px 9px", borderRadius: 7, fontFamily: ft, fontSize: 12.5 }}>
+          <span style={{ width: 15, flex: "none", display: "inline-flex", color: it.danger ? D.coral : D.txm }}>{it.icon}</span>
+          <span style={{ flex: 1 }}>{it.label}</span>
+          {it.hint && <span style={{ fontFamily: mn, fontSize: 9, color: D.txd }}>{it.hint}</span>}
+        </button>
+      ))}
+    </div>,
+    document.body,
+  );
+}
+
+function DayBlock({ p, now, isToday, dragging, dragMode, dragY, dragOff, selected, cal, onPointerDown, onHover, onContext, onEdit }: {
   p: Placed; date: Date; now: Date; isToday: boolean;
-  dragging: boolean; dragY: number; dragOff: number;
-  onPointerDown: (e: React.PointerEvent, p: Placed) => void;
+  dragging: boolean; dragMode?: DragMode; dragY: number; dragOff: number; selected: boolean;
+  cal?: { name: string; color: string };
+  onPointerDown: (e: React.PointerEvent, p: Placed, mode: DragMode) => void;
+  onHover: (rect: DOMRect | null) => void;
+  onContext: (e: React.MouseEvent, p: Placed) => void;
+  onEdit: (e: MarketingEvent) => void;
 }) {
   const kindKey = typeof p.e.payload?.scheduleKind === "string" ? (p.e.payload.scheduleKind as string) : null;
   const kind = kindKey && kindKey !== "task" ? scheduleKindOf(kindKey) : null;
-  const accent = kind?.color || TYPE_COLOR[p.e.type];
-  const startMin = dragging ? snap(clampMin(minOfY(dragY) - dragOff)) : p.startMin;
-  const dur = p.endMin - p.startMin;
-  const top = yOfMin(startMin);
+  const accent = cal?.color || kind?.color || TYPE_COLOR[p.e.type];
+  // Live preview while dragging — move shifts both ends, resize handles move one.
+  const liveStart = dragging && dragMode === "move" ? snap(clampMin(minOfY(dragY) - dragOff))
+    : dragging && dragMode === "resize-top" ? snap(clampMin(Math.min(p.endMin - SNAP, minOfY(dragY))))
+    : p.startMin;
+  const liveEnd = dragging && dragMode === "resize" ? snap(clampMin(Math.max(p.startMin + SNAP, minOfY(dragY)))) : p.endMin;
+  const dur = liveEnd - liveStart;
+  const top = yOfMin(liveStart);
   const height = Math.max(22, (dur / 60) * HOUR_PX - 3);
-  const colW = (100 - 1) / p.cols;
-  const left = GUTTER_W + 4;
   const nowMin = minsOfDay(now);
-  const overdue = isToday && nowMin > p.endMin && p.e.status !== "done";
-  const live = isToday && nowMin >= startMin && nowMin < p.endMin;
+  const done = p.e.status === "done";
+  const overdue = isToday && nowMin > p.endMin && !done;
+  const live = isToday && nowMin >= liveStart && nowMin < liveEnd;
 
   return (
     <div
       data-block
-      onPointerDown={(e) => onPointerDown(e, p)}
+      onPointerDown={(e) => onPointerDown(e, p, "move")}
+      onDoubleClick={() => onEdit(p.e)}
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContext(e, p); }}
+      onMouseEnter={(e) => onHover(e.currentTarget.getBoundingClientRect())}
+      onMouseLeave={() => onHover(null)}
       style={{
         position: "absolute",
         top, height,
-        left: `calc(${left}px + ${p.col * colW}%)`,
-        width: `calc(${colW}% - 8px)`,
-        zIndex: dragging ? 20 : live ? 6 : 3,
-        background: `linear-gradient(135deg, ${accent}2e, ${accent}14)`,
-        border: `1px solid ${overdue ? D.coral : accent}${live ? "" : "66"}`,
+        // Columns are laid out inside the lane (canvas width minus the time
+        // gutter) so blocks never overflow the right edge regardless of count.
+        left: `calc(${GUTTER_W}px + (100% - ${GUTTER_W}px) * ${p.col} / ${p.cols})`,
+        width: `calc((100% - ${GUTTER_W}px) / ${p.cols} - 8px)`,
+        zIndex: dragging ? 20 : selected ? 12 : live ? 6 : 3,
+        background: done ? `linear-gradient(135deg, ${accent}1c, ${accent}0a)` : `linear-gradient(135deg, ${accent}2e, ${accent}14)`,
+        border: `1px solid ${overdue ? D.coral : accent}${selected || live ? "" : "66"}`,
         borderLeft: `3px solid ${overdue ? D.coral : accent}`,
-        borderRadius: 8, padding: "4px 8px", cursor: "grab", overflow: "hidden",
-        boxShadow: dragging ? `0 10px 26px rgba(0,0,0,0.5)` : live ? `0 0 16px ${accent}44` : "none",
-        userSelect: "none", touchAction: "none",
+        borderRadius: 8, padding: "4px 8px", cursor: dragging && dragMode === "move" ? "grabbing" : "grab", overflow: "hidden",
+        boxShadow: dragging ? "0 12px 30px rgba(0,0,0,0.55)" : selected ? `0 0 0 1px ${accent}, 0 8px 22px rgba(0,0,0,0.45)` : live ? `0 0 16px ${accent}44` : "none",
+        opacity: done ? 0.72 : 1, userSelect: "none", touchAction: "none",
+        transition: dragging ? "none" : "box-shadow 0.12s, border-color 0.12s",
       }}
     >
+      {/* top stretch handle (selected) */}
+      {selected && (
+        <div onPointerDown={(e) => onPointerDown(e, p, "resize-top")}
+          style={{ position: "absolute", left: 0, right: 0, top: -1, height: 11, cursor: "ns-resize", display: "flex", justifyContent: "center", alignItems: "flex-start" }}>
+          <span style={{ width: 28, height: 3, borderRadius: 2, marginTop: 1, background: accent }} />
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
         {live && <span style={{ width: 6, height: 6, borderRadius: 999, background: D.teal, boxShadow: `0 0 6px ${D.teal}`, flex: "none" }} />}
         {overdue && <AlertTriangle size={11} color={D.coral} style={{ flex: "none" }} />}
-        <span style={{ fontFamily: ft, fontSize: 12, fontWeight: 600, color: D.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.e.title}</span>
+        {done && <Check size={11} color={accent} style={{ flex: "none" }} />}
+        <span style={{ fontFamily: ft, fontSize: 12, fontWeight: 600, color: D.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: done ? "line-through" : "none" }}>{p.e.title}</span>
       </div>
-      {height > 34 && (
+      {height > 32 && (
         <div style={{ fontFamily: mn, fontSize: 9.5, color: overdue ? D.coral : D.txm, marginTop: 2 }}>
-          {hhmmLabel(startMin)}–{hhmmLabel(p.endMin)}{kind ? ` · ${kind.label}` : ""}{overdue ? " · overran" : live ? " · live" : ""}
+          {hhmmLabel(liveStart)}–{hhmmLabel(liveEnd)} · {dur}m{kind ? ` · ${kind.label}` : ""}{overdue ? " · overran" : live ? " · live" : ""}
         </div>
       )}
+      {/* bottom stretch handle — always grabbable; bar appears when selected */}
+      <div
+        onPointerDown={(e) => onPointerDown(e, p, "resize")}
+        style={{ position: "absolute", left: 0, right: 0, bottom: -1, height: selected ? 12 : 8, cursor: "ns-resize", display: "flex", justifyContent: "center", alignItems: "flex-end" }}
+      >
+        {selected && <span style={{ width: 28, height: 3, borderRadius: 2, marginBottom: 1, background: accent }} />}
+      </div>
     </div>
   );
 }
 function hhmmLabel(min: number) { const h = Math.floor(min / 60), m = Math.round(min % 60); const ap = h < 12 ? "a" : "p"; const h12 = h % 12 === 0 ? 12 : h % 12; return m === 0 ? `${h12}${ap}` : `${h12}:${String(m).padStart(2, "0")}${ap}`; }
 
 // ════════ TASK RAIL ════════
-function TaskRail({ tasks, date, openCreate, now }: {
-  tasks: BoardTaskLite[]; date: Date; now: Date;
+const PRIO_ORDER: Record<string, number> = { HIGH: 0, MEDIUM: 1, "THIS WEEK": 2, ONGOING: 3 };
+const PRIO_COLOR: Record<string, string> = { HIGH: D.coral, MEDIUM: D.amber, "THIS WEEK": D.blue, ONGOING: D.txd };
+type TaskSort = "priority" | "due" | "added";
+
+function sortTasks(tasks: BoardTaskLite[], sort: TaskSort): BoardTaskLite[] {
+  const arr = [...tasks];
+  if (sort === "priority") arr.sort((a, b) => (PRIO_ORDER[a.priority || ""] ?? 9) - (PRIO_ORDER[b.priority || ""] ?? 9) || (a.dueDate || "9").localeCompare(b.dueDate || "9"));
+  else if (sort === "due") arr.sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999"));
+  else arr.sort((a, b) => (b.addedAt || "").localeCompare(a.addedAt || ""));
+  return arr;
+}
+
+function TaskRail({ tasks, date, openCreate, now, availH, onTaskContext }: {
+  tasks: BoardTaskLite[]; date: Date; now: Date; availH: number;
   openCreate: (k: "schedule", pf?: Record<string, unknown>) => void;
+  onTaskContext: (e: React.MouseEvent, t: BoardTaskLite) => void;
 }) {
-  const open = tasks.filter((t) => !t.done).slice(0, 40);
+  const [sort, setSort] = useState<TaskSort>("priority");
+  const open = useMemo(() => sortTasks(tasks.filter((t) => !t.done), sort).slice(0, 80), [tasks, sort]);
   const nextSlot = () => {
     const base = startOfDay(now).getTime() === startOfDay(date).getTime() ? Math.max(minsOfDay(now) + 5, START_HOUR * 60) : START_HOUR * 60 + 9 * 60;
     return hhmm(snap(clampMin(base)));
   };
+  const sorts: { k: TaskSort; label: string }[] = [{ k: "priority", label: "Priority" }, { k: "due", label: "Due" }, { k: "added", label: "Recent" }];
   return (
-    <div style={{ width: 244, flex: "none", border: `1px solid ${D.border}`, borderRadius: 14, background: D.cardGrad, padding: "12px 12px", maxHeight: (END_HOUR - START_HOUR) * HOUR_PX, overflow: "auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
-        <ListChecks size={13} color={D.blue} />
-        <span style={{ fontFamily: mn, fontSize: 9.5, letterSpacing: 0.6, textTransform: "uppercase", color: D.blue }}>Tasks · drag to slot</span>
+    <div style={{ width: 296, flex: "none", border: `1px solid ${D.border}`, borderRadius: 14, background: D.cardGrad, display: "flex", flexDirection: "column", height: availH, overflow: "hidden" }}>
+      <div style={{ flex: "none", padding: "13px 14px 11px", borderBottom: `1px solid ${D.border}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+          <ListChecks size={16} color={D.blue} />
+          <span style={{ fontFamily: gf, fontSize: 17, fontWeight: 800, letterSpacing: -0.3, color: D.tx }}>Task queue</span>
+          <span style={{ flex: 1 }} />
+          <span style={{ fontFamily: mn, fontSize: 9.5, color: D.txd }}>{open.length}</span>
+        </div>
+        <div style={{ fontFamily: mn, fontSize: 8.5, letterSpacing: 0.5, color: D.txd, textTransform: "uppercase", marginBottom: 11 }}>Drag onto a slot · right-click for options</div>
+        <div style={{ display: "flex", border: `1px solid ${D.border}`, borderRadius: 9, overflow: "hidden", background: D.card }}>
+          {sorts.map((s, i) => (
+            <button key={s.k} onClick={() => setSort(s.k)} style={{
+              flex: 1, fontFamily: mn, fontSize: 10, letterSpacing: 0.3, cursor: "pointer", padding: "7px 0",
+              border: "none", borderLeft: i ? `1px solid ${D.border}` : "none",
+              color: sort === s.k ? D.tx : D.txm, background: sort === s.k ? D.hover : "transparent",
+            }}>{s.label}</button>
+          ))}
+        </div>
       </div>
-      {open.length === 0 && <div style={{ fontFamily: mn, fontSize: 10.5, color: D.txd, padding: "8px 2px" }}>No open tasks. Add some on the Board.</div>}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {open.map((t) => (
-          <div
-            key={t.id}
-            draggable
-            onDragStart={(e) => { e.dataTransfer.setData("application/x-task", JSON.stringify(t)); e.dataTransfer.effectAllowed = "copy"; }}
-            onClick={() => openCreate("schedule", { title: t.title, date: toDateStr(date), startTime: nextSlot() })}
-            title="Drag onto the grid, or click to slot at the next free time"
-            style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 8px", borderRadius: 9, border: `1px solid ${D.border}`, background: D.card, cursor: "grab" }}
-          >
-            <GripVertical size={13} color={D.txd} style={{ flex: "none" }} />
-            <span style={{ fontFamily: ft, fontSize: 12.5, color: D.tx, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
-            {t.estimateMins ? <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 8.5, color: D.txd, flex: "none" }}>{t.estimateMins}m</span> : null}
-          </div>
-        ))}
+      <div style={{ flex: 1, overflowY: "auto", padding: "11px 12px", display: "flex", flexDirection: "column", gap: 7 }}>
+        {open.length === 0 && <div style={{ fontFamily: mn, fontSize: 10.5, color: D.txd, padding: "10px 2px" }}>No open tasks. Add some on the Board.</div>}
+        {open.map((t) => {
+          const pc = t.priority ? PRIO_COLOR[t.priority] : null;
+          const due = t.dueDate ? new Date(t.dueDate + "T00:00:00") : null;
+          return (
+            <div
+              key={t.id}
+              draggable
+              onDragStart={(e) => { e.dataTransfer.setData("application/x-task", JSON.stringify(t)); e.dataTransfer.effectAllowed = "copy"; }}
+              onClick={() => openCreate("schedule", { title: t.title, date: toDateStr(date), startTime: nextSlot() })}
+              onContextMenu={(e) => { e.preventDefault(); onTaskContext(e, t); }}
+              title="Drag onto the grid · click to slot at the next free time · right-click for options"
+              style={{ display: "flex", alignItems: "flex-start", gap: 9, padding: "10px 11px", borderRadius: 11, border: `1px solid ${D.border}`, background: D.card, cursor: "grab", borderLeft: pc ? `3px solid ${pc}` : `1px solid ${D.border}`, transition: "background 0.12s, border-color 0.12s" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = D.hover; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = D.card; }}
+            >
+              <GripVertical size={14} color={D.txd} style={{ flex: "none", marginTop: 1 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: ft, fontSize: 13, color: D.tx, lineHeight: 1.32, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.title}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 6, flexWrap: "wrap" }}>
+                  {pc && <span style={{ fontFamily: mn, fontSize: 8, fontWeight: 700, letterSpacing: 0.4, color: pc, border: `1px solid ${pc}55`, background: pc + "12", borderRadius: 5, padding: "1px 6px" }}>{t.priority}</span>}
+                  {t.category && <span style={{ fontFamily: mn, fontSize: 8.5, color: D.txd, textTransform: "uppercase", letterSpacing: 0.3 }}>{t.category}</span>}
+                  {t.estimateMins ? <span style={{ fontFamily: mn, fontSize: 8.5, color: D.txm, display: "inline-flex", alignItems: "center", gap: 3 }}><Clock size={8} />{t.estimateMins}m</span> : null}
+                  {due && <span style={{ fontFamily: mn, fontSize: 8.5, color: D.txd, marginLeft: "auto" }}>due {due.toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}</span>}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
 // ════════ LIST VIEW (forward day-planner) ════════
-function ListView({ m, now, openCreate }: {
+function ListView({ m, now, openCreate, onOpenEdit }: {
   m: ViewProps["m"]; now: Date;
   openCreate: (k: "schedule", pf?: Record<string, unknown>) => void;
+  onOpenEdit: (e: MarketingEvent) => void;
 }) {
   const today0 = startOfDay(now).getTime();
   const days = 14;
@@ -427,7 +775,7 @@ function ListView({ m, now, openCreate }: {
                 <Plus size={13} />
               </button>
             </div>
-            {!empty && <div>{b.events.map((e) => <ListRow key={e.id} e={e} campaignName={campaignName(e.campaignId)} />)}</div>}
+            {!empty && <div>{b.events.map((e) => <ListRow key={e.id} e={e} campaignName={campaignName(e.campaignId)} onOpenEdit={onOpenEdit} />)}</div>}
           </div>
         );
       })}
@@ -435,7 +783,7 @@ function ListView({ m, now, openCreate }: {
   );
 }
 
-function ListRow({ e, campaignName }: { e: MarketingEvent; campaignName?: string }) {
+function ListRow({ e, campaignName, onOpenEdit }: { e: MarketingEvent; campaignName?: string; onOpenEdit: (e: MarketingEvent) => void }) {
   const kindKey = typeof e.payload?.scheduleKind === "string" ? (e.payload.scheduleKind as string) : null;
   const kind = kindKey && kindKey !== "task" ? scheduleKindOf(kindKey) : null;
   const accent = kind?.color || TYPE_COLOR[e.type];
@@ -443,7 +791,8 @@ function ListRow({ e, campaignName }: { e: MarketingEvent; campaignName?: string
   const ch = e.channel ? channelOf(e.channel) : null;
   const start = new Date(e.start); const end = e.end ? new Date(e.end) : null;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 15px", borderBottom: `1px solid ${D.border}55` }}
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 15px", borderBottom: `1px solid ${D.border}55`, cursor: "pointer" }}
+      onClick={() => onOpenEdit(e)}
       onMouseEnter={(ev) => { ev.currentTarget.style.background = D.hover; }}
       onMouseLeave={(ev) => { ev.currentTarget.style.background = "transparent"; }}>
       <div style={{ width: 92, flex: "none", fontFamily: mn, fontSize: 11, color: D.txm, display: "flex", alignItems: "center", gap: 4 }}>

@@ -4,7 +4,8 @@
 // reschedule in Month via @dnd-kit, a buffer-layer toggle, and per-type filter
 // chips. One item, every view: production flows in from the spine; you add the
 // marketing layer on top. Styling = inline CSSProperties + D tokens only.
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   useDraggable, useDroppable, closestCenter,
@@ -20,11 +21,48 @@ import {
   TYPE_COLOR, STATUS_COLOR, STATUS_LABEL, channelOf,
 } from "../marketing-constants";
 import { type ViewProps } from "../use-marketing";
+import { useCreate } from "../create-context";
+import { EventHoverCard } from "../components/event-hover-card";
 
 // ─── Local helpers ───
 type Mode = "month" | "week" | "agenda";
 
+// Click an event → open the editor; hover → preview card. Shared by every
+// calendar event renderer so the surface behaves consistently. Click and hover
+// are returned separately so draggable chips can route the click through their
+// own pointer-distance guard (dnd-kit's pointer capture otherwise swallows the
+// native click).
+function useEventInteractions(e: MarketingEvent) {
+  const { openEdit } = useCreate();
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  return {
+    open: () => openEdit(e),
+    onClick: (ev: React.MouseEvent) => { ev.stopPropagation(); openEdit(e); },
+    hoverHandlers: {
+      onMouseEnter: (ev: React.MouseEvent) => setRect(ev.currentTarget.getBoundingClientRect()),
+      onMouseLeave: () => setRect(null),
+    },
+    hover: rect ? <EventHoverCard e={e} rect={rect} /> : null,
+  };
+}
+
+// Compose dnd-kit drag with a reliable click: record pointer-down position in
+// the capture phase (before dnd's own pointerdown arms the sensor), and on
+// pointer-up treat <5px of travel as a click → open the editor. A real drag
+// moves further, so it never mis-fires. Spreads alongside {...listeners}.
+function useDragClick(onOpen: () => void) {
+  const down = useRef<{ x: number; y: number } | null>(null);
+  return {
+    onPointerDownCapture: (ev: React.PointerEvent) => { down.current = { x: ev.clientX, y: ev.clientY }; },
+    onPointerUp: (ev: React.PointerEvent) => {
+      const d = down.current; down.current = null;
+      if (d && Math.hypot(ev.clientX - d.x, ev.clientY - d.y) < 5) onOpen();
+    },
+  };
+}
+
 const DOW = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+const GRID_GAP = 6; // px gap between month cells (used to size responsive rows)
 
 // Monday-indexed day-of-week (0 = Mon … 6 = Sun) for grid alignment.
 function mondayIdx(d: Date): number { return (d.getDay() + 6) % 7; }
@@ -218,10 +256,35 @@ function MonthGrid({ anchor, today, events, overKey, dragId }: {
     return map;
   }, [events]);
 
+  // "+N more" overflow popover (Google-Cal style): which day is expanded.
+  const [more, setMore] = useState<{ day: Date; events: MarketingEvent[]; rect: DOMRect } | null>(null);
+
+  // Responsive row height: the six week-rows share whatever vertical space is
+  // left below the header, so the month always *fills the screen* without
+  // overflowing it (the old fixed 124px rows ran off the bottom on laptops and
+  // left squat landscape cells on wide monitors). Measured from the grid's own
+  // top, recomputed on resize.
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [rowH, setRowH] = useState(116);
+  useEffect(() => {
+    const calc = () => {
+      const el = wrapRef.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top;
+      const avail = window.innerHeight - top - 22; // bottom breathing room
+      setRowH(Math.max(84, Math.floor((avail - GRID_GAP * 5) / 6)));
+    };
+    calc();
+    window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
+  }, []);
+  // Chip capacity scales with the row height; the rest collapse into "+N more".
+  const maxChips = Math.max(2, Math.floor((rowH - 26) / 18));
+
   return (
     <div>
       <div style={S.dow}>{DOW.map((d) => <span key={d} style={S.dowCell}>{d}</span>)}</div>
-      <div style={S.month}>
+      <div ref={wrapRef} style={{ ...S.month, gridAutoRows: rowH }}>
         {cells.map((day) => {
           const key = ymd(day);
           const inMonth = day.getMonth() === anchor.getMonth();
@@ -229,24 +292,27 @@ function MonthGrid({ anchor, today, events, overKey, dragId }: {
           const dayEvents = byDay.get(key) || [];
           return (
             <DayCell key={key} dayKey={key} dayNum={day.getDate()} inMonth={inMonth}
-              isToday={isToday} isOver={overKey === key} dragging={!!dragId}>
-              {dayEvents.map((e) => (
-                <DraggableChip key={e.id} e={e} hidden={dragId === e.id} />
-              ))}
-            </DayCell>
+              isToday={isToday} isOver={overKey === key} dragId={dragId} events={dayEvents}
+              maxChips={maxChips}
+              onMore={(rect) => setMore({ day, events: dayEvents, rect })} />
           );
         })}
       </div>
+      {more && (
+        <DayMorePopover day={more.day} events={more.events} rect={more.rect} onClose={() => setMore(null)} />
+      )}
     </div>
   );
 }
 
-function DayCell({ dayKey, dayNum, inMonth, isToday, isOver, dragging, children }: {
+function DayCell({ dayKey, dayNum, inMonth, isToday, isOver, dragId, events, maxChips, onMore }: {
   dayKey: string; dayNum: number; inMonth: boolean; isToday: boolean;
-  isOver: boolean; dragging: boolean; children: React.ReactNode;
+  isOver: boolean; dragId: string | null; events: MarketingEvent[]; maxChips: number;
+  onMore: (rect: DOMRect) => void;
 }) {
   const { setNodeRef } = useDroppable({ id: dayKey });
-  void dragging;
+  const shown = events.slice(0, maxChips);
+  const extra = events.length - shown.length;
   return (
     <div ref={setNodeRef} style={{
       ...S.cell,
@@ -255,18 +321,63 @@ function DayCell({ dayKey, dayNum, inMonth, isToday, isOver, dragging, children 
       ...(isOver ? S.cellOver : null),
     }}>
       <div style={{ ...S.cellN, ...(isToday ? { color: D.cyan } : null) }}>{dayNum}</div>
-      {children}
+      <div style={S.cellBody}>
+        {shown.map((e) => <DraggableChip key={e.id} e={e} hidden={dragId === e.id} />)}
+        {extra > 0 && (
+          <button style={S.more}
+            onClick={(ev) => { ev.stopPropagation(); onMore(ev.currentTarget.getBoundingClientRect()); }}>
+            +{extra} more
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
 function DraggableChip({ e, hidden }: { e: MarketingEvent; hidden: boolean }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: e.id });
+  const { open } = useEventInteractions(e);
+  const click = useDragClick(open);
   return (
-    <div ref={setNodeRef} {...attributes} {...listeners}
+    <div ref={setNodeRef} {...attributes} {...listeners} {...click}
       style={{ opacity: hidden || isDragging ? 0.25 : 1, touchAction: "none", cursor: "grab" }}>
       <EventChip e={e} />
     </div>
+  );
+}
+
+// The "+N more" overflow popover — lists every event on the day; each row opens
+// the editor. Closes on outside-click or Esc.
+function DayMorePopover({ day, events, rect, onClose }: {
+  day: Date; events: MarketingEvent[]; rect: DOMRect; onClose: () => void;
+}) {
+  const { openEdit } = useCreate();
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const W = 268;
+  const left = Math.max(8, Math.min(rect.left, window.innerWidth - W - 8));
+  const top = Math.min(rect.bottom + 6, window.innerHeight - 340);
+  return createPortal(
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90 }} />
+      <div style={{ ...S.morePop, left, top, width: W }} onClick={(e) => e.stopPropagation()}>
+        <div style={S.morePopHead}>
+          {day.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }).toUpperCase()}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 300, overflowY: "auto" }}>
+          {events.map((e) => (
+            <div key={e.id} style={{ cursor: "pointer" }}
+              onClick={() => { onClose(); openEdit(e); }}>
+              <EventChip e={e} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </>,
+    document.body,
   );
 }
 
@@ -311,14 +422,17 @@ function WeekCol({ dayKey, children }: { dayKey: string; children: React.ReactNo
 function WeekEventRow({ e }: { e: MarketingEvent }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: e.id });
   const col = TYPE_COLOR[e.type];
+  const ix = useEventInteractions(e);
+  const click = useDragClick(ix.open);
   return (
-    <div ref={setNodeRef} {...attributes} {...listeners}
+    <div ref={setNodeRef} {...attributes} {...listeners} {...click} {...ix.hoverHandlers}
       style={{
-        opacity: isDragging ? 0.3 : 1, touchAction: "none", cursor: "grab",
+        opacity: isDragging ? 0.3 : 1, touchAction: "none", cursor: "pointer",
         borderRadius: 8, padding: "7px 8px", marginBottom: 6,
         background: tint(col, e.source === "buffer" ? 0.16 : 0.1),
         border: e.source === "buffer" ? `1px dashed ${tint(col, 0.5)}` : `1px solid ${tint(col, 0.22)}`,
       }}>
+      {ix.hover}
       <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
         <span style={{ ...S.statusDot, background: STATUS_COLOR[e.status] }} />
         <span style={{ fontFamily: mn, fontSize: 9, color: D.txm }}>{fmtTime(e.start)}</span>
@@ -372,8 +486,10 @@ function AgendaList({ today, events }: { today: Date; events: MarketingEvent[] }
 
 function AgendaItem({ e }: { e: MarketingEvent }) {
   const col = TYPE_COLOR[e.type];
+  const ix = useEventInteractions(e);
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+    <div onClick={ix.onClick} {...ix.hoverHandlers} style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+      {ix.hover}
       <span style={{ width: 3, alignSelf: "stretch", borderRadius: 3, background: col, flex: "none", minHeight: 30 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -395,23 +511,30 @@ function EventChip({ e, overlay }: { e: MarketingEvent; overlay?: boolean }) {
   const isBuf = e.source === "buffer";
   const t = new Date(e.start);
   const showTime = t.getHours() !== 0 || t.getMinutes() !== 0;
+  const ix = useEventInteractions(e);
   return (
-    <div style={{
-      ...S.ev,
-      background: tint(col, isBuf ? 0.16 : 0.13),
-      color: lighten(col),
-      border: isBuf ? `1px dashed ${tint(col, 0.5)}` : "1px solid transparent",
-      boxShadow: overlay ? `0 8px 24px rgba(0,0,0,0.55), 0 0 0 1px ${tint(col, 0.4)}` : "none",
-    }}>
-      {overlay && <GripVertical size={10} style={{ flex: "none", opacity: 0.7 }} />}
-      <span style={{ ...S.statusDot, background: STATUS_COLOR[e.status] }} />
-      {e.channel
-        ? <span style={{ fontFamily: mn, fontSize: 8.5, color: channelOf(e.channel).c, flex: "none" }}>{channelOf(e.channel).s}</span>
-        : null}
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {showTime ? fmtTime(e.start) + " " : ""}{e.title}
-      </span>
-    </div>
+    <>
+      <div
+        {...(overlay ? {} : ix.hoverHandlers)}
+        style={{
+          ...S.ev,
+          background: tint(col, isBuf ? 0.16 : 0.13),
+          color: lighten(col),
+          border: isBuf ? `1px dashed ${tint(col, 0.5)}` : "1px solid transparent",
+          boxShadow: overlay ? `0 8px 24px rgba(0,0,0,0.55), 0 0 0 1px ${tint(col, 0.4)}` : "none",
+          cursor: overlay ? "grab" : "pointer",
+        }}>
+        {overlay && <GripVertical size={10} style={{ flex: "none", opacity: 0.7 }} />}
+        <span style={{ ...S.statusDot, background: STATUS_COLOR[e.status] }} />
+        {e.channel
+          ? <span style={{ fontFamily: mn, fontSize: 8.5, color: channelOf(e.channel).c, flex: "none" }}>{channelOf(e.channel).s}</span>
+          : null}
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {showTime ? fmtTime(e.start) + " " : ""}{e.title}
+        </span>
+      </div>
+      {!overlay && ix.hover}
+    </>
   );
 }
 
@@ -497,12 +620,18 @@ const S: Record<string, React.CSSProperties> = {
 
   dow: { display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 6, marginBottom: 6 },
   dowCell: { fontFamily: mn, fontSize: 9, color: D.txd, textAlign: "center", letterSpacing: 0.5 },
-  month: { display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 6 },
-  cell: { minHeight: 104, borderRadius: 9, background: "#0c0c12", border: `1px solid ${D.border}`, padding: 6, position: "relative", transition: "border-color 0.14s, box-shadow 0.14s, background 0.14s" },
+  // Six fixed-height rows → the grid is perfectly regular no matter how busy a
+  // day is; overflow is handled per-cell by the "+N more" affordance.
+  month: { display: "grid", gridTemplateColumns: "repeat(7,1fr)", gridAutoRows: 116, gap: GRID_GAP },
+  cell: { minHeight: 0, borderRadius: 9, background: "#0c0c12", border: `1px solid ${D.border}`, padding: 6, position: "relative", display: "flex", flexDirection: "column", overflow: "hidden", transition: "border-color 0.14s, box-shadow 0.14s, background 0.14s" },
   cellMuted: { opacity: 0.4 },
   cellToday: { outline: `1px solid ${D.cyan}`, boxShadow: `0 0 14px ${D.cyan}2e` },
   cellOver: { borderColor: D.cyan, background: `${D.cyan}10`, boxShadow: `0 0 16px ${D.cyan}33` },
-  cellN: { fontFamily: mn, fontSize: 10, color: D.txd, marginBottom: 2 },
+  cellN: { fontFamily: mn, fontSize: 10, color: D.txd, marginBottom: 2, flex: "none" },
+  cellBody: { display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" },
+  more: { fontFamily: mn, fontSize: 9, letterSpacing: 0.3, color: D.txm, background: "transparent", border: "none", textAlign: "left", padding: "2px 6px", marginTop: 2, cursor: "pointer", flex: "none" },
+  morePop: { position: "fixed", zIndex: 91, background: "#0c0c14", border: `1px solid ${D.border}`, borderRadius: 12, padding: 12, boxShadow: "0 18px 50px rgba(0,0,0,0.6)" },
+  morePopHead: { fontFamily: mn, fontSize: 10, letterSpacing: 0.5, color: D.txm, marginBottom: 8 },
 
   ev: { fontSize: 10, borderRadius: 5, padding: "2px 6px", marginTop: 4, display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", overflow: "hidden", maxWidth: "100%" },
   statusDot: { width: 5, height: 5, borderRadius: "50%", flex: "none" },

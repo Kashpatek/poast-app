@@ -83,18 +83,26 @@ async function syncOne(db: Db, token: string, owner: string, calendarId: string)
       const startISO = iso(g.start?.dateTime || g.start?.date); if (!startISO) continue;
       const endISO = iso(g.end?.dateTime || g.end?.date);
       const existing = (await db.query("select id from marketing_events where owner=$1 and gcal_event_id=$2 limit 1", [owner, g.id])) as Row[];
-      const payload = JSON.stringify({ calendarId, scheduleKind: "booking", gcalHtmlLink: g.htmlLink || null });
+      const allDay = !!(g.start?.date && !g.start?.dateTime);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const attendees = (g.attendees || []).map((a: any) => a.email).filter(Boolean);
+      const meetLink = g.hangoutLink || g.conferenceData?.entryPoints?.find((e: { entryPointType?: string; uri?: string }) => e.entryPointType === "video")?.uri || null;
+      const payload = JSON.stringify({
+        calendarId, scheduleKind: "booking", gcalHtmlLink: g.htmlLink || null,
+        allDay, location: g.location || null, attendees, meetLink,
+      });
+      const notes = g.description || null;
       if (existing.length) {
         await db.query(
-          "update marketing_events set title=$1, starts_at=$2, ends_at=$3, payload=$4::jsonb, updated_at=now() where owner=$5 and gcal_event_id=$6",
-          [g.summary || "(untitled)", startISO, endISO, payload, owner, g.id]
+          "update marketing_events set title=$1, starts_at=$2, ends_at=$3, notes=$4, payload=$5::jsonb, updated_at=now() where owner=$6 and gcal_event_id=$7",
+          [g.summary || "(untitled)", startISO, endISO, notes, payload, owner, g.id]
         );
       } else {
         await db.query(
-          `insert into marketing_events (id, owner, title, event_type, status, starts_at, ends_at, source, gcal_event_id, payload, updated_at)
-           values ($1,$2,$3,'manual','scheduled',$4,$5,'gcal',$6,$7::jsonb, now())
+          `insert into marketing_events (id, owner, title, event_type, status, starts_at, ends_at, source, gcal_event_id, notes, payload, updated_at)
+           values ($1,$2,$3,'manual','scheduled',$4,$5,'gcal',$6,$7,$8::jsonb, now())
            on conflict (id) do nothing`,
-          ["g-" + g.id, owner, g.summary || "(untitled)", startISO, endISO, g.id, payload]
+          ["g-" + g.id, owner, g.summary || "(untitled)", startISO, endISO, g.id, notes, payload]
         );
         c.pulled++;
       }

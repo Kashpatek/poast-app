@@ -1,6 +1,8 @@
 "use client";
 // Client hook for Google Calendar connection state (per signed-in user).
 import { useCallback, useEffect, useState } from "react";
+import { D } from "../shared-constants";
+import { DEFAULT_CALENDARS } from "./marketing-constants";
 
 export interface GoogleCalendarInfo { id: string; summary: string; primary?: boolean; backgroundColor?: string; }
 export interface GooglePrefs {
@@ -21,6 +23,20 @@ export interface GoogleStatus {
 // A calendar feeds the suite unless its pref is explicitly false (default-on).
 export function isCalSelected(prefs: GooglePrefs | undefined, calId: string): boolean {
   return prefs?.selected?.[calId] !== false;
+}
+
+export interface CalTarget { id: string; name: string; color: string; google: boolean; }
+// One source of truth for the "which calendar" picker (create + edit) and the
+// calendar-name lookup in the agenda: the in-app SA calendar plus every
+// connected + selected Google calendar.
+export function calendarTargets(status: GoogleStatus | undefined): CalTarget[] {
+  const out: CalTarget[] = DEFAULT_CALENDARS.map((c) => ({ id: c.id, name: c.name, color: c.color, google: false }));
+  if (status?.connected) {
+    for (const c of status.calendars || []) {
+      if (isCalSelected(status.prefs, c.id)) out.push({ id: c.id, name: c.summary, color: c.backgroundColor || D.cyan, google: true });
+    }
+  }
+  return out;
 }
 
 export function currentOwner(): string {
