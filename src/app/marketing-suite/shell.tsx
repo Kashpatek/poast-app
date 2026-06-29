@@ -11,6 +11,7 @@ import { MarketingTour, MARKETING_TOUR_STEPS } from "./components/tour";
 import { VIEWS, type ViewId } from "./marketing-constants";
 import { useMarketing, type ViewProps } from "./use-marketing";
 import { boardSetMode } from "./board-store";
+import { useSyncReconciler } from "./use-sync-reconciler";
 import { useIsMobile } from "./use-mobile";
 
 import TodayView from "./views/today";
@@ -57,6 +58,10 @@ export default function MarketingSuiteShell() {
   // in-memory sandbox (the real akash-todo-master board is never touched), LIVE =
   // the real board. Driven once here so every consumer reads one source.
   useEffect(() => { if (!m.loading) void boardSetMode(m.mode, m.owner); }, [m.mode, m.owner, m.loading]);
+  // The sync fabric: keep linked tasks ⇄ events aligned (done + due, both ways)
+  // and surface dated subtasks on the Calendar as "Project: subtask". Mutators
+  // are mode-gated, so this is safe (in-memory only) in demo.
+  useSyncReconciler(m);
   const vp: ViewProps = {
     m,
     focusId,

@@ -661,14 +661,21 @@ function TaskEditRow({ task, onUpdate }: { task: BoardTaskLite; onUpdate: (patch
   const [sub, setSub] = useState("");
   const [note, setNote] = useState("");
   const [dueOpen, setDueOpen] = useState(false);
+  const [subDateOpen, setSubDateOpen] = useState<string | null>(null);
   const subs = task.subtasks || [];
   const doneSubs = subs.filter((s) => s.done).length;
   const notes = task.notesLog || [];
   const pc = PRI_COLOR[task.priority || "MEDIUM"] || D.txm;
+  // The naming-agent prefix for a dated subtask's calendar event: the campaign /
+  // project name (the board category) when present, else the parent task.
+  const subPrefix = task.category || task.title;
 
   const addSub = () => { const v = sub.trim(); if (!v) return; onUpdate({ subtasks: [...subs, { id: sid(), title: v }] }); setSub(""); };
   const toggleSub = (id: string) => onUpdate({ subtasks: subs.map((s) => (s.id === id ? { ...s, done: !s.done } : s)) });
   const delSub = (id: string) => onUpdate({ subtasks: subs.filter((s) => s.id !== id) });
+  // Setting a subtask's due date is all it takes — the sync reconciler spawns
+  // "subPrefix: subtask" on the Calendar and keeps it aligned.
+  const setSubDate = (id: string, v: string) => onUpdate({ subtasks: subs.map((s) => (s.id === id ? { ...s, dueDate: v || undefined } : s)) });
   const addNote = () => { const v = note.trim(); if (!v) return; onUpdate({ notesLog: [...notes, { id: nid(), ts: new Date().toISOString(), author: "Akash", text: v }] }); setNote(""); };
 
   return (
@@ -712,18 +719,40 @@ function TaskEditRow({ task, onUpdate }: { task: BoardTaskLite; onUpdate: (patch
             <div style={editLabel}><ListChecks size={10} color={D.amber} /> SUBTASKS</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 6 }}>
               {subs.map((s) => (
-                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <button onClick={() => toggleSub(s.id)} style={{ flex: "none", width: 14, height: 14, borderRadius: 4, cursor: "pointer", padding: 0,
-                    border: `1.4px solid ${s.done ? D.teal : D.txd}`, background: s.done ? D.teal : "transparent",
-                    display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                    {s.done && <svg width={8} height={8} viewBox="0 0 12 12" fill="none"><path d="M2 6.5L5 9.5L10 3.5" stroke="#0A0A0F" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                  </button>
-                  <span style={{ flex: 1, minWidth: 0, fontFamily: ft, fontSize: 12, color: s.done ? D.txd : D.tx, textDecoration: s.done ? "line-through" : "none" }}>{s.title}</span>
-                  {s.dueDate && <span style={{ ...miniTag, color: D.cyan, borderColor: D.cyan + "44" }}>{fmtDue(s.dueDate)}</span>}
-                  <button onClick={() => delSub(s.id)} title="Remove subtask" style={{ flex: "none", background: "transparent", border: "none", cursor: "pointer", color: D.txd, padding: 2 }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = D.coral)} onMouseLeave={(e) => (e.currentTarget.style.color = D.txd)}>
-                    <Trash2 size={11} />
-                  </button>
+                <div key={s.id} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <button onClick={() => toggleSub(s.id)} style={{ flex: "none", width: 14, height: 14, borderRadius: 4, cursor: "pointer", padding: 0,
+                      border: `1.4px solid ${s.done ? D.teal : D.txd}`, background: s.done ? D.teal : "transparent",
+                      display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                      {s.done && <svg width={8} height={8} viewBox="0 0 12 12" fill="none"><path d="M2 6.5L5 9.5L10 3.5" stroke="#0A0A0F" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                    </button>
+                    <span style={{ flex: 1, minWidth: 0, fontFamily: ft, fontSize: 12, color: s.done ? D.txd : D.tx, textDecoration: s.done ? "line-through" : "none" }}>{s.title}</span>
+                    {/* date toggle — when set, the subtask surfaces on the Calendar as "name: subtask" */}
+                    <button onClick={() => setSubDateOpen(subDateOpen === s.id ? null : s.id)}
+                      title={s.dueDate ? "On the calendar — change the date" : "Add a due date — shows on the calendar"}
+                      style={{ ...miniTag, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3,
+                        color: s.dueDate ? D.cyan : D.txd, borderColor: s.dueDate ? D.cyan + "55" : D.border }}>
+                      <CalendarDays size={10} /> {s.dueDate ? fmtDue(s.dueDate) : "date"}
+                    </button>
+                    <button onClick={() => delSub(s.id)} title="Remove subtask" style={{ flex: "none", background: "transparent", border: "none", cursor: "pointer", color: D.txd, padding: 2 }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = D.coral)} onMouseLeave={(e) => (e.currentTarget.style.color = D.txd)}>
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                  {subDateOpen === s.id && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 22, flexWrap: "wrap" }}>
+                      <div style={{ minWidth: 150 }}>
+                        <DatePicker value={s.dueDate || ""} accent={D.cyan} placeholder="Subtask due date"
+                          onChange={(v) => { setSubDate(s.id, v); setSubDateOpen(null); }} />
+                      </div>
+                      {s.dueDate && (
+                        <button onClick={() => { setSubDate(s.id, ""); setSubDateOpen(null); }} style={{ ...confBtn, padding: "4px 9px", color: D.coral, borderColor: D.coral + "44" }}>
+                          Clear
+                        </button>
+                      )}
+                      <span style={{ fontFamily: mn, fontSize: 8.5, color: D.txd }}>calendar: “{subPrefix}: {s.title}”</span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -18,12 +18,14 @@ import {
 import { D, ft, gf, mn } from "../../shared-constants";
 import {
   STATUS_COLOR, STATUS_LABEL, scheduleKindOf, channelOf, TYPE_COLOR,
-  isAllDayEvent, eventCalendarId,
+  isAllDayEvent, eventCalendarId, projectEventTitle,
   type MarketingEvent, type BoardTaskLite,
 } from "../marketing-constants";
 import type { ViewProps } from "../use-marketing";
 import { useCreate } from "../create-context";
 import { useBoardTasks } from "../use-board-tasks";
+import { useBoardStore } from "../board-store";
+import { DatePicker } from "../components/date-picker";
 import { useIsMobile } from "../use-mobile";
 import GoogleCalendarsPanel from "../components/google-calendars";
 import AgendaWizard from "../components/agenda-wizard";
@@ -423,6 +425,17 @@ function DayGrid({ m, date, now, isToday, openCreate, onOpenEdit, gStatus, isMob
       source: "poast", payload: { scheduleKind: "block", sourceTaskId: t.id },
     });
   };
+  // Queue a subtask onto today — same naming agent ("name: subtask"), blocked
+  // into the next free slot. (The user's ask: "allow me to also que subtasks".)
+  const queueSub = (title: string, sourceTaskId?: string) => {
+    const dur = 30;
+    const s = nextFreeStart(dur);
+    m.addEvent({
+      title, type: "manual", status: "scheduled",
+      start: isoAt(date, s), end: isoAt(date, Math.min(END_HOUR * 60, s + dur)),
+      source: "poast", payload: { scheduleKind: "block", ...(sourceTaskId ? { sourceTaskId } : {}) },
+    });
+  };
   const setLen = (ev: MarketingEvent, startMin: number, dur: number) => {
     const endISO = isoAt(date, clampMin(startMin + dur));
     m.updateEvent(ev.id, { end: endISO }); void pushTime(ev, ev.start, endISO);
@@ -598,6 +611,7 @@ function DayGrid({ m, date, now, isToday, openCreate, onOpenEdit, gStatus, isMob
           onClose={() => setPeek(null)}
           onBlock={() => { quickBlock(peek, estMins(peek)); setPeek(null); }}
           onSchedule={() => { openCreate("schedule", { title: peek.title, date: toDateStr(date), startTime: hhmm(nextFreeStart(estMins(peek))) }); setPeek(null); }}
+          onQueueSub={(title, srcId) => queueSub(title, srcId)}
         />
       )}
     </div>
@@ -810,25 +824,50 @@ function Tab({ label, count, on, dot, onClick }: { label: string; count: number;
   );
 }
 
-// Quick task preview — a focused glance (mirrors the Board's task detail) with
-// one-click ways to put it on today's agenda. Esc / backdrop / X closes.
-function TaskPeek({ t, onClose, onBlock, onSchedule }: {
+const peekSid = () => "s-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 5);
+const peekNid = () => "n-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 5);
+
+// Task preview — a focused glance that's also fully EDITABLE through the shared
+// board store, so edits here flow to the Board, Calendar and Timeline at once
+// (one fabric). Check off subtasks, add subtasks/notes, give a subtask a due
+// date (it lands on the Calendar as "name: subtask"), or queue a subtask onto
+// today. Esc / backdrop / X closes.
+function TaskPeek({ t, onClose, onBlock, onSchedule, onQueueSub }: {
   t: BoardTaskLite; onClose: () => void; onBlock: () => void; onSchedule: () => void;
+  onQueueSub: (title: string, sourceTaskId?: string) => void;
 }) {
+  const store = useBoardStore();
+  // Read the live task so store edits reflect immediately; fall back to the
+  // snapshot we were opened with if it's gone (e.g. just completed elsewhere).
+  const live = store.tasks.find((x) => x.id === t.id) || t;
+  const update = (patch: Partial<BoardTaskLite>) => store.updateBoardTask(live.id, patch);
+  const [sub, setSub] = useState("");
+  const [note, setNote] = useState("");
+  const [subDateOpen, setSubDateOpen] = useState<string | null>(null);
+  const [queued, setQueued] = useState<Record<string, boolean>>({});
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, [onClose]);
   if (typeof document === "undefined") return null;
-  const pc = t.priority ? PRIO_COLOR[t.priority] : D.txd;
-  const due = t.dueDate ? new Date(t.dueDate + "T00:00:00") : null;
-  const subTotal = t.subtasks?.length || 0;
-  const subDone = t.subtasks?.filter((s) => s.done).length || 0;
+  const pc = live.priority ? PRIO_COLOR[live.priority] : D.txd;
+  const due = live.dueDate ? new Date(live.dueDate + "T00:00:00") : null;
+  const subs = live.subtasks || [];
+  const subDone = subs.filter((s) => s.done).length;
+  const notes = live.notesLog || [];
+  const subPrefix = live.category || live.title;
+
+  const addSub = () => { const v = sub.trim(); if (!v) return; update({ subtasks: [...subs, { id: peekSid(), title: v }] }); setSub(""); };
+  const toggleSub = (id: string) => update({ subtasks: subs.map((s) => (s.id === id ? { ...s, done: !s.done } : s)) });
+  const setSubDate = (id: string, v: string) => update({ subtasks: subs.map((s) => (s.id === id ? { ...s, dueDate: v || undefined } : s)) });
+  const delSub = (id: string) => update({ subtasks: subs.filter((s) => s.id !== id) });
+  const addNote = () => { const v = note.trim(); if (!v) return; update({ notesLog: [...notes, { id: peekNid(), ts: new Date().toISOString(), author: "Akash", text: v }] }); setNote(""); };
+
   return createPortal(
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 15000, background: "rgba(4,4,9,0.62)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div onClick={(e) => e.stopPropagation()} style={{
-        position: "relative", width: "min(460px, 94vw)", maxHeight: "84vh", overflowY: "auto",
+        position: "relative", width: "min(480px, 94vw)", maxHeight: "86vh", overflowY: "auto",
         background: D.card, border: `1px solid ${D.border}`, borderRadius: 16, boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
         padding: "26px 26px 22px", fontFamily: ft,
       }}>
@@ -838,36 +877,113 @@ function TaskPeek({ t, onClose, onBlock, onSchedule }: {
         </button>
 
         <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap", marginBottom: 13, paddingRight: 34 }}>
-          {t.category && <span style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", color: D.txm }}>{t.category}</span>}
-          {t.priority && <span style={{ fontFamily: mn, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.3, color: pc, border: `1px solid ${pc}55`, background: pc + "12", borderRadius: 6, padding: "2px 8px" }}>{t.priority}</span>}
-          {t.estimateMins ? <span style={{ fontFamily: mn, fontSize: 9.5, color: D.amber, display: "inline-flex", alignItems: "center", gap: 4, marginLeft: "auto" }}><Clock size={11} />{t.estimateMins}m</span> : null}
+          {live.category && <span style={{ fontFamily: mn, fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", color: D.txm }}>{live.category}</span>}
+          {live.priority && <span style={{ fontFamily: mn, fontSize: 9.5, fontWeight: 700, letterSpacing: 0.3, color: pc, border: `1px solid ${pc}55`, background: pc + "12", borderRadius: 6, padding: "2px 8px" }}>{live.priority}</span>}
+          {live.estimateMins ? <span style={{ fontFamily: mn, fontSize: 9.5, color: D.amber, display: "inline-flex", alignItems: "center", gap: 4, marginLeft: "auto" }}><Clock size={11} />{live.estimateMins}m</span> : null}
         </div>
 
-        <h2 style={{ margin: 0, fontFamily: gf, fontSize: 22, fontWeight: 800, letterSpacing: -0.4, lineHeight: 1.22, color: D.tx, textDecoration: t.done ? "line-through" : "none", opacity: t.done ? 0.55 : 1 }}>{t.title}</h2>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
+          {/* completion toggle — flips the linked Calendar/Timeline event too */}
+          <button onClick={() => update({ done: !live.done })} title={live.done ? "Mark not done" : "Mark done"}
+            style={{ flex: "none", marginTop: 4, width: 20, height: 20, borderRadius: "50%", cursor: "pointer", padding: 0,
+              border: `1.8px solid ${live.done ? D.teal : D.txd}`, background: live.done ? D.teal : "transparent",
+              display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            {live.done && <Check size={12} color="#08110d" />}
+          </button>
+          <h2 style={{ margin: 0, fontFamily: gf, fontSize: 22, fontWeight: 800, letterSpacing: -0.4, lineHeight: 1.22, color: D.tx, textDecoration: live.done ? "line-through" : "none", opacity: live.done ? 0.55 : 1 }}>{live.title}</h2>
+        </div>
 
-        {t.description && (
-          <div style={{ marginTop: 12, fontSize: 13, color: D.txm, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{t.description}</div>
+        {live.description && (
+          <div style={{ marginTop: 12, fontSize: 13, color: D.txm, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{live.description}</div>
         )}
 
-        {subTotal > 0 && (
-          <div style={{ marginTop: 16 }}>
-            <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.7, fontWeight: 700, textTransform: "uppercase", marginBottom: 7 }}>Subtasks · {subDone}/{subTotal}</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              {t.subtasks!.map((s) => (
-                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ width: 13, height: 13, borderRadius: 999, flex: "none", border: `1.5px solid ${s.done ? D.teal : D.txd}`, background: s.done ? D.teal : "transparent", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                    {s.done && <Check size={9} color="#08110d" />}
-                  </span>
-                  <span style={{ fontSize: 12.5, color: D.tx, textDecoration: s.done ? "line-through" : "none", opacity: s.done ? 0.5 : 1 }}>{s.title}</span>
-                </div>
-              ))}
-            </div>
+        {/* ── Subtasks — check, date (→ calendar), queue onto today, remove ── */}
+        <div style={{ marginTop: 18 }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.7, fontWeight: 700, textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+            <ListChecks size={11} color={D.amber} /> Subtasks{subs.length > 0 ? ` · ${subDone}/${subs.length}` : ""}
           </div>
-        )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {subs.map((s) => (
+              <div key={s.id} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                  <button onClick={() => toggleSub(s.id)} style={{ flex: "none", width: 15, height: 15, borderRadius: 5, cursor: "pointer", padding: 0,
+                    border: `1.5px solid ${s.done ? D.teal : D.txd}`, background: s.done ? D.teal : "transparent",
+                    display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                    {s.done && <Check size={9} color="#08110d" />}
+                  </button>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: s.done ? D.txd : D.tx, textDecoration: s.done ? "line-through" : "none" }}>{s.title}</span>
+                  {/* date → surfaces on the Calendar as "name: subtask" */}
+                  <button onClick={() => setSubDateOpen(subDateOpen === s.id ? null : s.id)}
+                    title={s.dueDate ? "On the calendar — change date" : "Add a due date — shows on the calendar"}
+                    style={{ flex: "none", fontFamily: mn, fontSize: 8.5, fontWeight: 700, letterSpacing: 0.3, cursor: "pointer",
+                      borderRadius: 6, padding: "2px 7px", display: "inline-flex", alignItems: "center", gap: 3,
+                      border: `1px solid ${s.dueDate ? D.cyan + "55" : D.border}`, background: s.dueDate ? D.cyan + "12" : "transparent", color: s.dueDate ? D.cyan : D.txd }}>
+                    <CalendarDays size={9} /> {s.dueDate ? new Date(s.dueDate + "T00:00:00").toLocaleDateString(undefined, { month: "numeric", day: "numeric" }) : "date"}
+                  </button>
+                  {/* queue onto today's agenda — "name: subtask" */}
+                  <button onClick={() => { onQueueSub(projectEventTitle(subPrefix, s.title), live.id); setQueued((q) => ({ ...q, [s.id]: true })); }}
+                    title="Queue onto today" style={{ flex: "none", fontFamily: mn, fontSize: 8.5, fontWeight: 700, letterSpacing: 0.3, cursor: "pointer",
+                      borderRadius: 6, padding: "2px 7px", display: "inline-flex", alignItems: "center", gap: 3,
+                      border: `1px solid ${queued[s.id] ? D.teal + "66" : D.border}`, background: queued[s.id] ? D.teal + "14" : "transparent", color: queued[s.id] ? D.teal : D.txm }}>
+                    {queued[s.id] ? <Check size={9} /> : <Zap size={9} />} {queued[s.id] ? "queued" : "queue"}
+                  </button>
+                  <button onClick={() => delSub(s.id)} title="Remove subtask" style={{ flex: "none", background: "transparent", border: "none", cursor: "pointer", color: D.txd, padding: 2 }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = D.coral)} onMouseLeave={(e) => (e.currentTarget.style.color = D.txd)}>
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+                {subDateOpen === s.id && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 24, flexWrap: "wrap" }}>
+                    <div style={{ minWidth: 150 }}>
+                      <DatePicker value={s.dueDate || ""} accent={D.cyan} placeholder="Subtask due date"
+                        onChange={(v) => { setSubDate(s.id, v); setSubDateOpen(null); }} />
+                    </div>
+                    {s.dueDate && (
+                      <button onClick={() => { setSubDate(s.id, ""); setSubDateOpen(null); }} style={{ fontFamily: mn, fontSize: 9.5, cursor: "pointer", borderRadius: 7, padding: "5px 9px", border: `1px solid ${D.coral}44`, background: "transparent", color: D.coral }}>
+                        Clear
+                      </button>
+                    )}
+                    <span style={{ fontFamily: mn, fontSize: 8.5, color: D.txd }}>calendar: “{subPrefix}: {s.title}”</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+            <input value={sub} onChange={(e) => setSub(e.target.value)} placeholder="Add a subtask…"
+              onKeyDown={(e) => { if (e.key === "Enter") addSub(); }}
+              style={{ flex: 1, background: D.surface, border: `1px solid ${D.border}`, borderRadius: 7, padding: "6px 9px", color: D.tx, fontFamily: ft, fontSize: 12, outline: "none" }} />
+            <button onClick={addSub} disabled={!sub.trim()} style={{ display: "inline-flex", alignItems: "center", cursor: "pointer", borderRadius: 7, padding: "5px 9px", border: `1px solid ${D.amber}55`, background: "transparent", color: D.amber, opacity: sub.trim() ? 1 : 0.5 }}>
+              <Plus size={12} />
+            </button>
+          </div>
+        </div>
+
+        {/* ── Notes ── */}
+        <div style={{ marginTop: 18 }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, letterSpacing: 0.7, fontWeight: 700, textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+            <Pencil size={10} color={D.violet} /> Notes
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 7 }}>
+            {notes.map((n) => (
+              <div key={n.id} style={{ fontFamily: ft, fontSize: 12, color: D.txm, lineHeight: 1.4, borderLeft: `2px solid ${D.violet}55`, paddingLeft: 8 }}>
+                {n.text}
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note…"
+              onKeyDown={(e) => { if (e.key === "Enter") addNote(); }}
+              style={{ flex: 1, background: D.surface, border: `1px solid ${D.border}`, borderRadius: 7, padding: "6px 9px", color: D.tx, fontFamily: ft, fontSize: 12, outline: "none" }} />
+            <button onClick={addNote} disabled={!note.trim()} style={{ display: "inline-flex", alignItems: "center", cursor: "pointer", borderRadius: 7, padding: "5px 9px", border: `1px solid ${D.violet}55`, background: "transparent", color: D.violet, opacity: note.trim() ? 1 : 0.5 }}>
+              <Plus size={12} />
+            </button>
+          </div>
+        </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 16, fontFamily: mn, fontSize: 10.5, color: D.txd }}>
           {due && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: D.txm }}><CalendarDays size={12} /> due {due.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>}
-          {t.assignee && <span>{t.assignee}</span>}
+          {live.assignee && <span>{live.assignee}</span>}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 20, paddingTop: 16, borderTop: `1px solid ${D.border}`, flexWrap: "wrap" }}>
