@@ -25,6 +25,7 @@ import KioskView from "./views/kiosk";
 import TrendsView from "./views/trends";
 import AnalyticsView from "./views/analytics";
 import BriefView from "./views/brief";
+import ArchiveView from "./views/archive";
 import WidgetPanel from "./components/widget-panel";
 import NotifBell from "./components/notifications";
 import { CreateProvider } from "./create-context";
@@ -92,6 +93,7 @@ export default function MarketingSuiteShell() {
       case "trends": return <TrendsView {...vp} />;
       case "analytics": return <AnalyticsView {...vp} />;
       case "brief": return <BriefView {...vp} />;
+      case "archive": return <ArchiveView {...vp} />;
       default: return null;
     }
   }

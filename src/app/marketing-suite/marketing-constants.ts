@@ -12,7 +12,7 @@
 import { D, PL } from "../shared-constants";
 import {
   LayoutDashboard, CalendarDays, GanttChart, KanbanSquare, Megaphone,
-  Clapperboard, TrendingUp, BarChart3, Newspaper, CalendarClock, Rocket, type LucideIcon,
+  Clapperboard, TrendingUp, BarChart3, Newspaper, CalendarClock, Rocket, Archive, type LucideIcon,
 } from "lucide-react";
 
 // ─── Core types ───
@@ -185,7 +185,7 @@ export function channelOf(key?: string | null) {
 // ─── View registry (shell left-nav order) ───
 export type ViewId =
   | "today" | "schedule" | "calendar" | "timeline" | "board" | "campaigns"
-  | "rollouts" | "kiosk" | "trends" | "analytics" | "brief";
+  | "rollouts" | "kiosk" | "trends" | "analytics" | "brief" | "archive";
 export interface ViewDef { id: ViewId; label: string; Icon: LucideIcon; accent: string; }
 export const VIEWS: ViewDef[] = [
   { id: "today",     label: "Today",    Icon: LayoutDashboard, accent: D.amber },
@@ -199,6 +199,7 @@ export const VIEWS: ViewDef[] = [
   { id: "trends",    label: "Trends",   Icon: TrendingUp,      accent: D.coral },
   { id: "analytics", label: "Data",     Icon: BarChart3,       accent: D.teal },
   { id: "brief",     label: "Brief",    Icon: Newspaper,       accent: D.amber },
+  { id: "archive",   label: "Archive",  Icon: Archive,         accent: D.blue },
 ];
 
 // ─── Omni-create contract (Assistant + Add buttons + modals) ───
@@ -361,6 +362,11 @@ export function makeDemoData(): { events: MarketingEvent[]; campaigns: Campaign[
     { id: "e16", title: "Weekly short #2 → TikTok", type: "buffer", status: "scheduled", start: atDay(now, 8, 11), source: "buffer", channel: "tiktok", campaignId: "camp-ep" },
     { id: "e17", title: "BRIANNA: retention dip flag", type: "strategy", status: "blocked", start: atDay(now, -1, 16), source: "brianna" },
     { id: "e18", title: "EP16 recap → YouTube", type: "buffer", status: "done", start: atDay(now, -2, 12), source: "buffer", channel: "youtube" },
+    // ── Archived / completed work (lights up the Archive + Weekly digest) ──
+    { id: "e19", title: "EP16 launch recap shipped", type: "launch", status: "done", start: atDay(now, 0, 8), source: "manual", campaignId: "camp-ep" },
+    { id: "e20", title: "EP17 clips → TikTok ×3", type: "clip", status: "done", start: atDay(now, 0, 10), source: "poast", campaignId: "camp-ep" },
+    { id: "e21", title: "Meta creative refresh v3", type: "ad", status: "done", start: atDay(now, -1, 11), source: "manual", channel: "meta", campaignId: "camp-ad" },
+    { id: "e22", title: "Q2 wrap recap → LinkedIn", type: "buffer", status: "done", start: atDay(now, -9, 10), source: "buffer", channel: "linkedin", campaignId: "camp-launch" },
     // ── Building-block Project "The Foundry Wars" (topic/film/edit, undated) ──
     { id: "camp-ep-proj-foundry-topic", title: "The Foundry Wars: Topic lock", type: "strategy", status: "draft", start: atDay(now, 0, 9), source: "poast", campaignId: "camp-ep", payload: { ...projFoundry, stage: "topic", unscheduled: true } },
     { id: "camp-ep-proj-foundry-film", title: "The Foundry Wars: Film", type: "production", status: "idea", start: atDay(now, 0, 9), source: "poast", campaignId: "camp-ep", payload: { ...projFoundry, stage: "film", unscheduled: true, scheduleKind: "filming" } },
@@ -476,7 +482,7 @@ export function makeDemoBoardTasks(now: Date): BoardTaskLite[] {
     { id: "bt-ops-metrics", title: "Weekly metrics roundup", category: "MARKETING OPS", priority: "ONGOING", assignee: "Akash",
       scheduledFor: at(0, 16), addedAt: iso(-7) },
     { id: "bt-pod-mic", title: "Order new mic windscreen", category: "PODCAST", priority: "MEDIUM", assignee: "Akash",
-      done: true, addedAt: iso(-2), updatedAt: iso(-1) },
+      done: true, addedAt: iso(-2), updatedAt: iso(0) },
     { id: "bt-content-carousel", title: "Repurpose EP17 into carousel", category: "CONTENT OPS", priority: "THIS WEEK", assignee: "Akash",
       dueDate: ymd(2), addedAt: iso(-1),
       subtasks: [{ id: "s1", title: "Select 5 clips" }, { id: "s2", title: "Design slides" }] },
