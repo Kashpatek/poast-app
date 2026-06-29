@@ -10,20 +10,21 @@
 import React, { useMemo, useState } from "react";
 import {
   Megaphone, Plus, CalendarDays, CalendarPlus, Wand2, GitBranch, Repeat,
-  TriangleAlert, ChevronRight, Clapperboard, Layers, Rocket, Radio,
+  TriangleAlert, ChevronRight, ChevronDown, Clapperboard, Layers, Rocket, Radio,
   ArrowUpRight, DollarSign, MousePointerClick, Eye, Target, Sparkles,
-  Activity, Flame, Hash, Pencil, Trash2, Mic,
+  Activity, Flame, Hash, Pencil, Trash2, Mic, ListChecks, MessageSquare, Flag,
 } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
 import {
   STATUS_COLOR, STATUS_LABEL, channelOf, adPlatform, adPayload,
-  AD_PLATFORMS, AD_OBJECTIVES,
+  AD_PLATFORMS, AD_OBJECTIVES, campaignCategory,
   eventSeries, eventRollout, eventStage, eventRelease, eventEpisodeNo,
   eventPhase, eventProjectName, PODCAST_LIFECYCLE, BUILD_STAGES, SA_FREQUENT_GUESTS, episodeTitles,
   type Campaign, type MarketingEvent, type EventStatus, type CampaignStatus,
-  type SeriesDef,
+  type SeriesDef, type BoardTaskLite,
 } from "../marketing-constants";
 import type { ViewProps } from "../use-marketing";
+import { useBoardStore } from "../board-store";
 import { useCreate } from "../create-context";
 import { DatePicker } from "../components/date-picker";
 import PageHeader from "../components/page-header";
@@ -403,6 +404,10 @@ function Feature({ m, campaign, events, ads, onNewAd, onOpenAd, onEdit, onDelete
             </div>
           </>
         )}
+
+        {/* tasks — the master-board tasks filed under this campaign's NAME, fully
+            editable here (done · subtasks · notes · due) and synced to the board */}
+        <CampaignTasks campaignName={campaign.name} />
       </div>
 
       {/* right: items + linked ads */}
@@ -592,6 +597,216 @@ function NewProjectForm({ onAdd }: { onAdd: (opts: { title: string; episodeNo?: 
         style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: D.tx, fontFamily: ft, fontSize: 13 }} />
       <button onClick={add} disabled={!title.trim()}
         style={{ ...confBtn, color: D.violet, borderColor: D.violet + "55", opacity: title.trim() ? 1 : 0.5, display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <Plus size={11} /> Add
+      </button>
+    </div>
+  );
+}
+
+/* ══════════════ In-campaign tasks (name-grouped) ══════════════ */
+// Tasks the master board files under THIS campaign's name (category === name)
+// — the same "XYZ" you'd see in Taskboard. Editable here and synced to the board
+// (mode-gated by the store: demo edits stay in the sandbox).
+const PRI_COLOR: Record<string, string> = {
+  HIGH: D.coral, MEDIUM: D.amber, "THIS WEEK": D.cyan, ONGOING: D.violet, DONE: D.txd,
+};
+const PRIORITIES = ["HIGH", "MEDIUM", "THIS WEEK", "ONGOING"];
+const sid = () => "s-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 5);
+const nid = () => "n-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 5);
+const fmtDue = (d: string) => fmtShort(d.length === 10 ? d + "T12:00:00" : d);
+
+function CampaignTasks({ campaignName }: { campaignName: string }) {
+  const store = useBoardStore();
+  const cat = campaignCategory(campaignName);
+  const tasks = useMemo(
+    () => store.tasks.filter((t) => (t.category || "") === cat),
+    [store.tasks, cat],
+  );
+  const open = tasks.filter((t) => !t.done);
+  const done = tasks.filter((t) => t.done);
+  const [showDone, setShowDone] = useState(false);
+
+  return (
+    <>
+      <div style={{ fontFamily: mn, fontSize: 9, letterSpacing: 1, color: D.txd, margin: "20px 0 8px", display: "flex", alignItems: "center", gap: 6 }}>
+        <ListChecks size={11} color={D.amber} /> TASKS · {open.length}
+        {done.length > 0 && (
+          <button onClick={() => setShowDone((v) => !v)}
+            style={{ marginLeft: "auto", ...confBtn, fontSize: 9.5, padding: "3px 8px", color: D.txm }}>
+            {showDone ? "Hide" : "Show"} {done.length} done
+          </button>
+        )}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+        {tasks.length === 0 && (
+          <div style={{ fontFamily: mn, fontSize: 10.5, color: D.txd, padding: "2px 2px 4px" }}>
+            No tasks under <b style={{ color: D.txm }}>{cat}</b> yet — add one and it appears on the board as “{cat}”.
+          </div>
+        )}
+        {open.map((t) => (
+          <TaskEditRow key={t.id} task={t} onUpdate={(patch) => store.updateBoardTask(t.id, patch)} />
+        ))}
+        {showDone && done.map((t) => (
+          <TaskEditRow key={t.id} task={t} onUpdate={(patch) => store.updateBoardTask(t.id, patch)} />
+        ))}
+        <AddCampaignTask onAdd={(title) => store.createBoardTask({ title, category: cat, priority: "MEDIUM" })} />
+      </div>
+    </>
+  );
+}
+
+/* ══════════════ Editable task row (done · subtasks · notes · due · priority) ══════════════ */
+function TaskEditRow({ task, onUpdate }: { task: BoardTaskLite; onUpdate: (patch: Partial<BoardTaskLite>) => void }) {
+  const [open, setOpen] = useState(false);
+  const [sub, setSub] = useState("");
+  const [note, setNote] = useState("");
+  const [dueOpen, setDueOpen] = useState(false);
+  const subs = task.subtasks || [];
+  const doneSubs = subs.filter((s) => s.done).length;
+  const notes = task.notesLog || [];
+  const pc = PRI_COLOR[task.priority || "MEDIUM"] || D.txm;
+
+  const addSub = () => { const v = sub.trim(); if (!v) return; onUpdate({ subtasks: [...subs, { id: sid(), title: v }] }); setSub(""); };
+  const toggleSub = (id: string) => onUpdate({ subtasks: subs.map((s) => (s.id === id ? { ...s, done: !s.done } : s)) });
+  const delSub = (id: string) => onUpdate({ subtasks: subs.filter((s) => s.id !== id) });
+  const addNote = () => { const v = note.trim(); if (!v) return; onUpdate({ notesLog: [...notes, { id: nid(), ts: new Date().toISOString(), author: "Akash", text: v }] }); setNote(""); };
+
+  return (
+    <div style={{ border: `1px solid ${task.done ? D.border : D.border}`, borderRadius: 10, background: D.card, opacity: task.done ? 0.62 : 1 }}>
+      {/* collapsed row */}
+      <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 11px" }}>
+        <button onClick={() => onUpdate({ done: !task.done })} title={task.done ? "Mark not done" : "Mark done"}
+          style={{ flex: "none", width: 17, height: 17, borderRadius: "50%", cursor: "pointer", padding: 0,
+            border: `1.6px solid ${task.done ? D.teal : D.txd}`, background: task.done ? D.teal : "transparent",
+            display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+          {task.done && <svg width={9} height={9} viewBox="0 0 12 12" fill="none"><path d="M2 6.5L5 9.5L10 3.5" stroke="#0A0A0F" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+        </button>
+        <button onClick={() => setOpen((v) => !v)} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "transparent", border: "none", cursor: "pointer", padding: 0,
+          color: D.tx, fontFamily: ft, fontSize: 12.5, textDecoration: task.done ? "line-through" : "none",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {task.title}
+        </button>
+        {/* meta chips */}
+        <span style={{ ...miniTag, color: pc, borderColor: pc + "55" }}>{task.priority || "MEDIUM"}</span>
+        {task.dueDate && <span style={{ ...miniTag, color: D.cyan, borderColor: D.cyan + "44" }}>{fmtDue(task.dueDate)}</span>}
+        {subs.length > 0 && (
+          <span title="subtasks" style={{ fontFamily: mn, fontSize: 9.5, color: doneSubs === subs.length ? D.teal : D.txm, display: "inline-flex", alignItems: "center", gap: 3 }}>
+            <ListChecks size={11} /> {doneSubs}/{subs.length}
+          </span>
+        )}
+        {notes.length > 0 && (
+          <span title="notes" style={{ fontFamily: mn, fontSize: 9.5, color: D.txm, display: "inline-flex", alignItems: "center", gap: 3 }}>
+            <MessageSquare size={11} /> {notes.length}
+          </span>
+        )}
+        <button onClick={() => setOpen((v) => !v)} style={{ flex: "none", background: "transparent", border: "none", cursor: "pointer", color: D.txd, padding: 2, display: "inline-flex" }}>
+          <ChevronDown size={14} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
+        </button>
+      </div>
+
+      {/* expanded editor */}
+      {open && (
+        <div style={{ borderTop: `1px solid ${D.border}`, padding: "10px 11px 11px", display: "flex", flexDirection: "column", gap: 11 }}>
+          {/* subtasks */}
+          <div>
+            <div style={editLabel}><ListChecks size={10} color={D.amber} /> SUBTASKS</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 6 }}>
+              {subs.map((s) => (
+                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button onClick={() => toggleSub(s.id)} style={{ flex: "none", width: 14, height: 14, borderRadius: 4, cursor: "pointer", padding: 0,
+                    border: `1.4px solid ${s.done ? D.teal : D.txd}`, background: s.done ? D.teal : "transparent",
+                    display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                    {s.done && <svg width={8} height={8} viewBox="0 0 12 12" fill="none"><path d="M2 6.5L5 9.5L10 3.5" stroke="#0A0A0F" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                  </button>
+                  <span style={{ flex: 1, minWidth: 0, fontFamily: ft, fontSize: 12, color: s.done ? D.txd : D.tx, textDecoration: s.done ? "line-through" : "none" }}>{s.title}</span>
+                  {s.dueDate && <span style={{ ...miniTag, color: D.cyan, borderColor: D.cyan + "44" }}>{fmtDue(s.dueDate)}</span>}
+                  <button onClick={() => delSub(s.id)} title="Remove subtask" style={{ flex: "none", background: "transparent", border: "none", cursor: "pointer", color: D.txd, padding: 2 }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = D.coral)} onMouseLeave={(e) => (e.currentTarget.style.color = D.txd)}>
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input value={sub} onChange={(e) => setSub(e.target.value)} placeholder="Add a subtask…"
+                onKeyDown={(e) => { if (e.key === "Enter") addSub(); }}
+                style={{ flex: 1, background: D.surface, border: `1px solid ${D.border}`, borderRadius: 7, padding: "6px 9px", color: D.tx, fontFamily: ft, fontSize: 12, outline: "none" }} />
+              <button onClick={addSub} disabled={!sub.trim()} style={{ ...confBtn, padding: "5px 9px", color: D.amber, borderColor: D.amber + "55", opacity: sub.trim() ? 1 : 0.5 }}>
+                <Plus size={11} />
+              </button>
+            </div>
+          </div>
+
+          {/* notes */}
+          <div>
+            <div style={editLabel}><MessageSquare size={10} color={D.violet} /> NOTES</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 6 }}>
+              {notes.map((n) => (
+                <div key={n.id} style={{ fontFamily: ft, fontSize: 12, color: D.txm, lineHeight: 1.4, borderLeft: `2px solid ${D.violet}55`, paddingLeft: 8 }}>
+                  {n.text}
+                  <span style={{ fontFamily: mn, fontSize: 9, color: D.txd, marginLeft: 6 }}>{fmtShort(n.ts)}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note…"
+                onKeyDown={(e) => { if (e.key === "Enter") addNote(); }}
+                style={{ flex: 1, background: D.surface, border: `1px solid ${D.border}`, borderRadius: 7, padding: "6px 9px", color: D.tx, fontFamily: ft, fontSize: 12, outline: "none" }} />
+              <button onClick={addNote} disabled={!note.trim()} style={{ ...confBtn, padding: "5px 9px", color: D.violet, borderColor: D.violet + "55", opacity: note.trim() ? 1 : 0.5 }}>
+                <Plus size={11} />
+              </button>
+            </div>
+          </div>
+
+          {/* due date + priority */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <span style={editLabel}><CalendarDays size={10} color={D.cyan} /> DUE</span>
+              {dueOpen ? (
+                <div style={{ minWidth: 150 }}>
+                  <DatePicker value={task.dueDate || ""} accent={D.cyan} placeholder="Due date"
+                    onChange={(v) => { onUpdate({ dueDate: v || undefined }); setDueOpen(false); }} />
+                </div>
+              ) : (
+                <button onClick={() => setDueOpen(true)} style={{ ...confBtn, padding: "5px 9px", color: task.dueDate ? D.cyan : D.txm, borderColor: task.dueDate ? D.cyan + "55" : D.border }}>
+                  {task.dueDate ? fmtDue(task.dueDate) : "Set date"}
+                </button>
+              )}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={editLabel}><Flag size={10} color={pc} /> PRIORITY</span>
+              <div style={{ display: "flex", gap: 4 }}>
+                {PRIORITIES.map((p) => {
+                  const on = (task.priority || "MEDIUM") === p;
+                  const c = PRI_COLOR[p];
+                  return (
+                    <button key={p} onClick={() => onUpdate({ priority: p })} style={{
+                      fontFamily: mn, fontSize: 9, letterSpacing: 0.3, borderRadius: 999, padding: "3px 8px", cursor: "pointer",
+                      border: `1px solid ${on ? c + "88" : D.border}`, background: on ? c + "1a" : "transparent", color: on ? c : D.txd,
+                    }}>{p}</button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════ Add a task to this campaign (category = name) ══════════════ */
+function AddCampaignTask({ onAdd }: { onAdd: (title: string) => void }) {
+  const [title, setTitle] = useState("");
+  function add() { const t = title.trim(); if (!t) return; onAdd(t); setTitle(""); }
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, border: `1px dashed ${D.border}`, borderRadius: 10, padding: "8px 10px" }}>
+      <ListChecks size={12} color={D.txd} />
+      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="New task for this campaign…"
+        onKeyDown={(e) => { if (e.key === "Enter") add(); }}
+        style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: D.tx, fontFamily: ft, fontSize: 13 }} />
+      <button onClick={add} disabled={!title.trim()}
+        style={{ ...confBtn, color: D.amber, borderColor: D.amber + "55", opacity: title.trim() ? 1 : 0.5, display: "inline-flex", alignItems: "center", gap: 4 }}>
         <Plus size={11} /> Add
       </button>
     </div>
@@ -1253,6 +1468,12 @@ const statusPill: React.CSSProperties = {
 };
 const chPill: React.CSSProperties = {
   fontFamily: mn, fontSize: 9, letterSpacing: 0.5, padding: "2px 7px", borderRadius: 6, border: "1px solid currentColor",
+};
+const miniTag: React.CSSProperties = {
+  fontFamily: mn, fontSize: 9, letterSpacing: 0.2, padding: "2px 6px", borderRadius: 6, border: "1px solid currentColor", flex: "none",
+};
+const editLabel: React.CSSProperties = {
+  fontFamily: mn, fontSize: 9, letterSpacing: 1, color: D.txd, display: "inline-flex", alignItems: "center", gap: 5, marginBottom: 5,
 };
 const featureWrap: React.CSSProperties = {
   position: "relative", border: `1px solid ${D.border}`, borderRadius: 20, overflow: "hidden",
