@@ -14,6 +14,7 @@ import {
   type MarketingEvent,
 } from "../marketing-constants";
 import type { MarketingState } from "../use-marketing";
+import { boardCreateTask } from "../board-store";
 import { useGoogle, calendarTargets, resolveDefaultCalendarId } from "../use-google";
 
 // Combine a YYYY-MM-DD date + HH:MM time into a local-time ISO datetime.
@@ -68,7 +69,7 @@ export function TaskModal({ open, prefill, m, onClose, onOpenView }: ModalProps)
     setErr(null);
   }, [open, prefill]);
 
-  async function submit() {
+  function submit() {
     if (!title.trim() || busy) return;
     setBusy(true); setErr(null);
     try {
@@ -83,23 +84,23 @@ export function TaskModal({ open, prefill, m, onClose, onOpenView }: ModalProps)
         });
         eventId = e.id;
       }
-      // 2) Create the board task (persists to the shared master board).
-      const res = await fetch("/api/board-task", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // 2) Create the board task through the shared store — mode-gated so DEMO
+      //    stays an in-memory sandbox (never writes the real master board) and
+      //    LIVE persists via /api/board-task. onPersisted hands back the FINAL
+      //    id so the event back-link is loop-safe even after live reconciliation.
+      boardCreateTask(
+        {
           title: title.trim(), description: description.trim() || undefined,
           category, priority, assignee,
           dueDate: dueDate || undefined,
           scheduledFor: addToCal && dueDate ? toISO(dueDate, time || "09:00") : undefined,
           marketingEventId: eventId,
-        }),
-      });
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error || "Could not save task");
-      // 3) Back-link the task id onto the event so future two-way sync is loop-safe.
-      if (eventId && j.task?.id) {
-        m.updateEvent(eventId, { payload: { scheduleKind: "task", sourceTaskId: j.task.id, calendarId: calId } });
-      }
+        },
+        (task) => {
+          // 3) Back-link the task id onto the event so two-way sync is loop-safe.
+          if (eventId) m.updateEvent(eventId, { payload: { scheduleKind: "task", sourceTaskId: task.id, calendarId: calId } });
+        },
+      );
       onClose();
     } catch (e) {
       setErr(String(e instanceof Error ? e.message : e));

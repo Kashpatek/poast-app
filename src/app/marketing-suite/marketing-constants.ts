@@ -437,6 +437,52 @@ export function readBoardTasks(): BoardTaskLite[] {
   } catch { return []; }
 }
 
+// ═══ Demo board tasks — the sandbox the board store uses in DEMO mode ═══
+// A self-contained set so DEMO never reads or writes the real akash-todo-master
+// board. Categories deliberately match the demo campaign NAMES (the Taskboard
+// join key) so the in-campaign task panel + name-grouping are demonstrable, and
+// a few carry marketingEventId links so the two-way reconciler has pairs to sync.
+export function makeDemoBoardTasks(now: Date): BoardTaskLite[] {
+  const ymd = (delta: number) => {
+    const d = new Date(now); d.setDate(d.getDate() + delta);
+    const off = d.getTimezoneOffset();
+    return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
+  };
+  const at = (delta: number, h: number) => {
+    const d = new Date(now); d.setDate(d.getDate() + delta); d.setHours(h, 0, 0, 0);
+    return d.toISOString();
+  };
+  const iso = (delta: number) => { const d = new Date(now); d.setDate(d.getDate() + delta); return d.toISOString(); };
+  const EP = "EP Series · Memory Wars", AD = "Always-On Acquisition", Q3 = "Q3 Recap Launch";
+  return [
+    { id: "bt-ep-thumb", title: "Approve EP18 thumbnail", category: EP, priority: "HIGH", assignee: "Akash",
+      dueDate: ymd(1), addedAt: iso(-1), marketingEventId: "e7",
+      subtasks: [{ id: "s1", title: "Pick hero frame", done: true }, { id: "s2", title: "Add title treatment" }],
+      notesLog: [{ id: "n1", ts: iso(-1), author: "Akash", text: "Lean into the HBM4 wafer shot." }] },
+    { id: "bt-ep-notes", title: "Write EP18 show notes", category: EP, priority: "MEDIUM", assignee: "Akash",
+      dueDate: ymd(2), addedAt: iso(-2), marketingEventId: "e5",
+      subtasks: [{ id: "s1", title: "Chapter timestamps", done: true }, { id: "s2", title: "Guest bio" }, { id: "s3", title: "Source links" }] },
+    { id: "bt-ep-guest", title: "Book EP19 guest", category: EP, priority: "THIS WEEK", assignee: "Akash",
+      addedAt: iso(-1),
+      notesLog: [{ id: "n1", ts: iso(-1), author: "Akash", text: "Shortlist: foundry analyst, packaging lead." }] },
+    { id: "bt-ad-meta", title: "Refresh Meta retarget creative", category: AD, priority: "HIGH", assignee: "Akash",
+      dueDate: ymd(1), addedAt: iso(-1), marketingEventId: "ad-meta",
+      subtasks: [{ id: "s1", title: "Hook A/B copy" }, { id: "s2", title: "New thumbnail" }] },
+    { id: "bt-ad-cpa", title: "Review CPA on OpenAI flight", category: AD, priority: "MEDIUM", assignee: "Akash",
+      dueDate: ymd(3), addedAt: iso(-3), marketingEventId: "ad-oai" },
+    { id: "bt-q3-thread", title: "Draft Q3 recap thread", category: Q3, priority: "THIS WEEK", assignee: "Akash",
+      dueDate: ymd(4), addedAt: iso(-1),
+      subtasks: [{ id: "s1", title: "Outline beats" }, { id: "s2", title: "Pull charts" }] },
+    { id: "bt-ops-metrics", title: "Weekly metrics roundup", category: "MARKETING OPS", priority: "ONGOING", assignee: "Akash",
+      scheduledFor: at(0, 16), addedAt: iso(-7) },
+    { id: "bt-pod-mic", title: "Order new mic windscreen", category: "PODCAST", priority: "MEDIUM", assignee: "Akash",
+      done: true, addedAt: iso(-2), updatedAt: iso(-1) },
+    { id: "bt-content-carousel", title: "Repurpose EP17 into carousel", category: "CONTENT OPS", priority: "THIS WEEK", assignee: "Akash",
+      dueDate: ymd(2), addedAt: iso(-1),
+      subtasks: [{ id: "s1", title: "Select 5 clips" }, { id: "s2", title: "Design slides" }] },
+  ];
+}
+
 // ═══ Demo ads (rich payloads; merged into demo events) ═══
 export function demoAds(now: Date): MarketingEvent[] {
   const d = (delta: number, h = 9) => atDay(now, delta, h);

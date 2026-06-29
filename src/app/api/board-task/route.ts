@@ -97,3 +97,85 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }
+
+// PATCH — update an existing master-board task in place. Locate it by `id`
+// (preferred) or by linked `marketingEventId`, shallow-merge `patch` (array
+// fields like subtasks/notesLog replace wholesale), stamp updatedAt, and RMW the
+// archive blob. Used by the in-campaign editor + the event↔task sync reconciler.
+const PatchInput = z.object({
+  id: z.string().max(120).optional(),
+  marketingEventId: z.string().max(120).optional(),
+  patch: z.object({
+    title: z.string().min(1).max(280).optional(),
+    description: z.string().max(4000).optional(),
+    category: z.string().max(60).optional(),
+    priority: z.string().max(20).optional(),
+    assignee: z.string().max(40).optional(),
+    done: z.boolean().optional(),
+    dueDate: z.string().max(10).nullable().optional(),
+    scheduledFor: z.string().nullable().optional(),
+    estimateMins: z.number().int().positive().max(100000).optional(),
+    notes: z.string().max(8000).nullable().optional(),
+    marketingEventId: z.string().max(120).optional(),
+    updatedAt: z.string().max(40).optional(),
+    // Arrays replace wholesale (caller sends the full next array).
+    subtasks: z.array(z.object({
+      id: z.string(), title: z.string(), done: z.boolean().optional(),
+      dueDate: z.string().optional(), spawnedEventId: z.string().optional(),
+    })).optional(),
+    notesLog: z.array(z.object({
+      id: z.string(), ts: z.string(), author: z.string().optional(), text: z.string(),
+    })).optional(),
+  }).passthrough(),
+}).refine((v) => v.id || v.marketingEventId, { message: "id or marketingEventId required" });
+
+export async function PATCH(req: NextRequest) {
+  const supabase = db();
+  if (!supabase) return NextResponse.json({ error: "DB not configured" }, { status: 503 });
+
+  let body: unknown;
+  try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
+  const parsed = PatchInput.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: "Invalid input", details: parsed.error.issues }, { status: 400 });
+  const { id, marketingEventId, patch } = parsed.data;
+
+  try {
+    const { data: row, error } = await supabase.from("projects").select("*").eq("id", ROW_ID).single();
+    if (error || !row) return NextResponse.json({ error: error?.message || "Board not found" }, { status: 404 });
+
+    const archive: Row = (row as Row).data && typeof (row as Row).data === "object" ? (row as Row).data : { boards: [], activeId: "" };
+    const boards: Row[] = Array.isArray(archive.boards) ? archive.boards : [];
+
+    // Find the holding board + task by id, else by linked marketingEventId.
+    let hostBoard: Row | undefined; let idx = -1;
+    for (const b of boards) {
+      const tasks: Row[] = Array.isArray(b.tasks) ? b.tasks : [];
+      let i = id ? tasks.findIndex((t) => t.id === id) : -1;
+      if (i < 0 && marketingEventId) i = tasks.findIndex((t) => t.marketingEventId === marketingEventId);
+      if (i >= 0) { hostBoard = b; idx = i; break; }
+    }
+    if (!hostBoard || idx < 0) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+
+    const now = new Date().toISOString();
+    const prev: Row = hostBoard.tasks[idx];
+    const next: Row = { ...prev, ...patch, updatedAt: patch.updatedAt || now };
+    hostBoard.tasks[idx] = next;
+
+    if (!Array.isArray(hostBoard.activity)) hostBoard.activity = [];
+    hostBoard.activity.unshift({ ts: now, action: "update", label: next.title, taskId: next.id });
+
+    const writeBack: Row = {
+      id: ROW_ID,
+      name: (row as Row).name || "Akash Todo",
+      type: (row as Row).type || "akash-todo",
+      data: archive,
+      updated_at: now,
+    };
+    const { error: upErr } = await supabase.from("projects").upsert(writeBack, { onConflict: "id" }).select();
+    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+
+    return NextResponse.json({ ok: true, task: next });
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
+}

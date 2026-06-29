@@ -10,6 +10,7 @@ import AppearanceSettings from "./components/appearance-settings";
 import { MarketingTour, MARKETING_TOUR_STEPS } from "./components/tour";
 import { VIEWS, type ViewId } from "./marketing-constants";
 import { useMarketing, type ViewProps } from "./use-marketing";
+import { boardSetMode } from "./board-store";
 import { useIsMobile } from "./use-mobile";
 
 import TodayView from "./views/today";
@@ -52,6 +53,10 @@ export default function MarketingSuiteShell() {
   // moment we drop into mobile (it becomes an opt-in overlay drawer).
   useEffect(() => { if (isMobile) setPanelOpen(false); }, [isMobile]);
   const m = useMarketing();
+  // Keep the shared board store on the same mode/owner as the suite: DEMO = an
+  // in-memory sandbox (the real akash-todo-master board is never touched), LIVE =
+  // the real board. Driven once here so every consumer reads one source.
+  useEffect(() => { if (!m.loading) void boardSetMode(m.mode, m.owner); }, [m.mode, m.owner, m.loading]);
   const vp: ViewProps = {
     m,
     focusId,
