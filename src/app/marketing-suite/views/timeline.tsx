@@ -15,6 +15,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import {
   GanttChart, CalendarRange, ChevronRight, ChevronDown, Diamond, Triangle,
   Radio, Layers, ArrowRight, List, Rows3, Tag, ChevronLeft, CalendarDays, Crosshair,
+  Pencil, Check, Copy, Trash2, MoveRight,
 } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
 import {
@@ -22,6 +23,8 @@ import {
   type MarketingEvent, type EventType, type Campaign,
 } from "../marketing-constants";
 import type { ViewProps } from "../use-marketing";
+import { useCreate } from "../create-context";
+import { ContextMenu, type MenuItem, type MenuState } from "../components/context-menu";
 
 // ─── Lane model ───
 // A lane is just a label + accent + a predicate selecting its events, so the
@@ -78,6 +81,51 @@ const scrollBtn: React.CSSProperties = {
   border: "none", background: "transparent", color: D.txm,
 };
 
+// Right-click actions for a timeline item: re-categorize (move it into another
+// lane / campaign), reschedule (the Gantt has no drag, so moves happen here),
+// plus the standard edit / status / duplicate / delete. All mutate the spine.
+function timelineMenuItems(
+  m: ViewProps["m"], e: MarketingEvent, openEdit: (e: MarketingEvent) => void,
+  ctx: { groupBy: GroupBy; campaigns: Campaign[]; now: Date },
+): MenuItem[] {
+  const shift = (days: number) => { const d = new Date(e.start); d.setDate(d.getDate() + days); m.moveEvent(e.id, d.toISOString()); };
+  const toToday = () => { const t = new Date(e.start); const d = new Date(ctx.now); d.setHours(t.getHours(), t.getMinutes(), 0, 0); m.moveEvent(e.id, d.toISOString()); };
+  const items: MenuItem[] = [
+    { label: "Edit details", icon: <Pencil size={13} />, onClick: () => openEdit(e) },
+    { label: e.status === "done" ? "Mark not done" : "Mark done", icon: <Check size={13} />, onClick: () => m.updateEvent(e.id, { status: e.status === "done" ? "scheduled" : "done" }) },
+  ];
+  // Repurpose — move the item into another lane / category.
+  if (ctx.groupBy === "type") {
+    items.push({ sep: true }, { heading: "Move to lane" });
+    for (const def of TYPE_LANE_DEFS) {
+      const active = def.types.includes(e.type);
+      items.push({ label: def.label, dot: def.accent, active, onClick: () => { if (!active) m.updateEvent(e.id, { type: def.types[0] }); } });
+    }
+  } else {
+    items.push({ sep: true }, { heading: "Move to campaign" });
+    for (const c of ctx.campaigns) {
+      const active = e.campaignId === c.id;
+      items.push({ label: c.name, dot: c.color || D.violet, active, onClick: () => { if (!active) m.updateEvent(e.id, { campaignId: c.id }); } });
+    }
+    items.push({ label: "Unassigned", dot: D.txm, active: !e.campaignId, onClick: () => { if (e.campaignId) m.updateEvent(e.id, { campaignId: null }); } });
+  }
+  // Reschedule — no drag on the timeline, so move it from here.
+  items.push(
+    { sep: true }, { heading: "Reschedule" },
+    { label: "To today", icon: <CalendarDays size={13} />, onClick: toToday },
+    { label: "Back 1 day", icon: <ChevronLeft size={13} />, onClick: () => shift(-1) },
+    { label: "Forward 1 day", icon: <ChevronRight size={13} />, onClick: () => shift(1) },
+    { label: "Forward 1 week", icon: <MoveRight size={13} />, onClick: () => shift(7) },
+    { label: "Pick date / time…", icon: <CalendarRange size={13} />, onClick: () => openEdit(e) },
+  );
+  items.push(
+    { sep: true },
+    { label: "Duplicate", icon: <Copy size={13} />, onClick: () => m.addEvent({ title: e.title + " (copy)", type: e.type, status: "idea", start: e.start, end: e.end, channel: e.channel, campaignId: e.campaignId, source: "manual", payload: { ...(e.payload || {}) } }) },
+    { label: "Delete", icon: <Trash2 size={13} />, danger: true, onClick: () => m.removeEvent(e.id) },
+  );
+  return items;
+}
+
 export default function TimelineView({ m, onOpenView }: ViewProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [tip, setTip] = useState<TipState | null>(null);
@@ -88,9 +136,15 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
   const [hidden, setHidden] = useState<Record<string, boolean>>({});
   const [tick, setTick] = useState(0);          // re-render the playhead each minute
   const [pxPerDay, setPxPerDay] = useState(64);  // pixels/day so one page = N weeks
+  const { openEdit } = useCreate();
+  const [menu, setMenu] = useState<MenuState>(null);
 
   const now = useMemo(() => new Date(), [tick]); // eslint-disable-line react-hooks/exhaustive-deps
   const visibleWeeks = DENSITIES.find((d) => d.key === density)!.weeks;
+  // Raise the shared right-click menu for any timeline item (Gantt bar/marker or
+  // list row). Built fresh each open so lane/campaign "active" ticks stay current.
+  const openItemMenu = (e: MarketingEvent, x: number, y: number) =>
+    setMenu({ x, y, items: timelineMenuItems(m, e, openEdit, { groupBy, campaigns: m.campaigns, now }) });
 
   // Keep the NOW playhead honest without thrashing.
   useEffect(() => {
@@ -559,6 +613,7 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
                             hovered={tip?.id === e.id}
                             onEnter={(x, y, below) => setTip({ id: e.id, x, y, below })}
                             onLeave={() => setTip((t) => (t?.id === e.id ? null : t))}
+                            onContext={openItemMenu}
                           />
                         );
                       });
@@ -598,8 +653,9 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
           </div>
         </>
       ) : (
-        <AgendaView m={m} now={now} />
+        <AgendaView m={m} now={now} onContext={openItemMenu} />
       )}
+      {menu && <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}
     </div>
   );
 }
@@ -639,7 +695,7 @@ function Segmented({ options, value, onChange }: {
 // One event on the Gantt track: a ranged bar (clamped to the visible window,
 // with edge notches when it continues off-screen) or a point marker.
 function EventItem({
-  e, accent, xOf, trackW, rowTop, rowH, showLabel, hovered, onEnter, onLeave,
+  e, accent, xOf, trackW, rowTop, rowH, showLabel, hovered, onEnter, onLeave, onContext,
 }: {
   e: MarketingEvent;
   accent: string;
@@ -651,6 +707,7 @@ function EventItem({
   hovered: boolean;
   onEnter: (x: number, y: number, below: boolean) => void;
   onLeave: () => void;
+  onContext: (e: MarketingEvent, x: number, y: number) => void;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const start = new Date(e.start);
@@ -683,6 +740,7 @@ function EventItem({
         data-tl-bar
         onMouseEnter={fire}
         onMouseLeave={onLeave}
+        onContextMenu={(ev) => { ev.preventDefault(); onContext(e, ev.clientX, ev.clientY); }}
         style={{
           position: "absolute", left, top: rowTop + (rowH - BAR_H) / 2,
           width: w, height: BAR_H, cursor: "pointer", zIndex: hovered ? 9 : 2,
@@ -733,6 +791,7 @@ function EventItem({
       data-tl-bar
       onMouseEnter={fire}
       onMouseLeave={onLeave}
+      onContextMenu={(ev) => { ev.preventDefault(); onContext(e, ev.clientX, ev.clientY); }}
       style={{
         position: "absolute", left: px - 8, top: rowTop + (rowH - BAR_H) / 2, height: BAR_H,
         display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer",
@@ -763,7 +822,7 @@ function EventItem({
 // ─────────────────────────────────────────────────────────────
 // AGENDA — chronological list grouped by day. Past collapses to a thin strip;
 // Today + upcoming days are full rows. No geometry, so nothing ever overlaps.
-function AgendaView({ m, now }: { m: ViewProps["m"]; now: Date }) {
+function AgendaView({ m, now, onContext }: { m: ViewProps["m"]; now: Date; onContext: (e: MarketingEvent, x: number, y: number) => void }) {
   const today = startOfDay(now).getTime();
   const groups = useMemo(() => {
     const byDay = new Map<number, MarketingEvent[]>();
@@ -828,8 +887,9 @@ function AgendaView({ m, now }: { m: ViewProps["m"]; now: Date }) {
             return (
               <div key={e.id} style={{
                 display: "flex", alignItems: "center", gap: 12, padding: "9px 16px 9px 16px",
-                borderBottom: `1px solid ${D.border}55`,
+                borderBottom: `1px solid ${D.border}55`, cursor: "pointer",
               }}
+                onContextMenu={(ev) => { ev.preventDefault(); onContext(e, ev.clientX, ev.clientY); }}
                 onMouseEnter={(ev) => { ev.currentTarget.style.background = D.hover; }}
                 onMouseLeave={(ev) => { ev.currentTarget.style.background = "transparent"; }}
               >

@@ -29,3 +29,30 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ── Site-wide scrollbars ──
+   The app is dark everywhere, so the OS default (a bright/white track) reads as
+   a visual artifact. Replace it with a quiet, inset thumb that brightens on
+   hover. Components that deliberately hide their scrollbar (carousels, tab
+   strips) use a higher-specificity selector and still win over these defaults. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:active {
+  background: rgba(247, 176, 65, 0.45);
+  background-clip: padding-box;
+}

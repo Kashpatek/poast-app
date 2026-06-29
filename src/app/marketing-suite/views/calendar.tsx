@@ -4,7 +4,7 @@
 // reschedule in Month via @dnd-kit, a buffer-layer toggle, and per-type filter
 // chips. One item, every view: production flows in from the spine; you add the
 // marketing layer on top. Styling = inline CSSProperties + D tokens only.
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
@@ -14,6 +14,7 @@ import {
 import {
   CalendarDays, LayoutGrid, Columns3, List, Plus, Rocket, Clapperboard,
   Scissors, Radio, Palette, Send, GripVertical,
+  Pencil, Check, Copy, Trash2, MoveRight,
 } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
 import {
@@ -23,9 +24,31 @@ import {
 import { type ViewProps } from "../use-marketing";
 import { useCreate } from "../create-context";
 import { EventHoverCard } from "../components/event-hover-card";
+import { ContextMenu, type MenuItem, type MenuState } from "../components/context-menu";
 
 // ─── Local helpers ───
 type Mode = "month" | "week" | "agenda";
+
+// Right-click menu plumbing: CalendarView publishes an opener through context so
+// every event renderer (month chip, week row, agenda item, overflow popover) can
+// raise the same menu without threading callbacks through the whole tree.
+type OpenMenu = (e: MarketingEvent, x: number, y: number) => void;
+const CalMenuCtx = React.createContext<OpenMenu | null>(null);
+
+// Standard event actions, shared by every calendar surface.
+function eventMenuItems(m: ViewProps["m"], e: MarketingEvent, openEdit: (e: MarketingEvent) => void): MenuItem[] {
+  const shift = (days: number) => { const next = new Date(e.start); next.setDate(next.getDate() + days); m.moveEvent(e.id, next.toISOString()); };
+  return [
+    { label: "Edit", icon: <Pencil size={13} />, onClick: () => openEdit(e) },
+    { label: e.status === "done" ? "Mark not done" : "Mark done", icon: <Check size={13} />, onClick: () => m.updateEvent(e.id, { status: e.status === "done" ? "scheduled" : "done" }) },
+    { label: "Duplicate", icon: <Copy size={13} />, onClick: () => m.addEvent({ title: e.title + " (copy)", type: e.type, status: "idea", start: e.start, end: e.end, channel: e.channel, campaignId: e.campaignId, source: "manual", payload: { ...(e.payload || {}) } }) },
+    { sep: true },
+    { label: "Move to tomorrow", icon: <MoveRight size={13} />, onClick: () => shift(1) },
+    { label: "Move +1 week", icon: <MoveRight size={13} />, onClick: () => shift(7) },
+    { sep: true },
+    { label: "Delete", icon: <Trash2 size={13} />, danger: true, onClick: () => m.removeEvent(e.id) },
+  ];
+}
 
 // Click an event → open the editor; hover → preview card. Shared by every
 // calendar event renderer so the surface behaves consistently. Click and hover
@@ -34,10 +57,12 @@ type Mode = "month" | "week" | "agenda";
 // native click).
 function useEventInteractions(e: MarketingEvent) {
   const { openEdit } = useCreate();
+  const openMenu = useContext(CalMenuCtx);
   const [rect, setRect] = useState<DOMRect | null>(null);
   return {
     open: () => openEdit(e),
     onClick: (ev: React.MouseEvent) => { ev.stopPropagation(); openEdit(e); },
+    onContextMenu: (ev: React.MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); setRect(null); openMenu?.(e, ev.clientX, ev.clientY); },
     hoverHandlers: {
       onMouseEnter: (ev: React.MouseEvent) => setRect(ev.currentTarget.getBoundingClientRect()),
       onMouseLeave: () => setRect(null),
@@ -53,10 +78,13 @@ function useEventInteractions(e: MarketingEvent) {
 function useDragClick(onOpen: () => void) {
   const down = useRef<{ x: number; y: number } | null>(null);
   return {
-    onPointerDownCapture: (ev: React.PointerEvent) => { down.current = { x: ev.clientX, y: ev.clientY }; },
+    // Only arm on the primary button — a right-click (button 2) lands a
+    // pointerdown+pointerup at the same spot and would otherwise read as a
+    // click, opening the editor underneath the context menu.
+    onPointerDownCapture: (ev: React.PointerEvent) => { down.current = ev.button === 0 ? { x: ev.clientX, y: ev.clientY } : null; },
     onPointerUp: (ev: React.PointerEvent) => {
       const d = down.current; down.current = null;
-      if (d && Math.hypot(ev.clientX - d.x, ev.clientY - d.y) < 5) onOpen();
+      if (d && ev.button === 0 && Math.hypot(ev.clientX - d.x, ev.clientY - d.y) < 5) onOpen();
     },
   };
 }
@@ -96,6 +124,9 @@ export default function CalendarView({ m, onOpenView }: ViewProps) {
   const [anchor, setAnchor] = useState<Date>(() => startOfDay(new Date()));
   const [dragId, setDragId] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
+  const { openEdit } = useCreate();
+  const [menu, setMenu] = useState<MenuState>(null);
+  const openEventMenu = useCallback<OpenMenu>((e, x, y) => setMenu({ x, y, items: eventMenuItems(m, e, openEdit) }), [m, openEdit]);
 
   const today = useMemo(() => startOfDay(new Date()), []);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -143,6 +174,7 @@ export default function CalendarView({ m, onOpenView }: ViewProps) {
   const monthLabel = anchor.toLocaleDateString([], { month: "long", year: "numeric" });
 
   return (
+    <CalMenuCtx.Provider value={openEventMenu}>
     <div style={{ padding: "22px 26px 60px", fontFamily: ft }}>
       {/* ── Page head ── */}
       <div style={S.phead}>
@@ -230,7 +262,9 @@ export default function CalendarView({ m, onOpenView }: ViewProps) {
       {mode !== "agenda" && visible.length === 0 && (
         <div style={S.empty}>No events match this filter. Adjust the chips above or add one.</div>
       )}
+      {menu && <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}
     </div>
+    </CalMenuCtx.Provider>
   );
 }
 
@@ -336,8 +370,8 @@ function DayCell({ dayKey, dayNum, inMonth, isToday, isOver, dragId, events, max
 
 function DraggableChip({ e, hidden }: { e: MarketingEvent; hidden: boolean }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: e.id });
-  const { open } = useEventInteractions(e);
-  const click = useDragClick(open);
+  const ix = useEventInteractions(e);
+  const click = useDragClick(ix.open);
   return (
     <div ref={setNodeRef} {...attributes} {...listeners} {...click}
       style={{ opacity: hidden || isDragging ? 0.25 : 1, touchAction: "none", cursor: "grab" }}>
@@ -352,6 +386,7 @@ function DayMorePopover({ day, events, rect, onClose }: {
   day: Date; events: MarketingEvent[]; rect: DOMRect; onClose: () => void;
 }) {
   const { openEdit } = useCreate();
+  const openMenu = useContext(CalMenuCtx);
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => { if (ev.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -370,7 +405,8 @@ function DayMorePopover({ day, events, rect, onClose }: {
         <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 300, overflowY: "auto" }}>
           {events.map((e) => (
             <div key={e.id} style={{ cursor: "pointer" }}
-              onClick={() => { onClose(); openEdit(e); }}>
+              onClick={() => { onClose(); openEdit(e); }}
+              onContextMenu={(ev) => { ev.preventDefault(); ev.stopPropagation(); openMenu?.(e, ev.clientX, ev.clientY); }}>
               <EventChip e={e} />
             </div>
           ))}
@@ -425,7 +461,7 @@ function WeekEventRow({ e }: { e: MarketingEvent }) {
   const ix = useEventInteractions(e);
   const click = useDragClick(ix.open);
   return (
-    <div ref={setNodeRef} {...attributes} {...listeners} {...click} {...ix.hoverHandlers}
+    <div ref={setNodeRef} {...attributes} {...listeners} {...click} {...ix.hoverHandlers} onContextMenu={ix.onContextMenu}
       style={{
         opacity: isDragging ? 0.3 : 1, touchAction: "none", cursor: "pointer",
         borderRadius: 8, padding: "7px 8px", marginBottom: 6,
@@ -488,7 +524,7 @@ function AgendaItem({ e }: { e: MarketingEvent }) {
   const col = TYPE_COLOR[e.type];
   const ix = useEventInteractions(e);
   return (
-    <div onClick={ix.onClick} {...ix.hoverHandlers} style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+    <div onClick={ix.onClick} {...ix.hoverHandlers} onContextMenu={ix.onContextMenu} style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
       {ix.hover}
       <span style={{ width: 3, alignSelf: "stretch", borderRadius: 3, background: col, flex: "none", minHeight: 30 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -516,6 +552,7 @@ function EventChip({ e, overlay }: { e: MarketingEvent; overlay?: boolean }) {
     <>
       <div
         {...(overlay ? {} : ix.hoverHandlers)}
+        {...(overlay ? {} : { onContextMenu: ix.onContextMenu })}
         style={{
           ...S.ev,
           background: tint(col, isBuf ? 0.16 : 0.13),
