@@ -6,6 +6,9 @@ interface GenerateOptions {
   prompt: string;
   maxTokens?: number;
   model?: string;
+  // Optional vision input. Each entry is a base64 payload (no data-URL prefix)
+  // plus its media type; sent alongside the prompt as image content blocks.
+  images?: Array<{ media_type: string; data: string }>;
 }
 
 export interface AnthropicError extends Error {
@@ -22,11 +25,24 @@ export async function callClaudeRaw({
   prompt,
   maxTokens = 4000,
   model,
+  images,
 }: GenerateOptions): Promise<Record<string, any>> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error("ANTHROPIC_API_KEY not configured");
   }
+
+  // Text-only stays a plain string (back-compat); with images we send a content
+  // array of image blocks followed by the text block.
+  const userContent = images && images.length
+    ? [
+        ...images.map((img) => ({
+          type: "image" as const,
+          source: { type: "base64" as const, media_type: img.media_type, data: img.data },
+        })),
+        { type: "text" as const, text: prompt },
+      ]
+    : prompt;
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -39,7 +55,7 @@ export async function callClaudeRaw({
       model: model || CLAUDE_MODEL,
       max_tokens: maxTokens,
       system,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: "user", content: userContent }],
     }),
   });
 

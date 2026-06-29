@@ -23,6 +23,8 @@ export interface LLMOptions {
   // disables "thinking", which otherwise eats the output-token budget and
   // truncates the JSON (the "Unterminated string in JSON" carousel error).
   json?: boolean;
+  // Optional vision input (Claude only today). base64 payloads + media types.
+  images?: Array<{ media_type: string; data: string }>;
 }
 
 export interface LLMResponse {
@@ -64,6 +66,7 @@ async function callClaudeAsLLM(opts: LLMOptions): Promise<LLMResponse> {
       prompt: opts.prompt,
       maxTokens: opts.maxTokens,
       model: opts.model,
+      images: opts.images,
     });
     const content = (data.content || []) as Array<{ type: string; text?: string }>;
     return {
