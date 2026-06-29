@@ -46,6 +46,29 @@ export function currentOwner(): string {
   } catch { return "shared"; }
 }
 
+// ─── Default calendar (per owner) ───
+// The one calendar new events & dated tasks land on by default. Chosen on first
+// connect (forced via the Calendars panel) and changeable from Settings. Stored
+// client-side per signed-in user; always falls back to the in-app SA calendar.
+const DEFAULT_CAL_KEY = "ms-default-calendar";
+export const FALLBACK_CALENDAR_ID = "sa-marketing";
+export function getDefaultCalendarId(owner?: string): string | null {
+  try { return window.localStorage.getItem(`${DEFAULT_CAL_KEY}:${owner || currentOwner()}`); } catch { return null; }
+}
+export function resolveDefaultCalendarId(owner?: string): string {
+  return getDefaultCalendarId(owner) || FALLBACK_CALENDAR_ID;
+}
+export function setDefaultCalendarId(owner: string, id: string): void {
+  try {
+    window.localStorage.setItem(`${DEFAULT_CAL_KEY}:${owner}`, id);
+    window.dispatchEvent(new CustomEvent("ms-default-calendar-changed", { detail: { owner, id } }));
+  } catch { /* ignore */ }
+}
+// True once the user has explicitly picked a default for this owner.
+export function hasDefaultCalendar(owner?: string): boolean {
+  return !!getDefaultCalendarId(owner);
+}
+
 export function useGoogle() {
   const [status, setStatus] = useState<GoogleStatus>({ configured: false, connected: false });
   const [loading, setLoading] = useState(true);

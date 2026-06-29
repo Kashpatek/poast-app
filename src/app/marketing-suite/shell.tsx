@@ -4,12 +4,13 @@
 // left nav rail (view switch), center active view, hideable right widget rail.
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, ChevronDown, PanelRightClose, PanelRightOpen, Rocket, Settings as SettingsIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, PanelRightClose, PanelRightOpen, Rocket, Settings as SettingsIcon, Menu as MenuIcon } from "lucide-react";
 import { D, ft, gf, mn } from "../shared-constants";
 import AppearanceSettings from "./components/appearance-settings";
 import { MarketingTour, MARKETING_TOUR_STEPS } from "./components/tour";
 import { VIEWS, type ViewId } from "./marketing-constants";
 import { useMarketing, type ViewProps } from "./use-marketing";
+import { useIsMobile } from "./use-mobile";
 
 import TodayView from "./views/today";
 import AgendaView from "./views/agenda";
@@ -45,6 +46,10 @@ export default function MarketingSuiteShell() {
   const [barShown, setBarShown] = useState(false);
   const railT = useRef<number | undefined>(undefined);
   const barT = useRef<number | undefined>(undefined);
+  const isMobile = useIsMobile();
+  // The 320px widget rail can't sit beside content on a phone — collapse it the
+  // moment we drop into mobile (it becomes an opt-in overlay drawer).
+  useEffect(() => { if (isMobile) setPanelOpen(false); }, [isMobile]);
   const m = useMarketing();
   const vp: ViewProps = {
     m,
@@ -88,9 +93,9 @@ export default function MarketingSuiteShell() {
   return (
     <CreateProvider m={m} onOpenView={vp.onOpenView}>
     <div className="ms-shell" style={{ minHeight: "100vh", background: "var(--page-bg, " + D.bg + ")", color: D.tx, fontFamily: ft }}>
-      {/* ── Top-edge reveal sensor + peek notch (the always-visible affordance) ── */}
-      <div onMouseEnter={showBar} style={{ position: "fixed", top: 0, left: 0, right: 0, height: TOP_PEEK, zIndex: 41 }} />
-      {!barShown && (
+      {/* ── Top-edge reveal sensor + peek notch (hover affordance; desktop only) ── */}
+      {!isMobile && <div onMouseEnter={showBar} style={{ position: "fixed", top: 0, left: 0, right: 0, height: TOP_PEEK, zIndex: 41 }} />}
+      {!isMobile && !barShown && (
         <div onMouseEnter={showBar} title="Hover for the toolbar" style={{
           position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", zIndex: 42,
           height: 16, padding: "0 16px", display: "inline-flex", alignItems: "center", justifyContent: "center",
@@ -101,25 +106,33 @@ export default function MarketingSuiteShell() {
         </div>
       )}
 
-      {/* ── Top bar (auto-hides; drops in on hover) ── */}
-      <div onMouseEnter={showBar} onMouseLeave={hideBar} style={{
-        display: "flex", alignItems: "center", gap: 14, padding: "0 18px", height: TOPBAR_H,
+      {/* ── Top bar (auto-hides on hover for desktop; pinned on mobile) ── */}
+      <div onMouseEnter={isMobile ? undefined : showBar} onMouseLeave={isMobile ? undefined : hideBar} style={{
+        display: "flex", alignItems: "center", gap: 14, padding: "0 14px", height: TOPBAR_H,
         borderBottom: `1px solid ${D.border}`, background: "rgba(10,10,14,0.82)",
         backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 45,
-        transform: barShown ? "translateY(0)" : "translateY(-100%)",
+        transform: (barShown || isMobile) ? "translateY(0)" : "translateY(-100%)",
         transition: "transform 0.26s cubic-bezier(0.22,0.61,0.36,1)",
-        boxShadow: barShown ? "0 14px 40px rgba(0,0,0,0.45)" : "none",
+        boxShadow: (barShown || isMobile) ? "0 14px 40px rgba(0,0,0,0.45)" : "none",
       }}>
+        {/* Hamburger — taps open the nav rail on touch (no hover to reveal it) */}
+        {isMobile && (
+          <button onClick={() => setRailOpen((v) => !v)} title="Menu" style={{ ...iconBtn, width: 32, height: 32, flex: "none" }}>
+            <MenuIcon size={18} />
+          </button>
+        )}
         <Link href="/" data-tour="wordmark" style={{ color: D.txm, textDecoration: "none", fontFamily: mn, fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}>
           <ChevronLeft size={14} /> POAST
         </Link>
-        <div style={{ width: 1, height: 20, background: D.border }} />
+        {!isMobile && <div style={{ width: 1, height: 20, background: D.border }} />}
         <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
           <Rocket size={16} color={D.amber} />
-          <span style={{ fontFamily: gf, fontSize: 16, letterSpacing: 0.4 }}>
-            MARKETING<span style={{ color: D.amber }}>SUITE</span>
-          </span>
+          {!isMobile && (
+            <span style={{ fontFamily: gf, fontSize: 16, letterSpacing: 0.4 }}>
+              MARKETING<span style={{ color: D.amber }}>SUITE</span>
+            </span>
+          )}
         </div>
         <span style={{ flex: 1 }} />
         {/* Assistant omnibox — type/paste anything, it figures out what to create */}
@@ -128,12 +141,14 @@ export default function MarketingSuiteShell() {
         </div>
         <span style={{ flex: 1 }} />
         {/* Owner + offline hint */}
-        <span style={{ fontFamily: mn, fontSize: 10, color: liveOffline ? D.coral : D.txd, display: "inline-flex", alignItems: "center", gap: 6 }}>
-          {liveOffline && <span title="Working from cache — changes will sync when back online">⚠ cached</span>}
-          {m.owner && m.owner !== "shared" && <span title="Signed-in workspace">{m.owner}</span>}
-        </span>
-        {/* Google Calendar status + connect prompt — visible from every view */}
-        <CalendarStatusPill onManage={() => setActive("schedule")} />
+        {!isMobile && (
+          <span style={{ fontFamily: mn, fontSize: 10, color: liveOffline ? D.coral : D.txd, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            {liveOffline && <span title="Working from cache — changes will sync when back online">⚠ cached</span>}
+            {m.owner && m.owner !== "shared" && <span title="Signed-in workspace">{m.owner}</span>}
+          </span>
+        )}
+        {/* Google Calendar status + connect prompt — visible from every view (desktop) */}
+        {!isMobile && <CalendarStatusPill onManage={() => setActive("schedule")} />}
         <NotifBell m={m} />
         <button onClick={() => setSettingsOpen(true)} title="Settings & theme" data-tour="settings" style={iconBtn}>
           <SettingsIcon size={17} />
@@ -150,19 +165,20 @@ export default function MarketingSuiteShell() {
 
       {/* ── Body: peek gutter · main · widgets (full height; chrome floats over) ── */}
       <div style={{ display: "flex", alignItems: "stretch", minHeight: "100vh" }}>
-        {/* Left peek gutter so content clears the rail handle */}
-        <div style={{ width: RAIL_PEEK, flex: "none" }} />
+        {/* Left peek gutter so content clears the rail handle (desktop only) */}
+        {!isMobile && <div style={{ width: RAIL_PEEK, flex: "none" }} />}
 
         {/* Center: active view. Board is full-bleed; every other view is
-            centered with a max width so it doesn't pin left on ultra-wide. */}
-        <main style={{ flex: 1, minWidth: 0, height: "100vh", overflow: "auto" }}>
+            centered with a max width so it doesn't pin left on ultra-wide.
+            On mobile the bar is pinned, so pad the content clear of it. */}
+        <main style={{ flex: 1, minWidth: 0, height: "100vh", overflow: "auto", paddingTop: isMobile ? TOPBAR_H : 0 }}>
           <div key={active} className="ms-view" style={{ minHeight: "100%" }}>
             {isBoard ? renderView() : (
               <div style={{
                 maxWidth: 1560, margin: "0 auto", width: "100%", boxSizing: "border-box",
                 // Consistent breathing room on every view — the chrome auto-hides, so
                 // the view is the whole surface; keep it off the screen/rail edges.
-                paddingInline: "clamp(12px, 2vw, 40px)",
+                paddingInline: isMobile ? "clamp(10px, 4vw, 18px)" : "clamp(12px, 2vw, 40px)",
               }}>
                 {renderView()}
               </div>
@@ -170,35 +186,49 @@ export default function MarketingSuiteShell() {
           </div>
         </main>
 
-        {/* Right widget rail */}
+        {/* Right widget rail — sticky column on desktop, overlay drawer on mobile */}
+        {panelOpen && isMobile && (
+          <div onClick={() => setPanelOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 46, background: "rgba(4,4,8,0.55)" }} />
+        )}
         {panelOpen && (
           <aside style={{
-            width: 320, flex: "none", borderLeft: `1px solid ${D.border}`,
-            position: "sticky", top: 0, height: "100vh", overflow: "auto", background: D.bg,
+            width: isMobile ? "min(320px, 86vw)" : 320, flex: "none", borderLeft: `1px solid ${D.border}`,
+            overflow: "auto", background: D.bg,
+            ...(isMobile
+              ? { position: "fixed", top: 0, right: 0, height: "100vh", zIndex: 47, boxShadow: "-18px 0 48px rgba(0,0,0,0.5)" }
+              : { position: "sticky", top: 0, height: "100vh" }),
           }}>
             <WidgetPanel m={m} />
           </aside>
         )}
       </div>
 
-      {/* ── Left rail peek handle (always visible affordance) ── */}
-      <div onMouseEnter={openRail} onMouseLeave={closeRail} title="Hover for navigation" style={{
-        position: "fixed", left: 0, top: 0, bottom: 0, width: RAIL_PEEK, zIndex: 38,
-        display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-        background: `linear-gradient(180deg, ${activeAccent}22, transparent 22%, transparent 78%, ${activeAccent}22)`,
-        borderRight: `1px solid ${D.border}`,
-        opacity: railOpen ? 0 : 1, transition: "opacity 0.2s",
-      }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, color: D.txm }}>
-          <span style={{ width: 3, height: 18, borderRadius: 3, background: activeAccent + "99" }} />
-          <ChevronRight size={12} />
-          <span style={{ width: 3, height: 18, borderRadius: 3, background: D.border }} />
+      {/* ── Left rail peek handle (hover affordance; desktop only) ── */}
+      {!isMobile && (
+        <div onMouseEnter={openRail} onMouseLeave={closeRail} title="Hover for navigation" style={{
+          position: "fixed", left: 0, top: 0, bottom: 0, width: RAIL_PEEK, zIndex: 38,
+          display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+          background: `linear-gradient(180deg, ${activeAccent}22, transparent 22%, transparent 78%, ${activeAccent}22)`,
+          borderRight: `1px solid ${D.border}`,
+          opacity: railOpen ? 0 : 1, transition: "opacity 0.2s",
+        }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, color: D.txm }}>
+            <span style={{ width: 3, height: 18, borderRadius: 3, background: activeAccent + "99" }} />
+            <ChevronRight size={12} />
+            <span style={{ width: 3, height: 18, borderRadius: 3, background: D.border }} />
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* ── Left nav rail (slides in on hover; collapses after a pick) ── */}
-      <nav data-tour="rail" onMouseEnter={openRail} onMouseLeave={closeRail} style={{
-        position: "fixed", left: 0, top: 0, height: "100vh", width: RAIL_W, zIndex: 40,
+      {/* ── Rail scrim (mobile): tap outside the drawer to dismiss ── */}
+      {isMobile && railOpen && (
+        <div onClick={() => setRailOpen(false)} style={{ position: "fixed", inset: 0, top: TOPBAR_H, zIndex: 39, background: "rgba(4,4,8,0.55)" }} />
+      )}
+
+      {/* ── Left nav rail (slides in on hover/tap; collapses after a pick) ── */}
+      <nav data-tour="rail" onMouseEnter={isMobile ? undefined : openRail} onMouseLeave={isMobile ? undefined : closeRail} style={{
+        position: "fixed", left: 0, top: isMobile ? TOPBAR_H : 0,
+        height: isMobile ? `calc(100vh - ${TOPBAR_H}px)` : "100vh", width: RAIL_W, zIndex: 40,
         flex: "none", borderRight: `1px solid ${D.border}`,
         display: "flex", flexDirection: "column", gap: 4, padding: "20px 8px 12px",
         background: "rgba(10,10,14,0.92)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",

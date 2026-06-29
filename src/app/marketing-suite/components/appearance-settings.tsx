@@ -1,10 +1,12 @@
 "use client";
 // Appearance & personal settings — theme (Classic/Stock/Glass), background,
 // and a "Replay tour" action. Wired to ThemeProvider (localStorage + Neon).
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Check, RotateCcw, Lock, Unlock } from "lucide-react";
+import { X, Check, RotateCcw, Lock, Unlock, Star } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
 import { useTheme, playThemeTransitionAndReload, type ThemeName, type BgName, type GlassMat, type GlassVars } from "../../theme-context";
+import { useGoogle, calendarTargets, getDefaultCalendarId, setDefaultCalendarId, resolveDefaultCalendarId } from "../use-google";
 import type { MarketingState } from "../use-marketing";
 
 // Demo ⇄ Live data mode — moved here from the top bar. "Live" reads/writes this
@@ -36,6 +38,41 @@ function DataModeSection({ m }: { m: MarketingState }) {
             </button>
           );
         })}
+      </div>
+      <div style={{ height: 1, background: D.border, margin: "22px 0 0" }} />
+    </>
+  );
+}
+
+// Default calendar — mirror of the Calendars-panel gate, so the choice can be
+// changed any time. Change-on-select persists immediately (per owner).
+function DefaultCalendarSection() {
+  const { status, owner, loading } = useGoogle();
+  const targets = calendarTargets(status);
+  const [val, setVal] = useState<string>(() => resolveDefaultCalendarId());
+  useEffect(() => { setVal(resolveDefaultCalendarId(owner)); }, [owner, status.connected]);
+  const isSet = !!getDefaultCalendarId(owner);
+  const current = targets.find((t) => t.id === val);
+  function choose(id: string) { setVal(id); setDefaultCalendarId(owner, id); }
+  return (
+    <>
+      <div style={lbl}>Default calendar</div>
+      <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: ft, fontSize: 13, color: D.tx }}>
+          <Star size={13} color={isSet ? D.teal : D.amber} fill={isSet ? D.teal : D.amber} />
+          {current ? <><span style={{ width: 9, height: 9, borderRadius: 3, background: current.color }} />{current.name}{current.google ? " · Google" : ""}</> : "—"}
+        </span>
+        <span style={{ flex: 1 }} />
+        <select value={val} onChange={(e) => choose(e.target.value)} style={{
+          fontFamily: mn, fontSize: 12, color: D.tx, background: D.surface,
+          border: `1px solid ${D.border}`, borderRadius: 9, padding: "8px 11px", cursor: "pointer", maxWidth: 240,
+        }}>
+          {targets.map((t) => <option key={t.id} value={t.id}>{t.name}{t.google ? " · Google" : ""}</option>)}
+        </select>
+      </div>
+      <div style={{ fontSize: 11.5, color: D.txm, marginTop: 8, lineHeight: 1.45 }}>
+        New events, content and dated tasks are added here.
+        {!loading && !status.connected && " Connect Google Calendar from the Agenda to target a Google calendar."}
       </div>
       <div style={{ height: 1, background: D.border, margin: "22px 0 0" }} />
     </>
@@ -245,6 +282,9 @@ export default function AppearanceSettings({ open, onClose, m }: { open: boolean
         <div style={{ padding: 22 }}>
           {m && <DataModeSection m={m} />}
           <div style={{ marginTop: m ? 22 : 0 }}>
+            <DefaultCalendarSection />
+          </div>
+          <div style={{ marginTop: 22 }}>
             <AppearancePanel onReplayTour={() => { onClose(); setTimeout(() => window.dispatchEvent(new Event("poast:replay-tour")), 60); }} />
           </div>
         </div>

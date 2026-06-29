@@ -13,7 +13,7 @@ import {
   type MarketingEvent,
 } from "../marketing-constants";
 import type { MarketingState } from "../use-marketing";
-import { useGoogle, calendarTargets } from "../use-google";
+import { useGoogle, calendarTargets, resolveDefaultCalendarId } from "../use-google";
 
 // Combine a YYYY-MM-DD date + HH:MM time into a local-time ISO datetime.
 function toISO(date: string, time?: string): string {
@@ -73,11 +73,12 @@ export function TaskModal({ open, prefill, m, onClose, onOpenView }: ModalProps)
     try {
       // 1) If dated + add-to-calendar, mint the event first so we can link it.
       let eventId: string | undefined;
+      const calId = resolveDefaultCalendarId();
       if (addToCal && dueDate) {
         const e = m.addEvent({
           title: title.trim(), type: "manual", status: "scheduled",
           start: toISO(dueDate, time || "09:00"), source: "poast",
-          payload: { scheduleKind: "task" },
+          payload: { scheduleKind: "task", calendarId: calId },
         });
         eventId = e.id;
       }
@@ -96,7 +97,7 @@ export function TaskModal({ open, prefill, m, onClose, onOpenView }: ModalProps)
       if (!res.ok) throw new Error(j.error || "Could not save task");
       // 3) Back-link the task id onto the event so future two-way sync is loop-safe.
       if (eventId && j.task?.id) {
-        m.updateEvent(eventId, { payload: { scheduleKind: "task", sourceTaskId: j.task.id } });
+        m.updateEvent(eventId, { payload: { scheduleKind: "task", sourceTaskId: j.task.id, calendarId: calId } });
       }
       onClose();
     } catch (e) {
@@ -183,9 +184,9 @@ export function ScheduleModal({ open, prefill, m, onClose, onOpenView }: ModalPr
     setEndTime(str(prefill.endTime));
     setNotes(str(prefill.notes));
     setCampaignId("");
-    setCalendarId(str(prefill.calendarId) || "sa-marketing");
+    setCalendarId(str(prefill.calendarId) || resolveDefaultCalendarId(owner));
     setErr(null);
-  }, [open, prefill]);
+  }, [open, prefill, owner]);
 
   const kindDef = useMemo(() => scheduleKindOf(kind), [kind]);
 

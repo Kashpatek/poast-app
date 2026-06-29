@@ -3495,6 +3495,9 @@ function CombineDock({ tasks, dragActive }: { tasks: Task[]; dragActive: boolean
 
   const has = tasks.length > 0;
   const canCombine = tasks.length >= 2;
+  // Only present when you've picked up a task (drag) or already have items
+  // staged — otherwise it slides off the right edge and stays out of the way.
+  const visible = dragActive || has;
 
   return (
     <div
@@ -3506,8 +3509,12 @@ function CombineDock({ tasks, dragActive }: { tasks: Task[]; dragActive: boolean
         const id = e.dataTransfer.getData("text/plain");
         if (id) drag.toggleCombine(id);
       }}
+      aria-hidden={!visible}
       style={{
-        position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)",
+        position: "fixed", right: 16, top: "50%",
+        transform: visible ? "translate(0, -50%)" : "translate(140%, -50%)",
+        opacity: visible ? 1 : 0,
+        pointerEvents: visible ? "auto" : "none",
         width: open ? 264 : 56,
         background: D.card,
         border: "1px solid " + (over ? D.amber : has ? D.amber + "66" : D.border),
@@ -3517,7 +3524,7 @@ function CombineDock({ tasks, dragActive }: { tasks: Task[]; dragActive: boolean
           : has ? "0 0 0 2px " + D.amber + "22, 0 12px 30px rgba(0,0,0,0.4)" : "0 8px 22px rgba(0,0,0,0.35)",
         zIndex: 80,
         padding: open ? 12 : 8,
-        transition: "width 0.18s, border-color 0.14s, box-shadow 0.14s",
+        transition: "width 0.18s, transform 0.24s cubic-bezier(0.32,0.72,0,1), opacity 0.2s, border-color 0.14s, box-shadow 0.14s",
         animation: dragActive && !over ? "tbDockPulse 1.2s infinite" : "none",
         overflow: "hidden",
       }}

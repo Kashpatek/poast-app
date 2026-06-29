@@ -4,12 +4,15 @@
 // connected → a Connect button; connected → the calendar list where you choose
 // which calendars feed MarketingSUITE (checkbox) and sync them.
 import React, { useState } from "react";
-import { CalendarCheck, Plug, RefreshCw, Loader2, Check, X, Square, CheckSquare } from "lucide-react";
+import { CalendarCheck, Plug, RefreshCw, Loader2, Check, X, Square, CheckSquare, Star } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
-import { useGoogle } from "../use-google";
+import {
+  useGoogle, calendarTargets, getDefaultCalendarId, setDefaultCalendarId, isCalSelected,
+  type GoogleStatus,
+} from "../use-google";
 
 export default function GoogleCalendarsPanel({ onChanged }: { onChanged?: () => void }) {
-  const { status, loading, connect, disconnect, syncCalendar, setCalendarSelected, syncSelected, isSelected } = useGoogle();
+  const { status, loading, owner, connect, disconnect, syncCalendar, setCalendarSelected, syncSelected, isSelected } = useGoogle();
   const [syncing, setSyncing] = useState<string | null>(null);
   const [toggling, setToggling] = useState<string | null>(null);
   const [syncingAll, setSyncingAll] = useState(false);
@@ -113,6 +116,10 @@ export default function GoogleCalendarsPanel({ onChanged }: { onChanged?: () => 
       <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginBottom: 10 }}>
         Check the calendars to pull into MarketingSUITE — {selectedCount}/{calendars.length} on.
       </div>
+
+      {/* Force a default target on connect (changeable here + in Settings). */}
+      <DefaultCalendarPicker owner={owner} status={status} />
+
       <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
         {calendars.map((c) => {
           const on = isSelected(c.id);
@@ -155,6 +162,75 @@ export default function GoogleCalendarsPanel({ onChanged }: { onChanged?: () => 
         </div>
       )}
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+}
+
+// The "pick a default" gate. Prominent (amber) until a default is chosen, then
+// it relaxes into a quiet "Default: …" row that can still be changed. The choice
+// persists per owner and is mirrored by the same control in Settings.
+function DefaultCalendarPicker({ owner, status }: { owner: string; status: GoogleStatus }) {
+  const targets = calendarTargets(status);
+  const suggested = React.useMemo(() => {
+    const primary = (status.calendars || []).find((c) => c.primary && isCalSelected(status.prefs, c.id));
+    return getDefaultCalendarId(owner) || primary?.id || "sa-marketing";
+  }, [owner, status]);
+  const [def, setDef] = useState<string>(() => getDefaultCalendarId(owner) || "");
+  const [draft, setDraft] = useState<string>(suggested);
+  const chosen = !!def && targets.some((t) => t.id === def);
+  const current = targets.find((t) => t.id === def);
+
+  function save() {
+    if (!draft) return;
+    setDefaultCalendarId(owner, draft);
+    setDef(draft);
+  }
+
+  const selStyle: React.CSSProperties = {
+    fontFamily: mn, fontSize: 11, color: D.tx, background: D.surface,
+    border: `1px solid ${D.border}`, borderRadius: 8, padding: "6px 9px", cursor: "pointer", maxWidth: 200,
+  };
+
+  return (
+    <div style={{
+      marginBottom: 12, padding: "11px 13px", borderRadius: 10,
+      border: `1px solid ${chosen ? D.border : D.amber + "77"}`,
+      background: chosen ? D.card : `linear-gradient(135deg, ${D.amber}14, transparent)`,
+      boxShadow: chosen ? "none" : `0 0 0 1px ${D.amber}22`,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
+        <Star size={14} color={chosen ? D.teal : D.amber} fill={chosen ? D.teal : D.amber} />
+        <span style={{ fontFamily: gf, fontSize: 13, fontWeight: 700, color: D.tx }}>
+          {chosen ? "Default calendar" : "Choose a default calendar"}
+        </span>
+        {chosen && current && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontFamily: mn, fontSize: 10.5, color: D.txm }}>
+            <span style={{ width: 9, height: 9, borderRadius: 3, background: current.color }} />
+            {current.name}{current.google ? " · Google" : ""}
+          </span>
+        )}
+        {!chosen && (
+          <span style={{ fontFamily: mn, fontSize: 8.5, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: D.amber, border: `1px solid ${D.amber}55`, background: D.amber + "14", borderRadius: 999, padding: "2px 7px" }}>
+            required
+          </span>
+        )}
+        <span style={{ flex: 1 }} />
+        <select value={draft} onChange={(e) => setDraft(e.target.value)} style={selStyle}>
+          {targets.map((t) => <option key={t.id} value={t.id}>{t.name}{t.google ? " · Google" : ""}</option>)}
+        </select>
+        <button onClick={save} disabled={chosen && draft === def} style={{
+          cursor: chosen && draft === def ? "default" : "pointer", borderRadius: 8, padding: "6px 12px",
+          fontFamily: mn, fontSize: 10.5, fontWeight: 700, border: "none",
+          color: chosen && draft === def ? D.txd : "#15100a",
+          background: chosen && draft === def ? D.surface : `linear-gradient(135deg, ${D.amber}, ${D.amber}cc)`,
+          opacity: chosen && draft === def ? 0.6 : 1,
+        }}>
+          {chosen ? "Update" : "Set default"}
+        </button>
+      </div>
+      <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, marginTop: 7 }}>
+        New events, content & dated tasks land here. Change anytime in Settings.
+      </div>
     </div>
   );
 }

@@ -129,6 +129,8 @@ function timelineMenuItems(
 
 export default function TimelineView({ m, onOpenView }: ViewProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [availH, setAvailH] = useState(560);
   const [tip, setTip] = useState<TipState | null>(null);
   const [mode, setMode] = useState<ViewMode>("gantt");
   const [groupBy, setGroupBy] = useState<GroupBy>("type");
@@ -152,6 +154,18 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
     const t = setInterval(() => setTick((n) => n + 1), 60 * 1000);
     return () => clearInterval(t);
   }, []);
+
+  // Fill the viewport: the Gantt chart claims whatever height is left below the
+  // controls (minus room for the legend), so lanes use the full screen instead
+  // of floating in a short box. Scrolls internally once content runs taller.
+  useEffect(() => {
+    const calc = () => {
+      const el = wrapRef.current; if (!el) return;
+      setAvailH(Math.max(380, Math.floor(window.innerHeight - el.getBoundingClientRect().top - 58)));
+    };
+    calc(); window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
+  }, [mode]);
 
   // ─── Lanes (Type or Campaign) ───
   const lanes: Lane[] = useMemo(() => {
@@ -268,11 +282,11 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
   // before this one starts). Expanded: one sub-row per task. Either way no two
   // items share a cell, so nothing overrides.
   const layout = useMemo(() => {
-    let y = 0;
-    const rows: {
-      lane: Lane; top: number; h: number; expanded: boolean; rowH: number;
+    const base: {
+      lane: Lane; h: number; expanded: boolean; rowH: number;
       subCount: number; subOf: Map<string, number>;
     }[] = [];
+    let natural = 0;
     for (const lane of visibleLanes) {
       const evs = laneEvents[lane.key] || [];
       const expanded = !!open[lane.key] && evs.length > 0;
@@ -297,11 +311,24 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
       }
       const rowH = expanded ? ROW_EXPANDED : ROW_COLLAPSED;
       const h = LANE_PAD_Y * 2 + subCount * rowH;
-      rows.push({ lane, top: y, h, expanded, rowH, subCount, subOf });
-      y += h;
+      base.push({ lane, h, expanded, rowH, subCount, subOf });
+      natural += h;
     }
+    // Spread any leftover vertical space evenly across lanes so the chart fills
+    // the viewport; `pad` re-centers each lane's packed rows inside its taller
+    // band. When content already overflows, extra is 0 and the chart scrolls.
+    const body = Math.max(0, availH - AXIS_H - 2);
+    const extra = base.length ? Math.max(0, body - natural) : 0;
+    const per = base.length ? extra / base.length : 0;
+    let y = 0;
+    const rows = base.map((r) => {
+      const h = r.h + per;
+      const row = { ...r, top: y, h, pad: per / 2 };
+      y += h;
+      return row;
+    });
     return { rows, total: Math.max(y, 120) };
-  }, [visibleLanes, laneEvents, open, pxPerDay, win.from, win.days]);
+  }, [visibleLanes, laneEvents, open, pxPerDay, win.from, win.days, availH]);
 
   function toggleOpen(k: string) { setOpen((o) => ({ ...o, [k]: !o[k] })); }
   function toggleHide(k: string) { setHidden((h) => ({ ...h, [k]: !h[k] })); }
@@ -437,11 +464,11 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
           </div>
 
           {/* ── Chart shell ── */}
-          <div style={{
+          <div ref={wrapRef} style={{
             border: `1px solid ${D.border}`, borderRadius: 14, overflow: "hidden",
             background: D.cardGrad, boxShadow: D.glow, position: "relative",
           }}>
-            <div ref={scrollRef} style={{ overflowX: "auto", overflowY: "hidden", position: "relative" }}>
+            <div ref={scrollRef} style={{ overflowX: "auto", overflowY: "auto", position: "relative", height: availH }}>
               <div style={{ minWidth: LABEL_W + trackW, position: "relative" }}>
                 {/* ── Time axis header ── */}
                 <div style={{
@@ -515,8 +542,8 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
                         style={{
                           position: "absolute", left: 0, right: 0, top, height: h,
                           borderBottom: `1px solid ${D.border}`, cursor: (laneEvents[lane.key] || []).length ? "pointer" : "default",
-                          display: "flex", flexDirection: "column", justifyContent: "flex-start",
-                          padding: `${LANE_PAD_Y}px 0 0 12px`, transition: "background 0.15s",
+                          display: "flex", flexDirection: "column", justifyContent: "center",
+                          padding: "0 0 0 12px", transition: "background 0.15s",
                         }}
                         onMouseEnter={(ev) => { ev.currentTarget.style.background = D.hover; }}
                         onMouseLeave={(ev) => { ev.currentTarget.style.background = "transparent"; }}
@@ -586,11 +613,11 @@ export default function TimelineView({ m, onOpenView }: ViewProps) {
                     ))}
 
                     {/* Bars / markers (placed by packed sub-row) */}
-                    {layout.rows.map(({ lane, top, expanded, rowH, subOf }) => {
+                    {layout.rows.map(({ lane, top, expanded, rowH, subOf, pad }) => {
                       const evs = laneEvents[lane.key] || [];
                       return evs.map((e) => {
                         const sub = subOf.get(e.id) ?? 0;
-                        const rowTop = top + LANE_PAD_Y + sub * rowH;
+                        const rowTop = top + LANE_PAD_Y + pad + sub * rowH;
                         return (
                           <EventItem
                             key={e.id}

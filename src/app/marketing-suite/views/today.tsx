@@ -274,7 +274,10 @@ export default function TodayView({ m, onOpenView }: ViewProps) {
   const todayLabel = now.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
 
   return (
-    <div style={{ padding: "22px 26px 48px", fontFamily: ft, color: D.tx }}>
+    <div style={{ position: "relative", padding: "22px 26px 48px", fontFamily: ft, color: D.tx }}>
+      {/* ── living ambient aurora (behind everything; time-of-day tinted) ── */}
+      <AmbientBackdrop hour={now.getHours()} />
+      <div style={{ position: "relative", zIndex: 1 }}>
       {/* ── page head ── */}
       <PageHeader
         id="today"
@@ -357,6 +360,44 @@ export default function TodayView({ m, onOpenView }: ViewProps) {
           <div>No modules placed. {edit ? "Add some from the panel above." : "Hit Edit layout to build your launchboard."}</div>
         </div>
       )}
+      </div>
+    </div>
+  );
+}
+
+// ════════ living ambient backdrop ════════
+// A calm, time-aware aurora drifting behind the bento: three blurred colour
+// fields slowly breathing and crossing. Pointer-events none, z0 so the tiles
+// (z1) stay crisp. Palette warms in the morning, cools at midday, deepens at
+// night. Honors prefers-reduced-motion.
+function ambientPalette(hour: number): [string, string, string] {
+  if (hour >= 5 && hour < 11) return [D.amber, D.coral, D.teal];     // morning
+  if (hour >= 11 && hour < 17) return [D.cyan, D.teal, D.blue];      // midday
+  if (hour >= 17 && hour < 22) return [D.violet, D.coral, D.amber];  // evening
+  return [D.blue, D.violet, D.crimson];                              // night
+}
+function ambientBlob(color: string, left: string, top: string, size: number, animation: string): React.CSSProperties {
+  return {
+    position: "absolute", left, top, width: size, height: size, borderRadius: "50%",
+    background: `radial-gradient(circle at 50% 50%, ${color}33, ${color}12 45%, transparent 70%)`,
+    filter: "blur(48px)", animation, willChange: "transform",
+  };
+}
+function AmbientBackdrop({ hour }: { hour: number }) {
+  const [a, b, c] = ambientPalette(hour);
+  return (
+    <div aria-hidden style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 0, borderRadius: 18 }}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes msAmbA { 0%{transform:translate3d(-6%,-4%,0) scale(1)} 50%{transform:translate3d(8%,6%,0) scale(1.18)} 100%{transform:translate3d(-6%,-4%,0) scale(1)} }
+        @keyframes msAmbB { 0%{transform:translate3d(6%,8%,0) scale(1.1)} 50%{transform:translate3d(-8%,-6%,0) scale(0.92)} 100%{transform:translate3d(6%,8%,0) scale(1.1)} }
+        @keyframes msAmbC { 0%{transform:translate3d(0,6%,0) scale(1)} 50%{transform:translate3d(-6%,-9%,0) scale(1.22)} 100%{transform:translate3d(0,6%,0) scale(1)} }
+        @media (prefers-reduced-motion: reduce){ .ms-amb-blob{animation:none !important} }
+      ` }} />
+      <div className="ms-amb-blob" style={ambientBlob(a, "6%", "-8%", 520, "msAmbA 26s ease-in-out infinite")} />
+      <div className="ms-amb-blob" style={ambientBlob(b, "60%", "-14%", 560, "msAmbB 32s ease-in-out infinite")} />
+      <div className="ms-amb-blob" style={ambientBlob(c, "34%", "46%", 600, "msAmbC 30s ease-in-out infinite")} />
+      {/* faint top sheen so the header reads clean over the aurora */}
+      <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: 120, background: "linear-gradient(180deg, rgba(10,10,14,0.42), transparent)" }} />
     </div>
   );
 }

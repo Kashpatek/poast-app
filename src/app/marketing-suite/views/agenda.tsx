@@ -24,6 +24,7 @@ import {
 import type { ViewProps } from "../use-marketing";
 import { useCreate } from "../create-context";
 import { useBoardTasks } from "../use-board-tasks";
+import { useIsMobile } from "../use-mobile";
 import GoogleCalendarsPanel from "../components/google-calendars";
 import AgendaWizard from "../components/agenda-wizard";
 import { EventHoverCard } from "../components/event-hover-card";
@@ -70,6 +71,7 @@ function hhmm(minutes: number) { const h = Math.floor(minutes / 60), m = Math.ro
 
 export default function AgendaView({ m, onOpenView }: ViewProps) {
   const { openCreate, openEdit } = useCreate();
+  const isMobile = useIsMobile();
   const [view, setView] = useState<"day" | "list">("day");
   const [date, setDate] = useState<Date>(() => startOfDay(new Date()));
   const [showCals, setShowCals] = useState(false);
@@ -180,7 +182,7 @@ export default function AgendaView({ m, onOpenView }: ViewProps) {
       )}
 
       {view === "day"
-        ? <DayGrid m={m} date={date} now={now} isToday={isToday} openCreate={openCreate} onOpenEdit={openEdit} gStatus={gcalStatus} />
+        ? <DayGrid m={m} date={date} now={now} isToday={isToday} openCreate={openCreate} onOpenEdit={openEdit} gStatus={gcalStatus} isMobile={isMobile} />
         : <ListView m={m} now={now} openCreate={openCreate} onOpenEdit={openEdit} onOpenView={onOpenView} />}
 
       <AgendaWizard open={wizardOpen} m={m} date={date} onClose={() => setWizardOpen(false)} onOpenView={onOpenView} />
@@ -197,11 +199,12 @@ type Menu =
   | { kind: "task"; x: number; y: number; items: MenuItem[] }
   | null;
 
-function DayGrid({ m, date, now, isToday, openCreate, onOpenEdit, gStatus }: {
+function DayGrid({ m, date, now, isToday, openCreate, onOpenEdit, gStatus, isMobile }: {
   m: ViewProps["m"]; date: Date; now: Date; isToday: boolean;
   openCreate: (k: "schedule", pf?: Record<string, unknown>) => void;
   onOpenEdit: (e: MarketingEvent) => void;
   gStatus: GoogleStatus | undefined;
+  isMobile: boolean;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
@@ -448,9 +451,9 @@ function DayGrid({ m, date, now, isToday, openCreate, onOpenEdit, gStatus }: {
   ];
 
   return (
-    <div ref={wrapRef} style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+    <div ref={wrapRef} style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 12 : 16, alignItems: "stretch" }}>
       {/* Grid */}
-      <div style={{ flex: 1, minWidth: 0, border: `1px solid ${D.border}`, borderRadius: 16, background: D.cardGrad, overflow: "hidden", height: availH, display: "flex", flexDirection: "column", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04), 0 18px 50px rgba(0,0,0,0.42)" }}>
+      <div style={{ flex: 1, minWidth: 0, border: `1px solid ${D.border}`, borderRadius: 16, background: D.cardGrad, overflow: "hidden", height: isMobile ? "58vh" : availH, display: "flex", flexDirection: "column", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04), 0 18px 50px rgba(0,0,0,0.42)" }}>
         {allDayEvents.length > 0 && (
           <div style={{ flex: "none", display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 12px 8px 0", borderBottom: `1px solid ${D.border}` }}>
             <div style={{ width: GUTTER_W - 16, flex: "none", textAlign: "right", fontFamily: mn, fontSize: 9, color: D.txd, paddingTop: 5, textTransform: "uppercase", letterSpacing: 0.4 }}>all-day</div>
@@ -576,7 +579,7 @@ function DayGrid({ m, date, now, isToday, openCreate, onOpenEdit, gStatus }: {
       </div>
 
       {/* Task rail */}
-      <TaskRail tasks={tasks} availH={availH} onPeek={setPeek}
+      <TaskRail tasks={tasks} availH={availH} isMobile={isMobile} onPeek={setPeek}
         onTaskContext={(e, t) => setMenu({ kind: "task", x: e.clientX, y: e.clientY, items: taskMenuItems(t) })} />
 
       {/* Hover preview (suppressed while dragging) */}
@@ -694,8 +697,8 @@ const byPrioThenDue = (a: BoardTaskLite, b: BoardTaskLite) =>
   (PRIO_ORDER[a.priority || ""] ?? 9) - (PRIO_ORDER[b.priority || ""] ?? 9) ||
   (a.dueDate || "9999").localeCompare(b.dueDate || "9999");
 
-function TaskRail({ tasks, availH, onPeek, onTaskContext }: {
-  tasks: BoardTaskLite[]; availH: number;
+function TaskRail({ tasks, availH, isMobile, onPeek, onTaskContext }: {
+  tasks: BoardTaskLite[]; availH: number; isMobile?: boolean;
   onPeek: (t: BoardTaskLite) => void;
   onTaskContext: (e: React.MouseEvent, t: BoardTaskLite) => void;
 }) {
@@ -721,7 +724,7 @@ function TaskRail({ tasks, availH, onPeek, onTaskContext }: {
   }, [open, dim, tab]);
 
   return (
-    <div style={{ width: 296, flex: "none", border: `1px solid ${D.border}`, borderRadius: 16, background: D.cardGrad, display: "flex", flexDirection: "column", height: availH, overflow: "hidden", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+    <div style={{ width: isMobile ? "100%" : 296, flex: "none", border: `1px solid ${D.border}`, borderRadius: 16, background: D.cardGrad, display: "flex", flexDirection: "column", height: isMobile ? "52vh" : availH, overflow: "hidden", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
       <style dangerouslySetInnerHTML={{ __html: ".tq-tabs::-webkit-scrollbar{display:none}.tq-tabs{scrollbar-width:none;-ms-overflow-style:none}" }} />
       <div style={{ flex: "none", padding: "13px 14px 10px", borderBottom: `1px solid ${D.border}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>

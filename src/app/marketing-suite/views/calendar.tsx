@@ -307,11 +307,11 @@ function MonthGrid({ anchor, today, events, overKey, dragId }: {
     window.addEventListener("resize", calc);
     return () => window.removeEventListener("resize", calc);
   }, []);
-  // Chip capacity scales with the row height; the rest collapse into "+N more".
-  const maxChips = Math.max(2, Math.floor((rowH - 26) / 18));
 
   return (
     <div>
+      {/* Cell bodies scroll on busy days; the scrollbar stays hidden until hover. */}
+      <style dangerouslySetInnerHTML={{ __html: ".cal-cellbody{scrollbar-width:none}.cal-cellbody::-webkit-scrollbar{width:0}.cal-cellbody:hover{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.18) transparent}.cal-cellbody:hover::-webkit-scrollbar{width:6px}.cal-cellbody:hover::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.16);border-radius:3px}" }} />
       <div style={S.dow}>{DOW.map((d) => <span key={d} style={S.dowCell}>{d}</span>)}</div>
       <div ref={wrapRef} style={{ ...S.month, gridAutoRows: rowH }}>
         {cells.map((day) => {
@@ -322,7 +322,6 @@ function MonthGrid({ anchor, today, events, overKey, dragId }: {
           return (
             <DayCell key={key} dayKey={key} dayNum={day.getDate()} inMonth={inMonth}
               isToday={isToday} isOver={overKey === key} dragId={dragId} events={dayEvents}
-              maxChips={maxChips}
               onMore={(rect) => setMore({ day, events: dayEvents, rect })} />
           );
         })}
@@ -334,14 +333,18 @@ function MonthGrid({ anchor, today, events, overKey, dragId }: {
   );
 }
 
-function DayCell({ dayKey, dayNum, inMonth, isToday, isOver, dragId, events, maxChips, onMore }: {
+// Per-day density tier — drives the heat bar + count badge so a busy day reads
+// at a glance (calm teal → amber → coral as the load climbs).
+function loadTier(n: number): string { return n >= 5 ? D.coral : n >= 3 ? D.amber : D.teal; }
+
+function DayCell({ dayKey, dayNum, inMonth, isToday, isOver, dragId, events, onMore }: {
   dayKey: string; dayNum: number; inMonth: boolean; isToday: boolean;
-  isOver: boolean; dragId: string | null; events: MarketingEvent[]; maxChips: number;
+  isOver: boolean; dragId: string | null; events: MarketingEvent[];
   onMore: (rect: DOMRect) => void;
 }) {
   const { setNodeRef } = useDroppable({ id: dayKey });
-  const shown = events.slice(0, maxChips);
-  const extra = events.length - shown.length;
+  const count = events.length;
+  const tier = loadTier(count);
   return (
     <div ref={setNodeRef} style={{
       ...S.cell,
@@ -349,15 +352,26 @@ function DayCell({ dayKey, dayNum, inMonth, isToday, isOver, dragId, events, max
       ...(isToday ? S.cellToday : null),
       ...(isOver ? S.cellOver : null),
     }}>
-      <div style={{ ...S.cellN, ...(isToday ? { color: D.cyan } : null) }}>{dayNum}</div>
-      <div style={S.cellBody}>
-        {shown.map((e) => <DraggableChip key={e.id} e={e} hidden={dragId === e.id} />)}
-        {extra > 0 && (
-          <button style={S.more}
-            onClick={(ev) => { ev.stopPropagation(); onMore(ev.currentTarget.getBoundingClientRect()); }}>
-            +{extra} more
+      {/* density heat — a left edge bar that deepens with the day's load */}
+      {count > 0 && (
+        <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: tier, opacity: Math.min(0.3 + count * 0.12, 0.9), borderRadius: "9px 0 0 9px" }} />
+      )}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, flex: "none", marginBottom: 2 }}>
+        <span style={{ ...S.cellN, marginBottom: 0, ...(isToday ? { color: D.cyan } : null) }}>{dayNum}</span>
+        {count > 0 && (
+          <button title={`${count} ${count === 1 ? "item" : "items"} — open day`}
+            onClick={(ev) => { ev.stopPropagation(); onMore(ev.currentTarget.getBoundingClientRect()); }}
+            style={{
+              fontFamily: mn, fontSize: 8.5, fontWeight: 700, lineHeight: 1, cursor: "pointer",
+              color: tier, border: `1px solid ${tier}55`, background: `${tier}16`,
+              borderRadius: 999, padding: "2px 6px", minWidth: 16, textAlign: "center",
+            }}>
+            {count}
           </button>
         )}
+      </div>
+      <div className="cal-cellbody" style={S.cellBody}>
+        {events.map((e) => <DraggableChip key={e.id} e={e} hidden={dragId === e.id} />)}
       </div>
     </div>
   );
@@ -660,8 +674,7 @@ const S: Record<string, React.CSSProperties> = {
   cellToday: { outline: `1px solid ${D.cyan}`, boxShadow: `0 0 14px ${D.cyan}2e` },
   cellOver: { borderColor: D.cyan, background: `${D.cyan}10`, boxShadow: `0 0 16px ${D.cyan}33` },
   cellN: { fontFamily: mn, fontSize: 10, color: D.txd, marginBottom: 2, flex: "none" },
-  cellBody: { display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" },
-  more: { fontFamily: mn, fontSize: 9, letterSpacing: 0.3, color: D.txm, background: "transparent", border: "none", textAlign: "left", padding: "2px 6px", marginTop: 2, cursor: "pointer", flex: "none" },
+  cellBody: { display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", paddingRight: 1 },
   morePop: { position: "fixed", zIndex: 91, background: "#0c0c14", border: `1px solid ${D.border}`, borderRadius: 12, padding: 12, boxShadow: "0 18px 50px rgba(0,0,0,0.6)" },
   morePopHead: { fontFamily: mn, fontSize: 10, letterSpacing: 0.5, color: D.txm, marginBottom: 8 },
 
