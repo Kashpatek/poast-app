@@ -25,6 +25,12 @@ function sql(): Db { return neon(process.env.DATABASE_URL || process.env.POSTGRE
 function iso(v: unknown): string | null { if (!v) return null; const d = new Date(v as string); return isNaN(+d) ? null : d.toISOString(); }
 const HOUR = 3600_000;
 
+// Google "calendar-status" events — working location ("Office"/"Home"), out of
+// office, and focus time — are personal status, not calendar work items. They
+// recur (daily working location especially) and would carpet every day in the
+// suite, so we never mirror them into the spine. See google-cal calendar-status.
+const STATUS_EVENT_TYPES = new Set(["workingLocation", "outOfOffice", "focusTime"]);
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 interface SyncCounts { pushed: number; updated: number; pulled: number; errors: string[]; }
@@ -80,6 +86,13 @@ async function syncOne(db: Db, token: string, owner: string, calendarId: string)
     const events = await listEvents(token, calendarId, timeMin, timeMax);
     for (const g of events) {
       if (g.status === "cancelled") continue;
+      // Skip personal status events (working location / OOO / focus time). If we
+      // pulled one before this guard existed, delete that mirror row so it stops
+      // populating the calendar — self-healing on the next sync.
+      if (STATUS_EVENT_TYPES.has(g.eventType)) {
+        await db.query("delete from marketing_events where owner=$1 and gcal_event_id=$2 and source='gcal'", [owner, g.id]);
+        continue;
+      }
       const startISO = iso(g.start?.dateTime || g.start?.date); if (!startISO) continue;
       const endISO = iso(g.end?.dateTime || g.end?.date);
       const existing = (await db.query("select id from marketing_events where owner=$1 and gcal_event_id=$2 limit 1", [owner, g.id])) as Row[];
@@ -90,6 +103,7 @@ async function syncOne(db: Db, token: string, owner: string, calendarId: string)
       const payload = JSON.stringify({
         calendarId, scheduleKind: "booking", gcalHtmlLink: g.htmlLink || null,
         allDay, location: g.location || null, attendees, meetLink,
+        eventType: g.eventType || "default",
       });
       const notes = g.description || null;
       if (existing.length) {
