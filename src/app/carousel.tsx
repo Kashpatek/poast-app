@@ -2148,6 +2148,68 @@ async function ensureFontsReady(): Promise<void> {
   }
 }
 
+// Fetch an image URL and return it as a self-contained data URL, falling back to
+// the same proxy the canvas path uses for CORS-blocked sources. Empty string when
+// there's nothing to load or every attempt fails. Needed because an SVG drawn via
+// <img> can't load EXTERNAL <image href> resources (and would taint the canvas),
+// so the cover photo must be embedded inline.
+async function imageToDataUrl(url: string | undefined): Promise<string> {
+  if (!url) return "";
+  if (url.indexOf("data:") === 0) return url;
+  async function fetchAsDataUrl(u: string): Promise<string> {
+    var res = await fetch(u);
+    if (!res.ok) throw new Error("fetch " + res.status);
+    var blob = await res.blob();
+    return await new Promise<string>(function(resolve, reject) {
+      var fr = new FileReader();
+      fr.onload = function() { resolve(String(fr.result)); };
+      fr.onerror = function() { reject(new Error("read failed")); };
+      fr.readAsDataURL(blob);
+    });
+  }
+  try { return await fetchAsDataUrl(url); }
+  catch {
+    try { return await fetchAsDataUrl("/api/image-proxy?url=" + encodeURIComponent(url)); }
+    catch { return ""; }
+  }
+}
+
+// Rasterize the SELECTED branded cover template — the exact SVG the editor shows
+// via renderCoverSvg — onto the export canvas, over whatever background was drawn.
+// Mirrors the on-screen SlideCanvas cover branch so the export is WYSIWYG instead
+// of falling back to the legacy image+title layout. 'Outfit'/'JetBrains Mono'
+// aren't bundled web fonts, so the SVG rasterizer resolves them the same way the
+// preview does.
+function drawCoverTemplate(ctx: CanvasRenderingContext2D, slide: Slide): Promise<void> {
+  return new Promise<void>(function(resolve) {
+    imageToDataUrl(slide.imageUrl).then(function(imgData) {
+      var inner = renderCoverSvg(slide.coverTemplate!, {
+        title: slide.title || "",
+        subtitle: slide.subtitle || "",
+        accent: slide.coverAccent || "#F7B041",
+        imageUrl: imgData,
+        dual: slide.coverDual || false,
+        logoStyle: "auto",
+        showSub: slide.coverShowSub !== false,
+        showLogo: true,
+        showMeta: true,
+        upper: true,
+        tight: false,
+      });
+      var svg = '<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + FULL_W + '" height="' + FULL_H + '">' + inner + '</svg>';
+      var url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+      var img = new Image();
+      img.onload = function() {
+        try { ctx.drawImage(img, 0, 0, FULL_W, FULL_H); } catch { /* ignore draw failure */ }
+        URL.revokeObjectURL(url);
+        resolve();
+      };
+      img.onerror = function() { URL.revokeObjectURL(url); resolve(); };
+      img.src = url;
+    });
+  });
+}
+
 function renderSlideToCanvas(slide: Slide, bgUrl: string): Promise<Blob> {
   return new Promise<Blob>(function(resolve, reject) {
     var canvas = document.createElement("canvas");
@@ -2324,7 +2386,13 @@ function renderSlideToCanvas(slide: Slide, bgUrl: string): Promise<Blob> {
         var imgOpts = { position: slide.imagePosition, fit: slide.imageFit };
         var imgOpts2 = { position: slide.imagePosition2, fit: slide.imageFit };
 
-        if (slide.type === "cover") {
+        if (slide.type === "cover" && slide.coverTemplate) {
+          // A branded cover template is selected — render that exact SVG (what the
+          // editor shows) instead of the legacy image+title fallback, which was
+          // ignoring the selection and exporting the original cover.
+          await drawCoverTemplate(ctx, slide);
+
+        } else if (slide.type === "cover") {
           ctx.textAlign = "left";
           var imgHPct = (slide.imageHeight || 46) / 100;
           var imgH = Math.round(coverAvailH * imgHPct);
