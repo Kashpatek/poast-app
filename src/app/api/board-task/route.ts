@@ -129,6 +129,57 @@ const PatchInput = z.object({
   }).passthrough(),
 }).refine((v) => v.id || v.marketingEventId, { message: "id or marketingEventId required" });
 
+// DELETE — remove one master-board task by id (RMW the archive blob). Used when
+// a campaign is deleted: its own board task goes with it. Idempotent (a missing
+// id is a no-op success) and surgical — only the exact id is removed, never
+// sibling tasks that merely share the category.
+const DeleteInput = z.object({ id: z.string().min(1).max(120) });
+
+export async function DELETE(req: NextRequest) {
+  const supabase = db();
+  if (!supabase) return NextResponse.json({ error: "DB not configured" }, { status: 503 });
+
+  let body: unknown;
+  try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
+  const parsed = DeleteInput.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: "Invalid input", details: parsed.error.issues }, { status: 400 });
+  const { id } = parsed.data;
+
+  try {
+    const { data: row, error } = await supabase.from("projects").select("*").eq("id", ROW_ID).single();
+    if (error || !row) return NextResponse.json({ error: error?.message || "Board not found" }, { status: 404 });
+
+    const archive: Row = (row as Row).data && typeof (row as Row).data === "object" ? (row as Row).data : { boards: [], activeId: "" };
+    const boards: Row[] = Array.isArray(archive.boards) ? archive.boards : [];
+
+    let removed: Row | null = null; let host: Row | undefined;
+    for (const b of boards) {
+      const tasks: Row[] = Array.isArray(b.tasks) ? b.tasks : [];
+      const i = tasks.findIndex((t) => t.id === id);
+      if (i >= 0) { removed = tasks[i]; b.tasks = tasks.filter((_, j) => j !== i); host = b; break; }
+    }
+    if (!removed || !host) return NextResponse.json({ ok: true, removed: 0 }); // idempotent
+
+    const now = new Date().toISOString();
+    if (!Array.isArray(host.activity)) host.activity = [];
+    host.activity.unshift({ ts: now, action: "delete", label: removed.title, taskId: id });
+
+    const writeBack: Row = {
+      id: ROW_ID,
+      name: (row as Row).name || "Akash Todo",
+      type: (row as Row).type || "akash-todo",
+      data: archive,
+      updated_at: now,
+    };
+    const { error: upErr } = await supabase.from("projects").upsert(writeBack, { onConflict: "id" }).select();
+    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+
+    return NextResponse.json({ ok: true, removed: 1 });
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
+}
+
 export async function PATCH(req: NextRequest) {
   const supabase = db();
   if (!supabase) return NextResponse.json({ error: "DB not configured" }, { status: 503 });

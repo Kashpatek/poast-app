@@ -8,8 +8,9 @@ import { Megaphone, Sparkles, Plus, X, Loader2 } from "lucide-react";
 import { D, ft, mn } from "../../shared-constants";
 import { Modal, Field, TextInput, TextArea, Select, Row, GhostBtn, PrimaryBtn } from "./modal";
 import { DatePicker } from "./date-picker";
-import { leadUpDates } from "../marketing-constants";
-import type { Campaign } from "../marketing-constants";
+import { leadUpDates, campaignCategory } from "../marketing-constants";
+import type { Campaign, BoardTaskLite } from "../marketing-constants";
+import { useBoardStore } from "../board-store";
 import type { MarketingState } from "../use-marketing";
 
 const PALETTE = [D.violet, D.teal, D.coral, D.cyan, D.blue, D.amber];
@@ -27,6 +28,12 @@ function toISO(date: string, time = "09:00"): string | null {
   return new Date(y, (mo || 1) - 1, d || 1, h || 0, mi || 0).toISOString();
 }
 function str(v: unknown, f = ""): string { return typeof v === "string" ? v : f; }
+// Local Y-M-D for an ISO datetime — the format a board subtask's dueDate uses
+// (the sync reconciler reads s.dueDate as a Y-M-D and spawns "name: subtask").
+function ymd(iso: string): string {
+  const d = new Date(iso); const off = d.getTimezoneOffset();
+  return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
+}
 
 export function CampaignModal({ open, prefill, m, onClose, onOpenView }: {
   open: boolean;
@@ -38,6 +45,7 @@ export function CampaignModal({ open, prefill, m, onClose, onOpenView }: {
   // Editing an existing campaign when prefill carries its id.
   const editId = str(prefill.editId);
   const isEdit = !!editId;
+  const board = useBoardStore();
 
   const [name, setName] = useState("");
   const [type, setType] = useState("Launch");
@@ -101,35 +109,60 @@ export function CampaignModal({ open, prefill, m, onClose, onOpenView }: {
       // ── Edit existing: patch in place; don't re-materialize prep tasks ──
       if (isEdit) {
         const prevPayload = (prefill.payload && typeof prefill.payload === "object") ? prefill.payload as Record<string, unknown> : {};
+        const prevName = str(prefill.name);
+        const newName = name.trim();
         m.updateCampaign(editId, {
-          name: name.trim(), color, status,
+          name: newName, color, status,
           goal: goal.trim() || null, start: toISO(start), end: toISO(end),
           payload: { ...prevPayload, type },
         });
+        // Keep the taskboard in lock-step on rename: retitle the campaign's own
+        // board task and re-file every task under the old category so the group
+        // (CampaignTasks filters by campaignCategory(name)) stays intact.
+        if (newName && newName !== prevName) {
+          const oldCat = campaignCategory(prevName);
+          const newCat = campaignCategory(newName);
+          const boardTaskId = typeof prevPayload.boardTaskId === "string" ? prevPayload.boardTaskId : null;
+          board.tasks.forEach((t) => {
+            const isCampTask = !!boardTaskId && t.id === boardTaskId;
+            if ((t.category || "") !== oldCat && !isCampTask) return;
+            const patch: Partial<BoardTaskLite> = {};
+            if (oldCat !== newCat) patch.category = newCat;
+            if (isCampTask) { patch.title = newName; patch.category = newCat; }
+            if (Object.keys(patch).length) board.updateBoardTask(t.id, patch);
+          });
+        }
         onClose(); onOpenView?.("campaigns"); return;
       }
       const startISO = toISO(start);
+      const newName = name.trim();
       const c = m.addCampaign({
-        name: name.trim(), color, status,
+        name: newName, color, status,
         goal: goal.trim() || null, start: startISO, end: toISO(end),
-        payload: { type, tasks: tasks.map((label, i) => ({ id: "ct-" + i, label, done: false })) },
+        payload: { type },
       });
-      // Materialize prep tasks as campaign events. Lead-up = dated backward so
-      // the LAST task lands the day before release and earlier ones step back;
-      // Unassigned = created but flagged so they don't claim a real slot.
+      // The campaign IS a task on the master board: one task titled with the
+      // campaign name (category = the name) whose subtasks are the prep checklist.
+      // Lead-up dates each subtask backward from release so the reconciler spawns
+      // "name: step" calendar events; unassigned leaves them undated. Stored
+      // boardTaskId lets rename/delete find this task later.
+      const cat = campaignCategory(newName);
+      let subtasks: BoardTaskLite["subtasks"];
       if (tasks.length) {
         const releaseISO = startISO || toISO(end) || new Date(Date.now() + 14 * 86_400_000).toISOString();
-        const dates = leadUpDates(releaseISO, tasks.length); // earliest-first
-        const unassigned = scheduleMode === "unassigned";
-        tasks.forEach((label, i) => {
-          m.addEvent({
-            title: label, type: "production", status: "idea", campaignId: c.id,
-            source: "manual", start: unassigned ? releaseISO : dates[i],
-            payload: { scheduleKind: "task", campaignTask: true, ...(unassigned ? { unscheduled: true } : {}) },
-          });
-        });
+        const dates = scheduleMode === "leadup" ? leadUpDates(releaseISO, tasks.length) : [];
+        subtasks = tasks.map((label, i) => ({
+          id: "cs-" + i + "-" + Math.random().toString(36).slice(2, 6),
+          title: label, done: false,
+          ...(dates[i] ? { dueDate: ymd(dates[i]) } : {}),
+        }));
       }
-      onClose(); onOpenView?.("campaigns");
+      board.createBoardTask(
+        { title: newName, category: cat, priority: "MEDIUM", ...(subtasks ? { subtasks } : {}) },
+        (finalTask) => m.updateCampaign(c.id, { payload: { type, boardTaskId: finalTask.id } }),
+      );
+      // Land on the new campaign so its board task + checklist are right there.
+      onClose(); onOpenView?.("campaigns", c.id);
     } catch (e) {
       setErr(String(e instanceof Error ? e.message : e));
       setBusy(false);

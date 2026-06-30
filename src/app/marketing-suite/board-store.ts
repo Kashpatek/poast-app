@@ -156,12 +156,23 @@ export function boardUpdateTask(idOrEventId: string, patch: Partial<BoardTaskLit
   return target;
 }
 
+// Delete a task by id. Optimistic in both modes; LIVE also DELETEs the real
+// board row. Surgical — only this id is removed. Used on campaign delete.
+export function boardDeleteTask(id: string): void {
+  emit({ tasks: snap.tasks.filter((t) => t.id !== id) });
+  if (snap.mode !== "live") return;
+  (async () => {
+    try { await fetch("/api/board-task", { method: "DELETE", headers: JSON_HEADERS, body: JSON.stringify({ id }) }); } catch { /* best-effort */ }
+  })();
+}
+
 export interface BoardStore {
   tasks: BoardTaskLite[];
   mode: BoardMode;
   loaded: boolean;
   createBoardTask: typeof boardCreateTask;
   updateBoardTask: typeof boardUpdateTask;
+  deleteBoardTask: typeof boardDeleteTask;
   refresh: typeof boardRefresh;
 }
 
@@ -169,6 +180,6 @@ export function useBoardStore(): BoardStore {
   const s = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   return {
     tasks: s.tasks, mode: s.mode, loaded: s.loaded,
-    createBoardTask: boardCreateTask, updateBoardTask: boardUpdateTask, refresh: boardRefresh,
+    createBoardTask: boardCreateTask, updateBoardTask: boardUpdateTask, deleteBoardTask: boardDeleteTask, refresh: boardRefresh,
   };
 }

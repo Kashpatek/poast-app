@@ -24,7 +24,7 @@ import {
   type SeriesDef, type BoardTaskLite,
 } from "../marketing-constants";
 import type { ViewProps } from "../use-marketing";
-import { useBoardStore } from "../board-store";
+import { useBoardStore, boardDeleteTask } from "../board-store";
 import { useCreate } from "../create-context";
 import { DatePicker } from "../components/date-picker";
 import PageHeader from "../components/page-header";
@@ -87,13 +87,22 @@ type Group = {
   episodeNo: number | null; name: string | null; events: MarketingEvent[];
 };
 
-export default function CampaignsView({ m, onOpenView }: ViewProps) {
+export default function CampaignsView({ m, onOpenView, focusId }: ViewProps) {
   const { campaigns, events } = m;
   const { openCreate } = useCreate();
 
   const firstActive = campaigns.find((c) => c.status === "active") || campaigns[0];
   const [selectedId, setSelectedId] = useState<string | null>(firstActive?.id ?? null);
   const [tab, setTab] = useState<Tab>("campaigns");
+
+  // Deep-link / post-create focus: when the shell hands us a focusId that names
+  // a campaign (e.g. just after "New campaign"), select it and show its tab.
+  React.useEffect(() => {
+    if (focusId && campaigns.some((c) => c.id === focusId)) {
+      setSelectedId(focusId);
+      setTab("campaigns");
+    }
+  }, [focusId, campaigns]);
 
   const featured = useMemo<Campaign | undefined>(
     () => campaigns.find((c) => c.id === selectedId) || firstActive,
@@ -198,7 +207,13 @@ export default function CampaignsView({ m, onOpenView }: ViewProps) {
           onNewAd={(plat) => newAd(featured.id, plat)}
           onOpenAd={(id) => onOpenView?.("kiosk", id)}
           onEdit={() => editCampaign(featured)}
-          onDelete={() => { m.removeCampaign(featured.id); setSelectedId(null); }}
+          onDelete={() => {
+            // The campaign's own board task goes with it; sibling tasks the user
+            // filed under the same name are left for them to manage.
+            const btId = typeof featured.payload?.boardTaskId === "string" ? featured.payload.boardTaskId : null;
+            if (btId) boardDeleteTask(btId);
+            m.removeCampaign(featured.id); setSelectedId(null);
+          }}
         />
       )}
 
