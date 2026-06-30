@@ -10,6 +10,7 @@ import AppearanceSettings from "./components/appearance-settings";
 import { MarketingTour, MARKETING_TOUR_STEPS } from "./components/tour";
 import { VIEWS, type ViewId } from "./marketing-constants";
 import { useMarketing, type ViewProps } from "./use-marketing";
+import { useGoogle } from "./use-google";
 import { boardSetMode } from "./board-store";
 import { useSyncReconciler } from "./use-sync-reconciler";
 import { useIsMobile } from "./use-mobile";
@@ -63,6 +64,26 @@ export default function MarketingSuiteShell() {
   // and surface dated subtasks on the Calendar as "Project: subtask". Mutators
   // are mode-gated, so this is safe (in-memory only) in demo.
   useSyncReconciler(m);
+
+  // Google personal status events (the "Office" working-location chip, OOO, focus
+  // time) are hidden by default. They can linger as legacy mirror rows pulled
+  // before the hide existed, so on the first connected load with the toggle OFF
+  // we purge them once per session — server-side, no need to open Settings. The
+  // Settings toggle still flips this manually.
+  const g = useGoogle();
+  const statusCleanRef = useRef(false);
+  useEffect(() => {
+    if (g.loading || !g.status.connected || g.showStatusEvents || statusCleanRef.current) return;
+    statusCleanRef.current = true;
+    const key = `ms-status-purge::${g.status.email || m.owner || "me"}`;
+    try { if (sessionStorage.getItem(key)) return; } catch { /* ignore */ }
+    (async () => {
+      const r = await g.setShowStatusEvents(false); // off → server purges every status mirror row
+      if (r?.ok !== false) { try { sessionStorage.setItem(key, "1"); } catch { /* ignore */ } }
+      m.refresh();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [g.loading, g.status.connected, g.showStatusEvents]);
   const vp: ViewProps = {
     m,
     focusId,

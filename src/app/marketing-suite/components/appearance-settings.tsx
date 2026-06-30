@@ -1,7 +1,7 @@
 "use client";
 // Appearance & personal settings — theme (Classic/Stock/Glass), background,
 // and a "Replay tour" action. Wired to ThemeProvider (localStorage + Neon).
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Check, RotateCcw, Lock, Unlock, Star, ArrowRight } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
@@ -135,25 +135,12 @@ function DefaultCalendarSection({ m }: { m?: MarketingState }) {
 // Calendar status events — Google's working location ("Office"), out-of-office
 // and focus-time blocks. Working location recurs daily, so left unchecked it
 // carpets every day of the suite; hence OFF by default. The toggle pulls them in
-// (on) or purges every mirror row (off), applied live. On first open per session
-// we reconcile to the saved preference so any rows pulled before this existed get
-// cleared without the user hunting for a sync.
+// (on) or purges every mirror row (off), applied live. Legacy rows pulled before
+// the hide existed are cleared automatically on suite load (see shell.tsx) — this
+// is just the manual control.
 function StatusEventsSection({ m }: { m?: MarketingState }) {
   const { status, loading, showStatusEvents, setShowStatusEvents } = useGoogle();
   const [busy, setBusy] = useState(false);
-  const reconciled = useRef(false);
-
-  useEffect(() => {
-    if (loading || !status.connected || reconciled.current) return;
-    reconciled.current = true;
-    try {
-      const key = `ms-status-reconciled:${status.email || "me"}`;
-      if (sessionStorage.getItem(key)) return;
-      sessionStorage.setItem(key, "1");
-    } catch { /* ignore */ }
-    (async () => { await setShowStatusEvents(showStatusEvents); m?.refresh(); })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, status.connected]);
 
   if (!loading && !status.connected) return null;
 

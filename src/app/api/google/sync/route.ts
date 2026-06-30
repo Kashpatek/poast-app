@@ -154,28 +154,39 @@ async function purgeCalendars(db: Db, owner: string, calIds: string[]): Promise<
 // exactly those. Used when the user turns status events off.
 async function purgeStatusEverywhere(db: Db, token: string, owner: string): Promise<number> {
   const types = [...STATUS_EVENT_TYPES];
+  // (1) Rows we explicitly tagged with a status eventType (pulled after tagging).
   const tagged = (await db.query(
     `delete from marketing_events
       where owner=$1 and source='gcal' and (payload->>'eventType') = ANY($2::text[])
       returning id`,
     [owner, types]
   )) as Row[];
+  // (2) Legacy rows pulled before tagging existed have NO status marker to match
+  // on, so ask Google which event-ids on the primary calendar are status events
+  // and delete exactly those. Query EACH type on its own: the Calendar API rejects
+  // a request that mixes `workingLocation` with other eventTypes (the old combined
+  // call 400'd and was silently swallowed, so legacy "Office" rows never cleared).
+  // Per-type also dodges the 250-result cap when a daily working location expands
+  // into many single-event instances.
+  const now = new Date();
+  const tMin = new Date(now.getTime() - 30 * 24 * HOUR).toISOString();
+  const tMax = new Date(now.getTime() + 90 * 24 * HOUR).toISOString();
+  const ids = new Set<string>();
+  for (const t of types) {
+    try {
+      const evs = await listEvents(token, "primary", tMin, tMax, [t]);
+      for (const e of evs as Row[]) { if (e.id) ids.add(String(e.id)); }
+    } catch { /* this event type may be unsupported on the calendar — skip it */ }
+  }
   let byId: Row[] = [];
-  try {
-    const now = new Date();
-    const tMin = new Date(now.getTime() - 30 * 24 * HOUR).toISOString();
-    const tMax = new Date(now.getTime() + 90 * 24 * HOUR).toISOString();
-    const evs = await listEvents(token, "primary", tMin, tMax, types);
-    const ids = evs.map((e: Row) => e.id).filter(Boolean);
-    if (ids.length) {
-      byId = (await db.query(
-        `delete from marketing_events
-          where owner=$1 and source='gcal' and gcal_event_id = ANY($2::text[])
-          returning id`,
-        [owner, ids]
-      )) as Row[];
-    }
-  } catch { /* best-effort: tag pass already ran */ }
+  if (ids.size) {
+    byId = (await db.query(
+      `delete from marketing_events
+        where owner=$1 and source='gcal' and gcal_event_id = ANY($2::text[])
+        returning id`,
+      [owner, [...ids]]
+    )) as Row[];
+  }
   return tagged.length + byId.length;
 }
 
