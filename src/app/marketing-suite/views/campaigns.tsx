@@ -13,11 +13,12 @@ import {
   TriangleAlert, ChevronRight, ChevronDown, Clapperboard, Layers, Rocket, Radio,
   ArrowUpRight, DollarSign, MousePointerClick, Eye, Target, Sparkles,
   Activity, Flame, Hash, Pencil, Trash2, Mic, ListChecks, MessageSquare, Flag,
+  Archive, CheckCheck,
 } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
 import {
   STATUS_COLOR, STATUS_LABEL, channelOf, adPlatform, adPayload,
-  AD_PLATFORMS, AD_OBJECTIVES, campaignCategory,
+  AD_PLATFORMS, AD_OBJECTIVES, campaignCategory, projectEventTitle,
   eventSeries, eventRollout, eventStage, eventRelease, eventEpisodeNo,
   eventPhase, eventProjectName, PODCAST_LIFECYCLE, BUILD_STAGES, SA_FREQUENT_GUESTS, episodeTitles,
   type Campaign, type MarketingEvent, type EventStatus, type CampaignStatus,
@@ -253,7 +254,6 @@ function Feature({ m, campaign, events, ads, onNewAd, onOpenAd, onEdit, onDelete
   onNewAd: (platform?: string) => void; onOpenAd: (id: string) => void;
   onEdit: () => void; onDelete: () => void;
 }) {
-  const st = CAMP_STATUS[campaign.status];
   const [confirm, setConfirm] = useState(false);
   const counts = useMemo(() => {
     const c: Record<string, number> = { idea: 0, draft: 0, scheduled: 0, live: 0, done: 0, blocked: 0 };
@@ -296,7 +296,10 @@ function Feature({ m, campaign, events, ads, onNewAd, onOpenAd, onEdit, onDelete
     return Array.from(byId.values());
   }, [events]);
   const projects = useMemo(
-    () => groups.filter((g) => g.phase !== "rollout").sort((a, b) => (a.name || "").localeCompare(b.name || "")),
+    // Archived projects (every event flagged payload.archived) drop out of the
+    // building list — they live on in the items/timeline and roll into Archive.
+    () => groups.filter((g) => g.phase !== "rollout" && !g.events.every((e) => e.payload?.archived === true))
+      .sort((a, b) => (a.name || "").localeCompare(b.name || "")),
     [groups],
   );
   const rollouts = useMemo(
@@ -335,19 +338,13 @@ function Feature({ m, campaign, events, ads, onNewAd, onOpenAd, onEdit, onDelete
       {/* left */}
       <div style={{ padding: "26px 26px 24px", minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ ...statusPill, color: st.color, borderColor: st.color + "66" }}>
-            {st.label.toUpperCase()}
-          </span>
-          <span style={{ fontFamily: mn, fontSize: 10, color: D.txd }}>
-            {campaign.end ? `wraps ${fmtLong(campaign.end)}` : campaign.start ? `started ${fmtLong(campaign.start)}` : "no dates set"}
-          </span>
+          <StatusInline m={m} campaign={campaign} />
+          <DatesInline m={m} campaign={campaign} />
         </div>
         <h2 style={{ fontFamily: gf, fontSize: 29, letterSpacing: -0.7, margin: "12px 0 6px", color: D.tx }}>
           {campaign.name}
         </h2>
-        <p style={{ color: D.txm, fontSize: 14, lineHeight: 1.55, margin: "0 0 4px", maxWidth: 560 }}>
-          {campaign.goal || "No brief yet — describe the objective so the scattered dots read as one story."}
-        </p>
+        <BriefInline m={m} campaign={campaign} />
 
         {/* stat row */}
         <div style={{ display: "flex", gap: 22, flexWrap: "wrap", margin: "18px 0 4px" }}>
@@ -408,7 +405,7 @@ function Feature({ m, campaign, events, ads, onNewAd, onOpenAd, onEdit, onDelete
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {projects.map((p) => (
-            <ProjectRow key={p.id} project={p} onFinalize={(iso) => m.finalizeRollout(p.id, iso)} />
+            <ProjectRow key={p.id} project={p} m={m} onFinalize={(iso) => m.finalizeRollout(p.id, iso)} />
           ))}
           <NewProjectForm onAdd={(opts) => m.addProject(campaign.id, opts)} />
         </div>
@@ -427,7 +424,10 @@ function Feature({ m, campaign, events, ads, onNewAd, onOpenAd, onEdit, onDelete
 
         {/* tasks — the master-board tasks filed under this campaign's NAME, fully
             editable here (done · subtasks · notes · due) and synced to the board */}
-        <CampaignTasks campaignName={campaign.name} />
+        <CampaignTasks m={m} campaign={campaign} />
+
+        {/* campaign-level running log — decisions, blockers, context */}
+        <CampaignNotes m={m} campaign={campaign} />
       </div>
 
       {/* right: items + linked ads */}
@@ -502,6 +502,148 @@ function Feature({ m, campaign, events, ads, onNewAd, onOpenAd, onEdit, onDelete
   );
 }
 
+/* ══════════════ Inline campaign editors (status · dates · brief) ══════════════ */
+// Edit the campaign's headline fields straight on the cockpit — no modal reopen.
+function StatusInline({ m, campaign }: { m: ViewProps["m"]; campaign: Campaign }) {
+  const [open, setOpen] = useState(false);
+  const st = CAMP_STATUS[campaign.status];
+  const ORDER: CampaignStatus[] = ["planning", "active", "wrapping", "done"];
+  return (
+    <div style={{ position: "relative" }}>
+      <button onClick={() => setOpen((v) => !v)} title="Change status"
+        style={{ ...statusPill, color: st.color, borderColor: st.color + "66", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
+        {st.label.toUpperCase()}
+        <ChevronDown size={11} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
+      </button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 19 }} />
+          <div style={{ position: "absolute", top: "calc(100% + 5px)", left: 0, zIndex: 20, background: D.surface, border: `1px solid ${D.border}`, borderRadius: 9, padding: 5, display: "flex", flexDirection: "column", gap: 2, minWidth: 150, boxShadow: "0 16px 44px rgba(0,0,0,.5)" }}>
+            {ORDER.map((k) => {
+              const cs = CAMP_STATUS[k]; const on = k === campaign.status;
+              return (
+                <button key={k} onClick={() => { m.updateCampaign(campaign.id, { status: k }); setOpen(false); }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, cursor: "pointer", textAlign: "left",
+                    border: "none", background: on ? cs.color + "1a" : "transparent", color: on ? cs.color : D.txm, fontFamily: mn, fontSize: 10.5 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: 999, background: cs.color }} /> {cs.label}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function DatesInline({ m, campaign }: { m: ViewProps["m"]; campaign: Campaign }) {
+  const [open, setOpen] = useState(false);
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const begin = () => {
+    setStart(campaign.start ? toDateInput(campaign.start) : "");
+    setEnd(campaign.end ? toDateInput(campaign.end) : "");
+    setOpen(true);
+  };
+  const save = () => {
+    m.updateCampaign(campaign.id, {
+      start: start ? new Date(start + "T09:00:00").toISOString() : null,
+      end: end ? new Date(end + "T09:00:00").toISOString() : null,
+    });
+    setOpen(false);
+  };
+  if (!open) {
+    return (
+      <button onClick={begin} title="Edit dates"
+        style={{ fontFamily: mn, fontSize: 10, color: D.txd, background: "transparent", border: "none", cursor: "pointer", padding: 0, display: "inline-flex", alignItems: "center", gap: 5 }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = D.txm)} onMouseLeave={(e) => (e.currentTarget.style.color = D.txd)}>
+        <CalendarDays size={11} />
+        {campaign.end ? `wraps ${fmtLong(campaign.end)}` : campaign.start ? `started ${fmtLong(campaign.start)}` : "no dates set"}
+      </button>
+    );
+  }
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+      <div style={{ minWidth: 148 }}><DatePicker value={start} onChange={setStart} accent={campaign.color} placeholder="Start date" /></div>
+      <ChevronRight size={13} color={D.txd} />
+      <div style={{ minWidth: 148 }}><DatePicker value={end} onChange={setEnd} accent={campaign.color} placeholder="Release date" /></div>
+      <button onClick={save} style={{ ...confBtn, color: D.teal, borderColor: D.teal + "66" }}>Save</button>
+      <button onClick={() => setOpen(false)} style={confBtn}>Cancel</button>
+    </div>
+  );
+}
+
+function BriefInline({ m, campaign }: { m: ViewProps["m"]; campaign: Campaign }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState("");
+  const begin = () => { setText(campaign.goal || ""); setEditing(true); };
+  const save = () => { m.updateCampaign(campaign.id, { goal: text.trim() || null }); setEditing(false); };
+  if (!editing) {
+    return (
+      <p onClick={begin} title="Click to edit the brief"
+        style={{ color: campaign.goal ? D.txm : D.txd, fontSize: 14, lineHeight: 1.55, margin: "0 0 4px", maxWidth: 560, cursor: "text" }}>
+        {campaign.goal || "No brief yet — describe the objective so the scattered dots read as one story."}
+      </p>
+    );
+  }
+  return (
+    <div style={{ maxWidth: 560, margin: "0 0 4px" }}>
+      <textarea autoFocus value={text} onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) save(); if (e.key === "Escape") setEditing(false); }}
+        style={{ width: "100%", minHeight: 64, background: D.card, border: `1px solid ${D.border}`, borderRadius: 9, padding: "9px 11px", color: D.tx, fontFamily: ft, fontSize: 14, lineHeight: 1.5, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+      <div style={{ display: "flex", gap: 7, marginTop: 6, alignItems: "center" }}>
+        <button onClick={save} style={{ ...confBtn, color: D.teal, borderColor: D.teal + "66" }}>Save brief</button>
+        <button onClick={() => setEditing(false)} style={confBtn}>Cancel</button>
+        <span style={{ fontFamily: mn, fontSize: 9, color: D.txd }}>⌘↵ to save · esc to cancel</span>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════ Campaign-level note log ══════════════ */
+function CampaignNotes({ m, campaign }: { m: ViewProps["m"]; campaign: Campaign }) {
+  const log = (Array.isArray(campaign.payload?.notesLog) ? campaign.payload!.notesLog : []) as { id: string; ts: string; author?: string; text: string }[];
+  const [draft, setDraft] = useState("");
+  const write = (next: typeof log) => m.updateCampaign(campaign.id, { payload: { ...(campaign.payload || {}), notesLog: next } });
+  const add = () => { const v = draft.trim(); if (!v) return; write([...log, { id: nid(), ts: new Date().toISOString(), author: "Akash", text: v }]); setDraft(""); };
+  const del = (id: string) => write(log.filter((n) => n.id !== id));
+  return (
+    <>
+      <div style={{ fontFamily: mn, fontSize: 9, letterSpacing: 1, color: D.txd, margin: "20px 0 8px", display: "flex", alignItems: "center", gap: 6 }}>
+        <MessageSquare size={11} color={D.violet} /> CAMPAIGN LOG · {log.length}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {log.length === 0 && (
+          <div style={{ fontFamily: mn, fontSize: 10.5, color: D.txd, padding: "2px 2px 4px" }}>
+            No notes yet — jot decisions, blockers, and context for this campaign.
+          </div>
+        )}
+        {log.slice().reverse().map((n) => (
+          <div key={n.id} style={{ display: "flex", gap: 9, alignItems: "flex-start", border: `1px solid ${D.border}`, borderRadius: 9, background: D.card, padding: "8px 10px" }}>
+            <span style={{ width: 4, alignSelf: "stretch", borderRadius: 3, background: D.violet + "66", flex: "none" }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: ft, fontSize: 12.5, color: D.tx, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{n.text}</div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: D.txd, marginTop: 3 }}>{n.author || "Akash"} · {fmtLong(n.ts)}</div>
+            </div>
+            <button onClick={() => del(n.id)} title="Delete note" style={{ flex: "none", background: "transparent", border: "none", cursor: "pointer", color: D.txd, padding: 2 }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = D.coral)} onMouseLeave={(e) => (e.currentTarget.style.color = D.txd)}>
+              <Trash2 size={11} />
+            </button>
+          </div>
+        ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Log a note for this campaign…"
+            onKeyDown={(e) => { if (e.key === "Enter") add(); }}
+            style={{ flex: 1, background: D.surface, border: `1px solid ${D.border}`, borderRadius: 8, padding: "8px 10px", color: D.tx, fontFamily: ft, fontSize: 12.5, outline: "none" }} />
+          <button onClick={add} disabled={!draft.trim()} style={{ ...confBtn, color: D.violet, borderColor: D.violet + "66", opacity: draft.trim() ? 1 : 0.5, display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <Plus size={12} /> Log
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 /* ══════════════ Rollout row (per-release lifecycle segment) ══════════════ */
 function RolloutRow({ rollout }: {
   rollout: { id: string; release: string | null; episodeNo: number | null; events: MarketingEvent[] };
@@ -544,9 +686,13 @@ function RolloutRow({ rollout }: {
 }
 
 /* ══════════════ Project row (building block → finalize premiere) ══════════════ */
-function ProjectRow({ project, onFinalize }: { project: Group; onFinalize: (premiereISO: string) => void }) {
+function ProjectRow({ project, m, onFinalize }: { project: Group; m: ViewProps["m"]; onFinalize: (premiereISO: string) => void }) {
   const [date, setDate] = useState("");
   const [open, setOpen] = useState(false);
+  // Complete = mark every build event done. Archive = flag them so the project
+  // drops out of the building list (stays in items/timeline + Archive view).
+  const complete = () => project.events.forEach((e) => m.updateEvent(e.id, { status: "done" }));
+  const archive = () => project.events.forEach((e) => m.updateEvent(e.id, { payload: { ...(e.payload || {}), archived: true } }));
   const label = project.name || (project.episodeNo != null ? `EP${project.episodeNo}` : "Project");
   const stageMap = new Map(project.events.map((e) => [eventStage(e), e] as const));
   const done = project.events.filter((e) => e.status === "done").length;
@@ -604,6 +750,20 @@ function ProjectRow({ project, onFinalize }: { project: Group; onFinalize: (prem
           );
         })}
       </div>
+      {/* secondary actions — complete the build or archive the project */}
+      <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 8 }}>
+        <button onClick={complete} disabled={buildDone} title="Mark every build step done"
+          style={{ ...confBtn, padding: "4px 9px", color: D.teal, borderColor: D.teal + "44",
+            opacity: buildDone ? 0.45 : 1, cursor: buildDone ? "default" : "pointer",
+            display: "inline-flex", alignItems: "center", gap: 5 }}>
+          <CheckCheck size={11} /> {buildDone ? "Build complete" : "Complete build"}
+        </button>
+        <button onClick={archive} title="Archive this project — hides it from PROJECTS"
+          style={{ ...confBtn, padding: "4px 9px", color: D.txm, display: "inline-flex", alignItems: "center", gap: 5 }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = D.tx)} onMouseLeave={(e) => (e.currentTarget.style.color = D.txm)}>
+          <Archive size={11} /> Archive
+        </button>
+      </div>
       {open && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 9 }}>
           <div style={{ flex: 1 }}>
@@ -656,9 +816,29 @@ const sid = () => "s-" + Date.now().toString(36) + "-" + Math.random().toString(
 const nid = () => "n-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 5);
 const fmtDue = (d: string) => fmtShort(d.length === 10 ? d + "T12:00:00" : d);
 
-function CampaignTasks({ campaignName }: { campaignName: string }) {
+function CampaignTasks({ m, campaign }: { m: ViewProps["m"]; campaign: Campaign }) {
   const store = useBoardStore();
-  const cat = campaignCategory(campaignName);
+  const cat = campaignCategory(campaign.name);
+  // Quick-add: a plain board task, or — when given a due — a board task PLUS a
+  // linked "Name: task" calendar event (pair-synced via sourceTaskId ↔
+  // marketingEventId) so it shows on the board AND the calendar and stays aligned.
+  const addTask = (title: string, dueYMD?: string) => {
+    store.createBoardTask(
+      { title, category: cat, priority: "MEDIUM", ...(dueYMD ? { dueDate: dueYMD } : {}) },
+      dueYMD
+        ? (finalTask) => {
+            const ev = m.addEvent({
+              title: projectEventTitle(cat, title),
+              type: "manual", status: "scheduled",
+              start: new Date(dueYMD + "T09:00:00").toISOString(),
+              campaignId: campaign.id, source: "poast",
+              payload: { scheduleKind: "deadline", sourceTaskId: finalTask.id },
+            });
+            store.updateBoardTask(finalTask.id, { marketingEventId: ev.id });
+          }
+        : undefined,
+    );
+  };
   const tasks = useMemo(
     () => store.tasks.filter((t) => (t.category || "") === cat),
     [store.tasks, cat],
@@ -690,7 +870,7 @@ function CampaignTasks({ campaignName }: { campaignName: string }) {
         {showDone && done.map((t) => (
           <TaskEditRow key={t.id} task={t} onUpdate={(patch) => store.updateBoardTask(t.id, patch)} />
         ))}
-        <AddCampaignTask onAdd={(title) => store.createBoardTask({ title, category: cat, priority: "MEDIUM" })} />
+        <AddCampaignTask accent={campaign.color} prefix={cat} onAdd={addTask} />
       </div>
     </>
   );
@@ -866,19 +1046,38 @@ function TaskEditRow({ task, onUpdate }: { task: BoardTaskLite; onUpdate: (patch
 }
 
 /* ══════════════ Add a task to this campaign (category = name) ══════════════ */
-function AddCampaignTask({ onAdd }: { onAdd: (title: string) => void }) {
+// A plain task, or — when a due date is picked — a task that ALSO drops on the
+// calendar as "prefix: task" (the board materializes the linked event).
+function AddCampaignTask({ onAdd, accent = D.amber, prefix }: { onAdd: (title: string, dueYMD?: string) => void; accent?: string; prefix: string }) {
   const [title, setTitle] = useState("");
-  function add() { const t = title.trim(); if (!t) return; onAdd(t); setTitle(""); }
+  const [due, setDue] = useState("");
+  const [dueOpen, setDueOpen] = useState(false);
+  function add() { const t = title.trim(); if (!t) return; onAdd(t, due || undefined); setTitle(""); setDue(""); setDueOpen(false); }
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, border: `1px dashed ${D.border}`, borderRadius: 10, padding: "8px 10px" }}>
-      <ListChecks size={12} color={D.txd} />
-      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="New task for this campaign…"
-        onKeyDown={(e) => { if (e.key === "Enter") add(); }}
-        style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: D.tx, fontFamily: ft, fontSize: 13 }} />
-      <button onClick={add} disabled={!title.trim()}
-        style={{ ...confBtn, color: D.amber, borderColor: D.amber + "55", opacity: title.trim() ? 1 : 0.5, display: "inline-flex", alignItems: "center", gap: 4 }}>
-        <Plus size={11} /> Add
-      </button>
+    <div style={{ display: "flex", flexDirection: "column", gap: 7, border: `1px dashed ${D.border}`, borderRadius: 10, padding: "8px 10px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <ListChecks size={12} color={D.txd} />
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="New task for this campaign…"
+          onKeyDown={(e) => { if (e.key === "Enter") add(); }}
+          style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: D.tx, fontFamily: ft, fontSize: 13 }} />
+        <button onClick={() => setDueOpen((v) => !v)} title="Add a due date — also drops it on the calendar"
+          style={{ ...miniTag, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4,
+            color: due ? D.cyan : D.txd, borderColor: due ? D.cyan + "55" : D.border }}>
+          <CalendarDays size={10} /> {due ? fmtDue(due) : "date"}
+        </button>
+        <button onClick={add} disabled={!title.trim()}
+          style={{ ...confBtn, color: accent, borderColor: accent + "66", opacity: title.trim() ? 1 : 0.5, display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <Plus size={11} /> Add
+        </button>
+      </div>
+      {dueOpen && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 20, flexWrap: "wrap" }}>
+          <div style={{ minWidth: 150 }}>
+            <DatePicker value={due} accent={D.cyan} placeholder="Due date" onChange={(v) => { setDue(v); setDueOpen(false); }} />
+          </div>
+          <span style={{ fontFamily: mn, fontSize: 8.5, color: D.txd }}>calendar: “{prefix}: {title.trim() || "task"}”</span>
+        </div>
+      )}
     </div>
   );
 }
