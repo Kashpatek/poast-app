@@ -401,6 +401,11 @@ function Feature({ m, campaign, events, ads, onNewAd, onOpenAd, onEdit, onDelete
         <div style={{ fontFamily: mn, fontSize: 9, letterSpacing: 1, color: D.txd, margin: "20px 0 8px", display: "flex", alignItems: "center", gap: 6 }}>
           <GitBranch size={11} color={D.violet} /> PROJECTS · {projects.length}
         </div>
+        {projects.length > 0 && (
+          <div style={{ fontFamily: mn, fontSize: 9.5, color: D.txd, margin: "-3px 0 9px", lineHeight: 1.45 }}>
+            Build a project through topic → film → edit, then <span style={{ color: D.teal }}>Promote to Rollout</span> to lock a premiere and start the release lead-up.
+          </div>
+        )}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {projects.map((p) => (
             <ProjectRow key={p.id} project={p} onFinalize={(iso) => m.finalizeRollout(p.id, iso)} />
@@ -546,20 +551,41 @@ function ProjectRow({ project, onFinalize }: { project: Group; onFinalize: (prem
   const stageMap = new Map(project.events.map((e) => [eventStage(e), e] as const));
   const done = project.events.filter((e) => e.status === "done").length;
   const total = project.events.length || 1;
+  // Ready to promote when every build step that exists (topic/film/edit) is done.
+  const buildEvents = BUILD_STAGES.map((st) => stageMap.get(st.key)).filter(Boolean) as MarketingEvent[];
+  const buildDone = buildEvents.length > 0 && buildEvents.every((e) => e.status === "done");
   function finalize() {
     if (!date) return;
     onFinalize(new Date(date + "T09:00:00").toISOString());
     setOpen(false); setDate("");
   }
   return (
-    <div style={{ border: `1px solid ${D.violet}33`, borderRadius: 10, padding: "9px 11px", background: D.card }}>
+    <div style={{
+      border: `1px solid ${buildDone ? D.teal + "66" : D.violet + "33"}`, borderRadius: 10, padding: "9px 11px",
+      background: buildDone ? `linear-gradient(135deg, ${D.teal}12, ${D.card})` : D.card,
+      boxShadow: buildDone && !open ? `0 0 0 1px ${D.teal}22, 0 0 14px ${D.teal}1f` : "none",
+      transition: "box-shadow .3s, border-color .3s",
+    }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <GitBranch size={12} color={D.violet} />
         <span style={{ fontFamily: mn, fontSize: 11, color: D.tx, fontWeight: 600 }}>{label}</span>
-        <span style={{ fontFamily: mn, fontSize: 9.5, color: D.txd }}>building · {done}/{total}</span>
+        <span style={{ fontFamily: mn, fontSize: 9.5, color: buildDone ? D.teal : D.txd }}>
+          {buildDone ? "build complete" : `building · ${done}/${total}`}
+        </span>
+        {buildDone && (
+          <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 8.5, letterSpacing: 0.4, color: D.teal,
+            border: `1px solid ${D.teal}55`, background: D.teal + "16", borderRadius: 999, padding: "2px 7px",
+            display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <Sparkles size={9} /> ready
+          </span>
+        )}
         <button onClick={() => setOpen((v) => !v)} title="Lock a premiere date → promote to a rollout"
-          style={{ ...confBtn, marginLeft: "auto", color: D.violet, borderColor: D.violet + "55", display: "inline-flex", alignItems: "center", gap: 5 }}>
-          <Rocket size={11} /> Finalize premiere
+          style={{ ...confBtn, marginLeft: buildDone ? 8 : "auto",
+            color: buildDone ? D.teal : D.violet, borderColor: (buildDone ? D.teal : D.violet) + "66",
+            background: buildDone ? D.teal + "18" : "transparent",
+            boxShadow: buildDone && !open ? `0 0 10px ${D.teal}55` : "none",
+            display: "inline-flex", alignItems: "center", gap: 5 }}>
+          <Rocket size={11} /> Promote to Rollout
         </button>
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 7 }}>

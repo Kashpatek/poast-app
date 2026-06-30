@@ -342,6 +342,9 @@ export function makeDemoData(): { events: MarketingEvent[]; campaigns: Campaign[
   // A building-block Project (no premiere locked yet) so PROJECTS lights up; it
   // promotes to a Rollout when a premiere is finalized.
   const projFoundry = { rollout: "camp-ep-proj-foundry", phase: "project" as const, episodeNo: 19, projectName: "The Foundry Wars" };
+  // A project whose build steps (topic/film/edit) are all DONE but no premiere is
+  // locked yet — surfaces the highlighted "Promote to Rollout" CTA.
+  const projLitho = { rollout: "camp-ep-proj-litho", phase: "project" as const, episodeNo: 20, projectName: "The Lithography Wars" };
   const events: MarketingEvent[] = [
     { id: "e1", title: "EP17 short → IG", type: "buffer", status: "scheduled", start: atDay(now, 0, 11), source: "buffer", channel: "instagram", campaignId: "camp-ep" },
     { id: "e2", title: "EP17 short → TikTok", type: "buffer", status: "scheduled", start: atDay(now, 0, 14), source: "buffer", channel: "tiktok", campaignId: "camp-ep" },
@@ -371,6 +374,10 @@ export function makeDemoData(): { events: MarketingEvent[]; campaigns: Campaign[
     { id: "camp-ep-proj-foundry-topic", title: "The Foundry Wars: Topic lock", type: "strategy", status: "draft", start: atDay(now, 0, 9), source: "poast", campaignId: "camp-ep", payload: { ...projFoundry, stage: "topic", unscheduled: true } },
     { id: "camp-ep-proj-foundry-film", title: "The Foundry Wars: Film", type: "production", status: "idea", start: atDay(now, 0, 9), source: "poast", campaignId: "camp-ep", payload: { ...projFoundry, stage: "film", unscheduled: true, scheduleKind: "filming" } },
     { id: "camp-ep-proj-foundry-edit", title: "The Foundry Wars: Edit", type: "production", status: "idea", start: atDay(now, 0, 9), source: "poast", campaignId: "camp-ep", payload: { ...projFoundry, stage: "edit", unscheduled: true, scheduleKind: "editing" } },
+    // ── Build-ready Project "The Lithography Wars" (topic/film/edit all done → promote) ──
+    { id: "camp-ep-proj-litho-topic", title: "The Lithography Wars: Topic lock", type: "strategy", status: "done", start: atDay(now, -2, 9), source: "poast", campaignId: "camp-ep", payload: { ...projLitho, stage: "topic", unscheduled: true } },
+    { id: "camp-ep-proj-litho-film", title: "The Lithography Wars: Film", type: "production", status: "done", start: atDay(now, -1, 9), source: "poast", campaignId: "camp-ep", payload: { ...projLitho, stage: "film", unscheduled: true, scheduleKind: "filming" } },
+    { id: "camp-ep-proj-litho-edit", title: "The Lithography Wars: Edit", type: "production", status: "done", start: atDay(now, 0, 9), source: "poast", campaignId: "camp-ep", payload: { ...projLitho, stage: "edit", unscheduled: true, scheduleKind: "editing" } },
   ];
   return { events: [...events, ...demoAds(now)], campaigns };
 }
