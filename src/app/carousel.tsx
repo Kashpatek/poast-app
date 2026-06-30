@@ -8,8 +8,8 @@ import { confirmDialog, promptDialog } from "./dialog-context";
 import { ProviderChips } from "./provider-chips";
 import { useShortcuts } from "./keyboard-shortcuts";
 import { SendToChip } from "./components/send-to-chip";
-import { VerbatimWizard } from "./carousel-verbatim";
-import { COVER_TEMPLATES, renderCoverSvg, type CoverTemplateId } from "./carousel-covers";
+import { VerbatimWizard, verbatimDraftFromArchive, saveVerbatimDraft } from "./carousel-verbatim";
+import { COVER_TEMPLATES, COVER_TOPICS, renderCoverSvg, type CoverTemplateId } from "./carousel-covers";
 
 const CAROUSEL_SURFACE = "carousel";
 
@@ -59,6 +59,9 @@ interface Slide {
   coverAccent?: string;
   coverShowSub?: boolean;
   coverDual?: boolean;
+  coverLogoPos?: "left" | "right"; // which corner the SA logo sits in (default right)
+  coverTopic?: string;             // accent category label (replaces the old "ISSUE 24" meta)
+  coverTitleScale?: number;        // manual title-size multiplier (1 = template default)
 }
 
 interface GeneratedSlide {
@@ -341,6 +344,9 @@ function SlideCanvas({ slide, theme, onUpdate, onRequestPicker }: { slide: Slide
           imageUrl: slide.imageUrl || "",
           dual: slide.coverDual || false,
           logoStyle: "auto",
+          logoPosition: slide.coverLogoPos || "right",
+          topic: slide.coverTopic || "",
+          titleScale: slide.coverTitleScale || 1,
           showSub: slide.coverShowSub !== false,
           showLogo: true,
           showMeta: true,
@@ -581,6 +587,9 @@ function SlideThumbnail({ slide, theme, isActive, onClick, index }: { slide: Sli
             imageUrl: slide.imageUrl || "",
             dual: slide.coverDual || false,
             logoStyle: "auto",
+            logoPosition: slide.coverLogoPos || "right",
+            topic: slide.coverTopic || "",
+            titleScale: slide.coverTitleScale || 1,
             showSub: slide.coverShowSub !== false,
             showLogo: true,
             showMeta: true,
@@ -1255,6 +1264,8 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: {
   var currentSlide = slides[currentIdx] || slides[0];
   // Wave C2 · busy flag while title regen is in flight (disables button + shows ellipsis).
   var _regenTitleBusy = useState(false), regenTitleBusy = _regenTitleBusy[0], setRegenTitleBusy = _regenTitleBusy[1];
+  // Cover topic auto-categorize in flight.
+  var _topicBusy = useState(false), topicBusy = _topicBusy[0], setTopicBusy = _topicBusy[1];
 
   // Tracks which images are used across all slides + slide numbers
   var usedImages = useMemo(function() {
@@ -1579,15 +1590,71 @@ function EditStep({ slides, setSlides, theme, onNext, onBack, articleImages }: {
         {/* Font size controls */}
         <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>Font Sizes (at 1080px)</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
-          {currentSlide.type === "cover" && <div>
+          {currentSlide.type === "cover" && !currentSlide.coverTemplate && <div>
             <FontSizeControl label="Title" value={currentSlide.titleSize} onChange={function(v) { updateSlide(Object.assign({}, currentSlide, { titleSize: v })); }} />
             <div style={{ height: 6 }} />
             <FontSizeControl label="Subtitle" value={currentSlide.subtitleSize} onChange={function(v) { updateSlide(Object.assign({}, currentSlide, { subtitleSize: v })); }} />
           </div>}
           {(currentSlide.type === "body" || currentSlide.type === "image_text") && <FontSizeControl label="Body" value={currentSlide.bodySize} onChange={function(v) { updateSlide(Object.assign({}, currentSlide, { bodySize: v })); }} />}
           {(currentSlide.type === "large_image" || currentSlide.type === "dual_image") && <FontSizeControl label="Caption" value={currentSlide.captionSize || 18} onChange={function(v) { updateSlide(Object.assign({}, currentSlide, { captionSize: v })); }} />}
-          {currentSlide.type === "cover" && <TopMarginSlider value={currentSlide.titleMarginTop ?? 80} onChange={function(v) { updateSlide(Object.assign({}, currentSlide, { titleMarginTop: v, titleAnchor: "top" })); }} />}
+          {currentSlide.type === "cover" && !currentSlide.coverTemplate && <TopMarginSlider value={currentSlide.titleMarginTop ?? 80} onChange={function(v) { updateSlide(Object.assign({}, currentSlide, { titleMarginTop: v, titleAnchor: "top" })); }} />}
         </div>
+
+        {/* ── Cover Design (template covers only): logo side · title scale · topic ── */}
+        {currentSlide.type === "cover" && currentSlide.coverTemplate && <div style={{ marginBottom: 20 }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 10 }}>Cover Design</div>
+
+          {/* Logo corner */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txd, minWidth: 44 }}>Logo</div>
+            {(["left", "right"] as const).map(function(side) {
+              var active = (currentSlide.coverLogoPos || "right") === side;
+              return <button key={side} onClick={function() { updateSlide(Object.assign({}, currentSlide, { coverLogoPos: side })); }} style={{ flex: 1, padding: "6px 10px", borderRadius: 6, background: active ? C.amber + "20" : "transparent", border: "1px solid " + (active ? C.amber + "55" : C.border), color: active ? C.amber : C.txd, fontFamily: mn, fontSize: 9, fontWeight: 700, cursor: "pointer", textTransform: "uppercase", letterSpacing: 0.5 }}>{side === "left" ? "◤ Left" : "Right ◥"}</button>;
+            })}
+          </div>
+
+          {/* Title scale */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>Title size</div>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.amber }}>{Math.round((currentSlide.coverTitleScale || 1) * 100)}%</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontFamily: mn, fontSize: 8, color: C.txd }}>S</span>
+              <input type="range" min={60} max={130} step={5} value={Math.round((currentSlide.coverTitleScale || 1) * 100)} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { coverTitleScale: parseInt(e.target.value) / 100 })); }} style={{ flex: 1, accentColor: C.amber }} />
+              <span style={{ fontFamily: mn, fontSize: 8, color: C.txd }}>L</span>
+            </div>
+            <div style={{ fontFamily: ft, fontSize: 9, color: C.txd, marginTop: 3 }}>Shrinks the auto-fit title to de-crowd a long line.</div>
+          </div>
+
+          {/* Topic / category */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>Topic (accent label)</div>
+              <button
+                disabled={topicBusy}
+                onClick={function() {
+                  if (topicBusy) return;
+                  setTopicBusy(true);
+                  var bodyText = slides.filter(function(s) { return s.type !== "cover"; }).map(function(s) { return s.bodyText || ""; }).join("\n\n").slice(0, 4000);
+                  fetch("/api/carousel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "verbatim-topic", title: currentSlide.title || "", text: bodyText, topics: COVER_TOPICS, provider: carouselProvider() }) })
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) { if (d.topic) updateSlide(Object.assign({}, currentSlide, { coverTopic: String(d.topic) })); })
+                    .catch(function() {})
+                    .finally(function() { setTopicBusy(false); });
+                }}
+                style={{ padding: "4px 10px", borderRadius: 5, background: topicBusy ? C.surface : C.amber + "16", border: "1px solid " + (topicBusy ? C.border : C.amber + "55"), color: topicBusy ? C.txd : C.amber, fontFamily: mn, fontSize: 9, fontWeight: 700, letterSpacing: 0.5, cursor: topicBusy ? "default" : "pointer", textTransform: "uppercase" }}
+              >{topicBusy ? "…" : "✨ Auto"}</button>
+            </div>
+            <input value={currentSlide.coverTopic || ""} onChange={function(e) { updateSlide(Object.assign({}, currentSlide, { coverTopic: e.target.value })); }} placeholder="e.g. Infrastructure — or leave blank" style={{ width: "100%", padding: "8px 10px", background: C.card, border: "1px solid " + C.border, borderRadius: 6, color: C.tx, fontFamily: ft, fontSize: 12, outline: "none", boxSizing: "border-box", marginBottom: 8 }} onFocus={function(e: React.FocusEvent<HTMLInputElement>) { e.currentTarget.style.borderColor = C.amber; }} onBlur={function(e: React.FocusEvent<HTMLInputElement>) { e.currentTarget.style.borderColor = C.border; }} />
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {COVER_TOPICS.map(function(t) {
+                var active = (currentSlide.coverTopic || "").toLowerCase() === t.toLowerCase();
+                return <button key={t} onClick={function() { updateSlide(Object.assign({}, currentSlide, { coverTopic: active ? "" : t })); }} style={{ padding: "3px 8px", borderRadius: 999, background: active ? C.amber + "20" : "transparent", border: "1px solid " + (active ? C.amber + "55" : C.border), color: active ? C.amber : C.txd, fontFamily: mn, fontSize: 8.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{t}</button>;
+              })}
+            </div>
+          </div>
+        </div>}
 
         {/* Image controls */}
         {<div style={{ marginBottom: 20 }}>
@@ -1930,6 +1997,9 @@ function ReviewStep({ slides, setSlides, theme, onNext, onBack, sourceUrl, varia
                   imageUrl: sl.imageUrl || "",
                   dual: sl.coverDual || false,
                   logoStyle: "auto",
+                  logoPosition: sl.coverLogoPos || "right",
+                  topic: sl.coverTopic || "",
+                  titleScale: sl.coverTitleScale || 1,
                   showSub: sl.coverShowSub !== false,
                   showLogo: true,
                   showMeta: true,
@@ -2190,6 +2260,9 @@ function drawCoverTemplate(ctx: CanvasRenderingContext2D, slide: Slide): Promise
         imageUrl: imgData,
         dual: slide.coverDual || false,
         logoStyle: "auto",
+        logoPosition: slide.coverLogoPos || "right",
+        topic: slide.coverTopic || "",
+        titleScale: slide.coverTitleScale || 1,
         showSub: slide.coverShowSub !== false,
         showLogo: true,
         showMeta: true,
@@ -2549,7 +2622,7 @@ function renderSlideToCanvas(slide: Slide, bgUrl: string): Promise<Blob> {
 
 
 // ═══ STEP 5: EXPORT ═══
-function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx, onBack, sourceUrl, articleTitle }: { slides: Slide[]; theme: ThemeKey; caption: unknown; captionOptions: CaptionOption[]; selectedCaptionIdx: number; onBack: () => void; sourceUrl: string; articleTitle: string }) {
+function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx, onBack, sourceUrl, articleTitle, wizardInputs }: { slides: Slide[]; theme: ThemeKey; caption: unknown; captionOptions: CaptionOption[]; selectedCaptionIdx: number; onBack: () => void; sourceUrl: string; articleTitle: string; wizardInputs?: { text?: string; mode?: string; pageCount?: number; category?: string; generationMode?: string } }) {
   var _downloading = useState<number | null>(null), downloading = _downloading[0], setDownloading = _downloading[1];
   var _downloadAll = useState(false), downloadingAll = _downloadAll[0], setDownloadingAll = _downloadAll[1];
   var _copied = useState<Record<string, boolean>>({}), copied = _copied[0], setCopied = _copied[1];
@@ -2739,6 +2812,10 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
       slideCount: slides.length,
       createdBy: authorName,
       createdByRole: authorRole,
+      // Phase 3 · the raw wizard inputs (paste text + slide-count settings) so
+      // reopening reconstructs the whole verbatim wizard. Cover design knobs
+      // (logo side / topic / title scale) already ride on the cover slide.
+      wizardInputs: wizardInputs || null,
     };
     fetch("/api/db", {
       method: "POST",
@@ -2793,6 +2870,9 @@ function ExportStep({ slides, theme, caption, captionOptions, selectedCaptionIdx
                     imageUrl: sl.imageUrl || "",
                     dual: sl.coverDual || false,
                     logoStyle: "auto",
+                    logoPosition: sl.coverLogoPos || "right",
+                    topic: sl.coverTopic || "",
+                    titleScale: sl.coverTitleScale || 1,
                     showSub: sl.coverShowSub !== false,
                     showLogo: true,
                     showMeta: true,
@@ -3206,9 +3286,31 @@ export default function Carousel() {
   function loadFromArchive(item: { id: string; data?: Record<string, unknown> }) {
     if (!item.data) return;
     var d = item.data;
-    if (d.slides) setSlides(d.slides as Slide[]);
+    var archSlides = (d.slides as Slide[]) || [];
+    if (d.slides) setSlides(archSlides);
     if (d.caption) setCaption(d.caption);
-    if (d.theme) setState(function(s) { return Object.assign({}, s, { category: d.theme as ThemeKey, url: String(d.sourceUrl || "") }); });
+    if (Array.isArray(d.captionOptions)) setCaptionOptions(d.captionOptions as CaptionOption[]);
+    if (typeof d.selectedCaptionIdx === "number") setSelectedCaptionIdx(d.selectedCaptionIdx as number);
+    var wi = (d.wizardInputs && typeof d.wizardInputs === "object" ? d.wizardInputs : {}) as Record<string, unknown>;
+    // A verbatim carousel either flags itself in wizardInputs or is detectable
+    // by a template cover slide.
+    var gm: "ai" | "verbatim" = (wi.generationMode === "verbatim" || archSlides.some(function(s) { return !!s.coverTemplate; })) ? "verbatim" : "ai";
+    setState(function(s) {
+      return Object.assign({}, s, {
+        category: (d.theme as ThemeKey) || s.category,
+        url: String(d.sourceUrl || ""),
+        text: typeof wi.text === "string" ? wi.text as string : s.text,
+        mode: (wi.mode as string) || s.mode,
+        pageCount: typeof wi.pageCount === "number" ? wi.pageCount as number : s.pageCount,
+        generationMode: gm,
+      });
+    });
+    // Seed the verbatim wizard so jumping back to step 0 reconstructs every
+    // step (paste / title / image / cover design) — not just the slides.
+    if (gm === "verbatim") {
+      var draft = verbatimDraftFromArchive(d);
+      if (draft) saveVerbatimDraft(draft);
+    }
     setShowArchive(false);
     setView("wizard");
     goStep(3);
@@ -3467,6 +3569,7 @@ export default function Carousel() {
       onBack={function() { goStep(4); }}
       sourceUrl={state.url || ""}
       articleTitle={(slides.find(function(s) { return s.type === "cover"; }) || {}).title || ""}
+      wizardInputs={{ text: state.text || "", mode: state.mode, pageCount: state.pageCount, category: state.category, generationMode: state.generationMode }}
     />}
   </div>;
 }

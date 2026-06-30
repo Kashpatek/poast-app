@@ -76,7 +76,7 @@ const THEMES_MAP: Record<string, string> = {
 };
 
 const CarouselSchema = z.object({
-  action: z.enum(["generate", "fetchImages", "caption", "rewrite", "generateImage", "verbatim-titles", "verbatim-subtitle", "verbatim-image-prompt"]),
+  action: z.enum(["generate", "fetchImages", "caption", "rewrite", "generateImage", "verbatim-titles", "verbatim-subtitle", "verbatim-image-prompt", "verbatim-topic"]),
   text: z.string().optional(),
   url: z.string().optional(),
   category: z.string().optional(),
@@ -566,6 +566,39 @@ The prompt should:
 Return JSON: { "prompt": "..." }`,
         });
         return NextResponse.json({ prompt: result.prompt || "", ts: Date.now() });
+      } catch (e) {
+        if ((e as AnthropicError).status) {
+          return NextResponse.json({ error: (e as Error).message || "Generation failed" }, { status: (e as AnthropicError).status });
+        }
+        throw e;
+      }
+    }
+
+    if (action === "verbatim-topic") {
+      // Classify the cover into ONE short content sector (the accent label on
+      // the cover, e.g. "INFRASTRUCTURE"). Prefers the supplied list but may
+      // return a short custom sector when nothing fits.
+      const { text, title, topics } = body;
+      if (!text && !title) {
+        return NextResponse.json({ error: "text or title required" }, { status: 400 });
+      }
+      const list: string[] = Array.isArray(topics) ? topics.filter((t) => typeof t === "string" && t.trim()).slice(0, 40) : [];
+      try {
+        const result = await genJSON<{ topic: string }>({
+          system: `You categorize SemiAnalysis content into ONE short sector label — the kind of tag that names what a piece is ABOUT (e.g. "Infrastructure", "Foundry", "HBM", "Export Controls"). Output a single label, 1-3 words, Title Case. No punctuation, no explanation.`,
+          maxTokens: 200,
+          provider,
+          prompt: `Pick the single best sector label for this SemiAnalysis cover.
+
+${list.length ? `Prefer one of these known sectors when it fits:\n${list.join(", ")}\n\nIf none of them genuinely fit, you may return a different short 1-3 word sector.` : "Return a short 1-3 word sector label."}
+
+${title ? `Cover title: "${title}"` : ""}
+${text ? `Source:\n${String(text).slice(0, 4000)}` : ""}
+
+Return JSON: { "topic": "..." }`,
+        });
+        const topic = (result.topic || "").trim().slice(0, 40);
+        return NextResponse.json({ topic, ts: Date.now() });
       } catch (e) {
         if ((e as AnthropicError).status) {
           return NextResponse.json({ error: (e as Error).message || "Generation failed" }, { status: (e as AnthropicError).status });

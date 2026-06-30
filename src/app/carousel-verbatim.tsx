@@ -2,7 +2,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { D as C, ft, mn, gf, getSurfaceProvider, getPreferredProvider } from "./shared-constants";
 import { showToast } from "./toast-context";
-import { COVER_TEMPLATES, renderCoverFullSvg, type CoverTemplateId } from "./carousel-covers";
+import { COVER_TEMPLATES, COVER_TOPICS, renderCoverFullSvg, type CoverTemplateId } from "./carousel-covers";
 
 // Mirror of the types in carousel.tsx — kept narrow to what this wizard needs.
 type ThemeKey = "general" | "internal" | "external" | "capital";
@@ -30,6 +30,9 @@ interface Slide {
   coverAccent?: string;
   coverShowSub?: boolean;
   coverDual?: boolean;
+  coverLogoPos?: "left" | "right";
+  coverTopic?: string;
+  coverTitleScale?: number;
 }
 
 interface CarouselState {
@@ -183,6 +186,102 @@ const SUB_STEPS: { id: SubStep; label: string }[] = [
   { id: "confirm", label: "Confirm" },
 ];
 
+// ─── Wizard draft persistence (Phase 3) ───
+// The verbatim wizard autosaves every input to localStorage so work survives a
+// reload or navigating away — and so reopening an archived carousel can seed the
+// wizard back to a fully reconstructed state. Large base64 images are dropped on
+// quota failure rather than losing the whole draft.
+export interface VerbatimDraft {
+  v?: number;
+  sub?: SubStep;
+  text?: string;
+  category?: ThemeKey;
+  mode?: string;
+  pageCount?: number;
+  selectedTemplateId?: CoverTemplateId | null;
+  dual?: boolean;
+  chosenTitle?: string;
+  chosenSubtitle?: string;
+  includeSubtitle?: boolean;
+  upper?: boolean;
+  tight?: boolean;
+  logoPos?: "left" | "right";
+  topic?: string;
+  titleScale?: number;
+  imageTab?: "ai" | "upload" | "skip";
+  chosenImageUrl?: string;
+  imagePrompt?: string;
+  titleIdeas?: { title: string; subtitle: string }[];
+  subtitleIdeas?: string[];
+  savedAt?: number;
+}
+
+export const VERBATIM_DRAFT_KEY = "poast-verbatim-draft-v1";
+
+export function loadVerbatimDraft(): VerbatimDraft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    var raw = window.localStorage.getItem(VERBATIM_DRAFT_KEY);
+    if (!raw) return null;
+    var d = JSON.parse(raw) as VerbatimDraft;
+    return d && typeof d === "object" ? d : null;
+  } catch (e) { return null; }
+}
+
+export function saveVerbatimDraft(d: VerbatimDraft): void {
+  if (typeof window === "undefined") return;
+  var payload: VerbatimDraft = Object.assign({ v: 1, savedAt: Date.now() }, d);
+  try {
+    window.localStorage.setItem(VERBATIM_DRAFT_KEY, JSON.stringify(payload));
+  } catch (e) {
+    // Almost always a quota error from a large base64 cover image — retry lean.
+    try {
+      var lean: VerbatimDraft = Object.assign({}, payload, { chosenImageUrl: "" });
+      window.localStorage.setItem(VERBATIM_DRAFT_KEY, JSON.stringify(lean));
+    } catch (e2) { /* give up silently */ }
+  }
+}
+
+export function clearVerbatimDraft(): void {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.removeItem(VERBATIM_DRAFT_KEY); } catch (e) { /* ignore */ }
+}
+
+export function draftHasContent(d: VerbatimDraft | null): boolean {
+  if (!d) return false;
+  return !!((d.text && d.text.trim()) || (d.chosenTitle && d.chosenTitle.trim()) || d.selectedTemplateId);
+}
+
+// Reconstruct a wizard draft from an archived carousel so reopening it lands
+// the user back in a fully-populated wizard. Cover knobs live on the cover
+// slide; the raw paste text + slide-count settings live in data.wizardInputs.
+export function verbatimDraftFromArchive(data: Record<string, unknown> | undefined): VerbatimDraft | null {
+  if (!data) return null;
+  var slides = (Array.isArray(data.slides) ? data.slides : []) as Slide[];
+  var cover = slides.find(function(s) { return s && s.type === "cover"; });
+  var wi = (data.wizardInputs && typeof data.wizardInputs === "object" ? data.wizardInputs : {}) as Record<string, unknown>;
+  var draft: VerbatimDraft = {
+    text: typeof wi.text === "string" ? wi.text as string : "",
+    category: (wi.category as ThemeKey) || (data.theme as ThemeKey) || "general",
+    mode: (wi.mode as string) || "auto",
+    pageCount: typeof wi.pageCount === "number" ? wi.pageCount as number : 0,
+    sub: "confirm",
+  };
+  if (cover) {
+    draft.selectedTemplateId = cover.coverTemplate || null;
+    draft.dual = !!cover.coverDual;
+    draft.chosenTitle = cover.title || "";
+    draft.chosenSubtitle = cover.subtitle || "";
+    draft.includeSubtitle = cover.coverShowSub !== false && !!(cover.subtitle || "");
+    draft.logoPos = cover.coverLogoPos === "left" ? "left" : "right";
+    draft.topic = cover.coverTopic || "";
+    draft.titleScale = typeof cover.coverTitleScale === "number" ? cover.coverTitleScale : 1;
+    draft.chosenImageUrl = cover.imageUrl || "";
+    draft.imageTab = cover.imageUrl ? "upload" : "skip";
+  }
+  return draft;
+}
+
 export interface VerbatimWizardProps {
   state: CarouselState;
   setState: React.Dispatch<React.SetStateAction<CarouselState>>;
@@ -205,6 +304,15 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
   var _upper = useState(true), upper = _upper[0], setUpper = _upper[1];
   var _tight = useState(false), tight = _tight[0], setTight = _tight[1];
 
+  // Cover-design knobs (Phase 2): logo corner, accent topic label, title scale.
+  var _logoPos = useState<"left" | "right">("right"), logoPos = _logoPos[0], setLogoPos = _logoPos[1];
+  var _topic = useState(""), topic = _topic[0], setTopic = _topic[1];
+  var _titleScale = useState(1), titleScale = _titleScale[0], setTitleScale = _titleScale[1];
+  var _topicBusy = useState(false), topicBusy = _topicBusy[0], setTopicBusy = _topicBusy[1];
+
+  // Phase 3 · resume banner shown when a saved draft was restored on mount.
+  var _resumed = useState(false), resumedBanner = _resumed[0], setResumedBanner = _resumed[1];
+
   var _titleIdeas = useState<{ title: string; subtitle: string }[]>([]), titleIdeas = _titleIdeas[0], setTitleIdeas = _titleIdeas[1];
   var _titleLoad = useState(false), titleLoading = _titleLoad[0], setTitleLoading = _titleLoad[1];
   var _subLoad = useState(false), subLoading = _subLoad[0], setSubLoading = _subLoad[1];
@@ -222,6 +330,97 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
   var _uploadDrag = useState(false), uploadDrag = _uploadDrag[0], setUploadDrag = _uploadDrag[1];
 
   var accent = THEMES[state.category].color;
+
+  // ─── Restore a saved draft on mount (leave-and-resume / archive reopen) ───
+  useEffect(function() {
+    var d = loadVerbatimDraft();
+    if (!d || !draftHasContent(d)) return;
+    if (d.selectedTemplateId) setSelectedTemplateId(d.selectedTemplateId);
+    if (typeof d.dual === "boolean") setDual(d.dual);
+    if (typeof d.chosenTitle === "string") setChosenTitle(d.chosenTitle);
+    if (typeof d.chosenSubtitle === "string") setChosenSubtitle(d.chosenSubtitle);
+    if (typeof d.includeSubtitle === "boolean") setIncludeSubtitle(d.includeSubtitle);
+    if (typeof d.upper === "boolean") setUpper(d.upper);
+    if (typeof d.tight === "boolean") setTight(d.tight);
+    if (d.logoPos) setLogoPos(d.logoPos);
+    if (typeof d.topic === "string") setTopic(d.topic);
+    if (typeof d.titleScale === "number" && d.titleScale > 0) setTitleScale(d.titleScale);
+    if (d.imageTab) setImageTab(d.imageTab);
+    if (typeof d.chosenImageUrl === "string") setChosenImageUrl(d.chosenImageUrl);
+    if (typeof d.imagePrompt === "string") setImagePrompt(d.imagePrompt);
+    if (Array.isArray(d.titleIdeas)) setTitleIdeas(d.titleIdeas);
+    if (Array.isArray(d.subtitleIdeas)) setSubtitleIdeas(d.subtitleIdeas);
+    if (d.sub) setSub(d.sub);
+    // Bring the parent CarouselState along, but never clobber a non-empty
+    // text the parent already holds (the archive-reopen case sets it first).
+    var dText = d.text || "";
+    var dCategory = d.category;
+    var dMode = d.mode;
+    var dPageCount = d.pageCount;
+    setState(function(s) {
+      return Object.assign({}, s, {
+        text: (s.text && s.text.trim()) ? s.text : (dText || s.text),
+        category: dCategory || s.category,
+        mode: dMode || s.mode,
+        pageCount: typeof dPageCount === "number" ? dPageCount : s.pageCount,
+      });
+    });
+    setResumedBanner(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ─── Autosave every input (debounced) ───
+  useEffect(function() {
+    var t = setTimeout(function() {
+      saveVerbatimDraft({
+        sub: sub,
+        text: state.text || "",
+        category: state.category,
+        mode: state.mode,
+        pageCount: state.pageCount,
+        selectedTemplateId: selectedTemplateId,
+        dual: dual,
+        chosenTitle: chosenTitle,
+        chosenSubtitle: chosenSubtitle,
+        includeSubtitle: includeSubtitle,
+        upper: upper,
+        tight: tight,
+        logoPos: logoPos,
+        topic: topic,
+        titleScale: titleScale,
+        imageTab: imageTab,
+        chosenImageUrl: chosenImageUrl,
+        imagePrompt: imagePrompt,
+        titleIdeas: titleIdeas,
+        subtitleIdeas: subtitleIdeas,
+      });
+    }, 400);
+    return function() { clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sub, state.text, state.category, state.mode, state.pageCount, selectedTemplateId, dual, chosenTitle, chosenSubtitle, includeSubtitle, upper, tight, logoPos, topic, titleScale, imageTab, chosenImageUrl, imagePrompt, titleIdeas, subtitleIdeas]);
+
+  function startFresh() {
+    clearVerbatimDraft();
+    setSub("paste");
+    setSelectedTemplateId(null);
+    setDual(false);
+    setChosenTitle("");
+    setChosenSubtitle("");
+    setIncludeSubtitle(false);
+    setUpper(true);
+    setTight(false);
+    setLogoPos("right");
+    setTopic("");
+    setTitleScale(1);
+    setImageTab("ai");
+    setChosenImageUrl("");
+    setImgVariants([]);
+    setImagePrompt("");
+    setTitleIdeas([]);
+    setSubtitleIdeas([]);
+    setState(function(s) { return Object.assign({}, s, { text: "" }); });
+    setResumedBanner(false);
+  }
 
   function handleTextFile(file: File | null | undefined) {
     if (!file) return;
@@ -302,6 +501,34 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
       showToast("Network error: " + (e instanceof Error ? e.message : String(e)));
     } finally {
       setSubLoading(false);
+    }
+  }
+
+  async function fetchTopicSuggestion() {
+    if (topicBusy) return;
+    var text = (state.text || "").trim();
+    if (!text && !chosenTitle.trim()) { showToast("Paste the text or set a title first."); return; }
+    setTopicBusy(true);
+    try {
+      var r = await fetch("/api/carousel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "verbatim-topic",
+          title: chosenTitle,
+          text: text.slice(0, 4000),
+          topics: COVER_TOPICS,
+          provider: carouselProvider(),
+        }),
+      });
+      var d = await r.json();
+      if (!r.ok || d.error) { showToast(d.error || "Failed to categorize."); return; }
+      if (d.topic) setTopic(String(d.topic));
+      else showToast("No topic returned. Pick one or type your own.");
+    } catch (e) {
+      showToast("Network error: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setTopicBusy(false);
     }
   }
 
@@ -433,6 +660,9 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
       coverAccent: THEMES[state.category].color,
       coverShowSub: includeSubtitle,
       coverDual: dual,
+      coverLogoPos: logoPos,
+      coverTopic: topic,
+      coverTitleScale: titleScale,
     };
 
     var slides = [cover].concat(editorSlides.slice(1));
@@ -517,6 +747,9 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
             imageUrl: chosenImageUrl,
             dual: tpl.id === "03" ? dual : false,
             logoStyle: "auto",
+            logoPosition: logoPos,
+            topic: topic,
+            titleScale: titleScale,
             showSub: !!previewSub,
             showLogo: true,
             showMeta: true,
@@ -540,6 +773,59 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
           <div style={{ fontFamily: ft, fontSize: 11, color: C.txm }}>Diptych template — split the cover into two stacked images.</div>
         </div>
       </div>}
+
+      {/* Cover design — logo corner · title size · topic. Live across all previews. */}
+      <div style={{ marginTop: 18, padding: "16px 18px", background: C.card, border: "1px solid " + C.border, borderRadius: 12 }}>
+        <div style={{ fontFamily: mn, fontSize: 10, color: accent, textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 14 }}>Cover Design</div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 16 }}>
+          {/* Logo corner */}
+          <div>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Logo Corner</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {(["left", "right"] as const).map(function(side) {
+                var active = logoPos === side;
+                return <div key={side} onClick={function() { setLogoPos(side); }} style={{ flex: 1, padding: "10px 12px", borderRadius: 8, cursor: "pointer", textAlign: "center", background: active ? accent + "15" : C.bg, border: "1px solid " + (active ? accent : C.border), fontFamily: ft, fontSize: 12, fontWeight: 700, color: active ? accent : C.txm }}>{side === "left" ? "◤ Left" : "Right ◥"}</div>;
+              })}
+            </div>
+          </div>
+
+          {/* Title size */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, textTransform: "uppercase", letterSpacing: 1.2 }}>Title Size</div>
+              <div style={{ fontFamily: mn, fontSize: 10, color: accent }}>{Math.round(titleScale * 100)}%</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>S</span>
+              <input type="range" min={60} max={130} step={5} value={Math.round(titleScale * 100)} onChange={function(e) { setTitleScale(parseInt(e.target.value) / 100); }} style={{ flex: 1, accentColor: accent }} />
+              <span style={{ fontFamily: mn, fontSize: 9, color: C.txd }}>L</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Topic / accent label */}
+        <div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ fontFamily: mn, fontSize: 9, color: C.txm, textTransform: "uppercase", letterSpacing: 1.2 }}>Topic{topic ? " · accent label" : " (optional)"}</div>
+            <button onClick={fetchTopicSuggestion} disabled={topicBusy} style={{ padding: "6px 12px", borderRadius: 6, background: topicBusy ? C.surface : accent + "12", border: "1px solid " + accent + "30", color: accent, fontFamily: ft, fontSize: 11, fontWeight: 700, cursor: topicBusy ? "wait" : "pointer" }}>{topicBusy ? "Categorizing…" : "✨ Auto-categorize"}</button>
+          </div>
+          <input
+            value={topic}
+            onChange={function(e) { setTopic(e.target.value); }}
+            placeholder="e.g. Infrastructure — or leave blank to omit"
+            style={{ width: "100%", padding: "12px 14px", background: C.bg, border: "1px solid " + C.border, borderRadius: 8, color: C.tx, fontFamily: ft, fontSize: 14, outline: "none", boxSizing: "border-box", marginBottom: 10 }}
+            onFocus={function(e) { e.currentTarget.style.borderColor = accent + "50"; }}
+            onBlur={function(e) { e.currentTarget.style.borderColor = C.border; }}
+          />
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {COVER_TOPICS.map(function(t) {
+              var active = topic.toLowerCase() === t.toLowerCase();
+              return <div key={t} onClick={function() { setTopic(active ? "" : t); }} style={{ padding: "5px 11px", borderRadius: 999, cursor: "pointer", background: active ? accent + "18" : C.bg, border: "1px solid " + (active ? accent + "60" : C.border), fontFamily: mn, fontSize: 9.5, fontWeight: 600, color: active ? accent : C.txm, whiteSpace: "nowrap" }}>{t}</div>;
+            })}
+          </div>
+        </div>
+      </div>
     </div>;
   }
 
@@ -700,13 +986,16 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
       imageUrl: chosenImageUrl,
       dual: dual,
       logoStyle: "auto",
+      logoPosition: logoPos,
+      topic: topic,
+      titleScale: titleScale,
       showSub: includeSubtitle,
       showLogo: true,
       showMeta: true,
       upper: upper,
       tight: tight,
     });
-  }, [selectedTemplateId, chosenTitle, chosenSubtitle, includeSubtitle, accent, chosenImageUrl, dual, upper, tight]);
+  }, [selectedTemplateId, chosenTitle, chosenSubtitle, includeSubtitle, accent, chosenImageUrl, dual, upper, tight, logoPos, topic, titleScale]);
 
   function renderConfirm() {
     return <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -719,6 +1008,8 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
         <span>TEMPLATE: {selectedTemplateId || "—"}</span>
         <span style={{ color: C.txd }}>·</span>
         <span>THEME: {THEMES[state.category].label.toUpperCase()}</span>
+        {topic.trim() && <span style={{ color: C.txd }}>·</span>}
+        {topic.trim() && <span>TOPIC: {topic.trim().toUpperCase()}</span>}
         <span style={{ color: C.txd }}>·</span>
         <span>IMAGE: {chosenImageUrl ? "YES" : "PATTERN"}</span>
       </div>
@@ -745,6 +1036,12 @@ export function VerbatimWizard(props: VerbatimWizardProps): React.ReactElement {
 
     {/* Body */}
     <div style={{ flex: 1, paddingBottom: 100 }}>
+      {resumedBanner && <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: accent + "10", border: "1px solid " + accent + "40", borderRadius: 10, marginBottom: 20 }}>
+        <div style={{ width: 8, height: 8, borderRadius: "50%", background: accent, flexShrink: 0 }} />
+        <div style={{ flex: 1, fontFamily: ft, fontSize: 13, color: C.tx }}>Resumed your in-progress cover. Every step is saved as you go.</div>
+        <button onClick={startFresh} style={{ padding: "6px 12px", borderRadius: 6, background: "transparent", border: "1px solid " + C.border, color: C.txm, fontFamily: mn, fontSize: 10, fontWeight: 700, cursor: "pointer", textTransform: "uppercase", letterSpacing: 0.5 }}>Start fresh</button>
+        <button onClick={function() { setResumedBanner(false); }} style={{ padding: "6px 10px", borderRadius: 6, background: "transparent", border: "none", color: C.txd, fontFamily: mn, fontSize: 14, cursor: "pointer" }}>{"✕"}</button>
+      </div>}
       {sub === "paste" && renderPaste()}
       {sub === "cover" && renderCover()}
       {sub === "title" && renderTitle()}

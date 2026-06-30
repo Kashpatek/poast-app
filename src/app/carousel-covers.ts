@@ -5,6 +5,9 @@ export interface CoverProps {
   imageUrl?: string;
   dual?: boolean;
   logoStyle?: "auto" | "box" | "lettermark" | "full";
+  logoPosition?: "left" | "right";  // which corner the SemiAnalysis logo sits in (default right)
+  topic?: string;                    // the accent "category" label (replaces the old hardcoded ISSUE meta)
+  titleScale?: number;               // manual title-size multiplier (1 = template default; lower to de-crowd)
   showSub?: boolean;
   showLogo?: boolean;
   showMeta?: boolean;
@@ -35,6 +38,9 @@ interface ResolvedCoverProps {
   imageUrl: string;
   dual: boolean;
   logoStyle: "auto" | "box" | "lettermark" | "full";
+  logoPosition: "left" | "right";
+  topic: string;
+  titleScale: number;
   showSub: boolean;
   showLogo: boolean;
   showMeta: boolean;
@@ -50,6 +56,9 @@ function resolve(p: CoverProps): ResolvedCoverProps {
     imageUrl: p.imageUrl || "",
     dual: p.dual || false,
     logoStyle: p.logoStyle || "auto",
+    logoPosition: p.logoPosition === "left" ? "left" : "right",
+    topic: (p.topic || "").trim(),
+    titleScale: typeof p.titleScale === "number" && p.titleScale > 0 ? p.titleScale : 1,
     showSub: p.showSub !== false,
     showLogo: p.showLogo !== false,
     showMeta: p.showMeta !== false,
@@ -221,12 +230,20 @@ function wordWrap(text: string, maxCharsPerLine: number): string[] {
   return lines;
 }
 
+// Width-based auto-fit. baseSize is already scaled by the caller (p.titleScale);
+// the floor is low enough that a long, crowded headline can shrink instead of
+// overflowing the safe area.
 function titleFontSizeForLines(lines: string[], baseSize: number, maxWidth: number): number {
   if (!lines.length) return baseSize;
   const maxLen = lines.reduce((m, l) => Math.max(m, l.length), 0);
   const perChar = 0.58;
   const fitSize = Math.floor(maxWidth / (maxLen * perChar));
-  return Math.max(44, Math.min(baseSize, fitSize));
+  return Math.max(34, Math.min(baseSize, fitSize));
+}
+
+// A title base size after applying the caller's manual scale (1 = template default).
+function scaledBase(p: ResolvedCoverProps, base: number): number {
+  return Math.round(base * p.titleScale);
 }
 
 interface TitleBlockResult {
@@ -288,9 +305,29 @@ function shadowed(id: string, inner: string): string {
   return `<g filter="url(#${id})">${inner}</g>`;
 }
 
-function metaTag(p: ResolvedCoverProps, text: string, x: number, y: number, fill: string = "rgba(255,255,255,0.85)"): string {
-  if (!p.showMeta) return "";
-  return `<text x="${x}" y="${y}" font-family="'JetBrains Mono', monospace" font-size="20" font-weight="700" letter-spacing="3" fill="${fill}">${esc(text)}</text>`;
+function metaTag(p: ResolvedCoverProps, text: string, x: number, y: number, fill: string = "rgba(255,255,255,0.85)", anchor: "start" | "end" = "start"): string {
+  if (!p.showMeta || !text) return "";
+  const ta = anchor === "end" ? ` text-anchor="end"` : "";
+  // Category labels render uppercase — mono + wide tracking reads as a tag, and
+  // it matches the old ISSUE meta. Stored topic stays Title Case for the UI.
+  return `<text x="${x}" y="${y}"${ta} font-family="'JetBrains Mono', monospace" font-size="20" font-weight="700" letter-spacing="3" fill="${fill}">${esc(text.toUpperCase())}</text>`;
+}
+
+// Place the topic label on the side OPPOSITE the logo so the two never collide
+// when the logo is flipped. Returns the x + text-anchor for a given left/right pair.
+function metaSide(p: ResolvedCoverProps, leftX: number, rightX: number): { x: number; anchor: "start" | "end" } {
+  return p.logoPosition === "left"
+    ? { x: rightX, anchor: "end" }
+    : { x: leftX, anchor: "start" };
+}
+
+// Namespace a logo's <style> rules + class refs so multiple logos on one page
+// (the wizard's template grid) don't clobber each other via global SVG <style>
+// leakage — the original cause of wrong logo colors. Path data is untouched.
+function scopeLogo(inner: string, ns: string): string {
+  return inner
+    .replace(/\.st(\d)/g, `.${ns}st$1`)
+    .replace(/class="st(\d)"/g, `class="${ns}st$1"`);
 }
 
 function subtitleBlock(p: ResolvedCoverProps, text: string, x: number, y: number, maxWidth: number, fill: string = "rgba(255,255,255,0.78)"): string {
@@ -305,25 +342,23 @@ function saMark(p: ResolvedCoverProps, x: number, y: number, w: number, h: numbe
   let inner: string;
   let vbW: number;
   let vbH: number;
+  let ns: string;
   if (style === "box") {
-    inner = LOGO_BOX_INNER;
-    vbW = LOGO_BOX_VBW;
-    vbH = LOGO_BOX_VBH;
+    inner = LOGO_BOX_INNER; vbW = LOGO_BOX_VBW; vbH = LOGO_BOX_VBH; ns = "salb-";
   } else if (style === "lettermark") {
-    inner = LOGO_LETTERMARK_INNER;
-    vbW = LOGO_LETTERMARK_VBW;
-    vbH = LOGO_LETTERMARK_VBH;
+    inner = LOGO_LETTERMARK_INNER; vbW = LOGO_LETTERMARK_VBW; vbH = LOGO_LETTERMARK_VBH; ns = "sall-";
   } else {
-    inner = LOGO_FULL_INNER;
-    vbW = LOGO_FULL_VBW;
-    vbH = LOGO_FULL_VBH;
+    inner = LOGO_FULL_INNER; vbW = LOGO_FULL_VBW; vbH = LOGO_FULL_VBH; ns = "salf-";
   }
+  const scaled = scopeLogo(inner, ns);
   const scaleX = w / vbW;
   const scaleY = h / vbH;
   const scale = Math.min(scaleX, scaleY);
   const actualW = vbW * scale;
   const actualH = vbH * scale;
-  return `<g transform="translate(${x + (w - actualW)}, ${y + (h - actualH) / 2}) scale(${scale})">${inner}</g>`;
+  // Anchor to the chosen corner: flush-left when logoPosition === "left", else flush-right within the box.
+  const tx = p.logoPosition === "left" ? x : x + (w - actualW);
+  return `<g transform="translate(${tx}, ${y + (h - actualH) / 2}) scale(${scale})">${scaled}</g>`;
 }
 
 // Suppress unused-warning for helpers exposed for potential future covers.
@@ -341,7 +376,7 @@ function render01(rawP: CoverProps): string {
   const subWrap = Math.max(20, Math.floor(maxTitleWidth / 17));
   const titleWrap = Math.max(8, Math.floor(maxTitleWidth / 28));
   const lines = wordWrap(t, titleWrap);
-  const fs = titleFontSizeForLines(lines, 110, maxTitleWidth);
+  const fs = titleFontSizeForLines(lines, scaledBase(p, 110), maxTitleWidth);
 
   const subLines = p.showSub && p.subtitle ? wordWrap(p.subtitle, subWrap) : [];
   const subFs = 30;
@@ -380,7 +415,7 @@ function render01(rawP: CoverProps): string {
     </g>
     <rect x="${pad}" y="${pad}" width="${frameW}" height="${frameH}" fill="none" stroke="#FFFFFF" stroke-opacity="0.20" stroke-width="2"/>
     ${dropShadowDefs("v01-shadow")}
-    ${shadowed("v01-shadow", saMark(p, W - pad - 220 - innerPad, pad + innerPad, 220, 132, "box"))}
+    ${shadowed("v01-shadow", saMark(p, p.logoPosition === "left" ? pad + innerPad : W - pad - innerPad - 220, pad + innerPad, 220, 132, "box"))}
   `;
 }
 
@@ -390,7 +425,7 @@ function render02(rawP: CoverProps): string {
   const pad = 80;
   const maxWidth = W - pad * 2;
   const lines = wordWrap(t, 9);
-  const fs = titleFontSizeForLines(lines, 170, maxWidth);
+  const fs = titleFontSizeForLines(lines, scaledBase(p, 170), maxWidth);
   const lineGap = fs * 1.0;
   const titleStartY = 260 + fs;
 
@@ -420,8 +455,8 @@ function render02(rawP: CoverProps): string {
     ${lines.map((ln, i) => `<text x="${pad}" y="${titleStartY + i * lineGap}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${trk}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
     <line x1="${pad}" y1="${subStartY - 80}" x2="${pad + 100}" y2="${subStartY - 80}" stroke="${p.accent}" stroke-width="4"/>
     ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.80)">${esc(ln)}</text>`).join("")}
-    ${metaTag(p, "TEAR-DOWN · SEMIANALYSIS", pad, H - 60, "rgba(255,255,255,0.4)")}
-    ${saMark(p, W - 80 - 240, H - 200, 240, 120, "lettermark")}
+    ${metaTag(p, p.topic, metaSide(p, pad, W - pad).x, H - 60, p.accent, metaSide(p, pad, W - pad).anchor)}
+    ${saMark(p, p.logoPosition === "left" ? 80 : W - 80 - 240, H - 200, 240, 120, "lettermark")}
   `;
 }
 
@@ -431,12 +466,13 @@ function render03(rawP: CoverProps): string {
   const pad = 60;
   const maxTitleWidth = W - pad * 2 - 48;
   const lines = wordWrap(t, 20);
-  const fs = titleFontSizeForLines(lines, 100, maxTitleWidth);
+  const fs = titleFontSizeForLines(lines, scaledBase(p, 100), maxTitleWidth);
 
   const subLines = p.showSub && p.subtitle ? wordWrap(p.subtitle, 44) : [];
   const subFs = 30;
   const subGap = 36;
   const subEndY = H - 110;
+  const ms03 = metaSide(p, 60, W - 60);
   const subStartY = subEndY - (subLines.length - 1) * subGap;
   const titleBottomY = subLines.length ? subStartY - 70 : subEndY;
   const tb = titleBlock(p, lines, fs, pad + 24, titleBottomY);
@@ -486,7 +522,7 @@ function render03(rawP: CoverProps): string {
     ${dual ? `<line x1="0" y1="${splitY}" x2="${W}" y2="${splitY}" stroke="${p.accent}" stroke-width="4"/>` : ""}
     <rect width="${W}" height="${H}" fill="url(#v03-grad)"/>
     ${dropShadowDefs("v03-shadow")}
-    ${shadowed("v03-shadow", saMark(p, W - 60 - 220, 50, 220, 132, "full") + metaTag(p, dual ? "DIPTYCH · 06 / 26" : "INFRASTRUCTURE · 06 / 26", 60, 95, p.accent))}
+    ${shadowed("v03-shadow", saMark(p, p.logoPosition === "left" ? 60 : W - 60 - 220, 50, 220, 132, "full") + metaTag(p, p.topic, ms03.x, 95, p.accent, ms03.anchor))}
     ${tb.svg}
     ${subLines.map((ln, i) => `<text x="${pad + 24}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.82)">${esc(ln)}</text>`).join("")}
   `;
@@ -498,12 +534,13 @@ function render04(rawP: CoverProps): string {
   const pad = 60;
   const maxTitleWidth = W - pad - 80;
   const lines = wordWrap(t, 20);
-  const fs = titleFontSizeForLines(lines, 100, maxTitleWidth);
+  const fs = titleFontSizeForLines(lines, scaledBase(p, 100), maxTitleWidth);
 
   const subLines = p.showSub && p.subtitle ? wordWrap(p.subtitle, 44) : [];
   const subFs = 30;
   const subGap = 36;
   const subEndY = H - 100;
+  const ms04 = metaSide(p, 60, W - 60);
   const subStartY = subEndY - (subLines.length - 1) * subGap;
   const titleBottomY = subLines.length ? subStartY - 70 : subEndY;
   const tb = titleBlock(p, lines, fs, pad, titleBottomY);
@@ -514,7 +551,7 @@ function render04(rawP: CoverProps): string {
     <defs>${gradient("v04-grad", [{o:"0%",c:"#000",a:0.15},{o:"45%",c:"#000",a:0},{o:"100%",c:"#000",a:0.94}])}</defs>
     <rect width="${W}" height="${H}" fill="url(#v04-grad)"/>
     ${dropShadowDefs("v04-shadow")}
-    ${shadowed("v04-shadow", metaTag(p, "06 / 2026 · INFRA", W - 360, 90, p.accent) + saMark(p, W - 60 - 160, 130, 160, 180, "box"))}
+    ${shadowed("v04-shadow", metaTag(p, p.topic, ms04.x, 90, p.accent, ms04.anchor) + saMark(p, p.logoPosition === "left" ? 60 : W - 60 - 160, 130, 160, 180, "box"))}
     ${tb.svg}
     ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.82)">${esc(ln)}</text>`).join("")}
   `;
@@ -527,7 +564,7 @@ function render05(rawP: CoverProps): string {
   const imgH = Math.round(H * 0.62);
   const maxTitleWidth = W - pad * 2;
   const lines = wordWrap(t, 22);
-  const fs = titleFontSizeForLines(lines, 90, maxTitleWidth);
+  const fs = titleFontSizeForLines(lines, scaledBase(p, 90), maxTitleWidth);
 
   const subLines = p.showSub && p.subtitle ? wordWrap(p.subtitle, 50) : [];
   const subFs = 26;
@@ -553,8 +590,8 @@ function render05(rawP: CoverProps): string {
     <rect x="0" y="${barTop}" width="${W}" height="${barH}" fill="#0A0B10"/>
     <rect x="0" y="${barTop}" width="${W}" height="6" fill="${p.accent}"/>
     ${dropShadowDefs("v05-shadow")}
-    ${shadowed("v05-shadow", saMark(p, W - 60 - 240, 50, 240, 100, "lettermark"))}
-    ${metaTag(p, "ISSUE 24 · INFRASTRUCTURE", pad, metaY, p.accent)}
+    ${shadowed("v05-shadow", saMark(p, p.logoPosition === "left" ? 60 : W - 60 - 240, 50, 240, 100, "lettermark"))}
+    ${metaTag(p, p.topic, pad, metaY, p.accent)}
     ${lines.map((ln, i) => `<text x="${pad}" y="${titleTopBaselineY + i * titleLineGap}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${trk}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
     ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.72)">${esc(ln)}</text>`).join("")}
   `;
@@ -566,12 +603,13 @@ function render06(rawP: CoverProps): string {
   const pad = 60;
   const maxTitleWidth = W - pad * 2;
   const lines = wordWrap(t, 18);
-  const fs = titleFontSizeForLines(lines, 110, maxTitleWidth);
+  const fs = titleFontSizeForLines(lines, scaledBase(p, 110), maxTitleWidth);
 
   const subLines = p.showSub && p.subtitle ? wordWrap(p.subtitle, 44) : [];
   const subFs = 30;
   const subGap = 36;
   const subEndY = H - 110;
+  const ms06 = metaSide(p, 60, W - 60);
   const subStartY = subEndY - (subLines.length - 1) * subGap;
   const titleBottomY = subLines.length ? subStartY - 70 : subEndY;
   const tb = titleBlock(p, lines, fs, pad, titleBottomY);
@@ -582,7 +620,7 @@ function render06(rawP: CoverProps): string {
     <defs>${gradient("v06-grad", [{o:"0%",c:"#000",a:0.18},{o:"45%",c:"#000",a:0},{o:"100%",c:"#000",a:0.93}])}</defs>
     <rect width="${W}" height="${H}" fill="url(#v06-grad)"/>
     ${dropShadowDefs("v06-shadow")}
-    ${shadowed("v06-shadow", metaTag(p, "YB · 04 · INFRASTRUCTURE", pad, 100, "#FFFFFF") + saMark(p, W - 60 - 160, 70, 160, 180, "box"))}
+    ${shadowed("v06-shadow", metaTag(p, p.topic, ms06.x, 100, p.accent, ms06.anchor) + saMark(p, p.logoPosition === "left" ? 60 : W - 60 - 160, 70, 160, 180, "box"))}
     <rect x="${pad}" y="${titleBottomY - fs - 60}" width="68" height="4" fill="${p.accent}"/>
     ${tb.svg}
     ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.82)">${esc(ln)}</text>`).join("")}
@@ -591,6 +629,27 @@ function render06(rawP: CoverProps): string {
 
 // Currently unused helper, exported via subtitleBlock-style API parity for future cover variants.
 void subtitleBlock;
+
+// Curated SemiAnalysis content sectors — the accent "topic" label that sits on
+// the cover (replaces the old "ISSUE 24" meta). Used as quick-picks in the
+// wizard + editor; the AI auto-categorizer prefers this list but may return a
+// short custom sector. Free text is always allowed.
+export const COVER_TOPICS: string[] = [
+  "Infrastructure",
+  "Datacenters",
+  "GPUs",
+  "Foundry",
+  "HBM & Memory",
+  "Networking",
+  "Advanced Packaging",
+  "Custom Silicon",
+  "Earnings",
+  "Supply Chain",
+  "Export Controls",
+  "Power & Energy",
+  "AI Models",
+  "Markets",
+];
 
 export const COVER_TEMPLATES: CoverTemplate[] = [
   { id: "01", name: "Reference",   preferredLogo: "box",        supportsDual: false, render: render01 },
