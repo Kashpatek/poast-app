@@ -1,7 +1,7 @@
 "use client";
 // Appearance & personal settings — theme (Classic/Stock/Glass), background,
 // and a "Replay tour" action. Wired to ThemeProvider (localStorage + Neon).
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Check, RotateCcw, Lock, Unlock, Star, ArrowRight } from "lucide-react";
 import { D, ft, gf, mn } from "../../shared-constants";
@@ -127,6 +127,65 @@ function DefaultCalendarSection({ m }: { m?: MarketingState }) {
           }}>Leave</button>
         </div>
       )}
+      <div style={{ height: 1, background: D.border, margin: "22px 0 0" }} />
+    </>
+  );
+}
+
+// Calendar status events — Google's working location ("Office"), out-of-office
+// and focus-time blocks. Working location recurs daily, so left unchecked it
+// carpets every day of the suite; hence OFF by default. The toggle pulls them in
+// (on) or purges every mirror row (off), applied live. On first open per session
+// we reconcile to the saved preference so any rows pulled before this existed get
+// cleared without the user hunting for a sync.
+function StatusEventsSection({ m }: { m?: MarketingState }) {
+  const { status, loading, showStatusEvents, setShowStatusEvents } = useGoogle();
+  const [busy, setBusy] = useState(false);
+  const reconciled = useRef(false);
+
+  useEffect(() => {
+    if (loading || !status.connected || reconciled.current) return;
+    reconciled.current = true;
+    try {
+      const key = `ms-status-reconciled:${status.email || "me"}`;
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "1");
+    } catch { /* ignore */ }
+    (async () => { await setShowStatusEvents(showStatusEvents); m?.refresh(); })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, status.connected]);
+
+  if (!loading && !status.connected) return null;
+
+  const on = showStatusEvents;
+  const toggle = async () => {
+    if (busy) return;
+    setBusy(true);
+    await setShowStatusEvents(!on);
+    m?.refresh();
+    setBusy(false);
+  };
+
+  return (
+    <>
+      <div style={{ ...lbl, marginTop: 22 }}>Calendar status events</div>
+      <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: ft, fontSize: 13, color: D.tx }}>Working location, out of office &amp; focus time</div>
+          <div style={{ fontSize: 11.5, color: D.txm, marginTop: 3, lineHeight: 1.45 }}>
+            Google&apos;s “where I&apos;m working” and status blocks. Off keeps them out of your calendar, timeline and agenda; on shows them everywhere.
+          </div>
+        </div>
+        <button onClick={toggle} disabled={busy} role="switch" aria-checked={on} title={on ? "Hide status events" : "Show status events"} style={{
+          flex: "none", width: 46, height: 26, borderRadius: 999, cursor: busy ? "default" : "pointer", position: "relative",
+          border: `1px solid ${on ? D.teal : D.border}`, background: on ? D.teal + "33" : D.surface, transition: "all .16s", opacity: busy ? 0.6 : 1,
+        }}>
+          <span style={{
+            position: "absolute", top: 2, left: on ? 22 : 2, width: 20, height: 20, borderRadius: 999,
+            background: on ? D.teal : D.txd, transition: "left .16s, background .16s",
+          }} />
+        </button>
+      </div>
       <div style={{ height: 1, background: D.border, margin: "22px 0 0" }} />
     </>
   );
@@ -337,6 +396,7 @@ export default function AppearanceSettings({ open, onClose, m }: { open: boolean
           <div style={{ marginTop: m ? 22 : 0 }}>
             <DefaultCalendarSection m={m} />
           </div>
+          <StatusEventsSection m={m} />
           <div style={{ marginTop: 22 }}>
             <AppearancePanel onReplayTour={() => { onClose(); setTimeout(() => window.dispatchEvent(new Event("poast:replay-tour")), 60); }} />
           </div>

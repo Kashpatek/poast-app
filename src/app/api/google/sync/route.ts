@@ -41,10 +41,15 @@ function selectedMap(prefs: Record<string, unknown> | null | undefined): Record<
   return sel && typeof sel === "object" ? sel : {};
 }
 function isOn(sel: Record<string, boolean>, calId: string): boolean { return sel[calId] !== false; }
+// Personal status events (working location / OOO / focus) are hidden unless the
+// user explicitly opts in via Settings → "Calendar status events".
+function showStatusPref(prefs: Record<string, unknown> | null | undefined): boolean {
+  return (prefs as { showStatusEvents?: boolean } | null)?.showStatusEvents === true;
+}
 
 // Push our events targeting `calendarId` up to Google, then pull that calendar's
 // events (now → +60d) back into the spine. Idempotent via gcal_event_id.
-async function syncOne(db: Db, token: string, owner: string, calendarId: string): Promise<SyncCounts> {
+async function syncOne(db: Db, token: string, owner: string, calendarId: string, showStatus = false): Promise<SyncCounts> {
   const c: SyncCounts = { pushed: 0, updated: 0, pulled: 0, errors: [] };
 
   // ── PUSH: our events targeting this calendar → Google ──
@@ -86,10 +91,12 @@ async function syncOne(db: Db, token: string, owner: string, calendarId: string)
     const events = await listEvents(token, calendarId, timeMin, timeMax);
     for (const g of events) {
       if (g.status === "cancelled") continue;
-      // Skip personal status events (working location / OOO / focus time). If we
-      // pulled one before this guard existed, delete that mirror row so it stops
-      // populating the calendar — self-healing on the next sync.
-      if (STATUS_EVENT_TYPES.has(g.eventType)) {
+      // Personal status events (working location / OOO / focus time). Hidden by
+      // default: skip them and delete any mirror row we pulled before — so they
+      // stop populating the calendar (self-healing on the next sync). When the
+      // user opts in (showStatus), they fall through and are pulled + tagged.
+      const isStatus = STATUS_EVENT_TYPES.has(g.eventType);
+      if (isStatus && !showStatus) {
         await db.query("delete from marketing_events where owner=$1 and gcal_event_id=$2 and source='gcal'", [owner, g.id]);
         continue;
       }
@@ -101,7 +108,7 @@ async function syncOne(db: Db, token: string, owner: string, calendarId: string)
       const attendees = (g.attendees || []).map((a: any) => a.email).filter(Boolean);
       const meetLink = g.hangoutLink || g.conferenceData?.entryPoints?.find((e: { entryPointType?: string; uri?: string }) => e.entryPointType === "video")?.uri || null;
       const payload = JSON.stringify({
-        calendarId, scheduleKind: "booking", gcalHtmlLink: g.htmlLink || null,
+        calendarId, scheduleKind: isStatus ? "status" : "booking", gcalHtmlLink: g.htmlLink || null,
         allDay, location: g.location || null, attendees, meetLink,
         eventType: g.eventType || "default",
       });
@@ -140,11 +147,44 @@ async function purgeCalendars(db: Db, owner: string, calIds: string[]): Promise<
   return removed.length;
 }
 
+// Remove every mirrored status event (working location / OOO / focus) regardless
+// of when it was pulled. Two passes: (1) rows we tagged with payload.eventType,
+// (2) legacy rows pulled before tagging existed — found by asking Google which
+// event-ids on the primary calendar are status events (wide window) and deleting
+// exactly those. Used when the user turns status events off.
+async function purgeStatusEverywhere(db: Db, token: string, owner: string): Promise<number> {
+  const types = [...STATUS_EVENT_TYPES];
+  const tagged = (await db.query(
+    `delete from marketing_events
+      where owner=$1 and source='gcal' and (payload->>'eventType') = ANY($2::text[])
+      returning id`,
+    [owner, types]
+  )) as Row[];
+  let byId: Row[] = [];
+  try {
+    const now = new Date();
+    const tMin = new Date(now.getTime() - 30 * 24 * HOUR).toISOString();
+    const tMax = new Date(now.getTime() + 90 * 24 * HOUR).toISOString();
+    const evs = await listEvents(token, "primary", tMin, tMax, types);
+    const ids = evs.map((e: Row) => e.id).filter(Boolean);
+    if (ids.length) {
+      byId = (await db.query(
+        `delete from marketing_events
+          where owner=$1 and source='gcal' and gcal_event_id = ANY($2::text[])
+          returning id`,
+        [owner, ids]
+      )) as Row[];
+    }
+  } catch { /* best-effort: tag pass already ran */ }
+  return tagged.length + byId.length;
+}
+
 export async function POST(req: NextRequest) {
   if (!isConfigured()) return NextResponse.json({ error: "Google Calendar not configured" }, { status: 503 });
   let body: {
     owner?: string; calendarId?: string; prefs?: Record<string, unknown>;
     setCalendar?: { id: string; on: boolean }; syncSelected?: boolean;
+    setShowStatus?: boolean;
   };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const owner = body.owner || "shared";
@@ -154,6 +194,23 @@ export async function POST(req: NextRequest) {
   if (body.prefs && !body.calendarId && !body.setCalendar && !body.syncSelected) {
     await saveCalendarPrefs(owner, body.prefs);
     return NextResponse.json({ ok: true });
+  }
+
+  // Mode: show/hide personal status events (working location / OOO / focus),
+  // applied live — on pulls + tags them onto the spine, off purges every mirror.
+  if (typeof body.setShowStatus === "boolean") {
+    const token = await getValidAccessToken(owner);
+    if (!token) return NextResponse.json({ error: "Not connected" }, { status: 401 });
+    const row = await getTokenRow(owner);
+    await saveCalendarPrefs(owner, { ...(row?.calendar_prefs || {}), showStatusEvents: body.setShowStatus });
+    if (body.setShowStatus) {
+      let primaryId = "primary";
+      try { const cals = await listCalendars(token); primaryId = cals.find((x) => x.primary)?.id || "primary"; } catch { /* fall back to the alias */ }
+      const c = await syncOne(db, token, owner, primaryId, true);
+      return NextResponse.json({ ok: c.errors.length === 0, showStatus: true, ...c });
+    }
+    const purged = await purgeStatusEverywhere(db, token, owner);
+    return NextResponse.json({ ok: true, showStatus: false, purged });
   }
 
   // Mode: select/deselect one calendar, applied live.
@@ -166,7 +223,7 @@ export async function POST(req: NextRequest) {
     if (on) {
       const token = await getValidAccessToken(owner);
       if (!token) return NextResponse.json({ error: "Not connected" }, { status: 401 });
-      const c = await syncOne(db, token, owner, id);
+      const c = await syncOne(db, token, owner, id, showStatusPref(row?.calendar_prefs));
       return NextResponse.json({ ok: c.errors.length === 0, on: true, ...c });
     }
     const purged = await purgeCalendars(db, owner, [id]);
@@ -184,13 +241,16 @@ export async function POST(req: NextRequest) {
     catch (e) { return NextResponse.json({ ok: false, error: String(e).slice(0, 160) }, { status: 502 }); }
     const onIds = cals.filter((c) => isOn(sel, c.id)).map((c) => c.id);
     const offIds = cals.filter((c) => !isOn(sel, c.id)).map((c) => c.id);
+    const showStatus = showStatusPref(row?.calendar_prefs);
     const total: SyncCounts = { pushed: 0, updated: 0, pulled: 0, errors: [] };
     for (const calId of onIds) {
-      const c = await syncOne(db, token, owner, calId);
+      const c = await syncOne(db, token, owner, calId, showStatus);
       total.pushed += c.pushed; total.updated += c.updated; total.pulled += c.pulled;
       total.errors.push(...c.errors);
     }
     const purged = await purgeCalendars(db, owner, offIds);
+    // When status events are off, make sure none linger (out-of-window / legacy).
+    if (!showStatus) { try { await purgeStatusEverywhere(db, token, owner); } catch { /* best-effort */ } }
     return NextResponse.json({ ok: total.errors.length === 0, calendars: onIds.length, purged, ...total });
   }
 
@@ -199,6 +259,7 @@ export async function POST(req: NextRequest) {
   if (!calendarId) return NextResponse.json({ error: "calendarId required" }, { status: 400 });
   const token = await getValidAccessToken(owner);
   if (!token) return NextResponse.json({ error: "Not connected" }, { status: 401 });
-  const c = await syncOne(db, token, owner, calendarId);
+  const manualRow = await getTokenRow(owner);
+  const c = await syncOne(db, token, owner, calendarId, showStatusPref(manualRow?.calendar_prefs));
   return NextResponse.json({ ok: c.errors.length === 0, ...c });
 }

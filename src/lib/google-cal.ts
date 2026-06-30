@@ -143,8 +143,11 @@ export async function listCalendars(token: string): Promise<GCalCalendar[]> {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function listEvents(token: string, calendarId: string, timeMin: string, timeMax: string): Promise<any[]> {
+export async function listEvents(token: string, calendarId: string, timeMin: string, timeMax: string, eventTypes?: string[]): Promise<any[]> {
   const p = new URLSearchParams({ timeMin, timeMax, singleEvents: "true", orderBy: "startTime", maxResults: "250" });
+  // When given, restrict to specific Google event types (e.g. ["workingLocation",
+  // "outOfOffice","focusTime"] to find status events precisely). Repeated param.
+  for (const t of eventTypes || []) p.append("eventTypes", t);
   const j = await gapi(token, `/calendars/${encodeURIComponent(calendarId)}/events?${p.toString()}`);
   return j.items || [];
 }

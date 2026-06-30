@@ -133,7 +133,25 @@ export function useGoogle() {
     return res.json();
   }, [owner]);
 
-  const isSelected = useCallback((calId: string) => isCalSelected(status.prefs, calId), [status.prefs]);
+  // Show / hide Google personal status events (working location / OOO / focus).
+  // Optimistically flips the pref so the toggle responds instantly; the server
+  // persists it and applies live (on → pull+tag, off → purge every mirror row).
+  const setShowStatusEvents = useCallback(async (on: boolean) => {
+    setStatus((s) => ({ ...s, prefs: { ...s.prefs, showStatusEvents: on } }));
+    try {
+      const res = await fetch("/api/google/sync", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ owner, setShowStatus: on }),
+      });
+      return await res.json();
+    } catch (e) {
+      reload(owner);
+      return { ok: false, error: String(e) };
+    }
+  }, [owner, reload]);
 
-  return { status, loading, owner, reload, connect, disconnect, syncCalendar, setCalendarSelected, syncSelected, isSelected };
+  const isSelected = useCallback((calId: string) => isCalSelected(status.prefs, calId), [status.prefs]);
+  const showStatusEvents = status.prefs?.showStatusEvents === true;
+
+  return { status, loading, owner, reload, connect, disconnect, syncCalendar, setCalendarSelected, syncSelected, setShowStatusEvents, showStatusEvents, isSelected };
 }
