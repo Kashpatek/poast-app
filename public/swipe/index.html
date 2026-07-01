@@ -1926,6 +1926,28 @@ function renderLayout(cfg, c) {
     OVERLAYS.forEach(function (o, i) { if (set[String(i)]) out.push({ deck: 'ov', id: i, name: o.name, cat: o.cat, overlay: o }); });
     return out;
   }
+
+  // The overlays denied in the swipe review, addressed by layout id (index-stable). Lets a
+  // ?denied link jump straight into just these, even with an empty/cleared verdict store.
+  var DENIED_LAYOUTS = ['coverFullBleed', 'coverChartInset', 'detailChart', 'detailMatrix', 'detailVersus', 'endFollow', 'spectacleRaceBars', 'spectacleColossusGauge', 'spectacleOdometer', 'labBulletTarget', 'labTornado', 'labStatusBoard', 'labDecisionTree', 'labProsCons', 'labCertificate', 'labScaleTwins', 'labLeapArrow', 'labGateChain', 'labStepperProgress', 'labBuildStack', 'labWaferYield', 'labThermalStrip', 'labCitationCard', 'labLeaderPull', 'detailDataPullout', 'detailStatStrip', 'labSlopegraph', 'labTierList', 'labColophon', 'labRecordBanner', 'labDieFloorplan'];
+  function bakedDeniedIndices() {
+    var set = {}; DENIED_LAYOUTS.forEach(function (l) { set[l] = true; });
+    var out = []; OVERLAYS.forEach(function (o, i) { if (set[o.layout]) out.push(i); });
+    return out;
+  }
+  function enterReviewQueue(ids, label) {
+    if (!ids.length) { toast('Nothing to review'); return; }
+    reviewingDenied = true;
+    current = 'ov';
+    decks.ov.list = overlayItemsFor(ids);
+    decks.ov.cursor = 0;
+    history = []; updateUndo();
+    document.querySelectorAll('#seg button').forEach(function (x) { x.classList.toggle('on', x.dataset.deck === 'ov'); });
+    toggleBdCatVisibility();
+    document.getElementById('resultsScreen').classList.add('hide');
+    toast('Reviewing ' + decks.ov.list.length + ' ' + (label || 'overlay') + (decks.ov.list.length === 1 ? '' : 's'));
+    render();
+  }
   function updateReviewBanner() {
     var b = document.getElementById('reviewBanner'); if (!b) return;
     if (reviewingDenied && current === 'ov') {
@@ -2295,16 +2317,7 @@ function renderLayout(cfg, c) {
   function reReviewDenied() {
     var ids = ovDenyIds();
     if (!ids.length) { toast('No denied overlays'); return; }
-    reviewingDenied = true;
-    current = 'ov';
-    decks.ov.list = overlayItemsFor(ids); // exactly the denied ones — not the whole deck
-    decks.ov.cursor = 0;
-    history = []; updateUndo();
-    document.querySelectorAll('#seg button').forEach(function (x) { x.classList.toggle('on', x.dataset.deck === 'ov'); });
-    toggleBdCatVisibility();
-    document.getElementById('resultsScreen').classList.add('hide');
-    toast('Reviewing ' + ids.length + ' denied overlay' + (ids.length === 1 ? '' : 's'));
-    render();
+    enterReviewQueue(ids, 'denied overlay'); // exactly the denied ones — not the whole deck
   }
 
   // ---------- sizing ----------
@@ -2380,7 +2393,13 @@ function renderLayout(cfg, c) {
     current = 'ov';
     document.querySelectorAll('#seg button').forEach(function (x) { x.classList.toggle('on', x.dataset.deck === 'ov'); });
     toggleBdCatVisibility();
-    sizeCards(); render();
+    sizeCards();
+    // ?denied (or #denied) opens straight into a queue of just the swipe-denied overlays,
+    // independent of any stored verdicts.
+    var wantDenied = /(^|[?&#])denied(=|&|$)/i.test((location.search || '') + (location.hash || ''));
+    var di = wantDenied ? bakedDeniedIndices() : [];
+    if (wantDenied && di.length) enterReviewQueue(di, 'denied overlay');
+    else render();
     requestAnimationFrame(function () { sizeCards(); });
     updateUndo();
   }
