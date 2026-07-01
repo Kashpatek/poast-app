@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { D as C, ft, gf, mn } from "../../shared-constants";
 import { ingestHtml, measureContentBBox } from "../catalog/parser";
 import { inspectProduct, type QANote } from "../catalog/qa";
-import { CANVAS_DIMS, dimsMatch, measureMargins, type MarginReport } from "../../lib/canvas-fit";
+import { CANVAS_DIMS, CAROUSEL_SAFE_ZONE, dimsMatch, measureMargins, type MarginReport } from "../../lib/canvas-fit";
 import type { CatalogField, CatalogProduct, CatalogTemplate } from "../catalog/types";
 
 function previewSvg(svg: string): string {
@@ -84,10 +84,15 @@ function ParsedCard({ product }: { product: CatalogProduct }) {
               <span style={{ color: C.txd }}>full-bleed</span>
             ) : (
               <span style={{ color: C.txd }}>
-                safe zone · L{margins.left} R{margins.right} T{margins.top} B{margins.bottom}
+                content margins · L{margins.left} R{margins.right} T{margins.top} B{margins.bottom}
                 {margins.symmetricX && margins.symmetricY ? " · symmetric" : ""}
               </span>
             )
+          )}
+          {product.kind !== "module" && (
+            <span style={{ color: C.txd, opacity: 0.75 }}>
+              safe-zone target · L{CAROUSEL_SAFE_ZONE.left} R{CAROUSEL_SAFE_ZONE.right} T{CAROUSEL_SAFE_ZONE.top} B{CAROUSEL_SAFE_ZONE.bottom}
+            </span>
           )}
         </div>
 

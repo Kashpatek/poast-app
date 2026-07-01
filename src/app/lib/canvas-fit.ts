@@ -25,6 +25,21 @@ export interface Rect {
 // surfaces pass their active preset dims to the functions below.
 export const CANVAS_DIMS: Dims = { width: 1080, height: 1350 };
 
+// Canonical SemiAnalysis carousel SAFE ZONE — the real numbers from the design
+// handover (HANDOVER.md §1): text + logos stay inside these insets on the
+// 1080×1350 canvas. Side margin is 76 for body content (60 for covers); top safe
+// line 135 (10%), bottom safe line 108 (8%). Backgrounds are full-bleed and
+// intentionally ignore this. The source of truth for the export gate + editor
+// grid; measured content margins are compared against it.
+export interface Insets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+export const CAROUSEL_SAFE_ZONE: Insets = { top: 135, right: 76, bottom: 108, left: 76 };
+export const CAROUSEL_COVER_SIDE_MARGIN = 60;
+
 export interface IntrinsicSize {
   width: number;
   height: number;
