@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   Zap,
   LayoutGrid,
+  Layers,
   Captions,
   Radio,
   Headphones,
@@ -53,7 +54,7 @@ const STATS: Stat[] = [
   { Icon: TrendingUp, value: "+18%", label: "reach",               accent: D.cyan },
 ];
 
-interface ShelfTile { name: string; sub: string; Icon: LucideIcon; status: string; badge?: "new" | "akash"; nav?: string; href?: string; }
+interface ShelfTile { name: string; sub: string; Icon: LucideIcon; status: string; badge?: "new" | "akash"; nav?: string; href?: string; akashOnly?: boolean; }
 interface Shelf { key: string; label: string; ring: string; Icon: LucideIcon; count: string; desc: string; tiles: ShelfTile[]; ghost?: boolean; }
 
 // NOTE: the "Recently used" + "Favorites" shelves are NOT in this array — they
@@ -64,6 +65,7 @@ const SHELVES: Shelf[] = [
   { key: "produce", label: "Produce", ring: D.amber, Icon: Wand2, count: "9 tools", desc: "Make the content", tiles: [
     { name: "Slop Top", sub: "Brief gen", Icon: Zap, status: "Most used", nav: "sloptop" },
     { name: "Carousel", sub: "Carousels", Icon: LayoutGrid, status: "3 templates", nav: "carousel" },
+    { name: "CarouselNEU", sub: "Carousel 2.0", Icon: Layers, status: "New", href: "/carousel-2", badge: "akash", akashOnly: true },
     { name: "Capper", sub: "Captions", Icon: Captions, status: "Auto-fit", nav: "captions" },
     { name: "Chart Maker", sub: "Quick charts", Icon: GanttChart, status: "12 saved", href: "/charts" },
     { name: "POAST Studio", sub: "Charts · tables", Icon: Table2, status: "Pro", href: "/charts" },
@@ -390,11 +392,14 @@ export default function GlassDepthHome({
   onNavigate,
   userName,
   allow,
+  akash,
 }: {
   onNavigate: (id: string) => void;
   userName: string;
   // When set (analyst), restrict every shelf + pins/recent to these ids.
   allow?: string[];
+  // Akash-only tools (e.g. the in-progress Carousel 2.0 studio) show only when true.
+  akash?: boolean;
 }) {
   const permits = (id: string): boolean => !allow || allow.includes(id);
   const [now, setNow] = useState<Date>(() => new Date());
@@ -736,7 +741,7 @@ export default function GlassDepthHome({
 
         {SHELVES.map((shelf) => {
           const SIcon = shelf.Icon;
-          const tiles = shelf.tiles.filter((t) => permits(tileId(t)));
+          const tiles = shelf.tiles.filter((t) => permits(tileId(t)) && (!t.akashOnly || akash));
           if (tiles.length === 0) return null; // drop a category emptied by the gate
           return (
             <div key={shelf.key} style={{ marginBottom: 30 }}>

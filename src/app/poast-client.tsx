@@ -813,6 +813,7 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "production-studio", l: "ProductionSTUDIO", Icon: Clapperboard, href: "/production-studio", badge: "NEW", sub: "Full post suite" },
     { id: "brainstorm", l: "Brainstorm",     Icon: Lightbulb,  sub: "Ideas & angles" },
     { id: "carousel", l: "Carousel",         Icon: LayoutGrid, sub: "Instagram carousels" },
+    { id: "carousel-neu", l: "CarouselNEU",  Icon: Layers,     href: "/carousel-2", badge: "NEW", sub: "Carousel 2.0 studio" },
     { id: "chart",    l: "ChartMAKER",       Icon: GanttChart, href: "/charts", badge: "NEW", sub: "Quick charts" },
     { id: "docu",     l: "DesignSTUDIO",     Icon: Wand,       href: "/design-studio", badge: "NEW", sub: "Docs · graphics · motion" },
     { id: "copy-studio", l: "CopySTUDIO",   Icon: Type,       href: "/copy-studio", badge: "NEW", sub: "Draft · voice · headline" },
@@ -917,7 +918,7 @@ function Sidebar({ active, onNav, onAskPoast, locked, onToggleLock }: { active: 
         : o.badge && <span style={{ marginLeft: "auto", fontFamily: mn, fontSize: 7, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", color: o.color, border: "1px solid color-mix(in srgb," + o.color + " 45%,transparent)", borderRadius: 999, padding: "2px 5px", flex: "none" }}>{o.badge}</span>}
     </div>;
   }
-  function visibleItems(cat: SidebarCat) { return cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).filter(function(it) { return it.id !== "docu" || canDocu; }).filter(function(it) { return it.id !== "tasks" || akash; }); }
+  function visibleItems(cat: SidebarCat) { return cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).filter(function(it) { return it.id !== "docu" || canDocu; }).filter(function(it) { return it.id !== "tasks" || akash; }).filter(function(it) { return it.id !== "carousel-neu" || akash; }); }
   // Compact-rail icon (peek state) — centered icon, active glow bar on the left.
   function railIcon(o: { key: string; Icon: LucideIcon; color: string; active: boolean; onClick: (e: React.MouseEvent<HTMLElement>) => void; onEnter?: (e: React.MouseEvent<HTMLElement>) => void; onLeave?: () => void; title?: string }) {
     var IconC = o.Icon; var a = o.active;
@@ -1007,7 +1008,7 @@ function Sidebar({ active, onNav, onAskPoast, locked, onToggleLock }: { active: 
               <div style={{ width: 3, height: 14, borderRadius: 2, background: isCatActive ? cat.color : "rgba(255,255,255,0.12)", boxShadow: isCatActive ? "0 0 10px " + cat.color + "60, 0 0 20px " + cat.color + "20" : "none", transition: "all 0.25s" }} />
               <span style={{ fontFamily: ft, fontSize: 10, fontWeight: 800, color: isCatActive ? cat.color : "rgba(255,255,255,0.3)", letterSpacing: 2, textTransform: "uppercase", transition: "all 0.25s", textShadow: isCatActive ? "0 0 16px " + cat.glow + "0.4), 0 0 30px " + cat.glow + "0.12)" : "none" }}>{cat.label}</span>
             </div>
-            {cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).filter(function(it) { return it.id !== "docu" || canDocu; }).filter(function(it) { return it.id !== "tasks" || akash; }).map(function(item) {
+            {cat.items.filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); }).filter(function(it) { return it.id !== "docu" || canDocu; }).filter(function(it) { return it.id !== "tasks" || akash; }).filter(function(it) { return it.id !== "carousel-neu" || akash; }).map(function(item) {
               var isActive = active === item.id;
               return <div key={item.id} onClick={function() { if (item.href) { window.open(item.href, "_blank"); } else { onNav(item.id); } }} title={item.href ? "Open " + item.l + " in a new tab" : undefined} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 12px 7px 28px", borderRadius: 6, marginBottom: 1, cursor: "pointer", background: isActive ? cat.color + "0C" : "transparent", borderLeft: isActive ? "3px solid " + cat.color : "3px solid transparent", transition: "all 0.2s", position: "relative" }} onMouseEnter={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }} onMouseLeave={function(e: React.MouseEvent<HTMLElement>) { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
                 {isActive && <div style={{ position: "absolute", left: 0, top: "10%", width: 3, height: "80%", background: cat.color, borderRadius: 2, boxShadow: "0 0 12px " + cat.color + "70, 0 0 24px " + cat.color + "25" }} />}
@@ -1153,7 +1154,7 @@ function GlassTopNav({ active, onNav }: { active: string; onNav: (id: string) =>
     return cat.items
       .filter(function(it) { return !analyst || ANALYST_ALLOWED.includes(it.id); })
       .filter(function(it) { return it.id !== "docu" || canDocu; })
-      .filter(function(it) { return it.id !== "tasks" || akash; });
+      .filter(function(it) { return it.id !== "tasks" || akash; }).filter(function(it) { return it.id !== "carousel-neu" || akash; });
   }
   function clearDwell() { if (dwellRef.current) { clearTimeout(dwellRef.current); dwellRef.current = null; } }
   function clearHide() { if (hideRef.current) { clearTimeout(hideRef.current); hideRef.current = null; } }
@@ -1823,6 +1824,8 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
   // under Admin so it doesn't crowd the daily creative tiles.
   if (isAkash(userCtx.user)) {
     sections[sections.length - 1].tiles.unshift({ id: "tasks", label: "Task Board", sub: "Daily planner + Focus Mode", Icon: CheckSquare });
+    // Akash-only: the in-progress Carousel 2.0 studio, next to the v1 Carousel tile.
+    sections[0].tiles.splice(2, 0, { id: "carousel-neu", label: "CarouselNEU", sub: "Carousel 2.0 studio", Icon: Layers, href: "/carousel-2" });
   }
 
   // Site-wide ordering: Recently used → Favorites → the system sections above.
@@ -1972,7 +1975,7 @@ function StockHome({ onNavigate }: { onNavigate: (id: string) => void }) {
     ] },
   ];
   if (canDocu) sections[0].tiles.push({ id: "docu", label: "DesignStudio", sub: "Docs · graphics · images · motion", Icon: Wand, href: "/design-studio" });
-  if (isAkash(userCtx.user)) sections[sections.length - 1].tiles.unshift({ id: "tasks", label: "Task Board", sub: "Daily planner + Focus Mode", Icon: CheckSquare });
+  if (isAkash(userCtx.user)) { sections[sections.length - 1].tiles.unshift({ id: "tasks", label: "Task Board", sub: "Daily planner + Focus Mode", Icon: CheckSquare }); sections[0].tiles.splice(2, 0, { id: "carousel-neu", label: "CarouselNEU", sub: "Carousel 2.0 studio", Icon: Layers, href: "/carousel-2" }); }
   // Analyst gate: only surface tools the analyst can actually open, and drop
   // any category that empties out.
   if (analyst) {
@@ -2860,8 +2863,8 @@ export default function App() {
         {sec === "home" && (
           themeCtx.theme === "glass"
             ? (themeCtx.glassMat === "depth"
-                ? <GlassDepthHome onNavigate={setSec} userName={userCtx.user ? userCtx.user.name : ""} allow={analyst ? ANALYST_ALLOWED : undefined} />
-                : <GlassClarityHome onNavigate={setSec} userName={userCtx.user ? userCtx.user.name : ""} allow={analyst ? ANALYST_ALLOWED : undefined} />)
+                ? <GlassDepthHome onNavigate={setSec} userName={userCtx.user ? userCtx.user.name : ""} allow={analyst ? ANALYST_ALLOWED : undefined} akash={isAkash(userCtx.user)} />
+                : <GlassClarityHome onNavigate={setSec} userName={userCtx.user ? userCtx.user.name : ""} allow={analyst ? ANALYST_ALLOWED : undefined} akash={isAkash(userCtx.user)} />)
             : themeCtx.theme === "stock"
               ? <StockHome onNavigate={setSec} />
               : (analyst ? <AnalystSplash onNavigate={setSec} /> : <SplashScreen onNavigate={setSec} />)

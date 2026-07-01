@@ -3,6 +3,7 @@
 import React from "react";
 import {
   LayoutGrid,
+  Layers,
   Radio,
   Headphones,
   GanttChart,
@@ -50,6 +51,7 @@ const TOOLS: Record<string, Tool> = {
   "production-studio": { id: "production-studio", label: "ProductionSTUDIO", Icon: Clapperboard, sub: "Full post suite", href: "/production-studio" },
   brainstorm: { id: "brainstorm", label: "Brainstorm", Icon: Lightbulb, sub: "Ideas & angles" },
   carousel: { id: "carousel", label: "Carousel", Icon: LayoutGrid, sub: "Instagram carousels" },
+  "carousel-neu": { id: "carousel-neu", label: "CarouselNEU", Icon: Layers, sub: "Carousel 2.0 studio", href: "/carousel-2" },
   chart: { id: "chart", label: "ChartMAKER", Icon: GanttChart, sub: "Quick charts", href: "/charts" },
   docu: { id: "docu", label: "DesignSTUDIO", Icon: Wand, sub: "Docs · graphics · motion", href: "/design-studio" },
   "copy-studio": { id: "copy-studio", label: "CopySTUDIO", Icon: Type, sub: "Draft · voice · headline", href: "/copy-studio" },
@@ -87,7 +89,7 @@ const SECTIONS: Section[] = [
     subcap: "Make the content",
     cc: D.amber,
     HeadIcon: Wand2,
-    ids: ["production-studio", "brainstorm", "carousel", "chart", "docu", "copy-studio", "assets"],
+    ids: ["production-studio", "brainstorm", "carousel", "carousel-neu", "chart", "docu", "copy-studio", "assets"],
   },
   {
     cap: "Podcast",
@@ -468,15 +470,19 @@ export default function GlassClarityHome({
   onNavigate,
   userName,
   allow,
+  akash,
 }: {
   onNavigate: (id: string) => void;
   userName: string;
   // When set (analyst), restrict every shelf + pins/recent to these ids so a
   // locked-down role never sees a tool it can't open. Undefined = no limit.
   allow?: string[];
+  // Akash-only tools (e.g. the in-progress Carousel 2.0 studio) show only when true.
+  akash?: boolean;
 }): React.ReactElement {
   const firstName = (userName || "").trim().split(/\s+/)[0] || "there";
-  const permits = (id: string): boolean => !allow || allow.includes(id);
+  const AKASH_ONLY = new Set(["carousel-neu"]);
+  const permits = (id: string): boolean => (!allow || allow.includes(id)) && (!AKASH_ONLY.has(id) || !!akash);
 
   // Live per-user organization. Any pin/recent change re-renders this home,
   // so Favorites + Recently used update in place.
