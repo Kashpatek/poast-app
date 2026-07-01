@@ -29,12 +29,26 @@ import { verifySession, SESSION_COOKIE } from "@/lib/auth-session";
 const PUBLIC_PREFIX = "/api/auth/";
 const PUBLIC_EXACT = new Set(["/api/clip/callback"]);
 
+// PREVIEW ONLY — exists on the isolated `swipe-review` branch, never on main.
+// `/swipe` is the mobile "swipe to review" page: a static, read-only preview of
+// carousel design assets with no user data and no API calls. It is exempted from
+// the sign-in gate so it opens directly on a phone — the production session
+// cookie does not ride to this preview subdomain, and the Google OAuth callback
+// URL for preview domains is not whitelisted, so the gate would otherwise trap
+// the reviewer at sign-in. Production main's gate is unchanged.
+const PREVIEW_OPEN = (p: string) => p === "/swipe" || p.startsWith("/swipe/");
+
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Root (onboarding self-gates + is the OAuth return target) and the
   // self-authenticated endpoints must be reachable before a session exists.
-  if (pathname === "/" || pathname.startsWith(PUBLIC_PREFIX) || PUBLIC_EXACT.has(pathname)) {
+  if (
+    pathname === "/" ||
+    pathname.startsWith(PUBLIC_PREFIX) ||
+    PUBLIC_EXACT.has(pathname) ||
+    PREVIEW_OPEN(pathname)
+  ) {
     return NextResponse.next();
   }
 
