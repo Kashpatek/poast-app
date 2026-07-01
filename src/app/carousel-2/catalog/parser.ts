@@ -15,9 +15,11 @@ import {
   type FieldType,
   type ModuleType,
   type ProductKind,
+  type SlideDims,
   type SlotAccept,
   type TemplateSlot,
 } from "./types";
+import { CANVAS_DIMS, dimsMatch, normalizeIntrinsic, type Rect } from "../../lib/canvas-fit";
 import { validateProduct } from "./schema";
 
 const KNOWN_ROLES: FieldRole[] = [
@@ -382,19 +384,30 @@ function assembleProduct(marker: Marker, svg: string, sourceFile: string, hash: 
   const kind: ProductKind = marker.kind || "template";
   const id = marker.id || `${kind}-${hash}`;
   const now = Date.now();
+
+  // Measure the asset's REAL size from its <svg> root rather than assuming the
+  // canvas size. Modules are sub-elements measured by their anchor, so only
+  // full-slide kinds (background/overlay/template) are held to the canvas size.
+  const intrinsic = normalizeIntrinsic(svg);
+  const dims: SlideDims = intrinsic ? { width: intrinsic.width, height: intrinsic.height } : SLIDE_DIMS;
+  const meta: Record<string, unknown> = {};
+  if (inferred) meta.inferred = true;
+  if (intrinsic) meta.intrinsic = { width: intrinsic.width, height: intrinsic.height };
+  if (kind !== "module" && !dimsMatch(dims, CANVAS_DIMS)) meta.dimsMismatch = true;
+
   const base = {
     id,
     title: marker.title || titleFromId(id),
     category: marker.category || kind,
     tags: marker.tags || [],
-    dims: SLIDE_DIMS,
+    dims,
     source: { file: sourceFile, contentHash: hash },
     svg,
     fields,
     schemaVersion: CATALOG_SCHEMA_VERSION,
     createdAt: now,
     updatedAt: now,
-    meta: inferred ? { inferred: true } : undefined,
+    meta: Object.keys(meta).length ? meta : undefined,
   };
   let product: CatalogProduct;
   if (kind === "background") {
@@ -452,6 +465,48 @@ export async function renderProductThumb(product: CatalogProduct, maxEdge = 320)
     return url;
   } catch {
     return "";
+  }
+}
+
+// Measure the union bounding box of a product's rendered content (client-only).
+// Feeds measureMargins() so the validator can SHOW what safe zone an asset
+// actually uses, rather than assuming one. Extents are raw (may be negative or
+// exceed the canvas) so overflow reads as a negative/oversized margin. Waits for
+// fonts so text metrics are real.
+export async function measureContentBBox(product: CatalogProduct): Promise<Rect | null> {
+  if (typeof window === "undefined" || typeof document === "undefined") return null;
+  try {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  } catch {
+    /* ignore */
+  }
+  try {
+    const fabric: any = await import("fabric");
+    const { width, height } = product.dims;
+    const el = document.createElement("canvas");
+    const canvas = new fabric.StaticCanvas(el, { width, height, enableRetinaScaling: false });
+    const out = await fabric.loadSVGFromString(product.svg);
+    const objs = (out.objects || []).filter(Boolean);
+    if (!objs.length) {
+      canvas.dispose();
+      return null;
+    }
+    objs.forEach((o: any) => canvas.add(o));
+    canvas.renderAll();
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const o of objs) {
+      const b = o.getBoundingRect ? o.getBoundingRect() : null;
+      if (!b) continue;
+      minX = Math.min(minX, b.left);
+      minY = Math.min(minY, b.top);
+      maxX = Math.max(maxX, b.left + b.width);
+      maxY = Math.max(maxY, b.top + b.height);
+    }
+    canvas.dispose();
+    if (!Number.isFinite(minX) || !Number.isFinite(maxX)) return null;
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  } catch {
+    return null;
   }
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */

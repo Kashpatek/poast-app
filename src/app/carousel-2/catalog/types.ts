@@ -14,15 +14,19 @@
 // maps the field back to a node in the product's SVG so an editor / the AI /
 // verbatim can populate it deterministically.
 
+import { CANVAS_DIMS } from "../../lib/canvas-fit";
+
 export const CATALOG_SCHEMA_VERSION = 1;
 
 // Slides are fixed Instagram-portrait; kept as a type so a product can, in
 // principle, declare its own size, but the seed + covers are all 1080x1350.
+// Re-pointed to the shared canonical CANVAS_DIMS so there is one source of
+// truth for the slide size across every surface (see lib/canvas-fit.ts).
 export interface SlideDims {
   width: number;
   height: number;
 }
-export const SLIDE_DIMS: SlideDims = { width: 1080, height: 1350 };
+export const SLIDE_DIMS: SlideDims = CANVAS_DIMS;
 
 export type ProductKind = "background" | "template" | "module";
 

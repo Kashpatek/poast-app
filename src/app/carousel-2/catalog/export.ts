@@ -5,19 +5,29 @@
 // (non-data-URL) images inside the SVG can taint the canvas — inline as data
 // URLs before export when that matters (the AI image path already does).
 
+import { normalizeIntrinsic } from "../../lib/canvas-fit";
+
 const XMLNS = "http://www.w3.org/2000/svg";
 
 // Ensure the svg root declares xmlns + explicit pixel width/height so the
-// browser rasterizes it at the intended size.
+// browser rasterizes it at the intended size — AND a viewBox so it can't
+// stretch. A no-viewBox SVG with width/height attrs would scale its user units
+// to the forced (w,h) and distort; injecting the intrinsic box makes the raster
+// letterbox (preserveAspectRatio "meet") instead.
 function normalizeSvg(svg: string, w: number, h: number): string {
   let s = svg;
   if (!/xmlns=/.test(s)) s = s.replace(/^<svg /, `<svg xmlns="${XMLNS}" `);
+  const intrinsic = normalizeIntrinsic(s);
   // Force pixel dimensions (strip a style width/height override if present).
   s = s.replace(/^<svg([^>]*)>/, (_m, attrs) => {
-    const cleaned = String(attrs)
+    let cleaned = String(attrs)
       .replace(/\swidth="[^"]*"/i, "")
       .replace(/\sheight="[^"]*"/i, "")
       .replace(/\sstyle="[^"]*"/i, "");
+    if (!/viewBox\s*=/i.test(cleaned)) {
+      const vb = intrinsic ? `0 0 ${intrinsic.width} ${intrinsic.height}` : `0 0 ${w} ${h}`;
+      cleaned = ` viewBox="${vb}"` + cleaned;
+    }
     return `<svg${cleaned} width="${w}" height="${h}">`;
   });
   return s;

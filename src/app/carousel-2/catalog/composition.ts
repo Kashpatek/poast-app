@@ -19,6 +19,7 @@ import {
   type DesignLayer,
   type TemplateSlot,
 } from "./types";
+import { clampRect, normalizeIntrinsic } from "../../lib/canvas-fit";
 
 // ── association ──────────────────────────────────────────────────────────────
 
@@ -100,28 +101,47 @@ export function extractSvgInner(svg: string): string {
 
 function sourceViewBox(p: CatalogProduct): string {
   // A module with an anchor exposes just its content box, so it scales cleanly
-  // into a slot. Everything else uses the full slide.
+  // into a slot. Everything else honors the source's own viewBox (falling back
+  // to its intrinsic pixel box, then the canonical slide) so a layer authored
+  // in a different coordinate space maps in correctly instead of being assumed
+  // to be 1080x1350.
   const anchor = (p as CatalogModule).anchor;
   if (p.kind === "module" && anchor) return `${anchor.x} ${anchor.y} ${anchor.w} ${anchor.h}`;
+  const intr = normalizeIntrinsic(p.svg);
+  if (intr && intr.viewBox) return intr.viewBox.join(" ");
+  if (intr) return `0 0 ${intr.width} ${intr.height}`;
   return `0 0 ${SLIDE_DIMS.width} ${SLIDE_DIMS.height}`;
 }
 
 // Compose the layers into one self-contained SVG string (crisp preview; also
 // the seed for future rasterized export). Widgets are nested + fit into slots.
+// Module regions are clamped to the canvas so an out-of-bounds slot can't push
+// a widget off-slide (soft: the validator surfaces the raw overflow as a
+// warning; render clamps so the output is never broken).
 export function renderCompositionSvg(comp: DesignComposition, get: Getter): string {
   const w = comp.dims.width;
   const h = comp.dims.height;
+  const bounds = { width: w, height: h };
   const layers = compositionToLayers(comp, get);
-  const getP = (id: string) => get(id);
-  const parts = layers.map((layer) => {
-    const p = getP(layer.productId);
+  const parts: string[] = [];
+  for (const layer of layers) {
+    const p = get(layer.productId);
     const inner = extractSvgInner(layer.svg);
-    if (layer.kind === "module" && layer.region) {
-      const r = layer.region;
-      const vb = p ? sourceViewBox(p) : `0 0 ${w} ${h}`;
-      return `<svg x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" viewBox="${vb}" preserveAspectRatio="xMidYMid meet" overflow="visible">${inner}</svg>`;
+    const vb = p ? sourceViewBox(p) : `0 0 ${w} ${h}`;
+    if (layer.kind === "module") {
+      // A module with no resolved region would otherwise paint full-bleed — skip
+      // it rather than dramatically misplacing the widget.
+      if (!layer.region) continue;
+      const { rect } = clampRect(
+        { x: layer.region.x, y: layer.region.y, w: layer.region.w, h: layer.region.h },
+        bounds
+      );
+      parts.push(
+        `<svg x="${rect.x}" y="${rect.y}" width="${rect.w}" height="${rect.h}" viewBox="${vb}" preserveAspectRatio="xMidYMid meet" overflow="visible">${inner}</svg>`
+      );
+    } else {
+      parts.push(`<svg x="0" y="0" width="${w}" height="${h}" viewBox="${vb}">${inner}</svg>`);
     }
-    return `<svg x="0" y="0" width="${w}" height="${h}" viewBox="0 0 ${SLIDE_DIMS.width} ${SLIDE_DIMS.height}">${inner}</svg>`;
-  });
+  }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${parts.join("")}</svg>`;
 }

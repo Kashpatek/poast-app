@@ -5,9 +5,11 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { D as C, ft, gf, mn } from "../../shared-constants";
-import { ingestHtml } from "../catalog/parser";
+import { ingestHtml, measureContentBBox } from "../catalog/parser";
+import { inspectProduct, type QANote } from "../catalog/qa";
+import { CANVAS_DIMS, dimsMatch, measureMargins, type MarginReport } from "../../lib/canvas-fit";
 import type { CatalogField, CatalogProduct, CatalogTemplate } from "../catalog/types";
 
 function previewSvg(svg: string): string {
@@ -35,14 +37,32 @@ function FieldLine({ f }: { f: CatalogField }) {
 function ParsedCard({ product }: { product: CatalogProduct }) {
   const slots = product.kind === "template" ? (product as CatalogTemplate).slots || [] : [];
   const inferred = !!(product.meta && (product.meta as { inferred?: boolean }).inferred);
-  const warnings: string[] = [];
-  if (!product.fields.length && !slots.length) warnings.push("no fields or slots detected — decorative, or add data-field / data-slot");
-  if (inferred) warnings.push("some fields were heuristically inferred — annotate with data-field/data-role for stability");
+
+  const notes: QANote[] = [];
+  if (!product.fields.length && !slots.length) notes.push({ level: "warn", message: "no fields or slots detected — decorative, or add data-field / data-slot" });
+  if (inferred) notes.push({ level: "warn", message: "some fields were heuristically inferred — annotate with data-field/data-role for stability" });
+  notes.push(...inspectProduct(product));
+
+  // Measured content geometry — so we can SEE the asset's real safe zone.
+  const [margins, setMargins] = useState<MarginReport | null>(null);
+  useEffect(() => {
+    let alive = true;
+    measureContentBBox(product).then((bbox) => {
+      if (!alive || !bbox) return;
+      setMargins(measureMargins(bbox, { width: product.dims.width, height: product.dims.height }));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [product]);
+
+  const intrinsic = (product.meta && (product.meta as { intrinsic?: { width: number; height: number } }).intrinsic) || product.dims;
+  const dimsOk = dimsMatch(intrinsic, CANVAS_DIMS);
 
   return (
     <div style={{ display: "flex", gap: 16, padding: 16, border: "1px solid " + C.border, borderRadius: 12, background: C.card, marginBottom: 14 }}>
       <div style={{ width: 200, flexShrink: 0 }}>
-        <div style={{ width: "100%", aspectRatio: "1080/1350", background: "#06060C", borderRadius: 8, overflow: "hidden", border: "1px solid " + C.border }} dangerouslySetInnerHTML={{ __html: previewSvg(product.svg) }} />
+        <div style={{ width: "100%", aspectRatio: `${product.dims.width}/${product.dims.height}`, background: "#06060C", borderRadius: 8, overflow: "hidden", border: "1px solid " + C.border }} dangerouslySetInnerHTML={{ __html: previewSvg(product.svg) }} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
@@ -53,11 +73,32 @@ function ParsedCard({ product }: { product: CatalogProduct }) {
           <span style={{ fontFamily: mn, fontSize: 10, color: C.txd }}>{product.id}</span>
         </div>
 
-        {warnings.map((w, i) => (
-          <div key={i} style={{ fontFamily: ft, fontSize: 11, color: C.amber, background: C.amber + "10", border: "1px solid " + C.amber + "30", borderRadius: 6, padding: "6px 8px", marginBottom: 6 }}>
-            ⚠ {w}
-          </div>
-        ))}
+        {/* measured geometry / safe-zone readout */}
+        <div data-testid="carousel2-geometry" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "6px 0 8px", fontFamily: mn, fontSize: 10 }}>
+          <span style={{ color: C.txm, textTransform: "uppercase", letterSpacing: 1.2, fontSize: 9 }}>geometry</span>
+          <span style={{ color: dimsOk ? C.teal : C.amber, border: "1px solid " + (dimsOk ? C.teal : C.amber) + "55", borderRadius: 5, padding: "2px 7px" }}>
+            {intrinsic.width}×{intrinsic.height}{dimsOk ? " ✓" : ` ≠ ${CANVAS_DIMS.width}×${CANVAS_DIMS.height}`}
+          </span>
+          {product.kind !== "module" && margins && (
+            margins.fullBleed ? (
+              <span style={{ color: C.txd }}>full-bleed</span>
+            ) : (
+              <span style={{ color: C.txd }}>
+                safe zone · L{margins.left} R{margins.right} T{margins.top} B{margins.bottom}
+                {margins.symmetricX && margins.symmetricY ? " · symmetric" : ""}
+              </span>
+            )
+          )}
+        </div>
+
+        {notes.map((n, i) => {
+          const col = n.level === "warn" ? C.amber : C.txm;
+          return (
+            <div key={i} style={{ fontFamily: ft, fontSize: 11, color: col, background: col + "10", border: "1px solid " + col + "30", borderRadius: 6, padding: "6px 8px", marginBottom: 6 }}>
+              {n.level === "warn" ? "⚠" : "ℹ"} {n.message}
+            </div>
+          );
+        })}
 
         <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: 1.2, margin: "8px 0 4px" }}>Fields · {product.fields.length}</div>
         {product.fields.length ? product.fields.map((f) => <FieldLine key={f.name} f={f} />) : <div style={{ fontFamily: ft, fontSize: 11, color: C.txd }}>none</div>}
