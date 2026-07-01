@@ -131,8 +131,22 @@ export interface CompositionRef {
   fieldOverrides?: Record<string, Partial<CatalogField>>;
 }
 
+// A slot is the overlay's "blocking / rule": a named region that accepts
+// certain widget (module) kinds. Overlays declare slots; modules get assigned
+// into them. `accepts` lists module types (or the generics image|text|module).
+export type SlotAccept = ModuleType | "image" | "text" | "module";
+export interface TemplateSlot {
+  id: string;
+  label?: string;
+  region: { x: number; y: number; w: number; h: number }; // 1080x1350 space
+  accepts: SlotAccept[];
+  role?: FieldRole;
+  required?: boolean;
+}
+
 export interface CatalogTemplate extends CatalogBase {
   kind: "template";
+  slots?: TemplateSlot[]; // blocking regions widgets assign into
   composition?: CompositionRef[];
   coverEligible?: boolean; // can stand in as slide-1 cover
 }
@@ -144,6 +158,33 @@ export interface Catalog {
   generatedAt: number;
   manifestHash: string;
   products: CatalogProduct[];
+}
+
+// ── Composition — "things are just layers" ──────────────────────────────────
+// A DesignComposition is a custom build: a background + an overlay (which
+// supplies the blocking/slots) + modules (widgets) assigned into those slots,
+// plus per-slot field values. It resolves to ordered layers for render/export.
+export interface SlotAssignment {
+  slotId: string;
+  moduleId?: string; // the widget (module) assigned to this slot
+  values?: Record<string, string>; // field.name -> value (module or overlay text)
+}
+export interface DesignComposition {
+  id: string;
+  title: string;
+  dims: SlideDims;
+  backgroundId?: string;
+  overlayId: string; // the template supplying the blocking
+  assignments: SlotAssignment[];
+  createdAt: number;
+  updatedAt: number;
+}
+// A resolved render layer (bottom→top order).
+export interface DesignLayer {
+  kind: "background" | "overlay" | "module";
+  productId: string;
+  region?: { x: number; y: number; w: number; h: number };
+  svg: string;
 }
 
 // Manifest that lists which source files to ingest (public/carousel-2-assets).

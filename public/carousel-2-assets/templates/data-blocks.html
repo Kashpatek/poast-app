@@ -1,0 +1,33 @@
+<!-- @carouselAsset kind="template" id="tpl-data-blocks" category="data" tags="dark,data,blocks,slots" -->
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body>
+<!--
+  An OVERLAY as blocking/rules: fixed text + two SLOTS that accept widget
+  modules. `data-slot` marks a region; `data-accepts` is the rule for which
+  module kinds may be assigned there.
+-->
+<svg viewBox="0 0 1080 1350" width="1080" height="1350" xmlns="http://www.w3.org/2000/svg">
+  <rect id="bg" x="0" y="0" width="1080" height="1350" fill="#06060C" />
+  <rect id="deco-bar" x="76" y="150" width="90" height="10" fill="#26C9D8" />
+
+  <!-- fixed overlay text (annotated fields) -->
+  <text data-field="eyebrow" data-role="eyebrow" data-maxlen="24"
+        x="76" y="130" font-family="'JetBrains Mono',monospace" font-size="26" font-weight="700"
+        letter-spacing="4" fill="#26C9D8">DATACENTERS</text>
+  <text data-field="headline" data-role="headline" data-maxlen="70" data-minfont="48" data-maxfont="90"
+        x="76" y="300" font-family="'Grift','Outfit',sans-serif" font-size="76" font-weight="800" fill="#EDEDED">Where the power goes</text>
+
+  <!-- SLOT: chart (accepts chart modules) -->
+  <rect data-slot="chart" data-accepts="chart" data-label="Chart"
+        x="76" y="440" width="928" height="520" rx="20"
+        fill="none" stroke="#26C9D8" stroke-opacity="0.3" stroke-width="2" stroke-dasharray="10 8" />
+
+  <!-- SLOT: stat (accepts stat or text-box widgets) -->
+  <rect data-slot="stat" data-accepts="stat,text-box" data-label="Stat"
+        x="76" y="1010" width="928" height="240" rx="20"
+        fill="none" stroke="#F7B041" stroke-opacity="0.3" stroke-width="2" stroke-dasharray="10 8" />
+</svg>
+</body>
+</html>

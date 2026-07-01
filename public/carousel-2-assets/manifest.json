@@ -3,6 +3,8 @@
   "files": [
     { "path": "backgrounds/grid-amber.html", "kind": "background", "id": "bg-grid-amber" },
     { "path": "modules/stat-callout.html", "kind": "module", "id": "mod-stat-callout" },
-    { "path": "templates/quote-hero.html", "kind": "template", "id": "tpl-quote-hero" }
+    { "path": "modules/bar-mini.html", "kind": "module", "id": "mod-bar-mini" },
+    { "path": "templates/quote-hero.html", "kind": "template", "id": "tpl-quote-hero" },
+    { "path": "templates/data-blocks.html", "kind": "template", "id": "tpl-data-blocks" }
   ]
 }

@@ -9,7 +9,8 @@ import { D as C, ft, gf, mn } from "../shared-constants";
 import { useCatalog } from "./library/use-catalog";
 import { AssetGrid } from "./library/asset-grid";
 import { FieldInspector } from "./library/field-inspector";
-import type { CatalogProduct, ProductKind } from "./catalog/types";
+import { Composer } from "./library/composer";
+import type { CatalogProduct, CatalogTemplate, ProductKind } from "./catalog/types";
 
 type KindFilter = "all" | ProductKind;
 
@@ -26,6 +27,14 @@ export default function CarouselStudio() {
   const [query, setQuery] = useState("");
   const [coverOnly, setCoverOnly] = useState(false);
   const [selected, setSelected] = useState<CatalogProduct | null>(null);
+  const [composing, setComposing] = useState(false);
+
+  const select = (p: CatalogProduct | null) => {
+    setSelected(p);
+    setComposing(false);
+  };
+  const selectedTemplate = selected && selected.kind === "template" ? (selected as CatalogTemplate) : null;
+  const isSlotted = !!(selectedTemplate && selectedTemplate.slots && selectedTemplate.slots.length);
 
   const filtered = useMemo(() => {
     let list = search(query);
@@ -118,9 +127,17 @@ export default function CarouselStudio() {
       {!loading && !error && (
         <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <AssetGrid products={filtered} onInspect={setSelected} />
+            <AssetGrid products={filtered} onInspect={select} />
           </div>
-          {selected && <FieldInspector product={selected} onClose={() => setSelected(null)} />}
+          {selected && composing && selectedTemplate ? (
+            <Composer template={selectedTemplate} products={products} onClose={() => setComposing(false)} />
+          ) : selected ? (
+            <FieldInspector
+              product={selected}
+              onClose={() => select(null)}
+              onCompose={isSlotted ? () => setComposing(true) : undefined}
+            />
+          ) : null}
         </div>
       )}
     </div>

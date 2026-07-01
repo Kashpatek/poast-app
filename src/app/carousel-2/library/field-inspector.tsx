@@ -5,7 +5,7 @@
 "use client";
 
 import { D as C, ft, gf, mn } from "../../shared-constants";
-import type { CatalogField, CatalogProduct } from "../catalog/types";
+import type { CatalogField, CatalogProduct, CatalogTemplate } from "../catalog/types";
 
 const TYPE_COLOR: Record<string, string> = {
   text: C.tx,
@@ -54,8 +54,9 @@ function FieldRow({ f }: { f: CatalogField }) {
   );
 }
 
-export function FieldInspector({ product, onClose }: { product: CatalogProduct; onClose: () => void }) {
+export function FieldInspector({ product, onClose, onCompose }: { product: CatalogProduct; onClose: () => void; onCompose?: () => void }) {
   const inferred = !!(product.meta && (product.meta as { inferred?: boolean }).inferred);
+  const slots = product.kind === "template" ? (product as CatalogTemplate).slots || [] : [];
   return (
     <div
       data-testid="carousel2-inspector"
@@ -97,6 +98,30 @@ export function FieldInspector({ product, onClose }: { product: CatalogProduct; 
         product.fields.map((f) => <FieldRow key={f.name} f={f} />)
       ) : (
         <div style={{ fontFamily: ft, fontSize: 12, color: C.txm }}>No fillable fields (decorative asset).</div>
+      )}
+
+      {slots.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontFamily: mn, fontSize: 9, color: C.cyan, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 10 }}>
+            Slots · {slots.length} <span style={{ color: C.txd }}>(blocking / rules)</span>
+          </div>
+          {slots.map((s) => (
+            <div key={s.id} style={{ padding: "10px 12px", border: "1px solid " + C.border, borderRadius: 10, background: C.bg, marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ fontFamily: mn, fontSize: 12, fontWeight: 700, color: C.tx }}>{s.label || s.id}</div>
+                <div style={{ fontFamily: mn, fontSize: 9, color: C.cyan }}>{s.accepts.join(", ")}</div>
+              </div>
+            </div>
+          ))}
+          {onCompose && (
+            <button
+              onClick={onCompose}
+              style={{ width: "100%", marginTop: 4, padding: "10px 0", borderRadius: 8, background: C.cyan + "18", border: "1px solid " + C.cyan + "55", color: C.cyan, fontFamily: ft, fontSize: 13, fontWeight: 800, cursor: "pointer", letterSpacing: 0.3 }}
+            >
+              Compose ▸ assign widgets
+            </button>
+          )}
+        </div>
       )}
 
       <div style={{ marginTop: 14, fontFamily: mn, fontSize: 9, color: C.txd, lineHeight: 1.6 }}>

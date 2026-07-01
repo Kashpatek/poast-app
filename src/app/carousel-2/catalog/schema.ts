@@ -94,9 +94,19 @@ const compositionRef = z.object({
   fieldOverrides: z.record(z.string(), z.unknown()).optional(),
 });
 
+const slotSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().optional(),
+  region: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
+  accepts: z.array(z.enum(["chart", "text-box", "stat", "quote", "logo-lockup", "element", "image", "text", "module"])),
+  role: fieldRole,
+  required: z.boolean().optional(),
+});
+
 const templateSchema = z.object({
   ...base,
   kind: z.literal("template"),
+  slots: z.array(slotSchema).optional(),
   composition: z.array(compositionRef).optional(),
   coverEligible: z.boolean().optional(),
 });

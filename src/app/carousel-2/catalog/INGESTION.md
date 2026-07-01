@@ -125,6 +125,40 @@ heuristic.** Prefer annotations for anything important.
 
 ---
 
+## 4b. Slots (overlays) & anchors (modules) — the composition layer
+
+Overlays are **blocking / rules**: a layout of named **slots** that widget
+**modules** get assigned into. A design is then just layers: background →
+overlay → assigned widgets.
+
+**Declare a slot** on any region element (usually an invisible or dashed guide
+`<rect>`), on a **template**:
+
+```html
+<rect data-slot="chart" data-accepts="chart" data-label="Chart"
+      x="76" y="440" width="928" height="520" fill="none"
+      stroke="#26C9D8" stroke-opacity="0.3" stroke-dasharray="10 8" />
+```
+
+- `data-slot` — unique slot id (required).
+- `data-accepts` — comma list of module kinds that may drop here:
+  `chart · text-box · stat · quote · logo-lockup · element`, or the generics
+  `text` (any text-ish widget) / `module` (anything).
+- geometry — from `data-x/data-y/data-w/data-h` or the element's own
+  `x/y/width/height` (1080×1350 space).
+- `data-role`, `data-required` optional.
+
+**Modules should declare an `anchor`** (their content box) so they scale
+cleanly into a slot rather than as a full 1080×1350 frame:
+
+```html
+<!-- @carouselAsset kind="module" moduleType="chart" id="mod-bar-mini" anchor="120,300,840,760" -->
+```
+
+(or `data-anchor="120,300,840,760"` on a per-svg root in a multi-product file).
+Author modules on a transparent canvas (no full-bleed background rect) so they
+layer over the overlay.
+
 ## 5. SVG subset constraints (please follow)
 
 Fabric's SVG parser (the ingestion engine) does **not** round-trip every SVG

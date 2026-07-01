@@ -15,6 +15,8 @@ import {
   type FieldType,
   type ModuleType,
   type ProductKind,
+  type SlotAccept,
+  type TemplateSlot,
 } from "./types";
 import { validateProduct } from "./schema";
 
@@ -59,6 +61,12 @@ function inferTypeFromRole(role: FieldRole | undefined, tag: string): FieldType 
 
 // ── marker parsing ───────────────────────────────────────────────────────────
 
+interface Anchor {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 interface Marker {
   kind?: ProductKind;
   id?: string;
@@ -67,6 +75,14 @@ interface Marker {
   tags?: string[];
   moduleType?: ModuleType;
   coverEligible?: boolean;
+  anchor?: Anchor;
+}
+
+function parseAnchor(v?: string | boolean): Anchor | undefined {
+  if (typeof v !== "string") return undefined;
+  const n = v.split(",").map((s) => Number(s.trim()));
+  if (n.length === 4 && n.every((x) => Number.isFinite(x))) return { x: n[0], y: n[1], w: n[2], h: n[3] };
+  return undefined;
 }
 
 function parseAttrs(attrStr: string): Record<string, string | boolean> {
@@ -90,6 +106,7 @@ function markerFromAttrs(a: Record<string, string | boolean>): Marker {
     tags,
     moduleType: typeof a.moduleType === "string" ? (a.moduleType as ModuleType) : (typeof a["module-type"] === "string" ? (a["module-type"] as ModuleType) : undefined),
     coverEligible: a.coverEligible === true || a.coverEligible === "true" || a["cover-eligible"] === true || a["cover-eligible"] === "true",
+    anchor: parseAnchor(a.anchor),
   };
 }
 
@@ -110,6 +127,7 @@ function markerFromSvgEl(svgEl: Element): Marker {
     tags,
     moduleType: (g("data-module-type") as ModuleType) || undefined,
     coverEligible: svgEl.getAttribute("data-cover-eligible") === "true" || svgEl.hasAttribute("data-cover-eligible"),
+    anchor: parseAnchor(g("data-anchor")),
   };
 }
 
@@ -316,6 +334,48 @@ export async function parseSvgToFields(svg: string): Promise<{ fields: CatalogFi
   return { fields: [], inferred: false };
 }
 
+// ── slot (blocking) extraction ───────────────────────────────────────────────
+
+function slotRegionNum(el: Element, dataAttr: string, geomAttr: string, fallback: number): number {
+  const v = el.getAttribute(dataAttr) ?? el.getAttribute(geomAttr);
+  const n = v == null ? NaN : Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function slotFromEl(el: Element): TemplateSlot | null {
+  const id = el.getAttribute("data-slot");
+  if (!id) return null;
+  const accepts = (el.getAttribute("data-accepts") || "module")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean) as SlotAccept[];
+  return {
+    id,
+    label: el.getAttribute("data-label") || id,
+    region: {
+      x: slotRegionNum(el, "data-x", "x", 0),
+      y: slotRegionNum(el, "data-y", "y", 0),
+      w: slotRegionNum(el, "data-w", "width", SLIDE_DIMS.width),
+      h: slotRegionNum(el, "data-h", "height", SLIDE_DIMS.height),
+    },
+    accepts: accepts.length ? accepts : ["module"],
+    role: (el.getAttribute("data-role") as FieldRole) || undefined,
+    required: el.hasAttribute("data-required") || undefined,
+  };
+}
+
+// Overlays declare blocking regions with `data-slot` (+ data-accepts / geometry).
+export function parseSvgToSlots(svg: string): TemplateSlot[] {
+  if (typeof DOMParser === "undefined") return [];
+  const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+  const out: TemplateSlot[] = [];
+  doc.querySelectorAll("[data-slot]").forEach((el) => {
+    const s = slotFromEl(el);
+    if (s) out.push(s);
+  });
+  return out;
+}
+
 // ── product assembly ─────────────────────────────────────────────────────────
 
 function assembleProduct(marker: Marker, svg: string, sourceFile: string, hash: string, fields: CatalogField[], inferred: boolean): CatalogProduct | null {
@@ -340,9 +400,10 @@ function assembleProduct(marker: Marker, svg: string, sourceFile: string, hash: 
   if (kind === "background") {
     product = { ...base, kind: "background" };
   } else if (kind === "module") {
-    product = { ...base, kind: "module", moduleType: marker.moduleType || "element" };
+    product = { ...base, kind: "module", moduleType: marker.moduleType || "element", anchor: marker.anchor };
   } else {
-    product = { ...base, kind: "template", coverEligible: marker.coverEligible || undefined };
+    const slots = parseSvgToSlots(svg);
+    product = { ...base, kind: "template", slots: slots.length ? slots : undefined, coverEligible: marker.coverEligible || undefined };
   }
   const v = validateProduct(product);
   if (!v.ok) {
