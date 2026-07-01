@@ -8,6 +8,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as fabric from "fabric";
+import { attachSmartGuides } from "./snapping";
 import {
   Type as TypeIcon, Image as ImageIcon, Shapes, Layout, Palette,
   Undo2, Redo2, ChevronUp, ChevronDown, ArrowUpToLine, ArrowDownToLine,
@@ -66,6 +67,7 @@ interface PageState {
   canvas: fabric.Canvas | null;
   history: string[];      // JSON snapshots
   historyIdx: number;     // pointer into history
+  detachGuides?: () => void; // smart-snapping teardown
 }
 
 export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
@@ -76,6 +78,8 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
   const [pages, setPages] = useState<ProjectRecord["pages"]>(project.pages);
   const [activeIdx, setActiveIdx] = useState(0);
   const [zoom, setZoom] = useState(0.6);
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom; // keep snapping tolerance correct without re-binding the canvas
   const [leftTab, setLeftTab] = useState<"templates" | "elements" | "text" | "uploads" | "brand">("templates");
   const [selected, setSelected] = useState<fabric.Object | null>(null);
   const [, force] = useState(0);
@@ -98,10 +102,10 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
     }
     while (stateRef.current.length > pages.length) {
       const last = stateRef.current.pop();
-      if (last?.canvas) { try { last.canvas.dispose(); } catch {} }
+      if (last?.canvas) { try { last.detachGuides?.(); last.canvas.dispose(); } catch {} }
     }
     return () => {
-      stateRef.current.forEach(s => { if (s.canvas) { try { s.canvas.dispose(); } catch {} } });
+      stateRef.current.forEach(s => { if (s.canvas) { try { s.detachGuides?.(); s.canvas.dispose(); } catch {} } });
       stateRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -125,6 +129,12 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
     canvas.on("object:modified", () => { snapshotHistory(index); tick(); });
     canvas.on("object:added", () => { snapshotHistory(index); tick(); });
     canvas.on("object:removed", () => { snapshotHistory(index); tick(); });
+
+    // Smart snapping + alignment guides (object-to-object + canvas edges/center).
+    slot.detachGuides = attachSmartGuides(canvas, {
+      getDims: () => ({ width: w, height: h }),
+      getZoom: () => zoomRef.current,
+    });
 
     // Hydrate from existing payload.
     const payload = pages[index]?.payload;
@@ -305,7 +315,7 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
     const next = pages.slice(); next.splice(idx, 1);
     // Dispose the corresponding canvas.
     const slot = stateRef.current[idx];
-    if (slot?.canvas) { try { slot.canvas.dispose(); } catch {} }
+    if (slot?.canvas) { try { slot.detachGuides?.(); slot.canvas.dispose(); } catch {} }
     stateRef.current.splice(idx, 1);
     setPages(next); onUpdatePages(next);
     setActiveIdx(Math.max(0, Math.min(activeIdx, next.length - 1)));
@@ -360,7 +370,7 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
     // Resize stateRef to match snapshot length, disposing extras.
     while (stateRef.current.length > snapPages.length) {
       const last = stateRef.current.pop();
-      if (last?.canvas) { try { last.canvas.dispose(); } catch {} }
+      if (last?.canvas) { try { last.detachGuides?.(); last.canvas.dispose(); } catch {} }
     }
     while (stateRef.current.length < snapPages.length) {
       stateRef.current.push({ id: snapPages[stateRef.current.length].id, el: null, canvas: null, history: [], historyIdx: -1 });

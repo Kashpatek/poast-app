@@ -4,9 +4,12 @@
 
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { D as C, ft, gf, mn } from "../../shared-constants";
 import { AutofillPanel } from "./autofill-panel";
 import { exportSvgPng } from "../catalog/export";
+import { openSvgInEditor, editorHref } from "../catalog/editor-bridge";
 import type { CatalogField, CatalogProduct, CatalogTemplate } from "../catalog/types";
 
 const TYPE_COLOR: Record<string, string> = {
@@ -59,6 +62,18 @@ function FieldRow({ f }: { f: CatalogField }) {
 export function FieldInspector({ product, onClose, onCompose }: { product: CatalogProduct; onClose: () => void; onCompose?: () => void }) {
   const inferred = !!(product.meta && (product.meta as { inferred?: boolean }).inferred);
   const slots = product.kind === "template" ? (product as CatalogTemplate).slots || [] : [];
+  const router = useRouter();
+  const [opening, setOpening] = useState(false);
+  async function editInCanvas() {
+    if (opening) return;
+    setOpening(true);
+    try {
+      const id = await openSvgInEditor({ svg: product.svg, width: product.dims.width, height: product.dims.height, title: product.title });
+      router.push(editorHref(id));
+    } catch {
+      setOpening(false);
+    }
+  }
   return (
     <div
       data-testid="carousel2-inspector"
@@ -86,6 +101,15 @@ export function FieldInspector({ product, onClose, onCompose }: { product: Catal
           <div style={{ fontFamily: mn, fontSize: 10, color: C.txd, marginTop: 4 }}>{product.id}</div>
         </div>
         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+          <button
+            data-testid="carousel2-inspector-edit"
+            onClick={editInCanvas}
+            disabled={opening}
+            title="Open this product as editable objects in the canvas editor"
+            style={{ background: "transparent", border: "1px solid " + C.violet + "55", borderRadius: 6, color: C.violet, fontFamily: mn, fontSize: 11, cursor: opening ? "wait" : "pointer", padding: "4px 8px" }}
+          >
+            {opening ? "…" : "✎ Edit"}
+          </button>
           <button
             onClick={() => { exportSvgPng(product.svg, product.dims.width, product.dims.height, `${product.id}.png`).catch(() => {}); }}
             title="Download PNG"

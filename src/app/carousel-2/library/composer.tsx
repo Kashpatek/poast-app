@@ -6,6 +6,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { D as C, ft, gf, mn } from "../../shared-constants";
 import {
   createComposition,
@@ -15,6 +16,7 @@ import {
   renderCompositionSvg,
 } from "../catalog/composition";
 import { exportSvgPng } from "../catalog/export";
+import { openSvgInEditor, editorHref } from "../catalog/editor-bridge";
 import type { CatalogBackground, CatalogModule, CatalogProduct, CatalogTemplate } from "../catalog/types";
 
 function Chip({ active, color, onClick, children }: { active: boolean; color: string; onClick: () => void; children: React.ReactNode }) {
@@ -49,10 +51,23 @@ export function Composer({ template, products, onClose }: { template: CatalogTem
 
   const [comp, setComp] = useState(() => createComposition(template));
   const [exporting, setExporting] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const router = useRouter();
   const slots = template.slots || [];
 
   const rawSvg = useMemo(() => renderCompositionSvg(comp, get), [comp, get]);
   const previewSvg = useMemo(() => rawSvg.replace(/^<svg /, '<svg style="width:100%;height:100%;display:block" '), [rawSvg]);
+
+  async function editInCanvas() {
+    if (opening) return;
+    setOpening(true);
+    try {
+      const id = await openSvgInEditor({ svg: rawSvg, width: comp.dims.width, height: comp.dims.height, title: template.title });
+      router.push(editorHref(id));
+    } catch {
+      setOpening(false); // surfaced by the button resetting; navigation would otherwise unmount
+    }
+  }
 
   async function downloadPng() {
     if (exporting) return;
@@ -83,14 +98,25 @@ export function Composer({ template, products, onClose }: { template: CatalogTem
 
       {/* live layered preview */}
       <div style={{ width: "100%", aspectRatio: "1080/1350", background: "#06060C", borderRadius: 10, overflow: "hidden", border: "1px solid " + C.border, marginBottom: 10 }} dangerouslySetInnerHTML={{ __html: previewSvg }} />
-      <button
-        data-testid="carousel2-composer-export"
-        onClick={downloadPng}
-        disabled={exporting}
-        style={{ width: "100%", padding: "9px 0", borderRadius: 8, background: exporting ? C.surface : C.teal + "18", border: "1px solid " + C.teal + "55", color: C.teal, fontFamily: ft, fontSize: 13, fontWeight: 800, cursor: exporting ? "wait" : "pointer", marginBottom: 16 }}
-      >
-        {exporting ? "Exporting…" : "⬇ Download PNG"}
-      </button>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <button
+          data-testid="carousel2-composer-export"
+          onClick={downloadPng}
+          disabled={exporting}
+          style={{ flex: 1, padding: "9px 0", borderRadius: 8, background: exporting ? C.surface : C.teal + "18", border: "1px solid " + C.teal + "55", color: C.teal, fontFamily: ft, fontSize: 13, fontWeight: 800, cursor: exporting ? "wait" : "pointer" }}
+        >
+          {exporting ? "Exporting…" : "⬇ PNG"}
+        </button>
+        <button
+          data-testid="carousel2-composer-edit"
+          onClick={editInCanvas}
+          disabled={opening}
+          title="Open this composed slide as editable objects in the canvas editor"
+          style={{ flex: 1, padding: "9px 0", borderRadius: 8, background: opening ? C.surface : C.violet + "18", border: "1px solid " + C.violet + "55", color: C.violet, fontFamily: ft, fontSize: 13, fontWeight: 800, cursor: opening ? "wait" : "pointer" }}
+        >
+          {opening ? "Opening…" : "✎ Edit in canvas"}
+        </button>
+      </div>
 
       {/* background */}
       <div style={{ marginBottom: 14 }}>
