@@ -1,0 +1,36 @@
+<!-- @carouselAsset kind="background" id="bg-grid-amber" category="dark" tags="dark,grid,amber" -->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  /* Inlined into the <svg> by the ingestion parser so the product is self-contained. */
+  .grid-line { stroke: #1c1a24; stroke-width: 2; }
+</style>
+</head>
+<body>
+<svg viewBox="0 0 1080 1350" width="1080" height="1350" xmlns="http://www.w3.org/2000/svg">
+  <!-- base -->
+  <rect id="bg" x="0" y="0" width="1080" height="1350" fill="#06060C" />
+  <!-- amber crown glow -->
+  <radialGradient id="glow" cx="50%" cy="0%" r="70%">
+    <stop offset="0%" stop-color="#F7B041" stop-opacity="0.16" />
+    <stop offset="60%" stop-color="#F7B041" stop-opacity="0" />
+  </radialGradient>
+  <rect id="deco-glow" x="0" y="0" width="1080" height="1350" fill="url(#glow)" />
+  <!-- grid -->
+  <g id="deco-grid">
+    <line class="grid-line" x1="120" y1="0" x2="120" y2="1350" />
+    <line class="grid-line" x1="360" y1="0" x2="360" y2="1350" />
+    <line class="grid-line" x1="600" y1="0" x2="600" y2="1350" />
+    <line class="grid-line" x1="840" y1="0" x2="840" y2="1350" />
+    <line class="grid-line" x1="0" y1="240" x2="1080" y2="240" />
+    <line class="grid-line" x1="0" y1="540" x2="1080" y2="540" />
+    <line class="grid-line" x1="0" y1="840" x2="1080" y2="840" />
+    <line class="grid-line" x1="0" y1="1140" x2="1080" y2="1140" />
+  </g>
+  <!-- accent rule -->
+  <rect id="deco-rule" x="0" y="1310" width="1080" height="8" fill="#F7B041" />
+</svg>
+</body>
+</html>

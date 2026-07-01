@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "files": [
+    { "path": "backgrounds/grid-amber.html", "kind": "background", "id": "bg-grid-amber" },
+    { "path": "modules/stat-callout.html", "kind": "module", "id": "mod-stat-callout" },
+    { "path": "templates/quote-hero.html", "kind": "template", "id": "tpl-quote-hero" }
+  ]
+}
