@@ -10,6 +10,7 @@ import { useCatalog } from "./library/use-catalog";
 import { AssetGrid } from "./library/asset-grid";
 import { FieldInspector } from "./library/field-inspector";
 import { Composer } from "./library/composer";
+import { AssetValidator } from "./library/asset-validator";
 import type { CatalogProduct, CatalogTemplate, ProductKind } from "./catalog/types";
 
 type KindFilter = "all" | ProductKind;
@@ -28,6 +29,7 @@ export default function CarouselStudio() {
   const [coverOnly, setCoverOnly] = useState(false);
   const [selected, setSelected] = useState<CatalogProduct | null>(null);
   const [composing, setComposing] = useState(false);
+  const [view, setView] = useState<"library" | "validate">("library");
 
   const select = (p: CatalogProduct | null) => {
     setSelected(p);
@@ -58,14 +60,35 @@ export default function CarouselStudio() {
             Backgrounds, templates, and modules — parsed from SVG, fillable by AI. Browse, then build.
           </div>
         </div>
-        <button
-          onClick={() => reload()}
-          style={{ padding: "8px 14px", background: C.surface, border: "1px solid " + C.border, borderRadius: 8, color: C.txm, fontFamily: mn, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, cursor: "pointer" }}
-        >
-          ↻ Reload
-        </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 4, background: C.card, border: "1px solid " + C.border, borderRadius: 8, padding: 3 }}>
+            {(["library", "validate"] as const).map((v) => {
+              const active = view === v;
+              return (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  style={{ padding: "6px 12px", borderRadius: 6, background: active ? C.amber + "18" : "transparent", border: "none", color: active ? C.amber : C.txm, fontFamily: mn, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, cursor: "pointer" }}
+                >
+                  {v === "library" ? "Library" : "Test asset"}
+                </button>
+              );
+            })}
+          </div>
+          {view === "library" && (
+            <button
+              onClick={() => reload()}
+              style={{ padding: "8px 14px", background: C.surface, border: "1px solid " + C.border, borderRadius: 8, color: C.txm, fontFamily: mn, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, cursor: "pointer" }}
+            >
+              ↻ Reload
+            </button>
+          )}
+        </div>
       </div>
 
+      {view === "validate" && <AssetValidator />}
+
+      {view === "library" && (<>
       {/* Controls */}
       <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 20, flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: 6 }}>
@@ -140,6 +163,7 @@ export default function CarouselStudio() {
           ) : null}
         </div>
       )}
+      </>)}
     </div>
   );
 }
