@@ -76,7 +76,7 @@ const THEMES_MAP: Record<string, string> = {
 };
 
 const CarouselSchema = z.object({
-  action: z.enum(["generate", "fetchImages", "caption", "rewrite", "generateImage", "verbatim-titles", "verbatim-subtitle", "verbatim-image-prompt", "verbatim-topic"]),
+  action: z.enum(["generate", "fetchImages", "caption", "rewrite", "generateImage", "verbatim-titles", "verbatim-subtitle", "verbatim-image-prompt", "verbatim-topic", "autofill"]),
   text: z.string().optional(),
   url: z.string().optional(),
   category: z.string().optional(),
@@ -599,6 +599,70 @@ Return JSON: { "topic": "..." }`,
         });
         const topic = (result.topic || "").trim().slice(0, 40);
         return NextResponse.json({ topic, ts: Date.now() });
+      } catch (e) {
+        if ((e as AnthropicError).status) {
+          return NextResponse.json({ error: (e as Error).message || "Generation failed" }, { status: (e as AnthropicError).status });
+        }
+        throw e;
+      }
+    }
+
+    if (action === "autofill") {
+      // Carousel 2.0: given a template/module's fillable fields + an analyst
+      // brief, return values keyed by field name. Text fields only (images and
+      // charts are handled by their own pickers/generators). Respects maxLen.
+      const { fields, brief, category } = body as {
+        fields?: Array<{ name: string; type?: string; role?: string; placeholder?: string; constraints?: { maxLen?: number } }>;
+        brief?: string;
+        category?: string;
+      };
+      if (!Array.isArray(fields) || !fields.length) {
+        return NextResponse.json({ error: "fields required" }, { status: 400 });
+      }
+      if (!brief || !String(brief).trim()) {
+        return NextResponse.json({ error: "brief required" }, { status: 400 });
+      }
+      const themeInfo = category ? (THEMES_MAP[category] || category) : "general";
+      // Only fill text-ish fields; skip image/chart slots.
+      const fillable = fields.filter((f) => !f.type || f.type === "text" || f.type === "richtext" || f.type === "number");
+      if (!fillable.length) {
+        return NextResponse.json({ values: {}, ts: Date.now() });
+      }
+      const spec = fillable
+        .map((f) => {
+          const bits = [`- "${f.name}"`];
+          if (f.role) bits.push(`role: ${f.role}`);
+          if (f.type === "number") bits.push("numeric");
+          if (f.constraints?.maxLen) bits.push(`max ${f.constraints.maxLen} chars`);
+          if (f.placeholder) bits.push(`e.g. "${f.placeholder}"`);
+          return bits.join(", ");
+        })
+        .join("\n");
+      try {
+        const result = await genJSON<{ values: Record<string, string> }>({
+          system: `You fill in the text fields of a SemiAnalysis Instagram-carousel slide from an analyst brief. SA voice: confident, technical, institutional. No em dashes. No hype words. No emojis. Respect each field's character limit and role (a headline is a punchy hook, an eyebrow is a short ALL-CAPS sector tag, a stat is a number, body is a supporting sentence). Return only the requested fields.`,
+          maxTokens: 1200,
+          provider,
+          prompt: `Category: ${themeInfo}
+
+Brief:
+${String(brief).slice(0, 6000)}
+
+Fill these fields:
+${spec}
+
+Return JSON: { "values": { "<field name>": "<value>", ... } } — include every field above, values only.`,
+        });
+        const values: Record<string, string> = {};
+        const out = result.values || {};
+        fillable.forEach((f) => {
+          let v = out[f.name];
+          if (typeof v !== "string") return;
+          v = v.trim();
+          if (f.constraints?.maxLen && v.length > f.constraints.maxLen) v = v.slice(0, f.constraints.maxLen);
+          values[f.name] = v;
+        });
+        return NextResponse.json({ values, ts: Date.now() });
       } catch (e) {
         if ((e as AnthropicError).status) {
           return NextResponse.json({ error: (e as Error).message || "Generation failed" }, { status: (e as AnthropicError).status });

@@ -5,6 +5,7 @@
 "use client";
 
 import { D as C, ft, gf, mn } from "../../shared-constants";
+import { AutofillPanel } from "./autofill-panel";
 import type { CatalogField, CatalogProduct, CatalogTemplate } from "../catalog/types";
 
 const TYPE_COLOR: Record<string, string> = {
@@ -90,6 +91,8 @@ export function FieldInspector({ product, onClose, onCompose }: { product: Catal
           ✕
         </button>
       </div>
+
+      <AutofillPanel product={product} />
 
       <div style={{ fontFamily: mn, fontSize: 9, color: C.amber, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 10 }}>
         Fields · {product.fields.length}
