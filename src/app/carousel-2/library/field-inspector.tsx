@@ -6,6 +6,7 @@
 
 import { D as C, ft, gf, mn } from "../../shared-constants";
 import { AutofillPanel } from "./autofill-panel";
+import { exportSvgPng } from "../catalog/export";
 import type { CatalogField, CatalogProduct, CatalogTemplate } from "../catalog/types";
 
 const TYPE_COLOR: Record<string, string> = {
@@ -84,12 +85,21 @@ export function FieldInspector({ product, onClose, onCompose }: { product: Catal
           <div style={{ fontFamily: gf, fontSize: 18, fontWeight: 800, color: C.tx, letterSpacing: -0.3 }}>{product.title}</div>
           <div style={{ fontFamily: mn, fontSize: 10, color: C.txd, marginTop: 4 }}>{product.id}</div>
         </div>
-        <button
-          onClick={onClose}
-          style={{ background: "transparent", border: "1px solid " + C.border, borderRadius: 6, color: C.txm, fontFamily: mn, fontSize: 12, cursor: "pointer", padding: "4px 8px" }}
-        >
-          ✕
-        </button>
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+          <button
+            onClick={() => { exportSvgPng(product.svg, product.dims.width, product.dims.height, `${product.id}.png`).catch(() => {}); }}
+            title="Download PNG"
+            style={{ background: "transparent", border: "1px solid " + C.border, borderRadius: 6, color: C.teal, fontFamily: mn, fontSize: 11, cursor: "pointer", padding: "4px 8px" }}
+          >
+            ⬇ PNG
+          </button>
+          <button
+            onClick={onClose}
+            style={{ background: "transparent", border: "1px solid " + C.border, borderRadius: 6, color: C.txm, fontFamily: mn, fontSize: 12, cursor: "pointer", padding: "4px 8px" }}
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       <AutofillPanel product={product} />

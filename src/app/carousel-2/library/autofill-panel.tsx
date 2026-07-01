@@ -7,12 +7,14 @@ import { useState } from "react";
 import { D as C, ft, mn, getSurfaceProvider, getPreferredProvider } from "../../shared-constants";
 import { showToast } from "../../toast-context";
 import { applyFieldValues } from "../catalog/fill";
+import { exportSvgPng } from "../catalog/export";
 import type { CatalogProduct } from "../catalog/types";
 
 export function AutofillPanel({ product }: { product: CatalogProduct }) {
   const [brief, setBrief] = useState("");
   const [busy, setBusy] = useState(false);
-  const [filled, setFilled] = useState<string>("");
+  const [filled, setFilled] = useState<string>(""); // raw filled svg
+  const [exporting, setExporting] = useState(false);
 
   const textFields = product.fields.filter((f) => f.type === "text" || f.type === "richtext" || f.type === "number");
   if (!textFields.length) return null;
@@ -43,8 +45,7 @@ export function AutofillPanel({ product }: { product: CatalogProduct }) {
         return;
       }
       const vals = (d.values || {}) as Record<string, string>;
-      const svg = applyFieldValues(product.svg, product.fields, vals).replace(/^<svg /, '<svg style="width:100%;height:100%;display:block" ');
-      setFilled(svg);
+      setFilled(applyFieldValues(product.svg, product.fields, vals));
     } catch (e) {
       showToast("Network error: " + (e instanceof Error ? e.message : String(e)));
     } finally {
@@ -70,11 +71,30 @@ export function AutofillPanel({ product }: { product: CatalogProduct }) {
         {busy ? "Filling…" : "✨ AI fill fields"}
       </button>
       {filled && (
-        <div
-          data-testid="carousel2-filled"
-          style={{ marginTop: 10, width: "100%", aspectRatio: "1080/1350", background: "#06060C", borderRadius: 8, overflow: "hidden", border: "1px solid " + C.border }}
-          dangerouslySetInnerHTML={{ __html: filled }}
-        />
+        <>
+          <div
+            data-testid="carousel2-filled"
+            style={{ marginTop: 10, width: "100%", aspectRatio: "1080/1350", background: "#06060C", borderRadius: 8, overflow: "hidden", border: "1px solid " + C.border }}
+            dangerouslySetInnerHTML={{ __html: filled.replace(/^<svg /, '<svg style="width:100%;height:100%;display:block" ') }}
+          />
+          <button
+            onClick={async () => {
+              if (exporting) return;
+              setExporting(true);
+              try {
+                await exportSvgPng(filled, product.dims.width, product.dims.height, `${product.id}-filled.png`);
+              } catch {
+                showToast("Export failed (a cross-origin image may taint the canvas).");
+              } finally {
+                setExporting(false);
+              }
+            }}
+            disabled={exporting}
+            style={{ width: "100%", marginTop: 8, padding: "8px 0", borderRadius: 8, background: exporting ? C.surface : C.teal + "18", border: "1px solid " + C.teal + "55", color: C.teal, fontFamily: ft, fontSize: 12, fontWeight: 800, cursor: exporting ? "wait" : "pointer" }}
+          >
+            {exporting ? "Exporting…" : "⬇ Download PNG"}
+          </button>
+        </>
       )}
     </div>
   );

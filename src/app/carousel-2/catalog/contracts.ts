@@ -50,10 +50,22 @@ export function autofillProduct(_req: AutofillRequest): Promise<AutofillResult> 
 // Maps an existing verbatim wizard draft onto a template's fields by role
 // (title→headline, subtitle→subhead, topic→eyebrow, image→image).
 export function verbatimDraftToFieldValues(
-  _draft: VerbatimDraft,
-  _template: CatalogTemplate
+  draft: VerbatimDraft,
+  template: CatalogTemplate
 ): Record<string, string> {
-  throw NOT_IMPL("verbatim bridge (verbatimDraftToFieldValues) — verbatim slice");
+  const out: Record<string, string> = {};
+  const fields = template.fields || [];
+  const put = (role: string, val?: string) => {
+    if (val == null || val === "") return;
+    fields.filter((f) => f.locator.role === role).forEach((f) => {
+      out[f.name] = String(val);
+    });
+  };
+  put("headline", draft.chosenTitle);
+  put("subhead", draft.includeSubtitle ? draft.chosenSubtitle : undefined);
+  put("eyebrow", draft.topic);
+  put("image", draft.chosenImageUrl);
+  return out;
 }
 
 // (d) Cover facelift ---------------------------------------------------------

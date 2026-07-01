@@ -14,6 +14,7 @@ import {
   modulesForSlot,
   renderCompositionSvg,
 } from "../catalog/composition";
+import { exportSvgPng } from "../catalog/export";
 import type { CatalogBackground, CatalogModule, CatalogProduct, CatalogTemplate } from "../catalog/types";
 
 function Chip({ active, color, onClick, children }: { active: boolean; color: string; onClick: () => void; children: React.ReactNode }) {
@@ -47,12 +48,23 @@ export function Composer({ template, products, onClose }: { template: CatalogTem
   const backgrounds = useMemo(() => products.filter((p) => p.kind === "background") as CatalogBackground[], [products]);
 
   const [comp, setComp] = useState(() => createComposition(template));
+  const [exporting, setExporting] = useState(false);
   const slots = template.slots || [];
 
-  const previewSvg = useMemo(() => {
-    const raw = renderCompositionSvg(comp, get);
-    return raw.replace(/^<svg /, '<svg style="width:100%;height:100%;display:block" ');
-  }, [comp, get]);
+  const rawSvg = useMemo(() => renderCompositionSvg(comp, get), [comp, get]);
+  const previewSvg = useMemo(() => rawSvg.replace(/^<svg /, '<svg style="width:100%;height:100%;display:block" '), [rawSvg]);
+
+  async function downloadPng() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      await exportSvgPng(rawSvg, comp.dims.width, comp.dims.height, `${template.id || "design"}.png`);
+    } catch {
+      /* export failure is surfaced by the disabled state resetting */
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const assignedOf = (slotId: string) => comp.assignments.find((a) => a.slotId === slotId)?.moduleId;
 
@@ -70,7 +82,15 @@ export function Composer({ template, products, onClose }: { template: CatalogTem
       </div>
 
       {/* live layered preview */}
-      <div style={{ width: "100%", aspectRatio: "1080/1350", background: "#06060C", borderRadius: 10, overflow: "hidden", border: "1px solid " + C.border, marginBottom: 16 }} dangerouslySetInnerHTML={{ __html: previewSvg }} />
+      <div style={{ width: "100%", aspectRatio: "1080/1350", background: "#06060C", borderRadius: 10, overflow: "hidden", border: "1px solid " + C.border, marginBottom: 10 }} dangerouslySetInnerHTML={{ __html: previewSvg }} />
+      <button
+        data-testid="carousel2-composer-export"
+        onClick={downloadPng}
+        disabled={exporting}
+        style={{ width: "100%", padding: "9px 0", borderRadius: 8, background: exporting ? C.surface : C.teal + "18", border: "1px solid " + C.teal + "55", color: C.teal, fontFamily: ft, fontSize: 13, fontWeight: 800, cursor: exporting ? "wait" : "pointer", marginBottom: 16 }}
+      >
+        {exporting ? "Exporting…" : "⬇ Download PNG"}
+      </button>
 
       {/* background */}
       <div style={{ marginBottom: 14 }}>
