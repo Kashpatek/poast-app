@@ -165,6 +165,14 @@ body{background:#06070b;color:#e8ebf2;font-family:Inter,-apple-system,BlinkMacSy
 .deckseg button.on{background:#232a3a;color:#fff}
 #meta .m-pos{font-weight:800;color:#aab2c4}
 
+/* denied-only review banner */
+#reviewBanner{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin:2px 12px 0;padding:8px 10px 8px 13px;border:1px solid #17527a;background:rgba(11,134,209,.13);
+  border-radius:11px;font-size:12.5px;font-weight:780;color:#bfe2f6;letter-spacing:.01em}
+#reviewBanner #reviewExit{flex:0 0 auto;border:1px solid #2a4a63;background:#0f1c28;color:#bfe2f6;
+  border-radius:9px;padding:6px 11px;font-size:11.5px;font-weight:800;cursor:pointer;letter-spacing:.02em;white-space:nowrap}
+#reviewBanner #reviewExit:active{filter:brightness(.9)}
+
 /* ── stage / deck ── */
 #stageWrap{flex:1 1 auto;position:relative;display:flex;align-items:center;justify-content:center;min-height:0;padding:4px 10px}
 #deck{position:relative;width:var(--cardw);height:calc(var(--cardw)*1.25);margin:0 auto}
@@ -376,12 +384,17 @@ select.opt-sel{appearance:none;width:100%;background:#10131c;color:#dfe4ef;borde
     </div>
   </header>
 
+  <div id="reviewBanner" class="hide">
+    <span id="reviewBannerText">Reviewing denied</span>
+    <button id="reviewExit">Exit to full deck</button>
+  </div>
+
   <main id="stageWrap">
     <div id="deck"></div>
     <div id="emptyState" class="hide">
       <div class="empty-emoji">&#10003;</div>
-      <div class="empty-title">Deck complete</div>
-      <div class="empty-sub">Every card in this deck has been reviewed. Switch decks or open results.</div>
+      <div class="empty-title" id="emptyTitle">Deck complete</div>
+      <div class="empty-sub" id="emptySub">Every card in this deck has been reviewed. Switch decks or open results.</div>
       <button id="btnViewResults" class="bigbtn" style="max-width:240px;margin:0 auto">View results</button>
       <button id="btnReReviewEmpty" class="bigbtn rereview hide" style="max-width:280px;margin:10px auto 0">Re-review denied overlays</button>
     </div>
@@ -1903,6 +1916,32 @@ function renderLayout(cfg, c) {
   }
   var decks = { bg: { list: buildBgList(), cursor: 0 }, ov: { list: buildOvList(), cursor: 0 } };
   var current = 'ov';
+  var reviewingDenied = false; // true while walking a filtered queue of only the denied overlays
+
+  // exactly the overlays at these global indices, in ascending index order, ignoring the
+  // category filter (a denied overlay must stay reachable even if its category is unchecked).
+  function overlayItemsFor(ids) {
+    var set = {}; ids.forEach(function (id) { set[String(id)] = true; });
+    var out = [];
+    OVERLAYS.forEach(function (o, i) { if (set[String(i)]) out.push({ deck: 'ov', id: i, name: o.name, cat: o.cat, overlay: o }); });
+    return out;
+  }
+  function updateReviewBanner() {
+    var b = document.getElementById('reviewBanner'); if (!b) return;
+    if (reviewingDenied && current === 'ov') {
+      var list = decks.ov.list, c = decks.ov.cursor, total = list.length, left = Math.max(0, total - c);
+      document.getElementById('reviewBannerText').textContent =
+        left > 0 ? ('Reviewing denied · ' + left + ' of ' + total + ' left') : ('All ' + total + ' revisited');
+      b.classList.remove('hide');
+    } else b.classList.add('hide');
+  }
+  function exitReview() {
+    reviewingDenied = false;
+    decks.ov.list = buildOvList();
+    decks.ov.cursor = firstUnrated('ov', decks.ov.list);
+    updateReviewBanner();
+    render();
+  }
 
   function firstUnrated(deckId, list) {
     var rec = store[deckId];
@@ -1944,12 +1983,21 @@ function renderLayout(cfg, c) {
   var emptyEl = document.getElementById('emptyState');
 
   function render() {
+    updateReviewBanner();
     var list = activeList(), c = cursor();
     deckEl.innerHTML = '';
     if (c >= list.length) {
       emptyEl.classList.remove('hide'); deckEl.style.display = 'none'; clearMeta();
+      var et = document.getElementById('emptyTitle'), es = document.getElementById('emptySub');
+      if (reviewingDenied) {
+        if (et) et.textContent = 'Re-review complete';
+        if (es) es.textContent = 'You revisited every denied overlay. Re-review any still not right, open results, or exit to the full deck.';
+      } else {
+        if (et) et.textContent = 'Deck complete';
+        if (es) es.textContent = 'Every card in this deck has been reviewed. Switch decks or open results.';
+      }
       var rrb = document.getElementById('btnReReviewEmpty'), nd = ovDenyIds().length;
-      if (rrb) { if (nd) { rrb.textContent = 'Re-review denied overlays (' + nd + ')'; rrb.classList.remove('hide'); } else rrb.classList.add('hide'); }
+      if (rrb) { if (nd) { rrb.textContent = (reviewingDenied ? 'Re-review remaining denied (' : 'Re-review denied overlays (') + nd + ')'; rrb.classList.remove('hide'); } else rrb.classList.add('hide'); }
       return;
     }
     emptyEl.classList.add('hide'); deckEl.style.display = '';
@@ -2109,6 +2157,7 @@ function renderLayout(cfg, c) {
       inp.addEventListener('change', function () {
         settings.cats[inp.getAttribute('data-cat')] = inp.checked;
         if (!CATS.some(function (c) { return settings.cats[c]; })) { settings.cats[inp.getAttribute('data-cat')] = true; inp.checked = true; return; }
+        reviewingDenied = false; // category change rebuilds the full deck, leaving review mode
         decks.ov.list = buildOvList();
         decks.ov.cursor = firstUnrated('ov', decks.ov.list);
         saveStore();
@@ -2230,32 +2279,31 @@ function renderLayout(cfg, c) {
     store = { bg: {}, ov: {}, meta: {}, settings: settings };
     history = []; updateUndo();
     saveStore();
+    reviewingDenied = false;
+    decks.bg.list = buildBgList(); decks.ov.list = buildOvList();
     decks.bg.cursor = 0; decks.ov.cursor = 0;
     buildResults(); render();
   }
 
   function ovDenyIds() { return Object.keys(store.ov).filter(function (id) { return store.ov[id].verdict === 'deny'; }); }
 
-  // Reset ONLY denied overlays back to unrated (keeps every Love/Like), re-enable all
-  // categories so each reworked overlay is reachable, then drop into the overlay deck
-  // at the first unrated card. Overlay indices are unchanged, so this lines up 1:1 with
-  // the existing verdict keys in localStorage.
+  // Enter a filtered review queue containing ONLY the currently-denied overlays, in index
+  // order. The full deck (all Love/Like/Deny) is untouched: each swipe here just overwrites
+  // that overlay's verdict, and the queue ends after the last denied card. Verdicts are NOT
+  // wiped up front, so exiting early leaves any un-re-swiped ones still marked denied.
+  // Overlay indices are unchanged, so this lines up 1:1 with the localStorage verdict keys.
   function reReviewDenied() {
     var ids = ovDenyIds();
     if (!ids.length) { toast('No denied overlays'); return; }
-    if (!window.confirm('Re-review ' + ids.length + ' denied overlay' + (ids.length === 1 ? '' : 's') + '?\n\nYour Love and Like ratings are kept. Denied overlays reset to unrated so you can swipe them again.')) return;
-    ids.forEach(function (id) { delete store.ov[id]; });
-    CATS.forEach(function (c) { settings.cats[c] = true; }); // make sure every fixed overlay is reachable
-    history = []; updateUndo();
-    saveStore();
+    reviewingDenied = true;
     current = 'ov';
+    decks.ov.list = overlayItemsFor(ids); // exactly the denied ones — not the whole deck
+    decks.ov.cursor = 0;
+    history = []; updateUndo();
     document.querySelectorAll('#seg button').forEach(function (x) { x.classList.toggle('on', x.dataset.deck === 'ov'); });
     toggleBdCatVisibility();
-    buildCatChecks();
-    decks.ov.list = buildOvList();
-    decks.ov.cursor = firstUnrated('ov', decks.ov.list);
     document.getElementById('resultsScreen').classList.add('hide');
-    toast(ids.length + ' reset for re-review');
+    toast('Reviewing ' + ids.length + ' denied overlay' + (ids.length === 1 ? '' : 's'));
     render();
   }
 
@@ -2278,11 +2326,17 @@ function renderLayout(cfg, c) {
     document.getElementById('btnUndo').addEventListener('click', undo);
     document.querySelectorAll('#seg button').forEach(function (b) {
       b.addEventListener('click', function () {
+        if (reviewingDenied) { // leaving the filtered queue restores the full overlay deck
+          reviewingDenied = false;
+          decks.ov.list = buildOvList();
+          decks.ov.cursor = firstUnrated('ov', decks.ov.list);
+        }
         current = b.dataset.deck;
         document.querySelectorAll('#seg button').forEach(function (x) { x.classList.toggle('on', x === b); });
         toggleBdCatVisibility(); render();
       });
     });
+    document.getElementById('reviewExit').addEventListener('click', exitReview);
     document.querySelectorAll('#actions .act').forEach(function (b) {
       b.addEventListener('click', function () { actBtn(b.dataset.act); });
     });
