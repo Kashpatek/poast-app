@@ -6811,8 +6811,18 @@ export default function ChartMaker2({
   // fallback so the saved payload always carries the data the user is
   // actually editing — including the fresh default if they haven't touched
   // anything yet.
+  // Studio integration · emit a serialized snapshot whenever the chart's
+  // persistable state changes. `onChange` is held in a ref (not an effect
+  // dependency) on purpose: the Studio shell passes a fresh inline callback
+  // on every render, and calling it re-renders the shell — so depending on
+  // `onChange`'s identity here creates an infinite render loop ("Maximum
+  // update depth exceeded"), which in turn remounts every body-portaled
+  // overlay (Design drawer, Launch shell) every frame and eats their clicks.
+  // Fire on the DATA changing; always call the latest callback via the ref.
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
   useEffect(() => {
-    if (!onChange) return;
+    if (!onChangeRef.current) return;
     const payload: ChartDocPayload = {
       kind: "chart",
       version: 1,
@@ -6827,8 +6837,8 @@ export default function ChartMaker2({
       chartAspect,
       chartZoom,
     };
-    onChange(payload);
-  }, [onChange, type, title, subtitle, theme, backdrop, backdropMode, sheets, annotByType, chartAspect, chartZoom]);
+    onChangeRef.current(payload);
+  }, [type, title, subtitle, theme, backdrop, backdropMode, sheets, annotByType, chartAspect, chartZoom]);
 
   // Pick-mode handler · column-chart renderers call this on bar click.
   // Returns true if the click was consumed (we're in pick mode); the
