@@ -191,6 +191,33 @@ export interface DesignLayer {
   svg: string;
 }
 
+// ── Deck — an ordered set of slides ("the carousel") ─────────────────────────
+// The multi-slide layer over DesignComposition — the make-flow's core object.
+// Each slide is a composition (overlay + optional background + slot widgets)
+// plus its overlay field VALUES and a positional ROLE. Roles mirror the
+// production carousel's slide.position semantics (1=cover, middle=body, last=
+// closer) so the familiar "cover + body slides + closer" deck shape survives.
+export type SlideRole = "cover" | "body" | "closer";
+
+export interface DeckSlide {
+  id: string;
+  role: SlideRole;
+  overlayId: string; // catalog template id — the slide's layout
+  backgroundId?: string; // catalog background id — optional backdrop
+  values: Record<string, string>; // overlay field.name -> value (headline, body…)
+  assignments: SlotAssignment[]; // widgets assigned into the overlay's slots
+}
+
+export interface Deck {
+  id: string;
+  title: string;
+  theme?: string; // ThemeKey-ish label (general|internal|external|capital)
+  dims: SlideDims;
+  slides: DeckSlide[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 // Manifest that lists which source files to ingest (public/carousel-2-assets).
 export interface CatalogManifestEntry {
   path: string; // relative to public/carousel-2-assets/

@@ -79,3 +79,42 @@ export async function exportSvgPng(svg: string, w: number, h: number, filename: 
   const blob = await svgToPngBlob(svg, w, h, scale);
   downloadBlob(blob, filename);
 }
+
+// ── deck (multi-slide) export ──────────────────────────────────────────────
+// Filename mirrors the production carousel exactly: {MM.dd.yy}-{title}_slide{n}.png
+function pad2(n: number): string {
+  return n < 10 ? "0" + n : String(n);
+}
+export function makeSlideFilename(deckTitle: string, index: number): string {
+  const d = new Date();
+  const stamp = `${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}.${String(d.getFullYear()).slice(2)}`;
+  const title =
+    (deckTitle || "carousel")
+      .replace(/[^a-z0-9 ]/gi, "")
+      .trim()
+      .slice(0, 20)
+      .replace(/\s+/g, "_") || "carousel";
+  return `${stamp}-${title}_slide${index + 1}.png`;
+}
+
+// Rasterize + download an ordered set of slide SVGs, one PNG each, staggered so
+// the browser doesn't drop concurrent downloads (matches production's 400ms).
+// Kept asset-agnostic: the caller (deck editor) renders slide SVGs via
+// deck.renderDeckSvgs and hands the strings in, so export.ts stays free of any
+// deck/catalog imports.
+export async function exportDeckPngs(
+  svgs: string[],
+  w: number,
+  h: number,
+  deckTitle: string,
+  opts?: { scale?: number; delayMs?: number; onProgress?: (done: number, total: number) => void }
+): Promise<void> {
+  const scale = opts?.scale ?? 2;
+  const delayMs = opts?.delayMs ?? 400;
+  for (let i = 0; i < svgs.length; i++) {
+    const blob = await svgToPngBlob(svgs[i], w, h, scale);
+    downloadBlob(blob, makeSlideFilename(deckTitle, i));
+    opts?.onProgress?.(i + 1, svgs.length);
+    if (i < svgs.length - 1 && delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+  }
+}

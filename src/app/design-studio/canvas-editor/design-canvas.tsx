@@ -17,6 +17,8 @@ import {
   AlignStartVertical, AlignCenterVertical, AlignEndVertical,
   Download, Save, Lock, Unlock, Eye, EyeOff, GripVertical, Plus,
   History as HistoryIcon, Files as FilesIcon,
+  Group as GroupIcon, Ungroup as UngroupIcon,
+  AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { D, ft, gf, mn, uid } from "../../shared-constants";
@@ -93,6 +95,8 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
 
   const stateRef = useRef<PageState[]>([]);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const mainRef = useRef<HTMLDivElement | null>(null); // the scrollable canvas viewport
+  const clipboardRef = useRef<fabric.Object | null>(null); // copy/paste buffer
 
   // ── lifecycle: bind canvases for each page ──
   useEffect(() => {
@@ -285,6 +289,19 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
       c.add(cl); c.setActiveObject(cl); c.requestRenderAll();
     });
   }
+  // Clipboard (in-memory): mirrors the duplicate clone path so it handles the
+  // same object kinds Cmd+D already does.
+  async function copyActive() {
+    const c = activeCanvas(); const obj = c?.getActiveObject(); if (!obj) return;
+    clipboardRef.current = await obj.clone();
+  }
+  async function pasteClipboard() {
+    const c = activeCanvas(); const src = clipboardRef.current; if (!c || !src) return;
+    const cl = await src.clone();
+    cl.set({ left: (src.left || 0) + 24, top: (src.top || 0) + 24 });
+    c.add(cl); c.setActiveObject(cl); c.requestRenderAll(); snapshotHistory(activeIdx); tick();
+  }
+  async function cutActive() { await copyActive(); deleteActive(); }
   function bringForward() { const c = activeCanvas(); const o = c?.getActiveObject(); if (c && o) { c.bringObjectForward(o); c.requestRenderAll(); } }
   function sendBackward() { const c = activeCanvas(); const o = c?.getActiveObject(); if (c && o) { c.sendObjectBackwards(o); c.requestRenderAll(); } }
   function bringToFront() { const c = activeCanvas(); const o = c?.getActiveObject(); if (c && o) { c.bringObjectToFront(o); c.requestRenderAll(); } }
@@ -304,6 +321,84 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
     obj.setCoords(); c.requestRenderAll();
   }
 
+  // ── zoom / fit ──
+  const fitToScreen = useCallback(() => {
+    const el = mainRef.current; if (!el) return;
+    const pad = 80;
+    const z = Math.min((el.clientWidth - pad) / w, (el.clientHeight - pad) / h);
+    if (isFinite(z) && z > 0) setZoom(Math.min(2, Math.max(0.1, Math.round(z * 1000) / 1000)));
+  }, [w, h]);
+
+  // ── arrange: group / ungroup / distribute ──
+  function groupActive() {
+    const c = activeCanvas(); if (!c) return;
+    const active = c.getActiveObject();
+    if (!active || active.type !== "activeselection") return;
+    const objs = c.getActiveObjects().slice();
+    c.discardActiveObject(); // restores each object's absolute canvas coords
+    objs.forEach(o => c.remove(o));
+    const group = new fabric.Group(objs);
+    c.add(group); c.setActiveObject(group);
+    c.requestRenderAll(); snapshotHistory(activeIdx); tick();
+  }
+  function ungroupActive() {
+    const c = activeCanvas(); if (!c) return;
+    const active = c.getActiveObject();
+    if (!active || active.type !== "group") return;
+    const group = active as fabric.Group;
+    const objs = group.getObjects().slice();
+    (group as unknown as { removeAll?: () => void }).removeAll?.(); // detach + restore coords (v6)
+    c.remove(group);
+    objs.forEach(o => c.add(o));
+    const sel = new fabric.ActiveSelection(objs, { canvas: c });
+    c.setActiveObject(sel);
+    c.requestRenderAll(); snapshotHistory(activeIdx); tick();
+  }
+  function distribute(axis: "h" | "v") {
+    const c = activeCanvas(); if (!c) return;
+    const active = c.getActiveObject();
+    if (!active || active.type !== "activeselection") return;
+    const objs = c.getActiveObjects().slice();
+    if (objs.length < 3) return;
+    c.discardActiveObject(); // absolute coords
+    const pos = (o: fabric.Object) => (axis === "h" ? (o.left || 0) : (o.top || 0));
+    const sorted = objs.slice().sort((a, b) => pos(a) - pos(b));
+    const start = pos(sorted[0]);
+    const step = (pos(sorted[sorted.length - 1]) - start) / (sorted.length - 1);
+    sorted.forEach((o, i) => {
+      if (i > 0 && i < sorted.length - 1) {
+        if (axis === "h") o.set({ left: start + step * i }); else o.set({ top: start + step * i });
+        o.setCoords();
+      }
+    });
+    const sel = new fabric.ActiveSelection(objs, { canvas: c });
+    c.setActiveObject(sel);
+    c.requestRenderAll(); snapshotHistory(activeIdx); tick();
+  }
+
+  // ── image ops on the selected image ──
+  function replaceSelectedImage(file: File) {
+    const c = activeCanvas(); const obj = c?.getActiveObject();
+    if (!c || !obj || obj.type !== "image") return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = reader.result as string;
+      (obj as fabric.FabricImage).setSrc(url, { crossOrigin: "anonymous" }).then(() => {
+        c.requestRenderAll(); snapshotHistory(activeIdx); tick();
+      });
+    };
+    reader.readAsDataURL(file);
+  }
+  function fitSelectedImage(mode: "contain" | "cover") {
+    const c = activeCanvas(); const obj = c?.getActiveObject();
+    if (!c || !obj || obj.type !== "image") return;
+    const img = obj as fabric.FabricImage;
+    const iw = img.width || 1, ih = img.height || 1;
+    const s = mode === "cover" ? Math.max(c.getWidth() / iw, c.getHeight() / ih) : Math.min(c.getWidth() / iw, c.getHeight() / ih);
+    img.set({ scaleX: s, scaleY: s, left: (c.getWidth() - iw * s) / 2, top: (c.getHeight() - ih * s) / 2 });
+    img.setCoords(); c.requestRenderAll(); snapshotHistory(activeIdx); tick();
+  }
+
   // ── multi-page ──
   function addPage() {
     const next: ProjectRecord["pages"] = [...pages, { id: uid("page"), payload: null }];
@@ -319,6 +414,25 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
     stateRef.current.splice(idx, 1);
     setPages(next); onUpdatePages(next);
     setActiveIdx(Math.max(0, Math.min(activeIdx, next.length - 1)));
+  }
+  function duplicatePage(idx: number = activeIdx) {
+    const slot = stateRef.current[idx];
+    const payload = (slot?.canvas ? slot.canvas.toJSON() : pages[idx]?.payload) as ProjectRecord["pages"][number]["payload"];
+    const next = pages.slice();
+    next.splice(idx + 1, 0, { id: uid("page"), payload, thumb: pages[idx]?.thumb });
+    // Insert a matching (empty) canvas slot so page↔canvas indices stay aligned;
+    // it hydrates from `payload` when its <canvas> mounts.
+    stateRef.current.splice(idx + 1, 0, { id: next[idx + 1].id, el: null, canvas: null, history: [], historyIdx: -1 });
+    setPages(next); onUpdatePages(next);
+    setActiveIdx(idx + 1);
+  }
+  function reorderPages(from: number, to: number) {
+    if (from === to) return;
+    const next = arrayMove(pages, from, to);
+    // Keep the Fabric canvas slots aligned with their pages.
+    stateRef.current = arrayMove(stateRef.current, from, to);
+    setPages(next); onUpdatePages(next);
+    setActiveIdx(to);
   }
 
   // ── selection updates ──
@@ -421,7 +535,7 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
   // Route handlers through a ref so the bound closures always see the latest
   // state (tinykeys captures handlers at registration time).
   const shortcutsRef = useRef({
-    undo, redo, duplicateActive, bringForward, sendBackward,
+    undo, redo, duplicateActive, bringForward, sendBackward, groupActive, ungroupActive,
     saveNow: async () => { await autosave.saveNow(); await takeSnapshotNow(); },
     selectAll: () => {
       const c = activeCanvas(); if (!c) return;
@@ -437,6 +551,8 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
   shortcutsRef.current.duplicateActive = duplicateActive;
   shortcutsRef.current.bringForward = bringForward;
   shortcutsRef.current.sendBackward = sendBackward;
+  shortcutsRef.current.groupActive = groupActive;
+  shortcutsRef.current.ungroupActive = ungroupActive;
   shortcutsRef.current.saveNow = async () => { await autosave.saveNow(); await takeSnapshotNow(); };
   // selectAll must also re-bind every render — it reads activeCanvas /
   // activeIdx via closure, and the initial useRef value snapshots the
@@ -457,6 +573,8 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
     "$mod+d":        { description: "Duplicate object", handler: () => shortcutsRef.current.duplicateActive() },
     "$mod+]":        { description: "Bring forward",   handler: () => shortcutsRef.current.bringForward() },
     "$mod+[":        { description: "Send backward",   handler: () => shortcutsRef.current.sendBackward() },
+    "$mod+g":        { description: "Group",           handler: () => shortcutsRef.current.groupActive() },
+    "$mod+Shift+g":  { description: "Ungroup",         handler: () => shortcutsRef.current.ungroupActive() },
     "$mod+a":        { description: "Select all",      handler: () => shortcutsRef.current.selectAll() },
     "$mod+s":        { description: "Save snapshot",   handler: () => { void shortcutsRef.current.saveNow(); } },
   }, { scope: "DesignStudio Canvas" });
@@ -483,6 +601,21 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
       if (isEditableTarget(e.target)) return;
       const c = activeCanvas();
       if (isTextboxEditing(c)) return;
+
+      // Escape — deselect the active object.
+      if (e.key === "Escape") {
+        if (c && c.getActiveObject()) { c.discardActiveObject(); c.requestRenderAll(); setSelected(null); }
+        return;
+      }
+
+      // Copy / Cut / Paste (canvas objects — guarded above so it never hijacks
+      // native copy/paste inside inputs or while editing text inline).
+      if (e.metaKey || e.ctrlKey) {
+        const k = e.key.toLowerCase();
+        if (k === "c") { if (c?.getActiveObject()) { e.preventDefault(); void copyActive(); } return; }
+        if (k === "x") { if (c?.getActiveObject()) { e.preventDefault(); void cutActive(); } return; }
+        if (k === "v") { if (clipboardRef.current) { e.preventDefault(); void pasteClipboard(); } return; }
+      }
 
       // Delete / Backspace — only when an object is selected.
       if (e.key === "Delete" || e.key === "Backspace") {
@@ -516,6 +649,25 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeIdx]);
 
+  // Fit the page to the viewport on first mount (so it opens fully visible).
+  useEffect(() => {
+    const id = requestAnimationFrame(() => fitToScreen());
+    return () => cancelAnimationFrame(id);
+  }, [fitToScreen]);
+
+  // Cmd/Ctrl + wheel to zoom (plain wheel still scrolls the viewport = pan).
+  useEffect(() => {
+    const el = mainRef.current; if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      e.preventDefault();
+      const dir = e.deltaY > 0 ? -1 : 1;
+      setZoom(z => Math.min(2, Math.max(0.1, Math.round((z + dir * 0.08) * 100) / 100)));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
   // ── render ──
   return (
     <div ref={wrapperRef} style={{ display: "grid", gridTemplateRows: "56px 1fr " + (isMultiPage ? "120px" : "auto"), gridTemplateColumns: "240px 1fr 280px", height: "calc(100vh - 56px)", background: D.bg }}>
@@ -545,6 +697,13 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
 
         <div style={{ width: 1, height: 22, background: D.border, margin: "0 6px" }} />
 
+        <IconBtn onClick={groupActive} title="Group (⌘G)" Icon={GroupIcon} />
+        <IconBtn onClick={ungroupActive} title="Ungroup (⌘⇧G)" Icon={UngroupIcon} />
+        <IconBtn onClick={() => distribute("h")} title="Distribute horizontally" Icon={AlignHorizontalDistributeCenter} />
+        <IconBtn onClick={() => distribute("v")} title="Distribute vertically" Icon={AlignVerticalDistributeCenter} />
+
+        <div style={{ width: 1, height: 22, background: D.border, margin: "0 6px" }} />
+
         <IconBtn onClick={bringForward} title="Forward" Icon={ChevronUp} />
         <IconBtn onClick={sendBackward} title="Backward" Icon={ChevronDown} />
         <IconBtn onClick={bringToFront} title="To front" Icon={ArrowUpToLine} />
@@ -556,9 +715,10 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
         <IconBtn onClick={deleteActive} title="Delete" Icon={Trash2} danger />
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-          <IconBtn onClick={() => setZoom(z => Math.max(0.1, z - 0.1))} title="Zoom out" Icon={ZoomOut} />
-          <span style={{ fontFamily: mn, fontSize: 10, color: D.txm, minWidth: 40, textAlign: "center" }}>{Math.round(zoom * 100)}%</span>
-          <IconBtn onClick={() => setZoom(z => Math.min(2, z + 0.1))} title="Zoom in" Icon={ZoomIn} />
+          <IconBtn onClick={() => setZoom(z => Math.max(0.1, +(z - 0.1).toFixed(2)))} title="Zoom out" Icon={ZoomOut} />
+          <span onClick={() => setZoom(1)} title="Reset to 100%" style={{ fontFamily: mn, fontSize: 10, color: D.txm, minWidth: 40, textAlign: "center", cursor: "pointer" }}>{Math.round(zoom * 100)}%</span>
+          <IconBtn onClick={() => setZoom(z => Math.min(2, +(z + 0.1).toFixed(2)))} title="Zoom in" Icon={ZoomIn} />
+          <button onClick={fitToScreen} title="Fit to screen" style={{ background: "transparent", border: "1px solid " + D.border, borderRadius: 5, padding: "3px 8px", cursor: "pointer", color: D.txm, fontFamily: mn, fontSize: 9, fontWeight: 700, letterSpacing: 0.5 }}>FIT</button>
 
           <button onClick={() => autosave.saveNow()} style={pillStyle(D.teal)}><Save size={11} /> Save</button>
 
@@ -639,12 +799,29 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
         </div>
       </aside>
 
-      {/* CENTER */}
-      <main style={{ display: "flex", alignItems: "center", justifyContent: "center", overflow: "auto", background: "repeating-conic-gradient(#0c0c12 0% 25%, #08080d 0% 50%) 50% / 26px 26px" }}>
+      {/* CENTER — solid neutral workspace (not a transparent checkerboard); the
+          page floats on it as a shadowed artboard, like a typical canvas app. */}
+      <main ref={mainRef} style={{ display: "flex", alignItems: "center", justifyContent: "center", overflow: "auto", background: "#E7E7EC" }}>
         <div style={{ position: "relative" }}>
           {pages.map((p, i) => (
-            <div key={p.id} style={{ display: i === activeIdx ? "block" : "none", boxShadow: "0 24px 60px rgba(0,0,0,0.55)", transform: "scale(" + zoom + ")", transformOrigin: "center center", margin: 40 }}>
-              <canvas ref={(el) => bindCanvas(i, el)} width={w} height={h} />
+            // The wrapper is sized to the SCALED footprint (w*zoom × h*zoom) so
+            // the flex centering + overflow measure the on-screen size — a bare
+            // `transform: scale()` leaves the layout box at full 1080×1350 and
+            // clips the page when the viewport is narrower than that.
+            <div
+              key={p.id}
+              style={{
+                display: i === activeIdx ? "block" : "none",
+                width: w * zoom,
+                height: h * zoom,
+                margin: 40,
+                flexShrink: 0,
+                boxShadow: "0 12px 40px rgba(0,0,0,0.28)",
+                borderRadius: 2,
+                overflow: "hidden",
+              }}
+            >
+              <canvas ref={(el) => bindCanvas(i, el)} width={w} height={h} style={{ transform: "scale(" + zoom + ")", transformOrigin: "top left", display: "block" }} />
             </div>
           ))}
         </div>
@@ -653,7 +830,7 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
       {/* RIGHT PANEL */}
       <aside style={{ background: "#0D0D12", borderLeft: "1px solid " + D.border, overflow: "auto" }}>
         {selected ? (
-          <PropertiesPanel obj={selected} onPatch={setOnSelected} />
+          <PropertiesPanel obj={selected} onPatch={setOnSelected} onReplaceImage={replaceSelectedImage} onImageFit={fitSelectedImage} />
         ) : (
           <LayersPanel canvas={activeCanvas()} onChange={() => tick()} />
         )}
@@ -662,21 +839,36 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
       {/* PAGES STRIP */}
       {isMultiPage && (
         <div style={{ gridColumn: "1 / 4", display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderTop: "1px solid " + D.border, background: "#08080D", overflowX: "auto" }}>
-          {pages.map((p, i) => (
-            <button key={p.id} onClick={() => setActiveIdx(i)} style={{
-              padding: 0, background: "transparent", border: "2px solid " + (activeIdx === i ? D.amber : D.border),
-              borderRadius: 6, cursor: "pointer", position: "relative", flexShrink: 0,
-            }}>
-              {p.thumb ? <img src={p.thumb} alt="" style={{ display: "block", width: 80, height: 80, objectFit: "contain", background: "#fff", borderRadius: 4 }} /> : <div style={{ width: 80, height: 80, background: "#fff", borderRadius: 4 }} />}
-              <span style={{ position: "absolute", top: 4, left: 6, fontFamily: mn, fontSize: 9, color: "#000", background: "rgba(255,255,255,0.9)", padding: "0 4px", borderRadius: 3 }}>{i + 1}</span>
-              {pages.length > 1 && <span onClick={(e) => { e.stopPropagation(); removePage(i); }} style={{ position: "absolute", top: 2, right: 2, fontFamily: mn, fontSize: 12, color: D.coral, cursor: "pointer", background: "rgba(13,13,18,0.9)", borderRadius: 4, padding: "0 4px" }}>×</span>}
-            </button>
-          ))}
-          <button onClick={addPage} style={{
+          {pages.map((p, i) => {
+            const ctl: React.CSSProperties = { fontFamily: mn, fontSize: 11, lineHeight: 1, color: "#000", background: "rgba(255,255,255,0.92)", borderRadius: 3, padding: "1px 4px", cursor: "pointer", userSelect: "none" };
+            return (
+              <div key={p.id} style={{ position: "relative", flexShrink: 0 }}>
+                <button onClick={() => setActiveIdx(i)} style={{
+                  padding: 0, background: "transparent", border: "2px solid " + (activeIdx === i ? D.amber : D.border),
+                  borderRadius: 6, cursor: "pointer", position: "relative", display: "block",
+                }}>
+                  {p.thumb ? <img src={p.thumb} alt="" style={{ display: "block", width: 80, height: 80, objectFit: "contain", background: "#fff", borderRadius: 4 }} /> : <div style={{ width: 80, height: 80, background: "#fff", borderRadius: 4 }} />}
+                  <span style={{ position: "absolute", top: 4, left: 6, fontFamily: mn, fontSize: 9, color: "#000", background: "rgba(255,255,255,0.9)", padding: "0 4px", borderRadius: 3 }}>{i + 1}</span>
+                </button>
+                <div style={{ position: "absolute", bottom: 3, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 3 }}>
+                  <span title="Move left" onClick={(e) => { e.stopPropagation(); if (i > 0) reorderPages(i, i - 1); }} style={Object.assign({}, ctl, { opacity: i === 0 ? 0.35 : 1 })}>◀</span>
+                  <span title="Duplicate page" onClick={(e) => { e.stopPropagation(); duplicatePage(i); }} style={ctl}>⧉</span>
+                  <span title="Move right" onClick={(e) => { e.stopPropagation(); if (i < pages.length - 1) reorderPages(i, i + 1); }} style={Object.assign({}, ctl, { opacity: i === pages.length - 1 ? 0.35 : 1 })}>▶</span>
+                </div>
+                {pages.length > 1 && <span onClick={(e) => { e.stopPropagation(); removePage(i); }} style={{ position: "absolute", top: 2, right: 2, fontFamily: mn, fontSize: 12, color: D.coral, cursor: "pointer", background: "rgba(13,13,18,0.9)", borderRadius: 4, padding: "0 4px" }}>×</span>}
+              </div>
+            );
+          })}
+          <button onClick={() => addPage()} style={{
             padding: 10, background: D.amber + "1F", border: "1px solid " + D.amber + "55", borderRadius: 6,
             color: D.amber, cursor: "pointer", fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase",
             display: "inline-flex", alignItems: "center", gap: 5,
           }}><Plus size={12} /> Add page</button>
+          <button onClick={() => duplicatePage()} title="Duplicate current page" style={{
+            padding: 10, background: "transparent", border: "1px solid " + D.border, borderRadius: 6,
+            color: D.txm, cursor: "pointer", fontFamily: mn, fontSize: 10, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase",
+            display: "inline-flex", alignItems: "center", gap: 5,
+          }}><CopyIcon size={12} /> Dupe</button>
         </div>
       )}
     </div>
@@ -857,10 +1049,22 @@ function BrandTab({ onLogo, onColor }: { onLogo: (src: string) => void; onColor:
 }
 
 // ─── Right-panel: properties / layers ──────────────────────────────
-function PropertiesPanel({ obj, onPatch }: { obj: fabric.Object; onPatch: (p: Record<string, unknown>) => void }) {
-  // narrow to text-like
+function PropertiesPanel({ obj, onPatch, onReplaceImage, onImageFit }: {
+  obj: fabric.Object;
+  onPatch: (p: Record<string, unknown>) => void;
+  onReplaceImage?: (file: File) => void;
+  onImageFit?: (mode: "contain" | "cover") => void;
+}) {
   const isText = obj.type === "textbox" || obj.type === "i-text" || obj.type === "text";
+  const isImage = obj.type === "image";
+  const isRect = obj.type === "rect";
   const t = obj as fabric.Textbox;
+  const mini = (active: boolean): React.CSSProperties => ({
+    width: 32, height: 28, borderRadius: 5, cursor: "pointer",
+    background: active ? D.amber + "22" : "transparent",
+    border: "1px solid " + (active ? D.amber + "88" : D.border),
+    color: active ? D.amber : D.txm, fontFamily: mn, fontSize: 13, fontWeight: 800,
+  });
   return (
     <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
       <PanelHeader>Selection · {obj.type}</PanelHeader>
@@ -882,6 +1086,29 @@ function PropertiesPanel({ obj, onPatch }: { obj: fabric.Object; onPatch: (p: Re
       <Field label="Opacity">
         <input type="range" min={0} max={1} step={0.05} value={obj.opacity ?? 1} onChange={e => onPatch({ opacity: Number(e.target.value) })} style={{ width: "100%" }} />
       </Field>
+
+      {!isText && (
+        <Field label="Size (W × H)">
+          <div style={{ display: "flex", gap: 6 }}>
+            <input type="number" value={Math.round(obj.getScaledWidth())} onChange={e => { const v = Number(e.target.value); if (v > 0 && obj.width) onPatch({ scaleX: v / obj.width }); }} style={inputStyle()} />
+            <input type="number" value={Math.round(obj.getScaledHeight())} onChange={e => { const v = Number(e.target.value); if (v > 0 && obj.height) onPatch({ scaleY: v / obj.height }); }} style={inputStyle()} />
+          </div>
+        </Field>
+      )}
+
+      <Field label="Rotate / Flip">
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input type="number" value={Math.round(obj.angle || 0)} onChange={e => onPatch({ angle: Number(e.target.value) })} style={Object.assign({}, inputStyle(), { width: 74 })} />
+          <button onClick={() => onPatch({ flipX: !obj.flipX })} title="Flip horizontal" style={mini(!!obj.flipX)}>⇋</button>
+          <button onClick={() => onPatch({ flipY: !obj.flipY })} title="Flip vertical" style={mini(!!obj.flipY)}>⇅</button>
+        </div>
+      </Field>
+
+      {isRect && (
+        <Field label="Corner radius">
+          <input type="number" min={0} value={Math.round((obj as fabric.Rect).rx || 0)} onChange={e => { const v = Number(e.target.value); onPatch({ rx: v, ry: v }); }} style={inputStyle()} />
+        </Field>
+      )}
 
       {isText && (
         <>
@@ -908,6 +1135,36 @@ function PropertiesPanel({ obj, onPatch }: { obj: fabric.Object; onPatch: (p: Re
             <select value={t.textAlign} onChange={e => onPatch({ textAlign: e.target.value })} style={inputStyle()}>
               <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option><option value="justify">Justify</option>
             </select>
+          </Field>
+          <Field label="Line height">
+            <input type="number" step={0.05} min={0.5} max={3} value={t.lineHeight ?? 1.16} onChange={e => onPatch({ lineHeight: Number(e.target.value) })} style={inputStyle()} />
+          </Field>
+          <Field label="Letter spacing">
+            <input type="number" step={10} value={t.charSpacing || 0} onChange={e => onPatch({ charSpacing: Number(e.target.value) })} style={inputStyle()} />
+          </Field>
+          <Field label="Style">
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={() => onPatch({ fontWeight: Number(t.fontWeight) >= 700 ? 400 : 700 })} title="Bold" style={Object.assign({}, mini(Number(t.fontWeight) >= 700), { fontWeight: 900 })}>B</button>
+              <button onClick={() => onPatch({ fontStyle: t.fontStyle === "italic" ? "normal" : "italic" })} title="Italic" style={Object.assign({}, mini(t.fontStyle === "italic"), { fontStyle: "italic" as const })}>I</button>
+              <button onClick={() => onPatch({ underline: !t.underline })} title="Underline" style={Object.assign({}, mini(!!t.underline), { textDecoration: "underline" })}>U</button>
+            </div>
+          </Field>
+        </>
+      )}
+
+      {isImage && (
+        <>
+          <Field label="Image">
+            <label style={{ display: "block", padding: "8px 10px", textAlign: "center", background: "rgba(255,255,255,0.03)", border: "1px solid " + D.border, borderRadius: 6, color: D.txm, cursor: "pointer", fontFamily: mn, fontSize: 10, letterSpacing: 0.6 }}>
+              Replace image
+              <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) onReplaceImage?.(f); }} />
+            </label>
+          </Field>
+          <Field label="Fit to page">
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={() => onImageFit?.("contain")} style={Object.assign({}, mini(false), { width: "auto", flex: 1, padding: "0 8px" })}>Fit</button>
+              <button onClick={() => onImageFit?.("cover")} style={Object.assign({}, mini(false), { width: "auto", flex: 1, padding: "0 8px" })}>Fill</button>
+            </div>
           </Field>
         </>
       )}
@@ -966,7 +1223,7 @@ function LayerRow({ id, obj, canvas, onChange }: { id: number; obj: fabric.Objec
     opacity: isDragging ? 0.6 : 1, cursor: "default",
   };
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} data-layer-row style={style}>
       <button {...attributes} {...listeners} title="Drag" style={{ background: "transparent", border: "none", color: D.txd, cursor: "grab", display: "inline-flex", padding: 0 }}>
         <GripVertical size={11} strokeWidth={1.6} />
       </button>

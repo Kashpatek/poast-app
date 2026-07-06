@@ -12,10 +12,13 @@
         x="76" y="270" font-family="'JetBrains Mono',monospace" font-size="26" font-weight="700"
         letter-spacing="4" fill="#F7B041">INFRASTRUCTURE</text>
 
-  <!-- the pull quote (annotated as the headline slot) -->
-  <text data-field="quote" data-role="headline" data-maxlen="120" data-minfont="60" data-maxfont="120"
-        x="76" y="470" font-family="'Grift','Outfit',sans-serif" font-size="96" font-weight="800" fill="#EDEDED">The compute
-    <tspan x="76" dy="110">is the moat.</tspan></text>
+  <!-- the pull quote (headline slot) — one <text> per visual line so Fabric's
+       loadSVGFromString keeps two lines instead of collapsing a <tspan> into a
+       single overflowing row (matches the pilots' split-line authoring) -->
+  <text data-field="quote" data-role="headline" data-maxlen="24" data-minfont="60" data-maxfont="120"
+        x="76" y="470" font-family="'Grift','Outfit',sans-serif" font-size="96" font-weight="800" fill="#EDEDED">The compute</text>
+  <text data-field="quote-2" data-role="headline" data-maxlen="24" data-minfont="60" data-maxfont="120"
+        x="76" y="580" font-family="'Grift','Outfit',sans-serif" font-size="96" font-weight="800" fill="#EDEDED">is the moat.</text>
 
   <!-- attribution (annotated) -->
   <text data-field="attribution" data-role="attribution" data-maxlen="40"

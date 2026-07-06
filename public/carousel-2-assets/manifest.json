@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "files": [
     { "path": "backgrounds/01-circuit-traces.html", "kind": "background", "id": "bg-01-circuit-traces" },
     { "path": "backgrounds/04-tensor-heatmap.html", "kind": "background", "id": "bg-04-tensor-heatmap" },
@@ -13,6 +13,9 @@
     { "path": "modules/stat-callout.html", "kind": "module", "id": "mod-stat-callout" },
     { "path": "modules/bar-mini.html", "kind": "module", "id": "mod-bar-mini" },
     { "path": "templates/quote-hero.html", "kind": "template", "id": "tpl-quote-hero" },
-    { "path": "templates/data-blocks.html", "kind": "template", "id": "tpl-data-blocks" }
+    { "path": "templates/data-blocks.html", "kind": "template", "id": "tpl-data-blocks" },
+    { "path": "templates/tier-list.html", "kind": "template", "id": "tpl-tier-list" },
+    { "path": "templates/race-bars.html", "kind": "template", "id": "tpl-race-bars" },
+    { "path": "templates/versus-scoreboard.html", "kind": "template", "id": "tpl-versus-scoreboard" }
   ]
 }

@@ -11,6 +11,7 @@ import { AssetGrid } from "./library/asset-grid";
 import { FieldInspector } from "./library/field-inspector";
 import { Composer } from "./library/composer";
 import { AssetValidator } from "./library/asset-validator";
+import { DeckEditor } from "./deck/deck-editor";
 import type { CatalogProduct, CatalogTemplate, ProductKind } from "./catalog/types";
 
 type KindFilter = "all" | ProductKind;
@@ -29,7 +30,7 @@ export default function CarouselStudio() {
   const [coverOnly, setCoverOnly] = useState(false);
   const [selected, setSelected] = useState<CatalogProduct | null>(null);
   const [composing, setComposing] = useState(false);
-  const [view, setView] = useState<"library" | "validate">("library");
+  const [view, setView] = useState<"library" | "validate" | "deck">("library");
 
   const select = (p: CatalogProduct | null) => {
     setSelected(p);
@@ -47,6 +48,20 @@ export default function CarouselStudio() {
 
   const count = (k: KindFilter) => (k === "all" ? products.length : byKind[k].length);
 
+  if (view === "deck") {
+    return (
+      <div>
+        {loading ? (
+          <div style={{ padding: 48, textAlign: "center", fontFamily: ft, fontSize: 13, color: C.txm, background: C.card, border: "1px solid " + C.border, borderRadius: 12 }}>
+            Loading catalog…
+          </div>
+        ) : (
+          <DeckEditor products={products} onClose={() => setView("library")} />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* Header */}
@@ -61,6 +76,14 @@ export default function CarouselStudio() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button
+            data-testid="carousel2-make"
+            onClick={() => setView("deck")}
+            title="Assemble a multi-slide carousel from catalog assets and export the deck"
+            style={{ padding: "9px 16px", background: C.amber, border: "1px solid " + C.amber, borderRadius: 8, color: "#0A0B10", fontFamily: ft, fontSize: 13, fontWeight: 800, cursor: "pointer" }}
+          >
+            ＋ Make carousel
+          </button>
           <div style={{ display: "flex", gap: 4, background: C.card, border: "1px solid " + C.border, borderRadius: 8, padding: 3 }}>
             {(["library", "validate"] as const).map((v) => {
               const active = view === v;
