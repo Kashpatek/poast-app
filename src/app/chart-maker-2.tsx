@@ -6147,6 +6147,21 @@ function PropertiesPanel({
   );
 }
 
+// Portal any floating overlay (drawer, wheel, modal) straight to document.body.
+// WHY: the main chart tree lives inside a `position:relative; z-index:1`
+// wrapper (a stacking context). Launch mode renders ExpandedShell through its
+// OWN portal to document.body at z-index 11000. Overlays rendered *inside* the
+// z-index:1 wrapper — however high their own z-index — are trapped below that
+// launched portal, so the DESIGN drawer, type wheel, etc. paint (and hit-test)
+// BEHIND the Launch shell and appear "dead". Portaling them to body puts them
+// in the root stacking context where their z-index (12000+) beats the shell.
+// Theme-safe: `data-cm2-theme` is set on document.body itself, and all styling
+// uses inline JS tokens (no CSS vars), so nothing depends on the wrapper.
+function Portal({ children }: { children: React.ReactNode }) {
+  if (typeof document === "undefined") return null;
+  return createPortal(children, document.body);
+}
+
 // POAST Studio integration props. `initialState` seeds ChartMaker2 from a
 // saved document on mount; `onChange` fires a serialized snapshot of the
 // chart's persistable state whenever it changes (debounced upstream by the
@@ -8029,9 +8044,9 @@ export default function ChartMaker2({
       </div>
 
       {menu && <ChartContextMenu menu={menu} onClose={() => setMenu(null)} />}
-      {wheelOpen && <ChartTypeWheel active={type} onSelect={setType} onClose={() => setWheelOpen(false)} />}
+      {wheelOpen && <Portal><ChartTypeWheel active={type} onSelect={setType} onClose={() => setWheelOpen(false)} /></Portal>}
       {commandPaletteOpen && (
-        <CommandPalette
+        <Portal><CommandPalette
           onClose={() => setCommandPaletteOpen(false)}
           commands={[
             { id: "design", label: "Toggle Design Panel", category: "View", shortcut: "⌘D", run: () => setDesignOpen(v => !v) },
@@ -8057,9 +8072,9 @@ export default function ChartMaker2({
               id: "type-" + t, label: "Chart Type · " + t, category: "Chart" as const, run: () => setType(t),
             }))),
           ]}
-        />
+        /></Portal>
       )}
-      {appearancePanelOpen && <AppearancePanel onClose={() => setAppearancePanelOpen(false)} />}
+      {appearancePanelOpen && <Portal><AppearancePanel onClose={() => setAppearancePanelOpen(false)} /></Portal>}
       {welcomeOpen && (
         <WelcomeScreen
           onClose={(dontShowAgain) => {
@@ -8376,11 +8391,11 @@ export default function ChartMaker2({
           const allow = new Set(cfgForKind);
           icons = icons.filter(i => !i.toolId || allow.has(i.toolId));
         }
-        return <RadialContextWheel x={wheelAnchor.x} y={wheelAnchor.y} icons={icons} label={label} onClose={close} />;
+        return <Portal><RadialContextWheel x={wheelAnchor.x} y={wheelAnchor.y} icons={icons} label={label} onClose={close} /></Portal>;
       })()}
-      {shortcutsOpen && <ShortcutsOverlay onClose={() => setShortcutsOpen(false)} />}
+      {shortcutsOpen && <Portal><ShortcutsOverlay onClose={() => setShortcutsOpen(false)} /></Portal>}
       {designOpen && (
-        <DesignDrawer
+        <Portal><DesignDrawer
           onClose={() => setDesignOpen(false)}
           theme={theme} onChangeTheme={setTheme}
           backdrop={backdrop} backdropMode={backdropMode}
@@ -8403,7 +8418,7 @@ export default function ChartMaker2({
           printMode={printMode} onTogglePrintMode={() => setPrintMode(v => !v)}
           showSecondaryAxis={showSecondaryAxis} onToggleSecondaryAxis={() => setShowSecondaryAxis(v => !v)}
           showErrorBars={showErrorBars} onToggleErrorBars={() => setShowErrorBars(v => !v)}
-        />
+        /></Portal>
       )}
       {/* Floating help button · always-on glass pill, opens shortcuts overlay */}
       <Tooltip label="Keyboard shortcuts" shortcut="?" position="left">
@@ -8439,39 +8454,39 @@ export default function ChartMaker2({
 
       {/* Wave 12 · radial-wheel customizer modal */}
       {wheelSettingsOpen && (
-        <WheelSettingsModal
+        <Portal><WheelSettingsModal
           config={wheelConfig}
           onChange={setWheelConfig}
           onClose={() => setWheelSettingsOpen(false)}
-        />
+        /></Portal>
       )}
 
       {/* Phase 5A.2 · error-bar CSV entry drawer */}
       {errorEntryOpen && (
-        <ErrorBarEntryDrawer
+        <Portal><ErrorBarEntryDrawer
           initialMap={errorMap}
           onSave={(next) => { setErrorMap(next); setErrorEntryOpen(false); }}
           onClose={() => setErrorEntryOpen(false)}
-        />
+        /></Portal>
       )}
 
       {/* Wave 17 · named-range manager modal (⌘⇧N) */}
       {nameManagerOpen && (
-        <NameManagerModal
+        <Portal><NameManagerModal
           names={namedRanges}
           appTheme={appTheme}
           onChange={(next) => setNamedRangesByType(p => ({ ...p, [type]: next }))}
           onClose={() => setNameManagerOpen(false)}
-        />
+        /></Portal>
       )}
 
       {/* Wave 15.1 · float-toolbar editor — pick + reorder which tools appear */}
       {floatToolbarEditorOpen && (
-        <FloatToolbarEditor
+        <Portal><FloatToolbarEditor
           tools={floatToolbarTools}
           onChange={setFloatToolbarTools}
           onClose={() => setFloatToolbarEditorOpen(false)}
-        />
+        /></Portal>
       )}
 
       {/* Wave 12 · Expanded webapp mode — full-viewport overlay with
