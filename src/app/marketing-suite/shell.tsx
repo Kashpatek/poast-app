@@ -32,6 +32,7 @@ import NotifBell from "./components/notifications";
 import { CreateProvider } from "./create-context";
 import AssistantBar from "./components/assistant-bar";
 import CalendarStatusPill from "./components/calendar-status-pill";
+import SyncSummaryModal, { type SyncSummary } from "./components/sync-summary-modal";
 
 // Chrome dimensions. The top bar and left rail both auto-hide and reveal on
 // hover — a thin "peek" stays visible at each edge as the affordance (the same
@@ -45,6 +46,8 @@ export default function MarketingSuiteShell() {
   const [active, setActive] = useState<ViewId>("today");
   const [panelOpen, setPanelOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null);
   const [focusId, setFocusId] = useState<string | undefined>(undefined);
   // Auto-hide chrome: rail slides out from the left, top bar drops from the top.
   const [railOpen, setRailOpen] = useState(false);
@@ -84,6 +87,23 @@ export default function MarketingSuiteShell() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [g.loading, g.status.connected, g.showStatusEvents]);
+  // Sync-now: pull every selected Google calendar, refresh all views so changes
+  // reflect immediately, and pop the change summary (new / updated / invites).
+  const EMPTY_SUMMARY: SyncSummary = { calendars: 0, changes: { added: [], updated: [], invites: [], removed: 0 } };
+  async function doSyncNow() {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const r = await g.syncSelected();
+      setSyncSummary(r && !r.error ? (r as SyncSummary) : EMPTY_SUMMARY);
+      m.refresh();
+    } catch {
+      setSyncSummary(EMPTY_SUMMARY);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   const vp: ViewProps = {
     m,
     focusId,
@@ -183,7 +203,7 @@ export default function MarketingSuiteShell() {
           </span>
         )}
         {/* Google Calendar status + connect prompt — visible from every view (desktop) */}
-        {!isMobile && <CalendarStatusPill onManage={() => setActive("schedule")} />}
+        {!isMobile && <CalendarStatusPill onManage={() => setActive("schedule")} onSyncNow={doSyncNow} syncing={syncing} />}
         <NotifBell m={m} />
         <button onClick={() => setSettingsOpen(true)} title="Settings & theme" data-tour="settings" style={iconBtn}>
           <SettingsIcon size={17} />
@@ -293,6 +313,7 @@ export default function MarketingSuiteShell() {
       </nav>
 
       <AppearanceSettings open={settingsOpen} onClose={() => setSettingsOpen(false)} m={m} />
+      <SyncSummaryModal open={!!syncSummary} summary={syncSummary} onClose={() => { setSyncSummary(null); m.refresh(); }} onRsvp={g.rsvp} />
       <MarketingTour steps={MARKETING_TOUR_STEPS} storageKey="marketing.v1" owner={m.owner || "shared"} />
       <style>{`
         @keyframes msViewIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }

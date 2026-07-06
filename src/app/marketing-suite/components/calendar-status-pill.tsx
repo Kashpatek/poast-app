@@ -4,11 +4,14 @@
 // Calendar" prompt that kicks off OAuth directly. Connected → a teal status
 // chip that opens the Agenda (where calendars are listed + synced).
 import React from "react";
-import { CalendarCheck, CalendarPlus, Loader2 } from "lucide-react";
+import { CalendarPlus, Loader2, RefreshCw } from "lucide-react";
 import { D, mn } from "../../shared-constants";
 import { useGoogle } from "../use-google";
 
-export default function CalendarStatusPill({ onManage }: { onManage: () => void }) {
+// Connected → a "Sync now" button (top bar, every view): pulls every selected
+// calendar and pops the change summary. `onManage` is kept in the props for
+// callers that still route to the Agenda, but the primary action is sync.
+export default function CalendarStatusPill({ onSyncNow, syncing }: { onManage?: () => void; onSyncNow?: () => void; syncing?: boolean }) {
   const { status, loading, connect } = useGoogle();
 
   const base: React.CSSProperties = {
@@ -43,12 +46,15 @@ export default function CalendarStatusPill({ onManage }: { onManage: () => void 
 
   return (
     <button
-      onClick={onManage}
-      title={`Google Calendar connected${status.email ? " · " + status.email : ""} — manage in Agenda`}
-      style={{ ...base, cursor: "pointer", border: `1px solid ${D.teal}55`, background: D.teal + "14", color: D.teal }}
+      onClick={onSyncNow}
+      disabled={syncing}
+      title={`Sync Google Calendar now${status.email ? " · " + status.email : ""}`}
+      style={{ ...base, cursor: syncing ? "default" : "pointer", border: `1px solid ${D.teal}55`, background: D.teal + "14", color: D.teal, opacity: syncing ? 0.7 : 1 }}
     >
-      <CalendarCheck size={13} /> Sync
-      <span style={{ width: 5, height: 5, borderRadius: 999, background: D.teal, boxShadow: `0 0 6px ${D.teal}` }} />
+      {syncing ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> : <RefreshCw size={13} />}
+      {syncing ? "Syncing…" : "Sync now"}
+      {!syncing && <span style={{ width: 5, height: 5, borderRadius: 999, background: D.teal, boxShadow: `0 0 6px ${D.teal}` }} />}
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </button>
   );
 }

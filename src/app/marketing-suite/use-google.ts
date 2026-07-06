@@ -133,6 +133,16 @@ export function useGoogle() {
     return res.json();
   }, [owner]);
 
+  // RSVP to an invite (accept / maybe / decline). Writes the reply back to
+  // Google and mirrors it onto our row; returns { ok, response }.
+  const rsvp = useCallback(async (calendarId: string, eventId: string, response: "accepted" | "declined" | "tentative") => {
+    const res = await fetch("/api/google/sync", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ owner, rsvp: { calendarId, eventId, response } }),
+    });
+    return res.json();
+  }, [owner]);
+
   // Show / hide Google personal status events (working location / OOO / focus).
   // Optimistically flips the pref so the toggle responds instantly; the server
   // persists it and applies live (on → pull+tag, off → purge every mirror row).
@@ -153,5 +163,5 @@ export function useGoogle() {
   const isSelected = useCallback((calId: string) => isCalSelected(status.prefs, calId), [status.prefs]);
   const showStatusEvents = status.prefs?.showStatusEvents === true;
 
-  return { status, loading, owner, reload, connect, disconnect, syncCalendar, setCalendarSelected, syncSelected, setShowStatusEvents, showStatusEvents, isSelected };
+  return { status, loading, owner, reload, connect, disconnect, syncCalendar, setCalendarSelected, syncSelected, rsvp, setShowStatusEvents, showStatusEvents, isSelected };
 }

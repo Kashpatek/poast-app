@@ -156,8 +156,16 @@ export async function insertEvent(token: string, calendarId: string, resource: a
   return gapi(token, `/calendars/${encodeURIComponent(calendarId)}/events`, { method: "POST", body: JSON.stringify(resource) });
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function patchEvent(token: string, calendarId: string, eventId: string, resource: any): Promise<any> {
-  return gapi(token, `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, { method: "PATCH", body: JSON.stringify(resource) });
+export async function patchEvent(token: string, calendarId: string, eventId: string, resource: any, opts?: { sendUpdates?: "all" | "externalOnly" | "none" }): Promise<any> {
+  const q = opts?.sendUpdates ? `?sendUpdates=${encodeURIComponent(opts.sendUpdates)}` : "";
+  return gapi(token, `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}${q}`, { method: "PATCH", body: JSON.stringify(resource) });
+}
+// Fetch one event — used to RSVP: read the current attendee list, flip the
+// signed-in user's responseStatus, then patch it back with the full list so the
+// other attendees aren't dropped.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function getEvent(token: string, calendarId: string, eventId: string): Promise<any> {
+  return gapi(token, `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`);
 }
 // Move an event to a different calendar (Google requires this rather than a
 // plain patch when the calendar changes).

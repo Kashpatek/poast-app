@@ -14,7 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { neon } from "@neondatabase/serverless";
 import {
   isConfigured, getValidAccessToken, getTokenRow, saveCalendarPrefs,
-  listCalendars, listEvents, insertEvent, patchEvent,
+  listCalendars, listEvents, insertEvent, patchEvent, getEvent,
 } from "@/lib/google-cal";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +33,15 @@ const STATUS_EVENT_TYPES = new Set(["workingLocation", "outOfOffice", "focusTime
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
-interface SyncCounts { pushed: number; updated: number; pulled: number; errors: string[]; }
+// A single change surfaced to the Sync-now summary popup.
+interface SyncChange { gcalId: string; calendarId: string; title: string; start: string | null; organizer?: string | null; myResponse?: string | null; }
+interface SyncCounts {
+  pushed: number; updated: number; pulled: number; errors: string[];
+  added: SyncChange[];       // events newly pulled into the spine this run
+  updatedList: SyncChange[]; // pulled events whose title/time actually changed
+  invites: SyncChange[];     // events where the user's RSVP is still needsAction
+}
+function emptyCounts(): SyncCounts { return { pushed: 0, updated: 0, pulled: 0, errors: [], added: [], updatedList: [], invites: [] }; }
 
 // A calendar is selected (feeds the suite) unless explicitly turned off.
 function selectedMap(prefs: Record<string, unknown> | null | undefined): Record<string, boolean> {
@@ -50,7 +58,7 @@ function showStatusPref(prefs: Record<string, unknown> | null | undefined): bool
 // Push our events targeting `calendarId` up to Google, then pull that calendar's
 // events (now → +60d) back into the spine. Idempotent via gcal_event_id.
 async function syncOne(db: Db, token: string, owner: string, calendarId: string, showStatus = false): Promise<SyncCounts> {
-  const c: SyncCounts = { pushed: 0, updated: 0, pulled: 0, errors: [] };
+  const c: SyncCounts = emptyCounts();
 
   // ── PUSH: our events targeting this calendar → Google ──
   try {
@@ -102,31 +110,44 @@ async function syncOne(db: Db, token: string, owner: string, calendarId: string,
       }
       const startISO = iso(g.start?.dateTime || g.start?.date); if (!startISO) continue;
       const endISO = iso(g.end?.dateTime || g.end?.date);
-      const existing = (await db.query("select id from marketing_events where owner=$1 and gcal_event_id=$2 limit 1", [owner, g.id])) as Row[];
+      const existing = (await db.query("select id, title, starts_at, ends_at from marketing_events where owner=$1 and gcal_event_id=$2 limit 1", [owner, g.id])) as Row[];
       const allDay = !!(g.start?.date && !g.start?.dateTime);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const attendees = (g.attendees || []).map((a: any) => a.email).filter(Boolean);
+      // The signed-in user's own RSVP on this event — Google marks their attendee
+      // row with self:true. "needsAction" ⇒ an invite still awaiting a reply.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const meAtt = (g.attendees || []).find((a: any) => a.self);
+      const myResponse: string | null = meAtt?.responseStatus || null;
+      const needsRsvp = myResponse === "needsAction";
+      const organizer: string | null = g.organizer?.displayName || g.organizer?.email || null;
       const meetLink = g.hangoutLink || g.conferenceData?.entryPoints?.find((e: { entryPointType?: string; uri?: string }) => e.entryPointType === "video")?.uri || null;
       const payload = JSON.stringify({
         calendarId, scheduleKind: isStatus ? "status" : "booking", gcalHtmlLink: g.htmlLink || null,
         allDay, location: g.location || null, attendees, meetLink,
-        eventType: g.eventType || "default",
+        eventType: g.eventType || "default", myResponse, organizer,
       });
       const notes = g.description || null;
+      const title = g.summary || "(untitled)";
+      const chg: SyncChange = { gcalId: g.id, calendarId, title, start: startISO, organizer, myResponse };
       if (existing.length) {
+        const prev = existing[0];
+        const changed = (prev.title || "") !== title || iso(prev.starts_at) !== startISO || iso(prev.ends_at) !== (endISO || null);
         await db.query(
           "update marketing_events set title=$1, starts_at=$2, ends_at=$3, notes=$4, payload=$5::jsonb, updated_at=now() where owner=$6 and gcal_event_id=$7",
-          [g.summary || "(untitled)", startISO, endISO, notes, payload, owner, g.id]
+          [title, startISO, endISO, notes, payload, owner, g.id]
         );
+        if (changed) c.updatedList.push(chg);
       } else {
         await db.query(
           `insert into marketing_events (id, owner, title, event_type, status, starts_at, ends_at, source, gcal_event_id, notes, payload, updated_at)
            values ($1,$2,$3,'manual','scheduled',$4,$5,'gcal',$6,$7,$8::jsonb, now())
            on conflict (id) do nothing`,
-          ["g-" + g.id, owner, g.summary || "(untitled)", startISO, endISO, g.id, notes, payload]
+          ["g-" + g.id, owner, title, startISO, endISO, g.id, notes, payload]
         );
-        c.pulled++;
+        c.pulled++; c.added.push(chg);
       }
+      if (needsRsvp) c.invites.push(chg);
     }
   } catch (err) { c.errors.push("pull: " + String(err).slice(0, 160)); }
 
@@ -196,6 +217,7 @@ export async function POST(req: NextRequest) {
     owner?: string; calendarId?: string; prefs?: Record<string, unknown>;
     setCalendar?: { id: string; on: boolean }; syncSelected?: boolean;
     setShowStatus?: boolean;
+    rsvp?: { calendarId: string; eventId: string; response: "accepted" | "declined" | "tentative" };
   };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   const owner = body.owner || "shared";
@@ -205,6 +227,28 @@ export async function POST(req: NextRequest) {
   if (body.prefs && !body.calendarId && !body.setCalendar && !body.syncSelected) {
     await saveCalendarPrefs(owner, body.prefs);
     return NextResponse.json({ ok: true });
+  }
+
+  // Mode: RSVP to an invite — flip the signed-in user's responseStatus on the
+  // Google event (accept/decline/maybe), then mirror it onto our row so the UI
+  // updates without a full re-pull.
+  if (body.rsvp && body.rsvp.eventId && body.rsvp.calendarId) {
+    const token = await getValidAccessToken(owner);
+    if (!token) return NextResponse.json({ error: "Not connected" }, { status: 401 });
+    const { calendarId, eventId, response } = body.rsvp;
+    try {
+      const ev = await getEvent(token, calendarId, eventId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const attendees = (ev.attendees || []).map((a: any) => (a.self ? { ...a, responseStatus: response } : a));
+      await patchEvent(token, calendarId, eventId, { attendees }, { sendUpdates: "all" });
+      await db.query(
+        "update marketing_events set payload = jsonb_set(coalesce(payload,'{}'::jsonb), '{myResponse}', to_jsonb($1::text)), updated_at=now() where owner=$2 and gcal_event_id=$3",
+        [response, owner, eventId]
+      );
+      return NextResponse.json({ ok: true, response });
+    } catch (e) {
+      return NextResponse.json({ ok: false, error: String(e).slice(0, 160) }, { status: 502 });
+    }
   }
 
   // Mode: show/hide personal status events (working location / OOO / focus),
@@ -253,16 +297,21 @@ export async function POST(req: NextRequest) {
     const onIds = cals.filter((c) => isOn(sel, c.id)).map((c) => c.id);
     const offIds = cals.filter((c) => !isOn(sel, c.id)).map((c) => c.id);
     const showStatus = showStatusPref(row?.calendar_prefs);
-    const total: SyncCounts = { pushed: 0, updated: 0, pulled: 0, errors: [] };
+    const total: SyncCounts = emptyCounts();
     for (const calId of onIds) {
       const c = await syncOne(db, token, owner, calId, showStatus);
       total.pushed += c.pushed; total.updated += c.updated; total.pulled += c.pulled;
       total.errors.push(...c.errors);
+      total.added.push(...c.added); total.updatedList.push(...c.updatedList); total.invites.push(...c.invites);
     }
     const purged = await purgeCalendars(db, owner, offIds);
     // When status events are off, make sure none linger (out-of-window / legacy).
     if (!showStatus) { try { await purgeStatusEverywhere(db, token, owner); } catch { /* best-effort */ } }
-    return NextResponse.json({ ok: total.errors.length === 0, calendars: onIds.length, purged, ...total });
+    return NextResponse.json({
+      ok: total.errors.length === 0, calendars: onIds.length, purged,
+      pushed: total.pushed, updated: total.updated, pulled: total.pulled, errors: total.errors,
+      changes: { added: total.added, updated: total.updatedList, invites: total.invites, removed: purged },
+    });
   }
 
   // Mode: manual single-calendar sync.
