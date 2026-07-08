@@ -6162,6 +6162,38 @@ function Portal({ children }: { children: React.ReactNode }) {
   return createPortal(children, document.body);
 }
 
+// Design-drawer state that rides in ChartDocPayload.design so a saved doc
+// reopens with the user's visual choices intact. Before this existed the
+// payload silently dropped all of it — reopening a doc reset gridlines,
+// series colors, axis ranges, legend, watermark, error bars, etc.
+// labelFormatOverrides is deliberately NOT here: it persists per-device via
+// localStorage ("cm2-label-format-overrides") and the two would fight.
+interface ChartDesignState {
+  showBorders?: boolean;
+  showGridlines?: boolean;
+  showSegmentLabels?: boolean;
+  legendPos?: NonNullable<ChartConfig["legendPos"]>;
+  yLabel?: string;
+  xLabel?: string;
+  logScale?: boolean;
+  showEndLabels?: boolean;
+  markerShape?: "none" | "circle" | "square" | "diamond";
+  roundedCorners?: boolean;
+  showSecondaryAxis?: boolean;
+  showErrorBars?: boolean;
+  errorMap?: Record<string, Record<number, number>>;
+  pieOtherThreshold?: number;
+  numFmt?: NumberFormat;
+  seriesColorsByType?: Partial<Record<ChartType, Record<string, string>>>;
+  axisByType?: Partial<Record<ChartType, { yMin?: number; yMax?: number; xMin?: number; xMax?: number }>>;
+  flippedByType?: Partial<Record<ChartType, boolean>>;
+  showTotalLabels?: boolean;
+  showTickMarks?: boolean;
+  show100Indicator?: boolean;
+  watermark?: "off" | "centered" | "random";
+  barWidthPct?: number;
+}
+
 // POAST Studio integration props. `initialState` seeds ChartMaker2 from a
 // saved document on mount; `onChange` fires a serialized snapshot of the
 // chart's persistable state whenever it changes (debounced upstream by the
@@ -6179,6 +6211,9 @@ export default function ChartMaker2({
   const seedType = (initialState?.type || initialState?.templateId) as ChartType | undefined;
   const seedSheet = initialState?.sheet as DataSheet | undefined;
   const seedAnnots = (initialState?.annotations as Annotation[] | undefined) || undefined;
+  // Saved Design-drawer state — absent on pre-`design` docs, in which case
+  // every field below falls back to its long-standing default.
+  const sd = (initialState?.design || {}) as ChartDesignState;
   const [type, setType] = useState<ChartType>(seedType || "stacked");
   const [title, setTitle] = useState(initialState?.title || "SemiAnalysis · 2026 Outlook");
   const [subtitle, setSubtitle] = useState(initialState?.subtitle || "Quarterly view");
@@ -6188,24 +6223,24 @@ export default function ChartMaker2({
   const [backdropMode, setBackdropMode] = useState<BackdropMode>(initialState?.backdropMode || "dark");
   // Design panel state — open/closed, plus visual flags
   const [designOpen, setDesignOpen] = useState(false);
-  const [showBorders, setShowBorders] = useState(false);
-  const [showGridlines, setShowGridlines] = useState(true);
-  const [showSegmentLabels, setShowSegmentLabels] = useState(false);
-  const [legendPos, setLegendPos] = useState<NonNullable<ChartConfig["legendPos"]>>("bottom");
-  const [yLabel, setYLabel] = useState("");
-  const [xLabel, setXLabel] = useState("");
+  const [showBorders, setShowBorders] = useState(sd.showBorders ?? false);
+  const [showGridlines, setShowGridlines] = useState(sd.showGridlines ?? true);
+  const [showSegmentLabels, setShowSegmentLabels] = useState(sd.showSegmentLabels ?? false);
+  const [legendPos, setLegendPos] = useState<NonNullable<ChartConfig["legendPos"]>>(sd.legendPos ?? "bottom");
+  const [yLabel, setYLabel] = useState(sd.yLabel ?? "");
+  const [xLabel, setXLabel] = useState(sd.xLabel ?? "");
   const [locked, setLocked] = useState(false);
   // New feature states
-  const [logScale, setLogScale] = useState(false);
-  const [showEndLabels, setShowEndLabels] = useState(false);
-  const [markerShape, setMarkerShape] = useState<"none" | "circle" | "square" | "diamond">("circle");
-  const [roundedCorners, setRoundedCorners] = useState(false);
-  const [showSecondaryAxis, setShowSecondaryAxis] = useState(false);
+  const [logScale, setLogScale] = useState(sd.logScale ?? false);
+  const [showEndLabels, setShowEndLabels] = useState(sd.showEndLabels ?? false);
+  const [markerShape, setMarkerShape] = useState<"none" | "circle" | "square" | "diamond">(sd.markerShape ?? "circle");
+  const [roundedCorners, setRoundedCorners] = useState(sd.roundedCorners ?? false);
+  const [showSecondaryAxis, setShowSecondaryAxis] = useState(sd.showSecondaryAxis ?? false);
   // Phase 5A.2 · error bars (toggle + per-(series,row) magnitudes)
-  const [showErrorBars, setShowErrorBars] = useState(false);
-  const [errorMap, setErrorMap] = useState<Record<string, Record<number, number>>>({});
+  const [showErrorBars, setShowErrorBars] = useState(sd.showErrorBars ?? false);
+  const [errorMap, setErrorMap] = useState<Record<string, Record<number, number>>>(sd.errorMap ?? {});
   const [errorEntryOpen, setErrorEntryOpen] = useState(false);
-  const [pieOtherThreshold, setPieOtherThreshold] = useState(3);
+  const [pieOtherThreshold, setPieOtherThreshold] = useState(sd.pieOtherThreshold ?? 3);
   // Wave 16 · Command palette + appearance modal
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [appearancePanelOpen, setAppearancePanelOpen] = useState(false);
@@ -6222,7 +6257,7 @@ export default function ChartMaker2({
   // Per-series color overrides — clicking a Legend swatch lets you
   // recolor the entire series without changing the theme. Stored
   // per-chart-type so different chart types can have different colors.
-  const [seriesColorsByType, setSeriesColorsByType] = useState<Partial<Record<ChartType, Record<string, string>>>>({});
+  const [seriesColorsByType, setSeriesColorsByType] = useState<Partial<Record<ChartType, Record<string, string>>>>(sd.seriesColorsByType ?? {});
   const seriesColors = seriesColorsByType[type] || {};
   const setSeriesColor = useCallback((key: string, color: string | null) => {
     setSeriesColorsByType(p => {
@@ -6235,17 +6270,17 @@ export default function ChartMaker2({
 
   // Manual axis range overrides for charts that have a numeric Y axis.
   // Empty string = auto. Stored per-chart-type.
-  const [axisByType, setAxisByType] = useState<Partial<Record<ChartType, { yMin?: number; yMax?: number; xMin?: number; xMax?: number }>>>({});
+  const [axisByType, setAxisByType] = useState<Partial<Record<ChartType, { yMin?: number; yMax?: number; xMin?: number; xMax?: number }>>>(sd.axisByType ?? {});
   const axis = axisByType[type] || {};
   const setAxis = useCallback((next: { yMin?: number; yMax?: number; xMin?: number; xMax?: number }) => {
     setAxisByType(p => ({ ...p, [type]: next }));
   }, [type]);
-  const [numFmt, setNumFmt] = useState<NumberFormat>("auto");
+  const [numFmt, setNumFmt] = useState<NumberFormat>(sd.numFmt ?? "auto");
 
   // Per-type orientation flip (Wave 18 · only StackedPosNeg honors it for
   // now). Keyed by ChartType so each chart remembers its own orientation;
   // switching types and back restores the user's flip choice.
-  const [flippedByType, setFlippedByType] = useState<Partial<Record<ChartType, boolean>>>({});
+  const [flippedByType, setFlippedByType] = useState<Partial<Record<ChartType, boolean>>>(sd.flippedByType ?? {});
   const flipped = flippedByType[type] === true;
   const toggleFlipped = useCallback(() => {
     setFlippedByType((p) => ({ ...p, [type]: !p[type] }));
@@ -6312,15 +6347,15 @@ export default function ChartMaker2({
   }, [selKey]);
   const [wheelAnchor, setWheelAnchor] = useState<WheelAnchor | null>(null);
   // Wave 11 · new feature toggles
-  const [showTotalLabels, setShowTotalLabels] = useState(true);
-  const [showTickMarks, setShowTickMarks] = useState(false);
-  const [show100Indicator, setShow100Indicator] = useState(false);
+  const [showTotalLabels, setShowTotalLabels] = useState(sd.showTotalLabels ?? true);
+  const [showTickMarks, setShowTickMarks] = useState(sd.showTickMarks ?? false);
+  const [show100Indicator, setShow100Indicator] = useState(sd.show100Indicator ?? false);
   const [axisBreak, setAxisBreak] = useState(false);
   void axisBreak; void setAxisBreak;
   // Wave 12 · POAST box-logo watermark mode (off / centered / random)
-  const [watermark, setWatermark] = useState<"off" | "centered" | "random">("off");
+  const [watermark, setWatermark] = useState<"off" | "centered" | "random">(sd.watermark ?? "off");
   // Wave 13 · global bar-width slider (percentage of group width).
-  const [barWidthPct, setBarWidthPct] = useState(65);
+  const [barWidthPct, setBarWidthPct] = useState(sd.barWidthPct ?? 65);
   // Wave 13 · row-selection state per chart type. The DataSheet always shows
   // the full sheet for editing; renderers consume a filtered view when set.
   const [selectedRowIdxsByType, setSelectedRowIdxsByType] = useState<Partial<Record<ChartType, number[]>>>({});
@@ -6823,6 +6858,15 @@ export default function ChartMaker2({
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
   useEffect(() => {
     if (!onChangeRef.current) return;
+    // Everything the Design drawer can set rides in `design` so a reopened
+    // doc looks exactly like it did when saved (this used to be dropped).
+    const design: ChartDesignState = {
+      showBorders, showGridlines, showSegmentLabels, legendPos,
+      yLabel, xLabel, logScale, showEndLabels, markerShape, roundedCorners,
+      showSecondaryAxis, showErrorBars, errorMap, pieOtherThreshold, numFmt,
+      seriesColorsByType, axisByType, flippedByType,
+      showTotalLabels, showTickMarks, show100Indicator, watermark, barWidthPct,
+    };
     const payload: ChartDocPayload = {
       kind: "chart",
       version: 1,
@@ -6836,9 +6880,16 @@ export default function ChartMaker2({
       annotations: annotByType[type] || [],
       chartAspect,
       chartZoom,
+      design: design as Record<string, unknown>,
     };
     onChangeRef.current(payload);
-  }, [type, title, subtitle, theme, backdrop, backdropMode, sheets, annotByType, chartAspect, chartZoom]);
+  }, [
+    type, title, subtitle, theme, backdrop, backdropMode, sheets, annotByType, chartAspect, chartZoom,
+    showBorders, showGridlines, showSegmentLabels, legendPos, yLabel, xLabel, logScale, showEndLabels,
+    markerShape, roundedCorners, showSecondaryAxis, showErrorBars, errorMap, pieOtherThreshold, numFmt,
+    seriesColorsByType, axisByType, flippedByType, showTotalLabels, showTickMarks, show100Indicator,
+    watermark, barWidthPct,
+  ]);
 
   // Pick-mode handler · column-chart renderers call this on bar click.
   // Returns true if the click was consumed (we're in pick mode); the
@@ -7093,6 +7144,46 @@ export default function ChartMaker2({
     if (!svg.getAttribute("viewBox")) svg.setAttribute("viewBox", "0 0 " + W + " " + H);
     svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
     svg.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+    // Bake the backdrop INTO the file. On screen the backdrop is CSS on the
+    // container div and the chart's own rects are fill="transparent", so a
+    // raw serialize shipped a transparent SVG whose near-white dark-theme
+    // text was illegible on white. Mirror bakeChartCanvas: base rect + one
+    // radial-gradient rect per glow, prepended so the chart draws on top.
+    {
+      const SVGNS = "http://www.w3.org/2000/svg";
+      const spec = backdropMode === "dark" ? BACKDROPS_DARK[backdrop] : BACKDROPS_LIGHT[backdrop];
+      const vb = svg.viewBox.baseVal;
+      const vw = vb && vb.width ? vb.width : W;
+      const vh = vb && vb.height ? vb.height : H;
+      const defs = document.createElementNS(SVGNS, "defs");
+      const frag = document.createDocumentFragment();
+      const baseRect = document.createElementNS(SVGNS, "rect");
+      baseRect.setAttribute("x", "0"); baseRect.setAttribute("y", "0");
+      baseRect.setAttribute("width", String(vw)); baseRect.setAttribute("height", String(vh));
+      baseRect.setAttribute("fill", spec.base);
+      frag.appendChild(baseRect);
+      spec.glows.forEach((g, i) => {
+        const gradId = "sa-backdrop-glow-" + i;
+        const grad = document.createElementNS(SVGNS, "radialGradient");
+        grad.setAttribute("id", gradId);
+        grad.setAttribute("cx", String(g.x)); grad.setAttribute("cy", String(g.y));
+        grad.setAttribute("r", String(g.r));
+        const s0 = document.createElementNS(SVGNS, "stop");
+        s0.setAttribute("offset", "0"); s0.setAttribute("stop-color", g.color);
+        const s1 = document.createElementNS(SVGNS, "stop");
+        s1.setAttribute("offset", "1"); s1.setAttribute("stop-color", g.color);
+        s1.setAttribute("stop-opacity", "0");
+        grad.appendChild(s0); grad.appendChild(s1);
+        defs.appendChild(grad);
+        const glowRect = document.createElementNS(SVGNS, "rect");
+        glowRect.setAttribute("x", "0"); glowRect.setAttribute("y", "0");
+        glowRect.setAttribute("width", String(vw)); glowRect.setAttribute("height", String(vh));
+        glowRect.setAttribute("fill", "url(#" + gradId + ")");
+        frag.appendChild(glowRect);
+      });
+      svg.insertBefore(frag, svg.firstChild);
+      svg.insertBefore(defs, svg.firstChild);
+    }
     // Wave 14 · branded export footer
     if (exportBranding) {
       const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -7119,36 +7210,27 @@ export default function ChartMaker2({
   // ⌘⇧C copy-as-PNG keyboard shortcut · effect after copyPNG is declared
   // (added below). Stub here for forward declaration via useCallback below.
 
-  // Copy chart as PNG to clipboard
+  // Copy chart as PNG to clipboard — routed through bakeChartCanvas so the
+  // clipboard image carries the same baked backdrop (+ branding) as Export
+  // PNG. The old hand-rolled bake drew onto an UNFILLED canvas: dark-theme
+  // charts pasted as transparent PNGs with near-white text, illegible on
+  // white (Slack, Docs, email).
   const copyPNG = useCallback(async () => {
-    const svg = svgRef.current;
-    if (!svg) return;
-    const xml = inlineLogoInXml(new XMLSerializer().serializeToString(svg));
-    const blob = new Blob([xml], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
-    const img = new window.Image();
-    img.onload = async () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = svg.viewBox.baseVal.width * 2;
-      canvas.height = svg.viewBox.baseVal.height * 2;
-      const ctx = canvas.getContext("2d")!;
-      ctx.scale(2, 2);
-      ctx.drawImage(img, 0, 0);
-      URL.revokeObjectURL(url);
-      canvas.toBlob(async (b) => {
+    if (!svgRef.current) return;
+    bakeChartCanvas((cv) => {
+      cv.toBlob(async (b) => {
         if (!b) return;
         try {
           await navigator.clipboard.write([new ClipboardItem({ "image/png": b })]);
           showToast("Chart copied to clipboard");
         } catch { showToast("Copy failed — use Export PNG instead"); }
       }, "image/png");
-    };
-    img.src = url;
+    });
     // Re-bind whenever the inlined logo changes so the captured closure has
     // the latest data URL. Without this, copyPNG fired before the logo
     // loaded would keep emitting the stale relative path.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logoDataUrl]);
+  }, [logoDataUrl, backdrop, backdropMode, exportBranding]);
 
   // Wave 14 · ⌘⇧C copy-PNG keyboard binding (separate effect since copyPNG must be in scope)
   // Wave 17 · ⌘⇧N opens the Name Manager modal.

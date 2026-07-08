@@ -11,6 +11,7 @@ import { ArrowLeft, Library, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirmDialog, promptDialog } from "../dialog-context";
 import { useUser } from "../user-context";
+import { useTheme } from "../theme-context";
 import ChartEditor from "./editor-chart";
 import TableEditor from "./editor-table";
 import DiagramEditor from "./editor-diagram";
@@ -379,6 +380,12 @@ function StudioHeader({
 }) {
   void onGoWelcome;
   const inEditor = view.kind === "editor";
+  // Under stock/glass RouteChrome floats a "<- POAST" pill at top-right of
+  // this route (charts/layout.tsx backSide="right"); reserve its footprint
+  // so the save pill + username never render underneath it. Classic has no
+  // pill and keeps the standard 22px.
+  const { theme } = useTheme();
+  const pillPad = theme === "classic" ? 22 : 112;
   return (
     <div style={{
       position: "sticky", top: 0, zIndex: 80,
@@ -387,6 +394,7 @@ function StudioHeader({
       WebkitBackdropFilter: "blur(20px) saturate(140%)",
       borderBottom: "1px solid rgba(255,255,255,0.06)",
       padding: "12px 22px",
+      paddingRight: pillPad,
       display: "flex", alignItems: "center", gap: 12,
     }}>
       {inEditor ? (

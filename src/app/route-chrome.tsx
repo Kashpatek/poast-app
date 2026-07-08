@@ -60,7 +60,11 @@ export default function RouteChrome({
             position: "fixed",
             top: 14,
             [backSide]: 16,
-            zIndex: 2147483000,
+            // Above the routes' sticky headers (z 80-90) but BELOW their
+            // overlays (context menus 1000+, drawers 11600-13000): at the
+            // old 2147483000 the pill floated over every modal and clipped
+            // /charts' save-state pill + the Design drawer's close button.
+            zIndex: 700,
             display: "inline-flex",
             alignItems: "center",
             gap: 8,

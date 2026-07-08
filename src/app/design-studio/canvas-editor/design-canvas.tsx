@@ -80,6 +80,12 @@ interface PageState {
   history: string[];      // JSON snapshots
   historyIdx: number;     // pointer into history
   detachGuides?: () => void; // smart-snapping teardown
+  // True while a programmatic loadFromJSON is in flight (hydrate, undo/redo,
+  // template apply, version restore). Fabric fires object:added per enlivened
+  // object during these loads; without the guard those events re-snapshot
+  // history MID-RESTORE — truncating the redo tail (redo permanently dead)
+  // and pushing partial "phantom" states that undo then resurrects.
+  restoring?: boolean;
 }
 
 export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
@@ -94,7 +100,12 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
   zoomRef.current = zoom; // keep snapping tolerance correct without re-binding the canvas
   const [leftTab, setLeftTab] = useState<"templates" | "elements" | "text" | "uploads" | "brand">("templates");
   const [selected, setSelected] = useState<fabric.Object | null>(null);
-  const [, force] = useState(0);
+  // `rev` increments on every canvas mutation (tick) — it feeds the autosave
+  // dep key below so object edits actually schedule a save. Previously the
+  // key only watched selection/zoom/tab/title, so moving or restyling an
+  // object never saved and "Saved just now" lied until some unrelated state
+  // happened to change.
+  const [rev, force] = useState(0);
   const tick = useCallback(() => force(x => x + 1), []);
   const [title, setTitle] = useState(project.title);
   const [exportOpen, setExportOpen] = useState(false);
@@ -140,9 +151,9 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
     canvas.on("selection:created", e => setSelected((e as unknown as { selected?: fabric.Object[] }).selected?.[0] || canvas.getActiveObject() || null));
     canvas.on("selection:updated", () => setSelected(canvas.getActiveObject() || null));
     canvas.on("selection:cleared", () => setSelected(null));
-    canvas.on("object:modified", () => { snapshotHistory(index); tick(); });
-    canvas.on("object:added", () => { snapshotHistory(index); tick(); });
-    canvas.on("object:removed", () => { snapshotHistory(index); tick(); });
+    canvas.on("object:modified", () => { if (slot.restoring) return; snapshotHistory(index); tick(); });
+    canvas.on("object:added", () => { if (slot.restoring) return; snapshotHistory(index); tick(); });
+    canvas.on("object:removed", () => { if (slot.restoring) return; snapshotHistory(index); tick(); });
 
     // Smart snapping + alignment guides (object-to-object + canvas edges/center).
     slot.detachGuides = attachSmartGuides(canvas, {
@@ -153,11 +164,15 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
     // Hydrate from existing payload.
     const payload = pages[index]?.payload;
     if (payload && typeof payload === "object") {
-      canvas.loadFromJSON(payload as Record<string, unknown>).then(() => { canvas.renderAll(); seedHistory(index); });
+      slot.restoring = true;
+      canvas.loadFromJSON(payload as Record<string, unknown>).then(() => { canvas.renderAll(); seedHistory(index); slot.restoring = false; });
     } else {
       // Apply seed template, else blank.
       const tpl = project.templateId ? TEMPLATES.find(t => t.id === project.templateId) : null;
-      if (tpl) canvas.loadFromJSON(tpl.payload as unknown as Record<string, unknown>).then(() => { canvas.renderAll(); seedHistory(index); });
+      if (tpl) {
+        slot.restoring = true;
+        canvas.loadFromJSON(tpl.payload as unknown as Record<string, unknown>).then(() => { canvas.renderAll(); seedHistory(index); slot.restoring = false; });
+      }
       else seedHistory(index);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -184,15 +199,17 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
 
   function undo() {
     const slot = stateRef.current[activeIdx];
-    if (!slot?.canvas || slot.historyIdx <= 0) return;
+    if (!slot?.canvas || slot.historyIdx <= 0 || slot.restoring) return;
     slot.historyIdx -= 1;
-    slot.canvas.loadFromJSON(JSON.parse(slot.history[slot.historyIdx])).then(() => { slot.canvas?.renderAll(); tick(); });
+    slot.restoring = true;
+    slot.canvas.loadFromJSON(JSON.parse(slot.history[slot.historyIdx])).then(() => { slot.canvas?.renderAll(); slot.restoring = false; tick(); });
   }
   function redo() {
     const slot = stateRef.current[activeIdx];
-    if (!slot?.canvas || slot.historyIdx >= slot.history.length - 1) return;
+    if (!slot?.canvas || slot.historyIdx >= slot.history.length - 1 || slot.restoring) return;
     slot.historyIdx += 1;
-    slot.canvas.loadFromJSON(JSON.parse(slot.history[slot.historyIdx])).then(() => { slot.canvas?.renderAll(); tick(); });
+    slot.restoring = true;
+    slot.canvas.loadFromJSON(JSON.parse(slot.history[slot.historyIdx])).then(() => { slot.canvas?.renderAll(); slot.restoring = false; tick(); });
   }
 
   // ── autosave: serialize every page to project.pages, persist ──
@@ -214,8 +231,8 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
   const autosaveDepKey = useMemo(() => {
     // Re-run autosave whenever the visible selection changes or zoom adjusts —
     // both are cheap proxies for "user did something".
-    return { selKey: selected ? (selected as fabric.Object & { id?: string }).id || JSON.stringify(selected.toJSON()) : null, zoom, leftTab, title };
-  }, [selected, zoom, leftTab, title]);
+    return { selKey: selected ? (selected as fabric.Object & { id?: string }).id || JSON.stringify(selected.toJSON()) : null, zoom, leftTab, title, rev };
+  }, [selected, zoom, leftTab, title, rev]);
 
   const autosave = useAutosave(async () => {
     const nextPages = await captureAllPages();
@@ -283,7 +300,9 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
 
   function loadTemplate(tpl: DesignTemplate) {
     const c = activeCanvas(); if (!c) return;
-    c.loadFromJSON(tpl.payload as unknown as Record<string, unknown>).then(() => { c.renderAll(); snapshotHistory(activeIdx); tick(); });
+    const slot = stateRef.current[activeIdx];
+    if (slot) slot.restoring = true;
+    c.loadFromJSON(tpl.payload as unknown as Record<string, unknown>).then(() => { c.renderAll(); if (slot) slot.restoring = false; snapshotHistory(activeIdx); tick(); });
   }
 
   function deleteActive() {
@@ -449,7 +468,9 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
   function setOnSelected(patch: Record<string, unknown>) {
     const c = activeCanvas(); if (!c) return;
     const obj = c.getActiveObject(); if (!obj) return;
-    obj.set(patch); obj.setCoords(); c.requestRenderAll(); tick();
+    obj.set(patch); obj.setCoords(); c.requestRenderAll();
+    snapshotHistory(activeIdx); // programmatic set() fires no object:modified — record the undo step ourselves
+    tick();
   }
 
   // ── export ──
@@ -507,10 +528,11 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
       const payload = snapPages[i]?.payload;
       if (slot?.canvas && payload && typeof payload === "object") {
         try {
+          slot.restoring = true;
           await slot.canvas.loadFromJSON(payload as Record<string, unknown>);
           slot.canvas.renderAll();
           seedHistory(i);
-        } catch {}
+        } catch {} finally { slot.restoring = false; }
       }
     }
     setPages(snapPages);
@@ -651,6 +673,7 @@ export function DesignCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
         obj.set({ left: (obj.left || 0) + v[0] * step, top: (obj.top || 0) + v[1] * step });
         obj.setCoords();
         c.requestRenderAll();
+        snapshotHistory(activeIdx); // programmatic set() fires no object:modified
         tick();
       }
     }

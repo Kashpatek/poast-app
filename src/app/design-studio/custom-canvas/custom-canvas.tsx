@@ -15,6 +15,7 @@ import { Download, Save, FileJson, Image as ImageIcon } from "lucide-react";
 import {
   Excalidraw,
   exportToBlob,
+  getSceneVersion,
   serializeAsJSON,
 } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
@@ -115,13 +116,23 @@ export function CustomCanvas({ project, onUpdatePages, onUpdateTitle }: Props) {
   const autosave = useAutosave(save, [title, sceneVersion], 1000);
 
   // ── Excalidraw onChange — buffer scene, bump version ───────────
+  // GUARDED by Excalidraw's own scene version: v0.18 fires onChange from
+  // componentDidUpdate unconditionally, so calling setState here on EVERY
+  // fire re-renders us -> re-renders Excalidraw -> onChange again — an
+  // instant "Maximum update depth exceeded" crash before any interaction.
+  // Only bump our version (and thus autosave) when the ELEMENTS actually
+  // changed; the ref still buffers the freshest appState for saves.
+  const lastExcalVersionRef = useRef<number>(initialPayload ? getSceneVersion(initialPayload.elements as unknown as readonly ExcalidrawElement[]) : -1);
   const onChange = useCallback((
     elements: readonly OrderedExcalidrawElement[],
     appState: AppState,
     files: BinaryFiles,
   ) => {
     sceneRef.current = { elements, appState, files };
-    setSceneVersion(v => v + 1);
+    const v = getSceneVersion(elements as unknown as readonly ExcalidrawElement[]);
+    if (v === lastExcalVersionRef.current) return;
+    lastExcalVersionRef.current = v;
+    setSceneVersion(x => x + 1);
   }, []);
 
   // ── Export menu ────────────────────────────────────────────────

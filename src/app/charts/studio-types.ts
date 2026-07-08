@@ -80,6 +80,11 @@ export interface ChartDocPayload {
   // Set by the Gallery when minting a new doc. ChartMaker2 reads this on
   // mount to know which chart type to seed; it's not re-emitted after.
   templateId?: string;
+  // Design-drawer state (gridlines, legend, series colors, axis overrides,
+  // watermark, error bars, …). Duck-typed bag — ChartMaker2 owns the shape
+  // (its ChartDesignState); absent on docs saved before this existed, in
+  // which case the editor falls back to its defaults.
+  design?: Record<string, unknown>;
 }
 
 // ─── Table document payload ───────────────────────────────────────────────
