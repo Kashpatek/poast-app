@@ -32,7 +32,10 @@ const DocSchema = z.object({
   owner: z.string().min(1).max(40),
   type: z.enum(["chart", "table", "diagram"]),
   name: z.string().min(1).max(200),
-  thumbnail: z.string().max(800_000).optional(),
+  // Nullable AND optional: GET returns `thumbnail: null` for docs saved
+  // without one, and clients round-trip that doc straight back into POST —
+  // optional-only rejected null, 400ing every save of a reopened doc.
+  thumbnail: z.string().max(800_000).nullable().optional(),
   payload: z.unknown(),
   tags: z.array(z.string().max(40)).max(20).default([]),
   createdAt: z.string(),

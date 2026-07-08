@@ -188,6 +188,14 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
   }, [undo, redo]);
 
   // ── Emit payload upstream ───────────────────────────────────────────
+  // `onChangePayload` is held in a ref (not an effect dependency) on
+  // purpose: the Studio shell passes a fresh inline callback every render,
+  // and calling it re-renders the shell — depending on its identity here
+  // creates an infinite render loop ("Maximum update depth exceeded") that
+  // perpetually resets the shell's 600ms save debounce, so the doc never
+  // persists. Same cure as the chart editor's cc2ef81. Fire on DATA change.
+  const onChangePayloadRef = useRef(onChangePayload);
+  useEffect(() => { onChangePayloadRef.current = onChangePayload; }, [onChangePayload]);
   useEffect(() => {
     const payload: TableDocPayload = {
       kind: "table", version: 1,
@@ -240,8 +248,8 @@ export default function TableEditor({ doc, onChangePayload, onBuildChart }: Tabl
       watermark: state.watermark.mode !== "off" ? state.watermark : undefined,
       theme: state.theme !== "dark" ? state.theme : undefined,
     };
-    onChangePayload(payload);
-  }, [state, onChangePayload]);
+    onChangePayloadRef.current(payload);
+  }, [state]);
 
   // ── Grid mutations ──────────────────────────────────────────────────
   const updateCell = useCallback((rowIdx: number, key: string, value: string) => {

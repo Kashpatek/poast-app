@@ -32,6 +32,16 @@ import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+// Fabric v7 changed the default object origin from left/top to center.
+// Every template in templates.ts and all the insert/align/fit math in this
+// editor were authored against left/top semantics — under center defaults
+// templates load mangled (backgrounds quarter-visible, text clipped) and
+// align throws objects half off-canvas. Restore v6 semantics once at module
+// load; objects serialized in payloads carry explicit origins, so saved
+// projects round-trip unchanged.
+fabric.FabricObject.ownDefaults.originX = "left";
+fabric.FabricObject.ownDefaults.originY = "top";
+
 // ─── Brand palette + presets ───────────────────────────────────────
 const BRAND_PALETTE = ["#F7B041", "#2EAD8E", "#E06347", "#905CCB", "#0B86D1", "#26C9D8", "#EDEDED", "#0D0D12"];
 const SHAPE_PRESETS = [

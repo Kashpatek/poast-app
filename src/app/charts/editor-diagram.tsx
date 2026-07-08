@@ -101,6 +101,12 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
   }, []);
 
   // Emit payload upstream — shell debounces the save.
+  // `onChangePayload` rides in a ref, not the dep array: the shell passes a
+  // fresh inline callback every render and calling it re-renders the shell,
+  // so depending on its identity loops forever and starves the save
+  // debounce (same bug cc2ef81 fixed in the chart editor). Fire on DATA.
+  const onChangePayloadRef = useRef(onChangePayload);
+  useEffect(() => { onChangePayloadRef.current = onChangePayload; }, [onChangePayload]);
   useEffect(() => {
     const payload: DiagramDocPayload = {
       kind: "diagram",
@@ -111,8 +117,8 @@ export default function DiagramEditor({ doc, onChangePayload }: DiagramEditorPro
       viewport,
       backdrop,
     };
-    onChangePayload(payload);
-  }, [nodes, edges, pageW, pageH, viewport, backdrop, onChangePayload]);
+    onChangePayloadRef.current(payload);
+  }, [nodes, edges, pageW, pageH, viewport, backdrop]);
 
   const selected = nodes.find(n => n.id === selectedId) || null;
 
