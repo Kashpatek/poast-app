@@ -473,8 +473,8 @@ function ModuleBody({ id, m, now, open }: { id: string; m: MarketingState; now: 
     case "campaigns":  return <CampaignsBody m={m} now={now} />;
     case "ads":        return <AdsBody m={m} now={now} />;
     case "trends":     return <TrendsBody />;
-    case "tasks":      return <TasksBody />;
-    case "efficiency": return <EfficiencyBody />;
+    case "tasks":      return <TasksBody owner={m.owner} />;
+    case "efficiency": return <EfficiencyBody owner={m.owner} />;
     case "deadlines":  return <DeadlinesBody m={m} now={now} />;
     case "brief":      return <BriefBody m={m} now={now} />;
     case "kiosk":      return <KioskBody open={open} />;
@@ -704,9 +704,9 @@ function TrendsBody() {
 }
 
 // ─── tasks (board snapshot) ───
-function TasksBody() {
+function TasksBody({ owner }: { owner: string }) {
   const [tasks, setTasks] = React.useState<BoardTaskLite[]>([]);
-  React.useEffect(() => { setTasks(readBoardTasks()); }, []);
+  React.useEffect(() => { setTasks(readBoardTasks(owner)); }, [owner]);
   const open = tasks.filter((t) => !t.done);
   const done = tasks.length - open.length;
   const teaser = open.slice(0, 4);
@@ -743,9 +743,9 @@ function TasksBody() {
 }
 
 // ─── efficiency (throughput snapshot) ───
-function EfficiencyBody() {
+function EfficiencyBody({ owner }: { owner: string }) {
   const [tasks, setTasks] = React.useState<BoardTaskLite[] | null>(null);
-  React.useEffect(() => { setTasks(readBoardTasks()); }, []);
+  React.useEffect(() => { setTasks(readBoardTasks(owner)); }, [owner]);
   // real if we have board data; else demo numbers
   const real = tasks && tasks.length > 0;
   const total = real ? tasks!.length : 48;

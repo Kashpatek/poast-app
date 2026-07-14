@@ -272,7 +272,7 @@ export default function AnalyticsView({ m, onOpenView }: ViewProps) {
   // Lazy initializer keeps this out of an effect (localStorage is client-only,
   // and this component is "use client" so it never runs during SSR).
   const [{ tasks, live }] = useState<{ tasks: BoardTaskLite[]; live: boolean }>(() => {
-    const real = readBoardTasks();
+    const real = readBoardTasks(m.owner);
     return real.length >= 4 ? { tasks: real, live: true } : { tasks: makeDemoTasks(), live: false };
   });
 

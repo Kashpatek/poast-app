@@ -20,3 +20,18 @@ export const ADMIN_USER = "Akash";
 export function emailToUserName(email: string): string {
   return EMAIL_TO_USER[(email || "").trim().toLowerCase()] || "Analyst";
 }
+
+// The task board is per-user: each owner gets its own `projects` row. Akash keeps
+// the pre-existing shared row id verbatim (`akash-todo-master`) so his board is
+// byte-preserved with ZERO migration; everyone else gets `todo-<owner>`. Owner is
+// always one of the emailToUserName values above, so lowercasing is safe and
+// unmapped users share the single `todo-analyst` seat (same as google_tokens).
+// Both the API routes and the client import THIS function — never two copies.
+export function boardIdFor(owner: string): string {
+  return owner === ADMIN_USER ? "akash-todo-master" : `todo-${(owner || "").toLowerCase()}`;
+}
+// Guard the invariant: a typo that stops Akash resolving to the legacy row would
+// silently orphan his real board behind a fresh empty one.
+if (boardIdFor(ADMIN_USER) !== "akash-todo-master") {
+  throw new Error("boardIdFor invariant broken: Akash must map to akash-todo-master");
+}

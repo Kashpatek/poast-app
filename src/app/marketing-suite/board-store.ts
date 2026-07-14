@@ -15,7 +15,6 @@
 import { useSyncExternalStore } from "react";
 import { readBoardTasks, makeDemoBoardTasks, type BoardTaskLite } from "./marketing-constants";
 
-const ROW_ID = "akash-todo-master";
 export type BoardMode = "demo" | "live";
 
 interface BoardSnap {
@@ -50,16 +49,18 @@ export async function boardSetMode(mode: BoardMode, owner: string) {
   }
   emit({ mode, owner, loaded: false });
   try {
-    const res = await fetch(`/api/db?table=projects&id=${ROW_ID}`);
+    // /api/board returns THIS user's board, keyed server-side by the session —
+    // so the suite reads the current user's tasks, not the shared master board.
+    const res = await fetch("/api/board");
     const j = await res.json();
     if (seq !== loadSeq) return; // superseded by a newer mode switch
-    const arch = j?.data?.data;
+    const arch = j?.archive;
     const out: BoardTaskLite[] = [];
     (arch?.boards || []).forEach((b: { tasks?: BoardTaskLite[] }) => (b.tasks || []).forEach((t) => out.push(t)));
     emit({ tasks: out, loaded: true });
   } catch {
     if (seq !== loadSeq) return;
-    emit({ tasks: readBoardTasks(), loaded: true }); // fall back to local cache
+    emit({ tasks: readBoardTasks(snap.owner), loaded: true }); // fall back to this user's local cache
   }
 }
 

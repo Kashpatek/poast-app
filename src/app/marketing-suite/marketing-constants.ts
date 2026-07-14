@@ -10,6 +10,7 @@
 // brand glyph.
 
 import { D, PL } from "../shared-constants";
+import { boardIdFor } from "@/lib/user-identity";
 import {
   LayoutDashboard, CalendarDays, GanttChart, KanbanSquare, Megaphone,
   Clapperboard, TrendingUp, BarChart3, Newspaper, CalendarClock, Rocket, Archive, type LucideIcon,
@@ -439,9 +440,12 @@ export interface BoardTaskLite {
   subtasks?: { id: string; title: string; done?: boolean; dueDate?: string; spawnedEventId?: string }[];
   notesLog?: { id: string; ts: string; author?: string; text: string }[];
 }
-export function readBoardTasks(): BoardTaskLite[] {
+export function readBoardTasks(owner: string): BoardTaskLite[] {
   try {
-    const raw = typeof window !== "undefined" ? window.localStorage.getItem("akash-todo-master-cache") : null;
+    // Per-user cache key (mirrors task-board-summary). No/shared owner → [] so we
+    // never surface another user's cached tasks.
+    if (typeof window === "undefined" || !owner || owner === "shared") return [];
+    const raw = window.localStorage.getItem(`${boardIdFor(owner)}-cache`);
     if (!raw) return [];
     const arch = JSON.parse(raw);
     const out: BoardTaskLite[] = [];

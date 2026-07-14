@@ -8,10 +8,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/app/lib/neon-db";
 import { z } from "zod";
+import { ownerFromRequest } from "@/lib/session-owner";
+import { boardIdFor } from "@/lib/user-identity";
 
 export const dynamic = "force-dynamic";
-
-const ROW_ID = "akash-todo-master";
 
 let _db: ReturnType<typeof createClient> | null = null;
 function db() {
@@ -40,8 +40,11 @@ const TaskInput = z.object({
 type Row = Record<string, any>;
 
 export async function POST(req: NextRequest) {
+  const sess = await ownerFromRequest(req);
+  if (!sess) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const supabase = db();
   if (!supabase) return NextResponse.json({ error: "DB not configured" }, { status: 503 });
+  const ROW_ID = boardIdFor(sess.owner);
 
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
@@ -50,15 +53,22 @@ export async function POST(req: NextRequest) {
   const inp = parsed.data;
 
   try {
-    const { data: row, error } = await supabase.from("projects").select("*").eq("id", ROW_ID).single();
-    if (error || !row) return NextResponse.json({ error: error?.message || "Board not found" }, { status: 404 });
+    const { data: row, error } = await supabase.from("projects").select("*").eq("id", ROW_ID).maybeSingle();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // BoardArchive lives in the jsonb `data` column.
-    const archive: Row = (row as Row).data && typeof (row as Row).data === "object"
+    // BoardArchive lives in the jsonb `data` column. Auto-initialize a default
+    // board for a brand-new user (no row yet, or a row with no boards) so the
+    // first suite task creation works instead of 404/409'ing.
+    const archive: Row = (row as Row | null)?.data && typeof (row as Row).data === "object"
       ? (row as Row).data
       : { boards: [], activeId: "" };
-    const boards: Row[] = Array.isArray(archive.boards) ? archive.boards : [];
-    if (!boards.length) return NextResponse.json({ error: "No boards on the master archive" }, { status: 409 });
+    let boards: Row[] = Array.isArray(archive.boards) ? archive.boards : [];
+    if (!boards.length) {
+      const b: Row = { id: "b-" + Date.now(), name: `${sess.owner} Todo`, tasks: [], createdAt: new Date().toISOString(), activity: [] };
+      boards = [b];
+      archive.boards = boards;
+      archive.activeId = b.id;
+    }
     const active = boards.find((b) => b.id === archive.activeId) || boards[0];
 
     const now = new Date().toISOString();
@@ -84,8 +94,8 @@ export async function POST(req: NextRequest) {
 
     const writeBack: Row = {
       id: ROW_ID,
-      name: (row as Row).name || "Akash Todo",
-      type: (row as Row).type || "akash-todo",
+      name: (row as Row | null)?.name || `${sess.owner} Todo`,
+      type: (row as Row | null)?.type || "akash-todo",
       data: archive,
       updated_at: now,
     };
@@ -136,8 +146,11 @@ const PatchInput = z.object({
 const DeleteInput = z.object({ id: z.string().min(1).max(120) });
 
 export async function DELETE(req: NextRequest) {
+  const sess = await ownerFromRequest(req);
+  if (!sess) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const supabase = db();
   if (!supabase) return NextResponse.json({ error: "DB not configured" }, { status: 503 });
+  const ROW_ID = boardIdFor(sess.owner);
 
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
@@ -146,8 +159,9 @@ export async function DELETE(req: NextRequest) {
   const { id } = parsed.data;
 
   try {
-    const { data: row, error } = await supabase.from("projects").select("*").eq("id", ROW_ID).single();
-    if (error || !row) return NextResponse.json({ error: error?.message || "Board not found" }, { status: 404 });
+    const { data: row, error } = await supabase.from("projects").select("*").eq("id", ROW_ID).maybeSingle();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!row) return NextResponse.json({ ok: true, removed: 0 }); // no board yet → idempotent no-op
 
     const archive: Row = (row as Row).data && typeof (row as Row).data === "object" ? (row as Row).data : { boards: [], activeId: "" };
     const boards: Row[] = Array.isArray(archive.boards) ? archive.boards : [];
@@ -166,7 +180,7 @@ export async function DELETE(req: NextRequest) {
 
     const writeBack: Row = {
       id: ROW_ID,
-      name: (row as Row).name || "Akash Todo",
+      name: (row as Row).name || `${sess.owner} Todo`,
       type: (row as Row).type || "akash-todo",
       data: archive,
       updated_at: now,
@@ -181,8 +195,11 @@ export async function DELETE(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const sess = await ownerFromRequest(req);
+  if (!sess) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const supabase = db();
   if (!supabase) return NextResponse.json({ error: "DB not configured" }, { status: 503 });
+  const ROW_ID = boardIdFor(sess.owner);
 
   let body: unknown;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
@@ -191,8 +208,9 @@ export async function PATCH(req: NextRequest) {
   const { id, marketingEventId, patch } = parsed.data;
 
   try {
-    const { data: row, error } = await supabase.from("projects").select("*").eq("id", ROW_ID).single();
-    if (error || !row) return NextResponse.json({ error: error?.message || "Board not found" }, { status: 404 });
+    const { data: row, error } = await supabase.from("projects").select("*").eq("id", ROW_ID).maybeSingle();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!row) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
     const archive: Row = (row as Row).data && typeof (row as Row).data === "object" ? (row as Row).data : { boards: [], activeId: "" };
     const boards: Row[] = Array.isArray(archive.boards) ? archive.boards : [];
@@ -217,7 +235,7 @@ export async function PATCH(req: NextRequest) {
 
     const writeBack: Row = {
       id: ROW_ID,
-      name: (row as Row).name || "Akash Todo",
+      name: (row as Row).name || `${sess.owner} Todo`,
       type: (row as Row).type || "akash-todo",
       data: archive,
       updated_at: now,

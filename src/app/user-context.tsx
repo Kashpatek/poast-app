@@ -24,7 +24,7 @@ const USERS: Record<string, User> = {
 // Email → POAST user key lives in a server-safe module so the same mapping backs
 // the client UI and the server-side owner binding (google routes). Re-exported
 // here so existing importers (poast-client.tsx, first-run.tsx) are unchanged.
-export { emailToUserName, ADMIN_USER } from "@/lib/user-identity";
+export { emailToUserName, ADMIN_USER, boardIdFor } from "@/lib/user-identity";
 export function isValidUserName(name: string | null | undefined): boolean {
   return !!name && Object.prototype.hasOwnProperty.call(USERS, name);
 }

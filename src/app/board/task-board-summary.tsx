@@ -12,6 +12,22 @@ import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } 
 import { createPortal } from "react-dom";
 import { D, ft, gf, mn } from "../shared-constants";
 import { confirmDialog, promptDialog } from "../dialog-context";
+import { boardIdFor } from "../user-context";
+
+// The board cache is per-user (keyed by the owner's board id) so a shared browser
+// never surfaces another user's tasks. Akash's owner → "akash-todo-master" →
+// cache key "akash-todo-master-cache" (his existing cache carries over).
+function boardCacheKey(owner: string | null): string | null {
+  return owner ? `${boardIdFor(owner)}-cache` : null;
+}
+// Bootstrap owner before the first /api/board response: the client identity is
+// the same string the server resolves (emailToUserName(session.email)).
+function bootstrapOwner(): string | null {
+  try {
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem("poast-current-user") || window.sessionStorage.getItem("poast-current-user") || null;
+  } catch { return null; }
+}
 
 // ─── types (mirror akash-todo schema) ───
 type Priority = "HIGH" | "MEDIUM" | "THIS WEEK" | "ONGOING" | "DONE";
@@ -478,7 +494,8 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
   // renders your real tasks instead of an empty board.
   const loadOkRef = useRef(false);
   const dirtyRef = useRef(false);
-  const CACHE_KEY = "akash-todo-master-cache";
+  // The current user's board owner, learned authoritatively from /api/board.
+  const ownerRef = useRef<string | null>(null);
   const [offline, setOffline] = useState(false);
 
   const normalizeArchive = useCallback((data: BoardArchive): BoardArchive => {
@@ -493,53 +510,39 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
 
   const load = useCallback(async (isPoll = false) => {
     try {
-      // Fetch ONLY this board's row — the old `?table=projects` pulled
-      // EVERY project's full payload on mount + every poll, which is what
-      // exhausted the Supabase egress quota.
-      const res = await fetch("/api/db?table=projects&id=akash-todo-master");
-      let j: { data?: { data?: BoardArchive } | null; error?: string } = {};
+      // /api/board returns THIS user's board, keyed server-side by the verified
+      // session. A 200 is always authoritative — a real board OR a genuine empty
+      // default (the server does the absent-vs-outage split via maybeSingle()).
+      const res = await fetch("/api/board");
+      let j: { owner?: string; boardId?: string; archive?: BoardArchive; updated_at?: string | null; error?: string } = {};
       try { j = await res.json(); } catch { /* non-JSON body */ }
 
-      if (res.ok && j.data && j.data.data) {
+      if (res.ok && j.archive) {
         // Don't overwrite unsaved local edits during a background poll.
         if (isPoll && dirtyRef.current) { setOffline(false); return; }
-        const data = normalizeArchive(j.data.data as BoardArchive);
+        if (j.owner) ownerRef.current = j.owner;
+        const data = normalizeArchive(j.archive as BoardArchive);
         const ser = JSON.stringify(data);
         lastSavedRef.current = ser;
         loadOkRef.current = true;
         dirtyRef.current = false;
         setArchive(data);
         setOffline(false);
-        try { window.localStorage.setItem(CACHE_KEY, ser); } catch {}
-      } else if (res.ok && (j.data === null || j.data === undefined)) {
-        // 200 with no row → genuinely a fresh board.
-        const data = normalizeArchive({ boards: [], activeId: "" });
-        lastSavedRef.current = JSON.stringify(data);
-        loadOkRef.current = true;
-        setArchive(data);
-        setOffline(false);
+        const ck = boardCacheKey(ownerRef.current);
+        if (ck) { try { window.localStorage.setItem(ck, ser); } catch {} }
       } else {
-        const msg = j.error ? String(j.error) : "HTTP " + res.status;
-        // `.single()` on zero rows 404s with a PGRST116 message — that's a
-        // new board, not an outage. Anything else (egress 402, 5xx, RLS)
-        // is a real outage and must NOT be treated as empty.
-        if (res.status === 404 && /PGRST116|0 rows|no rows|coerce/i.test(msg)) {
-          const data = normalizeArchive({ boards: [], activeId: "" });
-          lastSavedRef.current = JSON.stringify(data);
-          loadOkRef.current = true;
-          setArchive(data);
-          setOffline(false);
-        } else {
-          throw new Error(msg);
-        }
+        // Any non-200 (401/500/503) or missing archive is an OUTAGE — never
+        // treat it as an empty board (that could autosave a blank over real data).
+        throw new Error(j.error ? String(j.error) : "HTTP " + res.status);
       }
     } catch {
-      // Outage: fall back to the last cached board so it never looks
-      // empty, and keep saves blocked (loadOkRef stays false) so we can't
-      // clobber good server data once the quota is restored.
+      // Outage: fall back to the per-user cached board so it never looks empty,
+      // and keep saves blocked (loadOkRef stays false) so we can't clobber good
+      // server data once connectivity returns.
       if (!loadOkRef.current) {
         try {
-          const raw = window.localStorage.getItem(CACHE_KEY);
+          const ck = boardCacheKey(ownerRef.current || bootstrapOwner());
+          const raw = ck ? window.localStorage.getItem(ck) : null;
           if (raw) { const cached = normalizeArchive(JSON.parse(raw)); lastSavedRef.current = JSON.stringify(cached); setArchive(cached); }
         } catch {}
       }
@@ -563,13 +566,12 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
   const saveArchive = useCallback(async (next: BoardArchive) => {
     setSaveState("saving");
     try {
-      const res = await fetch("/api/db", {
-        method: "POST",
+      // Save via the session-keyed endpoint — the server owns the row id/name/
+      // type/updated_at, so this can only ever write the caller's own board.
+      const res = await fetch("/api/board", {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          table: "projects",
-          data: { id: "akash-todo-master", name: "Akash Todo", type: "akash-todo", data: next, updated_at: new Date().toISOString() },
-        }),
+        body: JSON.stringify({ archive: next }),
       });
       if (!res.ok) { setSaveState("error"); setOffline(true); return; }
       lastSavedRef.current = JSON.stringify(next);
@@ -583,10 +585,11 @@ export default function TaskBoardSummary({ mode = "embed" }: TaskBoardSummaryPro
   useEffect(() => {
     if (loading) return;
     const ser = JSON.stringify(archive);
-    // Always mirror to localStorage (so a refresh mid-outage keeps your
+    // Always mirror to the per-user cache (so a refresh mid-outage keeps your
     // edits) — but only ever push to the server once we've safely loaded.
     const hasContent = archive.boards.some((b) => b.tasks.length > 0);
-    if (loadOkRef.current || hasContent) { try { window.localStorage.setItem(CACHE_KEY, ser); } catch {} }
+    const ck = boardCacheKey(ownerRef.current || bootstrapOwner());
+    if (ck && (loadOkRef.current || hasContent)) { try { window.localStorage.setItem(ck, ser); } catch {} }
     if (!loadOkRef.current) return;
     if (ser === lastSavedRef.current) return;
     dirtyRef.current = true;

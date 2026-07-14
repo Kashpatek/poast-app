@@ -38,9 +38,12 @@ const VALID_TABLES = ["prospects", "episodes", "archive", "trends", "outreach", 
 // design project) don't match this shape and are unaffected. Every such
 // singleton follows the `*-master` id convention (verified across the codebase),
 // so match on the suffix — new singletons following the convention are protected
-// automatically.
+// automatically. Per-user boards (`todo-<owner>`) are singleton blobs too, written
+// only via /api/board and /api/board-task; nothing legitimately writes/deletes them
+// through this generic gateway (verified no non-board row uses a `todo-` id), so
+// give them the same defense-in-depth.
 function isProtectedRowId(id: string): boolean {
-  return /-master$/.test(id);
+  return /-master$/.test(id) || /^todo-/.test(id);
 }
 
 const DbPostSchema = z.object({
