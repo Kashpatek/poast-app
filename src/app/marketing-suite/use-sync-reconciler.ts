@@ -97,7 +97,7 @@ function plan(last: Sig, e: State, t: State): Plan {
 }
 
 export function useSyncReconciler(m: MarketingState) {
-  const { tasks } = useBoardStore();
+  const { tasks, loaded: boardLoaded } = useBoardStore();
   const pairSig = useRef<Map<string, Sig>>(new Map());
   const subSig = useRef<Map<string, Sig>>(new Map());
   // Subtask (taskId::subId) keys we've already minted an event for this pass-set,
@@ -105,7 +105,12 @@ export function useSyncReconciler(m: MarketingState) {
   const spawning = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (m.loading) return;
+    // Gate on the BOARD store being loaded too, not just marketing events.
+    // Orphan cleanup (§3) deletes any subtask-spawned event whose subtask
+    // isn't in `liveSpawnIds` (built from `tasks`). If `tasks` is still []
+    // because the board hasn't hydrated, EVERY spawned calendar event looks
+    // orphaned and gets removed — silent data loss on the shared calendar.
+    if (m.loading || !boardLoaded) return;
     const events = m.events;
     const evById = new Map(events.map((e) => [e.id, e] as const));
     const doneRevert = (e: MarketingEvent) => (e.payload?.unscheduled ? "idea" : "scheduled") as MarketingEvent["status"];
@@ -215,5 +220,5 @@ export function useSyncReconciler(m: MarketingState) {
     // Flush batched subtask edits (one write per touched task).
     for (const [taskId, arr] of pendingSubs) boardUpdateTask(taskId, { subtasks: arr });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [m.events, tasks, m.loading]);
+  }, [m.events, tasks, m.loading, boardLoaded]);
 }

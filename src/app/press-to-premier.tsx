@@ -1790,6 +1790,9 @@ export default function PressToPremi() {
   var _loading = useState(false), loading = _loading[0], setLoading = _loading[1];
   var _loaded = useState(false), loaded = _loaded[0], setLoaded = _loaded[1];
   var _view = useState<SuiteView>("hub"), view = _view[0], setView = _view[1];
+  // True only after a genuine user edit. Gates the SHARED-row sync so the
+  // mount/load cascade can never POST over the shared p2p-master row.
+  var editedRef = useRef(false);
 
   // On mount: fetch from Supabase first, fall back to localStorage
   useEffect(function() {
@@ -1832,6 +1835,13 @@ export default function PressToPremi() {
   useEffect(function() {
     if (!loaded) return; // Don't write until initial load completes
     try { localStorage.setItem("p2p-projects", JSON.stringify(projects)); } catch (e) {}
+    // Only sync the SHARED p2p-master row after a genuine user edit — never
+    // from the mount/load cascade. Previously this fired on every page load
+    // (the component is always mounted, hidden), and a slow DB or empty/stale
+    // localStorage would POST projects:[] over the shared row, wiping the
+    // whole team's project list just by opening the hub. editedRef gates that;
+    // localStorage above stays per-user so a real refresh still restores.
+    if (!editedRef.current) return;
     // TODO(akash): P2P projects array is shared (id: "p2p-master") so createdBy reflects only the most recent editor across the whole list, not per-project; if a project is loaded from the archive and re-saved, the original author is overwritten.
     p2pDbSync(projects, userCtx.user ? userCtx.user.name : "Unknown", userCtx.user ? userCtx.user.role : "");
   }, [projects, loaded]);
@@ -1840,6 +1850,7 @@ export default function PressToPremi() {
   var startNew = function() { setActive("new"); setStep(0); setData({ mode: "url" }); };
   var openProject = function(p: Project) { setActive(p.id); setStep(p.step || 0); setData(p.data || {}); };
   var saveProject = function(status: string) {
+    editedRef.current = true;
     var title = data.options ? data.options.titles[data.selTitle || 0] : "Untitled";
     var proj: Project = { id: active === "new" ? "p" + Date.now() : active || "unknown", title: title, status: status, step: step, data: data, ts: Date.now() };
     setProjects(function(p) { var f = p.filter(function(x) { return x.id !== proj.id; }); return [proj].concat(f).slice(0, 5); });
@@ -1849,6 +1860,7 @@ export default function PressToPremi() {
   // Auto-save: persist project data whenever step or data changes
   useEffect(function() {
     if (!active || active === "new" && step === 0) return; // Don't auto-save empty new projects
+    editedRef.current = true;
     var title = data.options ? data.options.titles[data.selTitle || 0] : "Untitled";
     var id = active === "new" ? "p-auto-" + Date.now() : active;
     if (active === "new") setActive(id); // Give it a real ID on first auto-save
