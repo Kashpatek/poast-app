@@ -2,12 +2,17 @@
 // calendars can they target. Drives the Connect button + calendar toggles.
 import { NextRequest, NextResponse } from "next/server";
 import { isConfigured, getTokenRow, getValidAccessToken, listCalendars } from "@/lib/google-cal";
+import { ownerFromRequest } from "@/lib/session-owner";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   if (!isConfigured()) return NextResponse.json({ configured: false, connected: false });
-  const owner = req.nextUrl.searchParams.get("owner") || "shared";
+  // Owner from the verified session, not ?owner — otherwise any teammate could
+  // read another user's connection state, email, and calendar list.
+  const sess = await ownerFromRequest(req);
+  if (!sess) return NextResponse.json({ configured: true, connected: false }, { status: 401 });
+  const owner = sess.owner;
   try {
     const row = await getTokenRow(owner);
     if (!row || !row.access_token) return NextResponse.json({ configured: true, connected: false });

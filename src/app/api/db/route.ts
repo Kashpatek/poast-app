@@ -27,6 +27,22 @@ function getSupabase() {
 
 const VALID_TABLES = ["prospects", "episodes", "archive", "trends", "outreach", "projects", "weekly"] as const;
 
+// Singleton "master" rows each hold an ENTIRE shared dataset as one JSON blob —
+// the company task board (akash-todo-master), SA Weekly, Press-to-Premier,
+// approval queue, etc. They are created/updated only by their owning tool via a
+// full-blob upsert and are NEVER legitimately deleted or blanked through this
+// generic service-role gateway. Without a guard, a single request from any
+// signed-in user — `DELETE {table:"projects",id:"akash-todo-master"}` or a bare
+// `POST {data:{id:"akash-todo-master"}}` — wipes that dataset for the whole team.
+// Per-item rows (an individual trend, outreach lead, archived carousel, or
+// design project) don't match this shape and are unaffected. Every such
+// singleton follows the `*-master` id convention (verified across the codebase),
+// so match on the suffix — new singletons following the convention are protected
+// automatically.
+function isProtectedRowId(id: string): boolean {
+  return /-master$/.test(id);
+}
+
 const DbPostSchema = z.object({
   table: z.enum(VALID_TABLES),
   data: z.record(z.string(), z.unknown()),
@@ -87,6 +103,26 @@ export async function POST(req: NextRequest) {
 
     const { table, data } = parsed.data;
 
+    // Refuse a content-blanking upsert to a protected master row (e.g. a stray
+    // `{id:"akash-todo-master"}` that would null the blob out from under the
+    // whole team). Legit saves always carry the full record in `data`, so this
+    // only rejects an obviously-destructive write — it never blocks a real save
+    // (clearing to an empty board still sends a populated object like
+    // `{boards:[],activeId:""}`, which is non-empty).
+    const rowId = typeof data.id === "string" ? data.id : "";
+    if (rowId && isProtectedRowId(rowId)) {
+      const content = data.data;
+      const blank =
+        content === undefined || content === null || content === "" ||
+        (typeof content === "object" && Object.keys(content as object).length === 0);
+      if (blank) {
+        return NextResponse.json(
+          { error: `Refusing to blank protected shared row "${rowId}" via /api/db — include the full record.` },
+          { status: 409 }
+        );
+      }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: result, error } = await supabase.from(table).upsert(data as any, { onConflict: "id" }).select();
     if (error) {
@@ -121,6 +157,18 @@ export async function DELETE(req: NextRequest) {
     }
 
     const { table, id } = parsed.data;
+
+    // The one-request company-board wipe: this generic gateway runs with the
+    // service-role key (RLS bypassed) and took only {table,id}, so any signed-in
+    // user could delete a shared master blob. No legitimate caller deletes a
+    // master row (verified: the only projects-table deletes are per-item
+    // carousel-archive and design-project rows), so reject it outright.
+    if (isProtectedRowId(id)) {
+      return NextResponse.json(
+        { error: `Refusing to delete protected shared row "${id}" via /api/db — master rows are managed by their owning tool.` },
+        { status: 403 }
+      );
+    }
 
     const { error } = await supabase.from(table).delete().eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

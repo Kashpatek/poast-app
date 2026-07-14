@@ -7,6 +7,7 @@
 // (the in-app "sa-marketing" calendar is local and never written to Google).
 import { NextRequest, NextResponse } from "next/server";
 import { isConfigured, getValidAccessToken, insertEvent, patchEvent, moveCalendarEvent } from "@/lib/google-cal";
+import { ownerFromRequest } from "@/lib/session-owner";
 
 export const dynamic = "force-dynamic";
 
@@ -22,14 +23,18 @@ function addDay(ymdStr: string): string {
 
 export async function POST(req: NextRequest) {
   if (!isConfigured()) return NextResponse.json({ error: "Google Calendar not configured" }, { status: 503 });
+  // Owner from the verified session — using the client-supplied `body.owner`
+  // would let a teammate write/patch/move events using another user's token.
+  const sess = await ownerFromRequest(req);
+  if (!sess) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   let body: {
-    owner?: string; calendarId?: string; fromCalendarId?: string; gcalEventId?: string;
+    calendarId?: string; fromCalendarId?: string; gcalEventId?: string;
     title?: string; description?: string; location?: string; attendees?: string[];
     start?: string; end?: string | null; allDay?: boolean;
   };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
-  const owner = body.owner || "shared";
+  const owner = sess.owner;
   const calendarId = body.calendarId;
   if (!calendarId || calendarId === "sa-marketing") {
     return NextResponse.json({ error: "Pick a Google calendar to sync to" }, { status: 400 });

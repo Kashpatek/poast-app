@@ -16,6 +16,7 @@ import {
   isConfigured, getValidAccessToken, getTokenRow, saveCalendarPrefs,
   listCalendars, listEvents, insertEvent, patchEvent, getEvent,
 } from "@/lib/google-cal";
+import { ownerFromRequest } from "@/lib/session-owner";
 
 export const dynamic = "force-dynamic";
 
@@ -213,14 +214,20 @@ async function purgeStatusEverywhere(db: Db, token: string, owner: string): Prom
 
 export async function POST(req: NextRequest) {
   if (!isConfigured()) return NextResponse.json({ error: "Google Calendar not configured" }, { status: 503 });
+  // Owner from the verified session — every mode below (prefs, RSVP, calendar
+  // select, sync, purge) reads/writes marketing_events and the Google token for
+  // this owner, so trusting a client-supplied `body.owner` would expose and
+  // mutate another user's calendar spine and tokens.
+  const sess = await ownerFromRequest(req);
+  if (!sess) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   let body: {
-    owner?: string; calendarId?: string; prefs?: Record<string, unknown>;
+    calendarId?: string; prefs?: Record<string, unknown>;
     setCalendar?: { id: string; on: boolean }; syncSelected?: boolean;
     setShowStatus?: boolean;
     rsvp?: { calendarId: string; eventId: string; response: "accepted" | "declined" | "tentative" };
   };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
-  const owner = body.owner || "shared";
+  const owner = sess.owner;
   const db = sql();
 
   // Mode: persist prefs verbatim (no side effects).
