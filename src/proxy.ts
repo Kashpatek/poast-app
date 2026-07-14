@@ -15,6 +15,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifySession, SESSION_COOKIE } from "@/lib/auth-session";
+import { roleForEmail } from "@/app/lib/roles";
 
 // Open without a POAST session:
 //   • the sign-in machinery (prefix — it has sub-paths: start/callback/me/signout)
@@ -29,6 +30,20 @@ import { verifySession, SESSION_COOKIE } from "@/lib/auth-session";
 const PUBLIC_PREFIX = "/api/auth/";
 const PUBLIC_EXACT = new Set(["/api/clip/callback"]);
 
+// ─── Route-level role gating (the authorization layer above authentication) ───
+// The session cookie answers "who walked through the door"; these answer "is
+// this seat allowed here." Enforced server-side because the app's other role
+// checks are client-side React keyed on the spoofable `poast-current-user`.
+// Keep this deliberately small — only genuinely role-restricted surfaces. Most
+// tools are open to the whole team by design (e.g. the SHARED /board studio).
+//   admin-only     → Akash's personal task board
+//   non-analyst    → marketing tooling not meant for the default Analyst seat
+const ADMIN_ONLY_PREFIXES = ["/board/original"];
+const NON_ANALYST_PREFIXES = ["/ai-training"];
+function matchesPrefix(pathname: string, prefixes: string[]): boolean {
+  return prefixes.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -38,18 +53,35 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  let ok = false;
+  let session = null;
   try {
-    ok = !!(await verifySession(req.cookies.get(SESSION_COOKIE)?.value));
+    session = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   } catch {
-    ok = false; // fail closed (e.g. missing session secret) → sign-in funnel
+    session = null; // fail closed (e.g. missing session secret) → sign-in funnel
   }
-  if (ok) return NextResponse.next();
 
-  if (pathname.startsWith("/api/")) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!session) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+    }
+    return NextResponse.redirect(new URL("/", req.url));
   }
-  return NextResponse.redirect(new URL("/", req.url));
+
+  // Authenticated — now authorize by role for the few restricted surfaces.
+  const needsAdmin = matchesPrefix(pathname, ADMIN_ONLY_PREFIXES);
+  const needsNonAnalyst = matchesPrefix(pathname, NON_ANALYST_PREFIXES);
+  if (needsAdmin || needsNonAnalyst) {
+    const role = roleForEmail(session.email);
+    const allowed = needsAdmin ? role === "admin" : role === "admin" || role === "marketing";
+    if (!allowed) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {

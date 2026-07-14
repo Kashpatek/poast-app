@@ -481,7 +481,7 @@ export default function GlassClarityHome({
   akash?: boolean;
 }): React.ReactElement {
   const firstName = (userName || "").trim().split(/\s+/)[0] || "there";
-  const AKASH_ONLY = new Set(["carousel-neu"]);
+  const AKASH_ONLY = new Set(["carousel-neu", "tasks"]);
   const permits = (id: string): boolean => (!allow || allow.includes(id)) && (!AKASH_ONLY.has(id) || !!akash);
 
   // Live per-user organization. Any pin/recent change re-renders this home,

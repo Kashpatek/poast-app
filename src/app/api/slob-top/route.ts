@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { generateJSON, AnthropicError } from "@/lib/anthropic";
 import { callLLM, llmTextOf, parseLLMJson, LLMError, type LLMProvider } from "@/lib/llm-provider";
+import { safeFetch } from "@/lib/safe-fetch";
 import { stripHTML } from "@/lib/html";
 import { checkRateLimit } from "@/lib/ratelimit";
 
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
       // 1. Fetch the URL content
       let pageText = "";
       try {
-        const pageRes = await fetch(url, {
+        const pageRes = await safeFetch(url, {
           headers: {
             "User-Agent": "Mozilla/5.0 (compatible; SlopBot/1.0)",
             "Accept": "text/html,application/xhtml+xml,text/plain,*/*",

@@ -87,11 +87,15 @@ export async function POST(req: NextRequest) {
   const url = typeof body.url === "string" ? body.url : "";
   const token = typeof body.token === "string" ? body.token : "";
 
-  // If a JWT is provided, verify it. (ONLYOFFICE wraps the whole callback
-  // payload in a JWT when JWT is enabled on the server.)
-  if (token) {
-    const verified = verifyOnlyOfficeJWT(token);
-    if (!verified) return NextResponse.json({ error: 1 }, { status: 401 });
+  // REQUIRE a verified ONLYOFFICE JWT before acting on the callback `url`.
+  // ONLYOFFICE wraps the whole callback payload in a JWT when JWT is enabled,
+  // and this route already 503s unless ONLYOFFICE_JWT_SECRET is set — so a
+  // configured document server always signs its callbacks. Demanding the JWT
+  // closes an SSRF (an unauthenticated POST could otherwise make the server
+  // fetch an attacker-chosen `url`, including internal targets) WITHOUT a
+  // scheme/IP allowlist that would break a legit doc server on an internal host.
+  if (!token || !verifyOnlyOfficeJWT(token)) {
+    return NextResponse.json({ error: 1 }, { status: 401 });
   }
 
   if ((status === 2 || status === 6) && url) {

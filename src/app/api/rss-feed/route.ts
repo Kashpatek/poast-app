@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import Parser from "rss-parser";
+import { safeFetch } from "@/lib/safe-fetch";
 
 export const maxDuration = 30;
 
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
   let httpStatus = 0;
   let xml = "";
   try {
-    const res = await fetch(url, {
+    const res = await safeFetch(url, {
       headers: { "User-Agent": "Mozilla/5.0 PoastRSSManager/1.0" },
       cache: "no-store",
     });

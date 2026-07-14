@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { generateJSON, AnthropicError } from "@/lib/anthropic";
 import { stripHTML } from "@/lib/html";
+import { safeFetch } from "@/lib/safe-fetch";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { log } from "@/lib/logger";
 
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000);
-        const pageRes = await fetch(url, {
+        const pageRes = await safeFetch(url, {
           headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" },
           signal: controller.signal,
         });

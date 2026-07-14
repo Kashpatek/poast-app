@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { generateWithClaude, generateJSON, AnthropicError } from "@/lib/anthropic";
 import { stripHTML, extractImages } from "@/lib/html";
+import { safeFetch } from "@/lib/safe-fetch";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { generateGrokImages, GrokImageError, SA_BRAND_CUES, STYLE_PRESETS } from "@/lib/grok-image";
 import { generateImagenImages, ImagenError } from "@/lib/imagen";
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest) {
       const { url: fetchUrl } = body;
       if (!fetchUrl) return NextResponse.json({ images: [] });
       try {
-        const pageRes = await fetch(fetchUrl, { headers: { "User-Agent": "Mozilla/5.0 (compatible; SemiAnalysis/1.0)" } });
+        const pageRes = await safeFetch(fetchUrl, { headers: { "User-Agent": "Mozilla/5.0 (compatible; SemiAnalysis/1.0)" } });
         const html = await pageRes.text();
 
         // Extract article text for context

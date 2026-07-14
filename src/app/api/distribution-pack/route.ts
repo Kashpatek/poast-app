@@ -6,6 +6,7 @@
 // platform-specific SA voice rules.
 
 import { NextRequest, NextResponse } from "next/server";
+import { safeFetch } from "@/lib/safe-fetch";
 
 export const maxDuration = 120;
 
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
   let articleText = (body.text || "").trim();
   if (!articleText && body.url) {
     try {
-      const r = await fetch(body.url, { headers: { "User-Agent": "Mozilla/5.0" } });
+      const r = await safeFetch(body.url, { headers: { "User-Agent": "Mozilla/5.0" } });
       const html = await r.text();
       articleText = html
         .replace(/<script[\s\S]*?<\/script>/gi, "")

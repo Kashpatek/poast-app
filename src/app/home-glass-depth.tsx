@@ -92,7 +92,7 @@ const SHELVES: Shelf[] = [
   { key: "admin", label: "Admin", ring: D.blue, Icon: ShieldCheck, count: "5 tools", desc: "Workspace", tiles: [
     { name: "MarketingSUITE", sub: "The cockpit", Icon: SatelliteDish, status: "All systems ok", badge: "new", href: "/marketing-suite" },
     { name: "AI Training", sub: "Brand voice", Icon: Bot, status: "Trained", href: "/ai-training" },
-    { name: "Task Board", sub: "Master queue", Icon: SquareCheckBig, status: "9 open", nav: "tasks" },
+    { name: "Task Board", sub: "Master queue", Icon: SquareCheckBig, status: "9 open", nav: "tasks", akashOnly: true },
     { name: "Admin Dashboard", sub: "Files · users", Icon: Shield, status: "62% of plan", badge: "akash", href: "/marketing-suite" },
     { name: "Settings", sub: "Workspace config", Icon: Settings, status: "Brand defaults", nav: "settings" },
   ]},

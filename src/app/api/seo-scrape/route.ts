@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { safeFetch } from "@/lib/safe-fetch";
 
 // ═══ METASCRAPER (server-only) ═══
 // metascraper relies on a cheerio + a stack of rule bundles. We import lazily
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
-    const r = await fetch(target, {
+    const r = await safeFetch(target, {
       signal: controller.signal,
       headers: {
         // Some sites gate on UA — mimic a regular browser.
