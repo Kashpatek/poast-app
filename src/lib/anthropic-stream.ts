@@ -1,4 +1,7 @@
-import { CLAUDE_MODEL, AnthropicError } from "./anthropic";
+import { CLAUDE_MODEL, AnthropicError, usesRefusalFallback } from "./anthropic";
+
+const FALLBACK_MODEL = process.env.ANTHROPIC_FALLBACK_MODEL || "claude-opus-4-8";
+const FALLBACK_BETA = "server-side-fallback-2026-06-01";
 
 interface MessageContentBlock {
   type: "text" | "image";
@@ -22,20 +25,33 @@ export async function streamClaude(opts: StreamOptions): Promise<Response> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
 
+  const effModel = opts.model || CLAUDE_MODEL;
+  const fable = usesRefusalFallback(effModel);
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "x-api-key": apiKey,
+    "anthropic-version": "2023-06-01",
+  };
+  if (fable) headers["anthropic-beta"] = FALLBACK_BETA;
+
+  const body: Record<string, unknown> = {
+    model: effModel,
+    max_tokens: opts.maxTokens ?? 8000,
+    system: opts.system,
+    messages: opts.messages,
+    stream: true,
+  };
+  // On a refusal the fallback model's answer streams on the SAME connection;
+  // the boundary arrives as a content block of type "fallback", which the
+  // SSE transform below simply ignores (it only emits text deltas), so the
+  // Opus 4.8 text flows through unchanged.
+  if (fable) body.fallbacks = [{ model: FALLBACK_MODEL }];
+
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: opts.model || CLAUDE_MODEL,
-      max_tokens: opts.maxTokens ?? 8000,
-      system: opts.system,
-      messages: opts.messages,
-      stream: true,
-    }),
+    headers,
+    body: JSON.stringify(body),
   });
 
   if (!res.ok || !res.body) {
