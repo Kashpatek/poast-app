@@ -813,7 +813,7 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "production-studio", l: "ProductionSTUDIO", Icon: Clapperboard, href: "/production-studio", badge: "NEW", sub: "Full post suite" },
     { id: "brainstorm", l: "Brainstorm",     Icon: Lightbulb,  sub: "Ideas & angles" },
     { id: "carousel", l: "Carousel",         Icon: LayoutGrid, sub: "Instagram carousels" },
-    { id: "carousel-neu", l: "CarouselNEU",  Icon: Layers,     href: "/carousel-2", badge: "NEW", sub: "Carousel 2.0 studio" },
+    { id: "carousel-neu", l: "CarouselNEU",  Icon: Layers,     href: "/carousel-2", badge: "NEW", sub: "Foundry wizard · 4 modes" },
     { id: "chart",    l: "ChartMAKER",       Icon: GanttChart, href: "/charts", badge: "NEW", sub: "Quick charts" },
     { id: "docu",     l: "DesignSTUDIO",     Icon: Wand,       href: "/design-studio", badge: "NEW", sub: "Docs · graphics · motion" },
     { id: "copy-studio", l: "CopySTUDIO",   Icon: Type,       href: "/copy-studio", badge: "NEW", sub: "Draft · voice · headline" },
@@ -1825,7 +1825,7 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
   if (isAkash(userCtx.user)) {
     sections[sections.length - 1].tiles.unshift({ id: "tasks", label: "Task Board", sub: "Daily planner + Focus Mode", Icon: CheckSquare });
     // Akash-only: the in-progress Carousel 2.0 studio, next to the v1 Carousel tile.
-    sections[0].tiles.splice(2, 0, { id: "carousel-neu", label: "CarouselNEU", sub: "Carousel 2.0 studio", Icon: Layers, href: "/carousel-2" });
+    sections[0].tiles.splice(2, 0, { id: "carousel-neu", label: "CarouselNEU", sub: "Foundry wizard · 4 modes", Icon: Layers, href: "/carousel-2" });
   }
 
   // Site-wide ordering: Recently used → Favorites → the system sections above.
@@ -1975,7 +1975,7 @@ function StockHome({ onNavigate }: { onNavigate: (id: string) => void }) {
     ] },
   ];
   if (canDocu) sections[0].tiles.push({ id: "docu", label: "DesignStudio", sub: "Docs · graphics · images · motion", Icon: Wand, href: "/design-studio" });
-  if (isAkash(userCtx.user)) { sections[sections.length - 1].tiles.unshift({ id: "tasks", label: "Task Board", sub: "Daily planner + Focus Mode", Icon: CheckSquare }); sections[0].tiles.splice(2, 0, { id: "carousel-neu", label: "CarouselNEU", sub: "Carousel 2.0 studio", Icon: Layers, href: "/carousel-2" }); }
+  if (isAkash(userCtx.user)) { sections[sections.length - 1].tiles.unshift({ id: "tasks", label: "Task Board", sub: "Daily planner + Focus Mode", Icon: CheckSquare }); sections[0].tiles.splice(2, 0, { id: "carousel-neu", label: "CarouselNEU", sub: "Foundry wizard · 4 modes", Icon: Layers, href: "/carousel-2" }); }
   // Analyst gate: only surface tools the analyst can actually open, and drop
   // any category that empties out.
   if (analyst) {

@@ -63,11 +63,15 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
     setPs(null);
   };
 
-  // Global Escape handler while either dialog is open
+  // Global Escape handler while either dialog is open. preventDefault claims
+  // the key so shell-level handlers that check e.defaultPrevented (the
+  // CarouselNEU wizard Topbar's ESC-home) don't also navigate on the same
+  // keypress.
   useEffect(() => {
     if (!cs && !ps) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        e.preventDefault();
         if (cs) closeConfirm(false);
         if (ps) closePrompt(null);
       }
@@ -76,6 +80,20 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cs, ps]);
+
+  // Mark <body data-modal-open> while a dialog is up — same convention as
+  // the wizard's ImagePicker / GeneratingOverlay — so shell ESC-home
+  // listeners stand down even if they run before ours. Keyed on the boolean
+  // (not cs/ps object identity, which changes on every prompt keystroke) so
+  // the flag can't churn or leak.
+  const anyDialogOpen = !!cs || !!ps;
+  useEffect(() => {
+    if (!anyDialogOpen) return;
+    document.body.dataset.modalOpen = "1";
+    return () => {
+      delete document.body.dataset.modalOpen;
+    };
+  }, [anyDialogOpen]);
 
   // Autofocus prompt input — only on the initial appearance of a given
   // prompt, NOT on every state change. We were re-selecting on every

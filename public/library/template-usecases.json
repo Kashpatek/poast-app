@@ -1,0 +1,456 @@
+{
+ "version": "v3.4",
+ "source": "2026-07-14 visual annotation pass",
+ "entries": {
+  "0": {
+   "use": "Text-only cover: strong verbal headline + 230-char dek + 2-3 topic tag pills, big left-aligned type; when there is no hero asset. Title-alone slab \u2192 #135.",
+   "avoid": "Don't use when a chart or image is the hook \u2014 siblings 1-7 carry media; tag pills with one tag look bare.",
+   "textRich": false
+  },
+  "1": {
+   "use": "Cover where TEXT leads and a hero image supports: eyebrow/headline/dek on top, large landscape image below. Pick #2 instead if the image itself is the hook.",
+   "avoid": "Needs a genuinely good landscape image; a filler screenshot makes the bottom half read as dead space; leans on its image slot \u2014 never pick when no article images are provided",
+   "textRich": false
+  },
+  "2": {
+   "use": "Cover where the IMAGE is the hook, seen first: large landscape image up top, headline+dek beneath. Sibling of #1 \u2014 pick #1 when the headline should lead.",
+   "avoid": "Weak or abstract imagery kills it; the top half is the first thing scrolled past; leans on its image slot \u2014 never pick when no article images are provided",
+   "textRich": false
+  },
+  "3": {
+   "use": "Cover teasing BOTH an image and a chart: text column left, stacked image+chart rail right, plus a CTA pill. Pick #7 for 3 visuals, #6 for chart-only.",
+   "avoid": "Don't fill both right slots with placeholders just to use the split; two weak visuals beat one strong one never; leans on its image slot \u2014 never pick when no article images are provided",
+   "textRich": false
+  },
+  "4": {
+   "use": "Full-bleed atmospheric image covers the whole slide, headline card overlaid at bottom. Pick when one cinematic photo carries the mood and text can sit on it.",
+   "avoid": "Requires a full-frame image with quiet lower third; busy images fight the overlaid text card.",
+   "textRich": false
+  },
+  "5": {
+   "use": "Stat-led cover: one giant number (16 chars max) IS the headline, dek explains it, small chart backs it; pick only when a single figure is the hook.",
+   "avoid": "Don't force a soft metric into the hero slot; if the number needs a sentence to matter, use #6 instead.",
+   "textRich": false
+  },
+  "6": {
+   "use": "Chart-led cover: headline + short dek (99 chars) over a chart filling the lower two-thirds. Pick over #5 when the trend shape, not one number, is the hook.",
+   "avoid": "The dek is tight at 99 chars; if the chart needs real explanation this is the wrong opener.",
+   "textRich": false
+  },
+  "7": {
+   "use": "Collage cover for THREE distinct visuals (2 images + 1 chart) teasing a multi-part visual tour; headline+dek on top. Pick #3 when you only have two assets.",
+   "avoid": "Empty or repetitive tiles read instantly as filler \u2014 only use with 3 genuinely different assets; leans on its image slot \u2014 never pick when no article images are provided",
+   "textRich": false
+  },
+  "8": {
+   "use": "Text-only cover with a gradient brand rail + series footer label; recurring-series/newsletter opener. Pick #0 for topic tags, #9 for centered CTA.",
+   "avoid": "Mostly empty middle \u2014 headline and dek must carry it; skip for one-off posts with no series identity.",
+   "textRich": false
+  },
+  "9": {
+   "use": "Centered poster-style text cover with a CTA pill: one thesis sentence as headline, symmetric layout. Pick for opinionated bottom-line openers with no media.",
+   "avoid": "Headlines past ~2 lines break the centered symmetry; not for data-led posts (use #5/#6).",
+   "textRich": false
+  },
+  "17": {
+   "use": "Cover when two real images (photos/renders/charts) set up an A-vs-B or before/after story; text is eyebrow + short headline + one-line subhead.",
+   "avoid": "Needs both images supplied \u2014 empty portrait frames read as placeholders; long headlines crowd the right edge; leans on its image slot \u2014 never pick when no article images are provided",
+   "textRich": false
+  },
+  "21": {
+   "use": "Cover that previews a sequenced story: headline plus a bottom card of 3 dated milestones (Q3/Q4/H1-style label + a 3-5 word note each).",
+   "avoid": "Milestone notes cap at ~25 chars; skip when the story has no real dates or ordered phases.",
+   "textRich": false
+  },
+  "24": {
+   "use": "Flagship opener: centered magazine masthead with issue/date line + footer tag; pure-text brand ceremony. Giant left slab \u2192 #135; metadata imprint \u2192 #157.",
+   "avoid": "Too ceremonial for routine posts \u2014 slide 1 of a flagship deck only, never mid-deck.",
+   "textRich": false
+  },
+  "25": {
+   "use": "Agenda/TOC slide: numbered 01-05 rows naming the 4-5 sections the deck actually covers, one short title per row.",
+   "avoid": "Rows are section titles, not takeaways; under 4 real sections it reads padded (row 5 caps at 28 chars).",
+   "textRich": false
+  },
+  "29": {
+   "use": "Four-row entity-to-verdict table: names left, one-word status or number right (TSMC \u2192 Lead); for a watchlist with a call per row. Letter grades \u2192 #94.",
+   "avoid": "Right-hand cells fit ~16 chars \u2014 a word or number, never prose; padding to 4 rows reads as filler.",
+   "textRich": false
+  },
+  "31": {
+   "use": "Sequential three-step explainer: numbered 01-03 cards, each a short step name plus a one-line reason \u2014 how-it-works or why-X-happens chains.",
+   "avoid": "Exactly 3 steps with one-line bodies; don't force unordered lists into numbered steps.",
+   "textRich": true
+  },
+  "33": {
+   "use": "The 'so what' slide: a 1-2 sentence takeaway body, one implication statement in a highlight pill, and 3 keyword tag chips underneath.",
+   "avoid": "Needs a genuine one-line implication plus 3 real tags; without them the pill card leaves the lower third empty.",
+   "textRich": true
+  },
+  "34": {
+   "use": "Heat-map slide: chart slot renders a cell grid of where risk/strength concentrates; text is title + 1-line caption. Sibling of #38 \u2014 2D grids here, flows there.",
+   "avoid": "Needs a real matrix chart in the slot; without data the gradient cells are pure decoration.",
+   "textRich": false
+  },
+  "36": {
+   "use": "Two labeled position cards (bull/bear) each carrying one full ~120-char sentence \u2014 prose face-off with no scores. To score and call a winner \u2192 #58/#149.",
+   "avoid": "Two contenders only \u2014 3+ options need a table; one sentence per card, no lists inside.",
+   "textRich": true
+  },
+  "38": {
+   "use": "Value-chain flow: sankey slot for quantities moving between stages (wafers\u2192systems\u2192revenue); title + caption only. Sibling of #34 \u2014 flows here, grids there.",
+   "avoid": "Requires a real flow dataset in the chart slot; the ribbon blocking is decorative without one.",
+   "textRich": false
+  },
+  "39": {
+   "use": "A containment hierarchy of up to 6 named layers (model\u2192chip\u2192rack\u2192grid); indented rows read as nesting, so pick only when levels genuinely sit inside each other.",
+   "avoid": "Not for flat lists or rankings \u2014 the alternating indent implies parent/child; for % shares use #55.",
+   "textRich": false
+  },
+  "40": {
+   "use": "Verbatim pull-quote from the source article: giant quote mark, 72-char line + 145-char context. Named speaker w/ headshot \u2192 #96; own thesis as quote \u2192 #139.",
+   "avoid": "Don't paraphrase into it \u2014 if the line isn't quote-worthy on its own, use #41's verdict card instead.",
+   "textRich": false
+  },
+  "41": {
+   "use": "Your own called conclusion after evidence slides: 'Verdict' badge, one-line ruling, 150-char justification; mid-deck or closer. Verbatim source quote \u2192 #40.",
+   "avoid": "Needs an actual ruling; a neutral summary wastes the Verdict badge.",
+   "textRich": false
+  },
+  "43": {
+   "use": "One dominant number (multiplier/percent, \u226412 chars) that IS the story, with a 6-bar mini trend beneath for context; hero stat leads, chart supports.",
+   "avoid": "Needs both the hero figure and 6 trend points; if the chart itself is the story, use #52.",
+   "textRich": false
+  },
+  "44": {
+   "use": "A single strong portrait-crop image that speaks for itself; text is a margin note only (91-char body in a narrow side rail, no headline slot).",
+   "avoid": "No headline \u2014 don't use when the slide needs framing text; headline-led single image is #48; leans on its image slot \u2014 never pick when no article images are provided",
+   "textRich": false
+  },
+  "46": {
+   "use": "Four related images shown as a set \u2014 recap gallery, four examples or variants \u2014 in a 2x2 thumb grid under one headline.",
+   "avoid": "Needs all 4 real images; empty or filler tiles read as unfinished; leans on its image slot \u2014 never pick when no article images are provided",
+   "textRich": false
+  },
+  "48": {
+   "use": "One diagram or screenshot carries the slide, framed by a headline above and a one-line caption below; big square image slot. Portrait image, no headline \u2192 #44.",
+   "avoid": "Image slot, not chart \u2014 for a data chart use #52; leans on its image slot \u2014 never pick when no article images are provided",
+   "textRich": false
+  },
+  "52": {
+   "use": "A single chart (waterfall/bar) is the whole story: headline frames it, 63-char caption closes it; accepts a chart module, not an image. Hero-number-led \u2192 #43.",
+   "avoid": "Don't fill the chart slot with a decorative graphic; the slide has nothing else to fall back on.",
+   "textRich": false
+  },
+  "55": {
+   "use": "Composition breakdown: 3-4 parts of a whole, each a % share drawn as a filled bar (power budget, cost split); shares should sum to ~100. Nesting \u2192 #39.",
+   "avoid": "Bar length encodes magnitude \u2014 unrelated stats or non-share numbers make the bars lie.",
+   "textRich": false
+  },
+  "58": {
+   "use": "Compact A-vs-B scoreboard: TWO contenders, 3 shared metric rows, VS medallion, edge-call pill. Full spec cards + WINNER badge \u2192 #149; 3+ options need a table.",
+   "avoid": "Requires a callable edge \u2014 skip if you can't name a winner, and never squeeze in a third contender.",
+   "textRich": false
+  },
+  "59": {
+   "use": "Exactly three headline numbers that tell one story \u2014 each value <=12 chars ('+38%', '4.6x') with an <=18-char label; staggered big-type stat strip.",
+   "avoid": "Value slots are 12 chars \u2014 numbers only, no phrases; don't pad to three with a stat that isn't load-bearing.",
+   "textRich": false
+  },
+  "60": {
+   "use": "Like #59 but for THREE 0-100 readings (utilization %, share, score) rendered as ring gauges; pick #59 when values aren't percent-like.",
+   "avoid": "Rings imply proportion of a whole \u2014 arbitrary magnitudes ($, MW, multiples) read wrong in a gauge.",
+   "textRich": false
+  },
+  "61": {
+   "use": "A trend chart whose story hinges on ONE moment \u2014 a pinned callout (16-char tag + 120-char sentence) explains it; the chart slot supplies the plot.",
+   "avoid": "Needs a real chart in the slot and a single genuine key moment; multi-point stories overload the one callout.",
+   "textRich": false
+  },
+  "71": {
+   "use": "Prose slide: 2-3 sentence argument paragraph (<=336 chars) in a card with 4 topic chips + 190-char framing subhead. Longer sourced analyst note \u2192 #182.",
+   "avoid": "Subhead and body render as adjacent paragraphs \u2014 give them different jobs or the slide says the same thing twice.",
+   "textRich": true
+  },
+  "76": {
+   "use": "Numbered chapter divider for sequential takeaways \u2014 headline names the point, 150-char subhead states it; eyebrow carries the step number.",
+   "avoid": "Ghost numeral is hardcoded '01' (no field) \u2014 on steps 2+ the giant background digit won't match your eyebrow.",
+   "textRich": false
+  },
+  "86": {
+   "use": "Deck opener: one provocative hook sentence (<=72 chars) in giant type with a SWIPE cue; module slot can fill the empty lower third.",
+   "avoid": "Slide-1 only, one per deck; without a module the bottom third is dead space.",
+   "textRich": false
+  },
+  "90": {
+   "use": "Market-tape moment: 4 metric->value console rows ('hbm.alloc: tight', 'signal: RISK-ON'); values may be status words, unlike #59's big-number strip.",
+   "avoid": "Terminal chrome is a strong flavor \u2014 off-tone for non-market topics; a large empty band sits between headline and card.",
+   "textRich": false
+  },
+  "94": {
+   "use": "Graded ranking of up to 5 vendors where each row earns a letter grade in a color-coded chip (ClusterMAX-style); needs a real grading scheme.",
+   "avoid": "Don't reach for it without differentiated grades \u2014 five A's or invented letters read as filler.",
+   "textRich": false
+  },
+  "96": {
+   "use": "A quote a named person actually SAID, on the record: headshot slot, 17-char name, 31-char title. Article pull-quote \u2192 #40; own thesis \u2192 #139.",
+   "avoid": "The quote IS the headline field \u2014 no paragraph capacity; short quotes leave the bottom third empty.",
+   "textRich": false
+  },
+  "98": {
+   "use": "Market-sizing narrative: 4 shrinking tiers (TAM->serviceable->demand->won), each a name plus a hard dollar figure; bar widths encode the narrowing.",
+   "avoid": "Values must genuinely shrink top-to-bottom; bottom tier chip is low-contrast brown, so keep its label short.",
+   "textRich": false
+  },
+  "101": {
+   "use": "Ranked leaderboard of exactly 4 contenders, short name + numeric score per row, #1 row visually crowned; needs a real ranking with a clear winner.",
+   "avoid": "No true ranking = filler rows; for 5 entries with value-scaled chart bars pick #117.",
+   "textRich": false
+  },
+  "104": {
+   "use": "Hero forecast number + delta chip, 1-2 sentence why, trend chart, three timeline milestone stats \u2014 metric-with-trajectory. Bare number + mini trend \u2192 #43.",
+   "avoid": "Needs a real time series behind the number; without chart data the mid-band goes dead.",
+   "textRich": false
+  },
+  "107": {
+   "use": "Share-of-market split across 2-3 stack layers (e.g. compute/HBM/packaging), each bar segmented by named players with proportional widths.",
+   "avoid": "Needs actual share splits per layer; single-metric rankings belong in #101 or #117.",
+   "textRich": false
+  },
+  "109": {
+   "use": "Subscribe-conversion closer: benefit headline, one-line value prop, three feature chips, subscribe-URL button. Ask is signup \u2014 follows go to #111.",
+   "avoid": "One closer per deck, last slide; skip if you can't name 3 real member benefits for the chips.",
+   "textRich": false
+  },
+  "111": {
+   "use": "Follow-us closer with three platform-to-handle rows (X / LinkedIn / newsletter). Pick when the ask is a follow; subscribe button = #109, no-ask = #112.",
+   "avoid": "Last or second-to-last slide only; rows need real handles, never invented placeholders.",
+   "textRich": false
+  },
+  "112": {
+   "use": "No-ask signoff led by the big WORDMARK: thanks kicker + tagline + URL; ends the deck quiet instead of a CTA (#109/#111/#116). Seal + final call line \u2192 #130.",
+   "avoid": "Pure brand moment, at most one per deck; adding stats or extra copy breaks the restraint.",
+   "textRich": false
+  },
+  "113": {
+   "use": "Next-installment teaser for a real multi-part series: coming-topic headline, drop-timing line, and a PART X OF Y progress pill.",
+   "avoid": "Only when a sequel genuinely exists; the part pill must match the true series position.",
+   "textRich": false
+  },
+  "116": {
+   "use": "Engagement closer built on ONE direct question to readers plus a comments-CTA pill; goal is replies, not subscribes (#109) or follows (#111).",
+   "avoid": "Headline must read as a question \u2014 the quote-mark ornament turns statements into fake quote cards.",
+   "textRich": false
+  },
+  "117": {
+   "use": "Five-way magnitude race: label + one comparable number per row, bars scaled to value with the figure inside. Pick over #101 for 5 entries and chart feel.",
+   "avoid": "All values must share one unit or normalized index; mixed units make bar widths lie.",
+   "textRich": false
+  },
+  "123": {
+   "use": "Exactly FOUR headline metrics in a 2x2 grid, big number + micro label each \u2014 quarterly scorecard. Three stats \u2192 #59, six \u2192 #159, one hero \u2192 #160.",
+   "avoid": "Caption-length labels only, no room for why; padding to fill all 4 cells reads as filler.",
+   "textRich": false
+  },
+  "124": {
+   "use": "One widely believed claim you can flatly debunk: myth vs reality one-liners side by side, with a 230-char subhead to frame why the distinction matters.",
+   "avoid": "Needs a genuinely wrong belief; a soft 'true, but' nuance makes the X-vs-check framing overwrought.",
+   "textRich": true
+  },
+  "130": {
+   "use": "Closer led by the brand SEAL icon plus one last call line ('That is the call.') + 150-char sign-off; wordmark-led quiet end \u2192 #112. Last slide only.",
+   "avoid": "Not a content slide \u2014 no evidence capacity; anywhere before the final slide it reads as a premature goodbye.",
+   "textRich": false
+  },
+  "131": {
+   "use": "Momentum break teasing the next section of a long deck ('Next: ...') with dots + chevron; needs art in its module slot \u2014 the four panels ship empty.",
+   "avoid": "Renders as a skeleton \u2014 4 ghost panels, one slot, body text clips bottom-right; never use as a content slide.",
+   "textRich": false
+  },
+  "132": {
+   "use": "'Save this' cheat sheet: 4 label\u2192value rows of hard reference numbers (specs, dates) under a bookmark CTA; earn it with facts readers will want later.",
+   "avoid": "Values max 24 chars \u2014 facts only, no sentences; fewer than 4 real reference numbers makes the bookmark ask hollow.",
+   "textRich": false
+  },
+  "135": {
+   "use": "Type-only cover: declarative <=72-char title at giant left-aligned slab scale, issue/date footers, no art. Centered masthead \u2192 #24; short centered title \u2192 #188.",
+   "avoid": "The headline stands alone across ~5 display lines; hedged or wordy titles have nothing to hide behind.",
+   "textRich": false
+  },
+  "137": {
+   "use": "Investigative 'case file' cover \u2014 FILE/REF header, CONFIDENTIAL stamp, Subject/Date/Status panel; earned by who-controls/inside-X stories with real metadata.",
+   "avoid": "Costume-y on generic topics; as-rendered the stamp covers the CLEARANCE value \u2014 check that corner.",
+   "textRich": false
+  },
+  "139": {
+   "use": "Your own thesis (<=72 chars) styled as a giant quote between quote marks, attribution footer. Verbatim source line \u2192 #40; highlighted-phrase TL;DR \u2192 #172.",
+   "avoid": "Not for paraphrase or multi-sentence points; a bland line at display scale just amplifies the blandness.",
+   "textRich": false
+  },
+  "141": {
+   "use": "Rank reshuffle between exactly two periods across 5 named players (who passed whom), with share % on the right; the line crossings are the story.",
+   "avoid": "Line art is baked to the demo ranking \u2014 text edits won't re-route crossings; a flat no-change ranking wastes the device.",
+   "textRich": false
+  },
+  "142": {
+   "use": "Then-vs-now shift per metric: 5 rows, two dots on a shared track with values at each end. For magnitude deltas; pick #141 when rank order is the story.",
+   "avoid": "Row 5 collides with the footer at the canvas edge as-rendered; prefer 4 rows or verify the bottom.",
+   "textRich": false
+  },
+  "143": {
+   "use": "Actual-vs-target per item: 4 bullet bars, big % + red plan tick each \u2014 yield/utilization against goal; #142 is for two-time-point deltas instead.",
+   "avoid": "Fourth card and TARGET legend sit clipped at the canvas edge as-rendered; verify or run 3 rows.",
+   "textRich": false
+  },
+  "144": {
+   "use": "Six categories each scored on two opposing measures (supply vs demand, ours vs theirs) \u2014 mirrored tornado bars with a number at each end of every row.",
+   "avoid": "Bar widths are fixed geometry, not data-bound \u2014 don't use when readers will check bar length against the numbers.",
+   "textRich": false
+  },
+  "148": {
+   "use": "One decision with 4 real upsides AND 4 real downsides, each a full clause \u2014 balanced pros/cons verdict on a single named subject (pill at top).",
+   "avoid": "Needs both columns genuinely full; a lopsided case (1-2 cons) leaves a limp half.",
+   "textRich": true
+  },
+  "149": {
+   "use": "TWO full-height contender cards, 3 numeric spec rows each, declared WINNER badge \u2014 GPU-vs-ASIC matchup. Compact edge-pill scoreboard \u2192 #58; never 3+ options.",
+   "avoid": "Skip if you won't call a winner \u2014 the badge forces a verdict; card interiors look empty without a module fill.",
+   "textRich": false
+  },
+  "153": {
+   "use": "Generation-over-generation spec table where exactly ONE row moved \u2014 the '1 spec moved' pill spotlights a single delta among otherwise-identical rows.",
+   "avoid": "If several specs changed, the spot-the-change framing collapses; use #149 for a real matchup.",
+   "textRich": false
+  },
+  "157": {
+   "use": "Report imprint opener/closer: big title + six metadata pairs (series, issue, author, coverage, date, source); at most one per deck. Ceremonial masthead \u2192 #24.",
+   "avoid": "No argument capacity \u2014 it's an imprint; bottom third sits empty unless the module slot is filled.",
+   "textRich": false
+  },
+  "159": {
+   "use": "Six co-equal headline numbers about one subject \u2014 3x2 'by the numbers' stat wall, label + big value per tile; pick #160 when ONE number is the story.",
+   "avoid": "Don't pad to six with weak stats \u2014 filler tiles are obvious; no room for per-stat context.",
+   "textRich": false
+  },
+  "160": {
+   "use": "One record/milestone number as the gradient hero banner, backed by 4 context rows (prior record, margin, timing); pick #159 for six equal stats.",
+   "avoid": "RECORD framing over-promises for routine figures \u2014 reserve for genuine firsts or superlatives.",
+   "textRich": false
+  },
+  "162": {
+   "use": "Four parallel workstreams laid on a Q1-Q4 axis with a NOW marker \u2014 when relative timing and overlap of ramps/quals IS the argument.",
+   "avoid": "Bar spans are fixed decoration, not data-bound \u2014 only labels edit; don't imply precise start/end dates.",
+   "textRich": false
+  },
+  "163": {
+   "use": "Sequential A-D gate chain with a PASS/BLOCKED/PENDING pill per stage \u2014 for one-bottleneck-stalls-the-pipeline stories; pick #165 for progress up a stack.",
+   "avoid": "Needs a genuine choke point; an all-PASS chain has no tension and reads as a filler checklist.",
+   "textRich": false
+  },
+  "165": {
+   "use": "Five-layer build sequence read bottom-up (01\u219205) with a status chip per step \u2014 'how far along is the buildout' stories; pick #163 when one BLOCKED gate is it.",
+   "avoid": "Bottom-to-top reading order suits infra stacks; a plain chronological how-to will fight the layout.",
+   "textRich": false
+  },
+  "166": {
+   "use": "Eight named parts each with a % share, drawn as a fixed die-floorplan treemap \u2014 the share-of-whole slide for area/cost/capacity budgets.",
+   "avoid": "Block sizes are baked \u2014 percentages that don't match the drawn areas mislead; needs all 8 blocks filled.",
+   "textRich": false
+  },
+  "167": {
+   "use": "Yield/defect story with exactly three hero metrics: wafer dot-map fills the left, each right tile takes a label + big amber number + short unit line.",
+   "avoid": "Wafer graphic is fixed decoration \u2014 wrong for non-fab topics or stat counts other than 3.",
+   "textRich": false
+  },
+  "169": {
+   "use": "One metric across six tiers spanning orders of magnitude, drawn as a descending log-scale bar ladder; each rung takes a name + hard number + unit.",
+   "avoid": "Needs a real magnitude spread across all 6 rungs; the shortest bar crops long unit text.",
+   "textRich": false
+  },
+  "172": {
+   "use": "One-sentence TL;DR (<=72 chars) set giant with gradient-highlighted key phrases \u2014 no quote marks or speaker. Quote framing w/ attribution \u2192 #139.",
+   "avoid": "No room for evidence on-slide; if the payoff is a number, reach for a stat/fact card instead.",
+   "textRich": false
+  },
+  "173": {
+   "use": "A single did-you-know fact whose hero is one number rendered giant inline in the sentence, plus a small 'vs' comparison chip below.",
+   "avoid": "A sentence near the char cap overflows onto the label row and the lower third sits empty \u2014 keep the fact very short; leans on its image slot \u2014 never pick when no article images are provided",
+   "textRich": false
+  },
+  "176": {
+   "use": "Steelman rebuttal: the strongest objection stated as a full paragraph, answered by your counter-paragraph in an amber-framed panel below it.",
+   "avoid": "Both panels need real substance; a one-line objection leaves the gray pushback panel hollow.",
+   "textRich": true
+  },
+  "180": {
+   "use": "Closing 'three things to remember': exactly 3 numbered takeaways, each a bold claim heading plus one caps support sentence.",
+   "avoid": "Fixed at three items \u2014 don't pad a weak third takeaway; every item needs its own support sentence.",
+   "textRich": true
+  },
+  "182": {
+   "use": "Mid-deck analyst-note paragraph (up to ~550 chars) developing one argument, with highlight accents + source attribution; #183 when the prose opens the deck.",
+   "avoid": "Needs a genuinely long paragraph; a short body leaves the note panel hollow.",
+   "textRich": true
+  },
+  "183": {
+   "use": "Deck-opening standfirst: drop-cap thesis paragraph (~390 chars) + byline + min-read badge \u2014 the editorial slide 1 framing; pick #182 for mid-deck prose.",
+   "avoid": "At most one per deck, as the opener; the drop cap styles the first letter, so open the paragraph on a strong word.",
+   "textRich": true
+  },
+  "184": {
+   "use": "Blueprint cover for layered-hardware topics: fixed 4-layer cross-section diagram with editable callouts + big headline; strong opener or section break.",
+   "avoid": "Diagram always draws the same 4-layer package; callout text can't change the drawing \u2014 skip for non-stack topics.",
+   "textRich": false
+  },
+  "185": {
+   "use": "Cover for chip-internals stories (die, HBM, packaging): fixed die-shot art + 3 legend labels naming die regions. No subhead \u2014 pick #186/#190 if one is needed.",
+   "avoid": "Off-silicon topics make the die graphic and anatomy legend a lie; the 3 legend labels are mandatory, not decoration.",
+   "textRich": false
+  },
+  "186": {
+   "use": "Cover with thermal-contour art for heat/power/density/field-map stories; eyebrow + headline + one ~140-char thesis subhead. Sibling of #190 (circuit metaphor).",
+   "avoid": "Art reads as heatmap/topography \u2014 wrong metaphor for market or supply-chain stories.",
+   "textRich": false
+  },
+  "188": {
+   "use": "Centered type cover or mid-deck divider: kicker + short title + byline on a plain glow gradient. Left-aligned giant slab w/ issue footers \u2192 #135.",
+   "avoid": "No subhead or stat capacity; long titles wrap ugly \u2014 keep it ~4 punchy words.",
+   "textRich": false
+  },
+  "190": {
+   "use": "Cover with PCB-trace art for interconnect/packaging/networking/signal stories; ~150-char subhead carries the thesis. Like #186 but circuit, not thermal.",
+   "avoid": "Traces are decorative and fixed \u2014 don't pick it hoping to diagram a real topology.",
+   "textRich": false
+  },
+  "192": {
+   "use": "Scatter/bubble chart card: 5-6 named contenders on two quantitative axes with size as a third measure, plus a one-line takeaway. Needs real positioning data.",
+   "avoid": "Bubble positions/sizes are baked art \u2014 labels must plausibly match the drawn layout (one big top-right leader).",
+   "textRich": false
+  },
+  "193": {
+   "use": "Single share-of-whole percentage told as a 10x10 waffle plus giant stat (utilization, penetration, yield); two legend lines split used vs remaining.",
+   "avoid": "Cell fill is baked near 78/100 \u2014 a stat far from ~78% contradicts the grid; not for multi-series data.",
+   "textRich": false
+  },
+  "194": {
+   "use": "Two-level market map (marimekko): ~3 buyer/segment columns sized by share, each stacked with 2-3 mix percentages. Earn it with a full 11-number dataset.",
+   "avoid": "Rectangle sizes are baked \u2014 numbers must roughly match drawn areas; for one-level splits use #197 or #193.",
+   "textRich": false
+  },
+  "195": {
+   "use": "Six parallel metrics each with a signed delta and unit, one designated breakout \u2014 dashboard of 2x3 sparkline cards; middle-right card is pre-highlighted amber.",
+   "avoid": "Sparkline shapes are baked; delta signs must match drawn slopes, and padding to reach six metrics reads as filler.",
+   "textRich": false
+  },
+  "197": {
+   "use": "One-level cost/capex/BOM breakdown into ~7 parts with one dominant share (~46%) \u2014 treemap tiles each take name + %. For 2-level composition use #194.",
+   "avoid": "Tile areas are baked and never reflow \u2014 percentages must roughly match drawn sizes and sum to 100.",
+   "textRich": false
+  },
+  "199": {
+   "use": "Composition shifting across ~5 time periods: 4 components whose shares change, one swelling to dominate \u2014 streamgraph + name/% legend pairs. Time-series only.",
+   "avoid": "Band shapes are baked (top band grows); static or shrinking-leader stories contradict the art.",
+   "textRich": false
+  }
+ }
+}

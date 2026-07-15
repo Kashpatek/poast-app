@@ -51,7 +51,7 @@ const TOOLS: Record<string, Tool> = {
   "production-studio": { id: "production-studio", label: "ProductionSTUDIO", Icon: Clapperboard, sub: "Full post suite", href: "/production-studio" },
   brainstorm: { id: "brainstorm", label: "Brainstorm", Icon: Lightbulb, sub: "Ideas & angles" },
   carousel: { id: "carousel", label: "Carousel", Icon: LayoutGrid, sub: "Instagram carousels" },
-  "carousel-neu": { id: "carousel-neu", label: "CarouselNEU", Icon: Layers, sub: "Carousel 2.0 studio", href: "/carousel-2" },
+  "carousel-neu": { id: "carousel-neu", label: "CarouselNEU", Icon: Layers, sub: "Foundry wizard · 4 modes", href: "/carousel-2" },
   chart: { id: "chart", label: "ChartMAKER", Icon: GanttChart, sub: "Quick charts", href: "/charts" },
   docu: { id: "docu", label: "DesignSTUDIO", Icon: Wand, sub: "Docs · graphics · motion", href: "/design-studio" },
   "copy-studio": { id: "copy-studio", label: "CopySTUDIO", Icon: Type, sub: "Draft · voice · headline", href: "/copy-studio" },

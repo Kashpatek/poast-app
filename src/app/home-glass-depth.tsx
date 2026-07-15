@@ -65,7 +65,7 @@ const SHELVES: Shelf[] = [
   { key: "produce", label: "Produce", ring: D.amber, Icon: Wand2, count: "9 tools", desc: "Make the content", tiles: [
     { name: "Slop Top", sub: "Brief gen", Icon: Zap, status: "Most used", nav: "sloptop" },
     { name: "Carousel", sub: "Carousels", Icon: LayoutGrid, status: "3 templates", nav: "carousel" },
-    { name: "CarouselNEU", sub: "Carousel 2.0", Icon: Layers, status: "New", href: "/carousel-2", badge: "akash", akashOnly: true },
+    { name: "CarouselNEU", sub: "Foundry wizard", Icon: Layers, status: "New", href: "/carousel-2", badge: "akash", akashOnly: true },
     { name: "Capper", sub: "Captions", Icon: Captions, status: "Auto-fit", nav: "captions" },
     { name: "Chart Maker", sub: "Quick charts", Icon: GanttChart, status: "12 saved", href: "/charts" },
     { name: "POAST Studio", sub: "Charts · tables", Icon: Table2, status: "Pro", href: "/charts" },

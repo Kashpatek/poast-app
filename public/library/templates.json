@@ -1,0 +1,8800 @@
+{
+ "generated": "2026-07-13",
+ "count": 90,
+ "note": "Approved templates only (90 of 181). Field/slot schema parsed from the annotated SVG data-attributes; the SVG files are the render source of truth. Fit metadata re-baked 2026-07-14 (verify/bake-fit.js, row-true): data-w/minfont/maxlines + capacity-true maxLens.",
+ "templates": [
+  {
+   "idx": 0,
+   "id": "tpl-cover-text",
+   "layout": "coverText",
+   "family": "cover",
+   "category": "cover",
+   "disposition": "keep",
+   "svgFile": "svg/000-coverText.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 72,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 230,
+     "minFont": 27
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 20
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 12,
+     "minFont": 20
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 7,
+     "minFont": 20
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 40,
+     "minFont": 20
+    },
+    {
+     "name": "logo",
+     "element": "text",
+     "role": "logo"
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 42.74,
+     "width": 957.14,
+     "height": 1227.5
+    }
+   ]
+  },
+  {
+   "idx": 1,
+   "id": "tpl-cover-image-bottom",
+   "layout": "coverImageBottom",
+   "family": "cover",
+   "category": "cover",
+   "disposition": "keep",
+   "svgFile": "svg/001-coverImageBottom.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 47,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 161,
+     "minFont": 27
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 32,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "image-1",
+     "accepts": "image",
+     "label": "HERO IMAGE",
+     "role": "image",
+     "x": 75.59,
+     "y": 541.15,
+     "width": 928.81,
+     "height": 632.48
+    }
+   ]
+  },
+  {
+   "idx": 2,
+   "id": "tpl-cover-image-top",
+   "layout": "coverImageTop",
+   "family": "cover",
+   "category": "cover",
+   "disposition": "keep-fixed-flag",
+   "fixNote": "logo: chip-in-image fix (Jul 8 gap-fix pass)",
+   "svgFile": "svg/002-coverImageTop.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 32,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 168,
+     "minFont": 27
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 24,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "image-1",
+     "accepts": "image",
+     "label": "LEAD IMAGE",
+     "role": "image",
+     "x": 75.59,
+     "y": 75.57,
+     "width": 928.81,
+     "height": 587.43
+    }
+   ]
+  },
+  {
+   "idx": 3,
+   "id": "tpl-cover-split",
+   "layout": "coverSplit",
+   "family": "cover",
+   "category": "cover",
+   "disposition": "keep-fixed-flag",
+   "fixNote": "logo: lettermark + panel clearance fix (Jul 8)",
+   "svgFile": "svg/003-coverSplit.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 29,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 36,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 146,
+     "minFont": 27
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 19,
+     "minFont": 23
+    }
+   ],
+   "slots": [
+    {
+     "name": "image-1",
+     "accepts": "image",
+     "label": "IMAGE",
+     "role": "image",
+     "x": 642.16,
+     "y": 144.94,
+     "width": 362.25,
+     "height": 706.62
+    },
+    {
+     "name": "chart-1",
+     "accepts": "chart",
+     "label": "CHART",
+     "role": "chart",
+     "x": 642.16,
+     "y": 908.78,
+     "width": 362.25,
+     "height": 354.85
+    }
+   ]
+  },
+  {
+   "idx": 4,
+   "id": "tpl-cover-full-bleed",
+   "layout": "coverFullBleed",
+   "family": "cover",
+   "category": "cover",
+   "disposition": "keep",
+   "svgFile": "svg/004-coverFullBleed.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 58,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 177,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "image-1",
+     "accepts": "image",
+     "label": "FULL IMAGE",
+     "role": "image",
+     "x": 0,
+     "y": 0,
+     "width": 1080,
+     "height": 1350
+    }
+   ]
+  },
+  {
+   "idx": 5,
+   "id": "tpl-cover-stat",
+   "layout": "coverStat",
+   "family": "cover",
+   "category": "cover",
+   "disposition": "keep",
+   "svgFile": "svg/005-coverStat.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 7,
+     "minFont": 77
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 149,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "chart-1",
+     "accepts": "chart",
+     "label": "TREND",
+     "role": "chart",
+     "x": 86.39,
+     "y": 660.18,
+     "width": 562.46,
+     "height": 497.53
+    }
+   ]
+  },
+  {
+   "idx": 6,
+   "id": "tpl-cover-chart",
+   "layout": "coverChart",
+   "family": "cover",
+   "category": "cover",
+   "disposition": "keep",
+   "svgFile": "svg/006-coverChart.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 46,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 99,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "chart-1",
+     "accepts": "chart",
+     "label": "CHART",
+     "role": "chart",
+     "x": 86.39,
+     "y": 495.89,
+     "width": 907.21,
+     "height": 778.75
+    }
+   ]
+  },
+  {
+   "idx": 7,
+   "id": "tpl-cover-collage",
+   "layout": "coverCollage",
+   "family": "cover",
+   "category": "cover",
+   "disposition": "keep",
+   "svgFile": "svg/007-coverCollage.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 64,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 161,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "image-1",
+     "accepts": "image",
+     "label": "IMAGE",
+     "role": "image",
+     "x": 75.59,
+     "y": 490.49,
+     "width": 445.83,
+     "height": 783.94
+    },
+    {
+     "name": "image-2",
+     "accepts": "image",
+     "label": "DETAIL",
+     "role": "image",
+     "x": 558.57,
+     "y": 490.49,
+     "width": 445.84,
+     "height": 418.1
+    },
+    {
+     "name": "chart-1",
+     "accepts": "chart",
+     "label": "DATA",
+     "role": "chart",
+     "x": 558.57,
+     "y": 939.94,
+     "width": 445.84,
+     "height": 334.5
+    }
+   ]
+  },
+  {
+   "idx": 8,
+   "id": "tpl-cover-rail",
+   "layout": "coverRail",
+   "family": "cover",
+   "category": "cover",
+   "disposition": "keep",
+   "svgFile": "svg/008-coverRail.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 61,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 150,
+     "minFont": 27
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 32,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 253.23,
+     "y": 1217.46,
+     "width": 767.94,
+     "height": 64.87
+    }
+   ]
+  },
+  {
+   "idx": 9,
+   "id": "tpl-cover-center",
+   "layout": "coverCenter",
+   "family": "cover",
+   "category": "cover",
+   "disposition": "keep",
+   "svgFile": "svg/009-coverCenter.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 72,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 141,
+     "minFont": 27
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 17,
+     "minFont": 23
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 385.41,
+     "y": 929.71,
+     "width": 309.17,
+     "height": 94.2
+    }
+   ]
+  },
+  {
+   "idx": 17,
+   "id": "tpl-cover-two-image",
+   "layout": "coverTwoImage",
+   "family": "cover",
+   "category": "cover",
+   "disposition": "keep",
+   "svgFile": "svg/017-coverTwoImage.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 32,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 107,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "image-1",
+     "accepts": "image",
+     "label": "A",
+     "role": "image",
+     "x": 75.59,
+     "y": 370.55,
+     "width": 445.83,
+     "height": 903.89
+    },
+    {
+     "name": "image-2",
+     "accepts": "image",
+     "label": "B",
+     "role": "image",
+     "x": 558.57,
+     "y": 370.55,
+     "width": 445.84,
+     "height": 903.89
+    }
+   ]
+  },
+  {
+   "idx": 21,
+   "id": "tpl-cover-timeline",
+   "layout": "coverTimeline",
+   "family": "cover",
+   "category": "cover",
+   "disposition": "keep",
+   "svgFile": "svg/021-coverTimeline.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 62,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 199,
+     "minFont": 27
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 26
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 22,
+     "minFont": 20
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 26
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 27,
+     "minFont": 20
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 26
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 19,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 147.86,
+     "y": 888.18,
+     "width": 802.32,
+     "height": 326.65
+    }
+   ]
+  },
+  {
+   "idx": 24,
+   "id": "tpl-cover-masthead",
+   "layout": "coverMasthead",
+   "family": "cover",
+   "category": "cover",
+   "disposition": "keep",
+   "svgFile": "svg/024-coverMasthead.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "logo"
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "logo"
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 28,
+     "minFont": 20
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 39,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 194,
+     "minFont": 27
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 24,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 85.16,
+     "width": 931.21,
+     "height": 1179.68
+    }
+   ]
+  },
+  {
+   "idx": 25,
+   "id": "tpl-cover-index",
+   "layout": "coverIndex",
+   "family": "cover",
+   "category": "cover",
+   "disposition": "keep",
+   "svgFile": "svg/025-coverIndex.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 25,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 18
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 102,
+     "minFont": 21
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 18
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 95,
+     "minFont": 21
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 18
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 87,
+     "minFont": 21
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 18
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 79,
+     "minFont": 21
+    },
+    {
+     "name": "stat-5",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 18
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 28,
+     "minFont": 21
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 593.43,
+     "width": 931.21,
+     "height": 734.71
+    }
+   ]
+  },
+  {
+   "idx": 29,
+   "id": "tpl-detail-table",
+   "layout": "detailTable",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/029-detailTable.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 38,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 191,
+     "minFont": 27
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 6,
+     "minFont": 23
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 14
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 17,
+     "minFont": 23
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 7,
+     "minFont": 14
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 6,
+     "minFont": 23
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 12,
+     "minFont": 14
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 13,
+     "minFont": 23
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 7,
+     "minFont": 14
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 129.82,
+     "y": 709.19,
+     "width": 820.35,
+     "height": 213.28
+    }
+   ]
+  },
+  {
+   "idx": 31,
+   "id": "tpl-detail-steps",
+   "layout": "detailSteps",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/031-detailSteps.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 54,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 23
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 64,
+     "minFont": 21
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 52,
+     "minFont": 21
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 23
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 20,
+     "minFont": 21
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 102,
+     "minFont": 21
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 23
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 24,
+     "minFont": 21
+    },
+    {
+     "name": "body-6",
+     "element": "text",
+     "role": "body",
+     "maxLen": 47,
+     "minFont": 21
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 120.75,
+     "y": 522.47,
+     "width": 838.51,
+     "height": 747.76
+    }
+   ]
+  },
+  {
+   "idx": 33,
+   "id": "tpl-detail-why",
+   "layout": "detailWhy",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/033-detailWhy.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 55,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 209,
+     "minFont": 27
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 33,
+     "minFont": 23
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 18,
+     "minFont": 20
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 13,
+     "minFont": 20
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 13,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 900,
+     "width": 622.59,
+     "height": 376.81
+    }
+   ]
+  },
+  {
+   "idx": 34,
+   "id": "tpl-detail-matrix",
+   "layout": "detailMatrix",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/034-detailMatrix.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 54,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 16,
+     "minFont": 20
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 63,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "chart-1",
+     "accepts": "chart",
+     "label": "chart-1",
+     "role": "chart",
+     "x": 137.29,
+     "y": 428.28,
+     "width": 805.43,
+     "height": 533.17
+    }
+   ]
+  },
+  {
+   "idx": 36,
+   "id": "tpl-detail-two-column",
+   "layout": "detailTwoColumn",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/036-detailTwoColumn.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 54,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 12,
+     "minFont": 20
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 120,
+     "minFont": 21
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 12,
+     "minFont": 20
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 69,
+     "minFont": 21
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 63,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 105.88,
+     "y": 591.64,
+     "width": 868.25,
+     "height": 439.06
+    }
+   ]
+  },
+  {
+   "idx": 38,
+   "id": "tpl-detail-sankey",
+   "layout": "detailSankey",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/038-detailSankey.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 38,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 63,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "chart-1",
+     "accepts": "chart",
+     "label": "SANKEY",
+     "role": "chart",
+     "x": 86.39,
+     "y": 281.32,
+     "width": 907.21,
+     "height": 886.91
+    }
+   ]
+  },
+  {
+   "idx": 39,
+   "id": "tpl-detail-layer",
+   "layout": "detailLayer",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/039-detailLayer.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 38,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 7,
+     "minFont": 23
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 10,
+     "minFont": 14
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 23
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 10,
+     "minFont": 14
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 23
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 10,
+     "minFont": 14
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 10,
+     "minFont": 23
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 10,
+     "minFont": 14
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 6,
+     "minFont": 23
+    },
+    {
+     "name": "stat-5",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 10,
+     "minFont": 14
+    },
+    {
+     "name": "label-6",
+     "element": "text",
+     "role": "label",
+     "maxLen": 6,
+     "minFont": 23
+    },
+    {
+     "name": "stat-6",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 10,
+     "minFont": 14
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 63,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 105.61,
+     "y": 331.98,
+     "width": 899.01,
+     "height": 608.43
+    }
+   ]
+  },
+  {
+   "idx": 40,
+   "id": "tpl-detail-quote",
+   "layout": "detailQuote",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/040-detailQuote.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 72,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 145,
+     "minFont": 27
+    },
+    {
+     "name": "ornament",
+     "element": "g",
+     "role": "label"
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 386.65,
+     "width": 931.21,
+     "height": 185.69
+    }
+   ]
+  },
+  {
+   "idx": 41,
+   "id": "tpl-detail-verdict",
+   "layout": "detailVerdict",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep-fixed-flag",
+   "fixNote": "pill geometry fixed (Jul 8)",
+   "svgFile": "svg/041-detailVerdict.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 7,
+     "minFont": 23
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 56,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 150,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 86.39,
+     "y": 190,
+     "width": 175.5,
+     "height": 70.2
+    }
+   ]
+  },
+  {
+   "idx": 43,
+   "id": "tpl-detail-data-pullout",
+   "layout": "detailDataPullout",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/043-detailDataPullout.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 72,
+     "minFont": 20
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 77
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 192,
+     "minFont": 27
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 20,
+     "minFont": 20
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 20,
+     "minFont": 20
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 20
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 20
+    },
+    {
+     "name": "label-6",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 20
+    },
+    {
+     "name": "label-7",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 20
+    },
+    {
+     "name": "label-8",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 20
+    },
+    {
+     "name": "label-9",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 20
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "stat-5",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "stat-6",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "stat-7",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 3,
+     "minFont": 14
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 25,
+     "minFont": 20
+    },
+    {
+     "name": "footer-2",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 15,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 144.19,
+     "width": 871.24,
+     "height": 1080.58
+    }
+   ]
+  },
+  {
+   "idx": 44,
+   "id": "tpl-detail-image-caption",
+   "layout": "detailImageCaption",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/044-detailImageCaption.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 22,
+     "minFont": 25
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 91,
+     "minFont": 21
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 24,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "image-1",
+     "accepts": "image",
+     "label": "IMAGE",
+     "role": "image",
+     "x": 75.59,
+     "y": 75.57,
+     "width": 613.03,
+     "height": 1198.87
+    }
+   ]
+  },
+  {
+   "idx": 46,
+   "id": "tpl-detail-thumb-grid",
+   "layout": "detailThumbGrid",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/046-detailThumbGrid.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 39,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 65,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "image-1",
+     "accepts": "image",
+     "label": "IMAGE 1",
+     "role": "image",
+     "x": 75.59,
+     "y": 295.25,
+     "width": 445.83,
+     "height": 413.82
+    },
+    {
+     "name": "image-2",
+     "accepts": "image",
+     "label": "IMAGE 2",
+     "role": "image",
+     "x": 558.57,
+     "y": 295.25,
+     "width": 445.84,
+     "height": 413.82
+    },
+    {
+     "name": "image-3",
+     "accepts": "image",
+     "label": "IMAGE 3",
+     "role": "image",
+     "x": 75.59,
+     "y": 743.54,
+     "width": 445.83,
+     "height": 413.83
+    },
+    {
+     "name": "image-4",
+     "accepts": "image",
+     "label": "IMAGE 4",
+     "role": "image",
+     "x": 558.57,
+     "y": 743.54,
+     "width": 445.84,
+     "height": 413.83
+    }
+   ]
+  },
+  {
+   "idx": 48,
+   "id": "tpl-detail-spec",
+   "layout": "detailSpec",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/048-detailSpec.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 72,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 63,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "image-1",
+     "accepts": "image",
+     "label": "DIAGRAM",
+     "role": "image",
+     "x": 86.39,
+     "y": 340.3,
+     "width": 907.21,
+     "height": 822.02
+    }
+   ]
+  },
+  {
+   "idx": 52,
+   "id": "tpl-detail-bridge",
+   "layout": "detailBridge",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/052-detailBridge.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 38,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 63,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "chart-1",
+     "accepts": "chart",
+     "label": "BRIDGE",
+     "role": "chart",
+     "x": 86.39,
+     "y": 299.15,
+     "width": 907.21,
+     "height": 843.64
+    }
+   ]
+  },
+  {
+   "idx": 55,
+   "id": "tpl-detail-power",
+   "layout": "detailPower",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep-fixed-flag",
+   "fixNote": "gapping fixed (Jul 8)",
+   "svgFile": "svg/055-detailPower.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 72,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 12,
+     "minFont": 23
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 14
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 8,
+     "minFont": 23
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 14
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 13,
+     "minFont": 23
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 14
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 21,
+     "minFont": 23
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 14
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 127,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 129.82,
+     "y": 355,
+     "width": 820.35,
+     "height": 670
+    }
+   ]
+  },
+  {
+   "idx": 58,
+   "id": "tpl-detail-versus",
+   "layout": "detailVersus",
+   "family": "detail",
+   "category": "compare",
+   "disposition": "keep",
+   "svgFile": "svg/058-detailVersus.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 28,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 191,
+     "minFont": 27
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 7,
+     "minFont": 20
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 12,
+     "minFont": 23
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 11,
+     "minFont": 14
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 7,
+     "minFont": 23
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 14
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 8,
+     "minFont": 23
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 8,
+     "minFont": 14
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 6,
+     "minFont": 20
+    },
+    {
+     "name": "label-6",
+     "element": "text",
+     "role": "label",
+     "maxLen": 12,
+     "minFont": 23
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 11,
+     "minFont": 14
+    },
+    {
+     "name": "label-7",
+     "element": "text",
+     "role": "label",
+     "maxLen": 7,
+     "minFont": 23
+    },
+    {
+     "name": "stat-5",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 7,
+     "minFont": 14
+    },
+    {
+     "name": "label-8",
+     "element": "text",
+     "role": "label",
+     "maxLen": 8,
+     "minFont": 23
+    },
+    {
+     "name": "stat-6",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 14
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 27
+    },
+    {
+     "name": "label-9",
+     "element": "text",
+     "role": "label",
+     "maxLen": 42,
+     "minFont": 23
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 101.46,
+     "y": 654.11,
+     "width": 877.08,
+     "height": 616.13
+    }
+   ]
+  },
+  {
+   "idx": 59,
+   "id": "tpl-detail-stat-strip",
+   "layout": "detailStatStrip",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/059-detailStatStrip.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 33,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 62
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 16,
+     "minFont": 20
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 62
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 16,
+     "minFont": 20
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 62
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 17,
+     "minFont": 20
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 63,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 296,
+     "width": 931.21,
+     "height": 860
+    }
+   ]
+  },
+  {
+   "idx": 60,
+   "id": "tpl-detail-gauges",
+   "layout": "detailGauges",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep-fixed-flag",
+   "fixNote": "gapping fixed (Jul 8)",
+   "svgFile": "svg/060-detailGauges.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 38,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 43
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 7,
+     "minFont": 20
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 43
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 20
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 43
+    },
+    {
+     "name": "label-6",
+     "element": "text",
+     "role": "label",
+     "maxLen": 7,
+     "minFont": 20
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 63,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 495,
+     "width": 931.21,
+     "height": 470
+    }
+   ]
+  },
+  {
+   "idx": 61,
+   "id": "tpl-detail-annotated",
+   "layout": "detailAnnotated",
+   "family": "detail",
+   "category": "data",
+   "disposition": "keep-fixed-flag",
+   "fixNote": "spacing fixed (Jul 8)",
+   "svgFile": "svg/061-detailAnnotated.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 33,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 13,
+     "minFont": 20
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 99,
+     "minFont": 21
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 63,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "chart-1",
+     "accepts": "chart",
+     "label": "CHART",
+     "role": "chart",
+     "x": 86.39,
+     "y": 301.32,
+     "width": 907.21,
+     "height": 875
+    }
+   ]
+  },
+  {
+   "idx": 71,
+   "id": "tpl-simple-text",
+   "layout": "simpleText",
+   "family": "simple",
+   "category": "opinion",
+   "disposition": "keep",
+   "svgFile": "svg/071-simpleText.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 3,
+   "articulates": "full",
+   "useWhen": "Clean dark styling and every visible element (eyebrow, headline, subhead, body card, 4 chips) maps to a field, but the layout renders subhead and body-1 as near-identical adjacent paragraphs and leaves the bottom ~25% plus the card interior empty, making it feel awkward and redundant next to stronger simple-text siblings.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 72,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 191,
+     "minFont": 27
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 336,
+     "minFont": 21
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 7,
+     "minFont": 20
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 20
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 7,
+     "minFont": 20
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 7,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 129.82,
+     "y": 628.98,
+     "width": 820.35,
+     "height": 432.68
+    }
+   ]
+  },
+  {
+   "idx": 76,
+   "id": "tpl-simple-numbered",
+   "layout": "simpleNumbered",
+   "family": "simple",
+   "category": "editorial",
+   "disposition": "keep",
+   "svgFile": "svg/076-simpleNumbered.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "partial",
+   "useWhen": "Clean, on-brand numbered-point slide SemiAnalysis would use constantly in list carousels; ship it after exposing the \"01\" numeral as an editable number field.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 37,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 150,
+     "minFont": 27
+    }
+   ],
+   "slots": []
+  },
+  {
+   "idx": 86,
+   "id": "tpl-simple-hook",
+   "layout": "simpleHook",
+   "family": "simple",
+   "category": "editorial",
+   "disposition": "keep",
+   "svgFile": "svg/086-simpleHook.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean on-brand hook cover whose three visible texts (eyebrow, headline, SWIPE label) all map to fields and the empty lower third is the module drop slot, though as-rendered that unfilled band leaves the composition bottom-heavy with dead space.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 58,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 10,
+     "minFont": 26
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 892.59,
+     "width": 199.58,
+     "height": 71.07
+    }
+   ]
+  },
+  {
+   "idx": 90,
+   "id": "tpl-claude-terminal",
+   "layout": "claudeTerminal",
+   "family": "claude",
+   "category": "explain",
+   "disposition": "keep",
+   "svgFile": "svg/090-claudeTerminal.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "On-brand terminal stat-readout card with full field coverage (4 metric rows + eyebrow/headline/caption all editable, terminal covered by module slot); only flaw is the ~26% dead band between headline and terminal, which keeps it at 4/5 but it belongs in the regular-use stat-card set.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 38,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 92,
+     "minFont": 15
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 13,
+     "minFont": 23
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 14,
+     "minFont": 20
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 14,
+     "minFont": 20
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 13,
+     "minFont": 20
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 63,
+     "minFont": 27
+    },
+    {
+     "name": "ornament",
+     "element": "g",
+     "role": "label"
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 129.82,
+     "y": 571.16,
+     "width": 820.35,
+     "height": 467.52
+    }
+   ]
+  },
+  {
+   "idx": 94,
+   "id": "tpl-claude-scorecard",
+   "layout": "claudeScorecard",
+   "family": "claude",
+   "category": "explain",
+   "disposition": "keep-fixed-flag",
+   "fixNote": "flag traced to a render artifact: the reviewer look pane used the legacy overlay renderer; the baked template is clean (evidence _qa/shots/look/94.png)",
+   "svgFile": "svg/094-claudeScorecard.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "ClusterMAX-style graded scorecard that SA would use constantly and parses fully (all 13 fields map, module slot covers the card area); only fixes needed are closing the ~18% dead gap under the headline and centering grade letters in their chips.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 38,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 35,
+     "minFont": 21
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 3,
+     "minFont": 19
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 120,
+     "minFont": 21
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 19
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 120,
+     "minFont": 21
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 19
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 120,
+     "minFont": 21
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 3,
+     "minFont": 19
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 61,
+     "minFont": 21
+    },
+    {
+     "name": "stat-5",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 19
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 63,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 120.75,
+     "y": 459.12,
+     "width": 838.51,
+     "height": 708.01
+    }
+   ]
+  },
+  {
+   "idx": 96,
+   "id": "tpl-claude-quote-card",
+   "layout": "claudeQuoteCard",
+   "family": "claude",
+   "category": "explain",
+   "disposition": "keep",
+   "svgFile": "svg/096-claudeQuoteCard.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean on-brand quote card (amber quote ornament, eyebrow, headline-quote, avatar+attribution all map to fields with an image slot) — a staple format worth publishing, docked one point for the empty bottom third when the quote is short.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 47,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 17,
+     "minFont": 21
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 29,
+     "minFont": 20
+    },
+    {
+     "name": "ornament",
+     "element": "g",
+     "role": "label"
+    },
+    {
+     "name": "logo",
+     "element": "text",
+     "role": "logo"
+    }
+   ],
+   "slots": [
+    {
+     "name": "image-1",
+     "accepts": "image",
+     "label": "image-1",
+     "role": "image",
+     "x": 86.39,
+     "y": 850.9,
+     "width": 136.08,
+     "height": 136.03
+    }
+   ]
+  },
+  {
+   "idx": 98,
+   "id": "tpl-claude-funnel",
+   "layout": "claudeFunnel",
+   "family": "claude",
+   "category": "explain",
+   "disposition": "keep",
+   "svgFile": "svg/098-claudeFunnel.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean on-brand TAM/SAM funnel whose 11 fields exactly cover all visible text (4 tier label/value pairs + eyebrow/headline/caption); keep for market-sizing cards, though the bottom \"Won\" tier's muddy brown lowers label contrast slightly.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 38,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 59,
+     "minFont": 21
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 13,
+     "minFont": 21
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 35,
+     "minFont": 21
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 47,
+     "minFont": 21
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 24,
+     "minFont": 21
+    },
+    {
+     "name": "body-6",
+     "element": "text",
+     "role": "body",
+     "maxLen": 31,
+     "minFont": 21
+    },
+    {
+     "name": "body-7",
+     "element": "text",
+     "role": "body",
+     "maxLen": 20,
+     "minFont": 21
+    },
+    {
+     "name": "body-8",
+     "element": "text",
+     "role": "body",
+     "maxLen": 76,
+     "minFont": 21
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 63,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 128.82,
+     "y": 358.83,
+     "width": 822.35,
+     "height": 773.34
+    }
+   ]
+  },
+  {
+   "idx": 101,
+   "id": "tpl-claude-leaderboard",
+   "layout": "claudeLeaderboard",
+   "family": "claude",
+   "category": "explain",
+   "disposition": "keep",
+   "svgFile": "svg/101-claudeLeaderboard.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "On-brand ranked-bar leaderboard (a regular SA comparison device) with fully mapped fields; only fix is closing the ~22% empty band between headline and first row.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 38,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 3,
+     "minFont": 23
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 22,
+     "minFont": 21
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 20,
+     "minFont": 21
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 3,
+     "minFont": 23
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 60,
+     "minFont": 21
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 17,
+     "minFont": 21
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 3,
+     "minFont": 23
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 60,
+     "minFont": 21
+    },
+    {
+     "name": "body-6",
+     "element": "text",
+     "role": "body",
+     "maxLen": 17,
+     "minFont": 21
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 3,
+     "minFont": 23
+    },
+    {
+     "name": "body-7",
+     "element": "text",
+     "role": "body",
+     "maxLen": 19,
+     "minFont": 21
+    },
+    {
+     "name": "body-8",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 21
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 63,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 120.75,
+     "y": 547.17,
+     "width": 838.51,
+     "height": 585.14
+    }
+   ]
+  },
+  {
+   "idx": 104,
+   "id": "tpl-claude-delta-hero",
+   "layout": "claudeDeltaHero",
+   "family": "claude",
+   "category": "explain",
+   "disposition": "keep",
+   "svgFile": "svg/104-claudeDeltaHero.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "On-brand stat+chart hero with full field coverage (stat, delta chip, subhead, 3 footer stats, chart slot); only flaw is the ~16% dead band between chart and footer row that leaves the bottom stats floating — ship it, optionally tighten that gap.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 7,
+     "minFont": 77
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 8,
+     "minFont": 30
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 153,
+     "minFont": 27
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 26,
+     "minFont": 21
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 16,
+     "minFont": 20
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 26,
+     "minFont": 21
+    },
+    {
+     "name": "footer-2",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 16,
+     "minFont": 20
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 24,
+     "minFont": 21
+    },
+    {
+     "name": "footer-3",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 16,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "chart-1",
+     "accepts": "chart",
+     "label": "TREND",
+     "role": "chart",
+     "x": 86.39,
+     "y": 630.79,
+     "width": 598.75,
+     "height": 367.73
+    }
+   ]
+  },
+  {
+   "idx": 107,
+   "id": "tpl-claude-share-bars",
+   "layout": "claudeShareBars",
+   "family": "claude",
+   "category": "explain",
+   "disposition": "keep",
+   "svgFile": "svg/107-claudeShareBars.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean on-brand supplier-share bar comparison (a staple SA device) with all 11 visible text regions mapping to fields and the bar area slot-covered; only nit is slightly loose vertical spacing between bar sections.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 38,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 10,
+     "minFont": 20
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 8,
+     "minFont": 14
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 20
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 104,
+     "minFont": 16
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 10,
+     "minFont": 14
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 12,
+     "minFont": 20
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 14
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 14
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 63,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 320,
+     "width": 931.21,
+     "height": 830
+    }
+   ]
+  },
+  {
+   "idx": 109,
+   "id": "tpl-end-subscribe",
+   "layout": "endSubscribe",
+   "family": "end",
+   "category": "cta",
+   "disposition": "keep",
+   "svgFile": "svg/109-endSubscribe.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "partial",
+   "useWhen": "Clean, on-brand end/CTA card SA would use in nearly every carousel — keep in core but wire the Subscribe CTA text to an editable field and tighten the empty bottom quarter where the frame stops well short of the canvas.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 24,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 149,
+     "minFont": 27
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 13,
+     "minFont": 20
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 17,
+     "minFont": 20
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 7,
+     "minFont": 20
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 37,
+     "minFont": 23
+    },
+    {
+     "name": "logo",
+     "element": "text",
+     "role": "logo"
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 229.93,
+     "y": 42.74,
+     "width": 801.6,
+     "height": 963.24
+    }
+   ]
+  },
+  {
+   "idx": 111,
+   "id": "tpl-end-follow",
+   "layout": "endFollow",
+   "family": "end",
+   "category": "cta",
+   "disposition": "keep",
+   "svgFile": "svg/111-endFollow.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean on-brand end/follow card where every visible element (eyebrow, headline, subhead, three label/handle rows, logo) maps to a field — a staple closer for every carousel, docked from 5 only for the empty bottom band and the dashed frame line clipping through the social rows.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 45,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 153,
+     "minFont": 27
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 3,
+     "minFont": 20
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 47,
+     "minFont": 21
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 11,
+     "minFont": 20
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 40,
+     "minFont": 21
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 13,
+     "minFont": 20
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 26,
+     "minFont": 21
+    },
+    {
+     "name": "logo",
+     "element": "text",
+     "role": "logo"
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 129.82,
+     "y": 42.74,
+     "width": 901.7,
+     "height": 1063.42
+    }
+   ]
+  },
+  {
+   "idx": 112,
+   "id": "tpl-end-signoff",
+   "layout": "endSignoff",
+   "family": "end",
+   "category": "cta",
+   "disposition": "keep",
+   "svgFile": "svg/112-endSignoff.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean, on-brand end/CTA signoff (kicker + wordmark + takeaway + URL) with every visible text region editable; generous top/bottom whitespace keeps it at 4 rather than 5, but SA would use this on nearly every carousel.",
+   "fields": [
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 24,
+     "minFont": 20
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 59
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 11,
+     "minFont": 59
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 141,
+     "minFont": 27
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 21,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 136.7,
+     "y": 348.41,
+     "width": 806.59,
+     "height": 653.17
+    }
+   ]
+  },
+  {
+   "idx": 113,
+   "id": "tpl-end-next",
+   "layout": "endNext",
+   "family": "end",
+   "category": "cta",
+   "disposition": "keep",
+   "svgFile": "svg/113-endNext.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean, on-brand next-part teaser card that SA's multi-part series need regularly, with all visible text (eyebrow/headline/subhead/part-pill) mapped to fields; only nit is the floating PART pill and generous empty top/bottom bands, which read as intentional end-card breathing room.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 37,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 97,
+     "minFont": 27
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 15,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 755.16,
+     "y": 886.68,
+     "width": 250.45,
+     "height": 64.87
+    }
+   ]
+  },
+  {
+   "idx": 116,
+   "id": "tpl-end-question",
+   "layout": "endQuestion",
+   "family": "end",
+   "category": "cta",
+   "disposition": "keep",
+   "svgFile": "svg/116-endQuestion.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean, fully-editable end/CTA card (eyebrow/headline/pill all mapped, dashed module slot present) with intentional-feeling whitespace; only nit is the quote-mark ornament reading slightly quote-card rather than question-prompt.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 37,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 29,
+     "minFont": 23
+    },
+    {
+     "name": "ornament",
+     "element": "g",
+     "role": "label"
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 363.23,
+     "width": 931.21,
+     "height": 623.53
+    }
+   ]
+  },
+  {
+   "idx": 117,
+   "id": "tpl-spectacle-race-bars",
+   "layout": "spectacleRaceBars",
+   "family": "spectacle",
+   "category": "feature",
+   "disposition": "keep",
+   "svgFile": "svg/117-spectacleRaceBars.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 5,
+   "articulates": "full",
+   "useWhen": "Polished cobalt-amber race-bar chart card where bar widths track the stat values and every visible text (eyebrow, headline, 5 label/stat pairs, footer) maps to a listed field — exactly the kind of comparison stat card SemiAnalysis would reach for regularly.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 70,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 43,
+     "minFont": 21
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 23
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 45,
+     "minFont": 21
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 23
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 45,
+     "minFont": 21
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 23
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 38,
+     "minFont": 21
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 23
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 54,
+     "minFont": 21
+    },
+    {
+     "name": "stat-5",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 23
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 40,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 63.59,
+     "y": 347.77,
+     "width": 952.81,
+     "height": 938.66
+    }
+   ]
+  },
+  {
+   "idx": 123,
+   "id": "tpl-detail-quad-stats",
+   "layout": "detailQuadStats",
+   "family": "detail",
+   "category": "feature",
+   "disposition": "keep",
+   "svgFile": "svg/123-detailQuadStats.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean on-brand quad-stat card with all 10 visible texts mapped to fields (stat cards are a core analyst need); only softness is the ~20% dead band when the module slot is unfilled, and one stat value awkwardly rides a label-* role.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 38,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 62
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 20
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 62
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 10,
+     "minFont": 20
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 62
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 8,
+     "minFont": 20
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 70
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 6,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 105.88,
+     "y": 426.5,
+     "width": 868.25,
+     "height": 689
+    }
+   ]
+  },
+  {
+   "idx": 124,
+   "id": "tpl-detail-myth-reality",
+   "layout": "detailMythReality",
+   "family": "detail",
+   "category": "compare",
+   "disposition": "keep",
+   "svgFile": "svg/124-detailMythReality.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean, on-brand myth-vs-reality comparison card with every visible text mapped to a field and the empty bottom covered by the module slot; only flaw is loose vertical rhythm (dead band between subhead and cards), a natural fit for SA's debunk-style analysis carousels.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 56,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 230,
+     "minFont": 27
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 8,
+     "minFont": 20
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 62,
+     "minFont": 21
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 12,
+     "minFont": 20
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 63,
+     "minFont": 21
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 104.62,
+     "y": 778.14,
+     "width": 869.51,
+     "height": 213.75
+    }
+   ]
+  },
+  {
+   "idx": 130,
+   "id": "tpl-brand-signoff-seal",
+   "layout": "brandSignoffSeal",
+   "family": "brand",
+   "category": "feature",
+   "disposition": "keep",
+   "svgFile": "svg/130-brandSignoffSeal.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean on-brand sign-off/end card with every visible text mapped to a field and the seal covered by the module slot; only knock is the slightly hollow oversized seal panel (17.6% dead band), so ship it as the standard closer.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 28,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 24,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 150,
+     "minFont": 27
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 23,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 356.51,
+     "y": 1152.3,
+     "width": 366.98,
+     "height": 64.87
+    }
+   ]
+  },
+  {
+   "idx": 131,
+   "id": "tpl-scenario-swipe-continue",
+   "layout": "scenarioSwipeContinue",
+   "family": "scenario",
+   "category": "feature",
+   "disposition": "keep",
+   "svgFile": "svg/131-scenarioSwipeContinue.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 2,
+   "articulates": "partial",
+   "useWhen": "Renders as an unfinished skeleton — four empty ghost panels, 33% dead band, and body text clipped at the bottom-right edge — with 3 of 4 panel regions lacking drop slots, so it fails both looks and articulation.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 54,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 16,
+     "minFont": 23
+    },
+    {
+     "name": "ornament",
+     "element": "g",
+     "role": "label"
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 660.35,
+     "y": 810,
+     "width": 474.83,
+     "height": 460.24
+    }
+   ]
+  },
+  {
+   "idx": 132,
+   "id": "tpl-scenario-save-this",
+   "layout": "scenarioSaveThis",
+   "family": "scenario",
+   "category": "feature",
+   "disposition": "keep",
+   "svgFile": "svg/132-scenarioSaveThis.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean on-brand spec-sheet \"save this\" stat card whose visible text maps 1:1 to its 11 fields; only flaw is sparse vertical coverage (~35% of rows), which the centered card composition carries.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 26,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 19,
+     "minFont": 23
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 11,
+     "minFont": 14
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 10,
+     "minFont": 23
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 13,
+     "minFont": 14
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 13,
+     "minFont": 23
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 10,
+     "minFont": 14
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 15,
+     "minFont": 23
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 15,
+     "minFont": 14
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 24,
+     "minFont": 23
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 138.89,
+     "y": 627.34,
+     "width": 802.22,
+     "height": 337.92
+    }
+   ]
+  },
+  {
+   "idx": 135,
+   "id": "tpl-cover-type-slab",
+   "layout": "coverTypeSlab",
+   "family": "cover",
+   "category": "feature",
+   "disposition": "keep",
+   "svgFile": "svg/135-coverTypeSlab.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Strong on-brand type-slab cover with every visible element mapped to a field and the dead band above the headline covered by the module drop slot, though it reads slightly hollow when that slot is empty.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 72,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 30,
+     "minFont": 20
+    },
+    {
+     "name": "footer-2",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 26,
+     "minFont": 20
+    },
+    {
+     "name": "logo",
+     "element": "text",
+     "role": "logo"
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 63.59,
+     "y": 42.74,
+     "width": 967.94,
+     "height": 1232.9
+    }
+   ]
+  },
+  {
+   "idx": 137,
+   "id": "tpl-cover-dossier",
+   "layout": "coverDossier",
+   "family": "cover",
+   "category": "feature",
+   "disposition": "keep",
+   "svgFile": "svg/137-coverDossier.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Distinctive on-brand dossier cover with all visible text mapped to fields; ship it, but nudge the CONFIDENTIAL stamp so it stops fully obscuring the CLEARANCE label.",
+   "fields": [
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 6,
+     "minFont": 20
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 55,
+     "minFont": 21
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 20
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 37,
+     "minFont": 21
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 12,
+     "minFont": 20
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 51,
+     "minFont": 21
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 23,
+     "minFont": 23
+    },
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 47,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 10,
+     "minFont": 23
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 20,
+     "minFont": 21
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 6,
+     "minFont": 23
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 10,
+     "minFont": 14
+    },
+    {
+     "name": "label-6",
+     "element": "text",
+     "role": "label",
+     "maxLen": 8,
+     "minFont": 23
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 8,
+     "minFont": 14
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 63.59,
+     "y": 63.57,
+     "width": 967.01,
+     "height": 1166.16
+    }
+   ]
+  },
+  {
+   "idx": 139,
+   "id": "tpl-simple-quote-giant",
+   "layout": "simpleQuoteGiant",
+   "family": "simple",
+   "category": "feature",
+   "disposition": "keep",
+   "svgFile": "svg/139-simpleQuoteGiant.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean, on-brand giant-quote card with every visible element editable — core quote format; only nits are a sparse lower half and a stray collapsed stat/divider tick at mid-left when stats are empty.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 72,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 35,
+     "minFont": 20
+    },
+    {
+     "name": "ornament",
+     "element": "g",
+     "role": "label"
+    },
+    {
+     "name": "logo",
+     "element": "text",
+     "role": "logo"
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 52.79,
+     "y": 41.99,
+     "width": 978.74,
+     "height": 1205.27
+    }
+   ]
+  },
+  {
+   "idx": 141,
+   "id": "tpl-lab-slopegraph",
+   "layout": "labSlopegraph",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/141-labSlopegraph.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean on-brand slopegraph for rank/share-shift stories (a recurring SA motif) with all 30 visible text pieces (2 column labels, 5x names/ranks/percentages per side, footer) mapping to the field roles and the chart area slot-covered; only nit is the airy dead band between headline and chart panel, and note the line geometry is baked so re-ranked data needs the module swapped, not just text edits.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 64,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 10,
+     "minFont": 20
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 10,
+     "minFont": 20
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 3,
+     "minFont": 14
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 3,
+     "minFont": 14
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 3,
+     "minFont": 14
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 3,
+     "minFont": 14
+    },
+    {
+     "name": "stat-5",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 3,
+     "minFont": 14
+    },
+    {
+     "name": "stat-6",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 3,
+     "minFont": 14
+    },
+    {
+     "name": "stat-7",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 3,
+     "minFont": 14
+    },
+    {
+     "name": "stat-8",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 3,
+     "minFont": 14
+    },
+    {
+     "name": "stat-9",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 3,
+     "minFont": 14
+    },
+    {
+     "name": "stat-10",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 3,
+     "minFont": 14
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 64,
+     "minFont": 21
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 52,
+     "minFont": 21
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 39,
+     "minFont": 21
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 63,
+     "minFont": 21
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 95,
+     "minFont": 21
+    },
+    {
+     "name": "body-6",
+     "element": "text",
+     "role": "body",
+     "maxLen": 21,
+     "minFont": 21
+    },
+    {
+     "name": "stat-11",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 16
+    },
+    {
+     "name": "body-7",
+     "element": "text",
+     "role": "body",
+     "maxLen": 26,
+     "minFont": 21
+    },
+    {
+     "name": "stat-12",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 16
+    },
+    {
+     "name": "body-8",
+     "element": "text",
+     "role": "body",
+     "maxLen": 19,
+     "minFont": 21
+    },
+    {
+     "name": "stat-13",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 16
+    },
+    {
+     "name": "body-9",
+     "element": "text",
+     "role": "body",
+     "maxLen": 21,
+     "minFont": 21
+    },
+    {
+     "name": "stat-14",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 16
+    },
+    {
+     "name": "body-10",
+     "element": "text",
+     "role": "body",
+     "maxLen": 21,
+     "minFont": 21
+    },
+    {
+     "name": "stat-15",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 16
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 88,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 0,
+     "y": 402.24,
+     "width": 1080,
+     "height": 868
+    }
+   ]
+  },
+  {
+   "idx": 142,
+   "id": "tpl-lab-dumbbell",
+   "layout": "labDumbbell",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/142-labDumbbell.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean, on-brand dumbbell comparison (exactly the stat/chart card SA reaches for) with every visible text mapping 1:1 to the 20 fields, but tighten bottom padding — the fifth row crowds the canvas edge and the SEMIANALYSIS.COM footer overlaps its track.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 36,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 6,
+     "minFont": 20
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 6,
+     "minFont": 20
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 79,
+     "minFont": 21
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 18,
+     "minFont": 21
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 19,
+     "minFont": 21
+    },
+    {
+     "name": "stat-5",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "stat-6",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 17,
+     "minFont": 21
+    },
+    {
+     "name": "stat-7",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "stat-8",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 17,
+     "minFont": 21
+    },
+    {
+     "name": "stat-9",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "stat-10",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 56,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 63.59,
+     "y": 241.88,
+     "width": 952.81,
+     "height": 1112.66
+    }
+   ]
+  },
+  {
+   "idx": 143,
+   "id": "tpl-lab-bullet-target",
+   "layout": "labBulletTarget",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/143-labBulletTarget.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean on-brand bullet-vs-target stat card (a device SA would use regularly for yield/utilization-vs-plan) with every visible text mapped to a field, but ship after fixing the bottom edge: the fourth card and TARGET/YIELD footer legend are clipped at the canvas boundary.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 67,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 117,
+     "minFont": 21
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 23
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 58,
+     "minFont": 21
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 23
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 117,
+     "minFont": 21
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 23
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 58,
+     "minFont": 21
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 23
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 12,
+     "minFont": 20
+    },
+    {
+     "name": "footer-2",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 25,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 360.38,
+     "width": 931.21,
+     "height": 1016.06
+    }
+   ]
+  },
+  {
+   "idx": 144,
+   "id": "tpl-lab-tornado",
+   "layout": "labTornado",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/144-labTornado.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean on-brand supply/demand tornado chart card with every label, category, and value mapped to editable fields — a regular-use SA stat/comparison layout; only caveat is bar widths aren't data-bound to the stat fields.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 34,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 8,
+     "minFont": 20
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 8,
+     "minFont": 20
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 82,
+     "minFont": 21
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 21,
+     "minFont": 21
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 82,
+     "minFont": 21
+    },
+    {
+     "name": "stat-5",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "stat-6",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 17,
+     "minFont": 21
+    },
+    {
+     "name": "stat-7",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "stat-8",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 82,
+     "minFont": 21
+    },
+    {
+     "name": "stat-9",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "stat-10",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "body-6",
+     "element": "text",
+     "role": "body",
+     "maxLen": 82,
+     "minFont": 21
+    },
+    {
+     "name": "stat-11",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "stat-12",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 48,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 63.59,
+     "y": 224.1,
+     "width": 952.81,
+     "height": 1062.34
+    }
+   ]
+  },
+  {
+   "idx": 148,
+   "id": "tpl-lab-pros-cons",
+   "layout": "labProsCons",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/148-labProsCons.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 5,
+   "articulates": "full",
+   "useWhen": "Polished, well-balanced pros/cons comparison card where all 14 visible text regions map cleanly to field roles — a pattern SemiAnalysis would use constantly for trade-off analysis slides.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 21,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 52,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 19,
+     "minFont": 23
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 21
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 87,
+     "minFont": 21
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 92,
+     "minFont": 21
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 89,
+     "minFont": 21
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 88,
+     "minFont": 21
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 21
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 94,
+     "minFont": 21
+    },
+    {
+     "name": "body-6",
+     "element": "text",
+     "role": "body",
+     "maxLen": 89,
+     "minFont": 21
+    },
+    {
+     "name": "body-7",
+     "element": "text",
+     "role": "body",
+     "maxLen": 77,
+     "minFont": 21
+    },
+    {
+     "name": "body-8",
+     "element": "text",
+     "role": "body",
+     "maxLen": 83,
+     "minFont": 21
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 56,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 63.59,
+     "y": 290.68,
+     "width": 952.81,
+     "height": 995.75
+    }
+   ]
+  },
+  {
+   "idx": 149,
+   "id": "tpl-lab-head-to-head",
+   "layout": "labHeadToHead",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/149-labHeadToHead.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "On-brand head-to-head comparison (cobalt vs amber spec cards with winner badge) that SemiAnalysis would use constantly for GPU/ASIC-style matchups and parses cleanly into its 19 fields; only nit is the roomy empty card interiors when the module slot is unfilled.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 72,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 20,
+     "minFont": 34
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 11,
+     "minFont": 23
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 11,
+     "minFont": 14
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 16,
+     "minFont": 23
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 8,
+     "minFont": 14
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 16,
+     "minFont": 23
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 14
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 8,
+     "minFont": 20
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 18,
+     "minFont": 34
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 11,
+     "minFont": 23
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 11,
+     "minFont": 14
+    },
+    {
+     "name": "label-6",
+     "element": "text",
+     "role": "label",
+     "maxLen": 16,
+     "minFont": 23
+    },
+    {
+     "name": "stat-5",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 8,
+     "minFont": 14
+    },
+    {
+     "name": "label-7",
+     "element": "text",
+     "role": "label",
+     "maxLen": 16,
+     "minFont": 23
+    },
+    {
+     "name": "stat-6",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 14
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 32,
+     "minFont": 27
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 64,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 63.59,
+     "y": 333.89,
+     "width": 952.81,
+     "height": 952.55
+    }
+   ]
+  },
+  {
+   "idx": 153,
+   "id": "tpl-lab-spot-shift",
+   "layout": "labSpotShift",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/153-labSpotShift.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean on-brand HBM spec-comparison card whose 18 fields map 1:1 to every visible text region (headers, 12 table cells, pill, footer) — a format SemiAnalysis uses constantly; only nit is airy dead space between headline and table.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 64,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 7,
+     "minFont": 20
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 6,
+     "minFont": 20
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 43,
+     "minFont": 21
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 16,
+     "minFont": 21
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 27
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 41,
+     "minFont": 21
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 15,
+     "minFont": 21
+    },
+    {
+     "name": "body-6",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 27
+    },
+    {
+     "name": "body-7",
+     "element": "text",
+     "role": "body",
+     "maxLen": 37,
+     "minFont": 21
+    },
+    {
+     "name": "body-8",
+     "element": "text",
+     "role": "body",
+     "maxLen": 28,
+     "minFont": 21
+    },
+    {
+     "name": "body-9",
+     "element": "text",
+     "role": "body",
+     "maxLen": 13,
+     "minFont": 27
+    },
+    {
+     "name": "body-10",
+     "element": "text",
+     "role": "body",
+     "maxLen": 118,
+     "minFont": 21
+    },
+    {
+     "name": "body-11",
+     "element": "text",
+     "role": "body",
+     "maxLen": 85,
+     "minFont": 21
+    },
+    {
+     "name": "body-12",
+     "element": "text",
+     "role": "body",
+     "maxLen": 56,
+     "minFont": 27
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 16,
+     "minFont": 23
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 22,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 365,
+     "width": 931.21,
+     "height": 905.24
+    }
+   ]
+  },
+  {
+   "idx": 157,
+   "id": "tpl-lab-colophon",
+   "layout": "labColophon",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/157-labColophon.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Polished issue-colophon cover/end card whose every visible text maps to a field and whose empty lower band is the module drop slot — ships as a regular-use cover once that slot is filled, docking one point for the airy bottom third when left empty.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 61,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 8,
+     "minFont": 20
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 20,
+     "minFont": 21
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 7,
+     "minFont": 20
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 21,
+     "minFont": 21
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 8,
+     "minFont": 20
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 22,
+     "minFont": 21
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 11,
+     "minFont": 20
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 29,
+     "minFont": 21
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 12,
+     "minFont": 20
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 120,
+     "minFont": 21
+    },
+    {
+     "name": "label-6",
+     "element": "text",
+     "role": "label",
+     "maxLen": 8,
+     "minFont": 20
+    },
+    {
+     "name": "body-6",
+     "element": "text",
+     "role": "body",
+     "maxLen": 80,
+     "minFont": 21
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 80,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 522.04,
+     "width": 931.21,
+     "height": 759
+    }
+   ]
+  },
+  {
+   "idx": 159,
+   "id": "tpl-lab-counter-wall",
+   "layout": "labCounterWall",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/159-labCounterWall.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean on-brand 3x2 stat wall whose 15 visible texts map one-to-one to the 15 fields with a module slot covering the empty band — a regular-use stat card, only slightly hurt by the unpopulated slot's dead zone under the grid.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 36,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 23,
+     "minFont": 20
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 57
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 11,
+     "minFont": 20
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 64
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 19,
+     "minFont": 20
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 64
+    },
+    {
+     "name": "label-6",
+     "element": "text",
+     "role": "label",
+     "maxLen": 15,
+     "minFont": 20
+    },
+    {
+     "name": "label-7",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 64
+    },
+    {
+     "name": "label-8",
+     "element": "text",
+     "role": "label",
+     "maxLen": 15,
+     "minFont": 20
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 57
+    },
+    {
+     "name": "label-9",
+     "element": "text",
+     "role": "label",
+     "maxLen": 16,
+     "minFont": 20
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 13,
+     "minFont": 57
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 72,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 97.09,
+     "y": 349.24,
+     "width": 885.82,
+     "height": 899.06
+    }
+   ]
+  },
+  {
+   "idx": 160,
+   "id": "tpl-lab-record-banner",
+   "layout": "labRecordBanner",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/160-labRecordBanner.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Distinctive gradient record-banner stat card that maps every visible text region to its 14 fields and fits SA's regular stat-card use; slight vertical airiness (12% dead band) keeps it at 4 rather than 5.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 67,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 8,
+     "minFont": 20
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 10,
+     "minFont": 55
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 22
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 15,
+     "minFont": 23
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 15,
+     "minFont": 14
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 10,
+     "minFont": 23
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 12,
+     "minFont": 18
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 16,
+     "minFont": 23
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 63,
+     "minFont": 21
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 15,
+     "minFont": 23
+    },
+    {
+     "name": "stat-5",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 10,
+     "minFont": 14
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 63,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 394.74,
+     "width": 931.21,
+     "height": 886.29
+    }
+   ]
+  },
+  {
+   "idx": 162,
+   "id": "tpl-lab-swimlanes",
+   "layout": "labSwimlanes",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/162-labSwimlanes.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 5,
+   "articulates": "full",
+   "useWhen": "Clean, on-brand Gantt/swimlane timeline (amber-cobalt bars, NOW marker) that SA would reach for regularly on ramp/roadmap cards; all 9 visible text regions plus eyebrow/headline/footer map to the 16 fields and the chart area is the module slot — only caveat is bar spans are fixed geometry, not data-editable.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 72,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 20
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 20
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 20
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 20
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 17,
+     "minFont": 21
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 10,
+     "minFont": 20
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 17,
+     "minFont": 21
+    },
+    {
+     "name": "label-6",
+     "element": "text",
+     "role": "label",
+     "maxLen": 10,
+     "minFont": 20
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 17,
+     "minFont": 21
+    },
+    {
+     "name": "label-7",
+     "element": "text",
+     "role": "label",
+     "maxLen": 12,
+     "minFont": 20
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 17,
+     "minFont": 21
+    },
+    {
+     "name": "label-8",
+     "element": "text",
+     "role": "label",
+     "maxLen": 14,
+     "minFont": 20
+    },
+    {
+     "name": "label-9",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 20
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 64,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 63.59,
+     "y": 310.15,
+     "width": 952.81,
+     "height": 976.29
+    }
+   ]
+  },
+  {
+   "idx": 163,
+   "id": "tpl-lab-gate-chain",
+   "layout": "labGateChain",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/163-labGateChain.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean gate-chain status card (A-D stages with PASS/BLOCKED/PENDING pills) is a natural SA supply-chain bottleneck device; all 12 row texts plus eyebrow/headline/footer map to the 15 fields and the badge maps to the module slot, with only a slightly large bottom dead band keeping it from a 5.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 67,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 57
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 15,
+     "minFont": 34
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 27
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 57
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 18,
+     "minFont": 34
+    },
+    {
+     "name": "body-6",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 27
+    },
+    {
+     "name": "body-7",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 57
+    },
+    {
+     "name": "body-8",
+     "element": "text",
+     "role": "body",
+     "maxLen": 13,
+     "minFont": 34
+    },
+    {
+     "name": "body-9",
+     "element": "text",
+     "role": "body",
+     "maxLen": 14,
+     "minFont": 27
+    },
+    {
+     "name": "body-10",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 57
+    },
+    {
+     "name": "body-11",
+     "element": "text",
+     "role": "body",
+     "maxLen": 15,
+     "minFont": 34
+    },
+    {
+     "name": "body-12",
+     "element": "text",
+     "role": "body",
+     "maxLen": 14,
+     "minFont": 27
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 88,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 63.59,
+     "y": 345.08,
+     "width": 952.81,
+     "height": 951.5
+    }
+   ]
+  },
+  {
+   "idx": 165,
+   "id": "tpl-lab-build-stack",
+   "layout": "labBuildStack",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/165-labBuildStack.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean stepped build-stack timeline with status chips that SA would reuse for buildout/roadmap analyses — every visible text (eyebrow, headline, 5x stat/body/label, footer) maps to a field — though the ~17% dead band between headline and the stack keeps it from a 5.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 63,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 23
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 43,
+     "minFont": 21
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 8,
+     "minFont": 20
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 23
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 39,
+     "minFont": 21
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 10,
+     "minFont": 20
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 23
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 46,
+     "minFont": 21
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 6,
+     "minFont": 20
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 23
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 59,
+     "minFont": 21
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 6,
+     "minFont": 20
+    },
+    {
+     "name": "stat-5",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 23
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 68,
+     "minFont": 21
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 6,
+     "minFont": 20
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 64,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 63.59,
+     "y": 422.83,
+     "width": 952.81,
+     "height": 863.6
+    }
+   ]
+  },
+  {
+   "idx": 166,
+   "id": "tpl-lab-die-floorplan",
+   "layout": "labDieFloorplan",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/166-labDieFloorplan.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "On-brand die-floorplan breakdown card whose 22 fields exactly cover all visible text (8 label/value blocks, legend as stats, eyebrow/headline/footer); ship it, noting block areas are fixed so edited percentages won't re-proportion the treemap.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 55,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 7,
+     "minFont": 14
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 8,
+     "minFont": 14
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 14
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 89,
+     "minFont": 14
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 29
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 19,
+     "minFont": 14
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 29
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 21,
+     "minFont": 14
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 29
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 39,
+     "minFont": 14
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 29
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 38,
+     "minFont": 14
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 29
+    },
+    {
+     "name": "body-6",
+     "element": "text",
+     "role": "body",
+     "maxLen": 24,
+     "minFont": 14
+    },
+    {
+     "name": "label-6",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 29
+    },
+    {
+     "name": "body-7",
+     "element": "text",
+     "role": "body",
+     "maxLen": 21,
+     "minFont": 14
+    },
+    {
+     "name": "label-7",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 29
+    },
+    {
+     "name": "body-8",
+     "element": "text",
+     "role": "body",
+     "maxLen": 19,
+     "minFont": 14
+    },
+    {
+     "name": "label-8",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 29
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 88,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 63.59,
+     "y": 301.78,
+     "width": 952.81,
+     "height": 984.66
+    }
+   ]
+  },
+  {
+   "idx": 167,
+   "id": "tpl-lab-wafer-yield",
+   "layout": "labWaferYield",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/167-labWaferYield.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "partial",
+   "useWhen": "Polished on-brand wafer/stat-card layout (module drop slot + three amber stat tiles) that SA would reuse for yield/chip economics posts; ship it after adding one more field so all nine stat-card texts are editable.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 37,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 10,
+     "minFont": 20
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 70
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 32,
+     "minFont": 20
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 12,
+     "minFont": 20
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 70
+    },
+    {
+     "name": "label-6",
+     "element": "text",
+     "role": "label",
+     "maxLen": 32,
+     "minFont": 20
+    },
+    {
+     "name": "label-7",
+     "element": "text",
+     "role": "label",
+     "maxLen": 24,
+     "minFont": 20
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 62
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 16,
+     "minFont": 20
+    },
+    {
+     "name": "footer-2",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 56,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 63.59,
+     "y": 283.69,
+     "width": 970.93,
+     "height": 1036.52
+    }
+   ]
+  },
+  {
+   "idx": 169,
+   "id": "tpl-lab-bandwidth-ladder",
+   "layout": "labBandwidthLadder",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/169-labBandwidthLadder.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "On-brand log-scale bandwidth-ladder chart card with clean field mapping (all rung labels/stats/units editable) — a regular-use SA chart module; just fix the clipped dark \"GB/s\" unit overflowing the shortest (NVMe) bar and tighten the headline-to-chart gap.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 69,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 13,
+     "minFont": 20
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 50,
+     "minFont": 21
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 8,
+     "minFont": 38
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 14
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 39,
+     "minFont": 21
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 7,
+     "minFont": 38
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 14
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 30,
+     "minFont": 21
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 38
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 14
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 16,
+     "minFont": 21
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 38
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 14
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 13,
+     "minFont": 21
+    },
+    {
+     "name": "label-6",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 38
+    },
+    {
+     "name": "stat-5",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 14
+    },
+    {
+     "name": "body-6",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 21
+    },
+    {
+     "name": "label-7",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 38
+    },
+    {
+     "name": "stat-6",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 14
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 80,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 63.59,
+     "y": 371.65,
+     "width": 952.81,
+     "height": 914.79
+    }
+   ]
+  },
+  {
+   "idx": 172,
+   "id": "tpl-lab-one-sentence",
+   "layout": "labOneSentence",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/172-labOneSentence.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 2,
+   "articulates": "partial",
+   "useWhen": "Render looks broken — the promised 'one sentence' payoff never appears and the lower two-thirds is filled with two empty gradient slabs (only one backed by a slot) plus a highlight chip that awkwardly clips the headline's first word, so cut despite the clean eyebrow/headline/footer mapping.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 72,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 63,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 1189.14,
+     "width": 931.21,
+     "height": 64.87
+    }
+   ]
+  },
+  {
+   "idx": 173,
+   "id": "tpl-lab-fact-card",
+   "layout": "labFactCard",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/173-labFactCard.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 2,
+   "articulates": "full",
+   "useWhen": "Both panels render mostly empty (17.8% content coverage, ~24% dead band) — headline floats in a half-empty card and the stat card has a huge void below \"Power per rack / 5GW\", so despite clean type and full field mapping it reads as broken/unfinished next to stronger stat-card siblings.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 19,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 72,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 67,
+     "minFont": 21
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 17,
+     "minFont": 18
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 56,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 837.36,
+     "width": 931.21,
+     "height": 432.88
+    }
+   ]
+  },
+  {
+   "idx": 176,
+   "id": "tpl-lab-objection",
+   "layout": "labObjection",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/176-labObjection.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Polished pushback-vs-our-answer rebuttal card with all seven visible text regions cleanly mapped to fields — a format SA analysis carousels use constantly; only nits are the 14% headline-to-panel gap and slightly offset dashed frames near the footer.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 70,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 48,
+     "minFont": 21
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 208,
+     "minFont": 21
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 42,
+     "minFont": 21
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 248,
+     "minFont": 21
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 63,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 391.58,
+     "width": 931.21,
+     "height": 884.06
+    }
+   ]
+  },
+  {
+   "idx": 180,
+   "id": "tpl-lab-key-takeaways",
+   "layout": "labKeyTakeaways",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/180-labKeyTakeaways.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean on-brand 3-point takeaways list with strong numeral hierarchy and every visible text region mapped to a field (12 fields cover eyebrow/headline/numbers/headings/bodies/footer, badge covered by module slot); only nit is slightly airy space under item 3.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 67,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 3,
+     "minFont": 98
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 60,
+     "minFont": 34
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 112,
+     "minFont": 20
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 3,
+     "minFont": 98
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 67,
+     "minFont": 34
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 97,
+     "minFont": 20
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 3,
+     "minFont": 98
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 34,
+     "minFont": 34
+    },
+    {
+     "name": "label-6",
+     "element": "text",
+     "role": "label",
+     "maxLen": 97,
+     "minFont": 20
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 63,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 331.07,
+     "width": 931.21,
+     "height": 939.17
+    }
+   ]
+  },
+  {
+   "idx": 182,
+   "id": "tpl-lab-margin-note",
+   "layout": "labMarginNote",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/182-labMarginNote.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 2,
+   "articulates": "full",
+   "useWhen": "Roughly a third of the canvas is an empty void inside the margin-note panel with a stray orphaned gradient swatch, so despite clean field mapping and a strong header the card renders as unfinished.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 57,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 534,
+     "minFont": 25
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 64,
+     "minFont": 20
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 63,
+     "minFont": 20
+    },
+    {
+     "name": "logo",
+     "element": "text",
+     "role": "logo"
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 42.74,
+     "width": 957.14,
+     "height": 1254.03
+    }
+   ]
+  },
+  {
+   "idx": 183,
+   "id": "tpl-lab-standfirst",
+   "layout": "labStandfirst",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/183-labStandfirst.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Polished on-brand thesis/standfirst opener (drop-cap, byline, min-read stat) where every visible text maps to a field role — a staple SA carousel slide, only docked for the slightly awkward two-line headline wrap and orphaned last body line.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 17,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 55,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 392,
+     "minFont": 37
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 42,
+     "minFont": 21
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 32,
+     "minFont": 20
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 3,
+     "minFont": 38
+    },
+    {
+     "name": "footer-2",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 12,
+     "minFont": 20
+    },
+    {
+     "name": "logo",
+     "element": "text",
+     "role": "logo"
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 42.74,
+     "width": 957.14,
+     "height": 1227.5
+    }
+   ]
+  },
+  {
+   "idx": 184,
+   "id": "tpl-lab-blueprint",
+   "layout": "labBlueprint",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/184-labBlueprint.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Distinctive on-brand blueprint cover — all 10 visible text regions (eyebrow, headline, 6 diagram callouts, spec line, footer) map to fields and the chip cross-section sits in the module slot; lower half is slightly airy (12% dead band) but it ships as a regular-use cover.",
+   "fields": [
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 16,
+     "minFont": 14
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 14
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 17,
+     "minFont": 14
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 19,
+     "minFont": 14
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 120,
+     "minFont": 15
+    },
+    {
+     "name": "body-6",
+     "element": "text",
+     "role": "body",
+     "maxLen": 31,
+     "minFont": 15
+    },
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 58,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 51,
+     "minFont": 20
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 56,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 34.9,
+     "y": 200.71,
+     "width": 994.76,
+     "height": 1053.3
+    }
+   ]
+  },
+  {
+   "idx": 185,
+   "id": "tpl-lab-die-shot",
+   "layout": "labDieShot",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/185-labDieShot.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Striking on-brand die-shot cover in the cobalt-amber palette with all five visible text regions (eyebrow, headline, three legend labels) mapped to fields and the die graphic covered by the module slot — a natural repeat-use hero for SA's chip coverage, docked from 5 only for the slightly busy grid and small legend swatches.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 51,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 24,
+     "minFont": 20
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 24,
+     "minFont": 20
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 16,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 129.39,
+     "y": 1101.38,
+     "width": 821.23,
+     "height": 105.75
+    }
+   ]
+  },
+  {
+   "idx": 186,
+   "id": "tpl-lab-contour-hero",
+   "layout": "labContourHero",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/186-labContourHero.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Strong on-brand cover card — the contour-star hero plus eyebrow/headline/subhead/footer all map to listed fields with real content sitting naturally; only nit is the headline slightly overlapping contour lines, so a touch of scrim behind the title would make it a 5.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 36,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 141,
+     "minFont": 27
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 56,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 1182.38,
+     "width": 931.21,
+     "height": 64.87
+    }
+   ]
+  },
+  {
+   "idx": 188,
+   "id": "tpl-lab-gradient-monolith",
+   "layout": "labGradientMonolith",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/188-labGradientMonolith.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean on-brand cover — kicker/title/byline all map to the 3 body fields over sanctioned aura-glow gradient; generous but intentional whitespace, only nit is the faint dashed frame outline and a title that didn't match the injected article's headline.",
+   "fields": [
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 75,
+     "minFont": 17
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 36,
+     "minFont": 86
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 18,
+     "minFont": 34
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 106.8,
+     "y": 394.35,
+     "width": 866.4,
+     "height": 561.28
+    }
+   ]
+  },
+  {
+   "idx": 190,
+   "id": "tpl-lab-circuit-hero",
+   "layout": "labCircuitHero",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/190-labCircuitHero.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Polished on-brand circuit-hero cover with all visible text mapped to editable fields; only flaw is the blue trace node clipping the eyebrow text near \"GRAB\" — nudge trace endpoints clear of the card and it ships.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 35,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 152,
+     "minFont": 27
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 23,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 594.44,
+     "y": 1138.22,
+     "width": 366.98,
+     "height": 64.87
+    }
+   ]
+  },
+  {
+   "idx": 192,
+   "id": "tpl-lab-bubble",
+   "layout": "labBubble",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/192-labBubble.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "On-brand chip-comparison bubble-chart card whose eyebrow, headline, 6 bubble labels, axes, legend, and body all map to fields with a module slot over the chart; only the dead band between headline and chart panel keeps it from a 5.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 72,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 120,
+     "minFont": 14
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 16,
+     "minFont": 14
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 100,
+     "minFont": 16
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 120,
+     "minFont": 14
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 62,
+     "minFont": 14
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 14
+    },
+    {
+     "name": "body-6",
+     "element": "text",
+     "role": "body",
+     "maxLen": 120,
+     "minFont": 14
+    },
+    {
+     "name": "body-7",
+     "element": "text",
+     "role": "body",
+     "maxLen": 120,
+     "minFont": 14
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 32,
+     "minFont": 20
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 21,
+     "minFont": 20
+    },
+    {
+     "name": "subhead",
+     "element": "text",
+     "role": "subhead",
+     "maxLen": 127,
+     "minFont": 27
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 121.98,
+     "y": 407.85,
+     "width": 883.62,
+     "height": 695.53
+    }
+   ]
+  },
+  {
+   "idx": 193,
+   "id": "tpl-lab-waffle",
+   "layout": "labWaffle",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/193-labWaffle.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "Clean on-brand waffle stat card with coherent 78%/78-cell data story and every visible text region mapped to a field plus a module slot for the grid; only nits are the header-to-waffle dead band and legend swatches floating above their labels.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 31,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 69,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 77
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 64,
+     "minFont": 20
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 20,
+     "minFont": 20
+    },
+    {
+     "name": "footer-2",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 32,
+     "minFont": 20
+    },
+    {
+     "name": "footer-3",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 96,
+     "minFont": 20
+    },
+    {
+     "name": "logo",
+     "element": "text",
+     "role": "logo"
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 63.59,
+     "y": 42.74,
+     "width": 967.94,
+     "height": 1432.7
+    }
+   ]
+  },
+  {
+   "idx": 194,
+   "id": "tpl-lab-mekko",
+   "layout": "labMekko",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/194-labMekko.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "On-brand marimekko market-share card with every label/stat/legend/footer mapped to the 26 fields and a module slot on the chart; only nits are the headline-to-chart dead band and the Enterprise header hugging the right edge — a chart type SemiAnalysis would use constantly.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 72,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 19,
+     "minFont": 21
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 14
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 52,
+     "minFont": 15
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 14
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 52,
+     "minFont": 15
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 14
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 24,
+     "minFont": 21
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 14
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 31,
+     "minFont": 15
+    },
+    {
+     "name": "stat-5",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 14
+    },
+    {
+     "name": "body-6",
+     "element": "text",
+     "role": "body",
+     "maxLen": 31,
+     "minFont": 15
+    },
+    {
+     "name": "stat-6",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 14
+    },
+    {
+     "name": "body-7",
+     "element": "text",
+     "role": "body",
+     "maxLen": 15,
+     "minFont": 21
+    },
+    {
+     "name": "stat-7",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 14
+    },
+    {
+     "name": "body-8",
+     "element": "text",
+     "role": "body",
+     "maxLen": 31,
+     "minFont": 15
+    },
+    {
+     "name": "stat-8",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 14
+    },
+    {
+     "name": "stat-9",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 7,
+     "minFont": 14
+    },
+    {
+     "name": "stat-10",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 14
+    },
+    {
+     "name": "body-9",
+     "element": "text",
+     "role": "body",
+     "maxLen": 25,
+     "minFont": 15
+    },
+    {
+     "name": "stat-11",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 14
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 15,
+     "minFont": 20
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 16,
+     "minFont": 20
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 7,
+     "minFont": 20
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 104,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 63.59,
+     "y": 310.15,
+     "width": 971.1,
+     "height": 976.29
+    }
+   ]
+  },
+  {
+   "idx": 195,
+   "id": "tpl-lab-small-multiples",
+   "layout": "labSmallMultiples",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/195-labSmallMultiples.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "partial",
+   "useWhen": "Strong on-brand small-multiples stat dashboard SA would use regularly — ship it, but add per-card sparkline slots (or neutral placeholder lines) since 5 of 6 charts are baked-in, and clean the dashed/clipped outline at the right and bottom edges.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 33,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 73,
+     "minFont": 21
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 14
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 13,
+     "minFont": 20
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 78,
+     "minFont": 21
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 14
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 13,
+     "minFont": 20
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 78,
+     "minFont": 21
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 14
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 13,
+     "minFont": 20
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 73,
+     "minFont": 21
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 14
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 12,
+     "minFont": 20
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 63,
+     "minFont": 21
+    },
+    {
+     "name": "stat-5",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 14
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 16,
+     "minFont": 20
+    },
+    {
+     "name": "body-6",
+     "element": "text",
+     "role": "body",
+     "maxLen": 73,
+     "minFont": 21
+    },
+    {
+     "name": "stat-6",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 6,
+     "minFont": 14
+    },
+    {
+     "name": "footer-2",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 16,
+     "minFont": 20
+    },
+    {
+     "name": "footer-3",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 88,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 370.38,
+     "width": 931.21,
+     "height": 1080.49
+    }
+   ]
+  },
+  {
+   "idx": 197,
+   "id": "tpl-lab-treemap",
+   "layout": "labTreemap",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/197-labTreemap.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "On-brand treemap stat card whose 14 tile labels/values map exactly to stat-1..13 + body-1 — ideal for SA cost/BOM breakdowns; just fix the stray dashed guide line crossing the top tiles and the near-clipped \"Storage\" label, and note tile sizes won't reflow when percentages are edited.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 36,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "stat-1",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 16,
+     "minFont": 18
+    },
+    {
+     "name": "stat-2",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 45
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 17,
+     "minFont": 21
+    },
+    {
+     "name": "stat-3",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 25
+    },
+    {
+     "name": "stat-4",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 7,
+     "minFont": 14
+    },
+    {
+     "name": "stat-5",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 5,
+     "minFont": 21
+    },
+    {
+     "name": "stat-6",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 10,
+     "minFont": 14
+    },
+    {
+     "name": "stat-7",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 21
+    },
+    {
+     "name": "stat-8",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 7,
+     "minFont": 14
+    },
+    {
+     "name": "stat-9",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 18
+    },
+    {
+     "name": "stat-10",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 10,
+     "minFont": 14
+    },
+    {
+     "name": "stat-11",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 15
+    },
+    {
+     "name": "stat-12",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 10,
+     "minFont": 14
+    },
+    {
+     "name": "stat-13",
+     "element": "text",
+     "role": "stat",
+     "maxLen": 4,
+     "minFont": 14
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 64,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 63.59,
+     "y": 434.52,
+     "width": 952.81,
+     "height": 851.91
+    }
+   ]
+  },
+  {
+   "idx": 199,
+   "id": "tpl-lab-streamgraph",
+   "layout": "labStreamgraph",
+   "family": "lab",
+   "category": "data",
+   "disposition": "keep",
+   "svgFile": "svg/199-labStreamgraph.svg",
+   "dims": {
+    "width": 1080,
+    "height": 1350
+   },
+   "looksGood": 4,
+   "articulates": "full",
+   "useWhen": "On-brand dark streamgraph chart card that SA would use constantly — every visible text maps (eyebrow, headline, 5 axis labels, 8 legend name/percent bodies, footer) and the chart region is the module slot; docked at 4 because the SEMIANALYSIS.COM footer crowds the lower-left legend row and headline-to-chart whitespace is a touch loose.",
+   "fields": [
+    {
+     "name": "eyebrow",
+     "element": "text",
+     "role": "eyebrow",
+     "maxLen": 32,
+     "minFont": 25
+    },
+    {
+     "name": "headline",
+     "element": "text",
+     "role": "headline",
+     "maxLen": 70,
+     "minFont": 34,
+     "maxFont": 96
+    },
+    {
+     "name": "label-1",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 20
+    },
+    {
+     "name": "label-2",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 20
+    },
+    {
+     "name": "label-3",
+     "element": "text",
+     "role": "label",
+     "maxLen": 4,
+     "minFont": 20
+    },
+    {
+     "name": "label-4",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 20
+    },
+    {
+     "name": "label-5",
+     "element": "text",
+     "role": "label",
+     "maxLen": 5,
+     "minFont": 20
+    },
+    {
+     "name": "body-1",
+     "element": "text",
+     "role": "body",
+     "maxLen": 34,
+     "minFont": 21
+    },
+    {
+     "name": "body-2",
+     "element": "text",
+     "role": "body",
+     "maxLen": 15,
+     "minFont": 21
+    },
+    {
+     "name": "body-3",
+     "element": "text",
+     "role": "body",
+     "maxLen": 31,
+     "minFont": 21
+    },
+    {
+     "name": "body-4",
+     "element": "text",
+     "role": "body",
+     "maxLen": 20,
+     "minFont": 21
+    },
+    {
+     "name": "body-5",
+     "element": "text",
+     "role": "body",
+     "maxLen": 24,
+     "minFont": 21
+    },
+    {
+     "name": "body-6",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 21
+    },
+    {
+     "name": "body-7",
+     "element": "text",
+     "role": "body",
+     "maxLen": 35,
+     "minFont": 21
+    },
+    {
+     "name": "body-8",
+     "element": "text",
+     "role": "body",
+     "maxLen": 12,
+     "minFont": 21
+    },
+    {
+     "name": "footer-1",
+     "element": "text",
+     "role": "footer",
+     "maxLen": 88,
+     "minFont": 20
+    }
+   ],
+   "slots": [
+    {
+     "name": "content",
+     "accepts": "module",
+     "label": "Content",
+     "role": "body",
+     "x": 74.39,
+     "y": 992.46,
+     "width": 931.21,
+     "height": 477.06
+    }
+   ]
+  }
+ ]
+}

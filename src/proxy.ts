@@ -36,9 +36,11 @@ const PUBLIC_EXACT = new Set(["/api/clip/callback"]);
 // checks are client-side React keyed on the spoofable `poast-current-user`.
 // Keep this deliberately small — only genuinely role-restricted surfaces. Most
 // tools are open to the whole team by design (e.g. the SHARED /board studio).
-//   admin-only     → Akash's personal task board
+//   admin-only     → Akash's personal task board; CarouselNEU (/carousel-2 +
+//                    its /api/library planner) which every nav registry
+//                    already marks akashOnly client-side
 //   non-analyst    → marketing tooling not meant for the default Analyst seat
-const ADMIN_ONLY_PREFIXES = ["/board/original"];
+const ADMIN_ONLY_PREFIXES = ["/board/original", "/carousel-2", "/api/library"];
 const NON_ANALYST_PREFIXES = ["/ai-training"];
 function matchesPrefix(pathname: string, prefixes: string[]): boolean {
   return prefixes.some((p) => pathname === p || pathname.startsWith(p + "/"));

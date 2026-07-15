@@ -1,0 +1,18 @@
+<svg viewBox="0 0 1080 1350" width="1080" height="1350" xmlns="http://www.w3.org/2000/svg">
+  <defs><linearGradient id="grad-1" x1="0" y1="0.5" x2="1" y2="0.5"><stop offset="0%" stop-color="rgb(247, 176, 65)"/><stop offset="100%" stop-color="rgb(11, 134, 209)"/></linearGradient></defs>
+  <rect x="241.93" y="780.92" width="179.13" height="61.25" rx="30.62" fill="rgba(255, 255, 255, 0.055)" stroke="rgba(255, 255, 255, 0.12)" stroke-width="1"/>
+  <rect x="457.35" y="780.92" width="224.73" height="61.25" rx="30.62" fill="rgba(255, 255, 255, 0.055)" stroke="rgba(255, 255, 255, 0.12)" stroke-width="1"/>
+  <rect x="718.36" y="780.92" width="119.71" height="61.25" rx="30.62" fill="rgba(255, 255, 255, 0.055)" stroke="rgba(255, 255, 255, 0.12)" stroke-width="1"/>
+  <rect x="277.62" y="923.78" width="524.74" height="70.2" rx="35.1" fill="url(#grad-1)"/>
+  <rect data-slot="content" data-accepts="module" data-label="Content" data-role="body" x="229.93" y="42.74" width="801.6" height="963.24" rx="16" fill="none" stroke="#3A4A5F" stroke-opacity="0.35" stroke-dasharray="12 9"/>
+  
+  
+  <text id="field:eyebrow" data-field="eyebrow" data-role="eyebrow" data-maxlen="32" x="540" y="384.58" text-anchor="middle" style="font-family:'Outfit','Inter',sans-serif;font-size:35.69px;font-weight:850;text-transform:uppercase;letter-spacing:1.5px;fill:rgb(247, 176, 65)" data-w="907" data-minfont="25"><tspan x="540" y="384.58">Subscribe</tspan></text>
+  <text id="field:headline" data-field="headline" data-role="headline" data-maxlen="24" data-minfont="34" data-maxfont="96" x="540" y="525.62" text-anchor="middle" style="font-family:'Grift','Outfit',sans-serif;font-size:110.32px;font-weight:790;fill:rgb(255, 255, 255)" data-w="907"><tspan x="540" y="525.62">Get the full model</tspan></text>
+  <text id="field:subhead" data-field="subhead" data-role="subhead" data-maxlen="149" x="540" y="629" text-anchor="middle" style="font-family:'Outfit','Inter',sans-serif;font-size:41.1px;font-weight:470;fill:rgb(203, 209, 222)" data-w="708" data-minfont="27" data-maxlines="3"><tspan x="540" y="629">Members get the data, charts, and </tspan><tspan x="540" y="686.13">notes behind every post.</tspan></text>
+  <text id="field:label-1" data-field="label-1" data-role="label" data-maxlen="13" x="331.5" y="816.38" text-anchor="middle" style="font-family:'Outfit','Inter',sans-serif;font-size:29.2px;font-weight:850;fill:rgb(204, 211, 223)" data-w="276" data-minfont="20"><tspan x="331.5" y="816.38">Full model</tspan></text>
+  <text id="field:label-2" data-field="label-2" data-role="label" data-maxlen="17" x="569.71" y="816.38" text-anchor="middle" style="font-family:'Outfit','Inter',sans-serif;font-size:29.2px;font-weight:850;fill:rgb(204, 211, 223)" data-w="200" data-minfont="20"><tspan x="569.71" y="816.38">Charts + data</tspan></text>
+  <text id="field:label-3" data-field="label-3" data-role="label" data-maxlen="7" x="778.21" y="816.38" text-anchor="middle" style="font-family:'Outfit','Inter',sans-serif;font-size:29.2px;font-weight:850;fill:rgb(204, 211, 223)" data-w="217" data-minfont="20"><tspan x="778.21" y="816.38">Notes</tspan></text>
+  <text id="field:label-4" data-field="label-4" data-role="label" data-maxlen="37" x="539.99" y="964.67" text-anchor="middle" style="font-family:'Outfit','Inter',sans-serif;font-size:33.53px;font-weight:850;fill:rgb(9, 16, 26)" data-w="477" data-minfont="23"><tspan x="539.99" y="964.67">Subscribe · semianalysis.com</tspan></text>
+  <text id="field:logo" data-field="logo" data-role="logo" x="788.27" y="94.45" style="font-family:Outfit,Inter,sans-serif;font-weight:760;font-size:41.1px;letter-spacing:-0.03em"><tspan fill="rgb(11, 134, 209)">semi</tspan><tspan fill="rgb(247, 176, 65)">analysis</tspan></text>
+</svg>

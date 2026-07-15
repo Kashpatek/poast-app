@@ -1,0 +1,13 @@
+<svg viewBox="0 0 1080 1350" width="1080" height="1350" xmlns="http://www.w3.org/2000/svg">
+  <defs><linearGradient id="grad-1" x1="0.15" y1="0.15" x2="0.85" y2="0.85"><stop offset="0%" stop-color="rgb(27, 36, 51)"/><stop offset="100%" stop-color="rgb(8, 11, 18)"/></linearGradient></defs>
+  <rect x="86.39" y="850.9" width="136.08" height="136.03" rx="50.07" fill="url(#grad-1)" stroke="rgba(255, 255, 255, 0.11)" stroke-width="1"/>
+  <rect data-slot="image-1" data-accepts="image" data-label="image-1" data-role="image" x="86.39" y="850.9" width="136.08" height="136.03" rx="16" fill="none" stroke="#3A4A5F" stroke-opacity="0.35" stroke-dasharray="12 9"/>
+  
+  
+  <text id="field:eyebrow" data-field="eyebrow" data-role="eyebrow" data-maxlen="32" x="86.39" y="553.31" text-anchor="start" style="font-family:'Outfit','Inter',sans-serif;font-size:35.69px;font-weight:850;text-transform:uppercase;letter-spacing:1.5px;fill:rgb(247, 176, 65)" data-w="907" data-minfont="25"><tspan x="86.39" y="553.31">On the record</tspan></text>
+  <text id="field:headline" data-field="headline" data-role="headline" data-maxlen="47" data-minfont="34" data-maxfont="96" x="86.39" y="655.78" text-anchor="start" style="font-family:'Grift','Outfit',sans-serif;font-size:89.77px;font-weight:790;fill:rgb(255, 255, 255)" data-w="853"><tspan x="86.39" y="655.78">The constraint is </tspan><tspan x="86.39" y="746.44">power, not silicon.</tspan></text>
+  <text id="field:body-1" data-field="body-1" data-role="body" data-maxlen="17" x="258.76" y="894.36" text-anchor="start" style="font-family:'Outfit','Inter',sans-serif;font-size:34.61px;font-weight:820;fill:rgb(255, 255, 255)" data-w="202" data-minfont="21" data-maxlines="1"><tspan x="258.76" y="894.36">Dylan Patel</tspan></text>
+  <text id="field:label-1" data-field="label-1" data-role="label" data-maxlen="29" x="258.76" y="953.64" text-anchor="start" style="font-family:'Outfit','Inter',sans-serif;font-size:29.2px;font-weight:790;text-transform:uppercase;letter-spacing:1.5px;fill:rgb(174, 182, 199)" data-w="447" data-minfont="20"><tspan x="258.76" y="953.64">Founder · SemiAnalysis</tspan></text>
+  <g id="field:ornament" data-field="ornament" data-role="label"><text x="86.39" y="562.09" text-anchor="start" style="font-family:'Outfit','Inter',sans-serif;font-size:248.77px;font-weight:800;fill:rgb(247, 176, 65)"><tspan x="86.39" y="562.09">“</tspan></text></g>
+  <text id="field:logo" data-field="logo" data-role="logo" x="788.27" y="94.45" style="font-family:Outfit,Inter,sans-serif;font-weight:760;font-size:41.1px;letter-spacing:-0.03em"><tspan fill="rgb(11, 134, 209)">semi</tspan><tspan fill="rgb(247, 176, 65)">analysis</tspan></text>
+</svg>

@@ -1,0 +1,676 @@
+/* SA CAROUSEL 2.0 — THE FOUNDRY theme, WHITE HEAT (docs/THEME-FOUNDRY.md v3.1).
+   The gallery MOLTEN, verbatim: white-hot platinum rivers under neutral iron,
+   silver sparks, a pale heat horizon breathing at the bottom of the viewport.
+   Every surface is a forged plate — opaque, beveled, zero backdrop-filter.
+   SemiAnalysis colors live as ACCENTS only: amber is THE action + kicker
+   highlight, cobalt is the quench (selection/info). Monospace survives only
+   as tabular numerals; labels speak Outfit in two registers (small-caps
+   humanist + italic whispers). Fonts (Grift / Outfit / JetBrains Mono) are
+   loaded by layout.tsx: no @import or @font-face here. Chrome is scoped under
+   .wz-root/.wizard-root so legacy /carousel (inline styles) is unaffected.
+   Legacy v1 utility classes (.plate, .panel, .st, .chip, .kbd, .input ...)
+   are KEPT and restyled to the forged language. */
+
+.wz-root,.wizard-root{
+  /* SA Neo Industrial brand constants — verbatim from tokens.css */
+  --amber:#F7B041; --cobalt:#0B86D1; --mint:#2EAD8E; --coral:#E06347;
+  --blue-300:#73c3ff; /* cobalt lightened for small text on dark */
+  /* neutral iron ground + plates — donor theme-lab/t1 tokens verbatim */
+  --bg:#0A0A0C; --bg-2:#101014; --card:#15151A; --surface:#1C1C23; --raised:#22222B;
+  --tx:#F2E9DA; --muted:#A6A7B1; --dim:#75767F; /* dim: never body copy */
+  --line:rgba(228,235,248,.08); --line-2:rgba(228,235,248,.14);
+  --amber-wash:rgba(247,176,65,.08); --amber-line:rgba(247,176,65,.38);
+  --cobalt-wash:rgba(11,134,209,.10); --cobalt-line:rgba(11,134,209,.42);
+  --grift:Grift,"Arial Black",sans-serif; --body:Outfit,sans-serif;
+  --mono:"JetBrains Mono",monospace;
+  --ease:cubic-bezier(0.16,1,0.3,1);
+  /* white-heat tokens: the melt ramp, crust, plate bevels, quench */
+  --melt-1:#FFFDF6;  /* hot core        */
+  --melt-2:#FFF8EE;  /* white heat      */
+  --melt-3:#E8D9B8;  /* platinum        */
+  --melt-4:#8E8E96;  /* cooling steel   */
+  --shimmer:#DCE8FF; /* blue-white heat */
+  --crust:#0A0A0C;   /* iron crust      */
+  --bevel-hi:rgba(228,235,248,.13);   /* plate top bevel   */
+  --bevel-lo:rgba(0,0,0,.62);         /* plate under-shade */
+  --heat:linear-gradient(90deg,var(--melt-4),var(--melt-3) 30%,var(--melt-1) 50%,var(--melt-3) 70%,var(--melt-4));
+  --plat-line:rgba(232,217,184,.5);   /* platinum hover edge */
+  --quench:rgba(11,134,209,.55);      /* cobalt edge-light */
+  /* compatibility aliases (glass is dead; these keep TSX references alive) */
+  --glass:rgba(18,18,23,.94);           /* now an opaque plate fill */
+  --glass-hi:var(--bevel-hi);
+  --glass-line:rgba(228,235,248,.11);
+  --frost:0px;                          /* blur is dead; var resolves harmlessly */
+  --r-panel:14px; --r-pill:14px; --r-ctl:10px;
+  --shadow-panel:0 24px 48px rgba(3,3,5,.55);
+  --shadow-hover:0 14px 36px rgba(3,3,5,.6), 0 0 0 1px rgba(232,217,184,.14);
+  /* transition aliases for v1 station inline styles (cluster D removes) */
+  --ink:var(--tx); --hair:var(--line); --metal:var(--muted); --panel:var(--glass);
+}
+
+/* ---------- shell ---------- */
+.wizard-root,.wizard-root *,.wizard-root *::before,.wizard-root *::after{box-sizing:border-box}
+.wizard-root *{margin:0;padding:0}
+.wz-root,.wizard-root{
+  position:relative;isolation:isolate;
+  min-height:100vh;height:100vh;overflow:hidden;
+  display:flex;flex-direction:column;
+  padding-top:86px; /* clears the crossbar chrome (14 + 58 + 14) */
+  font-family:var(--body);color:var(--tx);background:var(--bg);
+  font-variant-numeric:tabular-nums;
+}
+.wizard-root .station-scroll{flex:1;overflow:auto;min-height:0}
+.wizard-root .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.wizard-root ::placeholder{color:var(--dim)}
+.wizard-root ::-webkit-scrollbar{width:10px;height:10px}
+.wizard-root ::-webkit-scrollbar-track{background:transparent}
+.wizard-root ::-webkit-scrollbar-thumb{background:rgba(228,235,248,.14);border-radius:5px;
+  border:2px solid transparent;background-clip:padding-box}
+.wizard-root button:focus-visible,.wizard-root input:focus-visible,.wizard-root textarea:focus-visible,.wizard-root select:focus-visible,.wizard-root [tabindex]:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+/* ---------- backdrop: iron sky, chipboard + LEDs, embers, warm vignette ----------
+   All layers fixed full-bleed at z-index -1, transform/opacity-only animation.
+   NOTHING here animates filter or box-shadow (spec v3 §3/§6). */
+.wizard-root .wz-sky,.wizard-root .wz-grid,.wizard-root .wz-board,.wizard-root .wz-embers,.wizard-root .wz-vignette{position:fixed;inset:0;z-index:-1;pointer-events:none}
+.wizard-root .wz-sky{
+  overflow:hidden;
+  background:linear-gradient(180deg,#101014,#0A0A0C 55%);
+}
+@keyframes wz-breathe{
+  from{opacity:calc(.55 * var(--hz,1))}
+  to{opacity:calc(1 * var(--hz,1))}}
+/* heat haze — huge pre-blurred blue-white radials drifting very slowly
+   (donor t1 .haze verbatim) */
+.wizard-root .wz-haze{position:absolute;inset:-18%;
+  background:
+    radial-gradient(640px 420px at 22% 82%, rgba(220,232,255,.075), transparent 62%),
+    radial-gradient(760px 520px at 82% 26%, rgba(228,236,255,.055), transparent 62%),
+    radial-gradient(520px 380px at 55% 60%, rgba(232,238,255,.045), transparent 60%);
+  animation:wz-haze 29s ease-in-out -13s infinite alternate}
+@keyframes wz-haze{from{transform:translate(0,0) scale(1)}to{transform:translate(2%,-2%) scale(1.04)}}
+/* film grain (donor t1 .grain verbatim) — the hex/octagon tiling is DEAD */
+.wizard-root .wz-grid{
+  opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='.62'/%3E%3C/svg%3E");
+  background-size:240px 240px;
+}
+/* chipboard — the backdrop IS the board (v3.3; the melt rivers are retired).
+   Four hand-routed corner networks (45° bends, pads, vias, chip footprints,
+   one accent-color line each) reach in from the screen edges; the center
+   stays clear for content. Each network is drawn ONCE as a corner-anchored
+   data-uri inside a fixed-size wrapper — no repeating tile anywhere. Traces
+   live on each wrapper's ::before so the LED (<i>) and signal-pulse (<s>)
+   children can run at full strength. Soft color pockets on .wz-board::before
+   lift the iron so the field doesn't read flat-dark. */
+.wizard-root .wz-board::before{content:"";position:absolute;inset:0;
+  background:
+    radial-gradient(560px 380px at 10% 16%, color-mix(in srgb,var(--cat-b) 4%,transparent), transparent 62%),
+    radial-gradient(520px 360px at 88% 22%, color-mix(in srgb,var(--cat-a) 5%,transparent), transparent 62%),
+    radial-gradient(480px 340px at 8% 78%, color-mix(in srgb,var(--cat-a) 3.5%,transparent), transparent 62%),
+    radial-gradient(520px 340px at 90% 82%, color-mix(in srgb,var(--cat-b) 4.5%,transparent), transparent 62%)}
+.wizard-root .bd{position:absolute}
+.wizard-root .bd::before{content:"";position:absolute;inset:0;opacity:.3;transition:opacity .8s ease;
+  background-repeat:no-repeat;background-size:100% 100%}
+.wizard-root .bd-tl{left:0;top:64px;width:640px;height:420px}
+.wizard-root .bd-tr{right:0;top:56px;width:700px;height:460px}
+.wizard-root .bd-bl{left:0;bottom:0;width:660px;height:400px}
+.wizard-root .bd-br{right:0;bottom:0;width:720px;height:380px}
+.wizard-root .bd-tl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 420'%3E%3Cg fill='none' stroke='%23E8D9B8' stroke-width='1.5' stroke-linecap='round' opacity='.7'%3E%3Cpath d='M0 132 L310 132 L370 192 L580 192'/%3E%3Cpath d='M0 145 L297 145 L357 205 L580 205'/%3E%3Cpath d='M0 158 L284 158 L344 218 L580 218'/%3E%3Cpath d='M0 60 L220 60 L260 100 L420 100'/%3E%3Cpath d='M0 320 L180 320 L240 380 L460 380'/%3E%3C/g%3E%3Cg fill='none' stroke='%23E8D9B8' stroke-width='1.2' stroke-linecap='round' opacity='.5'%3E%3Cpath d='M0 92 L140 92 L180 132'/%3E%3Cpath d='M120 0 L120 40 L160 80'/%3E%3Cpath d='M370 192 L370 128'/%3E%3Cpath d='M240 380 L240 420'/%3E%3C/g%3E%3Cg fill='none' stroke='%23E8D9B8' stroke-width='1.2' opacity='.75'%3E%3Ccircle cx='586' cy='192' r='3'/%3E%3Ccircle cx='586' cy='205' r='3'/%3E%3Ccircle cx='586' cy='218' r='3'/%3E%3Ccircle cx='426' cy='100' r='3'/%3E%3Ccircle cx='466' cy='380' r='3'/%3E%3C/g%3E%3Cg fill='%23E8D9B8' opacity='.6'%3E%3Ccircle cx='310' cy='132' r='1.8'/%3E%3Ccircle cx='357' cy='205' r='1.8'/%3E%3Ccircle cx='180' cy='320' r='1.8'/%3E%3Ccircle cx='180' cy='132' r='1.8'/%3E%3Ccircle cx='160' cy='80' r='1.8'/%3E%3Ccircle cx='220' cy='60' r='1.8'/%3E%3Ccircle cx='370' cy='128' r='1.8'/%3E%3C/g%3E%3C/svg%3E")}
+.wizard-root .bd-tr::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 700 460'%3E%3Cg fill='none' stroke='%23E8D9B8' stroke-width='1.5' stroke-linecap='round' opacity='.7'%3E%3Cpath d='M700 150 L390 150 L330 210 L120 210'/%3E%3Cpath d='M700 163 L403 163 L343 223 L120 223'/%3E%3Cpath d='M700 176 L416 176 L356 236 L120 236'/%3E%3Cpath d='M700 340 L480 340 L420 400 L200 400'/%3E%3Cpath d='M700 280 L560 280 L520 320 L380 320'/%3E%3C/g%3E%3Cg fill='none' stroke='%23E8D9B8' stroke-width='1.5' opacity='.5'%3E%3Crect x='400' y='60' width='68' height='68' rx='5'/%3E%3Cpath d='M412 52 v8 M428 52 v8 M444 52 v8 M456 52 v8 M412 128 v8 M428 128 v8 M444 128 v8 M456 128 v8' stroke-width='1.2'/%3E%3C/g%3E%3Cg fill='none' stroke='%23E8D9B8' stroke-width='1.2' stroke-linecap='round' opacity='.55'%3E%3Cpath d='M400 94 L300 94 L260 134 L140 134'/%3E%3Cpath d='M468 94 L560 94 L600 54 L700 54'/%3E%3Cpath d='M640 0 L640 26 L680 66'/%3E%3Cpath d='M480 340 L480 300'/%3E%3C/g%3E%3Cg fill='none' stroke='%23E8D9B8' stroke-width='1.2' opacity='.75'%3E%3Ccircle cx='114' cy='210' r='3'/%3E%3Ccircle cx='114' cy='223' r='3'/%3E%3Ccircle cx='114' cy='236' r='3'/%3E%3Ccircle cx='134' cy='134' r='3'/%3E%3Ccircle cx='194' cy='400' r='3'/%3E%3Ccircle cx='374' cy='320' r='3'/%3E%3Ccircle cx='412' cy='160' r='2'/%3E%3Ccircle cx='428' cy='160' r='2'/%3E%3Ccircle cx='444' cy='160' r='2'/%3E%3Ccircle cx='460' cy='160' r='2'/%3E%3C/g%3E%3Cg fill='%23E8D9B8' opacity='.6'%3E%3Ccircle cx='390' cy='150' r='1.8'/%3E%3Ccircle cx='403' cy='163' r='1.8'/%3E%3Ccircle cx='480' cy='340' r='1.8'/%3E%3Ccircle cx='520' cy='320' r='1.8'/%3E%3Ccircle cx='560' cy='94' r='1.8'/%3E%3Ccircle cx='680' cy='66' r='1.8'/%3E%3Ccircle cx='480' cy='300' r='1.8'/%3E%3C/g%3E%3C/svg%3E")}
+.wizard-root .bd-bl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 660 400'%3E%3Cg fill='none' stroke='%23E8D9B8' stroke-width='1.5' stroke-linecap='round' opacity='.7'%3E%3Cpath d='M0 240 L280 240 L340 300 L520 300'/%3E%3Cpath d='M0 253 L272 253 L332 313 L520 313'/%3E%3Cpath d='M240 400 L240 340 L296 284 L420 284'/%3E%3C/g%3E%3Cg fill='none' stroke='%23E8D9B8' stroke-width='1.5' opacity='.5'%3E%3Crect x='180' y='80' width='58' height='58' rx='4'/%3E%3Cpath d='M172 92 h8 M172 106 h8 M172 120 h8 M238 92 h8 M238 106 h8 M238 120 h8' stroke-width='1.2'/%3E%3C/g%3E%3Cg fill='none' stroke='%23E8D9B8' stroke-width='1.2' stroke-linecap='round' opacity='.55'%3E%3Cpath d='M246 109 L340 109 L380 69 L520 69'/%3E%3Cpath d='M172 109 L100 109 L60 149 L0 149'/%3E%3C/g%3E%3Cg fill='none' stroke='%23E8D9B8' stroke-width='1.2' opacity='.75'%3E%3Ccircle cx='526' cy='300' r='3'/%3E%3Ccircle cx='526' cy='313' r='3'/%3E%3Ccircle cx='426' cy='284' r='3'/%3E%3Ccircle cx='526' cy='69' r='3'/%3E%3C/g%3E%3Cg fill='%23E8D9B8' opacity='.6'%3E%3Ccircle cx='280' cy='240' r='1.8'/%3E%3Ccircle cx='340' cy='109' r='1.8'/%3E%3Ccircle cx='240' cy='340' r='1.8'/%3E%3Ccircle cx='296' cy='284' r='1.8'/%3E%3Ccircle cx='60' cy='340' r='1.8'/%3E%3C/g%3E%3C/svg%3E")}
+.wizard-root .bd-br::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 720 380'%3E%3Cg fill='none' stroke='%23E8D9B8' stroke-width='1.5' stroke-linecap='round' opacity='.7'%3E%3Cpath d='M720 300 L420 300 L360 240 L100 240'/%3E%3Cpath d='M720 313 L426 313 L368 255 L100 255'/%3E%3Cpath d='M500 380 L500 332 L460 292 L460 250'/%3E%3Cpath d='M720 120 L560 120 L520 160 L400 160'/%3E%3C/g%3E%3Cg fill='none' stroke='%23E8D9B8' stroke-width='1.2' stroke-linecap='round' opacity='.5'%3E%3Cpath d='M660 380 L660 342'/%3E%3C/g%3E%3Cg fill='none' stroke='%23E8D9B8' stroke-width='1.2' opacity='.75'%3E%3Ccircle cx='94' cy='240' r='3'/%3E%3Ccircle cx='94' cy='255' r='3'/%3E%3Ccircle cx='460' cy='244' r='3'/%3E%3Ccircle cx='394' cy='160' r='3'/%3E%3C/g%3E%3Cg fill='%23E8D9B8' opacity='.6'%3E%3Ccircle cx='420' cy='300' r='1.8'/%3E%3Ccircle cx='426' cy='313' r='1.8'/%3E%3Ccircle cx='460' cy='292' r='1.8'/%3E%3Ccircle cx='520' cy='160' r='1.8'/%3E%3Ccircle cx='580' cy='40' r='1.8'/%3E%3Ccircle cx='660' cy='342' r='1.8'/%3E%3C/g%3E%3C/svg%3E")}
+/* category accents (spec v3.4) — the board re-tints to the run's category:
+   general = amber x cobalt mix, internal = amber, external = cobalt, capital
+   = mint (same mapping the slide backdrops use via THEMES). One accent line
+   per corner lives on ::after as a MASK so a single var swap recolors the
+   copper, the LEDs, and the glow pockets together; data-cat rides .wz-root. */
+.wz-root{--cat-a:var(--amber);--cat-b:var(--cobalt)}
+.wz-root[data-cat="internal"]{--cat-a:var(--amber);--cat-b:var(--amber)}
+.wz-root[data-cat="external"]{--cat-a:var(--cobalt);--cat-b:var(--cobalt)}
+.wz-root[data-cat="capital"]{--cat-a:var(--mint);--cat-b:var(--mint)}
+.wizard-root .bd::after{content:"";position:absolute;inset:0;opacity:.3;
+  background:var(--acc,var(--cat-a));
+  transition:background .6s ease,opacity .8s ease;
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-size:100% 100%;mask-size:100% 100%}
+.wizard-root .bd-tl::after{--acc:var(--cat-b);-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 420'%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' opacity='.5'%3E%3Cpath d='M0 250 L200 250 L260 310 L440 310'/%3E%3C/g%3E%3Ccircle cx='446' cy='310' r='3' fill='none' stroke='%23fff' stroke-width='1.2' opacity='.6'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 420'%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' opacity='.5'%3E%3Cpath d='M0 250 L200 250 L260 310 L440 310'/%3E%3C/g%3E%3Ccircle cx='446' cy='310' r='3' fill='none' stroke='%23fff' stroke-width='1.2' opacity='.6'/%3E%3C/svg%3E")}
+.wizard-root .bd-tr::after{--acc:var(--cat-a);-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 700 460'%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' opacity='.5'%3E%3Cpath d='M700 226 L500 226 L460 266 L300 266'/%3E%3C/g%3E%3Ccircle cx='294' cy='266' r='3' fill='none' stroke='%23fff' stroke-width='1.2' opacity='.6'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 700 460'%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' opacity='.5'%3E%3Cpath d='M700 226 L500 226 L460 266 L300 266'/%3E%3C/g%3E%3Ccircle cx='294' cy='266' r='3' fill='none' stroke='%23fff' stroke-width='1.2' opacity='.6'/%3E%3C/svg%3E")}
+.wizard-root .bd-bl::after{--acc:var(--cat-a);-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 660 400'%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' opacity='.45'%3E%3Cpath d='M60 400 L60 340 L110 290 L110 210'/%3E%3C/g%3E%3Ccircle cx='110' cy='204' r='3' fill='none' stroke='%23fff' stroke-width='1.2' opacity='.55'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 660 400'%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' opacity='.45'%3E%3Cpath d='M60 400 L60 340 L110 290 L110 210'/%3E%3C/g%3E%3Ccircle cx='110' cy='204' r='3' fill='none' stroke='%23fff' stroke-width='1.2' opacity='.55'/%3E%3C/svg%3E")}
+.wizard-root .bd-br::after{--acc:var(--cat-b);-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 720 380'%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' opacity='.5'%3E%3Cpath d='M720 80 L620 80 L580 40 L460 40'/%3E%3C/g%3E%3Ccircle cx='454' cy='40' r='3' fill='none' stroke='%23fff' stroke-width='1.2' opacity='.6'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 720 380'%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' opacity='.5'%3E%3Cpath d='M720 80 L620 80 L580 40 L460 40'/%3E%3C/g%3E%3Ccircle cx='454' cy='40' r='3' fill='none' stroke='%23fff' stroke-width='1.2' opacity='.6'/%3E%3C/svg%3E")}
+/* LEDs — SMD dots parked on the trace pads; opacity-only pulses, a few
+   activity double-blips. Positions are wrapper-relative so they stay glued
+   to their pads at any viewport size. */
+.wizard-root .bd i{position:absolute;width:3px;height:3px;border-radius:1px;
+  opacity:var(--lo,.16);background:var(--c,var(--melt-2));
+  box-shadow:0 0 7px var(--g,rgba(255,248,238,.55));
+  will-change:opacity;
+  animation:wz-led calc(var(--dur,6s)*var(--led-speed,1)) ease-in-out var(--del,0s) infinite}
+@keyframes wz-led{0%,100%{opacity:var(--lo,.16)}50%{opacity:var(--hi,.6)}}
+@keyframes wz-led-blip{
+  0%,84%,93%,100%{opacity:var(--lo,.14)}
+  87%,90%,96%{opacity:var(--hi,.7)}}
+/* signal pulses — white-hot dots gliding along the main buses (offset-path
+   = transform under the hood, compositor-safe) */
+.wizard-root .bd s{position:absolute;display:block;width:4px;height:4px;border-radius:50%;
+  background:var(--melt-1);box-shadow:0 0 9px rgba(255,253,246,.8);
+  will-change:transform,opacity;opacity:0;
+  offset-path:var(--p);offset-rotate:0deg;
+  animation:wz-sig calc(var(--pd,16s)*var(--pulse-speed,1)) linear var(--pdel,0s) infinite}
+@keyframes wz-sig{
+  0%{offset-distance:0%;opacity:0}
+  7%{opacity:.8}
+  88%{opacity:.8}
+  100%{offset-distance:100%;opacity:0}}
+/* TL: 3-pad bus column + cobalt sense line */
+.wizard-root .bd-tl i:nth-of-type(1){left:598px;top:190px;--dur:7s;--del:-2s;--hi:.55}
+.wizard-root .bd-tl i:nth-of-type(2){left:598px;top:203px;--c:var(--melt-3);--dur:9s;--del:-5s;--hi:.5}
+.wizard-root .bd-tl i:nth-of-type(3){left:598px;top:216px;--dur:6s;--del:-3s;--hi:.6}
+.wizard-root .bd-tl i:nth-of-type(4){left:452px;top:308px;--c:var(--cat-b);--g:color-mix(in srgb,var(--cat-b) 60%,transparent);--dur:8s;--del:-1s;animation-name:wz-led-blip}
+.wizard-root .bd-tl s:nth-of-type(1){--p:path("M0 132 L310 132 L370 192 L580 192");--pd:16s;--pdel:-4s}
+.wizard-root .bd-tl s:nth-of-type(2){--p:path("M0 320 L180 320 L240 380 L460 380");--pd:26s;--pdel:-13s}
+/* TR: bus column, chip DIP row, amber sense line */
+.wizard-root .bd-tr i:nth-of-type(1){left:98px;top:208px;--dur:7s;--del:-2s;--hi:.55}
+.wizard-root .bd-tr i:nth-of-type(2){left:98px;top:221px;--c:var(--cat-a);--g:color-mix(in srgb,var(--cat-a) 55%,transparent);--dur:9s;--del:-4s;animation-name:wz-led-blip}
+.wizard-root .bd-tr i:nth-of-type(3){left:98px;top:234px;--dur:6.5s;--del:-1s;--hi:.5}
+.wizard-root .bd-tr i:nth-of-type(4){left:118px;top:132px;--dur:11s;--del:-6s;--hi:.45}
+.wizard-root .bd-tr i:nth-of-type(5){left:178px;top:398px;--c:var(--cat-b);--g:color-mix(in srgb,var(--cat-b) 60%,transparent);--dur:10s;--del:-3s;animation-name:wz-led-blip}
+.wizard-root .bd-tr i:nth-of-type(6){left:410px;top:158px;--dur:5s;--del:-1s;--hi:.6}
+.wizard-root .bd-tr i:nth-of-type(7){left:426px;top:158px;--c:var(--cat-a);--g:color-mix(in srgb,var(--cat-a) 55%,transparent);--dur:6s;--del:-2.5s;--hi:.65}
+.wizard-root .bd-tr i:nth-of-type(8){left:442px;top:158px;--dur:7s;--del:-4s;--hi:.55}
+.wizard-root .bd-tr i:nth-of-type(9){left:458px;top:158px;--c:var(--shimmer);--g:rgba(220,232,255,.6);--dur:5.5s;--del:-3s;--hi:.6}
+.wizard-root .bd-tr i:nth-of-type(10){left:288px;top:264px;--c:var(--cat-a);--g:color-mix(in srgb,var(--cat-a) 55%,transparent);--dur:8s;--del:-5s;--hi:.6}
+/* BL: bus pads, chip run, mint riser */
+.wizard-root .bd-bl i:nth-of-type(1){left:540px;top:298px;--dur:7s;--del:-3s;--hi:.55}
+.wizard-root .bd-bl i:nth-of-type(2){left:540px;top:311px;--c:var(--cat-a);--g:color-mix(in srgb,var(--cat-a) 55%,transparent);--dur:9s;--del:-1s;animation-name:wz-led-blip}
+.wizard-root .bd-bl i:nth-of-type(3){left:434px;top:282px;--dur:8s;--del:-5s;--hi:.5}
+.wizard-root .bd-bl i:nth-of-type(4){left:540px;top:67px;--c:var(--melt-3);--dur:10s;--del:-2s;--hi:.5}
+.wizard-root .bd-bl i:nth-of-type(5){left:104px;top:196px;--c:var(--cat-a);--g:color-mix(in srgb,var(--cat-a) 55%,transparent);--dur:7.5s;--del:-4s;--hi:.6}
+.wizard-root .bd-bl s:nth-of-type(1){--p:path("M0 240 L280 240 L340 300 L520 300");--pd:20s;--pdel:-6s}
+/* BR: bus pads + cobalt line */
+.wizard-root .bd-br i:nth-of-type(1){left:78px;top:238px;--dur:6s;--del:-2s;--hi:.55}
+.wizard-root .bd-br i:nth-of-type(2){left:78px;top:253px;--c:var(--cat-b);--g:color-mix(in srgb,var(--cat-b) 60%,transparent);--dur:9s;--del:-4s;animation-name:wz-led-blip}
+.wizard-root .bd-br i:nth-of-type(3){left:378px;top:158px;--dur:8s;--del:-1s;--hi:.5}
+.wizard-root .bd-br i:nth-of-type(4){left:448px;top:38px;--c:var(--shimmer);--g:rgba(220,232,255,.6);--dur:7s;--del:-3s;--hi:.6}
+/* embers — 12 deterministic sparks, mid-flight at t=0 via negative delays */
+.wizard-root .wz-embers{overflow:hidden}
+.wizard-root .wz-embers i{position:absolute;bottom:0;border-radius:50%;opacity:0;
+  will-change:transform,opacity;
+  background:radial-gradient(circle,#FFFFFF 0%,var(--melt-3) 55%,transparent 75%);
+  box-shadow:0 0 6px rgba(220,232,255,.5);
+  animation:wz-ember linear infinite;
+  animation-duration:calc(var(--dur,15s) * var(--ember-speed,1))}
+.wizard-root .wz-embers i:nth-child(even){
+  background:radial-gradient(circle,var(--melt-2) 0%,var(--melt-4) 60%,transparent 78%)}
+@keyframes wz-ember{
+  0%{transform:translate3d(0,20vh,0) scale(1);opacity:0}
+  10%{opacity:var(--o,.8)}
+  60%{opacity:calc(var(--o,.8) * .5)}
+  100%{transform:translate3d(var(--sw,24px),-78vh,0) scale(.4);opacity:0}}
+.wizard-root .wz-embers i:nth-child(1){left:7%;width:3px;height:3px;--dur:13s;animation-delay:-5s;--o:.85;--sw:30px}
+.wizard-root .wz-embers i:nth-child(2){left:15%;width:2px;height:2px;--dur:17s;animation-delay:-9s;--o:.6;--sw:-24px}
+.wizard-root .wz-embers i:nth-child(3){left:23%;width:4px;height:4px;--dur:11s;animation-delay:-3s;--o:.9;--sw:18px}
+.wizard-root .wz-embers i:nth-child(4){left:31%;width:2.5px;height:2.5px;--dur:19s;animation-delay:-13s;--o:.55;--sw:-36px}
+.wizard-root .wz-embers i:nth-child(5){left:39%;width:3px;height:3px;--dur:14s;animation-delay:-7s;--o:.8;--sw:26px}
+.wizard-root .wz-embers i:nth-child(6){left:47%;width:2px;height:2px;--dur:16s;animation-delay:-11s;--o:.6;--sw:-18px}
+.wizard-root .wz-embers i:nth-child(7){left:55%;width:3.5px;height:3.5px;--dur:12s;animation-delay:-4s;--o:.85;--sw:34px}
+.wizard-root .wz-embers i:nth-child(8){left:63%;width:2.5px;height:2.5px;--dur:18s;animation-delay:-14s;--o:.6;--sw:-28px}
+.wizard-root .wz-embers i:nth-child(9){left:71%;width:3px;height:3px;--dur:13.5s;animation-delay:-6s;--o:.8;--sw:22px}
+.wizard-root .wz-embers i:nth-child(10){left:79%;width:2px;height:2px;--dur:15s;animation-delay:-10s;--o:.55;--sw:-20px}
+.wizard-root .wz-embers i:nth-child(11){left:87%;width:4px;height:4px;--dur:12.5s;animation-delay:-2s;--o:.9;--sw:28px}
+.wizard-root .wz-embers i:nth-child(12){left:93%;width:2.5px;height:2.5px;--dur:19s;animation-delay:-16s;--o:.6;--sw:-32px}
+/* second ember burst layer — hidden until GENERATING fades it in */
+.wizard-root .wz-embers::after{content:"";position:absolute;inset:0;opacity:0;
+  transition:opacity .8s ease;will-change:transform;
+  background:
+    radial-gradient(4px 4px at 12% 78%, var(--melt-1) 40%, transparent 60%),
+    radial-gradient(3px 3px at 28% 62%, var(--melt-2) 40%, transparent 60%),
+    radial-gradient(3px 3px at 44% 84%, var(--melt-1) 40%, transparent 60%),
+    radial-gradient(4px 4px at 58% 70%, var(--melt-3) 40%, transparent 60%),
+    radial-gradient(3px 3px at 72% 58%, var(--melt-1) 40%, transparent 60%),
+    radial-gradient(4px 4px at 86% 76%, var(--melt-2) 40%, transparent 60%),
+    radial-gradient(2px 2px at 20% 40%, var(--melt-2) 40%, transparent 60%),
+    radial-gradient(2px 2px at 66% 36%, var(--melt-1) 40%, transparent 60%);
+  animation:wz-burst 7s linear -3s infinite}
+@keyframes wz-burst{from{transform:translateY(8vh)}to{transform:translateY(-30vh)}}
+.wizard-root .wz-vignette{
+  background:
+    linear-gradient(180deg,transparent 66%,rgba(8,8,11,.52)),
+    radial-gradient(ellipse 74% 64% at 50% 40%, transparent 55%, rgba(8,8,11,.58) 100%);
+}
+/* heat horizon — bottom-anchored glow that breathes (opacity only). It lives
+   on the vignette's ::after so it paints LAST in the backdrop stack: parked
+   on .wz-sky::after it sat UNDER the vignette, whose old opaque var(--bg)
+   bottom stop froze the floor at pure iron and killed the molten horizon. */
+.wizard-root .wz-vignette::after{content:"";position:absolute;inset:0;
+  background:radial-gradient(70% 26% at 50% 104%,
+    rgba(255,250,240,.19), rgba(220,232,255,.07) 46%, rgba(142,142,150,.03) 62%, transparent);
+  animation:wz-breathe 11s ease-in-out -4.2s infinite alternate}
+/* GENERATING intensification — replaces the old filter-pulse (which stalled
+   the compositor). Opacity / animation-duration boosts ONLY; no filter. */
+.wz-root:has(.overlay) .wz-vignette::after{--hz:1.8}
+.wz-root:has(.overlay) .wz-embers{--ember-speed:.6}
+.wz-root:has(.overlay) .bd::before,.wz-root:has(.overlay) .bd::after{opacity:.42}
+.wz-root:has(.overlay) .wz-board{--led-speed:.45;--pulse-speed:.5}
+.wz-root:has(.overlay) .wz-embers::after{opacity:.55}
+
+/* ---------- forged plate recipes (same class names as the v2 glass) ----------
+   Opaque plates: card fill, hairline border, top bevel + under-shade insets.
+   Every backdrop-filter is gone. */
+.wizard-root .glass,.wizard-root .panel,.wizard-root .plate,.wizard-root .variant-col,.wizard-root .opt-card,.wizard-root .stat-pill,.wizard-root .banner,.wizard-root .modal{
+  background:var(--card);
+  border:1px solid var(--glass-line);border-radius:var(--r-panel);
+  box-shadow:inset 0 1px 0 var(--bevel-hi), inset 0 -1px 0 rgba(0,0,0,.35),
+    var(--shadow-panel);
+}
+.wizard-root .glass--tile{position:relative;border-radius:var(--r-panel);
+  transition:transform .18s var(--ease),border-color .18s var(--ease),box-shadow .18s var(--ease)}
+/* the hot edge — MOLTEN's signature 2px bottom melt line (static gradient) */
+.wizard-root .glass--tile::after{content:"";position:absolute;left:10%;right:10%;bottom:-1px;
+  height:2px;border-radius:2px;pointer-events:none;
+  background:var(--heat);background-size:220% 100%;opacity:.5;
+  transition:opacity .18s var(--ease)}
+.wizard-root .glass--tile:hover{transform:translateY(-3px);border-color:var(--plat-line);
+  box-shadow:inset 0 1px 0 var(--bevel-hi), inset 0 -1px 0 rgba(0,0,0,.35),
+    var(--shadow-hover)}
+.wizard-root .glass--tile:hover::after{opacity:.9}
+/* tinted tile: set --tc inline (cobalt AI / amber Verbatim / mint Unique) */
+.wizard-root .glass--tint{
+  border-color:color-mix(in srgb, var(--tc,var(--amber)) 30%, transparent);
+  background:
+    radial-gradient(240px 140px at 12% 0%,
+      color-mix(in srgb, var(--tc,var(--amber)) 10%, transparent), transparent),
+    var(--card);
+}
+.wizard-root .glass--tint::after{
+  background:linear-gradient(90deg,transparent,
+    var(--tc,var(--amber)) 30%,
+    color-mix(in srgb, var(--tc,var(--amber)) 45%, #FFF8EE) 50%,
+    var(--tc,var(--amber)) 70%,transparent);
+  background-size:100% 100%}
+
+/* ---------- forged crossbar chrome ---------- */
+.wizard-root .pillnav,.wizard-root .topbar{
+  position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:100;
+  width:min(1280px,calc(100% - 32px));height:58px;border-radius:var(--r-pill);
+  display:flex;align-items:center;gap:14px;padding:0 16px;
+  background:var(--card);
+  border:1px solid var(--glass-line);
+  box-shadow:inset 0 1px 0 var(--bevel-hi), inset 0 -1px 0 rgba(0,0,0,.35),
+    var(--shadow-panel);
+}
+/* molten hairline along the beam's bottom edge */
+.wizard-root .pillnav::after,.wizard-root .topbar::after{content:"";position:absolute;left:12px;right:12px;
+  bottom:-1px;height:1px;border-radius:1px;pointer-events:none;
+  background:var(--heat);opacity:.35}
+.wizard-root .wm{font-family:var(--grift);font-weight:800;font-size:19px;letter-spacing:.2px;
+  line-height:1;cursor:pointer;user-select:none}
+.wizard-root .wm .c{color:var(--cobalt)}.wizard-root .wm .a{color:var(--amber)}
+.wizard-root .appname{font-family:var(--body);font-size:10px;font-weight:600;color:var(--muted);
+  letter-spacing:.14em;text-transform:uppercase;border:0;
+  border-bottom:1px solid var(--line-2);border-radius:0;
+  padding:4px 2px 5px;background:transparent;white-space:nowrap}
+
+/* station rail: 01 CREATE // 02 CHOOSE // 03 EDIT // 04 PUBLISH
+   Flex child (not absolute) so it centers in the space LEFT OVER by the
+   wordmark and right cluster — absolute centering let 04 PUBLISH slide
+   underneath the SAVED chip at wide rails. Register 1 labels, mono numbers. */
+.wizard-root .stations{flex:1 1 auto;min-width:0;display:flex;align-items:center;
+  justify-content:center;gap:2px;overflow:hidden}
+.wizard-root .st{display:inline-flex;align-items:baseline;gap:7px;font-family:var(--body);
+  font-weight:600;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--dim);padding:8px 12px;
+  position:relative;background:none;border:none;white-space:nowrap}
+.wizard-root .st i{font-style:normal;font-family:var(--mono);font-weight:500;font-size:10px;
+  color:inherit;opacity:.7}
+.wizard-root .st.done{color:var(--tx);cursor:pointer}
+.wizard-root .st.done:hover{color:var(--amber)}
+.wizard-root .st.now{color:var(--amber)}
+.wizard-root .st.now i{opacity:1}
+/* the skewed amber underline reads as a hot pour line — glow lives ONLY here */
+.wizard-root .st.now::after{content:"";position:absolute;left:12px;right:12px;bottom:2px;height:2px;
+  background:var(--heat);transform:skewX(-24deg);border-radius:1px;
+  box-shadow:0 0 10px rgba(247,176,65,.45)}
+.wizard-root .st-link{display:inline-flex;gap:1px;font-family:var(--mono);font-size:10px;
+  line-height:1;user-select:none;transform:translateY(-1px)}
+/* both slashes run warm — two heats of the same metal, not brand confetti */
+.wizard-root .st-link::before{content:"/";color:var(--cobalt-line)}
+.wizard-root .st-link::after{content:"/";color:var(--amber-line)}
+.wizard-root .st-link.done::before{color:var(--melt-4)}
+.wizard-root .st-link.done::after{color:var(--amber)}
+
+/* right cluster: saved chip (Register 2 italic), provider chip, user chip, kbd */
+.wizard-root .topright{display:flex;align-items:center;gap:10px;margin-left:auto;
+  font-family:var(--body);font-size:10px;letter-spacing:.1em;color:var(--muted)}
+.wizard-root .save{display:inline-flex;align-items:center;gap:7px;color:var(--mint);
+  font-family:var(--body);font-style:italic;font-weight:400;font-size:11px;
+  letter-spacing:.02em;
+  border:1px solid var(--line);border-radius:8px;padding:5px 11px;
+  background:rgba(228,235,248,.03);white-space:nowrap}
+.wizard-root .save::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--mint);
+  box-shadow:0 0 8px var(--mint);animation:wz-live 2s ease-in-out infinite}
+.wizard-root .dot--live{width:6px;height:6px;border-radius:50%;background:var(--mint);
+  box-shadow:0 0 8px var(--mint);animation:wz-live 2s ease-in-out infinite;display:inline-block}
+@keyframes wz-live{0%,100%{opacity:1}50%{opacity:.45}}
+.wizard-root .kbd{border:1px solid var(--line-2);border-bottom-width:2px;border-radius:6px;
+  padding:3px 8px;color:var(--muted);background:rgba(228,235,248,.04);
+  font-family:var(--mono);font-size:10px;letter-spacing:.12em}
+/* provider rack (ProviderRack in Chrome.tsx): Register 1 words, cobalt
+   quench on the active chip — the nav never spends amber */
+.wizard-root .provwrap{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;
+  border:1px solid var(--line-2);border-radius:8px;
+  background:rgba(228,235,248,.03);white-space:nowrap}
+.wizard-root .prov-label{font-family:var(--body);font-weight:600;font-size:9px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.wizard-root .prov-chip{font-family:var(--body);font-weight:600;font-size:9px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
+  border:1px solid transparent;border-radius:5px;padding:2px 7px;cursor:pointer;
+  transition:color .16s var(--ease),background .16s var(--ease),
+    border-color .16s var(--ease)}
+.wizard-root .prov-chip:hover{color:var(--tx)}
+.wizard-root .prov-chip.on{background:var(--cobalt-wash);color:var(--blue-300);
+  border-color:var(--cobalt-line)}
+/* ESC HOME: Register-1 word; only the ESC keycap stays mono via .kbd */
+.wizard-root .esc-home{display:inline-flex;align-items:center;gap:7px;padding:0;
+  background:transparent;border:none;cursor:pointer;
+  font-family:var(--body);font-weight:600;font-size:10px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+  transition:color .16s var(--ease)}
+.wizard-root .esc-home:hover{color:var(--tx)}
+.wizard-root .esc-home .kbd{font-size:9px;padding:2px 6px}
+
+/* ---------- type system: two label registers, mono = numerals only ----------
+   Register 1 (small-caps humanist): Outfit 600 uppercase 11px, .14em.
+   Register 2 (.whisper): Outfit 400 italic 12.5px, muted, normal tracking. */
+.wizard-root .kicker{font-family:var(--body);font-size:11px;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted)}
+.wizard-root .kicker b{font-weight:600;color:var(--amber)}
+.wizard-root .kicker em{font-style:normal;color:var(--cobalt)}
+.wizard-root .whisper{font-family:var(--body);font-style:italic;font-weight:400;font-size:12.5px;
+  letter-spacing:normal;text-transform:none;color:var(--muted)}
+/* display hero: Grift 800; wrap ONE word in .grad for the molten shimmer */
+.wizard-root .display{font-family:var(--grift);font-weight:800;letter-spacing:-0.02em;
+  line-height:.98;color:var(--tx);font-size:clamp(34px,3.4vw,44px)}
+.wizard-root .display--home{font-size:clamp(52px,5.4vw,64px)}
+.wizard-root .display .grad,.wizard-root .grad-word{
+  background:linear-gradient(100deg,#F2E9DA,var(--melt-2) 55%,var(--melt-3));
+  background-size:200% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  color:transparent;-webkit-text-fill-color:transparent;
+  animation:wz-shimmer 7s linear infinite}
+@keyframes wz-shimmer{from{background-position:0% 0}to{background-position:200% 0}}
+/* legacy hero alias: .plate-h em becomes the molten gradient word */
+.wizard-root .plate-h{font-family:var(--grift);font-weight:800;font-size:34px;
+  letter-spacing:-0.02em;line-height:.98;color:var(--tx)}
+.wizard-root .plate-h em{font-style:normal;
+  background:linear-gradient(100deg,#F2E9DA,var(--melt-2) 55%,var(--melt-3));
+  background-size:200% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  color:transparent;-webkit-text-fill-color:transparent;
+  animation:wz-shimmer 7s linear infinite}
+.wizard-root .sub{color:var(--muted);font-size:15px;font-weight:400;line-height:1.55}
+.wizard-root .ph{font-family:var(--body);font-size:10.5px;font-weight:600;letter-spacing:.14em;
+  color:var(--muted);text-transform:uppercase;display:flex;align-items:center;gap:10px}
+.wizard-root .ph::after{content:"";flex:1;height:1px;background:var(--line)}
+.wizard-root .ph b{color:var(--amber);font-weight:600}
+
+/* ---------- buttons (forged plates, Register 1 labels) ---------- */
+.wizard-root .btn{font-family:var(--body);font-weight:600;font-size:11px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--tx);
+  background:rgba(228,235,248,.05);border:1px solid var(--line-2);
+  border-radius:var(--r-ctl);padding:11px 18px;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:10px;
+  transition:background .16s var(--ease),border-color .16s var(--ease),
+    transform .16s var(--ease),box-shadow .16s var(--ease)}
+.wizard-root .btn:hover{background:rgba(228,235,248,.10);transform:translateY(-1px)}
+.wizard-root .btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+/* THE action, at most one per view: the molten plate */
+.wizard-root .btn--amber,.wizard-root .btn-amber{background:var(--amber);border-color:var(--amber);
+  color:#0A0A0C;font-weight:700;
+  box-shadow:inset 0 1px 0 rgba(255,240,215,.5), inset 0 -1px 0 rgba(90,50,10,.3)}
+.wizard-root .btn--amber:hover,.wizard-root .btn-amber:hover{background:var(--melt-2);border-color:var(--melt-2);
+  box-shadow:inset 0 1px 0 rgba(255,240,215,.6), 0 10px 24px rgba(3,3,5,.5)}
+/* secondary emphasis: the quench — cobalt wash + cobalt edge-light */
+.wizard-root .btn--cobalt-ghost,.wizard-root .btn-cobalt{background:var(--cobalt-wash);
+  border-color:var(--quench);color:var(--blue-300)}
+.wizard-root .btn--cobalt-ghost:hover,.wizard-root .btn-cobalt:hover{background:rgba(11,134,209,.16)}
+.wizard-root .btn-ghost{background:transparent;color:var(--muted)}
+.wizard-root .btn-ghost:hover{background:rgba(228,235,248,.06);color:var(--tx);
+  border-color:var(--line-2)}
+.wizard-root .btn .kbd{font-size:9px;padding:2px 6px}
+.wizard-root .btn--amber .kbd,.wizard-root .btn-amber .kbd{border-color:rgba(10,10,12,.35);
+  color:rgba(10,10,12,.75);background:rgba(10,10,12,.10)}
+
+/* segmented control */
+.wizard-root .seg{display:inline-flex;border:1px solid var(--line-2);border-radius:var(--r-ctl);
+  overflow:hidden;background:rgba(12,12,16,.6)}
+.wizard-root .seg span,.wizard-root .seg button{font-family:var(--body);font-weight:600;font-size:11px;
+  letter-spacing:.1em;text-transform:uppercase;
+  padding:8px 13px;color:var(--muted);border:none;background:none;
+  border-left:1px solid var(--line);cursor:pointer;
+  transition:color .16s var(--ease),background .16s var(--ease)}
+.wizard-root .seg span:first-child,.wizard-root .seg button:first-child{border-left:0}
+.wizard-root .seg button:hover{color:var(--tx)}
+/* selection is the quench (cobalt), never an amber plate — amber fill is
+   reserved for the single .btn--amber action per view (spec v3 §4) */
+.wizard-root .seg .on{background:var(--cobalt-wash);color:var(--blue-300);font-weight:700;
+  box-shadow:inset 0 0 0 1px var(--cobalt-line)}
+
+/* chips */
+.wizard-root .chip{display:inline-flex;align-items:center;gap:8px;font-family:var(--body);
+  font-weight:600;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  border:1px solid var(--line-2);
+  border-radius:8px;padding:5px 12px;color:var(--muted);
+  background:rgba(228,235,248,.03)}
+.wizard-root .chip.warn{border-color:rgba(224,99,71,.5);color:var(--coral)}
+.wizard-root .chip.ok{border-color:rgba(46,173,142,.5);color:var(--mint)}
+
+/* ---------- fields ---------- */
+.wizard-root .field{display:flex;flex-direction:column;gap:7px}
+.wizard-root .field>label,.wizard-root .field-label{font-family:var(--body);font-size:10.5px;font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.wizard-root .field input,.wizard-root .field textarea,.wizard-root .field select,.wizard-root .input{width:100%;
+  background:rgba(12,12,16,.6);border:1px solid var(--line-2);
+  border-radius:var(--r-ctl);
+  color:var(--tx);font-family:var(--body);font-size:14px;font-weight:400;
+  padding:11px 13px;
+  transition:border-color .16s var(--ease),box-shadow .16s var(--ease)}
+.wizard-root .field input:hover,.wizard-root .field textarea:hover,.wizard-root .input:hover{border-color:rgba(228,235,248,.2)}
+.wizard-root .field input:focus,.wizard-root .field textarea:focus,.wizard-root .field select:focus,.wizard-root .input:focus{
+  border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-wash)}
+.wizard-root textarea.input,.wizard-root .field textarea{resize:vertical;min-height:120px;line-height:1.55}
+
+/* ---------- stat pill (mono number + Outfit label on a forged plate) ---------- */
+.wizard-root .stat-pill{display:inline-flex;flex-direction:column;gap:4px;padding:13px 18px}
+.wizard-root .stat-pill b{font-family:var(--mono);font-weight:600;font-size:20px;
+  color:var(--tx);line-height:1}
+.wizard-root .stat-pill span{font-family:var(--body);font-weight:600;font-size:9.5px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+
+/* ---------- motion: rise-in entrances + stagger ---------- */
+@keyframes riseIn{from{opacity:0;transform:translateY(10px)}
+  to{opacity:1;transform:translateY(0)}}
+.wizard-root .rise{animation:riseIn .5s var(--ease) both}
+.wizard-root .rise.d1{animation-delay:.06s}.wizard-root .rise.d2{animation-delay:.13s}
+.wizard-root .rise.d3{animation-delay:.20s}.wizard-root .rise.d4{animation-delay:.28s}
+.wizard-root .rise.d5{animation-delay:.36s}.wizard-root .rise.d6{animation-delay:.44s}
+@keyframes fade-in{from{opacity:0}to{opacity:1}}
+.wizard-root .fade-in{animation:fade-in .2s ease both}
+
+/* ---------- legacy v1 chrome, restyled to forged plates (cluster D retires) ----------
+   .plate is a PLAIN forged panel: no corner ticks, no drafting frame. */
+.wizard-root .plate{flex:1;margin:20px 28px 18px;min-height:0;display:flex;position:relative}
+.wizard-root .plate::before,.wizard-root .plate::after,.wizard-root .plate>.tick::before,.wizard-root .plate>.tick::after{content:none}
+.wizard-root .plate>.tick{display:none}
+.wizard-root .plate-label{position:absolute;top:-28px;left:8px;z-index:6;background:transparent;
+  padding:0;font-family:var(--body);font-size:11px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--amber)}
+/* direct-child only: a .kicker nested in a plate label keeps its amber <b>
+   (equal-specificity .plate-label b later in the sheet was muting it) */
+.wizard-root .plate-label > b{color:var(--muted);font-weight:600}
+.wizard-root .plate-label .kicker b{color:var(--amber)}
+/* titleblock: quiet meta row — Register 1 words; only numeric values (dates,
+   indices) opt into mono via .mono (TitleBlock in Chrome.tsx adds it) */
+.wizard-root .titleblock{position:absolute;right:16px;bottom:14px;z-index:5;display:flex;
+  background:transparent;border:0;font-family:var(--body);font-weight:600;
+  font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.wizard-root .titleblock>div{padding:0 12px;border-left:1px solid var(--line);display:flex;
+  flex-direction:column;gap:2px;justify-content:center}
+.wizard-root .titleblock>div:first-child{border-left:0}
+.wizard-root .titleblock b{color:var(--muted);font-weight:600}
+.wizard-root .titleblock b.mono{font-family:var(--mono);font-weight:500}
+.wizard-root .titleblock .stamp{display:none}
+
+/* panels + annotations */
+.wizard-root .dim{position:relative;font-family:var(--mono);font-size:9px;letter-spacing:.14em;
+  color:var(--blue-300);display:flex;align-items:center;gap:10px}
+.wizard-root .dim::before,.wizard-root .dim::after{content:"";flex:1;height:1px;background:var(--cobalt-line)}
+.wizard-root .callout{font-family:var(--body);font-style:italic;font-weight:400;font-size:12.5px;
+  letter-spacing:normal;text-transform:none;color:var(--muted)}
+
+/* slide previews (1080x1350 => 4:5) — deck output system, UNCHANGED by v3 */
+.wizard-root .sl{aspect-ratio:4/5;background-size:cover;background-position:center;
+  border:1px solid var(--line-2);border-radius:10px;position:relative;
+  overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.5)}
+.wizard-root .sl .in{position:absolute;inset:0;padding:9% 8%;display:flex;flex-direction:column}
+.wizard-root .sl .kick{font-family:var(--mono);font-weight:500;color:var(--amber);
+  letter-spacing:.16em;text-transform:uppercase;font-size:.52em}
+.wizard-root .sl .kick.b{color:var(--cobalt)}.wizard-root .sl .kick.g{color:var(--mint)}
+.wizard-root .sl .ttl{font-family:var(--grift);font-weight:800;line-height:1.04;margin-top:.45em;font-size:1em}
+.wizard-root .sl .bod{font-family:var(--body);font-weight:300;color:var(--tx);opacity:.88;
+  line-height:1.42;margin-top:.8em;font-size:.56em}
+.wizard-root .sl .num{position:absolute;left:8%;bottom:6%;font-family:var(--mono);font-size:.5em;
+  color:var(--muted);letter-spacing:.12em}
+.wizard-root .sl .stat{font-family:var(--grift);font-weight:900;color:var(--amber);
+  font-size:2.1em;line-height:1;margin-top:auto}
+.wizard-root .sl .stat+.bod{margin-top:.5em}
+
+/* generating overlay: warm scrim over the intensified foundry — NO blur */
+.wizard-root .overlay{position:fixed;inset:0;z-index:120;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:26px;padding:48px;
+  background:
+    radial-gradient(70% 30% at 50% 108%, rgba(255,250,240,.15), transparent 70%),
+    radial-gradient(760px 500px at 16% 8%, rgba(220,232,255,.08), transparent 70%),
+    rgba(8,6,5,.55);
+  animation:fade-in .2s ease both}
+.wizard-root .overlay>.plate-label{position:absolute;top:86px;left:50%;transform:translateX(-50%)}
+/* pour stages: done = mint tick, current = amber + molten progress hairline */
+.wizard-root .stage-card{position:relative;border:1px solid var(--glass-line);border-radius:12px;
+  padding:12px 16px;
+  background:var(--card);display:flex;flex-direction:column;gap:8px;
+  box-shadow:inset 0 1px 0 var(--bevel-hi), inset 0 -1px 0 rgba(0,0,0,.35);
+  font-family:var(--body);font-weight:600;font-size:10px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--dim);
+  transition:border-color .2s var(--ease),color .2s var(--ease)}
+.wizard-root .stage-card.done{color:var(--mint);border-color:rgba(46,173,142,.4)}
+.wizard-root .stage-card.now{color:var(--amber);border-color:var(--amber-line)}
+.wizard-root .stage-card.now::after{content:"";position:absolute;left:14px;right:14px;bottom:5px;
+  height:2px;border-radius:1px;background:var(--heat);background-size:220% 100%;
+  opacity:.85}
+
+/* choose: variant columns — forged plates, cobalt quench when selected */
+.wizard-root .variant-col{position:relative;display:flex;flex-direction:column;gap:14px;
+  padding:20px;
+  transition:border-color .18s var(--ease),box-shadow .18s var(--ease),
+    transform .18s var(--ease)}
+.wizard-root .variant-col:hover{transform:translateY(-3px);border-color:var(--plat-line);
+  box-shadow:inset 0 1px 0 var(--bevel-hi), inset 0 -1px 0 rgba(0,0,0,.35),
+    var(--shadow-hover)}
+.wizard-root .variant-col.selected{border-color:var(--cobalt-line);
+  box-shadow:inset 0 1px 0 var(--bevel-hi), inset 0 -1px 0 rgba(0,0,0,.35),
+    0 0 0 1px var(--quench), var(--shadow-panel)}
+.wizard-root .variant-col.selected::before{content:"SELECTED";position:absolute;top:-9px;left:18px;
+  background:var(--cobalt);color:#0A0A0C;font-family:var(--body);font-size:9px;
+  font-weight:700;letter-spacing:.14em;padding:3px 10px;border-radius:3px}
+.wizard-root .variant-col.selected::after{content:"";position:absolute;left:10%;right:10%;
+  bottom:-1px;height:2px;border-radius:2px;pointer-events:none;opacity:.85;
+  background:linear-gradient(90deg,transparent,var(--cobalt) 30%,#8FD0FF 50%,
+    var(--cobalt) 70%,transparent)}
+
+/* edit: film strip */
+.wizard-root .filmstrip{display:flex;flex-direction:column;gap:10px;padding:14px;
+  overflow-y:auto;min-height:0}
+.wizard-root .fs-thumb{position:relative;flex:0 0 auto;border:1px solid var(--line-2);
+  border-radius:10px;overflow:hidden;cursor:pointer;
+  transition:border-color .16s var(--ease),transform .16s var(--ease)}
+.wizard-root .fs-thumb:hover{border-color:var(--glass-line);transform:translateY(-1px)}
+.wizard-root .fs-thumb.active{border-color:var(--amber);
+  box-shadow:0 0 0 1px var(--amber)}
+/* bottom-left: cover layouts anchor their title top-left, and a top-left
+   badge occluded its first characters in every thumbnail. */
+.wizard-root .fs-num{position:absolute;bottom:5px;left:7px;z-index:2;font-family:var(--mono);
+  font-size:9px;letter-spacing:.12em;color:var(--tx);
+  background:rgba(11,9,8,.72);border-radius:6px;padding:2px 6px}
+
+/* edit: inspector sections */
+.wizard-root .insp-sec{border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:14px}
+.wizard-root .insp-sec:last-child{border-bottom:0;margin-bottom:0}
+.wizard-root .insp-head{display:flex;align-items:center;gap:10px;width:100%;background:none;
+  border:none;cursor:pointer;font-family:var(--body);font-size:10px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+  padding:12px 0;text-align:left;transition:color .16s var(--ease)}
+.wizard-root .insp-head:hover{color:var(--tx)}
+.wizard-root .insp-head::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* pickers: swatches, thumbs, option cards */
+.wizard-root .swatch{position:relative;border:1px solid var(--line-2);border-radius:10px;
+  overflow:hidden;cursor:pointer;background-size:cover;background-position:center;
+  transition:border-color .16s var(--ease),transform .16s var(--ease)}
+.wizard-root .swatch:hover{border-color:var(--glass-line);transform:translateY(-1px)}
+.wizard-root .swatch.selected{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber)}
+.wizard-root .swatch.selected::after{content:"SELECTED";position:absolute;top:6px;right:6px;
+  background:var(--amber);color:#0A0A0C;font-family:var(--body);font-size:8px;
+  font-weight:700;letter-spacing:.12em;padding:2px 7px;border-radius:3px}
+.wizard-root .thumb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
+.wizard-root .opt-card{position:relative;border-radius:var(--r-panel);padding:14px 16px;cursor:pointer;
+  box-shadow:inset 0 1px 0 var(--bevel-hi), inset 0 -1px 0 rgba(0,0,0,.35);
+  transition:border-color .18s var(--ease),box-shadow .18s var(--ease),
+    transform .18s var(--ease)}
+.wizard-root .opt-card:hover{transform:translateY(-2px);border-color:var(--plat-line)}
+.wizard-root .opt-card.selected{border-color:var(--amber);
+  box-shadow:inset 0 1px 0 var(--bevel-hi), inset 0 -1px 0 rgba(0,0,0,.35),
+    0 0 0 1px var(--amber)}
+.wizard-root .opt-card.selected::after{content:"";position:absolute;left:10%;right:10%;
+  bottom:-1px;height:2px;border-radius:2px;pointer-events:none;opacity:.85;
+  background:var(--heat);background-size:220% 100%}
+
+/* progress + reveals + banner */
+.wizard-root .progress{position:relative;height:3px;border-radius:2px;overflow:hidden;
+  background:rgba(228,235,248,.08)}
+.wizard-root .progress::after{content:"";position:absolute;top:0;left:0;bottom:0;width:var(--p,0%);
+  background:var(--heat);background-size:220% 100%;border-radius:2px;
+  transition:width .3s ease}
+.wizard-root .hover-actions{opacity:0;pointer-events:none;transition:opacity .16s ease}
+.wizard-root *:hover>.hover-actions,.wizard-root .hover-actions:focus-within{opacity:1;pointer-events:auto}
+.wizard-root .banner{display:flex;align-items:center;gap:16px;
+  padding:14px 18px;border-left:3px solid var(--amber)}
+
+/* modal (ImagePicker) — forged plate, warm scrim, NO blur */
+.wizard-root .modal-backdrop{position:fixed;inset:0;z-index:180;background:rgba(8,6,5,.78);
+  animation:fade-in .2s ease both}
+.wizard-root .modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:190;
+  width:min(920px,92vw);max-height:86vh;display:flex;flex-direction:column;
+  overflow:hidden;
+  box-shadow:inset 0 1px 0 var(--bevel-hi), inset 0 -1px 0 rgba(0,0,0,.35),
+    0 30px 80px rgba(3,3,5,.65);
+  animation:fade-in .2s ease both}
+
+/* tabs: amber underline, Register 1 labels */
+.wizard-root .tab-row{display:flex;align-items:flex-end;border-bottom:1px solid var(--line)}
+.wizard-root .tab-row .tab{background:none;border:none;cursor:pointer;font-family:var(--body);
+  font-weight:600;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);
+  padding:10px 14px;border-bottom:2px solid transparent;margin-bottom:-1px;
+  transition:color .16s var(--ease),border-color .16s var(--ease)}
+.wizard-root .tab-row .tab:hover{color:var(--tx)}
+.wizard-root .tab-row .tab.on{color:var(--amber);border-bottom-color:var(--amber)}
+
+/* ---------- reduced motion: kill board/ember/horizon loops, keep static hot
+   edges and opacity fades ---------- */
+@media (prefers-reduced-motion: reduce){
+  .wizard-root .wz-vignette::after,.wizard-root .wz-haze,.wizard-root .bd i,.wizard-root .bd s,.wizard-root .wz-embers i,.wizard-root .wz-embers::after{animation:none}
+  .wizard-root .display .grad,.wizard-root .grad-word,.wizard-root .plate-h em{animation:none}
+  .wizard-root .save::before,.wizard-root .dot--live{animation:none}
+  .wizard-root .rise,.wizard-root .rise.d1,.wizard-root .rise.d2,.wizard-root .rise.d3,.wizard-root .rise.d4,.wizard-root .rise.d5,.wizard-root .rise.d6{
+    animation:fade-in .2s ease both;animation-delay:0s}
+  .wizard-root .glass--tile:hover,.wizard-root .variant-col:hover,.wizard-root .opt-card:hover,.wizard-root .fs-thumb:hover,.wizard-root .swatch:hover,.wizard-root .btn:hover{transform:none}
+}

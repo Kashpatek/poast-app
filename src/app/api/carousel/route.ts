@@ -77,7 +77,7 @@ const THEMES_MAP: Record<string, string> = {
 };
 
 const CarouselSchema = z.object({
-  action: z.enum(["generate", "fetchImages", "caption", "rewrite", "generateImage", "verbatim-titles", "verbatim-subtitle", "verbatim-image-prompt", "verbatim-topic", "autofill"]),
+  action: z.enum(["generate", "unique", "fetchImages", "caption", "rewrite", "generateImage", "verbatim-titles", "verbatim-subtitle", "verbatim-image-prompt", "verbatim-topic", "autofill"]),
   text: z.string().optional(),
   url: z.string().optional(),
   category: z.string().optional(),
@@ -266,6 +266,104 @@ Rules:
         }
         if (e instanceof SyntaxError) {
           return NextResponse.json({ error: "Failed to parse response", raw: String(e).slice(0, 300) }, { status: 500 });
+        }
+        throw e;
+      }
+    }
+
+    if (action === "unique") {
+      // UNIQUE MODE (design spec §9.5). One genJSON call: source text →
+      // structured UniqueContent (cover + sections + closer). Like
+      // "generate", this action does NOT fetch/scrape the url server-side:
+      // the client sends the article text, and url is included in the
+      // prompt as a source reference only.
+      const sectionCount = pageCount ? Math.max(1, pageCount - 2) : null;
+      const sectionGuidance = sectionCount
+        ? `Produce exactly ${sectionCount} section(s). Every section must earn its place; fold thin angles together rather than padding.`
+        : `Produce 3 to 5 sections, one per distinct angle the source genuinely supports. Do not pad with filler.`;
+
+      const UNIQUE_SYS = `You are a content designer for SemiAnalysis, turning research articles into fully art-directed Instagram carousel decks. You extract the strongest narrative and the hardest numbers from the source and structure them as a cover, a set of sections, and a closer.
+
+Voice rules:
+- Never use em dashes. Use commas, periods, or colons.
+- No emojis. Sentence case. Plain declarative sentences.
+- Confident, technical, institutional. SA voice.
+- No hype words like "revolutionary" or "game-changing".
+
+INTEGRITY RULE: every number in stats/chart must appear in or be directly computable from the source text; if the source has no usable numbers, omit stats/chart for that section, never invent data.
+
+You MUST respond ONLY with valid JSON. No markdown fences. No preamble.`;
+
+      try {
+        const result = await genJSON<{ content?: { title?: unknown; sections?: unknown } }>({
+          system: UNIQUE_SYS,
+          maxTokens: 6000,
+          provider,
+          prompt: `Design a complete SemiAnalysis carousel from this article.
+
+Category: ${THEMES_MAP[category as string] || category || "general"}
+
+Article:
+${(text || "").slice(0, 10000)}
+${url ? "\nSource URL: " + url : ""}
+
+SECTION COUNT:
+${sectionGuidance}
+
+Each section covers ONE distinct angle of the story. For each section, pick the strongest content block the source actually supports:
+- stats: 1-3 hard numbers. Each stat has label (2-4 words), value (display-ready, e.g. "62%", "$4.1B", "3.2x"), optional delta (e.g. "+18% YoY"), dir ("up", "down" or "flat").
+- chart: one simple trend the source states as a numeric series. 4-8 points, a unit, short xLabels (one per point).
+- quote: one load-bearing sentence quoted or tightly paraphrased from the source.
+A section may carry stats OR chart OR quote, or none of them (body only). INTEGRITY RULE: every number in stats/chart must appear in or be directly computable from the source text; if the source has no usable numbers, omit stats/chart for that section, never invent data.
+
+Return JSON exactly in this shape:
+{
+  "content": {
+    "title": "cover headline, 4-8 words, no end punctuation",
+    "accentWord": "exactly one word copied verbatim from title",
+    "kicker": "2-5 word sector tag, e.g. DATACENTER ECONOMICS",
+    "summary": "one cover sentence, 90-140 characters",
+    "sections": [
+      {
+        "kicker": "2-4 word tag",
+        "headline": "section headline, 3-7 words, no end punctuation",
+        "accentWord": "exactly one word copied verbatim from headline",
+        "body": "1-2 supporting sentences, 25-55 words",
+        "stats": [{ "label": "...", "value": "...", "delta": "...", "dir": "up" }],
+        "chart": { "label": "...", "unit": "...", "points": [1, 2, 3], "xLabels": ["Q1", "Q2", "Q3"] },
+        "quote": "..."
+      }
+    ],
+    "closer": {
+      "headline": "closing headline, 3-6 words, no end punctuation",
+      "body": "1-2 forward-looking sentences, 20-45 words",
+      "cta": "short call to action, e.g. Read the full analysis"
+    }
+  }
+}
+
+Rules:
+- accentWord is a single word that appears verbatim in its own title/headline.
+- stats, chart and quote are all optional per section; include only what the source supports. Omit unused keys entirely.
+- No em dashes anywhere. No emojis. No bullets. No markdown.`,
+        });
+
+        const content = result ? result.content : undefined;
+        const valid = content
+          && typeof content.title === "string"
+          && (content.title as string).trim().length > 0
+          && Array.isArray(content.sections)
+          && content.sections.length > 0;
+        if (!valid) {
+          return NextResponse.json({ error: "Unique generation returned an invalid response" }, { status: 502 });
+        }
+        return NextResponse.json({ content, ts: Date.now() });
+      } catch (e) {
+        if ((e as AnthropicError).status) {
+          return NextResponse.json({ error: (e as Error).message || "Unique generation failed" }, { status: (e as AnthropicError).status });
+        }
+        if (e instanceof SyntaxError) {
+          return NextResponse.json({ error: "Failed to parse unique response" }, { status: 502 });
         }
         throw e;
       }

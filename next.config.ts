@@ -14,6 +14,13 @@ const nextConfig: NextConfig = {
     "url-regex-safe",
     "re2",
   ],
+  // /api/library (CarouselNEU planner) reads its template/topic manifests
+  // from public/library at runtime via fs.readFile. Static analysis doesn't
+  // always trace those reads into the serverless bundle on Vercel, so pin
+  // them explicitly — without this the route 500s in production only.
+  outputFileTracingIncludes: {
+    "/api/library": ["./public/library/*.json"],
+  },
   async redirects() {
     return [
       { source: "/docu-design", destination: "/design-studio", permanent: true },
