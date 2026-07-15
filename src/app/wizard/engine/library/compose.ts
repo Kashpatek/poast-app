@@ -126,6 +126,68 @@ export function libraryAssetsReady(slides: Slide[]): boolean {
   return true;
 }
 
+// ─── v3.7 · library backdrops on classic/verbatim/unique slides ───
+// When the deck's bgSource is "library", non-library slides carry the same
+// libraryBg/libraryPalette stamps the store writes for Neu decks, and their
+// renderers (SlideCanvas/SlidePreview CSS layer, unique render.ts backdrop
+// fragment, the export classic branch) pull the bg layer through these
+// helpers — same text cache, same recolor cache, same mirror wrap as
+// composeLibrarySvg, so preview and PNG stay byte-identical. Natives are
+// library-composition-only (classic decks chain rotate over the baked 36)
+// and return null here.
+
+// The bg layer alone as an inner-SVG fragment (defs + shapes, no <svg>).
+export function libraryBgInner(
+  bgKey: string,
+  palette: LibPalette,
+  flip?: boolean
+): string | null {
+  if (!bgKey || isNativeKey(bgKey)) return null;
+  var text = svgTextCache[bgSvgUrl(bgKey)];
+  if (text === undefined) return null;
+  var inner = innerSvg(recoloredBgText(bgSvgUrl(bgKey), text, palette));
+  if (flip) {
+    inner = '<g transform="translate(1080 0) scale(-1 1)">' + inner + "</g>";
+  }
+  return inner;
+}
+
+// A standalone 1080×1350 SVG document of the bg layer over the same opaque
+// base the library export path prefills (#0A0B10). The DOM layer inlines it
+// (the style attr makes it fill its box); the exporter re-tags the root for
+// intrinsic size exactly like composed library slides.
+export function libraryBgSvgDoc(
+  bgKey: string,
+  palette: LibPalette,
+  flip?: boolean
+): string | null {
+  var inner = libraryBgInner(bgKey, palette, flip);
+  if (inner === null) return null;
+  return (
+    '<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg" ' +
+    'style="position:absolute;inset:0;width:100%;height:100%;display:block">' +
+    '<rect width="1080" height="1350" fill="#0A0B10"/>' +
+    inner +
+    "</svg>"
+  );
+}
+
+// Warm the bg SVG texts for every slide (any type) carrying a baked
+// libraryBg stamp. The classic-slide twin of ensureLibraryAssets — renderers
+// kick it and re-render on resolve; the exporter awaits it for parity.
+export function ensureClassicBgs(slides: Slide[]): Promise<void> {
+  var waits: Promise<unknown>[] = [];
+  for (var i = 0; i < (slides || []).length; i++) {
+    var s = slides[i];
+    if (!s || s.type === "library") continue;
+    if (s.libraryBg && !isNativeKey(s.libraryBg)) {
+      waits.push(fetchSvgText(bgSvgUrl(s.libraryBg)));
+    }
+  }
+  if (waits.length === 0) return Promise.resolve();
+  return Promise.all(waits).then(function () {});
+}
+
 // ─── text measurement (module-level offscreen canvas) ───
 
 export type MeasureFn = (line: string, size: number) => number;
@@ -517,6 +579,15 @@ function recoloredBgText(url: string, text: string, palette: LibPalette): string
   var hit = recoloredBgCache[key];
   if (hit !== undefined) return hit;
   var out = recolorBgSvg(text, palette);
+  // v3.7: namespace the def ids per palette. The unique CHOOSE bench can
+  // inline the SAME backdrop recolored to three direction palettes on one
+  // page; SVG resolves url(#id) document-wide to the FIRST match, so
+  // un-namespaced gradients would tint two of the three columns with the
+  // wrong hue (review finding). blend stays byte-identical above.
+  out = out
+    .replace(/ id="(g[^"]+)"/g, ' id="$1__' + palette + '"')
+    .replace(/url\(#(g[^)]+)\)/g, "url(#$1__" + palette + ")")
+    .replace(/href="#(g[^"]+)"/g, 'href="#$1__' + palette + '"');
   recoloredBgCache[key] = out;
   return out;
 }

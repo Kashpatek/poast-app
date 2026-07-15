@@ -9,7 +9,7 @@
 
 import { renderCoverSvg } from "../../carousel-covers";
 import { renderUniqueSvg } from "./unique/render";
-import { composeLibrarySvg, ensureLibraryAssets } from "./library/compose";
+import { composeLibrarySvg, ensureLibraryAssets, libraryBgSvgDoc, ensureClassicBgs } from "./library/compose";
 import { FULL_W, FULL_H, MARGIN_X, type Slide } from "./types";
 
 // ═══ CANVAS RENDERER (for export) ═══
@@ -128,7 +128,10 @@ function renderUniqueSlideToCanvas(slide: Slide, page: number, total: number): P
         else reject(new Error("Canvas toBlob failed"));
       }, "image/png");
     }
-    ensureFontsReady().then(function() {
+    // v3.7: warm the library-bg text cache first — renderUniqueSvg swaps a
+    // stamped slide.libraryBg into the backdrop layer, and the export must
+    // rasterize the same string the DOM preview shows.
+    Promise.all([ensureFontsReady(), ensureClassicBgs([slide]).catch(function() {})]).then(function() {
       var svg = uniqueSvgMarkup(slide, page, total);
       var url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
       var img = new Image();
@@ -267,6 +270,7 @@ export function renderSlideToCanvas(slide: Slide, bgUrl: string, page?: number, 
     bgImg.crossOrigin = "anonymous";
     var fontsReadyPromise = ensureFontsReady();
     bgImg.onload = function() {
+      if (bgBlobUrl) { URL.revokeObjectURL(bgBlobUrl); bgBlobUrl = null; }
       // Wait for fonts before any drawText runs
       fontsReadyPromise.then(function() {
       // Draw background scaled to fill
@@ -588,7 +592,28 @@ export function renderSlideToCanvas(slide: Slide, bgUrl: string, page?: number, 
       drawContent().catch(reject);
       });
     };
-    bgImg.onerror = function() { reject(new Error("Failed to load background: " + bgUrl)); };
-    bgImg.src = bgUrl;
+    bgImg.onerror = function() {
+      if (bgBlobUrl) { URL.revokeObjectURL(bgBlobUrl); bgBlobUrl = null; }
+      reject(new Error("Failed to load background: " + bgUrl));
+    };
+    // v3.7: a stamped library backdrop (deck bgSource "library") replaces
+    // the theme JPG — the same recolored SVG doc the DOM layer inlines,
+    // rasterized via blob URL with a forced intrinsic size (librarySvgMarkup)
+    // so the aspect math above degenerates to a clean full-bleed draw. The
+    // text-cache warm-up is awaited for parity; a cold/offline miss falls
+    // back to the theme JPG rather than failing the slide.
+    var bgBlobUrl: string | null = null;
+    if (slide.libraryBg) {
+      ensureClassicBgs([slide])
+        .then(function() {
+          var doc = libraryBgSvgDoc(slide.libraryBg!, slide.libraryPalette || "blend", !!slide.libraryBgFlip);
+          if (!doc) { bgImg.src = bgUrl; return; }
+          bgBlobUrl = URL.createObjectURL(new Blob([librarySvgMarkup(doc)], { type: "image/svg+xml;charset=utf-8" }));
+          bgImg.src = bgBlobUrl;
+        })
+        .catch(function() { bgImg.src = bgUrl; });
+    } else {
+      bgImg.src = bgUrl;
+    }
   });
 }

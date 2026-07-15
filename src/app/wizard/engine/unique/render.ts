@@ -7,6 +7,8 @@
 
 import type { Slide } from "../types";
 import { renderBackdrop, hashSeed } from "./backdrops";
+import { libraryBgInner } from "../library/compose";
+import type { LibPalette } from "../library/palette";
 import type { UniqueStrength } from "./backdrops";
 import {
   headline, bodyBlock, monoText, esc,
@@ -21,6 +23,9 @@ var CW = W - M * 2;         // 928 content width
 var LINE_2 = "rgba(232,228,221,.14)";
 
 var ACCENTS: Record<string, string> = { E: AMBER, C: COBALT, S: MINT };
+// v3.7: library-backdrop recolor palette per direction (same hues as ACCENTS;
+// "green" is the library palette token for mint).
+var DIRECTION_PALETTE: Record<string, string> = { E: "amber", C: "cobalt", S: "green" };
 var STRENGTHS: Record<string, UniqueStrength> = {
   cover: "motif", stat: "ambient", chart: "grain", quote: "focal", closer: "motif",
 };
@@ -66,7 +71,25 @@ export function renderUniqueSvg(slide: Slide, page: number, total: number): stri
   var accent = ACCENTS[slide.uniqueDirection || "E"] || AMBER;
   var strength = STRENGTHS[kind] || "ambient";
   var seed = hashSeed(String(slide.id || "u"));
-  var backdrop = renderBackdrop(slide.uniqueBackdrop || "eclipse", seed, strength, accent);
+  // v3.7: a stamped library backdrop (deck bgSource "library") replaces the
+  // procedural field wholesale — recolored to the DIRECTION's palette so the
+  // art-direction identity survives (E amber / C cobalt / S mint). Falls
+  // back to the procedural field until the bg SVG text cache is warm (the
+  // canvas/preview effects kick ensureClassicBgs and repaint; the exporter
+  // awaits it before rasterizing, so preview and PNG stay identical).
+  var backdrop: string;
+  var libInner = slide.libraryBg
+    ? libraryBgInner(
+        slide.libraryBg,
+        (DIRECTION_PALETTE[slide.uniqueDirection || "E"] || "amber") as LibPalette,
+        !!slide.libraryBgFlip
+      )
+    : null;
+  if (libInner !== null) {
+    backdrop = libInner;
+  } else {
+    backdrop = renderBackdrop(slide.uniqueBackdrop || "eclipse", seed, strength, accent);
+  }
 
   var title = slide.title || "";
   var body = slide.bodyText || "";

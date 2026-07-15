@@ -12,7 +12,7 @@ import { useState, useRef, useEffect } from "react";
 import { D as C, mn, gf } from "../../shared-constants";
 import { renderCoverSvg } from "../../carousel-covers";
 import { renderUniqueSvg } from "./unique/render";
-import { composeLibrarySvg, ensureLibraryAssets } from "./library/compose";
+import { composeLibrarySvg, ensureLibraryAssets, libraryBgSvgDoc, ensureClassicBgs } from "./library/compose";
 import { FULL_H, DISPLAY_W, DISPLAY_H, SCALE, MARGIN_X, MARGIN_Y, getBackdropUrl, type Slide, type ThemeKey } from "./types";
 
 // ═══ UNIQUE SLIDE SVG (C3 additive branch) ═══
@@ -138,6 +138,22 @@ export function SlideCanvas({ slide, theme, onUpdate, onRequestPicker, onSplitBo
       .then(function() { libEnsureRef.current = false; setLibTick(function(t) { return t + 1; }); })
       .catch(function() { libEnsureRef.current = false; }); // keep placeholder; a slide change retries
   }, [isLibrary, librarySvg, slide]);
+  // v3.7: classic/verbatim slides wearing a library backdrop (the store
+  // stamped slide.libraryBg — deck bgSource "library") paint the same
+  // recolored bg layer the library compose path uses, in place of the theme
+  // JPG. Unique slides pull it INSIDE their own SVG (render.ts); here they
+  // only need the cache warm-up + a repaint when it lands.
+  var classicBgDoc = !isUnique && !isLibrary && slide.libraryBg
+    ? libraryBgSvgDoc(slide.libraryBg, slide.libraryPalette || "blend", !!slide.libraryBgFlip)
+    : null;
+  useEffect(function() {
+    if (isLibrary || !slide.libraryBg) return;
+    var live = true;
+    ensureClassicBgs([slide])
+      .then(function() { if (live) setLibTick(function(t) { return t + 1; }); })
+      .catch(function() { /* keep the placeholder frame; a slide change retries */ });
+    return function() { live = false; };
+  }, [isLibrary, slide.libraryBg, slide.libraryPalette]); // eslint-disable-line react-hooks/exhaustive-deps
   var bgUrl = getBackdropUrl(theme, slide.position);
   var mx = MARGIN_X * SCALE; // ~32px
   var my = MARGIN_Y * SCALE; // ~40px
@@ -164,7 +180,19 @@ export function SlideCanvas({ slide, theme, onUpdate, onRequestPicker, onSplitBo
   // Shared text shadow for readability
   var textShadow = "0 2px 8px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3)";
 
-  return <div style={{ width: DISPLAY_W, height: DISPLAY_H, position: "relative", borderRadius: 8, overflow: "hidden", backgroundImage: isUnique || isLibrary ? undefined : "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}>
+  return <div style={{ width: DISPLAY_W, height: DISPLAY_H, position: "relative", borderRadius: 8, overflow: "hidden", backgroundImage: isUnique || isLibrary || slide.libraryBg ? undefined : "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0, boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}>
+
+    {/* ─── LIBRARY BACKDROP ON A CLASSIC/VERBATIM SLIDE (v3.7) ─── */}
+    {!isUnique && !isLibrary && slide.libraryBg ? (
+      classicBgDoc ? (
+        <div
+          style={{ position: "absolute", inset: 0 }}
+          dangerouslySetInnerHTML={{ __html: classicBgDoc }}
+        />
+      ) : (
+        <div style={{ position: "absolute", inset: 0, background: "#0A0B10" }} />
+      )
+    ) : null}
 
     {/* ─── UNIQUE SLIDE (self-rendered SVG, no backdrop image) ─── */}
     {isUnique ? (

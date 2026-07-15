@@ -35,6 +35,7 @@ import { isNativeKey, nativeGenKeyOf } from "./engine/library/nativebg";
 import { CATEGORY_PALETTE, type LibPalette } from "./engine/library/palette";
 import { generateLibraryPlan, type LibraryPlanSlide } from "./engine/library/plan";
 import { ensureLibraryAssets } from "./engine/library/compose";
+import { suggestTopic } from "./engine/library/suggest";
 import { showToast } from "../toast-context";
 
 // ═══ STATIONS ═══
@@ -92,6 +93,7 @@ export interface WizardDraft {
   topic?: LibTopicKey | null;
   libSeed?: number;
   bgMode?: "rotate" | "infinity";
+  bgSource?: "legacy" | "library";
   slides?: Slide[];
   activeIdx?: number;
   captionOptions?: CaptionOption[];
@@ -104,6 +106,14 @@ export interface WizardDraft {
 }
 
 export const WIZARD_DRAFT_KEY = "sa-wizard-draft-v2";
+
+// v3.7 undo frame: slides + the deck-level backdrop state they were
+// authored under (in-memory only — never persisted or hydrated).
+interface UndoFrame {
+  slides: Slide[];
+  bgSource: "legacy" | "library";
+  uniqueDecks: Record<string, Slide[]> | null;
+}
 
 // ═══ STORE CONTRACT ═══ (docs/ARCHITECTURE.md + generation/draft addenda)
 export interface WizardStore {
@@ -193,8 +203,16 @@ export interface WizardStore {
   // setSlideBgOverride); rotate picks finalize the cover and let the chain
   // advance the rest past it; null clears every override (back to assigned).
   setBenchDeckBg(deckKey: string, key: string | null): void;
+  // v3.7: classic/verbatim/unique decks wear the baked library backdrops.
+  // "library" (fresh-run default) stamps slide.libraryBg on EVERY slide type
+  // via the same rotate chain Neu uses (topic pool, no consecutive repeats;
+  // ∞/native worlds stay library-mode-only). "legacy" is the mode-native
+  // look — classic photo JPGs / unique procedural fields — and is what old
+  // drafts and archives hydrate to so they keep rendering as authored.
+  bgSource: "legacy" | "library";
+  setBgSource(v: "legacy" | "library"): void;
   // undo
-  undoStack: Slide[][];
+  undoStack: UndoFrame[];
   pushUndo(): void; // push before destructive ops
   undo(): void; // Cmd+Z
   // captions
@@ -389,9 +407,16 @@ function stampBgChain(
   topic: LibTopicKey | null,
   seed: number,
   bgMode: "rotate" | "infinity",
-  palette?: LibPalette
+  palette?: LibPalette,
+  // v3.7: classic/verbatim/unique decks (bgSource "library") stamp EVERY
+  // slide type — callers pass "rotate" for them (∞/natives stay Neu-only).
+  allTypes?: boolean
 ): Slide[] {
   const overrides = slides.map(function (sl) {
+    // A non-library slide's override only counts when the chain stamps all
+    // types (classic decks); in a library deck it must never steer the
+    // resolve (belt-and-braces vs hand-edited drafts).
+    if (sl.type !== "library" && !allTypes) return null;
     return sl.libraryBgOverride || null;
   });
   // Null/unknown topic degrades to the brand pool inside pickBackdrop.
@@ -408,7 +433,7 @@ function stampBgChain(
     flips = keys.map(function () { return false; });
   }
   return slides.map(function (sl, i) {
-    if (sl.type !== "library") return sl;
+    if (sl.type !== "library" && !allTypes) return sl;
     // Native infinity (v3.1): "n:<fam>" keys carry their render params on the
     // slide so compose stays pure per-slide (window idx + deck length + seed).
     const nat = isNativeKey(keys[i])
@@ -429,20 +454,80 @@ function stampBgChain(
  *  best-effort async — previously stamped keys keep rendering until the
  *  restamp lands. Non-library decks pass through untouched. */
 function withLibraryChain(slides: Slide[]): Slide[] {
-  if (!isLibraryDeck(slides)) return slides;
   const st = useWizard.getState();
+  // v3.7: two chain kinds. A library deck chains per its bgMode (∞ or
+  // rotate, natives allowed). A classic/verbatim/unique deck chains ONLY
+  // when the deck opted into library backdrops (bgSource), always rotate
+  // over the baked topic pool, stamping every slide type + its palette.
+  const classic = !isLibraryDeck(slides) && st.bgSource === "library" && slides.length > 0;
+  if (!isLibraryDeck(slides) && !classic) return slides;
   const topics = topicsSync();
-  if (topics) return stampBgChain(slides, topics, st.topic, st.libSeed, st.bgMode, CATEGORY_PALETTE[st.category]);
+  if (topics) {
+    if (classic) {
+      const pal = CATEGORY_PALETTE[st.category];
+      return stampPalette(stampBgChain(slides, topics, st.topic, st.libSeed, "rotate", pal, true), pal, true);
+    }
+    return stampBgChain(slides, topics, st.topic, st.libSeed, st.bgMode, CATEGORY_PALETTE[st.category]);
+  }
   loadTopics()
     .then(function (data) {
       const now = useWizard.getState();
-      if (!isLibraryDeck(now.slides)) return;
-      useWizard.setState({ slides: stampBgChain(now.slides, data, now.topic, now.libSeed, now.bgMode, CATEGORY_PALETTE[now.category]) });
+      const nowClassic = !isLibraryDeck(now.slides) && now.bgSource === "library" && now.slides.length > 0;
+      if (!isLibraryDeck(now.slides) && !nowClassic) return;
+      const pal = CATEGORY_PALETTE[now.category];
+      useWizard.setState({
+        slides: nowClassic
+          ? stampPalette(stampBgChain(now.slides, data, now.topic, now.libSeed, "rotate", pal, true), pal, true)
+          : stampBgChain(now.slides, data, now.topic, now.libSeed, now.bgMode, pal),
+      });
     })
     .catch(function () {
       /* offline: keep the keys already stamped on the slides */
     });
   return slides;
+}
+
+/** v3.7 PURE preview stamp for bench minis: chain a classic/verbatim/unique
+ *  deck for DISPLAY only. No store writes, no async side effects — cold
+ *  topics just return the deck unstamped (the caller re-renders when its
+ *  own warm-up tick fires). The store converts + stamps again on pick. */
+export function stampClassicPreview(slides: Slide[]): Slide[] {
+  const st = useWizard.getState();
+  if (st.bgSource !== "library" || !slides.length || isLibraryDeck(slides)) return slides;
+  const topics = topicsSync();
+  if (!topics) return slides;
+  const pal = CATEGORY_PALETTE[st.category];
+  return stampPalette(stampBgChain(slides, topics, st.topic, st.libSeed, "rotate", pal, true), pal, true);
+}
+
+/** v3.7: adopt the classic-deck backdrop state (topic suggestion + seed) and
+ *  stamp the working deck AND the unique bench decks once the topics JSON is
+ *  in. Fired after classic/verbatim/unique generation and on bgSource opt-in.
+ *  A confirmed topic always wins; the suggestion only fills null. */
+function classicChainKick() {
+  const st = useWizard.getState();
+  if (st.bgSource !== "library") return;
+  loadTopics()
+    .then(function (topics) {
+      const now = useWizard.getState();
+      if (now.bgSource !== "library") return;
+      const topic = now.topic || suggestTopic(now.text || "", topics.topics);
+      const libSeed = now.libSeed || postSeed(now.text || now.url || "draft");
+      const pal = CATEGORY_PALETTE[now.category];
+      const stamp = function (deck: Slide[]): Slide[] {
+        if (isLibraryDeck(deck)) return deck; // library decks own their chain
+        return stampPalette(stampBgChain(deck, topics, topic, libSeed, "rotate", pal, true), pal, true);
+      };
+      useWizard.setState({
+        topic: topic,
+        libSeed: libSeed,
+        slides: now.slides.length ? stamp(now.slides) : now.slides,
+        uniqueDecks: now.uniqueDecks ? mapDecks(now.uniqueDecks, stamp) : now.uniqueDecks,
+      });
+    })
+    .catch(function () {
+      /* offline: mode-native backgrounds keep rendering */
+    });
 }
 
 // The three plan directions are pinned to keys data/narrative/visual
@@ -509,9 +594,9 @@ function planSlidesToDeck(planSlides: LibraryPlanSlide[], byIdx: Record<number, 
  *  cobalt · capital green) onto every library slide. Object identity is
  *  preserved when the stamp already matches (same rule as stampBgChain).
  *  Non-library slides pass through untouched. */
-function stampPalette(slides: Slide[], palette: LibPalette): Slide[] {
+function stampPalette(slides: Slide[], palette: LibPalette, allTypes?: boolean): Slide[] {
   return slides.map(function (sl) {
-    if (sl.type !== "library" || sl.libraryPalette === palette) return sl;
+    if ((sl.type !== "library" && !allTypes) || sl.libraryPalette === palette) return sl;
     return { ...sl, libraryPalette: palette };
   });
 }
@@ -606,9 +691,12 @@ const initialData = {
   // Infinity is the DEFAULT for fresh runs (the uniform-as-you-slide look);
   // old drafts hydrate to rotate so stamped chains re-render identically.
   bgMode: "infinity" as "rotate" | "infinity",
+  // v3.7: fresh runs in every mode wear the library backdrops by default;
+  // legacy drafts/archives hydrate to "legacy" (see hydrateFromDraft).
+  bgSource: "library" as "legacy" | "library",
   slides: [] as Slide[],
   activeIdx: 0,
-  undoStack: [] as Slide[][],
+  undoStack: [] as UndoFrame[],
   captionOptions: [] as CaptionOption[],
   selectedCaptionIdx: 0,
   platTab: "instagram" as PlatTab,
@@ -666,6 +754,7 @@ export const useWizard = create<WizardStore>()((set, get) => ({
       topic: null,
       libSeed: 0,
       bgMode: "infinity",
+      bgSource: "library",
       captionOptions: [],
       selectedCaptionIdx: 0,
       generating: false,
@@ -788,16 +877,25 @@ export const useWizard = create<WizardStore>()((set, get) => ({
     // interception site; non-library runs fall through untouched.
     if (p.category && p.category !== get().category) {
       const st = get();
-      if (isLibraryDeck(st.slides) || st.libraryDecks) {
+      // v3.7: classic/verbatim/unique decks wearing library backdrops
+      // re-tint too (allTypes palette stamp; uniqueDecks bench included).
+      const classicWear = st.bgSource === "library" && !isLibraryDeck(st.slides);
+      if (isLibraryDeck(st.slides) || st.libraryDecks || (classicWear && (st.slides.length || st.uniqueDecks))) {
         const palette = CATEGORY_PALETTE[p.category];
         set({
           ...p,
-          slides: stampPalette(st.slides, palette),
+          slides: stampPalette(st.slides, palette, classicWear),
           libraryDecks: st.libraryDecks
             ? mapDecks(st.libraryDecks, function (deck) {
                 return stampPalette(deck, palette);
               })
             : null,
+          uniqueDecks:
+            st.uniqueDecks && st.bgSource === "library"
+              ? mapDecks(st.uniqueDecks, function (deck) {
+                  return stampPalette(deck, palette, true);
+                })
+              : st.uniqueDecks,
         });
         return;
       }
@@ -863,6 +961,9 @@ export const useWizard = create<WizardStore>()((set, get) => ({
             maxStation: Math.max(s.maxStation, ordOf("choose")),
           };
         });
+        // v3.7: stamp the three direction decks with the topic's library
+        // backdrops (async once topics land — bench minis repaint stamped).
+        classicChainKick();
       } catch (e) {
         if (uctrl.signal.aborted) return; // cancelled: state already reset
         clearGenTimer();
@@ -1020,6 +1121,9 @@ export const useWizard = create<WizardStore>()((set, get) => ({
           maxStation: Math.max(s.maxStation, ordOf("choose")),
         };
       });
+      // v3.7: adopt topic + seed for the library backdrops the picked deck
+      // will wear (variants are raw API slides; stamps land at pickVariant).
+      classicChainKick();
     } catch (e) {
       if (ctrl.signal.aborted) return; // cancelled: state already reset
       clearGenTimer();
@@ -1085,6 +1189,9 @@ export const useWizard = create<WizardStore>()((set, get) => ({
         maxStation: Math.max(s.maxStation, ordOf("choose")),
       };
     });
+    // v3.7: verbatim always has text — the topic suggestion + backdrop
+    // stamps land as soon as the topics JSON is in (usually warm already).
+    classicChainKick();
   },
 
   // ─── variant pick ───
@@ -1097,7 +1204,9 @@ export const useWizard = create<WizardStore>()((set, get) => ({
     if (st.mode === "unique") {
       const deck = st.uniqueDecks ? st.uniqueDecks[key] : undefined;
       if (!deck || !Array.isArray(deck) || deck.length === 0) return;
-      const uSlides = structuredClone(deck);
+      // v3.7: stamps ride the clone; the wrap covers a pick that outruns the
+      // async deck stamping (topics still loading).
+      const uSlides = withLibraryChain(structuredClone(deck));
       const meta = uniqueDirectionMeta(key);
       set(function (s) {
         return {
@@ -1118,9 +1227,13 @@ export const useWizard = create<WizardStore>()((set, get) => ({
     }
     const picked = st.variants ? st.variants[key] : undefined;
     if (!picked || !Array.isArray(picked.slides) || picked.slides.length === 0) return;
-    const editorSlides = seedCoverAccent(
-      apiSlidesToEditorSlides(picked.slides, picked.slides.length),
-      st.category
+    // v3.7: the chain wrap stamps the classic deck's library backdrops
+    // (topic + seed were adopted by generate()'s classicChainKick).
+    const editorSlides = withLibraryChain(
+      seedCoverAccent(
+        apiSlidesToEditorSlides(picked.slides, picked.slides.length),
+        st.category
+      )
     );
     set(function (s) {
       return {
@@ -1282,7 +1395,9 @@ export const useWizard = create<WizardStore>()((set, get) => ({
     set({ topic: k });
     // Topic drives the backdrop pool: re-resolve the whole chain (overrides
     // respected — a finalized key still wins and still feeds prevKey).
-    if (isLibraryDeck(st.slides)) {
+    // v3.7: classic/verbatim/unique decks re-chain too (withLibraryChain
+    // gates on bgSource for them).
+    if (st.slides.length) {
       set({ slides: withLibraryChain(get().slides) });
     }
     // v2: the bench decks re-chain (and re-tint) too, so CHOOSE previews and
@@ -1290,18 +1405,29 @@ export const useWizard = create<WizardStore>()((set, get) => ({
     if (st.libraryDecks) {
       set({ libraryDecks: withLibraryDeckChains(get().libraryDecks) });
     }
+    if (st.uniqueDecks && st.bgSource === "library") {
+      classicChainKick();
+    }
   },
 
   setSlideBgOverride(idx, key) {
     const st = get();
     if (idx < 0 || idx >= st.slides.length) return;
     const target = st.slides[idx];
-    if (!target || target.type !== "library") return;
+    if (!target) return;
+    // v3.7: classic/verbatim/unique slides are pickable too once the deck
+    // wears library backdrops (their chain is always rotate → per-slide).
+    // ONLY in a pure classic deck: a non-library slide inside a Neu deck
+    // must stay a no-op, or its override would steer resolveBgInfinity /
+    // the rotate prevKey chain and re-skin the library slides (review
+    // finding, v3.7).
+    const isLib = target.type === "library";
+    if (!isLib && (st.bgSource !== "library" || isLibraryDeck(st.slides))) return;
     // Discrete inspector click (not per-keystroke) → same undo coverage as
     // the other one-shot deck mutations; Cmd+Z restores the previous pick.
     get().pushUndo();
     const next = st.slides.slice();
-    if (st.bgMode === "infinity") {
+    if (isLib && st.bgMode === "infinity") {
       // Infinity: the backdrop is DECK-LEVEL — a pick (or AUTO) applies to
       // every library slide so intent survives reorders and deletions.
       for (let i = 0; i < next.length; i++) {
@@ -1340,11 +1466,55 @@ export const useWizard = create<WizardStore>()((set, get) => ({
     });
   },
 
+  setBgSource(v) {
+    const st = get();
+    if (st.bgSource === v) return;
+    if (st.slides.length) get().pushUndo();
+    if (v === "legacy") {
+      // Back to the mode-native look: strip every library stamp off
+      // non-library slides (renderers key off slide.libraryBg alone) in the
+      // working deck and the unique bench decks. Library decks are immune —
+      // their backdrops ARE the mode.
+      const strip = function (arr: Slide[]): Slide[] {
+        return arr.map(function (sl) {
+          if (sl.type === "library") return sl;
+          if (!sl.libraryBg && !sl.libraryBgOverride && !sl.libraryPalette) return sl;
+          return {
+            ...sl,
+            libraryBg: undefined,
+            libraryBgFlip: undefined,
+            libraryBgNative: undefined,
+            libraryBgOverride: undefined,
+            libraryPalette: undefined,
+          };
+        });
+      };
+      set({
+        bgSource: v,
+        slides: strip(st.slides),
+        uniqueDecks: st.uniqueDecks ? mapDecks(st.uniqueDecks, strip) : st.uniqueDecks,
+        dirtySinceVariant: st.slides.length ? true : st.dirtySinceVariant,
+      });
+      return;
+    }
+    set({ bgSource: v, dirtySinceVariant: st.slides.length ? true : st.dirtySinceVariant });
+    classicChainKick();
+  },
+
   // ─── undo ───
+  // v3.7: frames carry bgSource + uniqueDecks alongside the slides — a
+  // Cmd+Z across the BACKDROP source toggle must restore all three together
+  // or the seg contradicts the stamps (review finding). The stack is
+  // in-memory only (never persisted; every hydrate resets it), so the
+  // frame shape is free to change.
   pushUndo() {
     const st = get();
     const stack = st.undoStack.slice(-29); // cap at 30 after push
-    stack.push(structuredClone(st.slides));
+    stack.push({
+      slides: structuredClone(st.slides),
+      bgSource: st.bgSource,
+      uniqueDecks: st.uniqueDecks ? structuredClone(st.uniqueDecks) : null,
+    });
     set({ undoStack: stack });
   },
 
@@ -1352,11 +1522,13 @@ export const useWizard = create<WizardStore>()((set, get) => ({
     const st = get();
     if (st.undoStack.length === 0) return;
     const stack = st.undoStack.slice();
-    const prev = stack.pop() as Slide[];
+    const prev = stack.pop() as UndoFrame;
     set({
-      slides: prev,
+      slides: prev.slides,
+      bgSource: prev.bgSource,
+      uniqueDecks: prev.uniqueDecks,
       undoStack: stack,
-      activeIdx: Math.max(0, Math.min(prev.length > 0 ? prev.length - 1 : 0, st.activeIdx)),
+      activeIdx: Math.max(0, Math.min(prev.slides.length > 0 ? prev.slides.length - 1 : 0, st.activeIdx)),
       dirtySinceVariant: true,
     });
   },
@@ -1444,6 +1616,10 @@ export const useWizard = create<WizardStore>()((set, get) => ({
             ? Math.floor(wi.libSeed as number)
             : 0,
         bgMode: (wi.bgMode === "infinity" ? "infinity" : "rotate") as "rotate" | "infinity",
+        // v3.7: rows that never opted in hydrate LEGACY (photo/procedural
+        // decks keep their authored look); stamped rows re-render from the
+        // libraryBg keys riding their slides.
+        bgSource: (wi.bgSource === "library" ? "library" : "legacy") as "legacy" | "library",
         slides: slides,
         activeIdx: 0,
         undoStack: [],
@@ -1468,6 +1644,18 @@ export const useWizard = create<WizardStore>()((set, get) => ({
         maxStation: ordOf("publish"),
       };
     });
+    // v3.7: same recovery as hydrateFromDraft — a library-source archive row
+    // whose slides missed their stamp re-chains deterministically from the
+    // persisted (topic, libSeed).
+    const adopted = get();
+    if (
+      adopted.bgSource === "library" &&
+      adopted.slides.length > 0 &&
+      !adopted.slides.some(function (sl) { return sl.type === "library"; }) &&
+      adopted.slides.some(function (sl) { return !sl.libraryBg; })
+    ) {
+      classicChainKick();
+    }
   },
 
   // ─── draft hydrate ───
@@ -1522,6 +1710,9 @@ export const useWizard = create<WizardStore>()((set, get) => ({
       // Old drafts (no bgMode) hydrate to ROTATE: their stamped chains
       // re-render identically without a re-run.
       bgMode: d.bgMode === "infinity" ? "infinity" : "rotate",
+      // v3.7: old drafts (no bgSource) hydrate to LEGACY so classic decks
+      // authored on photo JPGs / unique procedural fields keep their look.
+      bgSource: d.bgSource === "library" ? "library" : "legacy",
       slides: Array.isArray(d.slides) ? d.slides : [],
       activeIdx: typeof d.activeIdx === "number" ? Math.max(0, d.activeIdx) : 0,
       undoStack: [],
@@ -1537,6 +1728,18 @@ export const useWizard = create<WizardStore>()((set, get) => ({
       maxStation: Math.max(typeof d.maxStation === "number" ? d.maxStation : 0, ordOf(station)),
       draftSavedAt: typeof d.savedAt === "number" ? d.savedAt : null,
     });
+    // v3.7: a library-source classic deck persisted before its stamp landed
+    // (offline / killed tab) recovers here — the kick is idempotent and
+    // deterministic given the persisted (topic, libSeed).
+    const resumed = get();
+    if (
+      resumed.bgSource === "library" &&
+      resumed.slides.length > 0 &&
+      !resumed.slides.some(function (sl) { return sl.type === "library"; }) &&
+      resumed.slides.some(function (sl) { return !sl.libraryBg; })
+    ) {
+      classicChainKick();
+    }
   },
 }));
 
@@ -1564,6 +1767,7 @@ function draftSubset(s: WizardStore): WizardDraft {
     topic: s.topic,
     libSeed: s.libSeed,
     bgMode: s.bgMode,
+    bgSource: s.bgSource,
     slides: s.slides,
     activeIdx: s.activeIdx,
     captionOptions: s.captionOptions,

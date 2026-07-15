@@ -17,7 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import { gf } from "../../shared-constants";
 import { renderCoverSvg } from "../../carousel-covers";
 import { renderUniqueSvg } from "./unique/render";
-import { composeLibrarySvg, ensureLibraryAssets } from "./library/compose";
+import { composeLibrarySvg, ensureLibraryAssets, libraryBgSvgDoc, ensureClassicBgs } from "./library/compose";
 import { FULL_W, FULL_H, getBackdropUrl, type Slide, type ThemeKey } from "./types";
 
 function hideOnError(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }
@@ -69,6 +69,20 @@ export function SlidePreview({ slide, theme, width, page, total }: { slide: Slid
       .then(function() { libEnsureRef.current = false; setLibTick(function(t) { return t + 1; }); })
       .catch(function() { libEnsureRef.current = false; }); // keep placeholder; a slide change retries
   }, [isLibrary, librarySvg, sl]);
+  // v3.7: classic/verbatim slides wearing a library backdrop (stamped
+  // slide.libraryBg) paint the recolored bg layer instead of the theme JPG;
+  // unique slides pull it inside their own SVG and only need the warm-up.
+  var classicBgDoc = !isUnique && !isLibrary && sl.libraryBg
+    ? libraryBgSvgDoc(sl.libraryBg, sl.libraryPalette || "blend", !!sl.libraryBgFlip)
+    : null;
+  useEffect(function() {
+    if (isLibrary || !sl.libraryBg) return;
+    var live = true;
+    ensureClassicBgs([sl])
+      .then(function() { if (live) setLibTick(function(t) { return t + 1; }); })
+      .catch(function() { /* placeholder frame stays; a slide change retries */ });
+    return function() { live = false; };
+  }, [isLibrary, sl.libraryBg, sl.libraryPalette]); // eslint-disable-line react-hooks/exhaustive-deps
   var bgUrl = getBackdropUrl(theme, sl.position);
   var rw = width || 140;
   var rh = rw * 1.25;
@@ -80,7 +94,17 @@ export function SlidePreview({ slide, theme, width, page, total }: { slide: Slid
   var imgFit = (sl.imageFit || "cover") as "cover" | "contain" | "fill";
   var imgPos = sl.imagePosition || "center";
 
-  return <div style={{ width: rw, height: rh, borderRadius: 6, overflow: "hidden", position: "relative", backgroundImage: isUnique || isLibrary ? undefined : "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
+  return <div style={{ width: rw, height: rh, borderRadius: 6, overflow: "hidden", position: "relative", backgroundImage: isUnique || isLibrary || sl.libraryBg ? undefined : "url(" + bgUrl + ")", backgroundSize: "cover", backgroundPosition: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
+    {!isUnique && !isLibrary && sl.libraryBg ? (
+      classicBgDoc ? (
+        <div
+          style={{ position: "absolute", inset: 0 }}
+          dangerouslySetInnerHTML={{ __html: classicBgDoc }}
+        />
+      ) : (
+        <div style={{ position: "absolute", inset: 0, background: "#0A0B10" }} />
+      )
+    ) : null}
     {isUnique ? (
       <div
         style={{ position: "absolute", inset: 0 }}

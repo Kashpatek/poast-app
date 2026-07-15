@@ -18,7 +18,7 @@
 //              keyed by store.libraryDecks; commitLibraryDeck(key) commits.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { useWizard } from "../store";
+import { useWizard, stampClassicPreview } from "../store";
 import { Plate, Kbd } from "../components/Chrome";
 import { CoverDesigner } from "../components/CoverDesigner";
 import { SlidePreview } from "../engine/SlidePreview";
@@ -634,6 +634,7 @@ export function ChooseStation() {
   const topic = useWizard((s) => s.topic);
   const bgMode = useWizard((s) => s.bgMode);
   const libSeed = useWizard((s) => s.libSeed);
+  const bgSource = useWizard((s) => s.bgSource);
   const setBenchDeckBg = useWizard((s) => s.setBenchDeckBg);
   const [bgPickFor, setBgPickFor] = useState<string | null>(null);
 
@@ -656,6 +657,11 @@ export function ChooseStation() {
     [variants]
   );
 
+  // v3.7: bumped when the topics JSON cache warms (effect below) so the
+  // preview-stamp memo re-runs on resumed drafts. Declared here because the
+  // decks memo consumes it.
+  const [tplTick, setTplTick] = useState(0);
+
   // Editor-shaped decks per variant, for previews + stats (conversion is
   // pure; the store converts again on pickVariant).
   const decks = useMemo(
@@ -663,12 +669,19 @@ export function ChooseStation() {
       const map: Record<string, Slide[]> = {};
       if (variants) {
         keys.forEach(function (k) {
-          map[k] = apiSlidesToEditorSlides(variants[k].slides, variants[k].slides.length);
+          // v3.7: preview-stamp the library backdrops so the bench minis
+          // show what pickVariant commits (pure; no-op when legacy/cold).
+          map[k] = stampClassicPreview(
+            apiSlidesToEditorSlides(variants[k].slides, variants[k].slides.length)
+          );
         });
       }
       return map;
     },
-    [variants, keys]
+    // topic/libSeed/bgSource re-stamp the minis when the chain inputs move
+    // (classicChainKick adopts them right after generate lands); tplTick
+    // re-runs the stamp once the topics JSON cache warms on a resumed draft.
+    [variants, keys, topic, libSeed, bgSource, tplTick] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // Local selection: previously picked variant when it still exists,
@@ -744,12 +757,15 @@ export function ChooseStation() {
   // loadTemplates once and tick a re-render when the JSON lands (same
   // local-tick pattern the library renderers use). The v3.6 backdrop readout
   // peeks topicsSync() the same way (topic names + baked backdrop names).
-  const [, setTplTick] = useState(0);
   useEffect(
     function () {
-      if (!isLibrary) return;
+      // v3.7: topics load for classic modes too — the ai bench minis
+      // preview-stamp from the pool, so the warm-up (and its tick, which
+      // feeds the decks memo) must run whenever the deck wears library
+      // backdrops, not just in library mode. Templates stay library-only.
+      if (!isLibrary && bgSource !== "library") return;
       let live = true;
-      if (!templatesSync()) {
+      if (isLibrary && !templatesSync()) {
         loadTemplates()
           .then(function () {
             if (live) setTplTick(function (n) { return n + 1; });
@@ -767,7 +783,7 @@ export function ChooseStation() {
         live = false;
       };
     },
-    [isLibrary]
+    [isLibrary, bgSource]
   );
 
   // Cover bench patch: merge onto the LIVE cover slide (state read at call

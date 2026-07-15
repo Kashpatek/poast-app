@@ -480,7 +480,7 @@ export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose
       >
         <div className="rise d1" style={{ padding: "16px 18px 0", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div className="ph" style={{ flex: 1, margin: 0 }}>BACKDROPS · <b>{infinityPick ? "∞ + APPROVED" : "∞ + ALL 36"}</b></div>
+            <div className="ph" style={{ flex: 1, margin: 0 }}>BACKDROPS · <b>{infinityPick ? "∞ + APPROVED" : showNative ? "∞ + ALL 36" : "ALL 36"}</b></div>
             <span className="kbd" onClick={onClose} style={{ cursor: "pointer" }} title="Close">ESC</span>
           </div>
         </div>

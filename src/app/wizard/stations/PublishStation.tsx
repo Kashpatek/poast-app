@@ -187,6 +187,7 @@ export function PublishStation() {
   const topic = useWizard((s) => s.topic);
   const libSeed = useWizard((s) => s.libSeed);
   const bgMode = useWizard((s) => s.bgMode);
+  const bgSource = useWizard((s) => s.bgSource);
   const articleTitle = useWizard((s) => s.articleTitle);
   const selectedVariantLabel = useWizard((s) => s.selectedVariantLabel);
   const captionOptions = useWizard((s) => s.captionOptions);
@@ -407,6 +408,7 @@ export function PublishStation() {
           topic: topic,
           libSeed: libSeed,
           bgMode: bgMode,
+          bgSource: bgSource,
         },
       };
       const res = await saveArchive({

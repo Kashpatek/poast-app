@@ -279,6 +279,7 @@ export function CreateStation() {
   const splitNow = useWizard((s) => s.splitNow);
   const setTopic = useWizard((s) => s.setTopic);
   const bgMode = useWizard((s) => s.bgMode);
+  const bgSource = useWizard((s) => s.bgSource);
   const setBgMode = useWizard((s) => s.setBgMode);
   const resetToHome = useWizard((s) => s.resetToHome);
   const generating = useWizard((s) => s.generating);
@@ -303,7 +304,9 @@ export function CreateStation() {
   // toggling modes retries cleanly.
   const [topicsData, setTopicsData] = useState<TopicsData | null>(topicsSync);
   useEffect(() => {
-    if (mode !== "library" || topicsData) return;
+    // v3.7: every mode needs the taxonomy — classic/verbatim/unique decks
+    // wear the topic-pooled library backdrops too (bgSource "library").
+    if (topicsData) return;
     let alive = true;
     loadTopics()
       .then(function (d) {
@@ -315,7 +318,7 @@ export function CreateStation() {
     return () => {
       alive = false;
     };
-  }, [mode, topicsData]);
+  }, [topicsData]);
 
   // Deterministic local suggestion (finalize pattern): a DEFAULT the user can
   // change — state.topic wins once the user clicks a chip.
@@ -323,7 +326,9 @@ export function CreateStation() {
     () => (topicsData ? suggestTopic(text, topicsData.topics) : null),
     [text, topicsData]
   );
-  const activeTopic = mode === "library" ? topic ?? suggested : null;
+  // v3.7: the parse drives backdrops in EVERY mode now; only a resumed
+  // legacy deck (bgSource "legacy") ignores it.
+  const activeTopic = topic ?? suggested;
 
   // Preview seed = the SAME formula generate() stamps when libSeed is 0
   // (v3.3: context-derived, url counts too), so what CREATE previews for
@@ -719,7 +724,7 @@ export function CreateStation() {
                   Hidden in library mode: library slides wear the topic-pooled
                   SVG backdrops below, not these JPGs (chips stay — they still
                   drive chrome tint + captions). */}
-              {mode !== "library" && (
+              {mode !== "library" && bgSource === "legacy" && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 12 }}>
                   {[1, 2, 3, 4].map((pos) => (
                     <div
@@ -745,7 +750,7 @@ export function CreateStation() {
               {/* Library TOPIC: 14 chips (backdrop-topics.json) — the local
                   suggestion is the active default until the user finalizes by
                   clicking; below, the 3 backdrop candidates for slide 0. */}
-              {mode === "library" && topicsData && (
+              {topicsData && (mode === "library" || bgSource === "library") && (
                 <>
                   <SectionHeader label="Topic" accent="drives the backdrop pool" />
                   <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -810,13 +815,17 @@ export function CreateStation() {
                         </span>
                       ))}
                       <span className="whisper" style={{ marginLeft: 2 }}>
-                        finalized per slide in edit — you can always pick another
+                        {mode === "library"
+                          ? "finalized per slide in edit — you can always pick another"
+                          : "auto-picked from this topic's pool — switch per slide in edit"}
                       </span>
                     </div>
                   )}
                   {/* v3: backdrop mode — INFINITY (default) runs one seamless
                       backdrop across the deck; ROTATE keeps per-slide pool
-                      rotation. Switchable again in EDIT. */}
+                      rotation. Switchable again in EDIT. Library-mode only:
+                      classic/verbatim/unique decks always chain rotate (v3.7). */}
+                  {mode === "library" && (
                   <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
                     <div className="seg">
                       <button
@@ -838,6 +847,7 @@ export function CreateStation() {
                         : "Each slide draws its own backdrop from the topic pool."}
                     </span>
                   </div>
+                  )}
                 </>
               )}
               <SectionHeader label="Slide count" />

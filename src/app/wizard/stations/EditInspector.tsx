@@ -12,10 +12,20 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useWizard } from "../store";
 import type { Slide } from "../engine/types";
+import { getBackdropUrl } from "../engine/types";
 import { UNIQUE_DIRECTIONS } from "../engine/unique/build";
 import { renderBackdrop, hashSeed } from "../engine/unique/backdrops";
+// v3.7: classic/verbatim/unique slides wear the topic-pooled library
+// backdrops — the picker modal is EDIT's own (exported by EditStation; the
+// import cycle is render-time only, both modules are fully initialized
+// before either component runs).
+import { LibBackdropAllModal } from "./EditStation";
+import { candidates } from "../engine/library/backdrop";
+import { loadTopics, topicsSync, bgSvgUrl, type TopicsData } from "../engine/library/data";
+import { CATEGORY_PALETTE } from "../engine/library/palette";
 import CoverDesigner from "../components/CoverDesigner";
 import ImagePicker from "../components/ImagePicker";
 import { showToast } from "../../toast-context";
@@ -338,6 +348,93 @@ function BackdropSwatch({ id, accent, seedKey, selected, onPick }: {
   );
 }
 
+// ═══ v3.7 · LIBRARY BACKDROP CONTROLS (classic/verbatim/unique slides) ═══
+// The per-slide face of the deck's library-backdrop opt-in: source seg
+// (library vs the mode-native look), the slide's current pick + the topic
+// pool's candidates, ALL 36 (EDIT's own picker modal, baked shelves only —
+// ∞/natives are library-mode compositions), and AUTO to clear a finalize.
+function LibBgControls({ active, activeIdx }: { active: Slide; activeIdx: number }) {
+  const topic = useWizard(function (s) { return s.topic; });
+  const libSeed = useWizard(function (s) { return s.libSeed; });
+  const category = useWizard(function (s) { return s.category; });
+  const setSlideBgOverride = useWizard(function (s) { return s.setSlideBgOverride; });
+  const [topicsData, setTopicsData] = useState<TopicsData | null>(topicsSync);
+  const [allOpen, setAllOpen] = useState(false);
+  useEffect(function () {
+    if (topicsData) return;
+    let alive = true;
+    loadTopics().then(function (d) { if (alive) setTopicsData(d); }).catch(function () {});
+    return function () { alive = false; };
+  }, [topicsData]);
+
+  if (!topicsData) {
+    return <span className="whisper">Loading the backdrop taxonomy…</span>;
+  }
+  const topicKey = topic || "brand";
+  const resolvedKey = active.libraryBg || "";
+  const overridden = !!active.libraryBgOverride;
+  const cands = candidates(topicsData, topicKey, libSeed, activeIdx);
+  const nameOf = function (k: string): string {
+    return (topicsData.backdrops[k] && topicsData.backdrops[k].name) || ("backdrop " + k);
+  };
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {[resolvedKey].filter(Boolean).concat(cands.filter(function (k) { return k !== resolvedKey; })).slice(0, 3).map(function (k) {
+          const on = k === resolvedKey;
+          return (
+            <button
+              key={k}
+              type="button"
+              title={k + " · " + nameOf(k)}
+              onClick={function () {
+                if (k === resolvedKey && overridden) return;
+                setSlideBgOverride(activeIdx, k);
+              }}
+              style={{
+                width: 44, height: 55, padding: 0, borderRadius: 4, overflow: "hidden",
+                cursor: "pointer", background: "#0A0B10",
+                border: on ? "2px solid var(--amber)" : "1px solid var(--line-2)",
+                flex: "0 0 auto",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={bgSvgUrl(k)} alt={nameOf(k)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            </button>
+          );
+        })}
+        <button type="button" className="chip" onClick={function () { setAllOpen(true); }} style={{ cursor: "pointer" }}>
+          ALL 36
+        </button>
+        {overridden ? (
+          <button type="button" className="chip" onClick={function () { setSlideBgOverride(activeIdx, null); }} style={{ cursor: "pointer" }}>
+            AUTO
+          </button>
+        ) : null}
+      </div>
+      <span className="whisper">
+        {(overridden ? "PICKED" : "AUTO") + " · " + (resolvedKey ? resolvedKey + " " + nameOf(resolvedKey) : "resolving…") + " · topic " + topicKey}
+      </span>
+      {allOpen && typeof document !== "undefined"
+        ? createPortal(
+            <LibBackdropAllModal
+              topics={topicsData}
+              topicKey={topicKey}
+              current={resolvedKey || "02"}
+              onPick={function (k: string) { setSlideBgOverride(activeIdx, k); setAllOpen(false); }}
+              onClose={function () { setAllOpen(false); }}
+              showNative={false}
+              infinityPick={false}
+              seed={libSeed}
+              palette={CATEGORY_PALETTE[category]}
+            />,
+            document.body
+          )
+        : null}
+    </>
+  );
+}
+
 // ═══ INSPECTOR ═══
 export function EditInspector() {
   const slides = useWizard(function (s) { return s.slides; });
@@ -348,6 +445,15 @@ export function EditInspector() {
   const undo = useWizard(function (s) { return s.undo; });
   const undoDepth = useWizard(function (s) { return s.undoStack.length; });
   const category = useWizard(function (s) { return s.category; });
+  const bgSource = useWizard(function (s) { return s.bgSource; });
+  const setBgSource = useWizard(function (s) { return s.setBgSource; });
+  // v3.7: the BACKDROP section is for PURE classic decks. A non-library
+  // slide inside a Neu deck must not expose it — the store guard makes the
+  // picks no-ops there, and the seg would flip deck-level state under a
+  // library deck (review finding).
+  const inLibraryDeck = useWizard(function (s) {
+    return s.slides.some(function (sl) { return sl.type === "library"; });
+  });
   const sourceText = useWizard(function (s) { return s.text; });
   const draftSavedAt = useWizard(function (s) { return s.draftSavedAt; });
 
@@ -357,7 +463,7 @@ export function EditInspector() {
   const [tightenBusy, setTightenBusy] = useState(false);
   const [openSecs, setOpenSecs] = useState<Record<string, boolean>>({
     type: true, layout: true, typo: true, images: true, cover: true, cta: true,
-    overflow: true, revisions: false,
+    backdrop: true, overflow: true, revisions: false,
     ucontent: true, ustats: true, uchart: true, ubackdrop: true,
   });
   function toggleSec(id: string) {
@@ -841,8 +947,16 @@ export function EditInspector() {
                 </Sec>
               ) : null}
 
-              {/* ═══ U4 · BACKDROP (direction's 3 generative variants) ═══ */}
-              <Sec id="ubackdrop" label="BACKDROP" extra={(active.uniqueBackdrop || uDir.backdrops[0]).toUpperCase()} open={!!openSecs.ubackdrop} onToggle={toggleSec}>
+              {/* ═══ U4 · BACKDROP (v3.7: library pool or the direction's
+                  3 generative variants — deck-level source toggle) ═══ */}
+              <Sec id="ubackdrop" label="BACKDROP" extra={bgSource === "library" ? (active.libraryBg || "LIBRARY") : (active.uniqueBackdrop || uDir.backdrops[0]).toUpperCase()} open={!!openSecs.ubackdrop} onToggle={toggleSec}>
+                <div className="seg" style={{ width: "100%", display: "flex" }}>
+                  <button type="button" className={bgSource === "library" ? "on" : ""} title="The approved 36-backdrop library, auto-picked by topic" onClick={function () { setBgSource("library"); }} style={{ flex: 1 }}>LIBRARY</button>
+                  <button type="button" className={bgSource === "legacy" ? "on" : ""} title="The direction's seeded generative fields" onClick={function () { setBgSource("legacy"); }} style={{ flex: 1 }}>GENERATIVE</button>
+                </div>
+                {bgSource === "library" ? (
+                  <LibBgControls active={active} activeIdx={activeIdx} />
+                ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
                   {uDir.backdrops.map(function (bid) {
                     return (
@@ -863,7 +977,10 @@ export function EditInspector() {
                     );
                   })}
                 </div>
+                )}
+                {bgSource === "legacy" ? (
                 <span className="whisper">Strength · {KIND_STRENGTH[uKind] || "AMBIENT"} · set by the slide kind.</span>
+                ) : null}
                 <div style={{ display: "flex", alignItems: "center", gap: 7, fontFamily: "var(--body)", fontWeight: 600, fontSize: 8.5, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--muted)" }}>
                   <span style={{ width: 7, height: 7, borderRadius: "50%", background: uDir.accent, boxShadow: "0 0 8px " + uDir.accent, flexShrink: 0 }} />
                   DIRECTION · {uDir.name} · ACCENT LOCKED
@@ -880,6 +997,41 @@ export function EditInspector() {
                 <div className="seg" style={segFullStyle}>{TYPE_OPTIONS.slice(4).map(typeBtn)}</div>
                 <span className="whisper">Cover frames lock to slide 01 · this is position {pad2(active.position)}.</span>
               </Sec>
+
+              {/* ═══ 1a · BACKDROP (v3.7: library pool by topic, or the
+                  category's classic photo JPGs — deck-level source toggle).
+                  Pure classic decks only — see inLibraryDeck above. ═══ */}
+              {!inLibraryDeck && <Sec id="backdrop" label="BACKDROP" extra={bgSource === "library" ? (active.libraryBg || "LIBRARY") : "PHOTOS"} open={!!openSecs.backdrop} onToggle={toggleSec}>
+                <div className="seg" style={{ width: "100%", display: "flex" }}>
+                  <button type="button" className={bgSource === "library" ? "on" : ""} title="The approved 36-backdrop library, auto-picked by topic" onClick={function () { setBgSource("library"); }} style={{ flex: 1 }}>LIBRARY</button>
+                  <button type="button" className={bgSource === "legacy" ? "on" : ""} title="The category's classic photo backdrops" onClick={function () { setBgSource("legacy"); }} style={{ flex: 1 }}>CLASSIC PHOTOS</button>
+                </div>
+                {bgSource === "library" ? (
+                  <LibBgControls active={active} activeIdx={activeIdx} />
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {[1, 2, 3, 4].map(function (pos) {
+                      return (
+                        <div
+                          key={pos}
+                          title={"position " + pos}
+                          style={{
+                            width: 34, height: 42, borderRadius: 3, overflow: "hidden",
+                            backgroundImage: "url(" + getBackdropUrl(category, pos) + ")",
+                            backgroundSize: "cover", backgroundPosition: "center",
+                            border: (active.position === pos || (active.position > 4 && pos === ((active.position - 2) % 2) + 2)) ? "2px solid var(--amber)" : "1px solid var(--line-2)",
+                            flex: "0 0 auto",
+                          }}
+                        />
+                      );
+                    })}
+                    <span className="whisper" style={{ marginLeft: 6 }}>fixed per position · switch to LIBRARY to pick</span>
+                  </div>
+                )}
+                {active.type === "cover" && active.coverTemplate ? (
+                  <span className="whisper">This cover wears an opaque plate — the backdrop shows through legacy covers only.</span>
+                ) : null}
+              </Sec>}
 
               {/* ═══ 1b · LAYOUT (anchor · top margin · invert) ═══ */}
               {isLegacyCover || canInvert ? (
