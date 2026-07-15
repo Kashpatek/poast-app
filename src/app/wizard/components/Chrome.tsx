@@ -6,7 +6,7 @@
 // All navigation state flows through useWizard (src/app/wizard/store.ts).
 // Handlers, gating (maxStation), and ESC behavior are unchanged from v1.
 
-import React, { ReactNode, useEffect, useRef, useState } from "react";
+import React, { ReactNode, useEffect, useState } from "react";
 import { useWizard, type Station } from "../store";
 import { useUser } from "../../user-context";
 import {
@@ -15,7 +15,7 @@ import {
   getPreferredProvider,
   type LLMProviderName,
 } from "../../shared-constants";
-import { showToast } from "../../toast-context";
+
 
 /* ================= station rail ================= */
 
@@ -119,102 +119,25 @@ function ProviderRack({ surface, label }: { surface: string; label: string }) {
 
 /* ================= user chip ================= */
 
-// The 5 seats from src/app/user-context.tsx's roster (its USERS map is not
-// exported; names must match its keys exactly or setUser() clears the seat).
-const SEATS: { name: string; role: string }[] = [
-  { name: "Akash", role: "BRAND & CREATIVE" },
-  { name: "Michelle", role: "CHIEF OF STAFF" },
-  { name: "Vansh", role: "SOCIAL MEDIA" },
-  { name: "Daksh", role: "INTERN" },
-  { name: "Analyst", role: "ANALYST" },
-];
-
+// Display-only. In poast-app the seat comes from real sign-in and the main
+// POAST settings; the wizard must never change it (Akash, 2026-07-15). The
+// standalone sandbox this was ported from had a SWITCH SEAT dropdown here --
+// deliberately removed, not lost.
 function UserChip() {
-  const { user, setUser } = useUser();
-  const [open, setOpen] = useState(false);
-  const wrap = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (wrap.current && !wrap.current.contains(e.target as Node)) setOpen(false);
-    };
-    // Escape closes the seat dropdown only. Capture phase + stopPropagation
-    // beats the shell's bubble-phase ESC-home listener (same convention as
-    // ImagePicker), so one keypress can't close the menu AND navigate home.
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        e.preventDefault();
-        setOpen(false);
-      }
-    };
-    window.addEventListener("mousedown", onDown);
-    window.addEventListener("keydown", onKey, true);
-    return () => {
-      window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("keydown", onKey, true);
-    };
-  }, [open]);
-
-  const name = user?.name || "Akash";
+  const { user } = useUser();
   return (
-    <div ref={wrap} style={{ position: "relative" }}>
-      <button
-        type="button"
-        className="chip"
-        title={user?.role || "Pick a seat"}
-        onClick={() => setOpen((o) => !o)}
-        style={{ cursor: "pointer", background: "transparent", textTransform: "uppercase" }}
-      >
-        <span
-          style={{
-            width: 6, height: 6, borderRadius: "50%", display: "inline-block",
-            background: "var(--cobalt)", boxShadow: "0 0 6px rgba(11,134,209,.6)",
-          }}
-        />
-        {name}
-      </button>
-      {open && (
-        <div
-          className="panel"
-          style={{
-            position: "absolute", top: "calc(100% + 10px)", right: 0, zIndex: 80,
-            minWidth: 216, padding: "8px 6px", display: "flex", flexDirection: "column", gap: 2,
-            boxShadow: "0 14px 40px rgba(3,3,5,.55)",
-          }}
-        >
-          <div className="ph" style={{ padding: "2px 8px 6px" }}>SWITCH SEAT</div>
-          {SEATS.map((seat) => {
-            const on = seat.name === user?.name;
-            return (
-              <button
-                key={seat.name}
-                type="button"
-                onClick={() => {
-                  setUser(seat.name);
-                  setOpen(false);
-                  if (!on) showToast("Seat switched to " + seat.name);
-                }}
-                style={{
-                  display: "flex", alignItems: "baseline", justifyContent: "space-between",
-                  gap: 14, padding: "6px 8px", border: "none", borderRadius: 4,
-                  cursor: "pointer", textAlign: "left",
-                  background: on ? "rgba(247,176,65,.12)" : "transparent",
-                  color: on ? "var(--amber)" : "var(--ink)",
-                  fontFamily: "var(--body)", fontWeight: 600, fontSize: 11,
-                  letterSpacing: 1.2, textTransform: "uppercase",
-                }}
-              >
-                {seat.name}
-                <span style={{ fontSize: 8, letterSpacing: 1, color: on ? "var(--amber)" : "var(--dim)" }}>
-                  {seat.role}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+    <div
+      className="chip"
+      title={user?.role || ""}
+      style={{ textTransform: "uppercase", userSelect: "none" }}
+    >
+      <span
+        style={{
+          width: 6, height: 6, borderRadius: "50%", display: "inline-block",
+          background: "var(--cobalt)", boxShadow: "0 0 6px rgba(11,134,209,.6)",
+        }}
+      />
+      {user?.name || "\u00b7"}
     </div>
   );
 }
