@@ -1,0 +1,302 @@
+{
+  "note": "Clashing style-fusions (the Midjourney blend trick): two aesthetics that clash but cohere. Curated by a fan-out art-director workshop. sample in library/fusions/<id>.jpg.",
+  "fusions": [
+    {
+      "id": "oil-dither",
+      "name": "Oil \u00d7 Dither",
+      "a": "Renaissance oil painting",
+      "b": "1-bit dither",
+      "palette": "cream ground, deep ink shadows, amber #F7B041 underpainting glowing through the dot matrix",
+      "styleBlock": "old-master Renaissance oil painting of a single silicon wafer held like a sacred relic on dark velvet, sfumato tonal modeling, cracked varnish glaze and soft chiaroscuro, but the entire surface is quantized into ordered 1-bit Floyd\u2013Steinberg dither, black-and-cream stippled error-diffusion grain crawling across the smooth gradients, amber underpainting bleeding through the two-tone dot cloud, museum gallery lighting, fine-art texture, premium and severe, no text",
+      "why": "Oil's infinite tonal gradation collided with dither's brutal two-value quantization is literally the analog-to-digital story SA tells \u2014 the smooth world forced onto a grid.",
+      "tags": [
+        "renaissance",
+        "oil",
+        "1-bit",
+        "dither",
+        "wafer",
+        "monochrome"
+      ]
+    },
+    {
+      "id": "chiaroscuro-datamosh",
+      "name": "Chiaroscuro \u00d7 Datamosh",
+      "a": "Baroque chiaroscuro",
+      "b": "datamosh glitch",
+      "palette": "near-black void, one amber #F7B041 light shaft, cold blue #0C86D1 chromatic ghosting on the smear",
+      "styleBlock": "Caravaggio baroque tenebrism, a single dramatic amber light shaft carving a GPU accelerator board out of profound blackness, oil-thick darkness and razor highlight modeling, but the shadow edges dissolve into datamosh compression smear, motion-vector bleeding and dragged pixel-blocks, i-frame corruption pulling the highlights into cold blue chromatic ghosts, cinematic, opulent, unstable, no text",
+      "why": "Baroque is total mastery of one light source; datamosh is total loss of control. Order collapsing into entropy inside a single frame.",
+      "tags": [
+        "baroque",
+        "chiaroscuro",
+        "tenebrism",
+        "datamosh",
+        "gpu",
+        "cinematic"
+      ]
+    },
+    {
+      "id": "vanitas-jpeg",
+      "name": "Vanitas \u00d7 JPEG",
+      "a": "Dutch still-life (vanitas)",
+      "b": "JPEG compression artifact",
+      "palette": "cream and ink, warm amber candle glow, cold blue #0C86D1 block-noise in the shadows",
+      "styleBlock": "Dutch golden-age vanitas still life, an arrangement of memory chips, a dead hard-drive platter and a guttering candle on dark velvet, meticulous oil realism with dewy specular reflections, but degraded into heavy JPEG compression, hard 8\u00d78 macroblocking, ringing halos around every edge, banded gradients and color-quantized DCT mush in the shadows, warm candlelight fighting cold blue block-noise, opulent yet corrupted, no text",
+      "why": "Vanitas paints the decay of material things; JPEG is the decay of the digital file itself. Two vocabularies of mortality in one image.",
+      "tags": [
+        "dutch",
+        "vanitas",
+        "still-life",
+        "jpeg",
+        "memory-chip",
+        "decay"
+      ]
+    },
+    {
+      "id": "portrait-wireframe",
+      "name": "Portrait \u00d7 Wireframe",
+      "a": "Renaissance oil portrait",
+      "b": "wireframe",
+      "palette": "warm amber #F7B041 flesh tones, ink background, cold blue #0C86D1 topology wires, cream",
+      "styleBlock": "old-master Renaissance three-quarter oil portrait of an industrialist, Rembrandt glazed skin tones and warm chiaroscuro flesh, cracked varnish and a gilt frame, but the face and hand deconstruct into a floating polygonal wireframe scan, thin blue and amber topology lines mapping the features, vertices lifting off the painted surface, the painted soul becoming a digital twin, solemn and luminous, no text",
+      "why": "The most humanist, hand-painted portrait rebuilt as cold machine geometry \u2014 the literal digitization of a person, ideal for AI-compute stories.",
+      "tags": [
+        "renaissance",
+        "oil",
+        "portrait",
+        "wireframe",
+        "digital-twin",
+        "ai"
+      ]
+    },
+    {
+      "id": "marble-wireframe",
+      "name": "Marble \u00d7 Wireframe",
+      "a": "Marble statuary",
+      "b": "wireframe",
+      "palette": "Carrara cream-white stone, ink background, thin amber #F7B041 + electric blue #0C86D1 edges",
+      "styleBlock": "classical Carrara marble bust, flawless polished stone with soft subsurface translucency and chisel-carved drapery, but half the form deconstructs into a glowing polygonal wireframe mesh, triangulated topology in thin amber and electric-blue edges, floating vertices and edge normals peeling off the stone, museum plinth, cold and pristine, sculpture caught mid-transformation into a 3D model, no text",
+      "why": "Statuary is the densest possible mass; wireframe is pure hollow edge. The solid object versus the schematic ghost of it.",
+      "tags": [
+        "marble",
+        "statuary",
+        "sculpture",
+        "wireframe",
+        "3d-mesh",
+        "monochrome"
+      ]
+    },
+    {
+      "id": "ink-wash-scanline",
+      "name": "Ink Wash \u00d7 Scanline",
+      "a": "Sumi-e ink wash",
+      "b": "CRT scanline",
+      "palette": "ink black on cream rice paper, faint amber phosphor, blue #0C86D1 signal bleed",
+      "styleBlock": "sumi-e ink-wash landscape of misted mountains reimagined as stacked server towers in valley fog, spontaneous bleeding brushstrokes and vast negative space on rice paper, but overlaid with dense CRT scanlines and phosphor glow, horizontal raster banding, RGB subpixel shimmer and slight barrel curvature, amber and blue signal bleed pooling in the wet ink, meditative yet electronic, no text",
+      "why": "Ink wash is the wettest, most analog gesture there is; scanlines are the rigid raster grid. The flowing brush trapped inside a broadcast signal.",
+      "tags": [
+        "ink-wash",
+        "sumi-e",
+        "crt",
+        "scanline",
+        "server",
+        "minimal"
+      ]
+    },
+    {
+      "id": "intaglio-x-ray",
+      "name": "Intaglio \u00d7 X-Ray",
+      "a": "steel engraving (banknote intaglio)",
+      "b": "X-ray radiography",
+      "palette": "bone-white + cyan #0C86D1 radiographic glow on deep ink-black, warm amber #F7B041 edge bloom",
+      "styleBlock": "fine intaglio steel-engraving linework fused with radiographic transparency, dense burin cross-hatching that describes translucent internal structures, banknote-grade engraved contours glowing as X-ray density gradients, silhouetted silicon forms in luminous bone-white and cyan against deep ink-black, hairline parallel hatching doubling as radiographic scan lines, warm amber edge-bloom, cold clinical see-through core, museum-grade engraving-plate texture, high detail, no text",
+      "why": "Currency-engraving authority meets clinical transparency \u2014 the money-plate craft rendering the unseen silicon within; wealth versus diagnosis.",
+      "tags": [
+        "capital-markets",
+        "semiconductors",
+        "engraving",
+        "x-ray",
+        "monochrome-plus-accent"
+      ]
+    },
+    {
+      "id": "cyan-recon",
+      "name": "Cyan \u00d7 Recon",
+      "a": "blueprint cyanotype (hand-coated sun-print)",
+      "b": "satellite aerial / orbital nadir",
+      "palette": "Prussian/cyan #0C86D1 cyanotype blues, cream #F4ECD8 paper, amber #F7B041 solar glint",
+      "styleBlock": "hand-coated cyanotype blueprint wash fused with top-down satellite reconnaissance, Prussian-blue photogram tones over orbital nadir framing of a datacenter campus, brush-streaked emulsion edges and paper grain overlaid on precise geospatial grid geometry, white-out highlights where sunlight strikes infrastructure, faint amber solar glint, 19th-century sun-print imperfection meeting cold surveillance clarity, subtle registration flaws, matte archival paper texture, no text",
+      "why": "A hand-coated sun-print fighting cold orbital surveillance \u2014 the analog dream of a datacenter as seen by the machine that watches it.",
+      "tags": [
+        "datacenters",
+        "geopolitics",
+        "cyanotype",
+        "satellite",
+        "blue-monochrome"
+      ]
+    },
+    {
+      "id": "carve-thermal",
+      "name": "Carve \u00d7 Thermal",
+      "a": "woodcut relief print",
+      "b": "thermal / infrared imaging",
+      "palette": "thermal ramp amber #F7B041 \u2192 magenta \u2192 cool blue #0C86D1, ink-black carved lines",
+      "styleBlock": "bold woodblock carving fused with thermal-imaging heat map, chunky gouged relief marks flowing into infrared temperature gradients, black-carved contours bleeding into a hot amber-to-magenta-to-cool-blue thermal ramp, visible woodgrain and chisel chatter inside glowing heat blooms, high-contrast relief-print texture meeting smooth scientific gradient, ember-orange cores cooling to indigo edges, rough analog carving versus invisible heat signature, no text",
+      "why": "Crude hand-carving versus the invisible physics of heat \u2014 you can see the thermal load the woodcut could never feel.",
+      "tags": [
+        "power",
+        "cooling",
+        "woodcut",
+        "thermal",
+        "heat-map"
+      ]
+    },
+    {
+      "id": "pcb-botanical",
+      "name": "PCB \u00d7 Botanical",
+      "a": "PCB trace map",
+      "b": "vintage botanical illustration",
+      "palette": "copper-amber #F7B041 traces, cream paper, cobalt #0C86D1 leaf veins, ink stipple",
+      "styleBlock": "a printed-circuit-board trace map drawn as a Victorian botanical plate, copper routing and via pads rendered as pressed vines, leaves and root systems in fine engraved stipple, exact right-angle traces branching into organic tendrils and seed-pod capacitors, delicate hand-inked linework with watercolor tinting, amber copper against cream herbarium paper with cobalt veining, scientific-yet-living, archival plate texture, no text",
+      "why": "A PCB is already a circulatory system, so painting it as pressed flora makes the metaphor literal \u2014 rigid routing blossoming into something grown, not manufactured.",
+      "tags": [
+        "PCB",
+        "circuit",
+        "botanical",
+        "engraving",
+        "herbarium",
+        "organic"
+      ]
+    },
+    {
+      "id": "isometric-gold-leaf",
+      "name": "Isometric \u00d7 Gold Leaf",
+      "a": "isometric CAD render",
+      "b": "gold leaf gilding",
+      "palette": "burnished gold + amber #F7B041, lapis-ink ground, cobalt #0C86D1 inlays",
+      "styleBlock": "an isometric CAD assembly of a server rack and busbars executed as illuminated-manuscript gold leaf, every edge a precise 30-degree axonometric line but surfaced in hammered gilt with crackled bole showing through, burnished gold planes against deep ink lapis, fine engraved hatching where the metal catches light, jewel-like cobalt inlay on connectors, opulent and exacting, raking gallery light, no text",
+      "why": "CAD's cold exactness meets the sacred extravagance of gilding, so hardware reads like a reliquary \u2014 precision elevated to treasure.",
+      "tags": [
+        "isometric",
+        "CAD",
+        "gold-leaf",
+        "gilded",
+        "axonometric",
+        "luxury"
+      ]
+    },
+    {
+      "id": "schematic-cloisonn",
+      "name": "Schematic \u00d7 Cloisonn\u00e9",
+      "a": "electrical schematic linework",
+      "b": "Art Nouveau cloisonn\u00e9 enamel",
+      "palette": "gilt-gold + amber #F7B041 enamel, deep cobalt #0C86D1, ink cloison lines, cream ground",
+      "styleBlock": "an electrical schematic of interconnect and logic gates realized as Art Nouveau cloisonn\u00e9 enamel, precise symbol glyphs and connecting wires becoming gilt metal cloison ridges, cells flooded with glossy translucent vitreous enamel in amber and deep cobalt, whiplash organic curves swelling from the rigid net-list, jewel-bright glazed surface with fired depth, fine gold outlines catching light, decorative and exacting, no text",
+      "why": "Schematics are the driest visual language in engineering; pouring molten enamel between their wires turns a net-list into stained-glass jewelry \u2014 sterile logic made ornamental.",
+      "tags": [
+        "schematic",
+        "cloisonn\u00e9",
+        "enamel",
+        "art-nouveau",
+        "gilt",
+        "ornamental"
+      ]
+    },
+    {
+      "id": "constructivist-rust",
+      "name": "Constructivist \u00d7 Rust",
+      "a": "Russian constructivist",
+      "b": "corroded corten steel / rust",
+      "palette": "iron-oxide rust brown, ink black, cream ground, SA amber #F7B041 burning through",
+      "styleBlock": "russian constructivist composition, aggressive diagonal wedges and radiating photomontage geometry driving off-frame, but every plane is oxidized corten steel \u2014 flaking rust scale, pitted patina, bleeding iron-oxide stains down the diagonals, dramatic low-angle propaganda perspective, monochrome ink-and-cream ground with a single amber shaft cutting through the corrosion, heavy film grain, matte industrial finish, cinematic editorial cover, no text",
+      "why": "The revolutionary optimism of agitprop rendered in decay \u2014 perfect tension for export-control, aging-fab, and industrial-power-in-decline stories where the machine of state is rusting.",
+      "tags": [
+        "geopolitics",
+        "supply-chain",
+        "industrial",
+        "propaganda",
+        "high-contrast"
+      ]
+    },
+    {
+      "id": "bauhaus-mercury",
+      "name": "Bauhaus \u00d7 Mercury",
+      "a": "Bauhaus primary geometry",
+      "b": "liquid metal / molten mercury",
+      "palette": "mirror-chrome silver, cream studio ground, SA blue #0C86D1 + amber #F7B041 caught in reflections",
+      "styleBlock": "bauhaus primary-shape composition \u2014 pure circle, square, triangle \u2014 reimagined as pools of molten liquid metal, mirror-chrome mercury with beading droplets and reflective menisci, weightless geometric forms floating and casting liquid reflections onto a clean cream studio ground, primary blue and amber refracted inside the metal's surface, glossy tactile hyperreal render, precise and minimal, premium editorial cover, no text",
+      "why": "Bauhaus rigor says 'form follows function'; mercury refuses to hold a form \u2014 the clash reads as liquidity itself, ideal for capital-markets, valuation, and money-flow covers.",
+      "tags": [
+        "capital-markets",
+        "liquidity",
+        "minimal",
+        "chrome",
+        "premium"
+      ]
+    },
+    {
+      "id": "swiss-concrete",
+      "name": "Swiss \u00d7 Concrete",
+      "a": "Swiss brutalist grid",
+      "b": "board-formed poured concrete",
+      "palette": "raw cement grey, deep ink, cream, single SA amber seam",
+      "styleBlock": "swiss international modular grid rendered as board-formed brutalist concrete, rigid rectangular fields and hairline column lines cast in poured cement, visible form-tie holes and wood-grain imprint, coarse aggregate texture, deep hard-edged shadow gaps between slabs, one glowing amber expansion joint slicing cleanly across the grid, flat overcast diffuse light, monolithic and severe, architectural photography realism, premium editorial cover, no text",
+      "why": "Typographic grid logic poured into literal load-bearing mass \u2014 the exact metaphor for hyperscale datacenter buildout, where clean layout diagrams become millions of tons of concrete.",
+      "tags": [
+        "datacenters",
+        "buildout",
+        "architecture",
+        "brutalist",
+        "monolithic"
+      ]
+    },
+    {
+      "id": "bauhaus-mycelium",
+      "name": "Bauhaus \u00d7 Mycelium",
+      "a": "Bauhaus geometric abstraction",
+      "b": "living mycelium network",
+      "palette": "cream, soft loam, SA blue #0C86D1, amber spore-points",
+      "styleBlock": "bauhaus geometric abstraction where clean circles and modular grids are quietly colonized by mycelium \u2014 fine white fungal threads branching along the edges of primary shapes, delicate rhizomorph networks bridging node to node, machined order slowly overgrown by living filament, macro biological texture, cream and pale-blue fields with tiny amber spore points, soft diffuse studio light, minimal yet organic, premium editorial cover, no text",
+      "why": "Designed geometry vs self-organizing growth \u2014 a striking visual for networked-compute-as-organism, distributed AI, and 'the system is alive now' covers.",
+      "tags": [
+        "ai-compute",
+        "networks",
+        "biological",
+        "emergence",
+        "minimal"
+      ]
+    },
+    {
+      "id": "tesserae-datacenter",
+      "name": "Tesserae \u00d7 Datacenter",
+      "a": "ancient Byzantine mosaic",
+      "b": "hyperscale datacenter aisle",
+      "palette": "gold + lapis + terracotta grout, SA blue #0C86D1 for the LED tesserae",
+      "styleBlock": "vast hyperscale datacenter hot-aisle rendered entirely as an ancient Byzantine gold mosaic, each server blade and cable bundle built from thousands of hand-set glass smalti tesserae with uneven grout and glinting gold-backed tiles, vanishing-point cold-aisle perspective in tessellated stone, blue LED status lights as lapis tesserae, aged grout dust and chipped tile edges, sacred basilica gravitas applied to industrial compute, catacomb lighting, high detail, no text",
+      "why": "The mosaic was the pixel of antiquity; a datacenter is a cathedral of our compute-faith. Rendering cold infrastructure in warm hand-set stone makes the monumental scale feel devotional.",
+      "tags": [
+        "mosaic",
+        "datacenter",
+        "byzantine",
+        "tesserae",
+        "monumental"
+      ]
+    },
+    {
+      "id": "alchemy-hud",
+      "name": "Alchemy \u00d7 HUD",
+      "a": "alchemical engraving",
+      "b": "sci-fi HUD interface overlay",
+      "palette": "sepia ink + parchment cream + luminous cyan-amber HUD, SA amber #F7B041 & blue #0C86D1 as the glow",
+      "styleBlock": "17th-century alchemical copperplate engraving of a semiconductor fab as a philosopher's-stone apparatus, fine cross-hatched linework and antique parchment foxing overlaid with a glowing translucent sci-fi HUD \u2014 vector reticles, orbital diagrams and readout glyphs in thin luminous cyan-amber lines, ouroboros circling a wafer-sun, sulphur-and-mercury sigils reinterpreted as circuit symbols, aged ink meets holographic augmented-reality layer, occult-technical schematic, hairline precision, no text",
+      "why": "Alchemy was the original speculative engineering \u2014 transmuting sand into gold is literally what a fab does. Overlaying a HUD frames ancient hermetic diagrams as the UI they always secretly were.",
+      "tags": [
+        "alchemy",
+        "engraving",
+        "hud",
+        "hermetic",
+        "schematic"
+      ]
+    }
+  ]
+}

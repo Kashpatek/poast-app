@@ -1,0 +1,213 @@
+{
+  "note": "Topic -> visual concept seeds (style-agnostic). Active theme steers WHAT to depict; style/fusion steers HOW.",
+  "themes": [
+    {
+      "id": "datacenters-power-the-capex-supercycle",
+      "beat": "datacenters, power & the capex supercycle",
+      "name": "The Power Cathedral",
+      "concepts": [
+        "an endless hyperscale hall photographed as a single vanishing-point corridor, server rows dissolving toward a horizon like a cathedral nave",
+        "high-voltage transmission towers marching across dark farmland, their lines feeding a distant warehouse that glows like a furnace on the plain",
+        "a lone datacenter at dusk lit from within, a monolith on an empty landscape drawing power down from the sky",
+        "a river delta shot from directly overhead, branching channels of glowing molten metal feeding an immense dark basin \u2014 the arteries of poured capital",
+        "a silhouetted forest of construction cranes stretching unbroken to the horizon at dawn, booms overlapping like a leafless canopy under a burning sky"
+      ],
+      "keywords": [
+        "hyperscale",
+        "grid",
+        "substation",
+        "megawatt",
+        "capex",
+        "crane forest",
+        "infrastructure"
+      ]
+    },
+    {
+      "id": "ai-compute-gpus-scaling",
+      "beat": "AI compute, GPUs & scaling",
+      "name": "Silicon at Scale",
+      "concepts": [
+        "a single accelerator package held like a rare gemstone, its die catching light with the reverence of a jewel",
+        "a rack of GPUs viewed head-on as a glowing wall of fans, an altar of parallel compute",
+        "a swarm of identical chips arranged in a marching phalanx formation, suggesting relentless scale",
+        "a colossal staircase ascending into cold blue haze where each step is an order of magnitude taller than the last, a lone climber dwarfed at its base",
+        "nested concentric shells of light, each ten times the radius of the last, glowing like the growth rings of a felled giant sequoia"
+      ],
+      "keywords": [
+        "accelerator",
+        "die",
+        "tensor",
+        "exponential",
+        "orders of magnitude",
+        "parallel",
+        "ascent"
+      ]
+    },
+    {
+      "id": "silicon-fabs-advanced-packaging",
+      "beat": "silicon fabs & advanced packaging",
+      "name": "The Cathedral of Precision",
+      "concepts": [
+        "a cathedral nave reimagined as a cleanroom, bunny-suited figures small in the aisle, shafts of ultraviolet light falling where stained glass would be",
+        "an EUV source as a captive plasma droplet struck at the focal point of a cavernous mirror-lined hall, an artificial star caught at cathedral scale",
+        "an exploded view of a chiplet stack floating apart in mid-air, layers hovering like a disassembled artifact",
+        "a mirror-polished wafer catching a rainbow diffraction bloom, held in gloved hands, reflecting a machine hall into infinity",
+        "an interposer bridging two dies like a suspension bridge spanning a canyon between islands"
+      ],
+      "keywords": [
+        "wafer",
+        "chiplet",
+        "interposer",
+        "EUV",
+        "cleanroom",
+        "3D stack",
+        "precision"
+      ]
+    },
+    {
+      "id": "memory-hbm",
+      "beat": "memory & HBM",
+      "name": "The Luminous Stack",
+      "concepts": [
+        "a vertical stack of DRAM dies rising like a glass ziggurat, each layer lit from between",
+        "HBM cubes clustered tight around a processor like a honeycomb pressed against a queen cell",
+        "a cross-section of stacked memory rendered as a luminous apartment tower at night, every floor a data cell",
+        "a wall of memory chips receding into shelving that recalls an infinite library archive",
+        "bandwidth as a torrent of light pouring between a memory stack and a die across a narrow bridge"
+      ],
+      "keywords": [
+        "HBM",
+        "DRAM",
+        "stack",
+        "bandwidth",
+        "die layers",
+        "memory"
+      ]
+    },
+    {
+      "id": "networking-interconnect-bandwidth",
+      "beat": "networking & interconnect bandwidth",
+      "name": "The Braided Torrent",
+      "concepts": [
+        "thousands of individual streams of light braiding and fusing into one blinding torrent that leaps the gap between two dark islands",
+        "a dense bundle of fiber-optic strands fanning out from a switch, each thread carrying a pinpoint of colored light",
+        "an overhead view of racks laced together by an impossibly neat cabling weave, a woven textile of copper and glass",
+        "a luminous suspension bridge of pure light spanning a black canyon, packets racing across faster than the eye can hold",
+        "bundled glowing axons of a nervous system scaled to a landscape, synaptic junctions flaring as signal floods between two masses"
+      ],
+      "keywords": [
+        "fiber",
+        "interconnect",
+        "fabric",
+        "optical",
+        "throughput",
+        "convergence",
+        "topology"
+      ]
+    },
+    {
+      "id": "energy-cooling-thermal-limits",
+      "beat": "energy, cooling & thermal limits",
+      "name": "The Heat Wall",
+      "concepts": [
+        "immersion-cooled servers submerged in a still clear bath, bubbles rising through a glowing tank like an aquarium",
+        "coolant distribution manifolds photographed as a chrome pipe-organ, industrial plumbing rendered as sculpture",
+        "a miniature captive sun sealed inside a glass server cabinet, the pane warping and glowing orange at its edges, heat haze bending everything behind",
+        "a white-hot forged ingot plunged into black water, the violent instant of steam eruption, red meeting a wall it cannot pass",
+        "a split composition of molten heat and crystalline frost meeting at a single server tray, thermodynamics made visible"
+      ],
+      "keywords": [
+        "immersion",
+        "liquid cooling",
+        "thermal ceiling",
+        "quench steam",
+        "captive sun",
+        "convection"
+      ]
+    },
+    {
+      "id": "frontier-ai-labs-training-runs",
+      "beat": "frontier AI labs & training runs",
+      "name": "The Long Burn",
+      "concepts": [
+        "a lone glowing orb of tangled light suspended in a vast dark research hall, an intelligence being cultivated",
+        "a monolithic training cluster as a black obelisk humming with internal light, something summoned rather than built",
+        "a lone rocket on an impossibly sustained burn, its incandescent trail stretching clear across the frame and thinning into deep space",
+        "a cathedral-scale forge crucible glowing white, something enormous being cast slowly within over what feels like days, sparks drifting up",
+        "a long-exposure star-trail spiral wheeling around a single dark datacenter, the run captured as one continuous arc of light"
+      ],
+      "keywords": [
+        "frontier",
+        "training run",
+        "emergence",
+        "crucible",
+        "sustained burn",
+        "endurance",
+        "cluster"
+      ]
+    },
+    {
+      "id": "capital-ipos-the-bubble-question",
+      "beat": "capital, IPOs & the bubble question",
+      "name": "The Iridescent Skin",
+      "concepts": [
+        "a colossal iridescent soap bubble enclosing a glowing datacenter, its surface swirling with oil-slick color, a fine needle drifting in from the frame edge",
+        "a house of cards built entirely from mirror-polished silicon wafers, tall and improbable, one card near the base visibly trembling",
+        "a rocket built from stacked server modules mid-launch, exhaust of cold vapor ascending against a clean sky",
+        "towering stacks of silicon wafers rising like skyscrapers in a financial-district skyline at golden hour",
+        "a gilded golden sculpture of a server rack whose gold leaf is peeling at one corner to reveal a hollow papery void"
+      ],
+      "keywords": [
+        "capital",
+        "valuation",
+        "debut",
+        "soap bubble",
+        "gilded hollow",
+        "overinflation",
+        "ascent"
+      ]
+    },
+    {
+      "id": "china-export-controls-embargoes",
+      "beat": "China, export controls & embargoes",
+      "name": "The Frozen Cargo",
+      "concepts": [
+        "a single glowing chip suspended mid-transit inside a block of clear ice or golden amber, frozen the instant before delivery",
+        "a massive iron portcullis slamming down across a lit shipping lane, a caravan of chips stranded and dimming on the wrong side",
+        "a great wall bisecting a vast circuit-board landscape, one half warm and illuminated, the other gone dark and cold to the horizon",
+        "two tectonic-plate landmasses of circuit-board texture grinding at a fault line, pressure building",
+        "a chess board where the pieces are lithography machines and wafers, a slow strategic standoff"
+      ],
+      "keywords": [
+        "export control",
+        "sanctions",
+        "chokepoint",
+        "portcullis",
+        "blockade",
+        "frozen in amber",
+        "strategic"
+      ]
+    },
+    {
+      "id": "supply-chains-sovereign-compute",
+      "beat": "supply chains & sovereign compute",
+      "name": "The Single Thread",
+      "concepts": [
+        "a single taut silicon-bright thread spanning between two continental cliff edges across a dark void, one bead of light traveling its length",
+        "a precarious Jenga-like tower of stacked wafers bridging a chasm between two rock outcrops, one wafer pulled proud and about to give",
+        "a datacenter rising as a fortress-citadel on its own small island, ringed by dark still water, its light not reaching the mainland shore",
+        "tectonic plates drifting apart on a molten sea, each slab carrying a single self-contained glowing compute-city, the gaps widening",
+        "interlocking gears of wildly mismatched sizes laid across a relief globe, the whole system halted because one fingernail-sized gear is jammed"
+      ],
+      "keywords": [
+        "chokepoint",
+        "single strand",
+        "fragile bridge",
+        "island fortress",
+        "sovereign",
+        "interdependence",
+        "citadel"
+      ]
+    }
+  ]
+}

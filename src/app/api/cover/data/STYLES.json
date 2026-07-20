@@ -1,0 +1,118 @@
+{
+  "note": "Curated design-trend presets to TEST aesthetics against SemiAnalysis topics. Each is a reusable style recipe the prompt-smith locks to. `sampleFile` (if present) is a real generation on the shared neutral subject so the gallery is apples-to-apples. Reverse-engineered references get appended here as new presets. None render text-in-image.",
+  "sampleSubject": "a colossal AI datacenter — endless rows of server racks, power and liquid-cooling infrastructure, cathedral scale",
+  "styles": [
+    {
+      "id": "dotted-old-master",
+      "name": "Dotted Old Master",
+      "blurb": "Classical oil painting under a vintage lithograph dot screen. Allegorical, scroll-stopping. The current house lead.",
+      "styleBlock": "dotted old school oil painting, vintage lithograph halftone texture, muted colors, soft painterly light, allegorical composition",
+      "palette": "muted ink and cream with warm amber glow and deep blue shadows",
+      "tags": ["painterly", "editorial", "allegory"]
+    },
+    {
+      "id": "steel-engraving",
+      "name": "Steel Engraving",
+      "blurb": "19th-century banknote / broadsheet engraving — fine cross-hatched linework, authoritative, WSJ-hedcut energy.",
+      "styleBlock": "intricate steel engraving, fine cross-hatching and stippling, banknote linework, ink on aged cream paper, high detail",
+      "palette": "monochrome ink on cream, optional single amber spot",
+      "tags": ["linework", "authoritative", "vintage"]
+    },
+    {
+      "id": "risograph-tech",
+      "name": "Risograph Tech",
+      "blurb": "Two-color riso print — grainy, slightly misregistered, warm and indie-editorial.",
+      "styleBlock": "two-color risograph print, heavy paper grain, slight ink misregistration, limited palette, flat bold shapes, screenprint texture",
+      "palette": "amber and blue duotone on cream",
+      "tags": ["print", "duotone", "indie"]
+    },
+    {
+      "id": "blueprint-schematic",
+      "name": "Blueprint Schematic",
+      "blurb": "Cyanotype engineering blueprint — white technical linework and annotations on deep blue. Precise, engineering-forward.",
+      "styleBlock": "technical blueprint schematic, white and cyan line drawing on deep blue ground, dimension lines and annotations, cyanotype grain, exploded technical view",
+      "palette": "deep blueprint blue with white/cyan lines and amber callouts",
+      "tags": ["technical", "schematic", "precise"]
+    },
+    {
+      "id": "isometric-silicon",
+      "name": "Isometric Silicon",
+      "blurb": "Clean isometric 3D technical illustration of dies, wafers, racks. Modern, orderly, premium-tech.",
+      "styleBlock": "clean isometric 3D technical illustration, precise vector-like forms, subtle ambient occlusion, matte finish, orderly grid layout, no text",
+      "palette": "muted slate and cream with amber and blue accents",
+      "tags": ["isometric", "3d", "modern"]
+    },
+    {
+      "id": "halftone-poster",
+      "name": "Halftone Poster",
+      "blurb": "Bold CMYK halftone poster — high contrast, punchy, Economist-cover-meets-pop.",
+      "styleBlock": "bold halftone print poster, oversized ben-day dots, high contrast, limited flat colors, dramatic simplified composition, screenprint edges",
+      "palette": "ink black, amber, and blue on cream, high contrast",
+      "tags": ["poster", "halftone", "punchy"]
+    },
+    {
+      "id": "brutalist-grid",
+      "name": "Brutalist Grid",
+      "blurb": "Swiss/brutalist geometry — stark shapes, hard grid, generous negative space, confident and minimal.",
+      "styleBlock": "swiss brutalist graphic composition, stark geometric shapes, hard-edged grid, heavy negative space, flat matte color fields, minimal",
+      "palette": "ink and cream with a single amber or blue block",
+      "tags": ["minimal", "geometric", "swiss"]
+    },
+    {
+      "id": "woodcut-linocut",
+      "name": "Woodcut / Linocut",
+      "blurb": "High-contrast carved woodblock print — bold black shapes, gouged texture, one spot color. Timeless and striking.",
+      "styleBlock": "high-contrast woodcut linocut print, bold carved black shapes, visible gouge marks, rough hand-printed texture, single spot color",
+      "palette": "black on cream with one amber or blue spot color",
+      "tags": ["print", "bold", "carved"]
+    },
+    {
+      "id": "diagrammatic-ink",
+      "name": "Diagrammatic Ink",
+      "blurb": "Da Vinci notebook — hand-inked technical diagram / exploded view in sepia. Intellectual, exploratory.",
+      "styleBlock": "hand-inked technical diagram, exploded mechanical view, sepia ink on aged paper, annotation arrows and measurement marks, renaissance notebook study",
+      "palette": "sepia and iron-gall ink on aged cream",
+      "tags": ["diagram", "sketch", "intellectual"]
+    },
+    {
+      "id": "aerial-thermal",
+      "name": "Aerial Thermal",
+      "blurb": "False-color satellite / thermal — fabs and datacenters from above as heatmaps. Data-driven, a little ominous.",
+      "styleBlock": "false-color aerial satellite view, thermal heatmap gradients, top-down infrastructure geometry, data-overlay grid, high-altitude reconnaissance",
+      "palette": "deep blue-to-amber thermal gradient on ink",
+      "tags": ["aerial", "data", "thermal"]
+    },
+    {
+      "id": "long-exposure-neon",
+      "name": "Long-Exposure Neon",
+      "blurb": "Cinematic dark photography — long-exposure light trails through hardware, moody and modern.",
+      "styleBlock": "cinematic long-exposure photograph, light trails and motion streaks through hardware, deep shadow, shallow depth of field, volumetric haze, dark modern",
+      "palette": "near-black with neon blue and amber light trails",
+      "tags": ["photographic", "cinematic", "modern"]
+    },
+    {
+      "id": "chip-macro",
+      "name": "Chip Macro",
+      "blurb": "Extreme macro of silicon / PCB — abstract circuit fields, bokeh, moody and premium-abstract.",
+      "styleBlock": "extreme macro photography of silicon die and circuit board, abstract circuit fields, shallow depth of field with bokeh, moody studio lighting, ultra fine detail",
+      "palette": "dark substrate with amber traces and blue reflections",
+      "tags": ["macro", "abstract", "premium"]
+    },
+    {
+      "id": "constructivist",
+      "name": "Constructivist Poster",
+      "blurb": "Soviet-constructivist propaganda geometry — bold diagonals, dynamic, powerful. Fits geopolitics beats.",
+      "styleBlock": "russian constructivist propaganda poster, bold diagonal composition, dynamic geometric shapes, photomontage fragments, heavy stencil forms",
+      "palette": "ink black and cream with dominant amber and blue",
+      "tags": ["poster", "bold", "geopolitics"]
+    },
+    {
+      "id": "retro-futurist",
+      "name": "Retro-Futurist Grid",
+      "blurb": "Restrained retro-future — a receding grid horizon and clean gradients, tech-culture but NOT cheesy vaporwave.",
+      "styleBlock": "restrained retro-futurist illustration, receding perspective grid horizon, clean smooth gradients, subtle scanline texture, minimal chrome forms",
+      "palette": "muted amber-to-blue gradient over ink, sparing",
+      "tags": ["retro-future", "gradient", "tech"]
+    }
+  ]
+}

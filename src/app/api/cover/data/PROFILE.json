@@ -1,0 +1,57 @@
+{
+  "name": "SemiAnalysis Cover Style",
+  "updated": "2026-07-20",
+  "status": "developing",
+  "note": "The evolving definition of the SA article-image style. The prompt-smith reads this to write on-style prompts for every lane. Harden it by starring keepers in the lab, then folding what they have in common back into `styleBlock`/`palette`/`avoid`.",
+
+  "direction": "B",
+  "directions": {
+    "A": "Dotted Old Master — classical/allegorical compositions in a dot-screen halftone style, brand-tinted. Subject mapped to an allegory (e.g. capital→trinity, silicon→forge).",
+    "B": "Style-faithful — subject stated plainly; the look (dotted old-school painting + halftone + painterly light) carries it. No allegory required. Akash's lean."
+  },
+
+  "styleBlock": "dotted old school painting, vintage lithograph halftone texture, muted colors, soft painterly light",
+  "aspect": "16:9",
+
+  "palette": {
+    "mode": "brand-tint",
+    "ink": "#0B0B0B",
+    "amber": "#F7B041",
+    "blue": "#0C86D1",
+    "cream": "#F3E9D8",
+    "options": {
+      "brand-tint": "SA amber/blue over ink + cream — our identity.",
+      "vintage-litho": "Bobo's original blue/cream vintage lithograph palette (closest to the source look)."
+    }
+  },
+
+  "moodboards": {
+    "note": "Midjourney-only --profile codes. Retire these once we seed an SA-owned moodboard from keepers.",
+    "oilPainting": "m7440400818789941258",
+    "dithering": "m7440402448281239591"
+  },
+
+  "avoid": [
+    "generated text / lettering in the image (titles are added later, never rendered by the model)",
+    "photoreal exec scenes, cartoon mascots, busy sci-fi renders, mandala art (the old inconsistent cover grab-bag)",
+    "period/antique imagery creeping into MODERN subjects — datacenters/offices need firm modern wording or the oil-painting look drifts vintage"
+  ],
+
+  "notes": [
+    "Greek/classical subject matter is NOT required — dots + palette + painterly light carry the style.",
+    "The moodboards pull hard toward the look on their own; less style vocabulary = closer to the source.",
+    "MJ tuning: --s 400 if dots come out weak, --s 150 if compositions get chaotic."
+  ],
+
+  "beats": {
+    "note": "Recurring SA article themes → a subject seed the prompt-smith can build from.",
+    "datacenter-power": "vast datacenter halls, transformers and cooling, electrical grid tension",
+    "capital-trinity": "capital and compute as intertwined forces; scale, concentration, flows of money into silicon",
+    "financials-ipo": "markets, tickers, a company crossing a threshold; ascent and scrutiny",
+    "silicon-packaging": "wafers, dies, advanced packaging, the physical substrate of compute",
+    "china-geopolitics": "export controls, national compute, a divided technological world",
+    "networking-interconnect": "fabrics and links between machines; bandwidth as arteries"
+  },
+
+  "keepers": []
+}
