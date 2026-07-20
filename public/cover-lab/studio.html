@@ -207,6 +207,8 @@
         <div style="margin-top:14px"><button class="btn" id="draft">Draft prompt →</button></div>
         <label class="l" style="margin-top:18px">Generate on</label>
         <div id="lanes" style="display:flex; flex-direction:column; gap:8px"></div>
+        <label class="l">Variations per lane</label>
+        <div class="seg" id="countSeg"><button data-n="1" class="on">1</button><button data-n="2">2</button><button data-n="4">4</button></div>
         <div style="margin-top:14px"><button class="btn" id="gen" disabled>Generate ▶</button></div>
       </aside>
       <div>
@@ -243,7 +245,7 @@
 </main>
 
 <script>
-let CAP,PROFILE,STYLES=[],FUSIONS=[],THEMES=[],INSPO=[],ACTIVE={kind:"style",id:"house",name:"House (developing)"},THEME=null,MJPROMPT="",LANESEL={};
+let CAP,PROFILE,STYLES=[],FUSIONS=[],THEMES=[],INSPO=[],ACTIVE={kind:"style",id:"house",name:"House (developing)"},THEME=null,MJPROMPT="",LANESEL={},COUNT=1;
 const $=id=>document.getElementById(id);
 const j=(u,o)=>fetch(u,o).then(r=>r.json());
 const LS={ get:(k,d)=>{ try{ return JSON.parse(localStorage.getItem(k))??d }catch{ return d } }, set:(k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)) }catch{} } };
@@ -300,7 +302,8 @@ $("draft").onclick=async()=>{ $("draft").disabled=true; $("draft").textContent="
   }catch(e){ alert("Draft failed: "+e.message); } $("draft").disabled=false; $("draft").textContent="Draft prompt →"; };
 $("prompt").oninput=refreshGen;
 $("copyMj").onclick=()=>{ navigator.clipboard.writeText(MJPROMPT); $("copyMj").textContent="Copied ✓"; setTimeout(()=>$("copyMj").textContent="Copy Midjourney prompt",1200); };
-$("gen").onclick=()=>{ const p=$("prompt").value.trim(); if(!p)return; const concept=$("concept").textContent; for(const[lane,on]of Object.entries(LANESEL)){ if(!on)continue; if(lane==="midjourney")mjCard(p,concept); else apiCard(lane,p,concept); } };
+$("countSeg").onclick=e=>{ if(!e.target.dataset.n)return; [...$("countSeg").children].forEach(c=>c.classList.remove("on")); e.target.classList.add("on"); COUNT=+e.target.dataset.n; };
+$("gen").onclick=()=>{ const p=$("prompt").value.trim(); if(!p)return; const concept=$("concept").textContent; for(const[lane,on]of Object.entries(LANESEL)){ if(!on)continue; if(lane==="midjourney"){ mjCard(p,concept); } else { for(let i=0;i<COUNT;i++) apiCard(lane,p,concept); } } };
 function cardShell(lane,label){ const c=document.createElement("div"); c.className="card"; c.innerHTML=`<div class="top"><span class="lane ${lane}">${label||(CAP.lanes[lane]?CAP.lanes[lane].label:lane)}</span><span class="muted"></span></div><div class="imgbox"><span class="spin">generating…</span></div><div class="bar"></div>`; $("grid").prepend(c); $("stageEmpty").style.display="none"; return c; }
 async function apiCard(lane,p,concept){ const c=cardShell(lane); const box=c.querySelector(".imgbox"); try{ const r=await j("/api/cover/generate",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({lane,prompt:p})}); if(r.error)throw new Error(r.error); box.innerHTML=`<img src="${r.dataUrl}"/>`; bar(c,{lane,prompt:p,concept,dataUrl:r.dataUrl}); }catch(e){ box.innerHTML=`<div class="err">${e.message}</div>`; } }
 function mjCard(p,concept){ const c=cardShell("midjourney"); const box=c.querySelector(".imgbox"); box.className="imgbox drop"; box.innerHTML="MJ prompt copied.<br/>Generate in MJ, then click / drop the image here."; navigator.clipboard.writeText(MJPROMPT||p);
@@ -310,7 +313,8 @@ function mjCard(p,concept){ const c=cardShell("midjourney"); const box=c.querySe
   const cp=document.createElement("button"); cp.textContent="Copy MJ prompt"; cp.onclick=()=>navigator.clipboard.writeText(MJPROMPT||p); c.querySelector(".bar").appendChild(cp); }
 function pinRef(u){ const c=cardShell("reference","REFERENCE"); c.querySelector(".imgbox").innerHTML=`<img src="${u}"/>`; c.querySelector(".top .muted").textContent="to replicate"; }
 function bar(c,rec){ const b=c.querySelector(".bar"); b.innerHTML=""; const k=document.createElement("button"); k.className="keep"; k.textContent="★ keep"; k.onclick=()=>{ k.classList.add("on"); k.textContent="★ kept"; const arr=LS.get("cc-keepers",[]); arr.unshift({...rec,ts:new Date().toISOString()}); LS.set("cc-keepers",arr); };
-  const d=document.createElement("button"); d.textContent="download"; d.onclick=()=>{ const a=document.createElement("a"); a.href=rec.dataUrl; a.download=`cover-${rec.lane}-${Date.now()}.png`; a.click(); }; b.append(k,d); }
+  const d=document.createElement("button"); d.textContent="download"; d.onclick=()=>{ const a=document.createElement("a"); a.href=rec.dataUrl; a.download=`cover-${rec.lane}-${Date.now()}.png`; a.click(); }; b.append(k,d);
+  if(rec.lane==="grok"||rec.lane==="gemini"){ const rg=document.createElement("button"); rg.textContent="↻ regen"; rg.title="another take, same prompt"; rg.onclick=()=>apiCard(rec.lane,rec.prompt,rec.concept); b.append(rg); } }
 
 // ── Inspo ──
 function renderInspoChips(){ const w=$("inspoChips"); w.innerHTML=""; INSPO.forEach((s,i)=>{ const b=document.createElement("button"); b.className="chip"+(i===0?" on":""); b.textContent=s.name; b.onclick=()=>{ document.querySelectorAll("#inspoChips .chip").forEach(x=>x.classList.remove("on")); b.classList.add("on"); loadInspo(s.id); }; w.appendChild(b); }); }
