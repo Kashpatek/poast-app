@@ -221,7 +221,12 @@
   <section class="view" id="v-studio">
     <div class="studio">
       <aside>
-        <div class="lookbox"><span>look: <b id="lookName">—</b></span><button class="btn ghost" id="changeLook" style="padding:4px 8px;font-size:11px">change</button></div>
+        <div class="seg" id="modeSeg" style="display:flex;width:100%;margin-bottom:10px"><button data-m="premium" class="on" style="flex:1">Premium</button><button data-m="editorial" style="flex:1">Editorial</button></div>
+        <div class="lookbox" id="lookbox"><span>look: <b id="lookName">—</b></span><button class="btn ghost" id="changeLook" style="padding:4px 8px;font-size:11px">change</button></div>
+        <div id="edControls" style="display:none">
+          <label class="l" style="margin-top:0">Editorial look</label><select class="full" id="edSel"></select>
+          <label class="l">Headline / joke <span class="muted" style="text-transform:none;letter-spacing:0">— optional</span></label><input id="headline" style="width:100%" placeholder="e.g. DRAM RACE (blank = Claude writes it)"/>
+        </div>
         <label class="l">Article / topic</label>
         <textarea id="article" rows="4" placeholder="Paste the article, or a topic line"></textarea>
         <label class="l">Creative notes</label>
@@ -273,7 +278,7 @@
 </main>
 
 <script>
-let CAP,PROFILE,STYLES=[],FUSIONS=[],THEMES=[],INSPO=[],ACTIVE={kind:"style",id:"house",name:"House (developing)"},THEME=null,LANESEL={},LANEMODEL={},COUNT=1;
+let CAP,PROFILE,STYLES=[],FUSIONS=[],THEMES=[],INSPO=[],EDITORIAL=[],MODE="premium",ACTIVE={kind:"style",id:"house",name:"House (developing)"},THEME=null,LANESEL={},LANEMODEL={},COUNT=1;
 const $=id=>document.getElementById(id);
 const j=(u,o)=>fetch(u,o).then(r=>r.json());
 const LS={ get:(k,d)=>{ try{ return JSON.parse(localStorage.getItem(k))??d }catch{ return d } }, set:(k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)) }catch{} } };
@@ -284,13 +289,14 @@ function mjFull(){ let m=platVal("midjourney"); if(!m)return ""; const v=LANEMOD
 
 async function boot(){
   CAP=await j("/api/cover/capabilities");
-  STYLES=await loadStyles();
+  const st=await j("/api/cover/styles"); EDITORIAL=st.editorial||[]; STYLES=[...st.styles, ...LS.get("cc-styles",[]).map(s=>({...s,sampleUrl:null}))];
   FUSIONS=(await j("/api/cover/fusions")).fusions;
   THEMES=(await j("/api/cover/themes")).themes;
   INSPO=(await j("/api/cover/inspo-sources")).sources;
   const f=STYLES.find(s=>s.id!=="house")||STYLES[0]; ACTIVE={kind:"style",id:f.id,name:f.name};
-  renderBrains(); renderLanes(); renderStyles(); renderFusions(); renderMixer(); renderThemes(); renderInspoChips();
+  renderBrains(); renderLanes(); renderStyles(); renderFusions(); renderMixer(); renderThemes(); renderInspoChips(); renderEditorial();
   document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>show(b.dataset.v));
+  $("modeSeg").onclick=e=>{ if(e.target.dataset.m)setMode(e.target.dataset.m); };
   $("toStudio").onclick=()=>show("studio"); $("changeLook").onclick=()=>show("aesthetics");
   wireReverse(); syncLook();
   document.querySelectorAll(".pf").forEach(pf=>{ pf.querySelector("textarea").oninput=refreshGen; pf.querySelector(".cp").onclick=()=>{ const b=pf.querySelector(".cp"); navigator.clipboard.writeText(pf.querySelector("textarea").value); b.textContent="copied ✓"; setTimeout(()=>b.textContent="copy",1200); }; });
@@ -298,7 +304,9 @@ async function boot(){
 }
 function show(v){ document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.v===v)); document.querySelectorAll(".view").forEach(s=>s.classList.remove("on")); $("v-"+v).classList.add("on"); if(v==="keepers")loadKeepers(); if(v==="inspo"&&!$("wall").dataset.loaded)loadInspo(INSPO[0].id); if(v==="studio")updateStageEmpty(); $("chipbar").style.display=v==="studio"?"none":"flex"; }
 function activeSample(){ if(ACTIVE.kind==="style"){const s=STYLES.find(x=>x.id===ACTIVE.id);return s&&s.sampleUrl;} if(ACTIVE.kind==="fusion"){const f=FUSIONS.find(x=>x.id===ACTIVE.id);return f&&f.sampleUrl;} return null; }
-function updateStageEmpty(){ const el=$("stageEmpty"); if(!el)return; el.style.display=$("grid").children.length?"none":"block"; const s=activeSample(); $("stagePrev").style.backgroundImage=s?`url(${s})`:"none"; $("stageLook").textContent=ACTIVE.name+(THEME?"  ·  "+THEME.name:""); }
+function updateStageEmpty(){ const el=$("stageEmpty"); if(!el)return; el.style.display=$("grid").children.length?"none":"block";
+  if(MODE==="editorial"){ const e=EDITORIAL.find(x=>x.id===$("edSel").value)||EDITORIAL[0]; $("stagePrev").style.backgroundImage="none"; $("stageLook").textContent=(e?e.name:"Editorial")+"  ·  Editorial"; }
+  else { const s=activeSample(); $("stagePrev").style.backgroundImage=s?`url(${s})`:"none"; $("stageLook").textContent=ACTIVE.name+(THEME?"  ·  "+THEME.name:""); } }
 function syncLook(){ $("activeName").textContent=ACTIVE.name; $("lookName").textContent=ACTIVE.name; $("themeChip").innerHTML=THEME?` · <span class="theme">${THEME.name}</span>`:""; document.querySelectorAll(".scard").forEach(c=>c.classList.toggle("active",c.dataset.kind===ACTIVE.kind&&c.dataset.id===ACTIVE.id)); updateStageEmpty(); }
 function openLightbox(it){ $("lbimg").src=it.img; const a=$("lbsrc"); if(it.link){ a.href=it.link; a.style.display=""; } else { a.style.display="none"; } $("lbref").onclick=()=>{ closeLightbox(); useAsReference(it.img); }; $("lightbox").classList.add("on"); }
 function closeLightbox(){ $("lightbox").classList.remove("on"); }
@@ -326,13 +334,17 @@ function renderMixer(){ const opts=STYLES.filter(s=>s.id!=="house").map(s=>`<opt
   $("mixGo").onclick=()=>{ const a=$("mixA").value,b=$("mixB").value; const A=STYLES.find(s=>s.id===a),B=STYLES.find(s=>s.id===b); ACTIVE={kind:"blend",id:a+"+"+b,name:`${A.name} × ${B.name}`,blend:{a,b}}; syncLook(); show("studio"); }; }
 function renderThemes(){ const sel=$("themeSel"); sel.innerHTML='<option value="">— none —</option>'+THEMES.map(t=>`<option value="${t.id}">${t.name}</option>`).join("");
   sel.onchange=()=>{ THEME=THEMES.find(t=>t.id===sel.value)||null; $("concepts").innerHTML=THEME?THEME.concepts.map(c=>`<span>${c}</span>`).join(""):""; document.querySelectorAll("#concepts span").forEach(s=>s.onclick=()=>{ $("notes").value=($("notes").value?$("notes").value+" · ":"")+s.textContent; }); syncLook(); }; }
+function renderEditorial(){ const sel=$("edSel"); if(!sel)return; sel.innerHTML=EDITORIAL.map(e=>`<option value="${e.id}">${e.name}</option>`).join(""); sel.onchange=updateStageEmpty; }
+function setMode(m){ MODE=m; [...$("modeSeg").children].forEach(b=>b.classList.toggle("on",b.dataset.m===m)); const ed=m==="editorial"; $("edControls").style.display=ed?"block":"none"; $("lookbox").style.display=ed?"none":"flex"; updateStageEmpty(); }
 
 // ── Studio ──
 $("draft").onclick=async()=>{ $("draft").disabled=true; $("draft").textContent="Drafting…";
   try{ const body={brain:brain(),article:$("article").value,notes:$("notes").value}; if(THEME)body.themeId=THEME.id;
-    if(ACTIVE.kind==="fusion")body.fusionId=ACTIVE.id; else if(ACTIVE.kind==="blend")body.blend=ACTIVE.blend; else if(ACTIVE.kind==="ref")body.style=ACTIVE.style; else body.styleId=ACTIVE.id;
+    if(MODE==="editorial"){ body.mode="editorial"; body.editorialId=$("edSel").value; body.headline=$("headline").value; }
+    else if(ACTIVE.kind==="fusion")body.fusionId=ACTIVE.id; else if(ACTIVE.kind==="blend")body.blend=ACTIVE.blend; else if(ACTIVE.kind==="ref")body.style=ACTIVE.style; else body.styleId=ACTIVE.id;
     const r=await j("/api/cover/prompt",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}); if(r.error)throw new Error(r.error);
-    $("pbox").style.display="block"; $("analysis").style.display="none"; $("concept").textContent=(r.concept||"")+"  ·  "+ACTIVE.name;
+    const lookLabel=MODE==="editorial"?(r.headline?('“'+r.headline+'”'):"Editorial"):ACTIVE.name;
+    $("pbox").style.display="block"; $("analysis").style.display="none"; $("concept").textContent=(r.concept||"")+"  ·  "+lookLabel;
     $("ents").innerHTML=[...(r.entities||[]).map(e=>`<span class="ent">${e}</span>`),...(r.topics||[]).map(t=>`<span class="top">${t}</span>`)].join("");
     const P=r.prompts||{}; platEl("midjourney").value=P.midjourney||""; platEl("gemini").value=P.gemini||""; platEl("grok").value=P.grok||"";
     $("stageBlurb").textContent="Prompt ready — pick your lanes and hit Generate ▶."; refreshGen();

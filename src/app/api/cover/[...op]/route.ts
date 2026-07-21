@@ -10,6 +10,7 @@ import STYLES from "../data/STYLES.json";
 import FUSIONS from "../data/FUSIONS.json";
 import THEMES from "../data/THEMES.json";
 import PROFILE from "../data/PROFILE.json";
+import EDITORIAL from "../data/EDITORIAL.json";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,7 @@ function fusionsList() {
   return (FUSIONS as Any).fusions.map((f: Any) => ({ ...f, sampleUrl: `/cover-lab/fusions/${f.id}.jpg` }));
 }
 function resolveTheme(themeId?: string) { return themeId ? ((THEMES as Any).themes.find((t: Any) => t.id === themeId) || null) : null; }
+function resolveEditorial(id?: string) { const S = (EDITORIAL as Any).styles; return S.find((x: Any) => x.id === id) || S[0]; }
 function resolveLook(b: Any) {
   if (b.style && b.style.styleBlock) return { id: "ref", name: b.style.name || "Reference recipe", styleBlock: b.style.styleBlock, palette: b.style.palette || "as in the reference" };
   if (b.fusionId) { const f = (FUSIONS as Any).fusions.find((x: Any) => x.id === b.fusionId); if (f) return { id: f.id, name: f.name, styleBlock: f.styleBlock, palette: f.palette || "brand amber/blue on ink + cream" }; }
@@ -54,6 +56,7 @@ function resolveLook(b: Any) {
 }
 
 async function draftPrompt(b: Any) {
+  if (b.mode === "editorial") return draftEditorial(b);
   const style = resolveLook(b); const theme = resolveTheme(b.themeId); const provider: LLMProvider = b.brain || "claude";
   const system = [
     "You are the art director + prompt engineer for SemiAnalysis article COVER IMAGES (semiconductors, AI compute, datacenters, capital, geopolitics).",
@@ -77,6 +80,31 @@ async function draftPrompt(b: Any) {
   out.entities = out.entities || []; out.topics = out.topics || [];
   const mb = (PROFILE as Any).moodboards;
   out.prompts.midjourney = `${out.prompts.midjourney} --p ${mb.oilPainting} ${mb.dithering} --ar 16:9`;
+  return { ...out, style: { id: style.id, name: style.name } };
+}
+
+// EDITORIAL mode — the real SemiAnalysis house style: witty, text-rich covers
+// with on-image text, caricatures of named people, brand logos, humor.
+async function draftEditorial(b: Any) {
+  const style = resolveEditorial(b.editorialId); const theme = resolveTheme(b.themeId); const provider: LLMProvider = b.brain || "claude"; const p = (PROFILE as Any).palette;
+  const system = [
+    "You are the cover artist for SemiAnalysis — a hard-tech publication famous for WITTY, TEXT-RICH EDITORIAL COVER ILLUSTRATIONS (caricatures, satirical scenes, annotated infographics) that make a technical story instantly legible and funny.",
+    "STEP 1 — Read the article: identify the key PLAYERS (companies/people to feature) and the core story/tension + TOPICS.",
+    b.headline ? `STEP 2 — Use this HEADLINE as the on-image title (refine only lightly): "${b.headline}".` : "STEP 2 — Invent a punchy, funny HEADLINE — a short on-image title/joke (≤ ~5 words).",
+    `STEP 3 — Render it in this EDITORIAL LOOK — ${style.name}: ${style.styleBlock}. Use SemiAnalysis brand colours (amber ${p.amber}, blue ${p.blue}) as accents. Unlike premium covers, here you SHOULD include ON-IMAGE TEXT (the headline + a few short labels), CARICATURES of the named people (describe them recognizably — glasses, hairstyle, signature outfit), and company logo / brand-colour cues.`,
+    ...(theme ? [`TOPIC LENS — ${theme.name}: lean on these if apt: ${(theme.concepts || []).join("; ")}.`] : []),
+    "STEP 4 — Write THREE prompts of the SAME concept, each platform-accurate AND spelling out the EXACT text to render:",
+    "  • gemini: a rich NATURAL-LANGUAGE paragraph; explicitly quote the text that must appear and where (Gemini / Nano-Banana renders in-image text reliably). Include 'wide 16:9'.",
+    "  • midjourney: terse comma-separated descriptors; put intended words in quotes and add `--style raw` (MJ text is unreliable — fine, the artist can composite). The app appends --ar 16:9.",
+    "  • grok: a punchy natural-language prompt naming the text to render.",
+    'Return STRICT JSON: {"concept":"one line","headline":"the on-image title","entities":["..."],"topics":["..."],"caricatures":["who + how to draw them"],"prompts":{"midjourney":"..","gemini":"..","grok":".."}}.',
+  ].join("\n");
+  const user = [b.article ? `ARTICLE / TOPIC:\n${b.article}` : "(No article — invent a fitting satirical SemiAnalysis cover.)", b.notes ? `\nNOTES:\n${b.notes}` : "", "\nReturn the strict JSON now."].join("\n");
+  const raw = llmTextOf(await callLLM({ provider, system, prompt: user, json: true, maxTokens: 1500 }));
+  let out: Any; try { out = parseLLMJson(raw); } catch { out = { concept: "", headline: b.headline || "", entities: [], topics: [], caricatures: [], prompts: { midjourney: raw.trim(), gemini: raw.trim(), grok: raw.trim() } }; }
+  if (!out.prompts) { const pp = out.prompt || ""; out.prompts = { midjourney: pp, gemini: pp, grok: pp }; }
+  out.entities = out.entities || []; out.topics = out.topics || [];
+  out.prompts.midjourney = `${out.prompts.midjourney} --ar 16:9`;
   return { ...out, style: { id: style.id, name: style.name } };
 }
 
@@ -192,7 +220,7 @@ async function fetchInspo(id: string | null, q: string | null) {
 async function handle(req: NextRequest, op: string) {
   const url = req.nextUrl;
   if (op === "capabilities") return NextResponse.json(capabilities());
-  if (op === "styles") return NextResponse.json({ styles: stylesList() });
+  if (op === "styles") return NextResponse.json({ sampleSubject: (STYLES as Any).sampleSubject, styles: stylesList(), editorial: (EDITORIAL as Any).styles });
   if (op === "fusions") return NextResponse.json({ fusions: fusionsList() });
   if (op === "themes") return NextResponse.json({ themes: (THEMES as Any).themes });
   if (op === "inspo-sources") return NextResponse.json({ sources: INSPO_SOURCES.map((s) => ({ id: s.id, name: s.name })) });

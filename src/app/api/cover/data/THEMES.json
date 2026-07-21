@@ -208,6 +208,64 @@
         "interdependence",
         "citadel"
       ]
+    },
+    {
+      "id": "robotics-humanoids",
+      "beat": "Robotics & humanoids",
+      "name": "Robotics & Humanoids",
+      "concepts": [
+        "a Vitruvian-style technical plate of a humanoid robot's actuators and proportions",
+        "a quadruped robot mid-stride across an industrial floor",
+        "a fleet of identical humanoids on an assembly line, uncanny and ordered",
+        "a robot hand and a human hand reaching for the same tool"
+      ],
+      "keywords": [
+        "Unitree",
+        "humanoid",
+        "quadruped",
+        "autonomy",
+        "actuators",
+        "Boston Dynamics"
+      ]
+    },
+    {
+      "id": "gpu-clouds-neoclouds",
+      "beat": "GPU clouds, neoclouds & ratings",
+      "name": "Clouds & Ratings",
+      "concepts": [
+        "a ranked podium/leaderboard of cloud providers rendered as data-halls",
+        "rows of rental GPU racks with meters ticking upward",
+        "a cloud-shaped datacenter metering out compute like rain",
+        "a quality seal/badge stamped onto a server hall"
+      ],
+      "keywords": [
+        "neocloud",
+        "Oracle",
+        "CoreWeave",
+        "AWS",
+        "ClusterMAX",
+        "GPU rental",
+        "cluster rating"
+      ]
+    },
+    {
+      "id": "rl-inference-benchmarks",
+      "beat": "RL, training & inference benchmarks",
+      "name": "RL & Benchmarks",
+      "concepts": [
+        "two accelerators racing on a benchmark track toward a finish line",
+        "a training loop drawn as an ouroboros of tokens",
+        "a reward-hacking gremlin gaming a glowing scoreboard",
+        "trainer vs generator throughput as two reservoirs matched by a river"
+      ],
+      "keywords": [
+        "InferenceMAX",
+        "reinforcement learning",
+        "reward hacking",
+        "throughput",
+        "benchmark",
+        "tokens"
+      ]
     }
   ]
 }

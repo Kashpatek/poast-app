@@ -1,0 +1,47 @@
+{
+  "note": "EDITORIAL mode looks — the real SemiAnalysis house style: text-rich editorial cartoons / caricatures / infographics with humor, brand colours and (unlike Premium mode) ON-IMAGE TEXT and recognizable-figure caricatures. Grounded in the actual archive covers. The prompt-smith bakes the headline + labels + caricatures into each platform prompt (Gemini/Nano-Banana renders text best; MJ/Grok are less reliable at text).",
+  "styles": [
+    {
+      "id": "caricature-cartoon",
+      "name": "Caricature Cartoon",
+      "blurb": "Editorial caricature illustration of the key players — the Musk/Zuck/Jensen/Intel-CEO style. Satirical, expressive, brand-coloured.",
+      "styleBlock": "editorial caricature illustration, exaggerated but recognizable public figures, clean bold-outlined cartooning, expressive faces and body language, satirical newspaper-cartoon energy, props and hand-lettered signs, brand colours",
+      "tags": ["caricature", "satire", "people"]
+    },
+    {
+      "id": "isometric-infographic",
+      "name": "Isometric Infographic",
+      "blurb": "Annotated isometric diagram — exploded systems, callout labels and arrows. The behind-the-meter / packaging-menu look.",
+      "styleBlock": "isometric technical infographic illustration, exploded and annotated diagram with callout labels and arrows, clean flat shading, data-visualization meets friendly cartoon, brand-coloured accents, tidy vector look",
+      "tags": ["isometric", "infographic", "labels"]
+    },
+    {
+      "id": "satirical-versus",
+      "name": "Satirical Versus",
+      "blurb": "A race, boxing match, or leaderboard/scoreboard — competitors as characters or logos. The DRAM RACE / TokenBudgeting-vs-TokenMaxxing energy.",
+      "styleBlock": "satirical sports/game framing — a race, boxing match or glowing leaderboard scoreboard, competitors rendered as characters or brand logos, oversized graphic headline treatment, dynamic comic-book energy, motion and impact",
+      "tags": ["versus", "scoreboard", "comic"]
+    },
+    {
+      "id": "cinematic-render",
+      "name": "Cinematic Render",
+      "blurb": "Dramatic semi-real 3D render — the DeepSeek whale / movie-poster look, with a single bold title.",
+      "styleBlock": "cinematic 3D movie-poster render, dramatic volumetric lighting and depth, semi-realistic hardware or creature hero, moody atmosphere, epic scale, a single bold title treatment",
+      "tags": ["cinematic", "render", "poster"]
+    },
+    {
+      "id": "technical-plate",
+      "name": "Encyclopaedia Plate",
+      "blurb": "Vintage encyclopaedia / patent plate — labelled Da Vinci-style diagram of the subject. The 'Encyclopædia Robotica' look.",
+      "styleBlock": "vintage encyclopaedia / patent plate, Da Vinci notebook engraving, meticulously labelled diagram of the subject with elegant hand-lettered annotations, sepia ink on aged paper, cross-section and detail callouts",
+      "tags": ["diagram", "engraving", "labels"]
+    },
+    {
+      "id": "photo-meme",
+      "name": "Photo-Meme",
+      "blurb": "Real photo base with overlaid cartoon signage, speech bubbles and bold meme captions. The 'FAKE TIMELINES · trust me bro' look.",
+      "styleBlock": "real photograph base with overlaid cartoon signage, speech bubbles and bold meme captions, satirical juxtaposition of gritty photo and loud graphic callouts, high-contrast text banners",
+      "tags": ["photo", "meme", "captions"]
+    }
+  ]
+}
