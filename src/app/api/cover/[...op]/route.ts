@@ -101,12 +101,13 @@ async function draftPrompt(b: Any) {
   const ar = b.aspect || (PROFILE as Any).aspect || "16:9";
   const wantText = !!(b.textInclude && String(b.textInclude).trim());
   const refs: Any[] = Array.isArray(b.refs) ? b.refs.filter((r: Any) => r && r.data && r.media_type) : [];
+  const pal = (b.palette && String(b.palette).trim()) ? String(b.palette).trim() : style.palette;
   const system = [
     "You are the art director + prompt engineer for SemiAnalysis article COVER IMAGES (semiconductors, AI compute, datacenters, capital, geopolitics).",
     "STEP 1 — Read the article and pull the RELEVANT ENTITIES (companies/orgs/people/products the cover should evoke — e.g. NVIDIA, TSMC, Anthropic) and the core TOPICS/themes.",
     `STEP 2 — Form ONE strong cover concept: a single vivid visual idea (metaphor or concrete scene) that makes the story legible at a glance, weaving in relevant entity motifs — recognizable objects/forms/brand-colour accents${wantText ? "" : " — but NEVER logos or written words"}.`,
     "STEP 3 — Render that concept in the LOCKED STYLE below. If it's a FUSION of two clashing looks, commit to BOTH at once.",
-    `LOCKED STYLE — ${style.name}: ${style.styleBlock}. PALETTE: ${style.palette}. ASPECT: ${ar}.`,
+    `LOCKED STYLE — ${style.name}: ${style.styleBlock}. PALETTE: ${pal}. ASPECT: ${ar}.`,
     ...(theme ? [`TOPIC LENS — ${theme.name}: lean on these seeds if apt: ${(theme.concepts || []).join("; ")}.`] : []),
     ...(wantText ? [`ON-IMAGE TEXT — the image MUST render this EXACT text as a designed element (title/label): "${String(b.textInclude).trim()}". GPT and Gemini render in-image text crisply — in THEIR prompts quote it verbatim and place it precisely. In the Grok prompt keep lettering to a few bold words (it renders text less reliably). In the Midjourney prompt treat the text as a design element to composite afterward and add \`--style raw\` (MJ can't reliably render text).`] : []),
     ...(refs.length ? [`REFERENCE IMAGE(S) — ${refs.length} attached. Use them as guidance for style, palette, composition, texture, or the specific subject as the notes indicate — adapt, do not copy verbatim.`] : []),

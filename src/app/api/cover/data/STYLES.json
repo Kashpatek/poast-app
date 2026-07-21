@@ -8,7 +8,11 @@
       "blurb": "Classical oil painting under a vintage lithograph dot screen. Allegorical, scroll-stopping. The current house lead.",
       "styleBlock": "dotted old school oil painting, vintage lithograph halftone texture, muted colors, soft painterly light, allegorical composition",
       "palette": "muted ink and cream with warm amber glow and deep blue shadows",
-      "tags": ["painterly", "editorial", "allegory"]
+      "tags": [
+        "painterly",
+        "editorial",
+        "allegory"
+      ]
     },
     {
       "id": "steel-engraving",
@@ -16,7 +20,11 @@
       "blurb": "19th-century banknote / broadsheet engraving — fine cross-hatched linework, authoritative, WSJ-hedcut energy.",
       "styleBlock": "intricate steel engraving, fine cross-hatching and stippling, banknote linework, ink on aged cream paper, high detail",
       "palette": "monochrome ink on cream, optional single amber spot",
-      "tags": ["linework", "authoritative", "vintage"]
+      "tags": [
+        "linework",
+        "authoritative",
+        "vintage"
+      ]
     },
     {
       "id": "risograph-tech",
@@ -24,7 +32,11 @@
       "blurb": "Two-color riso print — grainy, slightly misregistered, warm and indie-editorial.",
       "styleBlock": "two-color risograph print, heavy paper grain, slight ink misregistration, limited palette, flat bold shapes, screenprint texture",
       "palette": "amber and blue duotone on cream",
-      "tags": ["print", "duotone", "indie"]
+      "tags": [
+        "print",
+        "duotone",
+        "indie"
+      ]
     },
     {
       "id": "blueprint-schematic",
@@ -32,7 +44,11 @@
       "blurb": "Cyanotype engineering blueprint — white technical linework and annotations on deep blue. Precise, engineering-forward.",
       "styleBlock": "technical blueprint schematic, white and cyan line drawing on deep blue ground, dimension lines and annotations, cyanotype grain, exploded technical view",
       "palette": "deep blueprint blue with white/cyan lines and amber callouts",
-      "tags": ["technical", "schematic", "precise"]
+      "tags": [
+        "technical",
+        "schematic",
+        "precise"
+      ]
     },
     {
       "id": "isometric-silicon",
@@ -40,7 +56,11 @@
       "blurb": "Clean isometric 3D technical illustration of dies, wafers, racks. Modern, orderly, premium-tech.",
       "styleBlock": "clean isometric 3D technical illustration, precise vector-like forms, subtle ambient occlusion, matte finish, orderly grid layout, no text",
       "palette": "muted slate and cream with amber and blue accents",
-      "tags": ["isometric", "3d", "modern"]
+      "tags": [
+        "isometric",
+        "3d",
+        "modern"
+      ]
     },
     {
       "id": "halftone-poster",
@@ -48,7 +68,11 @@
       "blurb": "Bold CMYK halftone poster — high contrast, punchy, Economist-cover-meets-pop.",
       "styleBlock": "bold halftone print poster, oversized ben-day dots, high contrast, limited flat colors, dramatic simplified composition, screenprint edges",
       "palette": "ink black, amber, and blue on cream, high contrast",
-      "tags": ["poster", "halftone", "punchy"]
+      "tags": [
+        "poster",
+        "halftone",
+        "punchy"
+      ]
     },
     {
       "id": "brutalist-grid",
@@ -56,7 +80,11 @@
       "blurb": "Swiss/brutalist geometry — stark shapes, hard grid, generous negative space, confident and minimal.",
       "styleBlock": "swiss brutalist graphic composition, stark geometric shapes, hard-edged grid, heavy negative space, flat matte color fields, minimal",
       "palette": "ink and cream with a single amber or blue block",
-      "tags": ["minimal", "geometric", "swiss"]
+      "tags": [
+        "minimal",
+        "geometric",
+        "swiss"
+      ]
     },
     {
       "id": "woodcut-linocut",
@@ -64,7 +92,11 @@
       "blurb": "High-contrast carved woodblock print — bold black shapes, gouged texture, one spot color. Timeless and striking.",
       "styleBlock": "high-contrast woodcut linocut print, bold carved black shapes, visible gouge marks, rough hand-printed texture, single spot color",
       "palette": "black on cream with one amber or blue spot color",
-      "tags": ["print", "bold", "carved"]
+      "tags": [
+        "print",
+        "bold",
+        "carved"
+      ]
     },
     {
       "id": "diagrammatic-ink",
@@ -72,7 +104,11 @@
       "blurb": "Da Vinci notebook — hand-inked technical diagram / exploded view in sepia. Intellectual, exploratory.",
       "styleBlock": "hand-inked technical diagram, exploded mechanical view, sepia ink on aged paper, annotation arrows and measurement marks, renaissance notebook study",
       "palette": "sepia and iron-gall ink on aged cream",
-      "tags": ["diagram", "sketch", "intellectual"]
+      "tags": [
+        "diagram",
+        "sketch",
+        "intellectual"
+      ]
     },
     {
       "id": "aerial-thermal",
@@ -80,7 +116,11 @@
       "blurb": "False-color satellite / thermal — fabs and datacenters from above as heatmaps. Data-driven, a little ominous.",
       "styleBlock": "false-color aerial satellite view, thermal heatmap gradients, top-down infrastructure geometry, data-overlay grid, high-altitude reconnaissance",
       "palette": "deep blue-to-amber thermal gradient on ink",
-      "tags": ["aerial", "data", "thermal"]
+      "tags": [
+        "aerial",
+        "data",
+        "thermal"
+      ]
     },
     {
       "id": "long-exposure-neon",
@@ -88,7 +128,11 @@
       "blurb": "Cinematic dark photography — long-exposure light trails through hardware, moody and modern.",
       "styleBlock": "cinematic long-exposure photograph, light trails and motion streaks through hardware, deep shadow, shallow depth of field, volumetric haze, dark modern",
       "palette": "near-black with neon blue and amber light trails",
-      "tags": ["photographic", "cinematic", "modern"]
+      "tags": [
+        "photographic",
+        "cinematic",
+        "modern"
+      ]
     },
     {
       "id": "chip-macro",
@@ -96,7 +140,11 @@
       "blurb": "Extreme macro of silicon / PCB — abstract circuit fields, bokeh, moody and premium-abstract.",
       "styleBlock": "extreme macro photography of silicon die and circuit board, abstract circuit fields, shallow depth of field with bokeh, moody studio lighting, ultra fine detail",
       "palette": "dark substrate with amber traces and blue reflections",
-      "tags": ["macro", "abstract", "premium"]
+      "tags": [
+        "macro",
+        "abstract",
+        "premium"
+      ]
     },
     {
       "id": "constructivist",
@@ -104,7 +152,11 @@
       "blurb": "Soviet-constructivist propaganda geometry — bold diagonals, dynamic, powerful. Fits geopolitics beats.",
       "styleBlock": "russian constructivist propaganda poster, bold diagonal composition, dynamic geometric shapes, photomontage fragments, heavy stencil forms",
       "palette": "ink black and cream with dominant amber and blue",
-      "tags": ["poster", "bold", "geopolitics"]
+      "tags": [
+        "poster",
+        "bold",
+        "geopolitics"
+      ]
     },
     {
       "id": "retro-futurist",
@@ -112,7 +164,246 @@
       "blurb": "Restrained retro-future — a receding grid horizon and clean gradients, tech-culture but NOT cheesy vaporwave.",
       "styleBlock": "restrained retro-futurist illustration, receding perspective grid horizon, clean smooth gradients, subtle scanline texture, minimal chrome forms",
       "palette": "muted amber-to-blue gradient over ink, sparing",
-      "tags": ["retro-future", "gradient", "tech"]
+      "tags": [
+        "retro-future",
+        "gradient",
+        "tech"
+      ]
+    },
+    {
+      "id": "cinematic-anamorphic",
+      "name": "Cinematic Anamorphic",
+      "blurb": "A widescreen film still with anamorphic flares and shallow focus, the classic teal-orange grade re-tuned cobalt-and-amber — for hero features that need blockbuster gravity.",
+      "styleBlock": "cinematic anamorphic film still, wide 2.39:1 framing, shallow depth of field with soft oval bokeh, horizontal streak lens flares, fine film grain, volumetric atmospheric haze, dramatic key light with deep falloff, color-graded cool shadows against warm highlights, photoreal 35mm finish",
+      "palette": "cobalt and azure shadows lifted by amber key-light highlights, deep ink blacks, a faint warm cream haze threading the frame",
+      "tags": [
+        "cinematic",
+        "anamorphic",
+        "photoreal",
+        "graded"
+      ]
+    },
+    {
+      "id": "architectural-blue-hour",
+      "name": "Architectural Blue Hour",
+      "blurb": "Large-format architectural photography at blue hour — corrected verticals, mirror-clean symmetry, glass glowing against a cobalt dusk. For scale, order, and quiet monumentality.",
+      "styleBlock": "large-format architectural photography, blue-hour twilight, perfectly corrected verticals, symmetrical one-point perspective, long-exposure stillness, glowing interior lights against a deep dusk sky, tack-sharp edge to edge, high dynamic range, editorial cleanliness",
+      "palette": "deep cobalt dusk sky and azure ambient light, warm amber interior glow, ink silhouettes, cream concrete",
+      "tags": [
+        "architecture",
+        "blue-hour",
+        "symmetry",
+        "large-format"
+      ]
+    },
+    {
+      "id": "tilt-shift-miniature",
+      "name": "Tilt-Shift Miniature",
+      "blurb": "A vast scene shrunk to a tabletop model via tilt-shift blur and punchy saturation — precise, toy-like, oddly delightful. For making colossal infrastructure feel graspable.",
+      "styleBlock": "tilt-shift miniature photography, elevated three-quarter viewpoint, a narrow band of razor-sharp focus with strong blur above and below, exaggerated saturation and contrast, toy-model scale illusion, crisp tiny detail, clean bright daylight, photoreal",
+      "palette": "saturated cobalt and azure surfaces with amber accent lights, a cream ground, crisp ink detailing",
+      "tags": [
+        "tilt-shift",
+        "miniature",
+        "aerial-view",
+        "playful"
+      ]
+    },
+    {
+      "id": "octane-product-render",
+      "name": "Octane Product Render",
+      "blurb": "Hyperreal studio 3D render with glossy surfaces and cinematic softbox light — the premium hero look for a flagship feature or product-tier story.",
+      "styleBlock": "hyperrealistic octane-style 3D product render, physically-based materials, glossy and brushed-metal surfaces, cinematic softbox studio lighting with crisp specular highlights, shallow depth of field, subtle bloom, ray-traced reflections and soft contact shadows, seamless gradient backdrop, ultra-clean high-detail finish",
+      "palette": "cobalt #0047AB and azure #0C86D1 lit surfaces with an amber #F7B041 rim light, on a deep ink #0B0B0B seamless backdrop",
+      "tags": [
+        "render",
+        "photoreal",
+        "glossy",
+        "studio"
+      ]
+    },
+    {
+      "id": "matte-clay-render",
+      "name": "Matte Clay Render",
+      "blurb": "Soft monochrome clay 3D with no reflections — friendly, tactile, and calm; ideal for explainers and conceptual beats.",
+      "styleBlock": "matte clay 3D render, soft plasticine and modeling-clay materials, no reflections or gloss, gentle diffuse global-illumination lighting, rounded beveled edges, soft ambient occlusion, monochromatic sculpted forms, minimal studio scene, clean tactile finish",
+      "palette": "monochrome cobalt and azure clay tones with a single amber #F7B041 accent form, on warm cream #F3E9D8",
+      "tags": [
+        "render",
+        "clay",
+        "matte",
+        "tactile"
+      ]
+    },
+    {
+      "id": "volumetric-hologram",
+      "name": "Volumetric Hologram",
+      "blurb": "Glowing volumetric hologram floating in haze — data-forward and lightly sci-fi; suits AI-compute, models, and forward-looking analysis.",
+      "styleBlock": "volumetric holographic 3D render, glowing translucent projected forms, light-field particles and scan-line striations, soft atmospheric haze and god rays, additive emissive glow, forms floating in a dark void, subtle chromatic fringing, clean high-tech finish",
+      "palette": "emissive azure #0C86D1 and cobalt #0047AB hologram with amber #F7B041 data highlights, suspended in a deep ink #0B0B0B haze",
+      "tags": [
+        "render",
+        "holographic",
+        "volumetric",
+        "sci-fi"
+      ]
+    },
+    {
+      "id": "flat-vector-explainer",
+      "name": "Flat Vector Explainer",
+      "blurb": "Clean flat-geometric vector illustration — friendly tech-explainer shapes with crisp edges and layered depth; for product and how-it-works pieces.",
+      "styleBlock": "flat geometric vector illustration, crisp clean edges, layered simplified shapes, limited flat color fields with subtle tonal shading, soft long shadows, faint grain overlay, balanced modern composition, open negative space",
+      "palette": "cobalt and azure dominant across the flat fields, amber accent highlights, on a warm cream or deep ink ground",
+      "tags": [
+        "vector",
+        "flat",
+        "clean",
+        "explainer"
+      ]
+    },
+    {
+      "id": "sectional-cutaway",
+      "name": "Sectional Cutaway",
+      "blurb": "Full-color technical cutaway — a shaded, sliced-open reveal of internal structure with slim leader labels; use to show how something works inside.",
+      "styleBlock": "full-color technical cutaway illustration, sliced-open sectional reveal of internal structure, smoothly shaded volumes, precise clean linework, thin leader-line callout labels, soft even studio lighting, orderly modular composition, matte finish",
+      "palette": "cobalt and azure structural tones with amber-highlighted key components, on warm cream, ink linework",
+      "tags": [
+        "cutaway",
+        "technical",
+        "sectional",
+        "explanatory"
+      ]
+    },
+    {
+      "id": "annotated-infographic",
+      "name": "Annotated Infographic",
+      "blurb": "Editorial infographic poster — an illustrated hero ringed by clean callouts, tiny charts, and legible labels; for data-driven explainers where on-image text is the point.",
+      "styleBlock": "editorial infographic poster, central illustrated hero with radiating annotation callouts, thin leader lines, small charts and simple iconography, clean legible sans-serif labels, grid-aligned modular layout, flat print finish",
+      "palette": "cobalt and azure with amber data highlights, on warm cream, crisp ink text",
+      "tags": [
+        "infographic",
+        "annotated",
+        "data",
+        "editorial"
+      ]
+    },
+    {
+      "id": "swiss-grid",
+      "name": "Swiss Grid",
+      "blurb": "International Typographic Style — a rigid modular grid, flat color fields, hairline rules and vast whitespace; reach for it when a cover needs institutional calm and authority.",
+      "styleBlock": "International Typographic Style graphic design, rigid modular grid composition, large flat color fields divided by thin hairline rules, generous negative space, crisp geometric flat vector forms, high-contrast asymmetric ranged-left layout, registration marks, matte print finish, no gradients",
+      "palette": "cobalt #0047AB and azure #0C86D1 flat fields with a single amber #F7B041 accent block on warm cream #F3E9D8, thin ink #0B0B0B hairlines",
+      "tags": [
+        "swiss",
+        "grid",
+        "flat",
+        "editorial"
+      ]
+    },
+    {
+      "id": "serigraph-press",
+      "name": "Serigraph Press",
+      "blurb": "Hand-pulled silkscreen — thick opaque ink layers, tight spot-color separations and slight overprint bloom; for premium poster-art covers with real tactile grit.",
+      "styleBlock": "hand-pulled silkscreen serigraph print, thick opaque spot-color ink layers, visible screen-mesh texture and squeegee streaks, bold poster-scale shapes, subtle overprint multiply where colors overlap, limited flat palette, matte uncoated paper stock, slight ink misregistration",
+      "palette": "cobalt #0047AB and azure #0C86D1 spot inks with an amber #F7B041 overprint layer on cream #F3E9D8 stock, deep ink #0B0B0B key",
+      "tags": [
+        "screenprint",
+        "spot-color",
+        "poster",
+        "tactile"
+      ]
+    },
+    {
+      "id": "bauhaus-geometric",
+      "name": "Bauhaus Geometric",
+      "blurb": "Bauhaus poster geometry — interlocking circles, arcs and hard diagonals in flat house blues; for bold, foundational-tech themes that should feel confident and playful-serious.",
+      "styleBlock": "Bauhaus geometric poster design, flat interlocking circles arcs triangles and bars, hard diagonal composition, primary-shape abstraction, thick keyline outlines, matte gouache flat color, balanced asymmetry, no gradients, no texture",
+      "palette": "cobalt #0047AB and azure #0C86D1 as the lead primaries with an amber #F7B041 accent and cream #F3E9D8 ground, ink #0B0B0B anchors (house blues swapped in for the usual red/yellow)",
+      "tags": [
+        "bauhaus",
+        "geometric",
+        "poster",
+        "flat"
+      ]
+    },
+    {
+      "id": "liquid-glass",
+      "name": "Liquid Glass",
+      "blurb": "Frosted, translucent glass panels floating over a soft-blurred scene — the defining 2026 look for anything that should feel premium and effortless.",
+      "styleBlock": "liquid glassmorphism, stacked semi-transparent frosted-glass panels with heavy gaussian backdrop-blur, crisp specular highlights along panel edges, thin 1px inner light stroke, layered depth with soft drop shadows, refracted light and subtle chromatic edge fringing, clean legible sans-serif labels on the panels, bright airy studio lighting, high-key polished finish, shallow focus behind the glass",
+      "palette": "cobalt #0047AB and azure #0C86D1 diffused through frosted panels, amber #F7B041 as a single glowing highlight or status dot, cool blue-white panels over a soft cream #F3E9D8 haze, deep ink #0B0B0B reserved for fine text",
+      "tags": [
+        "glassmorphism",
+        "frosted",
+        "translucent",
+        "premium",
+        "2026"
+      ]
+    },
+    {
+      "id": "neon-telemetry",
+      "name": "Neon Telemetry",
+      "blurb": "Dark-mode neon dashboard aesthetic — glowing HUD lines, data overlays and hairline grids on near-black; for a control-room, high-signal tech read.",
+      "styleBlock": "dark-mode neon dashboard aesthetic, near-black field with a glowing hairline grid and 1px neon strokes, luminous HUD overlays, thin monospaced data readouts and reticle framing, stark boxed panels with hard borders, subtle scanline and bloom on the glowing lines, high-contrast neon edge lighting, telemetry callouts and tick marks, crisp legible in-image labels, control-room cinematic finish",
+      "palette": "deep ink #0B0B0B near-black base, glowing azure #0C86D1 and cobalt #0047AB neon strokes and grid, amber #F7B041 as the alert/accent readout, occasional cream #F3E9D8 for key numerals",
+      "tags": [
+        "dark-mode",
+        "neon",
+        "hud",
+        "telemetry"
+      ]
+    },
+    {
+      "id": "aurora-mesh",
+      "name": "Aurora Mesh",
+      "blurb": "Dreamlike gradient-mesh glow with flowing aurora bands of blue light — an atmospheric hero look when you want mood over hard detail.",
+      "styleBlock": "aurora gradient-mesh background, smooth flowing multi-stop color blends with no visible banding, soft glowing light ribbons and luminous fog, silky bloom and haze, subtle film grain over the gradient, dark atmospheric base with light forms emerging from within, ethereal volumetric glow, a minimal high-contrast silhouette reading against the mesh, dreamy cinematic finish",
+      "palette": "deep ink #0B0B0B base dissolving into cobalt #0047AB and azure #0C86D1 aurora ribbons, a warm amber #F7B041 flare threading the cool mesh, faint cream #F3E9D8 bloom at the light source",
+      "tags": [
+        "aurora",
+        "gradient-mesh",
+        "glow",
+        "atmospheric"
+      ]
+    },
+    {
+      "id": "cyanotype-print",
+      "name": "Cyanotype Print",
+      "blurb": "A camera-less sun print in deep Prussian blue with ghostly white highlights — the most SA-native painterly look for anything about scale, infrastructure, or blueprints made physical.",
+      "styleBlock": "cyanotype photogram, hand-coated watercolor paper with brushed emulsion edges and uneven wash borders, monochromatic Prussian-blue tonal range from near-white highlights to saturated indigo shadows, soft chemical bleed and granular exposure grain, gentle vignetting from uneven sunlight, subtle paper-fiber texture, high-contrast silhouetted forms with luminous rim exposure, contemplative archival matte finish",
+      "palette": "technique-driven monochrome blue: Prussian/cobalt #0047AB deepening to indigo shadows, azure #0C86D1 in the mid exposures, breathing to warm cream #F3E9D8 paper for the highlight whites; a single restrained amber #F7B041 spot for one focal glow only, used sparingly so the blue reads pure",
+      "tags": [
+        "cyanotype",
+        "monochrome-blue",
+        "analog",
+        "archival"
+      ]
+    },
+    {
+      "id": "gouache-editorial",
+      "name": "Gouache Editorial",
+      "blurb": "Matte, opaque hand-painted illustration with visible brushwork and flat poster-like shapes — warm and human for feature stories and think-pieces that should feel authored, not rendered.",
+      "styleBlock": "opaque gouache painting on cold-press paper, matte chalky pigment with visible directional brushwork and dry-brush streaks, flat simplified poster shapes with confident hand-drawn edges, layered wet-into-dry blending, soft diffuse studio lighting, restrained three-to-four color palette, gentle paper tooth showing through thin passages, editorial composition with generous negative space, tactile and warm, no gloss",
+      "palette": "cobalt #0047AB and azure #0C86D1 as the dominant painted fields, amber #F7B041 as the single warm accent shape, on warm cream #F3E9D8 paper with deep-ink #0B0B0B linework and shadow pooling",
+      "tags": [
+        "gouache",
+        "matte",
+        "hand-painted",
+        "flat-shapes"
+      ]
+    },
+    {
+      "id": "ink-wash-spot",
+      "name": "Ink Wash Spot",
+      "blurb": "Fluid black sumi ink wash with one electric spot color flooding a single focal zone — dramatic and minimal for tension pieces, breakthroughs, or a single idea against vast negative space.",
+      "styleBlock": "loose ink-and-wash painting on absorbent rice paper, spontaneous wet brush gradients bleeding from dense black to pale grey, expressive calligraphic strokes with dry-brush breakup, large areas of untouched paper as negative space, a single saturated spot color flooding one focal region and feathering at its edges, soft water-bloom halos and granulation, asymmetric off-center composition, atmospheric restrained matte fine-art finish",
+      "palette": "deep-ink #0B0B0B sumi wash carrying the tonal structure on warm cream #F3E9D8 paper, with the lone spot color as azure #0C86D1 blooming into cobalt #0047AB at its core (amber #F7B041 an alternate when a warmer charge is wanted — one spot color only, never both)",
+      "tags": [
+        "ink-wash",
+        "sumi",
+        "spot-color",
+        "negative-space"
+      ]
     }
   ]
 }

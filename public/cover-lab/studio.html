@@ -288,6 +288,9 @@
         <input id="textInclude" style="width:100%" placeholder='e.g. “THE MEMORY WALL” (blank = none)'/>
         <label class="l">Aspect ratio</label>
         <div class="seg" id="arSeg"><button data-ar="16:9" class="on">16:9</button><button data-ar="1:1">1:1</button><button data-ar="4:5">4:5</button><button data-ar="3:2">3:2</button><button data-ar="9:16">9:16</button></div>
+        <label class="l">Palette <span class="muted" style="text-transform:none;letter-spacing:0">— brand, the style's own, or custom</span></label>
+        <div class="seg" id="palSeg"><button data-p="brand" class="on">SemiAnalysis</button><button data-p="style">Style's own</button><button data-p="custom">Custom</button></div>
+        <input id="palCustom" style="width:100%;display:none;margin-top:8px" placeholder="e.g. cobalt + coral on charcoal, minimal accents"/>
         <label class="l">Avoid <span class="muted" style="text-transform:none;letter-spacing:0">— keep out of frame</span></label>
         <input id="avoid" style="width:100%" placeholder="clichés, faces, extra logos…"/>
         <label class="l">Reference images <span class="muted" style="text-transform:none;letter-spacing:0">— guide the prompt-smith</span></label>
@@ -347,7 +350,9 @@
 </main>
 
 <script>
-let CAP,PROFILE,STYLES=[],FUSIONS=[],THEMES=[],INSPO=[],EDITORIAL=[],MODE="premium",ACTIVE={kind:"style",id:"house",name:"House (developing)"},THEME=null,LANESEL={},LANEMODEL={},COUNT=1,PRICING=null,LASTOUT=0,AR="16:9",REFS=[],DRAFTS=[];
+let CAP,PROFILE,STYLES=[],FUSIONS=[],THEMES=[],INSPO=[],EDITORIAL=[],MODE="premium",ACTIVE={kind:"style",id:"house",name:"House (developing)"},THEME=null,LANESEL={},LANEMODEL={},COUNT=1,PRICING=null,LASTOUT=0,AR="16:9",REFS=[],DRAFTS=[],PALETTE="brand";
+const SA_PALETTE="SemiAnalysis brand — cobalt #0047AB and azure blue #0C86D1 leading, amber #F7B041 as the accent, on deep ink #0B0B0B and warm cream #F3E9D8";
+function paletteVal(){ if(PALETTE==="brand")return SA_PALETTE; if(PALETTE==="custom")return ($("palCustom").value.trim()||SA_PALETTE); return ""; /* "style" → empty = prompt-smith uses the active look's own palette */ }
 const $=id=>document.getElementById(id);
 const j=(u,o)=>fetch(u,o).then(r=>r.json());
 const LS={ get:(k,d)=>{ try{ return JSON.parse(localStorage.getItem(k))??d }catch{ return d } }, set:(k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)) }catch{} } };
@@ -436,7 +441,7 @@ function setMode(m){ MODE=m; [...$("modeSeg").children].forEach(b=>b.classList.t
 
 // ── Studio ──
 $("draft").onclick=async()=>{ $("draft").disabled=true; $("draft").textContent="Drafting…";
-  try{ const body={brain:brain(),article:$("article").value,notes:$("notes").value,textInclude:$("textInclude").value,avoid:$("avoid").value,aspect:AR}; if(THEME)body.themeId=THEME.id;
+  try{ const body={brain:brain(),article:$("article").value,notes:$("notes").value,textInclude:$("textInclude").value,avoid:$("avoid").value,aspect:AR,palette:paletteVal()}; if(THEME)body.themeId=THEME.id;
     if(REFS.length)body.refs=REFS.map(r=>({media_type:r.media_type,data:r.data}));
     if(MODE==="editorial"){ body.mode="editorial"; body.editorialId=$("edSel").value; body.headline=$("headline").value; }
     else if(ACTIVE.kind==="fusion")body.fusionId=ACTIVE.id; else if(ACTIVE.kind==="blend")body.blend=ACTIVE.blend; else if(ACTIVE.kind==="ref")body.style=ACTIVE.style; else body.styleId=ACTIVE.id;
@@ -451,18 +456,20 @@ $("draft").onclick=async()=>{ $("draft").disabled=true; $("draft").textContent="
   }catch(e){ alert("Draft failed: "+e.message); } $("draft").disabled=false; $("draft").textContent="Draft prompt →"; };
 $("countSeg").onclick=e=>{ if(!e.target.dataset.n)return; [...$("countSeg").children].forEach(c=>c.classList.remove("on")); e.target.classList.add("on"); COUNT=+e.target.dataset.n; estCost(); };
 $("arSeg").onclick=e=>{ if(!e.target.dataset.ar)return; [...$("arSeg").children].forEach(c=>c.classList.remove("on")); e.target.classList.add("on"); AR=e.target.dataset.ar; };
+$("palSeg").onclick=e=>{ if(!e.target.dataset.p)return; [...$("palSeg").children].forEach(c=>c.classList.remove("on")); e.target.classList.add("on"); PALETTE=e.target.dataset.p; $("palCustom").style.display=PALETTE==="custom"?"block":"none"; };
 $("refAdd").onclick=()=>$("refInput").click();
 $("refInput").onchange=e=>{ [...e.target.files].forEach(f=>{ const rd=new FileReader(); rd.onload=()=>{ const m=String(rd.result).match(/^data:(image\/[\w+.-]+);base64,(.+)$/); if(m){ REFS.push({media_type:m[1],data:m[2],url:rd.result}); renderRefs(); estCost(); } }; rd.readAsDataURL(f); }); e.target.value=""; };
 function renderRefs(){ const w=$("refThumbs"); w.innerHTML=""; REFS.forEach((r,i)=>{ const d=document.createElement("div"); d.className="refthumb"; d.title="click to remove"; d.innerHTML=`<img src="${r.url}"/>`; d.onclick=()=>{ REFS.splice(i,1); renderRefs(); estCost(); }; w.appendChild(d); }); }
 
 // ── Drafts: save/load/delete the working brief, persisted server-side per user ──
-function briefState(){ return { mode:MODE, active:ACTIVE, themeId:THEME?THEME.id:"", article:$("article").value, notes:$("notes").value, textInclude:$("textInclude").value, avoid:$("avoid").value, aspect:AR, headline:$("headline")?$("headline").value:"", editorialId:$("edSel")?$("edSel").value:"", brain:brain(), concept:$("concept").textContent||"", prompts:{ openai:platVal("openai"), gemini:platVal("gemini"), grok:platVal("grok"), midjourney:platVal("midjourney") } }; }
+function briefState(){ return { mode:MODE, active:ACTIVE, themeId:THEME?THEME.id:"", article:$("article").value, notes:$("notes").value, textInclude:$("textInclude").value, avoid:$("avoid").value, aspect:AR, palette:PALETTE, paletteCustom:$("palCustom").value, headline:$("headline")?$("headline").value:"", editorialId:$("edSel")?$("edSel").value:"", brain:brain(), concept:$("concept").textContent||"", prompts:{ openai:platVal("openai"), gemini:platVal("gemini"), grok:platVal("grok"), midjourney:platVal("midjourney") } }; }
 let draftsT; function persistDrafts(){ clearTimeout(draftsT); draftsT=setTimeout(()=>{ j("/api/cover/store",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({drafts:DRAFTS})}).catch(()=>{}); },400); }
 async function loadDrafts(){ try{ const r=await j("/api/cover/store"); DRAFTS=(r&&Array.isArray(r.drafts))?r.drafts:[]; }catch{ DRAFTS=[]; } renderDrafts(); }
 function renderDrafts(){ const w=$("draftList"); if(!w)return; if(!DRAFTS.length){ w.innerHTML='<span class="muted" style="font-size:11px">No saved drafts yet</span>'; return; } w.innerHTML=""; DRAFTS.forEach(d=>{ const c=document.createElement("span"); c.className="draftchip"; c.innerHTML=`<span class="dn"></span><span class="dx" title="delete">✕</span>`; c.querySelector(".dn").textContent=d.name||"Untitled"; c.querySelector(".dn").title="load · "+(d.ts?new Date(d.ts).toLocaleString():""); c.querySelector(".dn").onclick=()=>loadDraft(d); c.querySelector(".dx").onclick=e=>{ e.stopPropagation(); DRAFTS=DRAFTS.filter(x=>x.id!==d.id); persistDrafts(); renderDrafts(); }; w.appendChild(c); }); }
 function saveDraft(){ const def=($("concept").textContent||$("article").value||"Untitled").trim().slice(0,42)||"Untitled"; const name=prompt("Name this draft:",def); if(name===null)return; DRAFTS.unshift({ id:"d-"+Date.now().toString(36)+Math.random().toString(36).slice(2,5), name:name||"Untitled", ts:new Date().toISOString(), ...briefState() }); persistDrafts(); renderDrafts(); }
 function loadDraft(d){ setMode(d.mode||"premium"); THEME=d.themeId?(THEMES.find(t=>t.id===d.themeId)||null):null; if(d.active)ACTIVE=d.active; if($("themeSel"))$("themeSel").value=d.themeId||""; syncLook();
   $("article").value=d.article||""; $("notes").value=d.notes||""; $("textInclude").value=d.textInclude||""; $("avoid").value=d.avoid||""; AR=d.aspect||"16:9"; [...$("arSeg").children].forEach(c=>c.classList.toggle("on",c.dataset.ar===AR));
+  PALETTE=d.palette||"brand"; [...$("palSeg").children].forEach(c=>c.classList.toggle("on",c.dataset.p===PALETTE)); $("palCustom").value=d.paletteCustom||""; $("palCustom").style.display=PALETTE==="custom"?"block":"none";
   if($("headline"))$("headline").value=d.headline||""; if($("edSel")&&d.editorialId)$("edSel").value=d.editorialId;
   if(d.brain)[...$("brain").children].forEach(c=>c.classList.toggle("on",c.dataset.v===d.brain));
   const P=d.prompts||{}; if(P.openai||P.gemini||P.grok||P.midjourney){ $("pbox").style.display="block"; $("analysis").style.display="none"; $("concept").textContent=d.concept||""; $("ents").innerHTML=""; platEl("openai").value=P.openai||""; platEl("gemini").value=P.gemini||""; platEl("grok").value=P.grok||""; platEl("midjourney").value=P.midjourney||""; showResults(); }
