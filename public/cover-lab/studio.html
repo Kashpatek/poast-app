@@ -64,6 +64,20 @@
   .scard.active .use{ cursor:default; opacity:.9; }
   .mixer{ background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line); border-radius:var(--r2); padding:16px; margin-bottom:18px; display:flex; gap:12px; align-items:end; flex-wrap:wrap; box-shadow:var(--shadow); }
   .mixer .f{ display:flex; flex-direction:column; gap:5px; } .mixer label{ font-size:10.5px; color:var(--mut); text-transform:uppercase; letter-spacing:.7px; font-weight:600; }
+  /* Ingest / Lookbook */
+  .ingestwrap{ display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; margin-bottom:18px; }
+  .ingestcard{ background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line); border-radius:var(--r2); padding:16px 18px; box-shadow:var(--shadow); }
+  .ingestcard .ingesth{ font-weight:700; font-size:13px; letter-spacing:.02em; color:var(--amber-hi); margin-bottom:6px; }
+  .ingestcard input{ width:100%; }
+  .clashbar{ background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line); border-left:3px solid var(--amber); border-radius:var(--r2); padding:14px 16px; margin-bottom:18px; display:flex; gap:12px; align-items:end; flex-wrap:wrap; box-shadow:var(--shadow); }
+  .clashbar .f{ display:flex; flex-direction:column; gap:5px; flex:1; min-width:150px; } .clashbar label{ font-size:10.5px; color:var(--mut); text-transform:uppercase; letter-spacing:.7px; font-weight:600; } .clashbar select{ width:100%; }
+  .lbk{ display:flex; flex-direction:column; }
+  .lbk .kind{ position:absolute; top:8px; left:8px; z-index:2; background:rgba(11,11,11,.72); color:var(--cream); font-size:9.5px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; padding:2px 7px; border-radius:20px; border:1px solid var(--line2); }
+  .lbk .codes{ font-family:ui-monospace,Menlo,monospace; font-size:10.5px; color:var(--blue-hi); background:var(--ink); border:1px solid var(--line); border-radius:8px; padding:6px 8px; word-break:break-all; max-height:52px; overflow:auto; }
+  .lbk .acts{ display:flex; gap:6px; flex-wrap:wrap; margin-top:2px; }
+  .lbk .acts button{ background:var(--panel2); color:var(--cream); border:1px solid var(--line2); border-radius:8px; padding:6px 9px; font-size:11px; font-weight:600; cursor:pointer; font:inherit; transition:.15s var(--ease); }
+  .lbk .acts button:hover{ border-color:var(--amber); color:#fff; }
+  .lbk .acts button.warn:hover{ border-color:var(--coral,#e0603a); }
 
   select,textarea,input{ background:var(--panel2); color:var(--cream); border:1px solid var(--line); border-radius:var(--r); padding:10px 11px; font:inherit; transition:.16s var(--ease); }
   select:focus,textarea:focus,input:focus{ outline:0; border-color:var(--amber); box-shadow:0 0 0 3px rgba(247,176,65,.16); }
@@ -230,6 +244,7 @@
     <button data-v="aesthetics" class="on">Aesthetics</button>
     <button data-v="fusions">Fusions</button>
     <button data-v="inspo">Inspo</button>
+    <button data-v="ingest">Ingest</button>
     <button data-v="studio">Studio</button>
     <button data-v="keepers">Keepers</button>
   </div>
@@ -265,6 +280,35 @@
       <label class="refdrop" id="refdrop">⊕ or drop your own reference<input type="file" id="reffile" accept="image/*" style="display:none"/></label>
     </div>
     <div class="wall" id="wall"><p class="muted">loading…</p></div>
+  </section>
+
+  <section class="view" id="v-ingest">
+    <h1 class="view-title">Ingest · Lookbook</h1>
+    <p class="lead">Feed in your <b>Midjourney profiles / style-reference codes</b> and reference images to develop an aesthetic. Each becomes a reusable look — set it live, <b>clash two</b> to experiment, or ⚗ develop an image into a cross-model recipe. Your MJ codes ride along on every Midjourney prompt.</p>
+    <div class="ingestwrap">
+      <div class="ingestcard">
+        <div class="ingesth">◆ Midjourney profile</div>
+        <label class="l" style="margin-top:0">Name</label><input id="mjpName" placeholder="e.g. SA House · oil-dither"/>
+        <label class="l">Style codes / params <span class="muted" style="text-transform:none;letter-spacing:0">— --sref, --p, --profile, moodboard ids</span></label><input id="mjpCodes" placeholder="--sref 1234567890 --p abc123 --style raw"/>
+        <label class="l">Notes <span class="muted" style="text-transform:none;letter-spacing:0">— what this look is</span></label><input id="mjpNotes" placeholder="muted oil painting under a 1-bit dither, amber+cobalt"/>
+        <button class="btn" id="mjpAdd" style="margin-top:12px">＋ Add profile to lookbook</button>
+      </div>
+      <div class="ingestcard">
+        <div class="ingesth">▣ Reference image</div>
+        <label class="refdrop" id="refIngest" style="margin-top:2px">⊕ drop / choose an image<input type="file" id="refIngestFile" accept="image/*" style="display:none"/></label>
+        <label class="l">…or paste an image URL</label><input id="refUrl" placeholder="https://…"/>
+        <label class="l">Name</label><input id="refName" placeholder="e.g. Bobo moodboard #3"/>
+        <label class="chk" style="margin-top:10px"><input type="checkbox" id="refAutoDev" checked/><span class="lbl"><b>Develop into a recipe now</b><small>reverse-engineer the look so GPT/Gemini/Grok can follow it too</small></span></label>
+        <button class="btn" id="refIngestAdd" style="margin-top:12px">＋ Add image to lookbook</button>
+      </div>
+    </div>
+    <div class="clashbar" id="clashbar" style="display:none">
+      <div class="f"><label>Clash A</label><select id="clashA"></select></div>
+      <div style="font-size:20px;color:var(--amber);padding-bottom:6px">⚔</div>
+      <div class="f"><label>Clash B</label><select id="clashB"></select></div>
+      <button class="btn" id="clashGo">Clash &amp; use →</button>
+    </div>
+    <div class="gal" id="lookbookGrid"></div>
   </section>
 
   <section class="view" id="v-studio">
@@ -350,7 +394,7 @@
 </main>
 
 <script>
-let CAP,PROFILE,STYLES=[],FUSIONS=[],THEMES=[],INSPO=[],EDITORIAL=[],MODE="premium",ACTIVE={kind:"style",id:"house",name:"House (developing)"},THEME=null,LANESEL={},LANEMODEL={},COUNT=1,PRICING=null,LASTOUT=0,AR="16:9",REFS=[],DRAFTS=[],PALETTE="brand";
+let CAP,PROFILE,STYLES=[],FUSIONS=[],THEMES=[],INSPO=[],EDITORIAL=[],MODE="premium",ACTIVE={kind:"style",id:"house",name:"House (developing)"},THEME=null,LANESEL={},LANEMODEL={},COUNT=1,PRICING=null,LASTOUT=0,AR="16:9",REFS=[],DRAFTS=[],PALETTE="brand",LOOKBOOK=[],LOOK_MJ="";
 const SA_PALETTE="SemiAnalysis brand — cobalt #0047AB and azure blue #0C86D1 leading, amber #F7B041 as the accent, on deep ink #0B0B0B and warm cream #F3E9D8";
 function paletteVal(){ if(PALETTE==="brand")return SA_PALETTE; if(PALETTE==="custom")return ($("palCustom").value.trim()||SA_PALETTE); return ""; /* "style" → empty = prompt-smith uses the active look's own palette */ }
 const $=id=>document.getElementById(id);
@@ -359,7 +403,7 @@ const LS={ get:(k,d)=>{ try{ return JSON.parse(localStorage.getItem(k))??d }catc
 async function loadStyles(){ const st=await j("/api/cover/styles"); const saved=LS.get("cc-styles",[]).map(s=>({...s,sampleUrl:null})); return [...st.styles, ...saved]; }
 const platEl=p=>{ if(p==="midjourney")return $("mjText"); const c=document.querySelector('.pcol[data-plat="'+p+'"]'); return c?c.querySelector("textarea"):null; };
 const platVal=p=>{ const t=platEl(p); return t?t.value.trim():""; };
-function mjFull(){ let m=platVal("midjourney"); if(!m)return ""; const v=$("mjVer")?$("mjVer").value:"v7"; if(v&&!/--v |--niji/i.test(m)) m+=(/niji/i.test(v)?" --niji 6":" --v "+String(v).replace(/^v/i,"")); return m; }
+function mjFull(){ let m=platVal("midjourney"); if(!m)return ""; const v=$("mjVer")?$("mjVer").value:"v7"; if(v&&!/--v |--niji/i.test(m)) m+=(/niji/i.test(v)?" --niji 6":" --v "+String(v).replace(/^v/i,"")); if(LOOK_MJ && !m.includes(LOOK_MJ)) m+=" "+LOOK_MJ; return m; }
 
 async function boot(){
   CAP=await j("/api/cover/capabilities");
@@ -376,7 +420,7 @@ async function boot(){
   wireReverse(); syncLook();
   document.querySelectorAll(".pcol").forEach(col=>{ col.querySelector("textarea").oninput=refreshGen; col.querySelector(".cp").onclick=()=>{ const b=col.querySelector(".cp"); navigator.clipboard.writeText(col.querySelector("textarea").value); b.textContent="copied ✓"; setTimeout(()=>b.textContent="copy",1200); }; });
   $("mjCopy").onclick=()=>{ navigator.clipboard.writeText(mjFull()); const b=$("mjCopy"); b.textContent="copied ✓"; setTimeout(()=>b.textContent="copy prompt",1200); };
-  $("saveDraft").onclick=saveDraft; loadDrafts();
+  $("saveDraft").onclick=saveDraft; wireIngest(); loadStore();
   const h=location.hash.slice(1); if(h&&$("v-"+h)) show(h);
   estCost();
 }
@@ -427,13 +471,13 @@ function estCost(){ const box=$("costbox"); if(!box||!PRICING)return;
 
 function styleCard(s){ const c=document.createElement("div"); c.className="scard"; c.dataset.kind="style"; c.dataset.id=s.id;
   c.innerHTML=`<div class="thumb">${s.sampleUrl?`<img src="${s.sampleUrl}" loading="lazy"/>`:`<div class="none">no sample</div>`}</div><div class="body"><div class="name">${s.name}</div><div class="blurb">${s.blurb||""}</div><div class="tags">${(s.tags||[]).map(t=>`<span>${t}</span>`).join("")}</div><button class="use">Use this style →</button></div>`;
-  c.style.cursor="pointer"; c.onclick=()=>{ ACTIVE={kind:"style",id:s.id,name:s.name}; syncLook(); show("studio"); }; return c; }
+  c.style.cursor="pointer"; c.onclick=()=>{ ACTIVE={kind:"style",id:s.id,name:s.name}; LOOK_MJ=""; syncLook(); show("studio"); }; return c; }
 function renderStyles(){ const g=$("galStyles"); g.innerHTML=""; STYLES.forEach((s,i)=>{ const c=styleCard(s); c.style.animationDelay=Math.min(i*28,420)+"ms"; g.appendChild(c); }); syncLook(); }
 function renderFusions(){ const g=$("galFusions"); g.innerHTML=""; FUSIONS.forEach((f,i)=>{ const c=document.createElement("div"); c.className="scard"; c.dataset.kind="fusion"; c.dataset.id=f.id; c.style.animationDelay=Math.min(i*28,420)+"ms";
   c.innerHTML=`<div class="thumb">${f.sampleUrl?`<img src="${f.sampleUrl}" loading="lazy"/>`:`<div class="none">no sample</div>`}</div><div class="body"><div class="name">${f.name}</div><div class="pair">${f.a} × ${f.b}</div><div class="blurb">${f.why||""}</div><div class="tags">${(f.tags||[]).slice(0,5).map(t=>`<span>${t}</span>`).join("")}</div><button class="use">Use this fusion →</button></div>`;
-  c.style.cursor="pointer"; c.onclick=()=>{ ACTIVE={kind:"fusion",id:f.id,name:f.name}; syncLook(); show("studio"); }; g.appendChild(c); }); syncLook(); }
+  c.style.cursor="pointer"; c.onclick=()=>{ ACTIVE={kind:"fusion",id:f.id,name:f.name}; LOOK_MJ=""; syncLook(); show("studio"); }; g.appendChild(c); }); syncLook(); }
 function renderMixer(){ const opts=STYLES.filter(s=>s.id!=="house").map(s=>`<option value="${s.id}">${s.name}</option>`).join(""); $("mixA").innerHTML=opts; $("mixB").innerHTML=opts; if($("mixB").options[1])$("mixB").selectedIndex=1;
-  $("mixGo").onclick=()=>{ const a=$("mixA").value,b=$("mixB").value; const A=STYLES.find(s=>s.id===a),B=STYLES.find(s=>s.id===b); ACTIVE={kind:"blend",id:a+"+"+b,name:`${A.name} × ${B.name}`,blend:{a,b}}; syncLook(); show("studio"); }; }
+  $("mixGo").onclick=()=>{ const a=$("mixA").value,b=$("mixB").value; const A=STYLES.find(s=>s.id===a),B=STYLES.find(s=>s.id===b); ACTIVE={kind:"blend",id:a+"+"+b,name:`${A.name} × ${B.name}`,blend:{a,b}}; LOOK_MJ=""; syncLook(); show("studio"); }; }
 function renderThemes(){ const sel=$("themeSel"); sel.innerHTML='<option value="">— none —</option>'+THEMES.map(t=>`<option value="${t.id}">${t.name}</option>`).join("");
   sel.onchange=()=>{ THEME=THEMES.find(t=>t.id===sel.value)||null; $("concepts").innerHTML=THEME?THEME.concepts.map(c=>`<span>${c}</span>`).join(""):""; document.querySelectorAll("#concepts span").forEach(s=>s.onclick=()=>{ $("notes").value=($("notes").value?$("notes").value+" · ":"")+s.textContent; }); syncLook(); }; }
 function renderEditorial(){ const sel=$("edSel"); if(!sel)return; sel.innerHTML=EDITORIAL.map(e=>`<option value="${e.id}">${e.name}</option>`).join(""); sel.onchange=updateStageEmpty; }
@@ -464,8 +508,41 @@ function renderRefs(){ const w=$("refThumbs"); w.innerHTML=""; REFS.forEach((r,i
 // ── Drafts: save/load/delete the working brief, persisted server-side per user ──
 function briefState(){ return { mode:MODE, active:ACTIVE, themeId:THEME?THEME.id:"", article:$("article").value, notes:$("notes").value, textInclude:$("textInclude").value, avoid:$("avoid").value, aspect:AR, palette:PALETTE, paletteCustom:$("palCustom").value, headline:$("headline")?$("headline").value:"", editorialId:$("edSel")?$("edSel").value:"", brain:brain(), concept:$("concept").textContent||"", prompts:{ openai:platVal("openai"), gemini:platVal("gemini"), grok:platVal("grok"), midjourney:platVal("midjourney") } }; }
 let draftsT; function persistDrafts(){ clearTimeout(draftsT); draftsT=setTimeout(()=>{ j("/api/cover/store",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({drafts:DRAFTS})}).catch(()=>{}); },400); }
-async function loadDrafts(){ try{ const r=await j("/api/cover/store"); DRAFTS=(r&&Array.isArray(r.drafts))?r.drafts:[]; }catch{ DRAFTS=[]; } renderDrafts(); }
+let lbkT; function persistLookbook(){ clearTimeout(lbkT); lbkT=setTimeout(()=>{ j("/api/cover/store",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({lookbook:LOOKBOOK})}).catch(()=>{}); },400); }
+async function loadStore(){ try{ const r=await j("/api/cover/store"); DRAFTS=(r&&Array.isArray(r.drafts))?r.drafts:[]; LOOKBOOK=(r&&Array.isArray(r.lookbook))?r.lookbook:[]; }catch{ DRAFTS=[]; LOOKBOOK=[]; } renderDrafts(); renderLookbook(); }
 function renderDrafts(){ const w=$("draftList"); if(!w)return; if(!DRAFTS.length){ w.innerHTML='<span class="muted" style="font-size:11px">No saved drafts yet</span>'; return; } w.innerHTML=""; DRAFTS.forEach(d=>{ const c=document.createElement("span"); c.className="draftchip"; c.innerHTML=`<span class="dn"></span><span class="dx" title="delete">✕</span>`; c.querySelector(".dn").textContent=d.name||"Untitled"; c.querySelector(".dn").title="load · "+(d.ts?new Date(d.ts).toLocaleString():""); c.querySelector(".dn").onclick=()=>loadDraft(d); c.querySelector(".dx").onclick=e=>{ e.stopPropagation(); DRAFTS=DRAFTS.filter(x=>x.id!==d.id); persistDrafts(); renderDrafts(); }; w.appendChild(c); }); }
+
+// ── Ingest / Lookbook: build an aesthetic from MJ profiles + reference images ──
+function lbkId(){ return "lb-"+Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
+function wireIngest(){
+  $("mjpAdd").onclick=()=>{ const name=$("mjpName").value.trim()||"MJ profile"; const codes=$("mjpCodes").value.trim(); const notes=$("mjpNotes").value.trim(); if(!codes&&!notes){ alert("Add some --sref / --p codes or a note describing the look."); return; }
+    LOOKBOOK.unshift({ id:lbkId(), ts:new Date().toISOString(), kind:"mj", name, mjCodes:codes, styleBlock:notes, palette:"", notes, tags:["midjourney"] }); $("mjpName").value=$("mjpCodes").value=$("mjpNotes").value=""; persistLookbook(); renderLookbook(); };
+  const addImg=(url)=>{ const name=$("refName").value.trim()||"Reference"; const item={ id:lbkId(), ts:new Date().toISOString(), kind:"ref", name, image:url, mjCodes:"", styleBlock:"", palette:"", notes:"", tags:["reference"] }; LOOKBOOK.unshift(item); $("refName").value=$("refUrl").value=""; persistLookbook(); renderLookbook(); if($("refAutoDev").checked) developItem(item); };
+  $("refIngestAdd").onclick=()=>{ const u=$("refUrl").value.trim(); if(u){ addImg(u); return; } alert("Drop/choose an image or paste an image URL."); };
+  const rd=$("refIngest"),rf=$("refIngestFile"); rd.onclick=()=>rf.click(); rd.ondragover=e=>{e.preventDefault();rd.classList.add("hot");}; rd.ondragleave=()=>rd.classList.remove("hot"); rd.ondrop=e=>{e.preventDefault();rd.classList.remove("hot"); const f=e.dataTransfer.files[0]; if(f){ const r=new FileReader(); r.onload=()=>addImg(r.result); r.readAsDataURL(f);} }; rf.onchange=e=>{ const f=e.target.files[0]; if(f){ const r=new FileReader(); r.onload=()=>addImg(r.result); r.readAsDataURL(f);} e.target.value=""; };
+  $("clashGo").onclick=clashUse;
+}
+function renderClashOpts(){ const bar=$("clashbar"); if(!bar)return; if(LOOKBOOK.length<2){ bar.style.display="none"; return; } bar.style.display="flex"; const opts=LOOKBOOK.map(it=>`<option value="${it.id}">${it.name}</option>`).join(""); $("clashA").innerHTML=opts; $("clashB").innerHTML=opts; if($("clashB").options[1])$("clashB").selectedIndex=1; }
+function renderLookbook(){ const g=$("lookbookGrid"); if(!g)return; renderClashOpts();
+  if(!LOOKBOOK.length){ g.innerHTML='<p class="muted">Your lookbook is empty — add a Midjourney profile or a reference image above to start developing an aesthetic.</p>'; return; }
+  g.innerHTML=""; LOOKBOOK.forEach((it,i)=>{ const c=document.createElement("div"); c.className="scard lbk"; c.style.animationDelay=Math.min(i*28,420)+"ms";
+    const thumb = it.image ? `<div class="thumb"><span class="kind">${it.kind==="mj"?"MJ profile":"reference"}</span><img src="${it.image}" loading="lazy"/></div>` : `<div class="thumb"><span class="kind">MJ profile</span><div class="none">codes only</div></div>`;
+    c.innerHTML=thumb+`<div class="body"><div class="name"></div><div class="codesw"></div><div class="blurb"></div><div class="tags"></div><div class="acts"></div></div>`;
+    c.querySelector(".name").textContent=it.name;
+    if(it.mjCodes){ const cd=document.createElement("div"); cd.className="codes"; cd.textContent=it.mjCodes; c.querySelector(".codesw").appendChild(cd); }
+    c.querySelector(".blurb").textContent=(it.styleBlock||it.notes||"").slice(0,150);
+    c.querySelector(".tags").innerHTML=(it.tags||[]).map(t=>`<span>${t}</span>`).join("");
+    if(it.image){ const im=c.querySelector(".thumb img"); im.style.cursor="zoom-in"; im.onclick=()=>openLightbox({img:it.image}); }
+    const acts=c.querySelector(".acts"); const mk=(label,fn,cls)=>{ const b=document.createElement("button"); b.textContent=label; if(cls)b.className=cls; b.onclick=fn; acts.appendChild(b); };
+    mk("→ use as look",()=>useLook(it));
+    if(it.image) mk(it.styleBlock?"⚗ re-develop":"⚗ develop",()=>developItem(it));
+    mk("✕",()=>{ LOOKBOOK=LOOKBOOK.filter(x=>x.id!==it.id); persistLookbook(); renderLookbook(); },"warn");
+    g.appendChild(c); }); }
+function lookStyleBlock(it){ return it.styleBlock || it.notes || (it.name+" reference look"); }
+function useLook(it){ ACTIVE={kind:"ref",id:it.id,name:it.name,style:{name:it.name,styleBlock:lookStyleBlock(it),palette:it.palette||""}}; LOOK_MJ=it.mjCodes||""; syncLook(); show("studio"); }
+function clashUse(){ const A=LOOKBOOK.find(x=>x.id===$("clashA").value),B=LOOKBOOK.find(x=>x.id===$("clashB").value); if(!A||!B||A.id===B.id){ alert("Pick two different lookbook items to clash."); return; }
+  ACTIVE={kind:"ref",id:A.id+"+"+B.id,name:`${A.name} ⚔ ${B.name}`,style:{name:`${A.name} ⚔ ${B.name}`,styleBlock:`${lookStyleBlock(A)}, fused and clashing with ${lookStyleBlock(B)} — commit to BOTH looks at once, the tension is the point`,palette:A.palette||B.palette||""}}; LOOK_MJ=[A.mjCodes,B.mjCodes].filter(Boolean).join(" "); syncLook(); show("studio"); }
+async function developItem(it){ if(!it.image)return; const g=$("lookbookGrid"); if(g){ /* soft loading cue */ } try{ const r=await j("/api/cover/reverse",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({brain:brain(),image:it.image})}); if(r.error)throw new Error(r.error); it.styleBlock=r.styleBlock||r.prompt||it.styleBlock; it.analysis=r.analysis||""; if(!(it.tags||[]).includes("developed"))it.tags=[...(it.tags||[]),"developed"]; persistLookbook(); renderLookbook(); }catch(e){ alert("Develop failed: "+e.message); } }
 function saveDraft(){ const def=($("concept").textContent||$("article").value||"Untitled").trim().slice(0,42)||"Untitled"; const name=prompt("Name this draft:",def); if(name===null)return; DRAFTS.unshift({ id:"d-"+Date.now().toString(36)+Math.random().toString(36).slice(2,5), name:name||"Untitled", ts:new Date().toISOString(), ...briefState() }); persistDrafts(); renderDrafts(); }
 function loadDraft(d){ setMode(d.mode||"premium"); THEME=d.themeId?(THEMES.find(t=>t.id===d.themeId)||null):null; if(d.active)ACTIVE=d.active; if($("themeSel"))$("themeSel").value=d.themeId||""; syncLook();
   $("article").value=d.article||""; $("notes").value=d.notes||""; $("textInclude").value=d.textInclude||""; $("avoid").value=d.avoid||""; AR=d.aspect||"16:9"; [...$("arSeg").children].forEach(c=>c.classList.toggle("on",c.dataset.ar===AR));
@@ -494,9 +571,10 @@ $("inspoGo").onclick=()=>{ const q=$("inspoSearch").value.trim(); if(q){ documen
 $("inspoSearch").onkeydown=e=>{ if(e.key==="Enter")$("inspoGo").click(); };
 async function loadInspo(id,q){ const wall=$("wall"); wall.dataset.loaded="1"; wall.innerHTML='<p class="muted">loading…</p>';
   try{ const r=await j("/api/cover/inspo?"+(q?"q="+encodeURIComponent(q):"id="+id)); if(!r.items||!r.items.length){ wall.innerHTML='<p class="muted">nothing came back — try another source.</p>'; return; }
-    wall.innerHTML=""; r.items.forEach(it=>{ const fig=document.createElement("figure"); fig.innerHTML=`<img src="${it.img}" loading="lazy" onerror="this.closest('figure').remove()"/><div class="ov"><div class="t">${(it.title||"").slice(0,90)}</div><div class="btns"><button>⊕ reference</button><a href="${it.link}" target="_blank">↗ ${it.source}</a></div></div>`;
+    wall.innerHTML=""; r.items.forEach(it=>{ const fig=document.createElement("figure"); fig.innerHTML=`<img src="${it.img}" loading="lazy" onerror="this.closest('figure').remove()"/><div class="ov"><div class="t">${(it.title||"").slice(0,90)}</div><div class="btns"><button data-a="ref">⊕ reference</button><button data-a="lbk">＋ lookbook</button><a href="${it.link}" target="_blank">↗ ${it.source}</a></div></div>`;
       fig.querySelector("img").onclick=()=>openLightbox(it);
-      const btn=fig.querySelector("button"); btn.onclick=(e)=>{ e.stopPropagation(); useAsReference(it.img); };
+      fig.querySelector('[data-a="ref"]').onclick=(e)=>{ e.stopPropagation(); useAsReference(it.img); };
+      fig.querySelector('[data-a="lbk"]').onclick=(e)=>{ e.stopPropagation(); LOOKBOOK.unshift({ id:lbkId(), ts:new Date().toISOString(), kind:"ref", name:(it.title||"Inspo").slice(0,40), image:it.img, mjCodes:"", styleBlock:"", palette:"", notes:it.source||"", tags:["inspo"] }); persistLookbook(); renderLookbook(); e.target.textContent="✓ added"; };
       fig.querySelector("a").onclick=(e)=>e.stopPropagation();
       wall.appendChild(fig); });
   }catch(e){ wall.innerHTML=`<p class="muted">error: ${e.message}</p>`; } }
@@ -508,7 +586,7 @@ async function useAsReference(url){ show("studio"); reverse(url); }
 async function reverse(imageForApi){
   show("studio"); $("pbox").style.display="block"; $("ents").innerHTML=""; $("analysis").style.display="block"; $("analysis").textContent="reverse-engineering the reference…"; $("concept").textContent="Replicate reference"; showResults(); platEl("openai").value=""; platEl("gemini").value=""; platEl("grok").value=""; platEl("midjourney").value="";
   try{ const r=await j("/api/cover/reverse",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({brain:brain(),image:imageForApi})}); if(r.error)throw new Error(r.error);
-    ACTIVE={kind:"ref",id:"ref",name:"Reference recipe",style:{name:"Reference recipe",styleBlock:r.styleBlock}}; syncLook();
+    ACTIVE={kind:"ref",id:"ref",name:"Reference recipe",style:{name:"Reference recipe",styleBlock:r.styleBlock}}; LOOK_MJ=""; syncLook();
     $("analysis").textContent=r.analysis||""; platEl("openai").value=r.prompt||""; platEl("gemini").value=r.prompt||""; platEl("grok").value=r.prompt||""; platEl("midjourney").value=r.mj||r.prompt||""; refreshGen();
   }catch(e){ $("analysis").textContent="reverse failed: "+e.message; } }
 

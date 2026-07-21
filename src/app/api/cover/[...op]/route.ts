@@ -46,18 +46,22 @@ async function coverStore(req: NextRequest) {
   const rowId = `cover-${sess.owner.toLowerCase()}`;
   if (req.method === "POST") {
     let body: Any; try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
-    if (!Array.isArray(body?.drafts)) return NextResponse.json({ error: "Refusing to save: drafts must be an array" }, { status: 409 });
+    // Merge whichever collections are present; reject a body with neither.
+    if (!Array.isArray(body?.drafts) && !Array.isArray(body?.lookbook)) return NextResponse.json({ error: "Refusing to save: drafts and/or lookbook must be arrays" }, { status: 409 });
     const { data: existing } = await supabase.from("projects").select("name,data").eq("id", rowId).maybeSingle();
     const prev = (existing as Any)?.data && typeof (existing as Any).data === "object" ? (existing as Any).data : {};
-    const writeBack: Any = { id: rowId, name: (existing as Any)?.name || `${sess.owner} CoverCreator`, type: "cover-store", data: { ...prev, drafts: body.drafts }, updated_at: new Date().toISOString() };
+    const nextData: Any = { ...prev };
+    if (Array.isArray(body.drafts)) nextData.drafts = body.drafts;
+    if (Array.isArray(body.lookbook)) nextData.lookbook = body.lookbook;
+    const writeBack: Any = { id: rowId, name: (existing as Any)?.name || `${sess.owner} CoverCreator`, type: "cover-store", data: nextData, updated_at: new Date().toISOString() };
     const { error } = await supabase.from("projects").upsert(writeBack, { onConflict: "id" }).select();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ ok: true, drafts: body.drafts.length });
+    return NextResponse.json({ ok: true, drafts: (nextData.drafts || []).length, lookbook: (nextData.lookbook || []).length });
   }
   const { data: row, error } = await supabase.from("projects").select("data").eq("id", rowId).maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const data = (row as Any)?.data && typeof (row as Any).data === "object" ? (row as Any).data : {};
-  return NextResponse.json({ drafts: Array.isArray(data.drafts) ? data.drafts : [] });
+  return NextResponse.json({ drafts: Array.isArray(data.drafts) ? data.drafts : [], lookbook: Array.isArray(data.lookbook) ? data.lookbook : [] });
 }
 
 function capabilities() {
