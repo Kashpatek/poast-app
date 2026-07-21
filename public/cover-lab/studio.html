@@ -143,6 +143,23 @@
   .card .imgbox img{ width:100%; height:100%; object-fit:cover; }
   .card .imgbox.drop{ border:1.5px dashed var(--line2); cursor:pointer; color:var(--mut); font-size:12px; text-align:center; padding:14px; transition:.16s var(--ease); }
   .card .imgbox.drop:hover{ border-color:var(--amber); color:var(--cream); }
+  /* per-platform result columns: prompt on top, generated images stack below */
+  .cols{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; align-items:start; }
+  @media (max-width:1000px){ .cols{ grid-template-columns:1fr; } }
+  .pcol{ background:var(--panel); border:1px solid var(--line); border-radius:var(--r2); padding:11px; display:flex; flex-direction:column; gap:9px; box-shadow:var(--shadow); }
+  .pcol .pch{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .pcol .pch b{ font-size:11px; text-transform:uppercase; letter-spacing:.7px; font-weight:700; }
+  .pcol .pch b.openai{ color:#3ddc97; } .pcol .pch b.gemini{ color:var(--amber-hi); } .pcol .pch b.grok{ color:var(--blue-hi); }
+  .pcol .cp,.mjh .cp{ background:var(--panel2); color:var(--cream); border:1px solid var(--line); border-radius:6px; padding:3px 10px; font-size:11px; cursor:pointer; transition:.15s var(--ease); flex:none; }
+  .pcol .cp:hover,.mjh .cp:hover{ border-color:var(--line2); background:var(--panel3); }
+  .pcol textarea{ width:100%; font-size:11.5px; line-height:1.45; }
+  .stack{ display:flex; flex-direction:column; gap:10px; }
+  .mjstrip{ margin-top:16px; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--amber); border-radius:var(--r2); padding:11px 13px; box-shadow:var(--shadow); }
+  .mjh{ display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+  .mjh b.mj{ color:var(--amber); font-size:11px; text-transform:uppercase; letter-spacing:.7px; font-weight:700; }
+  .mjh .mjnote{ color:var(--mut2); font-size:11px; flex:1; min-width:150px; }
+  .mjh select.lm{ background:var(--panel3); border:1px solid var(--line2); border-radius:7px; padding:3px 6px; font-size:11px; color:var(--cream); }
+  .mjstrip textarea{ width:100%; font-size:11.5px; }
   .card .spin{ color:var(--mut); font-size:12px; display:flex; align-items:center; gap:8px; }
   .card .spin::before{ content:""; width:13px; height:13px; border:2px solid var(--line2); border-top-color:var(--amber); border-radius:50%; animation:spin .7s linear infinite; }
   @keyframes spin{ to{ transform:rotate(360deg); } }
@@ -288,11 +305,6 @@
           <div class="concept" id="concept"></div>
           <div class="analysis" id="analysis" style="display:none"></div>
           <div class="ents" id="ents"></div>
-          <div class="pfields">
-            <div class="pf" data-plat="midjourney"><div class="pfh"><b class="mj">Midjourney</b><button class="cp">copy</button></div><textarea rows="3"></textarea></div>
-            <div class="pf" data-plat="gemini"><div class="pfh"><b class="gemini">Gemini</b><button class="cp">copy</button></div><textarea rows="3"></textarea></div>
-            <div class="pf" data-plat="grok"><div class="pfh"><b class="grok">Grok</b><button class="cp">copy</button></div><textarea rows="2"></textarea></div>
-          </div>
         </div>
         <div class="stage-empty" id="stageEmpty">
           <div class="prev" id="stagePrev"></div>
@@ -303,7 +315,15 @@
             <div class="steps"><span><b>1</b> brief</span><span><b>2</b> draft prompt</span><span><b>3</b> generate</span><span><b>4</b> ★ keep</span></div>
           </div>
         </div>
-        <div class="grid" id="grid"></div>
+        <div class="cols" id="cols" style="display:none">
+          <div class="pcol" data-plat="openai"><div class="pch"><b class="openai">GPT · Image</b><button class="cp">copy</button></div><textarea rows="4" placeholder="draft a prompt →"></textarea><div class="stack" data-plat="openai"></div></div>
+          <div class="pcol" data-plat="gemini"><div class="pch"><b class="gemini">Gemini · image</b><button class="cp">copy</button></div><textarea rows="4" placeholder="draft a prompt →"></textarea><div class="stack" data-plat="gemini"></div></div>
+          <div class="pcol" data-plat="grok"><div class="pch"><b class="grok">Grok · Aurora</b><button class="cp">copy</button></div><textarea rows="4" placeholder="draft a prompt →"></textarea><div class="stack" data-plat="grok"></div></div>
+        </div>
+        <div class="mjstrip" id="mjStrip" style="display:none">
+          <div class="mjh"><b class="mj">Midjourney</b><span class="mjnote">manual — no API. Copy the prompt, generate in Midjourney, then ★ keep the result in your library.</span><select class="lm" id="mjVer"><option>v7</option><option>v6.1</option><option>niji 6</option></select><button class="cp" id="mjCopy">copy prompt</button></div>
+          <textarea id="mjText" rows="2"></textarea>
+        </div>
       </div>
     </div>
   </section>
@@ -323,9 +343,9 @@ const $=id=>document.getElementById(id);
 const j=(u,o)=>fetch(u,o).then(r=>r.json());
 const LS={ get:(k,d)=>{ try{ return JSON.parse(localStorage.getItem(k))??d }catch{ return d } }, set:(k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)) }catch{} } };
 async function loadStyles(){ const st=await j("/api/cover/styles"); const saved=LS.get("cc-styles",[]).map(s=>({...s,sampleUrl:null})); return [...st.styles, ...saved]; }
-const platEl=p=>document.querySelector('.pf[data-plat="'+p+'"] textarea');
+const platEl=p=>{ if(p==="midjourney")return $("mjText"); const c=document.querySelector('.pcol[data-plat="'+p+'"]'); return c?c.querySelector("textarea"):null; };
 const platVal=p=>{ const t=platEl(p); return t?t.value.trim():""; };
-function mjFull(){ let m=platVal("midjourney"); if(!m)return ""; const v=LANEMODEL.midjourney; if(v&&!/--v |--niji/i.test(m)) m+=(/niji/i.test(v)?" --niji 6":" --v "+String(v).replace(/^v/i,"")); return m; }
+function mjFull(){ let m=platVal("midjourney"); if(!m)return ""; const v=$("mjVer")?$("mjVer").value:"v7"; if(v&&!/--v |--niji/i.test(m)) m+=(/niji/i.test(v)?" --niji 6":" --v "+String(v).replace(/^v/i,"")); return m; }
 
 async function boot(){
   CAP=await j("/api/cover/capabilities");
@@ -340,14 +360,16 @@ async function boot(){
   $("modeSeg").onclick=e=>{ if(e.target.dataset.m)setMode(e.target.dataset.m); };
   $("toStudio").onclick=()=>show("studio"); $("changeLook").onclick=()=>show("aesthetics");
   wireReverse(); syncLook();
-  document.querySelectorAll(".pf").forEach(pf=>{ pf.querySelector("textarea").oninput=refreshGen; pf.querySelector(".cp").onclick=()=>{ const b=pf.querySelector(".cp"); navigator.clipboard.writeText(pf.querySelector("textarea").value); b.textContent="copied ✓"; setTimeout(()=>b.textContent="copy",1200); }; });
+  document.querySelectorAll(".pcol").forEach(col=>{ col.querySelector("textarea").oninput=refreshGen; col.querySelector(".cp").onclick=()=>{ const b=col.querySelector(".cp"); navigator.clipboard.writeText(col.querySelector("textarea").value); b.textContent="copied ✓"; setTimeout(()=>b.textContent="copy",1200); }; });
+  $("mjCopy").onclick=()=>{ navigator.clipboard.writeText(mjFull()); const b=$("mjCopy"); b.textContent="copied ✓"; setTimeout(()=>b.textContent="copy prompt",1200); };
   $("saveDraft").onclick=saveDraft; loadDrafts();
   const h=location.hash.slice(1); if(h&&$("v-"+h)) show(h);
   estCost();
 }
 function show(v){ document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.v===v)); document.querySelectorAll(".view").forEach(s=>s.classList.remove("on")); $("v-"+v).classList.add("on"); if(v==="keepers")loadKeepers(); if(v==="inspo"&&!$("wall").dataset.loaded)loadInspo(INSPO[0].id); if(v==="studio")updateStageEmpty(); $("chipbar").style.display=v==="studio"?"none":"flex"; }
 function activeSample(){ if(ACTIVE.kind==="style"){const s=STYLES.find(x=>x.id===ACTIVE.id);return s&&s.sampleUrl;} if(ACTIVE.kind==="fusion"){const f=FUSIONS.find(x=>x.id===ACTIVE.id);return f&&f.sampleUrl;} return null; }
-function updateStageEmpty(){ const el=$("stageEmpty"); if(!el)return; el.style.display=$("grid").children.length?"none":"block";
+function showResults(){ $("stageEmpty").style.display="none"; $("cols").style.display="grid"; $("mjStrip").style.display="block"; }
+function updateStageEmpty(){ const el=$("stageEmpty"); if(!el)return; const drafted=$("cols").style.display!=="none"; el.style.display=drafted?"none":"block";
   if(MODE==="editorial"){ const e=EDITORIAL.find(x=>x.id===$("edSel").value)||EDITORIAL[0]; $("stagePrev").style.backgroundImage="none"; $("stageLook").textContent=(e?e.name:"Editorial")+"  ·  Editorial"; }
   else { const s=activeSample(); $("stagePrev").style.backgroundImage=s?`url(${s})`:"none"; $("stageLook").textContent=ACTIVE.name+(THEME?"  ·  "+THEME.name:""); } }
 function syncLook(){ $("activeName").textContent=ACTIVE.name; $("lookName").textContent=ACTIVE.name; $("themeChip").innerHTML=THEME?` · <span class="theme">${THEME.name}</span>`:""; document.querySelectorAll(".scard").forEach(c=>c.classList.toggle("active",c.dataset.kind===ACTIVE.kind&&c.dataset.id===ACTIVE.id)); updateStageEmpty(); }
@@ -359,12 +381,12 @@ function renderBrains(){ const w=$("brain"); w.innerHTML=""; let first=null;
     b.onclick=()=>{ if(!ok)return; [...w.children].forEach(c=>c.classList.remove("on")); b.classList.add("on"); estCost(); }; w.appendChild(b); }); }
 function brain(){ const b=[...$("brain").children].find(c=>c.classList.contains("on")); return b?b.dataset.v:"claude"; }
 function renderLanes(){ const w=$("lanes"); w.innerHTML="";
-  Object.entries(CAP.lanes).forEach(([k,v])=>{ const on=v.ok; LANESEL[k]=on; const sub=v.manual?"paste-in — copy prompt, drop result back":(v.hint||v.model||"");
+  Object.entries(CAP.lanes).forEach(([k,v])=>{ if(k==="midjourney")return; /* MJ is a manual copy-strip below the columns, not a generate lane */ const on=v.ok; LANESEL[k]=on; const sub=(v.hint||v.model||"");
     const el=document.createElement("label"); el.className="chk"+(on?"":" off"); el.innerHTML=`<input type="checkbox" ${on?"checked":""} ${v.ok?"":"disabled"}/><span class="lbl"><b>${v.label}</b>${sub?`<small>${sub}</small>`:""}</span>`;
     el.querySelector("input").onchange=e=>{ LANESEL[k]=e.target.checked; refreshGen(); estCost(); };
     if(v.models&&v.models.length){ LANEMODEL[k]=v.models[0]; const sel=document.createElement("select"); sel.className="lm"; sel.title=v.manual?"Midjourney version":"model"; sel.innerHTML=v.models.map(m=>`<option>${m}</option>`).join(""); sel.onchange=e=>{ LANEMODEL[k]=e.target.value; estCost(); }; sel.onclick=e=>e.stopPropagation(); el.appendChild(sel); }
     w.appendChild(el); }); }
-function refreshGen(){ const lanes=Object.values(LANESEL).some(Boolean), anyP=["midjourney","gemini","grok"].some(p=>platVal(p)); $("gen").disabled=!(lanes&&anyP); const h=$("genhint"); if(h){ h.style.display=$("gen").disabled?"block":"none"; h.textContent=!anyP?"Draft a prompt to enable.":(!lanes?"Pick at least one lane.":""); } }
+function refreshGen(){ const lanes=Object.values(LANESEL).some(Boolean), anyP=["openai","gemini","grok"].some(p=>platVal(p)); $("gen").disabled=!(lanes&&anyP); const h=$("genhint"); if(h){ h.style.display=$("gen").disabled?"block":"none"; h.textContent=!anyP?"Draft a prompt to enable.":(!lanes?"Pick at least one lane.":""); } }
 // ── Cost estimate: prompt-smith (per draft) + each active image lane (× variations) ──
 const fmt=n=>n>=1?"$"+n.toFixed(2):n>=0.01?"$"+n.toFixed(3):n>0?"<$0.01":"$0.00";
 function estCost(){ const box=$("costbox"); if(!box||!PRICING)return;
@@ -413,8 +435,9 @@ $("draft").onclick=async()=>{ $("draft").disabled=true; $("draft").textContent="
     const lookLabel=MODE==="editorial"?(r.headline?('“'+r.headline+'”'):"Editorial"):ACTIVE.name;
     $("pbox").style.display="block"; $("analysis").style.display="none"; $("concept").textContent=(r.concept||"")+"  ·  "+lookLabel;
     $("ents").innerHTML=[...(r.entities||[]).map(e=>`<span class="ent">${e}</span>`),...(r.topics||[]).map(t=>`<span class="top">${t}</span>`)].join("");
-    const P=r.prompts||{}; platEl("midjourney").value=P.midjourney||""; platEl("gemini").value=P.gemini||""; platEl("grok").value=P.grok||"";
-    LASTOUT=Math.round(((P.midjourney||"").length+(P.gemini||"").length+(P.grok||"").length+(r.concept||"").length+120)/4);
+    const P=r.prompts||{}; platEl("openai").value=P.openai||""; platEl("gemini").value=P.gemini||""; platEl("grok").value=P.grok||""; platEl("midjourney").value=P.midjourney||"";
+    showResults();
+    LASTOUT=Math.round(((P.openai||"").length+(P.gemini||"").length+(P.grok||"").length+(r.concept||"").length+120)/4);
     $("stageBlurb").textContent="Prompt ready — pick your lanes and hit Generate ▶."; refreshGen(); estCost();
   }catch(e){ alert("Draft failed: "+e.message); } $("draft").disabled=false; $("draft").textContent="Draft prompt →"; };
 $("countSeg").onclick=e=>{ if(!e.target.dataset.n)return; [...$("countSeg").children].forEach(c=>c.classList.remove("on")); e.target.classList.add("on"); COUNT=+e.target.dataset.n; estCost(); };
@@ -424,7 +447,7 @@ $("refInput").onchange=e=>{ [...e.target.files].forEach(f=>{ const rd=new FileRe
 function renderRefs(){ const w=$("refThumbs"); w.innerHTML=""; REFS.forEach((r,i)=>{ const d=document.createElement("div"); d.className="refthumb"; d.title="click to remove"; d.innerHTML=`<img src="${r.url}"/>`; d.onclick=()=>{ REFS.splice(i,1); renderRefs(); estCost(); }; w.appendChild(d); }); }
 
 // ── Drafts: save/load/delete the working brief, persisted server-side per user ──
-function briefState(){ return { mode:MODE, active:ACTIVE, themeId:THEME?THEME.id:"", article:$("article").value, notes:$("notes").value, textInclude:$("textInclude").value, avoid:$("avoid").value, aspect:AR, headline:$("headline")?$("headline").value:"", editorialId:$("edSel")?$("edSel").value:"", brain:brain(), concept:$("concept").textContent||"", prompts:{ midjourney:platVal("midjourney"), gemini:platVal("gemini"), grok:platVal("grok") } }; }
+function briefState(){ return { mode:MODE, active:ACTIVE, themeId:THEME?THEME.id:"", article:$("article").value, notes:$("notes").value, textInclude:$("textInclude").value, avoid:$("avoid").value, aspect:AR, headline:$("headline")?$("headline").value:"", editorialId:$("edSel")?$("edSel").value:"", brain:brain(), concept:$("concept").textContent||"", prompts:{ openai:platVal("openai"), gemini:platVal("gemini"), grok:platVal("grok"), midjourney:platVal("midjourney") } }; }
 let draftsT; function persistDrafts(){ clearTimeout(draftsT); draftsT=setTimeout(()=>{ j("/api/cover/store",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({drafts:DRAFTS})}).catch(()=>{}); },400); }
 async function loadDrafts(){ try{ const r=await j("/api/cover/store"); DRAFTS=(r&&Array.isArray(r.drafts))?r.drafts:[]; }catch{ DRAFTS=[]; } renderDrafts(); }
 function renderDrafts(){ const w=$("draftList"); if(!w)return; if(!DRAFTS.length){ w.innerHTML='<span class="muted" style="font-size:11px">No saved drafts yet</span>'; return; } w.innerHTML=""; DRAFTS.forEach(d=>{ const c=document.createElement("span"); c.className="draftchip"; c.innerHTML=`<span class="dn"></span><span class="dx" title="delete">✕</span>`; c.querySelector(".dn").textContent=d.name||"Untitled"; c.querySelector(".dn").title="load · "+(d.ts?new Date(d.ts).toLocaleString():""); c.querySelector(".dn").onclick=()=>loadDraft(d); c.querySelector(".dx").onclick=e=>{ e.stopPropagation(); DRAFTS=DRAFTS.filter(x=>x.id!==d.id); persistDrafts(); renderDrafts(); }; w.appendChild(c); }); }
@@ -433,22 +456,14 @@ function loadDraft(d){ setMode(d.mode||"premium"); THEME=d.themeId?(THEMES.find(
   $("article").value=d.article||""; $("notes").value=d.notes||""; $("textInclude").value=d.textInclude||""; $("avoid").value=d.avoid||""; AR=d.aspect||"16:9"; [...$("arSeg").children].forEach(c=>c.classList.toggle("on",c.dataset.ar===AR));
   if($("headline"))$("headline").value=d.headline||""; if($("edSel")&&d.editorialId)$("edSel").value=d.editorialId;
   if(d.brain)[...$("brain").children].forEach(c=>c.classList.toggle("on",c.dataset.v===d.brain));
-  const P=d.prompts||{}; if(P.midjourney||P.gemini||P.grok){ $("pbox").style.display="block"; $("analysis").style.display="none"; $("concept").textContent=d.concept||""; $("ents").innerHTML=""; platEl("midjourney").value=P.midjourney||""; platEl("gemini").value=P.gemini||""; platEl("grok").value=P.grok||""; }
+  const P=d.prompts||{}; if(P.openai||P.gemini||P.grok||P.midjourney){ $("pbox").style.display="block"; $("analysis").style.display="none"; $("concept").textContent=d.concept||""; $("ents").innerHTML=""; platEl("openai").value=P.openai||""; platEl("gemini").value=P.gemini||""; platEl("grok").value=P.grok||""; platEl("midjourney").value=P.midjourney||""; showResults(); }
   show("studio"); refreshGen(); estCost(); }
-$("gen").onclick=()=>{ const concept=$("concept").textContent; for(const[lane,on]of Object.entries(LANESEL)){ if(!on)continue;
-  if(lane==="midjourney"){ const mp=mjFull(); if(mp)mjCard(mp,concept); }
-  else { const pp=platVal(lane); if(!pp)continue; for(let i=0;i<COUNT;i++) apiCard(lane,pp,concept); } } };
-function cardShell(lane,label){ const c=document.createElement("div"); c.className="card"; c.innerHTML=`<div class="top"><span class="lane ${lane}">${label||(CAP.lanes[lane]?CAP.lanes[lane].label:lane)}</span><span class="muted"></span></div><div class="imgbox"><span class="spin">generating…</span></div><div class="bar"></div>`; $("grid").prepend(c); $("stageEmpty").style.display="none"; return c; }
-async function apiCard(lane,p,concept){ const c=cardShell(lane); const box=c.querySelector(".imgbox"); try{ const r=await j("/api/cover/generate",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({lane,prompt:p,model:LANEMODEL[lane]})}); if(r.error)throw new Error(r.error); box.innerHTML=`<img src="${r.dataUrl}"/>`; box.querySelector("img").onclick=()=>openLightbox({img:r.dataUrl}); bar(c,{lane,prompt:p,concept,dataUrl:r.dataUrl}); }catch(e){ box.innerHTML=`<div class="err">${e.message}</div>`; } }
-function mjCard(p,concept){ const c=cardShell("midjourney"); const box=c.querySelector(".imgbox"); box.className="imgbox drop"; box.innerHTML="MJ prompt copied.<br/>Generate in MJ, then click / drop the image here."; navigator.clipboard.writeText(p);
-  const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*"; inp.style.display="none"; c.appendChild(inp); box.onclick=()=>inp.click();
-  const load=f=>{ const rd=new FileReader(); rd.onload=()=>{ box.className="imgbox"; box.innerHTML=`<img src="${rd.result}"/>`; box.querySelector("img").onclick=()=>openLightbox({img:rd.result}); bar(c,{lane:"midjourney",prompt:p,concept,dataUrl:rd.result}); }; rd.readAsDataURL(f); };
-  inp.onchange=e=>{ if(e.target.files[0])load(e.target.files[0]); }; box.ondragover=e=>e.preventDefault(); box.ondrop=e=>{e.preventDefault(); if(e.dataTransfer.files[0])load(e.dataTransfer.files[0]);};
-  const cp=document.createElement("button"); cp.textContent="Copy MJ prompt"; cp.onclick=()=>navigator.clipboard.writeText(p); c.querySelector(".bar").appendChild(cp); }
-function pinRef(u){ const c=cardShell("reference","REFERENCE"); c.querySelector(".imgbox").innerHTML=`<img src="${u}"/>`; c.querySelector(".imgbox img").onclick=()=>openLightbox({img:u}); c.querySelector(".top .muted").textContent="to replicate"; }
-function bar(c,rec){ const b=c.querySelector(".bar"); b.innerHTML=""; const k=document.createElement("button"); k.className="keep"; k.textContent="★ keep"; k.onclick=()=>{ k.classList.add("on"); k.textContent="★ kept"; const arr=LS.get("cc-keepers",[]); arr.unshift({...rec,ts:new Date().toISOString()}); LS.set("cc-keepers",arr); };
+$("gen").onclick=()=>{ const concept=$("concept").textContent; ["openai","gemini","grok"].forEach(lane=>{ if(!LANESEL[lane])return; const pp=platVal(lane); if(!pp)return; const stack=document.querySelector('.stack[data-plat="'+lane+'"]'); for(let i=0;i<COUNT;i++) apiCard(lane,pp,concept,stack); }); };
+function cardShell(lane,container){ const c=document.createElement("div"); c.className="card"; c.innerHTML=`<div class="top"><span class="lane ${lane}">${CAP.lanes[lane]?CAP.lanes[lane].label:lane}</span><span class="muted"></span></div><div class="imgbox"><span class="spin">generating…</span></div><div class="bar"></div>`; container.prepend(c); return c; }
+async function apiCard(lane,p,concept,container){ const c=cardShell(lane,container); const box=c.querySelector(".imgbox"); try{ const r=await j("/api/cover/generate",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({lane,prompt:p,model:LANEMODEL[lane]})}); if(r.error)throw new Error(r.error); box.innerHTML=`<img src="${r.dataUrl}"/>`; box.querySelector("img").onclick=()=>openLightbox({img:r.dataUrl}); bar(c,{lane,prompt:p,concept,dataUrl:r.dataUrl},container); }catch(e){ box.innerHTML=`<div class="err">${e.message}</div>`; } }
+function bar(c,rec,container){ const b=c.querySelector(".bar"); b.innerHTML=""; const k=document.createElement("button"); k.className="keep"; k.textContent="★ keep"; k.onclick=()=>{ k.classList.add("on"); k.textContent="★ kept"; const arr=LS.get("cc-keepers",[]); arr.unshift({...rec,ts:new Date().toISOString()}); LS.set("cc-keepers",arr); };
   const d=document.createElement("button"); d.textContent="download"; d.onclick=()=>{ const a=document.createElement("a"); a.href=rec.dataUrl; a.download=`cover-${rec.lane}-${Date.now()}.png`; a.click(); }; b.append(k,d);
-  if(rec.lane==="grok"||rec.lane==="gemini"){ const rg=document.createElement("button"); rg.textContent="↻ regen"; rg.title="another take, same prompt"; rg.onclick=()=>apiCard(rec.lane,rec.prompt,rec.concept); b.append(rg); } }
+  const rg=document.createElement("button"); rg.textContent="↻ regen"; rg.title="another take, same prompt"; rg.onclick=()=>apiCard(rec.lane,rec.prompt,rec.concept,container); b.append(rg); }
 
 // ── Inspo ──
 function renderInspoChips(){ const w=$("inspoChips"); w.innerHTML=""; INSPO.forEach((s,i)=>{ const b=document.createElement("button"); b.className="chip"+(i===0?" on":""); b.textContent=s.name; b.onclick=()=>{ document.querySelectorAll("#inspoChips .chip").forEach(x=>x.classList.remove("on")); b.classList.add("on"); loadInspo(s.id); }; w.appendChild(b); }); }
@@ -465,13 +480,13 @@ async function loadInspo(id,q){ const wall=$("wall"); wall.dataset.loaded="1"; w
 
 // ── Reverse-engineer (upload OR inspo image) ──
 function wireReverse(){ const d=$("refdrop"),f=$("reffile"); d.onclick=()=>f.click(); d.ondragover=e=>{e.preventDefault();d.classList.add("hot");}; d.ondragleave=()=>d.classList.remove("hot"); d.ondrop=e=>{e.preventDefault();d.classList.remove("hot"); if(e.dataTransfer.files[0])readRef(e.dataTransfer.files[0]);}; f.onchange=e=>{ if(e.target.files[0])readRef(e.target.files[0]); }; }
-function readRef(file){ const rd=new FileReader(); rd.onload=()=>reverse(rd.result,rd.result); rd.readAsDataURL(file); }
-async function useAsReference(url){ show("studio"); reverse(url,url); }
-async function reverse(imageForApi, imageForPin){
-  show("studio"); $("pbox").style.display="block"; $("ents").innerHTML=""; $("analysis").style.display="block"; $("analysis").textContent="reverse-engineering the reference…"; $("concept").textContent="Replicate reference"; platEl("midjourney").value=""; platEl("gemini").value=""; platEl("grok").value=""; pinRef(imageForPin);
+function readRef(file){ const rd=new FileReader(); rd.onload=()=>reverse(rd.result); rd.readAsDataURL(file); }
+async function useAsReference(url){ show("studio"); reverse(url); }
+async function reverse(imageForApi){
+  show("studio"); $("pbox").style.display="block"; $("ents").innerHTML=""; $("analysis").style.display="block"; $("analysis").textContent="reverse-engineering the reference…"; $("concept").textContent="Replicate reference"; showResults(); platEl("openai").value=""; platEl("gemini").value=""; platEl("grok").value=""; platEl("midjourney").value="";
   try{ const r=await j("/api/cover/reverse",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({brain:brain(),image:imageForApi})}); if(r.error)throw new Error(r.error);
     ACTIVE={kind:"ref",id:"ref",name:"Reference recipe",style:{name:"Reference recipe",styleBlock:r.styleBlock}}; syncLook();
-    $("analysis").textContent=r.analysis||""; platEl("midjourney").value=r.mj||r.prompt||""; platEl("gemini").value=r.prompt||""; platEl("grok").value=r.prompt||""; refreshGen();
+    $("analysis").textContent=r.analysis||""; platEl("openai").value=r.prompt||""; platEl("gemini").value=r.prompt||""; platEl("grok").value=r.prompt||""; platEl("midjourney").value=r.mj||r.prompt||""; refreshGen();
   }catch(e){ $("analysis").textContent="reverse failed: "+e.message; } }
 
 // ── Keepers ──

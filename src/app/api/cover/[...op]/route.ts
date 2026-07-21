@@ -111,17 +111,19 @@ async function draftPrompt(b: Any) {
     ...(wantText ? [`ON-IMAGE TEXT — the image MUST render this EXACT text as a designed element (title/label), integrated into the style: "${String(b.textInclude).trim()}". In EACH platform prompt, quote it verbatim and say where it sits. Gemini renders text most reliably; for Midjourney add \`--style raw\` and expect to composite.`] : []),
     ...(refs.length ? [`REFERENCE IMAGE(S) — ${refs.length} attached. Use them as guidance for style, palette, composition, texture, or the specific subject as the notes indicate — adapt, do not copy verbatim.`] : []),
     `HARD AVOID: ${[(PROFILE as Any).avoid.join("; "), String(b.avoid || "").trim()].filter(Boolean).join("; ")}.`,
-    "STEP 4 — Write THREE prompts of the SAME concept + style, each ACCURATE to its platform's idiom:",
-    `  • midjourney: terse, comma-separated visual descriptors (subject → style → composition → lighting → palette). NO full sentences. The app appends --p moodboards + --ar ${ar}. You MAY add \`--style raw\` and/or \`--s <0-1000>\` inline.`,
+    "STEP 4 — Write FOUR prompts of the SAME concept + style, each ACCURATE to its platform's idiom:",
+    `  • openai: a clear NATURAL-LANGUAGE prompt (scene → subject → composition → style → lighting → palette). GPT Image renders crisp, legible in-image text better than the others, so if text is wanted, quote it. Target ${ar}.`,
     `  • gemini: a rich NATURAL-LANGUAGE paragraph describing scene/subject/composition/style/lighting/mood/palette in full sentences; include '${ar} cinematic framing'.`,
     "  • grok: a punchy natural-language prompt, 1–2 sentences — scene + style + palette.",
+    `  • midjourney: terse, comma-separated visual descriptors (subject → style → composition → lighting → palette). NO full sentences. The app appends --p moodboards + --ar ${ar}. You MAY add \`--style raw\` and/or \`--s <0-1000>\` inline.`,
     ...(wantText ? [] : ["None may request any text, lettering, captions, or logos in the image."]),
-    'Return STRICT JSON: {"concept":"one line","entities":["..."],"topics":["..."],"prompts":{"midjourney":"..","gemini":"..","grok":".."}}.',
+    'Return STRICT JSON: {"concept":"one line","entities":["..."],"topics":["..."],"prompts":{"openai":"..","gemini":"..","grok":"..","midjourney":".."}}.',
   ].join("\n");
   const user = [b.article ? `ARTICLE / TOPIC:\n${b.article}` : "(No article — invent a fitting SemiAnalysis cover from the style + topic lens.)", b.notes ? `\nNOTES:\n${b.notes}` : "", "\nReturn the strict JSON now."].join("\n");
   const raw = llmTextOf(await callLLM({ provider, system, prompt: user, json: true, maxTokens: 2048, ...(refs.length ? { images: refs.map((r) => ({ media_type: r.media_type, data: r.data })) } : {}) }));
-  let out: Any; try { out = parseLLMJson(raw); } catch { out = { concept: "", entities: [], topics: [], prompts: { midjourney: raw.trim(), gemini: raw.trim(), grok: raw.trim() } }; }
-  if (!out.prompts) { const p = out.prompt || ""; out.prompts = { midjourney: out.mj || p, gemini: p, grok: p }; }
+  let out: Any; try { out = parseLLMJson(raw); } catch { out = { concept: "", entities: [], topics: [], prompts: { openai: raw.trim(), gemini: raw.trim(), grok: raw.trim(), midjourney: raw.trim() } }; }
+  if (!out.prompts) { const p = out.prompt || ""; out.prompts = { openai: p, gemini: p, grok: p, midjourney: out.mj || p }; }
+  if (!out.prompts.openai) out.prompts.openai = out.prompts.gemini || out.prompts.grok || "";
   out.entities = out.entities || []; out.topics = out.topics || [];
   const mb = (PROFILE as Any).moodboards;
   out.prompts.midjourney = `${out.prompts.midjourney} --p ${mb.oilPainting} ${mb.dithering} --ar ${ar}`;
@@ -143,18 +145,20 @@ async function draftEditorial(b: Any) {
     ...(theme ? [`TOPIC LENS — ${theme.name}: lean on these if apt: ${(theme.concepts || []).join("; ")}.`] : []),
     ...(b.avoid && String(b.avoid).trim() ? [`KEEP OUT OF FRAME: ${String(b.avoid).trim()}.`] : []),
     ...(refs.length ? [`REFERENCE IMAGE(S) — ${refs.length} attached. Use them to guide likeness, style, composition or the specific subject as the notes indicate.`] : []),
-    "STEP 4 — Write THREE prompts of the SAME concept, each platform-accurate AND spelling out the EXACT text to render:",
+    "STEP 4 — Write FOUR prompts of the SAME concept, each platform-accurate AND spelling out the EXACT text to render:",
+    `  • openai: a clear NATURAL-LANGUAGE prompt; quote the headline + labels verbatim and say where they sit. GPT Image renders crisp legible in-image text best — the strongest lane for editorial text covers. Target ${ar}.`,
     `  • gemini: a rich NATURAL-LANGUAGE paragraph; explicitly quote the text that must appear and where (Gemini / Nano-Banana renders in-image text reliably). Include '${ar}'.`,
-    `  • midjourney: terse comma-separated descriptors; put intended words in quotes and add \`--style raw\` (MJ text is unreliable — fine, the artist can composite). The app appends --ar ${ar}.`,
     "  • grok: a punchy natural-language prompt naming the text to render.",
-    'Return STRICT JSON: {"concept":"one line","headline":"the on-image title","entities":["..."],"topics":["..."],"caricatures":["who + how to draw them"],"prompts":{"midjourney":"..","gemini":"..","grok":".."}}.',
+    `  • midjourney: terse comma-separated descriptors; put intended words in quotes and add \`--style raw\` (MJ text is unreliable — fine, the artist can composite). The app appends --ar ${ar}.`,
+    'Return STRICT JSON: {"concept":"one line","headline":"the on-image title","entities":["..."],"topics":["..."],"caricatures":["who + how to draw them"],"prompts":{"openai":"..","gemini":"..","grok":"..","midjourney":".."}}.',
   ].join("\n");
   const user = [b.article ? `ARTICLE / TOPIC:\n${b.article}` : "(No article — invent a fitting satirical SemiAnalysis cover.)", b.notes ? `\nNOTES:\n${b.notes}` : "", "\nReturn the strict JSON now."].join("\n");
   // 2048 matches the standalone's per-provider budget (Gemini editorial JSON — with
   // headline + caricatures + a rich prose prompt — can exceed 1500 and truncate).
   const raw = llmTextOf(await callLLM({ provider, system, prompt: user, json: true, maxTokens: 2048, ...(refs.length ? { images: refs.map((r) => ({ media_type: r.media_type, data: r.data })) } : {}) }));
-  let out: Any; try { out = parseLLMJson(raw); } catch { out = { concept: "", headline: b.headline || "", entities: [], topics: [], caricatures: [], prompts: { midjourney: raw.trim(), gemini: raw.trim(), grok: raw.trim() } }; }
-  if (!out.prompts) { const pp = out.prompt || ""; out.prompts = { midjourney: pp, gemini: pp, grok: pp }; }
+  let out: Any; try { out = parseLLMJson(raw); } catch { out = { concept: "", headline: b.headline || "", entities: [], topics: [], caricatures: [], prompts: { openai: raw.trim(), gemini: raw.trim(), grok: raw.trim(), midjourney: raw.trim() } }; }
+  if (!out.prompts) { const pp = out.prompt || ""; out.prompts = { openai: pp, gemini: pp, grok: pp, midjourney: pp }; }
+  if (!out.prompts.openai) out.prompts.openai = out.prompts.gemini || out.prompts.grok || "";
   out.entities = out.entities || []; out.topics = out.topics || []; out.editorial = true;
   out.prompts.midjourney = `${out.prompts.midjourney} --ar ${ar}`;
   return { ...out, style: { id: style.id, name: style.name } };
