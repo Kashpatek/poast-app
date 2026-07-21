@@ -74,7 +74,7 @@ async function draftPrompt(b: Any) {
     'Return STRICT JSON: {"concept":"one line","entities":["..."],"topics":["..."],"prompts":{"midjourney":"..","gemini":"..","grok":".."}}.',
   ].join("\n");
   const user = [b.article ? `ARTICLE / TOPIC:\n${b.article}` : "(No article — invent a fitting SemiAnalysis cover from the style + topic lens.)", b.notes ? `\nNOTES:\n${b.notes}` : "", "\nReturn the strict JSON now."].join("\n");
-  const raw = llmTextOf(await callLLM({ provider, system, prompt: user, json: true, maxTokens: 1400 }));
+  const raw = llmTextOf(await callLLM({ provider, system, prompt: user, json: true, maxTokens: 2048 }));
   let out: Any; try { out = parseLLMJson(raw); } catch { out = { concept: "", entities: [], topics: [], prompts: { midjourney: raw.trim(), gemini: raw.trim(), grok: raw.trim() } }; }
   if (!out.prompts) { const p = out.prompt || ""; out.prompts = { midjourney: out.mj || p, gemini: p, grok: p }; }
   out.entities = out.entities || []; out.topics = out.topics || [];
@@ -100,10 +100,12 @@ async function draftEditorial(b: Any) {
     'Return STRICT JSON: {"concept":"one line","headline":"the on-image title","entities":["..."],"topics":["..."],"caricatures":["who + how to draw them"],"prompts":{"midjourney":"..","gemini":"..","grok":".."}}.',
   ].join("\n");
   const user = [b.article ? `ARTICLE / TOPIC:\n${b.article}` : "(No article — invent a fitting satirical SemiAnalysis cover.)", b.notes ? `\nNOTES:\n${b.notes}` : "", "\nReturn the strict JSON now."].join("\n");
-  const raw = llmTextOf(await callLLM({ provider, system, prompt: user, json: true, maxTokens: 1500 }));
+  // 2048 matches the standalone's per-provider budget (Gemini editorial JSON — with
+  // headline + caricatures + a rich prose prompt — can exceed 1500 and truncate).
+  const raw = llmTextOf(await callLLM({ provider, system, prompt: user, json: true, maxTokens: 2048 }));
   let out: Any; try { out = parseLLMJson(raw); } catch { out = { concept: "", headline: b.headline || "", entities: [], topics: [], caricatures: [], prompts: { midjourney: raw.trim(), gemini: raw.trim(), grok: raw.trim() } }; }
   if (!out.prompts) { const pp = out.prompt || ""; out.prompts = { midjourney: pp, gemini: pp, grok: pp }; }
-  out.entities = out.entities || []; out.topics = out.topics || [];
+  out.entities = out.entities || []; out.topics = out.topics || []; out.editorial = true;
   out.prompts.midjourney = `${out.prompts.midjourney} --ar 16:9`;
   return { ...out, style: { id: style.id, name: style.name } };
 }
