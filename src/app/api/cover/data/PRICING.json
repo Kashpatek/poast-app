@@ -15,6 +15,9 @@
     "gemini-3-pro-image-preview": { "label": "Nano Banana Pro", "perImage": 0.134, "source": "ai.google.dev pricing (1K/2K; 4K $0.24)" },
     "gemini-2.5-flash-image": { "label": "Nano Banana", "perImage": 0.039, "source": "ai.google.dev pricing (1290 tok/img)" },
     "imagen-4.0-generate-001": { "label": "Imagen 4", "perImage": 0.04, "source": "ai.google.dev pricing (Standard; Fast $0.02, Ultra $0.06)" },
+    "gpt-image-1": { "label": "GPT Image 1", "perImage": 0.07, "source": "openai pricing (EST: medium quality landscape; range $0.011–$0.25 by quality/size; deprecates Oct 23 2026)" },
+    "gpt-image-2": { "label": "GPT Image 2", "perImage": 0.08, "source": "openai pricing (EST: medium quality landscape; flagship, range $0.005–$0.211)" },
+    "gpt-image-1-mini": { "label": "GPT Image Mini", "perImage": 0.02, "source": "openai pricing (EST: medium landscape; cheapest, range $0.005–$0.052)" },
     "v7": { "label": "Midjourney v7", "subscription": true, "amortizedPerImage": 0.03, "note": "included in your Midjourney subscription (~$30/mo Standard ≈ $0.03/img)" },
     "v6.1": { "label": "Midjourney v6.1", "subscription": true, "amortizedPerImage": 0.03, "note": "included in your Midjourney subscription (~$30/mo Standard ≈ $0.03/img)" },
     "niji 6": { "label": "Midjourney niji 6", "subscription": true, "amortizedPerImage": 0.03, "note": "included in your Midjourney subscription (~$30/mo Standard ≈ $0.03/img)" }

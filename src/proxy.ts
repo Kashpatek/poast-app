@@ -38,9 +38,17 @@ const PUBLIC_EXACT = new Set(["/api/clip/callback"]);
 // tools are open to the whole team by design (e.g. the SHARED /board studio).
 //   admin-only     → Akash's personal task board; CarouselNEU (/carousel-2 +
 //                    its /api/library planner) which every nav registry
-//                    already marks akashOnly client-side
+//                    already marks akashOnly client-side; the /testing123
+//                    experiments hub landing + any experiment NOT explicitly
+//                    opened below.
 //   non-analyst    → marketing tooling not meant for the default Analyst seat
-const ADMIN_ONLY_PREFIXES = ["/board/original", "/carousel-2", "/api/library", "/testing123", "/api/cover"];
+// ADMIN_ONLY_EXCEPTIONS carve specific sub-surfaces back OUT of an admin-only
+// prefix so the whole team (incl. the default Analyst seat) can reach them —
+// today CoverCreator, opened to everyone signed in while the rest of the hub
+// stays admin-only. (/api/cover is intentionally NOT admin-gated for the same
+// reason; its per-user writes are keyed to the verified session server-side.)
+const ADMIN_ONLY_PREFIXES = ["/board/original", "/carousel-2", "/api/library", "/testing123"];
+const ADMIN_ONLY_EXCEPTIONS = ["/testing123/cover-creator"];
 const NON_ANALYST_PREFIXES = ["/ai-training"];
 function matchesPrefix(pathname: string, prefixes: string[]): boolean {
   return prefixes.some((p) => pathname === p || pathname.startsWith(p + "/"));
@@ -70,7 +78,9 @@ export async function proxy(req: NextRequest) {
   }
 
   // Authenticated — now authorize by role for the few restricted surfaces.
-  const needsAdmin = matchesPrefix(pathname, ADMIN_ONLY_PREFIXES);
+  // An admin-only prefix can carve specific sub-surfaces back out (e.g. the
+  // /testing123 hub is admin-only, but /testing123/cover-creator is open to all).
+  const needsAdmin = matchesPrefix(pathname, ADMIN_ONLY_PREFIXES) && !matchesPrefix(pathname, ADMIN_ONLY_EXCEPTIONS);
   const needsNonAnalyst = matchesPrefix(pathname, NON_ANALYST_PREFIXES);
   if (needsAdmin || needsNonAnalyst) {
     const role = roleForEmail(session.email);

@@ -42,8 +42,10 @@ const VALID_TABLES = ["prospects", "episodes", "archive", "trends", "outreach", 
 // only via /api/board and /api/board-task; nothing legitimately writes/deletes them
 // through this generic gateway (verified no non-board row uses a `todo-` id), so
 // give them the same defense-in-depth.
+// CoverCreator draft stores (`cover-<owner>`) are per-user singleton blobs too,
+// written only via /api/cover/store — same defense-in-depth as the boards.
 function isProtectedRowId(id: string): boolean {
-  return /-master$/.test(id) || /^todo-/.test(id);
+  return /-master$/.test(id) || /^todo-/.test(id) || /^cover-/.test(id);
 }
 
 const DbPostSchema = z.object({

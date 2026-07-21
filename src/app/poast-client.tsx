@@ -2557,7 +2557,7 @@ function BrainstormHub() {
 }
 
 // ═══ APP ═══
-var ANALYST_ALLOWED = ["home", "sloptop", "carousel", "captions", "brainstorm", "chart", "chart2", "assets"];
+var ANALYST_ALLOWED = ["home", "sloptop", "carousel", "captions", "brainstorm", "chart", "chart2", "assets", "cover-creator", "/testing123/cover-creator"];
 
 export default function App() {
   // Three-state intro gate. Loading briefly until we resolve on mount.

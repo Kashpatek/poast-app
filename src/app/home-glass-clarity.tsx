@@ -52,6 +52,7 @@ const TOOLS: Record<string, Tool> = {
   brainstorm: { id: "brainstorm", label: "Brainstorm", Icon: Lightbulb, sub: "Ideas & angles" },
   carousel: { id: "carousel", label: "Carousel", Icon: LayoutGrid, sub: "Instagram carousels" },
   "carousel-neu": { id: "carousel-neu", label: "CarouselNEU", Icon: Layers, sub: "Foundry wizard · 4 modes", href: "/carousel-2" },
+  "cover-creator": { id: "cover-creator", label: "CoverCreator", Icon: Sparkles, sub: "Article cover images", href: "/testing123/cover-creator" },
   chart: { id: "chart", label: "ChartMAKER", Icon: GanttChart, sub: "Quick charts", href: "/charts" },
   docu: { id: "docu", label: "DesignSTUDIO", Icon: Wand, sub: "Docs · graphics · motion", href: "/design-studio" },
   "copy-studio": { id: "copy-studio", label: "CopySTUDIO", Icon: Type, sub: "Draft · voice · headline", href: "/copy-studio" },
@@ -89,7 +90,7 @@ const SECTIONS: Section[] = [
     subcap: "Make the content",
     cc: D.amber,
     HeadIcon: Wand2,
-    ids: ["production-studio", "brainstorm", "carousel", "carousel-neu", "chart", "docu", "copy-studio", "assets"],
+    ids: ["production-studio", "brainstorm", "carousel", "carousel-neu", "cover-creator", "chart", "docu", "copy-studio", "assets"],
   },
   {
     cap: "Podcast",

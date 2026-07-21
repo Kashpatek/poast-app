@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callLLM, llmTextOf, parseLLMJson, type LLMProvider } from "@/lib/llm-provider";
 import { safeFetch, SsrfBlockedError } from "@/lib/safe-fetch";
+import { createClient } from "@/app/lib/neon-db";
+import { ownerFromRequest } from "@/lib/session-owner";
 import STYLES from "../data/STYLES.json";
 import FUSIONS from "../data/FUSIONS.json";
 import THEMES from "../data/THEMES.json";
@@ -17,10 +19,46 @@ export const dynamic = "force-dynamic";
 
 const GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-3-pro-image-preview";
 const GROK_IMAGE_MODEL = process.env.GROK_IMAGE_MODEL || "grok-imagine-image";
-const KEYS = { anthropic: !!process.env.ANTHROPIC_API_KEY, gemini: !!process.env.GEMINI_API_KEY, grok: !!process.env.XAI_API_KEY };
+const OPENAI_IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
+const KEYS = { anthropic: !!process.env.ANTHROPIC_API_KEY, gemini: !!process.env.GEMINI_API_KEY, grok: !!process.env.XAI_API_KEY, openai: !!process.env.OPENAI_API_KEY };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
+
+// Per-user draft store — same service-role pattern as /api/board. Drafts are
+// lightweight (brief inputs + drafted prompts, NO image bytes), so a single
+// per-user projects row `cover-<owner>` is cheap. Keepers stay client-side
+// (localStorage) because they hold full base64 images.
+let _coverDb: ReturnType<typeof createClient> | null = null;
+function coverDb() {
+  if (_coverDb) return _coverDb;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  _coverDb = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  return _coverDb;
+}
+async function coverStore(req: NextRequest) {
+  const sess = await ownerFromRequest(req);
+  if (!sess) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const supabase = coverDb();
+  if (!supabase) return NextResponse.json({ error: "DB not configured" }, { status: 503 });
+  const rowId = `cover-${sess.owner.toLowerCase()}`;
+  if (req.method === "POST") {
+    let body: Any; try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
+    if (!Array.isArray(body?.drafts)) return NextResponse.json({ error: "Refusing to save: drafts must be an array" }, { status: 409 });
+    const { data: existing } = await supabase.from("projects").select("name,data").eq("id", rowId).maybeSingle();
+    const prev = (existing as Any)?.data && typeof (existing as Any).data === "object" ? (existing as Any).data : {};
+    const writeBack: Any = { id: rowId, name: (existing as Any)?.name || `${sess.owner} CoverCreator`, type: "cover-store", data: { ...prev, drafts: body.drafts }, updated_at: new Date().toISOString() };
+    const { error } = await supabase.from("projects").upsert(writeBack, { onConflict: "id" }).select();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, drafts: body.drafts.length });
+  }
+  const { data: row, error } = await supabase.from("projects").select("data").eq("id", rowId).maybeSingle();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const data = (row as Any)?.data && typeof (row as Any).data === "object" ? (row as Any).data : {};
+  return NextResponse.json({ drafts: Array.isArray(data.drafts) ? data.drafts : [] });
+}
 
 function capabilities() {
   return {
@@ -28,6 +66,7 @@ function capabilities() {
     lanes: {
       grok: { ok: KEYS.grok, label: "Grok · Aurora", model: GROK_IMAGE_MODEL, models: ["grok-imagine-image", "grok-imagine-image-quality"] },
       gemini: { ok: KEYS.gemini, label: "Gemini · image", model: GEMINI_IMAGE_MODEL, models: ["gemini-3-pro-image-preview", "gemini-2.5-flash-image", "imagen-4.0-generate-001"], hint: KEYS.gemini ? "" : "add GEMINI_API_KEY (Google AI Studio)" },
+      openai: { ok: KEYS.openai, label: "OpenAI · GPT Image", model: OPENAI_IMAGE_MODEL, models: ["gpt-image-1", "gpt-image-2", "gpt-image-1-mini"], hint: KEYS.openai ? "" : "add OPENAI_API_KEY" },
       midjourney: { ok: true, manual: true, label: "Midjourney · manual", models: ["v7", "v6.1", "niji 6"] },
     },
   };
@@ -146,6 +185,20 @@ async function geminiImage(prompt: string, model?: string) {
   const inl = part.inlineData || part.inline_data;
   return { dataUrl: `data:${inl.mimeType || "image/png"};base64,${inl.data}` };
 }
+async function openaiImage(prompt: string, model?: string) {
+  if (!KEYS.openai) throw new Error("OPENAI_API_KEY not configured");
+  // GPT Image family returns b64_json and rejects `response_format`; DALL·E left the API May 2026.
+  const r = await fetch("https://api.openai.com/v1/images/generations", {
+    method: "POST", headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "content-type": "application/json" },
+    body: JSON.stringify({ model: model || OPENAI_IMAGE_MODEL, prompt, n: 1, size: "1536x1024" }),
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j?.error?.message || `OpenAI image ${r.status}`);
+  const d = j?.data?.[0] || {};
+  if (d.b64_json) return { dataUrl: `data:image/png;base64,${d.b64_json}` };
+  if (d.url) { const img = await safeFetch(d.url); const buf = Buffer.from(await img.arrayBuffer()); return { dataUrl: `data:${img.headers.get("content-type") || "image/png"};base64,${buf.toString("base64")}` }; }
+  throw new Error("OpenAI image: no image in response");
+}
 
 async function reverseImage(b: Any) {
   let image: string = b.image || "";
@@ -237,12 +290,13 @@ async function handle(req: NextRequest, op: string) {
   if (op === "fusions") return NextResponse.json({ fusions: fusionsList() });
   if (op === "themes") return NextResponse.json({ themes: (THEMES as Any).themes });
   if (op === "pricing") return NextResponse.json(PRICING);
+  if (op === "store") return coverStore(req);
   if (op === "inspo-sources") return NextResponse.json({ sources: INSPO_SOURCES.map((s) => ({ id: s.id, name: s.name })) });
   if (op === "inspo") return NextResponse.json({ items: await fetchInspo(url.searchParams.get("id"), url.searchParams.get("q")) });
   if (req.method === "POST") {
     const b = await req.json().catch(() => ({}));
     if (op === "prompt") return NextResponse.json(await draftPrompt(b));
-    if (op === "generate") return NextResponse.json(b.lane === "gemini" ? await geminiImage(b.prompt, b.model) : await grokImage(b.prompt, b.model));
+    if (op === "generate") return NextResponse.json(b.lane === "gemini" ? await geminiImage(b.prompt, b.model) : b.lane === "openai" ? await openaiImage(b.prompt, b.model) : await grokImage(b.prompt, b.model));
     if (op === "reverse") return NextResponse.json(await reverseImage(b));
   }
   return NextResponse.json({ error: "Unknown op: " + op }, { status: 404 });

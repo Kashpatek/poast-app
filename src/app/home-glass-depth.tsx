@@ -66,6 +66,7 @@ const SHELVES: Shelf[] = [
     { name: "Slop Top", sub: "Brief gen", Icon: Zap, status: "Most used", nav: "sloptop" },
     { name: "Carousel", sub: "Carousels", Icon: LayoutGrid, status: "3 templates", nav: "carousel" },
     { name: "CarouselNEU", sub: "Foundry wizard", Icon: Layers, status: "New", href: "/carousel-2", badge: "akash", akashOnly: true },
+    { name: "CoverCreator", sub: "Article cover images", Icon: Wand2, status: "New", href: "/testing123/cover-creator", badge: "new" },
     { name: "Capper", sub: "Captions", Icon: Captions, status: "Auto-fit", nav: "captions" },
     { name: "Chart Maker", sub: "Quick charts", Icon: GanttChart, status: "12 saved", href: "/charts" },
     { name: "POAST Studio", sub: "Charts · tables", Icon: Table2, status: "Pro", href: "/charts" },

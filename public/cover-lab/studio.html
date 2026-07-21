@@ -90,6 +90,14 @@
   .refthumb img{ width:100%; height:100%; object-fit:cover; display:block; }
   .refthumb::after{ content:"✕"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(11,11,11,.62); color:#fff; font-size:13px; opacity:0; transition:.14s; }
   .refthumb:hover::after{ opacity:1; }
+  .draftbar{ margin-bottom:12px; padding-bottom:11px; border-bottom:1px solid var(--line); }
+  .drafthead{ display:flex; justify-content:space-between; align-items:center; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--mut2); margin-bottom:8px; }
+  .draftlist{ display:flex; flex-wrap:wrap; gap:6px; }
+  .draftchip{ display:inline-flex; align-items:center; gap:6px; background:var(--panel2); border:1px solid var(--line2); border-radius:999px; padding:3px 5px 3px 10px; font-size:11.5px; color:var(--cream); max-width:100%; }
+  .draftchip .dn{ cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:150px; }
+  .draftchip .dn:hover{ color:var(--amber-hi); }
+  .draftchip .dx{ cursor:pointer; color:var(--mut2); width:16px; height:16px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-size:10px; }
+  .draftchip .dx:hover{ background:var(--line2); color:var(--cream); }
   .view-title{ font-family:var(--display); font-size:26px; font-weight:700; letter-spacing:-.02em; margin:0 0 4px; }
   .btn.ghost:hover:not(:disabled){ border-color:var(--line2); background:var(--panel3); filter:none; }
 
@@ -236,6 +244,10 @@
   <section class="view" id="v-studio">
     <div class="studio">
       <aside>
+        <div class="draftbar">
+          <div class="drafthead"><span>Drafts</span><button class="btn ghost" id="saveDraft" style="padding:3px 9px;font-size:11px">＋ Save draft</button></div>
+          <div class="draftlist" id="draftList"></div>
+        </div>
         <div class="seg" id="modeSeg" style="display:flex;width:100%;margin-bottom:10px"><button data-m="premium" class="on" style="flex:1">Premium</button><button data-m="editorial" style="flex:1">Editorial</button></div>
         <div class="lookbox" id="lookbox"><span>look: <b id="lookName">—</b></span><button class="btn ghost" id="changeLook" style="padding:4px 8px;font-size:11px">change</button></div>
         <div id="edControls" style="display:none">
@@ -306,7 +318,7 @@
 </main>
 
 <script>
-let CAP,PROFILE,STYLES=[],FUSIONS=[],THEMES=[],INSPO=[],EDITORIAL=[],MODE="premium",ACTIVE={kind:"style",id:"house",name:"House (developing)"},THEME=null,LANESEL={},LANEMODEL={},COUNT=1,PRICING=null,LASTOUT=0,AR="16:9",REFS=[];
+let CAP,PROFILE,STYLES=[],FUSIONS=[],THEMES=[],INSPO=[],EDITORIAL=[],MODE="premium",ACTIVE={kind:"style",id:"house",name:"House (developing)"},THEME=null,LANESEL={},LANEMODEL={},COUNT=1,PRICING=null,LASTOUT=0,AR="16:9",REFS=[],DRAFTS=[];
 const $=id=>document.getElementById(id);
 const j=(u,o)=>fetch(u,o).then(r=>r.json());
 const LS={ get:(k,d)=>{ try{ return JSON.parse(localStorage.getItem(k))??d }catch{ return d } }, set:(k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)) }catch{} } };
@@ -329,6 +341,7 @@ async function boot(){
   $("toStudio").onclick=()=>show("studio"); $("changeLook").onclick=()=>show("aesthetics");
   wireReverse(); syncLook();
   document.querySelectorAll(".pf").forEach(pf=>{ pf.querySelector("textarea").oninput=refreshGen; pf.querySelector(".cp").onclick=()=>{ const b=pf.querySelector(".cp"); navigator.clipboard.writeText(pf.querySelector("textarea").value); b.textContent="copied ✓"; setTimeout(()=>b.textContent="copy",1200); }; });
+  $("saveDraft").onclick=saveDraft; loadDrafts();
   const h=location.hash.slice(1); if(h&&$("v-"+h)) show(h);
   estCost();
 }
@@ -409,6 +422,19 @@ $("arSeg").onclick=e=>{ if(!e.target.dataset.ar)return; [...$("arSeg").children]
 $("refAdd").onclick=()=>$("refInput").click();
 $("refInput").onchange=e=>{ [...e.target.files].forEach(f=>{ const rd=new FileReader(); rd.onload=()=>{ const m=String(rd.result).match(/^data:(image\/[\w+.-]+);base64,(.+)$/); if(m){ REFS.push({media_type:m[1],data:m[2],url:rd.result}); renderRefs(); estCost(); } }; rd.readAsDataURL(f); }); e.target.value=""; };
 function renderRefs(){ const w=$("refThumbs"); w.innerHTML=""; REFS.forEach((r,i)=>{ const d=document.createElement("div"); d.className="refthumb"; d.title="click to remove"; d.innerHTML=`<img src="${r.url}"/>`; d.onclick=()=>{ REFS.splice(i,1); renderRefs(); estCost(); }; w.appendChild(d); }); }
+
+// ── Drafts: save/load/delete the working brief, persisted server-side per user ──
+function briefState(){ return { mode:MODE, active:ACTIVE, themeId:THEME?THEME.id:"", article:$("article").value, notes:$("notes").value, textInclude:$("textInclude").value, avoid:$("avoid").value, aspect:AR, headline:$("headline")?$("headline").value:"", editorialId:$("edSel")?$("edSel").value:"", brain:brain(), concept:$("concept").textContent||"", prompts:{ midjourney:platVal("midjourney"), gemini:platVal("gemini"), grok:platVal("grok") } }; }
+let draftsT; function persistDrafts(){ clearTimeout(draftsT); draftsT=setTimeout(()=>{ j("/api/cover/store",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({drafts:DRAFTS})}).catch(()=>{}); },400); }
+async function loadDrafts(){ try{ const r=await j("/api/cover/store"); DRAFTS=(r&&Array.isArray(r.drafts))?r.drafts:[]; }catch{ DRAFTS=[]; } renderDrafts(); }
+function renderDrafts(){ const w=$("draftList"); if(!w)return; if(!DRAFTS.length){ w.innerHTML='<span class="muted" style="font-size:11px">No saved drafts yet</span>'; return; } w.innerHTML=""; DRAFTS.forEach(d=>{ const c=document.createElement("span"); c.className="draftchip"; c.innerHTML=`<span class="dn"></span><span class="dx" title="delete">✕</span>`; c.querySelector(".dn").textContent=d.name||"Untitled"; c.querySelector(".dn").title="load · "+(d.ts?new Date(d.ts).toLocaleString():""); c.querySelector(".dn").onclick=()=>loadDraft(d); c.querySelector(".dx").onclick=e=>{ e.stopPropagation(); DRAFTS=DRAFTS.filter(x=>x.id!==d.id); persistDrafts(); renderDrafts(); }; w.appendChild(c); }); }
+function saveDraft(){ const def=($("concept").textContent||$("article").value||"Untitled").trim().slice(0,42)||"Untitled"; const name=prompt("Name this draft:",def); if(name===null)return; DRAFTS.unshift({ id:"d-"+Date.now().toString(36)+Math.random().toString(36).slice(2,5), name:name||"Untitled", ts:new Date().toISOString(), ...briefState() }); persistDrafts(); renderDrafts(); }
+function loadDraft(d){ setMode(d.mode||"premium"); THEME=d.themeId?(THEMES.find(t=>t.id===d.themeId)||null):null; if(d.active)ACTIVE=d.active; if($("themeSel"))$("themeSel").value=d.themeId||""; syncLook();
+  $("article").value=d.article||""; $("notes").value=d.notes||""; $("textInclude").value=d.textInclude||""; $("avoid").value=d.avoid||""; AR=d.aspect||"16:9"; [...$("arSeg").children].forEach(c=>c.classList.toggle("on",c.dataset.ar===AR));
+  if($("headline"))$("headline").value=d.headline||""; if($("edSel")&&d.editorialId)$("edSel").value=d.editorialId;
+  if(d.brain)[...$("brain").children].forEach(c=>c.classList.toggle("on",c.dataset.v===d.brain));
+  const P=d.prompts||{}; if(P.midjourney||P.gemini||P.grok){ $("pbox").style.display="block"; $("analysis").style.display="none"; $("concept").textContent=d.concept||""; $("ents").innerHTML=""; platEl("midjourney").value=P.midjourney||""; platEl("gemini").value=P.gemini||""; platEl("grok").value=P.grok||""; }
+  show("studio"); refreshGen(); estCost(); }
 $("gen").onclick=()=>{ const concept=$("concept").textContent; for(const[lane,on]of Object.entries(LANESEL)){ if(!on)continue;
   if(lane==="midjourney"){ const mp=mjFull(); if(mp)mjCard(mp,concept); }
   else { const pp=platVal(lane); if(!pp)continue; for(let i=0;i<COUNT;i++) apiCard(lane,pp,concept); } } };
