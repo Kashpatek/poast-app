@@ -5,10 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>CoverCreator · SemiAnalysis</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
   :root{
     --ink:#0A0A0B; --panel:#1a1a1d; --panel2:#222226; --panel3:#2c2c31; --line:#313138; --line2:#42424a;
     --amber:#F7B041; --amber-hi:#FFC463; --blue:#0C86D1; --blue-hi:#3AA6E8; --cream:#F3E9D8; --mut:#a2a2aa; --mut2:#8e8e97;
+    --display:'Space Grotesk',Inter,sans-serif;
     --r:10px; --r2:14px; --shadow:0 6px 24px -8px rgba(0,0,0,.6); --shadow-hi:0 14px 40px -12px rgba(0,0,0,.75);
     --ease:cubic-bezier(.4,0,.2,1);
   }
@@ -16,13 +17,16 @@
   body{ margin:0; background:var(--ink); color:var(--cream); font:14px/1.5 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; -webkit-font-smoothing:antialiased; letter-spacing:-.01em; }
   /* subtle brand aura depth (no tiling) */
   body::before{ content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
-    background:radial-gradient(60vw 50vh at 12% -8%, rgba(247,176,65,.06), transparent 60%), radial-gradient(55vw 55vh at 100% 108%, rgba(12,134,209,.07), transparent 60%); }
+    background:radial-gradient(65vw 55vh at 10% -10%, rgba(247,176,65,.09), transparent 60%), radial-gradient(60vw 60vh at 100% 110%, rgba(12,134,209,.10), transparent 62%), radial-gradient(40vw 40vh at 88% -6%, rgba(12,134,209,.05), transparent 60%); }
   header,main{ position:relative; z-index:1; }
   ::selection{ background:rgba(247,176,65,.28); }
   ::-webkit-scrollbar{ width:10px; height:10px; } ::-webkit-scrollbar-thumb{ background:var(--line2); border-radius:8px; border:2px solid var(--ink); } ::-webkit-scrollbar-track{ background:transparent; }
 
-  header{ display:flex; align-items:center; gap:18px; padding:12px 22px; border-bottom:1px solid var(--line); position:sticky; top:0; background:rgba(10,10,11,.8); backdrop-filter:blur(14px) saturate(1.2); z-index:30; }
-  header h1{ font-size:16px; margin:0; font-weight:800; letter-spacing:-.02em; } header h1 b{ color:var(--amber); font-weight:800; }
+  header{ display:flex; align-items:center; gap:18px; padding:13px 22px; border-bottom:1px solid var(--line); position:sticky; top:0; background:rgba(10,10,11,.82); backdrop-filter:blur(14px) saturate(1.2); z-index:30; }
+  header::after{ content:""; position:absolute; left:0; right:0; bottom:-1px; height:1px; background:linear-gradient(90deg,transparent,rgba(247,176,65,.35),transparent); }
+  header h1{ font-size:17px; margin:0; font-family:var(--display); font-weight:700; letter-spacing:-.02em; display:flex; align-items:center; }
+  header h1 .mark{ width:10px; height:10px; border-radius:3px; margin-right:9px; background:linear-gradient(135deg,var(--amber-hi),var(--amber)); box-shadow:0 0 12px rgba(247,176,65,.55); }
+  header h1 b{ font-weight:700; background:linear-gradient(90deg,var(--amber-hi),var(--amber)); -webkit-background-clip:text; background-clip:text; color:transparent; }
   .tabs{ display:flex; gap:2px; background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:3px; }
   .tabs button{ background:transparent; color:var(--mut); border:0; border-radius:8px; padding:6px 13px; cursor:pointer; font:inherit; font-weight:500; transition:.16s var(--ease); }
   .tabs button:hover{ color:var(--cream); }
@@ -38,10 +42,12 @@
   .lead{ color:var(--mut); font-size:13.5px; margin:0 0 18px; max-width:760px; } .lead b{ color:var(--cream); font-weight:600; }
 
   .gal{ display:grid; grid-template-columns:repeat(auto-fill,minmax(272px,1fr)); gap:18px; }
-  .scard{ background:var(--panel); border:1px solid var(--line); border-radius:var(--r2); overflow:hidden; display:flex; flex-direction:column; transition:.2s var(--ease); }
+  .scard{ background:var(--panel); border:1px solid var(--line); border-radius:var(--r2); overflow:hidden; display:flex; flex-direction:column; transition:transform .2s var(--ease),box-shadow .2s var(--ease),border-color .2s var(--ease); animation:rise .45s var(--ease) both; }
+  @keyframes rise{ from{ opacity:0; transform:translateY(12px); } to{ opacity:1; transform:none; } }
   .scard:hover{ border-color:var(--line2); transform:translateY(-3px); box-shadow:var(--shadow-hi); }
   .scard.active{ border-color:var(--amber); box-shadow:0 0 0 1px var(--amber), var(--shadow-hi); }
   .scard .thumb{ aspect-ratio:16/9; background:#0f0f10; position:relative; overflow:hidden; }
+  .scard .thumb::before{ content:""; position:absolute; inset:0; z-index:1; pointer-events:none; box-shadow:inset 0 -46px 44px -34px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.03); }
   .scard .thumb img{ width:100%; height:100%; object-fit:cover; display:block; transition:.4s var(--ease); }
   .scard:hover .thumb img{ transform:scale(1.045); }
   .scard .thumb .none{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--mut); font-size:11px; letter-spacing:.5px; text-transform:uppercase; background:linear-gradient(135deg,var(--panel3),var(--panel)); }
@@ -69,7 +75,7 @@
   .btn.ghost{ background:var(--panel2); color:var(--cream); border:1px solid var(--line); box-shadow:none; }
   :focus-visible{ outline:2px solid var(--amber-hi); outline-offset:2px; border-radius:6px; }
   .genhint{ font-size:11px; color:var(--mut2); margin-top:7px; }
-  .view-title{ font-size:25px; font-weight:700; letter-spacing:-.02em; margin:0 0 4px; }
+  .view-title{ font-family:var(--display); font-size:26px; font-weight:700; letter-spacing:-.02em; margin:0 0 4px; }
   .btn.ghost:hover:not(:disabled){ border-color:var(--line2); background:var(--panel3); filter:none; }
 
   /* studio */
@@ -116,8 +122,8 @@
   .stage-empty .prev{ flex:1 1 auto; min-height:360px; background:#0f0f10 center/cover no-repeat; position:relative; }
   .stage-empty .prev::after{ content:""; position:absolute; inset:0; background:linear-gradient(0deg,rgba(10,10,11,.9),rgba(10,10,11,.1)); }
   .stage-empty .cap{ padding:20px 24px 26px; position:relative; margin-top:-92px; z-index:1; }
-  .stage-empty .cap .k{ font-size:11px; letter-spacing:.7px; text-transform:uppercase; color:var(--mut); font-weight:600; }
-  .stage-empty .cap h2{ margin:5px 0 9px; font-size:31px; font-weight:800; letter-spacing:-.03em; }
+  .stage-empty .cap .k{ font-size:11px; letter-spacing:.8px; text-transform:uppercase; color:var(--amber-hi); font-weight:700; }
+  .stage-empty .cap h2{ margin:5px 0 9px; font-family:var(--display); font-size:32px; font-weight:700; letter-spacing:-.03em; }
   .stage-empty .cap p{ margin:0; color:var(--mut); font-size:14px; line-height:1.55; max-width:560px; }
   .stage-empty .steps{ display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
   .stage-empty .steps span{ font-size:11.5px; color:var(--cream); background:var(--panel2); border:1px solid var(--line); border-radius:20px; padding:4px 11px; }
@@ -158,7 +164,7 @@
 </head>
 <body>
 <header>
-  <h1>Cover<b>Creator</b></h1>
+  <h1><span class="mark"></span>Cover<b>Creator</b></h1>
   <div class="tabs">
     <button data-v="aesthetics" class="on">Aesthetics</button>
     <button data-v="fusions">Fusions</button>
@@ -294,8 +300,8 @@ function refreshGen(){ const lanes=Object.values(LANESEL).some(Boolean), p=$("pr
 function styleCard(s){ const c=document.createElement("div"); c.className="scard"; c.dataset.kind="style"; c.dataset.id=s.id;
   c.innerHTML=`<div class="thumb">${s.sampleUrl?`<img src="${s.sampleUrl}" loading="lazy"/>`:`<div class="none">no sample</div>`}</div><div class="body"><div class="name">${s.name}</div><div class="blurb">${s.blurb||""}</div><div class="tags">${(s.tags||[]).map(t=>`<span>${t}</span>`).join("")}</div><button class="use">Use this style →</button></div>`;
   c.style.cursor="pointer"; c.onclick=()=>{ ACTIVE={kind:"style",id:s.id,name:s.name}; syncLook(); show("studio"); }; return c; }
-function renderStyles(){ const g=$("galStyles"); g.innerHTML=""; STYLES.forEach(s=>g.appendChild(styleCard(s))); syncLook(); }
-function renderFusions(){ const g=$("galFusions"); g.innerHTML=""; FUSIONS.forEach(f=>{ const c=document.createElement("div"); c.className="scard"; c.dataset.kind="fusion"; c.dataset.id=f.id;
+function renderStyles(){ const g=$("galStyles"); g.innerHTML=""; STYLES.forEach((s,i)=>{ const c=styleCard(s); c.style.animationDelay=Math.min(i*28,420)+"ms"; g.appendChild(c); }); syncLook(); }
+function renderFusions(){ const g=$("galFusions"); g.innerHTML=""; FUSIONS.forEach((f,i)=>{ const c=document.createElement("div"); c.className="scard"; c.dataset.kind="fusion"; c.dataset.id=f.id; c.style.animationDelay=Math.min(i*28,420)+"ms";
   c.innerHTML=`<div class="thumb">${f.sampleUrl?`<img src="${f.sampleUrl}" loading="lazy"/>`:`<div class="none">no sample</div>`}</div><div class="body"><div class="name">${f.name}</div><div class="pair">${f.a} × ${f.b}</div><div class="blurb">${f.why||""}</div><div class="tags">${(f.tags||[]).slice(0,5).map(t=>`<span>${t}</span>`).join("")}</div><button class="use">Use this fusion →</button></div>`;
   c.style.cursor="pointer"; c.onclick=()=>{ ACTIVE={kind:"fusion",id:f.id,name:f.name}; syncLook(); show("studio"); }; g.appendChild(c); }); syncLook(); }
 function renderMixer(){ const opts=STYLES.filter(s=>s.id!=="house").map(s=>`<option value="${s.id}">${s.name}</option>`).join(""); $("mixA").innerHTML=opts; $("mixB").innerHTML=opts; if($("mixB").options[1])$("mixB").selectedIndex=1;
