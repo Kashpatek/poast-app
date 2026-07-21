@@ -66,7 +66,7 @@ const THEMES: Record<ThemeKey, { color: string; prefix: string; label: string }>
 
 const CAROUSEL_SURFACE = "carousel";
 
-function carouselProvider(): "claude" | "gemini" | "grok" {
+function carouselProvider(): "claude" | "gemini" | "grok" | "openai" {
   return getSurfaceProvider(CAROUSEL_SURFACE) || getPreferredProvider();
 }
 

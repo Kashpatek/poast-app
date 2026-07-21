@@ -92,6 +92,7 @@ const PROVIDER_COLORS: Record<LLMProviderName, string> = {
   claude: D.amber,
   gemini: D.blue,
   grok: D.violet,
+  openai: "#10A37F",
 };
 
 const DESTINATIONS = [
@@ -611,8 +612,10 @@ export default function Brainstorm() {
           });
         }
 
-        // Multi-provider: distribute across the 3 providers.
-        const split: Record<LLMProviderName, number> = { claude: 2, gemini: 2, grok: 1 };
+        // Multi-provider: distribute across the ALL_PROVIDERS ensemble (openai is
+        // not in that fixed ensemble, so its split value is never read — present
+        // only to satisfy the exhaustive Record type).
+        const split: Record<LLMProviderName, number> = { claude: 2, gemini: 2, grok: 1, openai: 1 };
         const calls = providers.map(function(p) {
           const n = split[p] || 1;
           return generateJSON<RawAngleResponse>(SYS_R2, parentPrompt + "\n\nReturn exactly " + n + " follow-ups.", p)

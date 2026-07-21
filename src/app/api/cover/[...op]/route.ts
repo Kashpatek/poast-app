@@ -62,7 +62,7 @@ async function coverStore(req: NextRequest) {
 
 function capabilities() {
   return {
-    brains: { claude: KEYS.anthropic, gemini: KEYS.gemini, grok: KEYS.grok },
+    brains: { claude: KEYS.anthropic, gemini: KEYS.gemini, grok: KEYS.grok, openai: KEYS.openai },
     lanes: {
       grok: { ok: KEYS.grok, label: "Grok · Aurora", model: GROK_IMAGE_MODEL, models: ["grok-imagine-image", "grok-imagine-image-quality"] },
       gemini: { ok: KEYS.gemini, label: "Gemini · image", model: GEMINI_IMAGE_MODEL, models: ["gemini-3-pro-image-preview", "gemini-2.5-flash-image", "imagen-4.0-generate-001"], hint: KEYS.gemini ? "" : "add GEMINI_API_KEY (Google AI Studio)" },

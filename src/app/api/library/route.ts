@@ -833,7 +833,7 @@ async function handleChartAction(body: Record<string, unknown>): Promise<NextRes
     text: z.string().optional(),
     url: z.string().optional(),
     slideContext: z.string().max(2000).optional(),
-    provider: z.enum(["claude", "gemini", "grok"]).optional(),
+    provider: z.enum(["claude", "gemini", "grok", "openai"]).optional(),
   }).passthrough();
   const parsed = ChartReq.safeParse(body);
   if (!parsed.success) {
@@ -907,7 +907,7 @@ export async function POST(req: NextRequest) {
       topic: z.string().nullable().optional(),
       pageCount: z.number().int().min(0).max(12).optional(),
       imageUrls: z.array(z.string()).optional(),
-      provider: z.enum(["claude", "gemini", "grok"]).optional(),
+      provider: z.enum(["claude", "gemini", "grok", "openai"]).optional(),
     }).passthrough();
     const parsed = LibrarySchema.safeParse(body);
     if (!parsed.success) {

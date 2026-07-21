@@ -14,7 +14,7 @@ const SlobTopSchema = z.object({
   vibe: z.string().optional(),
   trendRef: z.string().optional(),
   host: z.string().optional(),
-  provider: z.enum(["claude", "gemini", "grok"]).optional(),
+  provider: z.enum(["claude", "gemini", "grok", "openai"]).optional(),
 }).passthrough();
 
 // Opus-class model for meme idea generation per the May sprint list —

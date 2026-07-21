@@ -84,7 +84,7 @@ const CarouselSchema = z.object({
   mode: z.string().optional(),
   pageCount: z.number().optional(),
   imageUrls: z.array(z.string()).optional(),
-  provider: z.enum(["claude", "gemini", "grok"]).optional(),
+  provider: z.enum(["claude", "gemini", "grok", "openai"]).optional(),
 }).passthrough();
 
 export async function POST(req: NextRequest) {

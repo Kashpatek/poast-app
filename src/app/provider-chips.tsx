@@ -36,7 +36,7 @@ export function ProviderChips({ surface, label, compact }: { surface: string; la
       letterSpacing: 0.5,
     }}>
       <span style={{ textTransform: "uppercase", fontWeight: 700 }}>{label || "Caption AI"}</span>
-      {(["auto", "claude", "gemini", "grok"] as const).map((p) => {
+      {(["auto", "claude", "gemini", "grok", "openai"] as const).map((p) => {
         const on = override === p;
         const tip = p === "auto" ? "Use AI Training default — currently " + globalDefault.toUpperCase() : p.toUpperCase();
         return (

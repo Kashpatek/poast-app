@@ -355,7 +355,7 @@ function openLightbox(it){ $("lbimg").src=it.img; const a=$("lbsrc"); if(it.link
 function closeLightbox(){ $("lightbox").classList.remove("on"); }
 
 function renderBrains(){ const w=$("brain"); w.innerHTML=""; let first=null;
-  [["claude","Claude"],["gemini","Gemini"],["grok","Grok"]].forEach(([k,lab])=>{ const ok=CAP.brains[k]; const b=document.createElement("button"); b.dataset.v=k; b.textContent=lab+(ok?"":" ·no key"); if(!ok){b.disabled=true;b.style.color="#6a6a72";} if(ok&&!first){first=k;b.classList.add("on");}
+  [["claude","Claude"],["gemini","Gemini"],["grok","Grok"],["openai","GPT"]].forEach(([k,lab])=>{ const ok=CAP.brains[k]; const b=document.createElement("button"); b.dataset.v=k; b.textContent=lab+(ok?"":" ·no key"); if(!ok){b.disabled=true;b.style.color="#6a6a72";} if(ok&&!first){first=k;b.classList.add("on");}
     b.onclick=()=>{ if(!ok)return; [...w.children].forEach(c=>c.classList.remove("on")); b.classList.add("on"); estCost(); }; w.appendChild(b); }); }
 function brain(){ const b=[...$("brain").children].find(c=>c.classList.contains("on")); return b?b.dataset.v:"claude"; }
 function renderLanes(){ const w=$("lanes"); w.innerHTML="";

@@ -70,12 +70,12 @@ export function uid(prefix?: string): string { return (prefix || "id") + "-" + D
 // Training page propagates everywhere without each surface needing
 // its own plumbing. Per-call override stays possible — just pass
 // `provider` to askAPI{,Raw} explicitly.
-export type LLMProviderName = "claude" | "gemini" | "grok";
+export type LLMProviderName = "claude" | "gemini" | "grok" | "openai";
 
 export function getPreferredProvider(): LLMProviderName {
   if (typeof window === "undefined") return "claude";
   var v = window.localStorage.getItem("poast-llm-provider");
-  return v === "gemini" || v === "grok" ? v : "claude";
+  return v === "gemini" || v === "grok" || v === "openai" ? v : "claude";
 }
 
 export function setPreferredProvider(p: LLMProviderName): void {
@@ -98,7 +98,7 @@ export function setPreferredProvider(p: LLMProviderName): void {
 export function getSurfaceProvider(surface: string): LLMProviderName | undefined {
   if (typeof window === "undefined") return undefined;
   const v = window.localStorage.getItem("poast-llm-provider:" + surface);
-  return v === "claude" || v === "gemini" || v === "grok" ? v : undefined;
+  return v === "claude" || v === "gemini" || v === "grok" || v === "openai" ? v : undefined;
 }
 
 export function setSurfaceProvider(surface: string, p: LLMProviderName | "auto"): void {

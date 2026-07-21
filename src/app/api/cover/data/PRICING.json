@@ -7,7 +7,8 @@
   "text": {
     "claude": { "label": "Claude Sonnet", "model": "claude-sonnet-4-6", "inputPer1M": 3, "outputPer1M": 15, "source": "platform.claude.com/docs pricing" },
     "gemini": { "label": "Gemini Flash", "model": "gemini-2.5-flash", "inputPer1M": 0.3, "outputPer1M": 2.5, "source": "ai.google.dev/gemini-api/docs/pricing" },
-    "grok": { "label": "Grok", "model": "grok-2-1212 / grok-4-class", "inputPer1M": 2, "outputPer1M": 10, "source": "docs.x.ai pricing (grok-2 EST; grok-4.5 is $2/$6)" }
+    "grok": { "label": "Grok", "model": "grok-2-1212 / grok-4-class", "inputPer1M": 2, "outputPer1M": 10, "source": "docs.x.ai pricing (grok-2 EST; grok-4.5 is $2/$6)" },
+    "openai": { "label": "GPT", "model": "gpt-5.6-terra", "inputPer1M": 1.25, "outputPer1M": 10, "source": "openai pricing (EST: GPT-5.6-terra mid-tier; verify current rates)" }
   },
   "image": {
     "grok-imagine-image": { "label": "Grok image", "perImage": 0.02, "source": "docs.x.ai pricing (1K/2K)" },

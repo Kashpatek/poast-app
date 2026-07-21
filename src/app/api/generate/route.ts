@@ -10,7 +10,7 @@ const GenerateSchema = z.object({
   prompt: z.string(),
   // New optional fields. Older callers that only send {system,prompt}
   // keep working with provider="claude" and no brand-voice injection.
-  provider: z.enum(["claude", "gemini", "grok"]).optional(),
+  provider: z.enum(["claude", "gemini", "grok", "openai"]).optional(),
   applyBrandVoice: z.boolean().optional(),
   voiceId: z.string().optional(),
   maxTokens: z.number().optional(),

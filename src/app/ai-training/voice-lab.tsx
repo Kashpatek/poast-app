@@ -33,6 +33,7 @@ const PROVIDER_COLORS: Record<LLMProvider, string> = {
   claude: "#F7B041",
   gemini: "#0B86D1",
   grok: "#905CCB",
+  openai: "#10A37F",
 };
 
 export function VoiceLab({ voice, onApply }: { voice: Voice; onApply: (patch: { encouraged?: string[]; banned?: string[]; notes?: string }) => void }) {
@@ -358,7 +359,7 @@ function RolePicker({ label, sub, value, onChange }: { label: string; sub: strin
       <div style={{ fontFamily: mn, fontSize: 10, color: D.txd, letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 700, marginBottom: 2 }}>{label}</div>
       <div style={{ fontFamily: mn, fontSize: 9.5, color: D.txd, letterSpacing: 0.4, marginBottom: 6 }}>{sub}</div>
       <div style={{ display: "flex", gap: 4 }}>
-        {(["claude", "gemini", "grok"] as LLMProvider[]).map((p) => {
+        {(["claude", "gemini", "grok", "openai"] as LLMProvider[]).map((p) => {
           const on = value === p;
           const c = PROVIDER_COLORS[p];
           return (

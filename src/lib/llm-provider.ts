@@ -1,7 +1,7 @@
 // Unified text-generation provider abstraction.
-// Routes Claude / Gemini / Grok through one call so caption-gen surfaces
-// across the app can let users pick the model without each call site
-// learning three different APIs.
+// Routes Claude / Gemini / Grok / OpenAI (GPT) through one call so caption-gen
+// surfaces across the app can let users pick the model without each call site
+// learning four different APIs.
 //
 // Returns a `data` object shaped like the Anthropic Messages response
 // (`{ content: [{ text }] }`) so existing call sites that destructure
@@ -10,7 +10,7 @@
 
 import { callClaudeRaw, AnthropicError } from "./anthropic";
 
-export type LLMProvider = "claude" | "gemini" | "grok";
+export type LLMProvider = "claude" | "gemini" | "grok" | "openai";
 
 export interface LLMOptions {
   provider?: LLMProvider;
@@ -23,7 +23,7 @@ export interface LLMOptions {
   // disables "thinking", which otherwise eats the output-token budget and
   // truncates the JSON (the "Unterminated string in JSON" carousel error).
   json?: boolean;
-  // Optional vision input (Claude only today). base64 payloads + media types.
+  // Optional vision input (Claude, Grok, and OpenAI). base64 payloads + media types.
   images?: Array<{ media_type: string; data: string }>;
 }
 
@@ -49,12 +49,17 @@ export class LLMError extends Error {
 // the GEMINI_MODEL env var if you want 2.5-pro or 2.5-flash-lite.
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const GROK_TEXT_MODEL = process.env.GROK_TEXT_MODEL || "grok-2-1212";
+// GPT-4.x retired Feb 2026; the API is the GPT-5.x family. gpt-5.6-terra is the
+// strong-but-lower-cost tier — a good default for prompt/caption work. Override
+// via OPENAI_TEXT_MODEL (e.g. gpt-5.6 for flagship, gpt-5.6-luna for cheap bulk).
+const OPENAI_TEXT_MODEL = process.env.OPENAI_TEXT_MODEL || "gpt-5.6-terra";
 
 export async function callLLM(opts: LLMOptions): Promise<LLMResponse> {
   const provider: LLMProvider = opts.provider || "claude";
   if (provider === "claude") return callClaudeAsLLM(opts);
   if (provider === "gemini") return callGemini(opts);
   if (provider === "grok") return callGrok(opts);
+  if (provider === "openai") return callOpenai(opts);
   throw new LLMError(`Unknown provider: ${provider}`, 400, provider);
 }
 
@@ -163,6 +168,49 @@ async function callGrok(opts: LLMOptions): Promise<LLMResponse> {
   return {
     content: [{ type: "text", text }],
     provider: "grok",
+    model,
+  };
+}
+
+// ── OpenAI (GPT) ─────────────────────────────────────────────────────
+// OpenAI-compatible chat completions. GPT-5.x require `max_completion_tokens`
+// (not the legacy `max_tokens`) and reject a non-default temperature, so we send
+// neither legacy param. JSON mode uses response_format:json_object, which
+// requires the literal word "json" somewhere in the input — enforced below.
+// Vision via image_url data URLs (same shape as Grok).
+async function callOpenai(opts: LLMOptions): Promise<LLMResponse> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new LLMError("OPENAI_API_KEY not configured", 500, "openai");
+  const model = opts.model || OPENAI_TEXT_MODEL;
+  let system = opts.system;
+  if (opts.json && !/json/i.test(`${system} ${opts.prompt}`)) system = `${system}\nRespond with strict JSON.`;
+  const userContent: unknown = opts.images && opts.images.length
+    ? [{ type: "text", text: opts.prompt }, ...opts.images.map((im) => ({ type: "image_url", image_url: { url: `data:${im.media_type};base64,${im.data}` } }))]
+    : opts.prompt;
+  const messages: Array<{ role: string; content: unknown }> = [];
+  if (system) messages.push({ role: "system", content: system });
+  messages.push({ role: "user", content: userContent });
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      messages,
+      max_completion_tokens: opts.maxTokens || 4000,
+      ...(opts.json ? { response_format: { type: "json_object" } } : {}),
+    }),
+  });
+  const data = (await res.json()) as {
+    error?: { message?: string };
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  if (!res.ok) {
+    throw new LLMError(data?.error?.message || `OpenAI error (${res.status})`, res.status, "openai");
+  }
+  const text = (data.choices || []).map((c) => c.message?.content || "").join("");
+  return {
+    content: [{ type: "text", text }],
+    provider: "openai",
     model,
   };
 }

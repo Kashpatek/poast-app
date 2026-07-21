@@ -16,7 +16,7 @@ const CAROUSEL_SURFACE = "carousel";
 // Resolved provider for every /api/carousel POST. Reads localStorage so
 // it stays in sync with the ProviderChips chip selection without each
 // call site needing to subscribe to React state.
-function carouselProvider(): "claude" | "gemini" | "grok" {
+function carouselProvider(): "claude" | "gemini" | "grok" | "openai" {
   return getSurfaceProvider(CAROUSEL_SURFACE) || getPreferredProvider();
 }
 
