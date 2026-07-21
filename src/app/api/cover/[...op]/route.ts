@@ -108,7 +108,7 @@ async function draftPrompt(b: Any) {
     "STEP 3 — Render that concept in the LOCKED STYLE below. If it's a FUSION of two clashing looks, commit to BOTH at once.",
     `LOCKED STYLE — ${style.name}: ${style.styleBlock}. PALETTE: ${style.palette}. ASPECT: ${ar}.`,
     ...(theme ? [`TOPIC LENS — ${theme.name}: lean on these seeds if apt: ${(theme.concepts || []).join("; ")}.`] : []),
-    ...(wantText ? [`ON-IMAGE TEXT — the image MUST render this EXACT text as a designed element (title/label), integrated into the style: "${String(b.textInclude).trim()}". In EACH platform prompt, quote it verbatim and say where it sits. Gemini renders text most reliably; for Midjourney add \`--style raw\` and expect to composite.`] : []),
+    ...(wantText ? [`ON-IMAGE TEXT — the image MUST render this EXACT text as a designed element (title/label): "${String(b.textInclude).trim()}". GPT and Gemini render in-image text crisply — in THEIR prompts quote it verbatim and place it precisely. In the Grok prompt keep lettering to a few bold words (it renders text less reliably). In the Midjourney prompt treat the text as a design element to composite afterward and add \`--style raw\` (MJ can't reliably render text).`] : []),
     ...(refs.length ? [`REFERENCE IMAGE(S) — ${refs.length} attached. Use them as guidance for style, palette, composition, texture, or the specific subject as the notes indicate — adapt, do not copy verbatim.`] : []),
     `HARD AVOID: ${[(PROFILE as Any).avoid.join("; "), String(b.avoid || "").trim()].filter(Boolean).join("; ")}.`,
     "STEP 4 — Write FOUR prompts of the SAME concept + style, each ACCURATE to its platform's idiom:",
@@ -148,8 +148,8 @@ async function draftEditorial(b: Any) {
     "STEP 4 — Write FOUR prompts of the SAME concept, each platform-accurate AND spelling out the EXACT text to render:",
     `  • openai: a clear NATURAL-LANGUAGE prompt; quote the headline + labels verbatim and say where they sit. GPT Image renders crisp legible in-image text best — the strongest lane for editorial text covers. Target ${ar}.`,
     `  • gemini: a rich NATURAL-LANGUAGE paragraph; explicitly quote the text that must appear and where (Gemini / Nano-Banana renders in-image text reliably). Include '${ar}'.`,
-    "  • grok: a punchy natural-language prompt naming the text to render.",
-    `  • midjourney: terse comma-separated descriptors; put intended words in quotes and add \`--style raw\` (MJ text is unreliable — fine, the artist can composite). The app appends --ar ${ar}.`,
+    "  • grok: a punchy natural-language prompt; keep the on-image lettering SHORT and bold (Grok renders text less reliably than GPT/Gemini).",
+    `  • midjourney: terse comma-separated descriptors; put intended words in quotes and add \`--style raw\` (MJ text is unreliable — fine, the artist composites it). The app appends --ar ${ar}.`,
     'Return STRICT JSON: {"concept":"one line","headline":"the on-image title","entities":["..."],"topics":["..."],"caricatures":["who + how to draw them"],"prompts":{"openai":"..","gemini":"..","grok":"..","midjourney":".."}}.',
   ].join("\n");
   const user = [b.article ? `ARTICLE / TOPIC:\n${b.article}` : "(No article — invent a fitting satirical SemiAnalysis cover.)", b.notes ? `\nNOTES:\n${b.notes}` : "", "\nReturn the strict JSON now."].join("\n");

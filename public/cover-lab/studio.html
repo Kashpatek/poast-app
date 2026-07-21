@@ -153,7 +153,16 @@
   .pcol .cp,.mjh .cp{ background:var(--panel2); color:var(--cream); border:1px solid var(--line); border-radius:6px; padding:3px 10px; font-size:11px; cursor:pointer; transition:.15s var(--ease); flex:none; }
   .pcol .cp:hover,.mjh .cp:hover{ border-color:var(--line2); background:var(--panel3); }
   .pcol textarea{ width:100%; font-size:11.5px; line-height:1.45; }
-  .stack{ display:flex; flex-direction:column; gap:10px; }
+  .stack{ display:flex; flex-direction:column; gap:0; }
+  /* one timeline entry per generation: the prompt that made it + its image(s) */
+  .gen{ border-top:1px dashed var(--line2); padding-top:11px; margin-top:12px; }
+  .gen:first-child{ margin-top:4px; }
+  .genhead{ display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; }
+  .genhead .gt{ font-size:10px; color:var(--mut2); letter-spacing:.6px; font-variant-numeric:tabular-nums; }
+  .genp{ font-size:11px; color:var(--mut); line-height:1.45; margin-bottom:9px; cursor:pointer; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .genp.open{ -webkit-line-clamp:unset; }
+  .genp:hover{ color:var(--cream); }
+  .genimgs{ display:flex; flex-direction:column; gap:9px; }
   .mjstrip{ margin-top:16px; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--amber); border-radius:var(--r2); padding:11px 13px; box-shadow:var(--shadow); }
   .mjh{ display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
   .mjh b.mj{ color:var(--amber); font-size:11px; text-transform:uppercase; letter-spacing:.7px; font-weight:700; }
@@ -458,7 +467,14 @@ function loadDraft(d){ setMode(d.mode||"premium"); THEME=d.themeId?(THEMES.find(
   if(d.brain)[...$("brain").children].forEach(c=>c.classList.toggle("on",c.dataset.v===d.brain));
   const P=d.prompts||{}; if(P.openai||P.gemini||P.grok||P.midjourney){ $("pbox").style.display="block"; $("analysis").style.display="none"; $("concept").textContent=d.concept||""; $("ents").innerHTML=""; platEl("openai").value=P.openai||""; platEl("gemini").value=P.gemini||""; platEl("grok").value=P.grok||""; platEl("midjourney").value=P.midjourney||""; showResults(); }
   show("studio"); refreshGen(); estCost(); }
-$("gen").onclick=()=>{ const concept=$("concept").textContent; ["openai","gemini","grok"].forEach(lane=>{ if(!LANESEL[lane])return; const pp=platVal(lane); if(!pp)return; const stack=document.querySelector('.stack[data-plat="'+lane+'"]'); for(let i=0;i<COUNT;i++) apiCard(lane,pp,concept,stack); }); };
+$("gen").onclick=()=>{ const concept=$("concept").textContent; ["openai","gemini","grok"].forEach(lane=>{ if(!LANESEL[lane])return; const pp=platVal(lane); if(!pp)return; const imgs=newGen(lane,pp); for(let i=0;i<COUNT;i++) apiCard(lane,pp,concept,imgs); }); };
+// Each generation is a timeline entry: the exact prompt used + the image(s) it
+// produced. Newest on top; regens land in the same entry (same prompt).
+function newGen(lane,prompt){ const stack=document.querySelector('.stack[data-plat="'+lane+'"]'); const g=document.createElement("div"); g.className="gen"; const t=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+  g.innerHTML=`<div class="genhead"><span class="gt">${t}</span><button class="cp gpc">copy</button></div><div class="genp"></div><div class="genimgs"></div>`;
+  g.querySelector(".genp").textContent=prompt; g.querySelector(".genp").title="click to expand"; g.querySelector(".genp").onclick=()=>g.querySelector(".genp").classList.toggle("open");
+  g.querySelector(".gpc").onclick=()=>{ navigator.clipboard.writeText(prompt); const b=g.querySelector(".gpc"); b.textContent="copied ✓"; setTimeout(()=>b.textContent="copy",1200); };
+  stack.prepend(g); return g.querySelector(".genimgs"); }
 function cardShell(lane,container){ const c=document.createElement("div"); c.className="card"; c.innerHTML=`<div class="top"><span class="lane ${lane}">${CAP.lanes[lane]?CAP.lanes[lane].label:lane}</span><span class="muted"></span></div><div class="imgbox"><span class="spin">generating…</span></div><div class="bar"></div>`; container.prepend(c); return c; }
 async function apiCard(lane,p,concept,container){ const c=cardShell(lane,container); const box=c.querySelector(".imgbox"); try{ const r=await j("/api/cover/generate",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({lane,prompt:p,model:LANEMODEL[lane]})}); if(r.error)throw new Error(r.error); box.innerHTML=`<img src="${r.dataUrl}"/>`; box.querySelector("img").onclick=()=>openLightbox({img:r.dataUrl}); bar(c,{lane,prompt:p,concept,dataUrl:r.dataUrl},container); }catch(e){ box.innerHTML=`<div class="err">${e.message}</div>`; } }
 function bar(c,rec,container){ const b=c.querySelector(".bar"); b.innerHTML=""; const k=document.createElement("button"); k.className="keep"; k.textContent="★ keep"; k.onclick=()=>{ k.classList.add("on"); k.textContent="★ kept"; const arr=LS.get("cc-keepers",[]); arr.unshift({...rec,ts:new Date().toISOString()}); LS.set("cc-keepers",arr); };
