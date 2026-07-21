@@ -75,6 +75,21 @@
   .btn.ghost{ background:var(--panel2); color:var(--cream); border:1px solid var(--line); box-shadow:none; }
   :focus-visible{ outline:2px solid var(--amber-hi); outline-offset:2px; border-radius:6px; }
   .genhint{ font-size:11px; color:var(--mut2); margin-top:7px; }
+  .costbox{ margin-top:16px; border:1px solid var(--line); border-radius:var(--r); background:var(--panel2); padding:11px 12px; }
+  .costhead{ display:flex; justify-content:space-between; align-items:baseline; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--mut2); }
+  .costtotal{ font-size:15px; font-weight:700; letter-spacing:0; text-transform:none; color:var(--amber-hi); font-variant-numeric:tabular-nums; }
+  .costrows{ margin-top:8px; display:flex; flex-direction:column; gap:4px; }
+  .costrow{ display:flex; justify-content:space-between; gap:8px; font-size:12px; color:var(--cream); }
+  .costrow .cl{ color:var(--mut); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .costrow .cv{ font-variant-numeric:tabular-nums; color:var(--cream); flex:none; }
+  .costrow .cv.sub{ color:var(--mut2); font-size:11px; }
+  .costnote{ margin-top:8px; font-size:10px; line-height:1.4; color:var(--mut2); border-top:1px solid var(--line); padding-top:7px; }
+  .refrow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .refthumbs{ display:flex; gap:6px; flex-wrap:wrap; }
+  .refthumb{ position:relative; width:42px; height:42px; border-radius:8px; overflow:hidden; border:1px solid var(--line2); cursor:pointer; flex:none; }
+  .refthumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .refthumb::after{ content:"✕"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(11,11,11,.62); color:#fff; font-size:13px; opacity:0; transition:.14s; }
+  .refthumb:hover::after{ opacity:1; }
   .view-title{ font-family:var(--display); font-size:26px; font-weight:700; letter-spacing:-.02em; margin:0 0 4px; }
   .btn.ghost:hover:not(:disabled){ border-color:var(--line2); background:var(--panel3); filter:none; }
 
@@ -231,6 +246,14 @@
         <textarea id="article" rows="4" placeholder="Paste the article, or a topic line"></textarea>
         <label class="l">Creative notes</label>
         <textarea id="notes" rows="2" placeholder="mood, key object, what to avoid…"></textarea>
+        <label class="l">Text on image <span class="muted" style="text-transform:none;letter-spacing:0">— exact words to render</span></label>
+        <input id="textInclude" style="width:100%" placeholder='e.g. “THE MEMORY WALL” (blank = none)'/>
+        <label class="l">Aspect ratio</label>
+        <div class="seg" id="arSeg"><button data-ar="16:9" class="on">16:9</button><button data-ar="1:1">1:1</button><button data-ar="4:5">4:5</button><button data-ar="3:2">3:2</button><button data-ar="9:16">9:16</button></div>
+        <label class="l">Avoid <span class="muted" style="text-transform:none;letter-spacing:0">— keep out of frame</span></label>
+        <input id="avoid" style="width:100%" placeholder="clichés, faces, extra logos…"/>
+        <label class="l">Reference images <span class="muted" style="text-transform:none;letter-spacing:0">— guide the prompt-smith</span></label>
+        <div class="refrow"><label class="refdrop" id="refAdd">⊕ add reference<input type="file" id="refInput" accept="image/*" multiple style="display:none"/></label><div class="refthumbs" id="refThumbs"></div></div>
         <label class="l">Topic lens (theme)</label>
         <select class="full" id="themeSel"></select>
         <div class="concepts" id="concepts"></div>
@@ -241,6 +264,11 @@
         <div id="lanes" style="display:flex; flex-direction:column; gap:8px"></div>
         <label class="l">Variations per lane</label>
         <div class="seg" id="countSeg"><button data-n="1" class="on">1</button><button data-n="2">2</button><button data-n="4">4</button></div>
+        <div id="costbox" class="costbox" style="display:none">
+          <div class="costhead"><span>Est. cost · this cover</span><span class="costtotal" id="costTotal">—</span></div>
+          <div class="costrows" id="costRows"></div>
+          <div class="costnote" id="costNote"></div>
+        </div>
         <div style="margin-top:14px"><button class="btn" id="gen" disabled>Generate ▶</button><div class="genhint" id="genhint">Draft a prompt and pick a lane to enable.</div></div>
       </aside>
       <div>
@@ -278,7 +306,7 @@
 </main>
 
 <script>
-let CAP,PROFILE,STYLES=[],FUSIONS=[],THEMES=[],INSPO=[],EDITORIAL=[],MODE="premium",ACTIVE={kind:"style",id:"house",name:"House (developing)"},THEME=null,LANESEL={},LANEMODEL={},COUNT=1;
+let CAP,PROFILE,STYLES=[],FUSIONS=[],THEMES=[],INSPO=[],EDITORIAL=[],MODE="premium",ACTIVE={kind:"style",id:"house",name:"House (developing)"},THEME=null,LANESEL={},LANEMODEL={},COUNT=1,PRICING=null,LASTOUT=0,AR="16:9",REFS=[];
 const $=id=>document.getElementById(id);
 const j=(u,o)=>fetch(u,o).then(r=>r.json());
 const LS={ get:(k,d)=>{ try{ return JSON.parse(localStorage.getItem(k))??d }catch{ return d } }, set:(k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)) }catch{} } };
@@ -293,6 +321,7 @@ async function boot(){
   FUSIONS=(await j("/api/cover/fusions")).fusions;
   THEMES=(await j("/api/cover/themes")).themes;
   INSPO=(await j("/api/cover/inspo-sources")).sources;
+  try{ PRICING=await j("/api/cover/pricing"); }catch{ PRICING=null; }
   const f=STYLES.find(s=>s.id!=="house")||STYLES[0]; ACTIVE={kind:"style",id:f.id,name:f.name};
   renderBrains(); renderLanes(); renderStyles(); renderFusions(); renderMixer(); renderThemes(); renderInspoChips(); renderEditorial();
   document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>show(b.dataset.v));
@@ -301,6 +330,7 @@ async function boot(){
   wireReverse(); syncLook();
   document.querySelectorAll(".pf").forEach(pf=>{ pf.querySelector("textarea").oninput=refreshGen; pf.querySelector(".cp").onclick=()=>{ const b=pf.querySelector(".cp"); navigator.clipboard.writeText(pf.querySelector("textarea").value); b.textContent="copied ✓"; setTimeout(()=>b.textContent="copy",1200); }; });
   const h=location.hash.slice(1); if(h&&$("v-"+h)) show(h);
+  estCost();
 }
 function show(v){ document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.v===v)); document.querySelectorAll(".view").forEach(s=>s.classList.remove("on")); $("v-"+v).classList.add("on"); if(v==="keepers")loadKeepers(); if(v==="inspo"&&!$("wall").dataset.loaded)loadInspo(INSPO[0].id); if(v==="studio")updateStageEmpty(); $("chipbar").style.display=v==="studio"?"none":"flex"; }
 function activeSample(){ if(ACTIVE.kind==="style"){const s=STYLES.find(x=>x.id===ACTIVE.id);return s&&s.sampleUrl;} if(ACTIVE.kind==="fusion"){const f=FUSIONS.find(x=>x.id===ACTIVE.id);return f&&f.sampleUrl;} return null; }
@@ -313,15 +343,38 @@ function closeLightbox(){ $("lightbox").classList.remove("on"); }
 
 function renderBrains(){ const w=$("brain"); w.innerHTML=""; let first=null;
   [["claude","Claude"],["gemini","Gemini"],["grok","Grok"]].forEach(([k,lab])=>{ const ok=CAP.brains[k]; const b=document.createElement("button"); b.dataset.v=k; b.textContent=lab+(ok?"":" ·no key"); if(!ok){b.disabled=true;b.style.color="#6a6a72";} if(ok&&!first){first=k;b.classList.add("on");}
-    b.onclick=()=>{ if(!ok)return; [...w.children].forEach(c=>c.classList.remove("on")); b.classList.add("on"); }; w.appendChild(b); }); }
+    b.onclick=()=>{ if(!ok)return; [...w.children].forEach(c=>c.classList.remove("on")); b.classList.add("on"); estCost(); }; w.appendChild(b); }); }
 function brain(){ const b=[...$("brain").children].find(c=>c.classList.contains("on")); return b?b.dataset.v:"claude"; }
 function renderLanes(){ const w=$("lanes"); w.innerHTML="";
   Object.entries(CAP.lanes).forEach(([k,v])=>{ const on=v.ok; LANESEL[k]=on; const sub=v.manual?"paste-in — copy prompt, drop result back":(v.hint||v.model||"");
     const el=document.createElement("label"); el.className="chk"+(on?"":" off"); el.innerHTML=`<input type="checkbox" ${on?"checked":""} ${v.ok?"":"disabled"}/><span class="lbl"><b>${v.label}</b>${sub?`<small>${sub}</small>`:""}</span>`;
-    el.querySelector("input").onchange=e=>{ LANESEL[k]=e.target.checked; refreshGen(); };
-    if(v.models&&v.models.length){ LANEMODEL[k]=v.models[0]; const sel=document.createElement("select"); sel.className="lm"; sel.title=v.manual?"Midjourney version":"model"; sel.innerHTML=v.models.map(m=>`<option>${m}</option>`).join(""); sel.onchange=e=>{ LANEMODEL[k]=e.target.value; }; sel.onclick=e=>e.stopPropagation(); el.appendChild(sel); }
+    el.querySelector("input").onchange=e=>{ LANESEL[k]=e.target.checked; refreshGen(); estCost(); };
+    if(v.models&&v.models.length){ LANEMODEL[k]=v.models[0]; const sel=document.createElement("select"); sel.className="lm"; sel.title=v.manual?"Midjourney version":"model"; sel.innerHTML=v.models.map(m=>`<option>${m}</option>`).join(""); sel.onchange=e=>{ LANEMODEL[k]=e.target.value; estCost(); }; sel.onclick=e=>e.stopPropagation(); el.appendChild(sel); }
     w.appendChild(el); }); }
 function refreshGen(){ const lanes=Object.values(LANESEL).some(Boolean), anyP=["midjourney","gemini","grok"].some(p=>platVal(p)); $("gen").disabled=!(lanes&&anyP); const h=$("genhint"); if(h){ h.style.display=$("gen").disabled?"block":"none"; h.textContent=!anyP?"Draft a prompt to enable.":(!lanes?"Pick at least one lane.":""); } }
+// ── Cost estimate: prompt-smith (per draft) + each active image lane (× variations) ──
+const fmt=n=>n>=1?"$"+n.toFixed(2):n>=0.01?"$"+n.toFixed(3):n>0?"<$0.01":"$0.00";
+function estCost(){ const box=$("costbox"); if(!box||!PRICING)return;
+  const rows=[]; let total=0, subOnly=true;
+  // prompt-smith (one draft)
+  const b=brain(), t=PRICING.text&&PRICING.text[b];
+  if(t){ const inTok=((PRICING.estCharsSystem||2600)+($("article").value.length)+($("notes").value.length))/4 + REFS.length*1400;
+    const outTok=LASTOUT||((PRICING.estOutputTokens||{})[MODE]||800);
+    const c=inTok/1e6*(t.inputPer1M||0)+outTok/1e6*(t.outputPer1M||0); total+=c; subOnly=false;
+    rows.push({l:`Prompt-smith · ${t.label||b}`,v:fmt(c),cls:""}); }
+  // image lanes
+  Object.entries(LANESEL).forEach(([lane,on])=>{ if(!on||lane==="midjourney")return;
+    const m=LANEMODEL[lane], ip=PRICING.image&&PRICING.image[m]; if(!ip)return;
+    if(ip.perImage!=null){ const c=ip.perImage*COUNT; total+=c; subOnly=false;
+      rows.push({l:`${ip.label||lane} ×${COUNT}`,v:fmt(c),cls:""}); } });
+  // midjourney = subscription (not metered)
+  if(LANESEL.midjourney){ const m=LANEMODEL.midjourney, ip=(PRICING.image&&PRICING.image[m])||{};
+    rows.push({l:`Midjourney ×${COUNT}`,v:"subscription",cls:"sub"}); }
+  $("costRows").innerHTML=rows.length?rows.map(r=>`<div class="costrow"><span class="cl">${r.l}</span><span class="cv ${r.cls}">${r.v}</span></div>`).join(""):`<div class="costrow"><span class="cl">Pick lanes to estimate</span><span class="cv sub">—</span></div>`;
+  $("costTotal").textContent = !subOnly ? "~"+fmt(total) : (LANESEL.midjourney?"subscription":"—");
+  $("costNote").textContent=(PRICING.disclaimer||"")+(PRICING.asOf?" ("+PRICING.asOf+")":"");
+  box.style.display="block";
+}
 
 function styleCard(s){ const c=document.createElement("div"); c.className="scard"; c.dataset.kind="style"; c.dataset.id=s.id;
   c.innerHTML=`<div class="thumb">${s.sampleUrl?`<img src="${s.sampleUrl}" loading="lazy"/>`:`<div class="none">no sample</div>`}</div><div class="body"><div class="name">${s.name}</div><div class="blurb">${s.blurb||""}</div><div class="tags">${(s.tags||[]).map(t=>`<span>${t}</span>`).join("")}</div><button class="use">Use this style →</button></div>`;
@@ -335,11 +388,12 @@ function renderMixer(){ const opts=STYLES.filter(s=>s.id!=="house").map(s=>`<opt
 function renderThemes(){ const sel=$("themeSel"); sel.innerHTML='<option value="">— none —</option>'+THEMES.map(t=>`<option value="${t.id}">${t.name}</option>`).join("");
   sel.onchange=()=>{ THEME=THEMES.find(t=>t.id===sel.value)||null; $("concepts").innerHTML=THEME?THEME.concepts.map(c=>`<span>${c}</span>`).join(""):""; document.querySelectorAll("#concepts span").forEach(s=>s.onclick=()=>{ $("notes").value=($("notes").value?$("notes").value+" · ":"")+s.textContent; }); syncLook(); }; }
 function renderEditorial(){ const sel=$("edSel"); if(!sel)return; sel.innerHTML=EDITORIAL.map(e=>`<option value="${e.id}">${e.name}</option>`).join(""); sel.onchange=updateStageEmpty; }
-function setMode(m){ MODE=m; [...$("modeSeg").children].forEach(b=>b.classList.toggle("on",b.dataset.m===m)); const ed=m==="editorial"; $("edControls").style.display=ed?"block":"none"; $("lookbox").style.display=ed?"none":"flex"; updateStageEmpty(); }
+function setMode(m){ MODE=m; [...$("modeSeg").children].forEach(b=>b.classList.toggle("on",b.dataset.m===m)); const ed=m==="editorial"; $("edControls").style.display=ed?"block":"none"; $("lookbox").style.display=ed?"none":"flex"; updateStageEmpty(); estCost(); }
 
 // ── Studio ──
 $("draft").onclick=async()=>{ $("draft").disabled=true; $("draft").textContent="Drafting…";
-  try{ const body={brain:brain(),article:$("article").value,notes:$("notes").value}; if(THEME)body.themeId=THEME.id;
+  try{ const body={brain:brain(),article:$("article").value,notes:$("notes").value,textInclude:$("textInclude").value,avoid:$("avoid").value,aspect:AR}; if(THEME)body.themeId=THEME.id;
+    if(REFS.length)body.refs=REFS.map(r=>({media_type:r.media_type,data:r.data}));
     if(MODE==="editorial"){ body.mode="editorial"; body.editorialId=$("edSel").value; body.headline=$("headline").value; }
     else if(ACTIVE.kind==="fusion")body.fusionId=ACTIVE.id; else if(ACTIVE.kind==="blend")body.blend=ACTIVE.blend; else if(ACTIVE.kind==="ref")body.style=ACTIVE.style; else body.styleId=ACTIVE.id;
     const r=await j("/api/cover/prompt",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}); if(r.error)throw new Error(r.error);
@@ -347,9 +401,14 @@ $("draft").onclick=async()=>{ $("draft").disabled=true; $("draft").textContent="
     $("pbox").style.display="block"; $("analysis").style.display="none"; $("concept").textContent=(r.concept||"")+"  ·  "+lookLabel;
     $("ents").innerHTML=[...(r.entities||[]).map(e=>`<span class="ent">${e}</span>`),...(r.topics||[]).map(t=>`<span class="top">${t}</span>`)].join("");
     const P=r.prompts||{}; platEl("midjourney").value=P.midjourney||""; platEl("gemini").value=P.gemini||""; platEl("grok").value=P.grok||"";
-    $("stageBlurb").textContent="Prompt ready — pick your lanes and hit Generate ▶."; refreshGen();
+    LASTOUT=Math.round(((P.midjourney||"").length+(P.gemini||"").length+(P.grok||"").length+(r.concept||"").length+120)/4);
+    $("stageBlurb").textContent="Prompt ready — pick your lanes and hit Generate ▶."; refreshGen(); estCost();
   }catch(e){ alert("Draft failed: "+e.message); } $("draft").disabled=false; $("draft").textContent="Draft prompt →"; };
-$("countSeg").onclick=e=>{ if(!e.target.dataset.n)return; [...$("countSeg").children].forEach(c=>c.classList.remove("on")); e.target.classList.add("on"); COUNT=+e.target.dataset.n; };
+$("countSeg").onclick=e=>{ if(!e.target.dataset.n)return; [...$("countSeg").children].forEach(c=>c.classList.remove("on")); e.target.classList.add("on"); COUNT=+e.target.dataset.n; estCost(); };
+$("arSeg").onclick=e=>{ if(!e.target.dataset.ar)return; [...$("arSeg").children].forEach(c=>c.classList.remove("on")); e.target.classList.add("on"); AR=e.target.dataset.ar; };
+$("refAdd").onclick=()=>$("refInput").click();
+$("refInput").onchange=e=>{ [...e.target.files].forEach(f=>{ const rd=new FileReader(); rd.onload=()=>{ const m=String(rd.result).match(/^data:(image\/[\w+.-]+);base64,(.+)$/); if(m){ REFS.push({media_type:m[1],data:m[2],url:rd.result}); renderRefs(); estCost(); } }; rd.readAsDataURL(f); }); e.target.value=""; };
+function renderRefs(){ const w=$("refThumbs"); w.innerHTML=""; REFS.forEach((r,i)=>{ const d=document.createElement("div"); d.className="refthumb"; d.title="click to remove"; d.innerHTML=`<img src="${r.url}"/>`; d.onclick=()=>{ REFS.splice(i,1); renderRefs(); estCost(); }; w.appendChild(d); }); }
 $("gen").onclick=()=>{ const concept=$("concept").textContent; for(const[lane,on]of Object.entries(LANESEL)){ if(!on)continue;
   if(lane==="midjourney"){ const mp=mjFull(); if(mp)mjCard(mp,concept); }
   else { const pp=platVal(lane); if(!pp)continue; for(let i=0;i<COUNT;i++) apiCard(lane,pp,concept); } } };

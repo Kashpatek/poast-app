@@ -1,0 +1,22 @@
+{
+  "note": "Cost-estimate rates for the CoverCreator lanes. ESTIMATES compiled from official provider pricing pages (asOf below) — EDIT these to your own plan's actual rates (batch discounts, prompt caching, image resolution and your Midjourney tier all move the real number). Text rates are USD per 1,000,000 tokens; image rates are USD per generated image.",
+  "asOf": "2026-07-20",
+  "disclaimer": "Estimates from public pricing pages (Jul 2026) — verify against your own plan (batch/cache discounts, image resolution, MJ tier).",
+  "estCharsSystem": 2600,
+  "estOutputTokens": { "premium": 700, "editorial": 1100 },
+  "text": {
+    "claude": { "label": "Claude Sonnet", "model": "claude-sonnet-4-6", "inputPer1M": 3, "outputPer1M": 15, "source": "platform.claude.com/docs pricing" },
+    "gemini": { "label": "Gemini Flash", "model": "gemini-2.5-flash", "inputPer1M": 0.3, "outputPer1M": 2.5, "source": "ai.google.dev/gemini-api/docs/pricing" },
+    "grok": { "label": "Grok", "model": "grok-2-1212 / grok-4-class", "inputPer1M": 2, "outputPer1M": 10, "source": "docs.x.ai pricing (grok-2 EST; grok-4.5 is $2/$6)" }
+  },
+  "image": {
+    "grok-imagine-image": { "label": "Grok image", "perImage": 0.02, "source": "docs.x.ai pricing (1K/2K)" },
+    "grok-imagine-image-quality": { "label": "Grok image (quality)", "perImage": 0.05, "source": "docs.x.ai pricing (1K; 2K ~$0.07)" },
+    "gemini-3-pro-image-preview": { "label": "Nano Banana Pro", "perImage": 0.134, "source": "ai.google.dev pricing (1K/2K; 4K $0.24)" },
+    "gemini-2.5-flash-image": { "label": "Nano Banana", "perImage": 0.039, "source": "ai.google.dev pricing (1290 tok/img)" },
+    "imagen-4.0-generate-001": { "label": "Imagen 4", "perImage": 0.04, "source": "ai.google.dev pricing (Standard; Fast $0.02, Ultra $0.06)" },
+    "v7": { "label": "Midjourney v7", "subscription": true, "amortizedPerImage": 0.03, "note": "included in your Midjourney subscription (~$30/mo Standard ≈ $0.03/img)" },
+    "v6.1": { "label": "Midjourney v6.1", "subscription": true, "amortizedPerImage": 0.03, "note": "included in your Midjourney subscription (~$30/mo Standard ≈ $0.03/img)" },
+    "niji 6": { "label": "Midjourney niji 6", "subscription": true, "amortizedPerImage": 0.03, "note": "included in your Midjourney subscription (~$30/mo Standard ≈ $0.03/img)" }
+  }
+}

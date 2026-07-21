@@ -11,6 +11,7 @@ import FUSIONS from "../data/FUSIONS.json";
 import THEMES from "../data/THEMES.json";
 import PROFILE from "../data/PROFILE.json";
 import EDITORIAL from "../data/EDITORIAL.json";
+import PRICING from "../data/PRICING.json";
 
 export const dynamic = "force-dynamic";
 
@@ -58,28 +59,33 @@ function resolveLook(b: Any) {
 async function draftPrompt(b: Any) {
   if (b.mode === "editorial") return draftEditorial(b);
   const style = resolveLook(b); const theme = resolveTheme(b.themeId); const provider: LLMProvider = b.brain || "claude";
+  const ar = b.aspect || (PROFILE as Any).aspect || "16:9";
+  const wantText = !!(b.textInclude && String(b.textInclude).trim());
+  const refs: Any[] = Array.isArray(b.refs) ? b.refs.filter((r: Any) => r && r.data && r.media_type) : [];
   const system = [
     "You are the art director + prompt engineer for SemiAnalysis article COVER IMAGES (semiconductors, AI compute, datacenters, capital, geopolitics).",
     "STEP 1 — Read the article and pull the RELEVANT ENTITIES (companies/orgs/people/products the cover should evoke — e.g. NVIDIA, TSMC, Anthropic) and the core TOPICS/themes.",
-    "STEP 2 — Form ONE strong cover concept: a single vivid visual idea (metaphor or concrete scene) that makes the story legible at a glance, weaving in relevant entity motifs — recognizable objects/forms/brand-colour accents — but NEVER logos or written words.",
+    `STEP 2 — Form ONE strong cover concept: a single vivid visual idea (metaphor or concrete scene) that makes the story legible at a glance, weaving in relevant entity motifs — recognizable objects/forms/brand-colour accents${wantText ? "" : " — but NEVER logos or written words"}.`,
     "STEP 3 — Render that concept in the LOCKED STYLE below. If it's a FUSION of two clashing looks, commit to BOTH at once.",
-    `LOCKED STYLE — ${style.name}: ${style.styleBlock}. PALETTE: ${style.palette}. ASPECT: ${(PROFILE as Any).aspect} (wide).`,
+    `LOCKED STYLE — ${style.name}: ${style.styleBlock}. PALETTE: ${style.palette}. ASPECT: ${ar}.`,
     ...(theme ? [`TOPIC LENS — ${theme.name}: lean on these seeds if apt: ${(theme.concepts || []).join("; ")}.`] : []),
-    `HARD AVOID: ${(PROFILE as Any).avoid.join("; ")}.`,
+    ...(wantText ? [`ON-IMAGE TEXT — the image MUST render this EXACT text as a designed element (title/label), integrated into the style: "${String(b.textInclude).trim()}". In EACH platform prompt, quote it verbatim and say where it sits. Gemini renders text most reliably; for Midjourney add \`--style raw\` and expect to composite.`] : []),
+    ...(refs.length ? [`REFERENCE IMAGE(S) — ${refs.length} attached. Use them as guidance for style, palette, composition, texture, or the specific subject as the notes indicate — adapt, do not copy verbatim.`] : []),
+    `HARD AVOID: ${[(PROFILE as Any).avoid.join("; "), String(b.avoid || "").trim()].filter(Boolean).join("; ")}.`,
     "STEP 4 — Write THREE prompts of the SAME concept + style, each ACCURATE to its platform's idiom:",
-    "  • midjourney: terse, comma-separated visual descriptors (subject → style → composition → lighting → palette). NO full sentences. The app appends --p moodboards + --ar 16:9. You MAY add `--style raw` and/or `--s <0-1000>` inline.",
-    "  • gemini: a rich NATURAL-LANGUAGE paragraph describing scene/subject/composition/style/lighting/mood/palette in full sentences; include 'wide 16:9 cinematic framing'.",
+    `  • midjourney: terse, comma-separated visual descriptors (subject → style → composition → lighting → palette). NO full sentences. The app appends --p moodboards + --ar ${ar}. You MAY add \`--style raw\` and/or \`--s <0-1000>\` inline.`,
+    `  • gemini: a rich NATURAL-LANGUAGE paragraph describing scene/subject/composition/style/lighting/mood/palette in full sentences; include '${ar} cinematic framing'.`,
     "  • grok: a punchy natural-language prompt, 1–2 sentences — scene + style + palette.",
-    "None may request any text, lettering, captions, or logos in the image.",
+    ...(wantText ? [] : ["None may request any text, lettering, captions, or logos in the image."]),
     'Return STRICT JSON: {"concept":"one line","entities":["..."],"topics":["..."],"prompts":{"midjourney":"..","gemini":"..","grok":".."}}.',
   ].join("\n");
   const user = [b.article ? `ARTICLE / TOPIC:\n${b.article}` : "(No article — invent a fitting SemiAnalysis cover from the style + topic lens.)", b.notes ? `\nNOTES:\n${b.notes}` : "", "\nReturn the strict JSON now."].join("\n");
-  const raw = llmTextOf(await callLLM({ provider, system, prompt: user, json: true, maxTokens: 2048 }));
+  const raw = llmTextOf(await callLLM({ provider, system, prompt: user, json: true, maxTokens: 2048, ...(refs.length ? { images: refs.map((r) => ({ media_type: r.media_type, data: r.data })) } : {}) }));
   let out: Any; try { out = parseLLMJson(raw); } catch { out = { concept: "", entities: [], topics: [], prompts: { midjourney: raw.trim(), gemini: raw.trim(), grok: raw.trim() } }; }
   if (!out.prompts) { const p = out.prompt || ""; out.prompts = { midjourney: out.mj || p, gemini: p, grok: p }; }
   out.entities = out.entities || []; out.topics = out.topics || [];
   const mb = (PROFILE as Any).moodboards;
-  out.prompts.midjourney = `${out.prompts.midjourney} --p ${mb.oilPainting} ${mb.dithering} --ar 16:9`;
+  out.prompts.midjourney = `${out.prompts.midjourney} --p ${mb.oilPainting} ${mb.dithering} --ar ${ar}`;
   return { ...out, style: { id: style.id, name: style.name } };
 }
 
@@ -87,26 +93,31 @@ async function draftPrompt(b: Any) {
 // with on-image text, caricatures of named people, brand logos, humor.
 async function draftEditorial(b: Any) {
   const style = resolveEditorial(b.editorialId); const theme = resolveTheme(b.themeId); const provider: LLMProvider = b.brain || "claude"; const p = (PROFILE as Any).palette;
+  const ar = b.aspect || (PROFILE as Any).aspect || "16:9";
+  const refs: Any[] = Array.isArray(b.refs) ? b.refs.filter((r: Any) => r && r.data && r.media_type) : [];
   const system = [
     "You are the cover artist for SemiAnalysis — a hard-tech publication famous for WITTY, TEXT-RICH EDITORIAL COVER ILLUSTRATIONS (caricatures, satirical scenes, annotated infographics) that make a technical story instantly legible and funny.",
     "STEP 1 — Read the article: identify the key PLAYERS (companies/people to feature) and the core story/tension + TOPICS.",
     b.headline ? `STEP 2 — Use this HEADLINE as the on-image title (refine only lightly): "${b.headline}".` : "STEP 2 — Invent a punchy, funny HEADLINE — a short on-image title/joke (≤ ~5 words).",
     `STEP 3 — Render it in this EDITORIAL LOOK — ${style.name}: ${style.styleBlock}. Use SemiAnalysis brand colours (amber ${p.amber}, blue ${p.blue}) as accents. Unlike premium covers, here you SHOULD include ON-IMAGE TEXT (the headline + a few short labels), CARICATURES of the named people (describe them recognizably — glasses, hairstyle, signature outfit), and company logo / brand-colour cues.`,
+    ...(b.textInclude && String(b.textInclude).trim() ? [`ALSO render this EXACT text somewhere in the image, in addition to the headline: "${String(b.textInclude).trim()}".`] : []),
     ...(theme ? [`TOPIC LENS — ${theme.name}: lean on these if apt: ${(theme.concepts || []).join("; ")}.`] : []),
+    ...(b.avoid && String(b.avoid).trim() ? [`KEEP OUT OF FRAME: ${String(b.avoid).trim()}.`] : []),
+    ...(refs.length ? [`REFERENCE IMAGE(S) — ${refs.length} attached. Use them to guide likeness, style, composition or the specific subject as the notes indicate.`] : []),
     "STEP 4 — Write THREE prompts of the SAME concept, each platform-accurate AND spelling out the EXACT text to render:",
-    "  • gemini: a rich NATURAL-LANGUAGE paragraph; explicitly quote the text that must appear and where (Gemini / Nano-Banana renders in-image text reliably). Include 'wide 16:9'.",
-    "  • midjourney: terse comma-separated descriptors; put intended words in quotes and add `--style raw` (MJ text is unreliable — fine, the artist can composite). The app appends --ar 16:9.",
+    `  • gemini: a rich NATURAL-LANGUAGE paragraph; explicitly quote the text that must appear and where (Gemini / Nano-Banana renders in-image text reliably). Include '${ar}'.`,
+    `  • midjourney: terse comma-separated descriptors; put intended words in quotes and add \`--style raw\` (MJ text is unreliable — fine, the artist can composite). The app appends --ar ${ar}.`,
     "  • grok: a punchy natural-language prompt naming the text to render.",
     'Return STRICT JSON: {"concept":"one line","headline":"the on-image title","entities":["..."],"topics":["..."],"caricatures":["who + how to draw them"],"prompts":{"midjourney":"..","gemini":"..","grok":".."}}.',
   ].join("\n");
   const user = [b.article ? `ARTICLE / TOPIC:\n${b.article}` : "(No article — invent a fitting satirical SemiAnalysis cover.)", b.notes ? `\nNOTES:\n${b.notes}` : "", "\nReturn the strict JSON now."].join("\n");
   // 2048 matches the standalone's per-provider budget (Gemini editorial JSON — with
   // headline + caricatures + a rich prose prompt — can exceed 1500 and truncate).
-  const raw = llmTextOf(await callLLM({ provider, system, prompt: user, json: true, maxTokens: 2048 }));
+  const raw = llmTextOf(await callLLM({ provider, system, prompt: user, json: true, maxTokens: 2048, ...(refs.length ? { images: refs.map((r) => ({ media_type: r.media_type, data: r.data })) } : {}) }));
   let out: Any; try { out = parseLLMJson(raw); } catch { out = { concept: "", headline: b.headline || "", entities: [], topics: [], caricatures: [], prompts: { midjourney: raw.trim(), gemini: raw.trim(), grok: raw.trim() } }; }
   if (!out.prompts) { const pp = out.prompt || ""; out.prompts = { midjourney: pp, gemini: pp, grok: pp }; }
   out.entities = out.entities || []; out.topics = out.topics || []; out.editorial = true;
-  out.prompts.midjourney = `${out.prompts.midjourney} --ar 16:9`;
+  out.prompts.midjourney = `${out.prompts.midjourney} --ar ${ar}`;
   return { ...out, style: { id: style.id, name: style.name } };
 }
 
@@ -225,6 +236,7 @@ async function handle(req: NextRequest, op: string) {
   if (op === "styles") return NextResponse.json({ sampleSubject: (STYLES as Any).sampleSubject, styles: stylesList(), editorial: (EDITORIAL as Any).styles });
   if (op === "fusions") return NextResponse.json({ fusions: fusionsList() });
   if (op === "themes") return NextResponse.json({ themes: (THEMES as Any).themes });
+  if (op === "pricing") return NextResponse.json(PRICING);
   if (op === "inspo-sources") return NextResponse.json({ sources: INSPO_SOURCES.map((s) => ({ id: s.id, name: s.name })) });
   if (op === "inspo") return NextResponse.json({ items: await fetchInspo(url.searchParams.get("id"), url.searchParams.get("q")) });
   if (req.method === "POST") {
