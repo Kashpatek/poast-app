@@ -24,9 +24,9 @@ function capabilities() {
   return {
     brains: { claude: KEYS.anthropic, gemini: KEYS.gemini, grok: KEYS.grok },
     lanes: {
-      grok: { ok: KEYS.grok, label: "Grok · Aurora", model: GROK_IMAGE_MODEL },
-      gemini: { ok: KEYS.gemini, label: "Gemini · image", model: GEMINI_IMAGE_MODEL, hint: KEYS.gemini ? "" : "add GEMINI_API_KEY (Google AI Studio)" },
-      midjourney: { ok: true, manual: true, label: "Midjourney · manual" },
+      grok: { ok: KEYS.grok, label: "Grok · Aurora", model: GROK_IMAGE_MODEL, models: ["grok-imagine-image", "grok-imagine-image-quality"] },
+      gemini: { ok: KEYS.gemini, label: "Gemini · image", model: GEMINI_IMAGE_MODEL, models: ["gemini-3-pro-image-preview", "gemini-2.5-flash-image", "imagen-4.0-generate-001"], hint: KEYS.gemini ? "" : "add GEMINI_API_KEY (Google AI Studio)" },
+      midjourney: { ok: true, manual: true, label: "Midjourney · manual", models: ["v7", "v6.1", "niji 6"] },
     },
   };
 }
@@ -56,29 +56,34 @@ function resolveLook(b: Any) {
 async function draftPrompt(b: Any) {
   const style = resolveLook(b); const theme = resolveTheme(b.themeId); const provider: LLMProvider = b.brain || "claude";
   const system = [
-    "You are the prompt engineer for SemiAnalysis article cover IMAGES.",
-    "You write ONE vivid image-generation prompt (natural language, 1–3 sentences) a text-to-image model will render.",
-    `Lock to this STYLE — ${style.name}: ${style.styleBlock}`,
-    `PALETTE: ${style.palette}.`,
-    `ASPECT: ${(PROFILE as Any).aspect}.`,
-    ...(theme ? [`TOPIC LENS — ${theme.name}: draw on these concept seeds (choose or synthesize ONE): ${(theme.concepts || []).join("; ")}.`] : []),
+    "You are the art director + prompt engineer for SemiAnalysis article COVER IMAGES (semiconductors, AI compute, datacenters, capital, geopolitics).",
+    "STEP 1 — Read the article and pull the RELEVANT ENTITIES (companies/orgs/people/products the cover should evoke — e.g. NVIDIA, TSMC, Anthropic) and the core TOPICS/themes.",
+    "STEP 2 — Form ONE strong cover concept: a single vivid visual idea (metaphor or concrete scene) that makes the story legible at a glance, weaving in relevant entity motifs — recognizable objects/forms/brand-colour accents — but NEVER logos or written words.",
+    "STEP 3 — Render that concept in the LOCKED STYLE below. If it's a FUSION of two clashing looks, commit to BOTH at once.",
+    `LOCKED STYLE — ${style.name}: ${style.styleBlock}. PALETTE: ${style.palette}. ASPECT: ${(PROFILE as Any).aspect} (wide).`,
+    ...(theme ? [`TOPIC LENS — ${theme.name}: lean on these seeds if apt: ${(theme.concepts || []).join("; ")}.`] : []),
     `HARD AVOID: ${(PROFILE as Any).avoid.join("; ")}.`,
-    ...((PROFILE as Any).notes || []).map((n: string) => `NOTE: ${n}`),
-    "When the style is a FUSION of two clashing looks, commit to BOTH at once — the tension is the point.",
-    'Return STRICT JSON: {"concept":"one-line idea","prompt":"the image prompt, style-locked, NO text-in-image","mj":"terser Midjourney phrasing (no --profile/--ar)"}.',
-    "The prompt must NOT ask for any lettering/words/titles in the image.",
+    "STEP 4 — Write THREE prompts of the SAME concept + style, each ACCURATE to its platform's idiom:",
+    "  • midjourney: terse, comma-separated visual descriptors (subject → style → composition → lighting → palette). NO full sentences. The app appends --p moodboards + --ar 16:9. You MAY add `--style raw` and/or `--s <0-1000>` inline.",
+    "  • gemini: a rich NATURAL-LANGUAGE paragraph describing scene/subject/composition/style/lighting/mood/palette in full sentences; include 'wide 16:9 cinematic framing'.",
+    "  • grok: a punchy natural-language prompt, 1–2 sentences — scene + style + palette.",
+    "None may request any text, lettering, captions, or logos in the image.",
+    'Return STRICT JSON: {"concept":"one line","entities":["..."],"topics":["..."],"prompts":{"midjourney":"..","gemini":"..","grok":".."}}.',
   ].join("\n");
-  const user = [b.article ? `ARTICLE / TOPIC:\n${b.article}` : "", b.notes ? `\nNOTES:\n${b.notes}` : "", "\nWrite the cover-image prompt as strict JSON."].join("\n");
-  const raw = llmTextOf(await callLLM({ provider, system, prompt: user, json: true, maxTokens: 1200 }));
-  let out: Any; try { out = parseLLMJson(raw); } catch { out = { concept: "", prompt: raw.trim(), mj: raw.trim() }; }
+  const user = [b.article ? `ARTICLE / TOPIC:\n${b.article}` : "(No article — invent a fitting SemiAnalysis cover from the style + topic lens.)", b.notes ? `\nNOTES:\n${b.notes}` : "", "\nReturn the strict JSON now."].join("\n");
+  const raw = llmTextOf(await callLLM({ provider, system, prompt: user, json: true, maxTokens: 1400 }));
+  let out: Any; try { out = parseLLMJson(raw); } catch { out = { concept: "", entities: [], topics: [], prompts: { midjourney: raw.trim(), gemini: raw.trim(), grok: raw.trim() } }; }
+  if (!out.prompts) { const p = out.prompt || ""; out.prompts = { midjourney: out.mj || p, gemini: p, grok: p }; }
+  out.entities = out.entities || []; out.topics = out.topics || [];
   const mb = (PROFILE as Any).moodboards;
-  return { ...out, style: { id: style.id, name: style.name }, mj: `${out.mj || out.prompt} --p ${mb.oilPainting} ${mb.dithering} --ar 16:9` };
+  out.prompts.midjourney = `${out.prompts.midjourney} --p ${mb.oilPainting} ${mb.dithering} --ar 16:9`;
+  return { ...out, style: { id: style.id, name: style.name } };
 }
 
-async function grokImage(prompt: string) {
+async function grokImage(prompt: string, model?: string) {
   const r = await fetch("https://api.x.ai/v1/images/generations", {
     method: "POST", headers: { Authorization: `Bearer ${process.env.XAI_API_KEY}`, "content-type": "application/json" },
-    body: JSON.stringify({ model: GROK_IMAGE_MODEL, prompt, n: 1 }),
+    body: JSON.stringify({ model: model || GROK_IMAGE_MODEL, prompt, n: 1 }),
   });
   const j = await r.json();
   if (!r.ok) throw new Error(j?.error?.message || j?.error || `Grok image ${r.status}`);
@@ -87,9 +92,9 @@ async function grokImage(prompt: string) {
   if (d.url) { const img = await safeFetch(d.url); const buf = Buffer.from(await img.arrayBuffer()); return { dataUrl: `data:${img.headers.get("content-type") || "image/jpeg"};base64,${buf.toString("base64")}` }; }
   throw new Error("Grok image: no image in response");
 }
-async function geminiImage(prompt: string) {
+async function geminiImage(prompt: string, model?: string) {
   if (!KEYS.gemini) throw new Error("GEMINI_API_KEY not configured");
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_IMAGE_MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model || GEMINI_IMAGE_MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseModalities: ["IMAGE"] } }),
   });
@@ -195,7 +200,7 @@ async function handle(req: NextRequest, op: string) {
   if (req.method === "POST") {
     const b = await req.json().catch(() => ({}));
     if (op === "prompt") return NextResponse.json(await draftPrompt(b));
-    if (op === "generate") return NextResponse.json(b.lane === "gemini" ? await geminiImage(b.prompt) : await grokImage(b.prompt));
+    if (op === "generate") return NextResponse.json(b.lane === "gemini" ? await geminiImage(b.prompt, b.model) : await grokImage(b.prompt, b.model));
     if (op === "reverse") return NextResponse.json(await reverseImage(b));
   }
   return NextResponse.json({ error: "Unknown op: " + op }, { status: 404 });
