@@ -11,6 +11,8 @@ const SYSTEM = `You are formatting a podcast transcript into YouTube chapter mar
 
 Rules:
 - First chapter MUST start at 0:00.
+- If the transcript already contains timestamps (for example speaker turns like "Name (12:34)" or leading "12:34"), ANCHOR every chapter to the real timestamps in the text. Do not estimate from word count when real timestamps are present.
+- Spread the chapters across the ENTIRE episode, from 0:00 through to the final timestamp. Never bunch all chapters into the opening minutes; the last chapters should be near the end of the transcript.
 - Timestamps strictly ascending, format m:ss (or mm:ss / h:mm:ss when needed).
 - No emojis, no hashtags, no em dashes.
 - Title style: terse, descriptive, no clickbait. Examples: "Intro and context", "TSMC N2 yields", "HBM4 supply outlook".
@@ -30,6 +32,27 @@ interface ChapterOut {
 function clampTitle(s: string): string {
   const t = (s || "").replace(/\s+/g, " ").trim();
   return t.length > 50 ? t.slice(0, 50).trimEnd() : t;
+}
+
+function tsToSec(t: string): number {
+  const p = t.split(":").map((n) => parseInt(n, 10));
+  if (p.some((n) => isNaN(n))) return -1;
+  if (p.length === 3) return p[0] * 3600 + p[1] * 60 + p[2];
+  if (p.length === 2) return p[0] * 60 + p[1];
+  return -1;
+}
+// The largest timestamp already embedded in the transcript (speaker turns like
+// "Name (12:34)" or bare "1:02:03"). This is the real episode span; we use it to
+// tell the model to distribute chapters across the whole thing.
+function lastTimestamp(text: string): { label: string; sec: number } | null {
+  const found = text.match(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g) || [];
+  let best: { label: string; sec: number } | null = null;
+  for (const f of found) { const s = tsToSec(f); if (s >= 0 && (!best || s > best.sec)) best = { label: f, sec: s }; }
+  return best;
+}
+function fmtSec(sec: number): string {
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
 }
 
 function normalizeTimestamp(s: string): string {
@@ -60,14 +83,28 @@ export async function POST(req: NextRequest) {
   const durationSec = typeof body.durationSec === "number" && body.durationSec > 0 ? body.durationSec : undefined;
   const provider: LLMProvider = body.provider || "claude";
 
-  const durationHint = durationSec
-    ? `Total episode duration: ${Math.floor(durationSec / 60)}:${String(durationSec % 60).padStart(2, "0")}. Anchor chapter timestamps inside this window.`
-    : "Total duration unknown — estimate chapter offsets from the transcript pacing (roughly 150 words per minute spoken).";
+  // Prefer a user-supplied duration; otherwise fall back to the last real
+  // timestamp in the transcript so chapters span the full episode. Only when
+  // neither exists do we let the model estimate from pacing.
+  const embedded = lastTimestamp(text);
+  let durationHint: string;
+  if (durationSec) {
+    durationHint = `Total episode duration: ${fmtSec(durationSec)}. Distribute the chapters across this full window from 0:00 to the end, not just the opening.`;
+  } else if (embedded && embedded.sec >= 120) {
+    durationHint = `The transcript is annotated with REAL timestamps (e.g. speaker turns like "Name (${embedded.label})"). Use those actual timestamps to place chapters. The final timestamp is ${embedded.label}, so the episode runs to roughly there: spread the 6-10 chapters across the ENTIRE run from 0:00 to about ${embedded.label}, with the last chapter near the end.`;
+  } else {
+    durationHint = "Total duration unknown and no timestamps found in the transcript: estimate chapter offsets from pacing (roughly 150 words per minute spoken).";
+  }
+
+  // 200k chars comfortably covers a 2-hour episode and fits the model context;
+  // the old 60k cap silently dropped the back half of longer transcripts.
+  const MAX = 200000;
+  const clipped = text.length > MAX ? text.slice(0, MAX) : text;
 
   const userPrompt =
     durationHint + "\n\n" +
     "Transcript:\n" +
-    text.slice(0, 60000) +
+    clipped +
     "\n\nReturn ONLY the JSON object.";
 
   try {
