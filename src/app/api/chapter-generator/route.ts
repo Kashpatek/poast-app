@@ -54,6 +54,19 @@ function fmtSec(sec: number): string {
   const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
 }
+// Every real timestamp in the transcript, ascending + de-duped. Used to snap the
+// model's (rounded) chapter marks onto actual speaker-turn times.
+function allTimestampSecs(text: string): number[] {
+  const found = text.match(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g) || [];
+  const set = new Set<number>();
+  for (const f of found) { const s = tsToSec(f); if (s >= 0) set.add(s); }
+  return [...set].sort((a, b) => a - b);
+}
+function nearest(secs: number[], target: number): number {
+  let best = secs[0], bd = Infinity;
+  for (const s of secs) { const d = Math.abs(s - target); if (d < bd) { bd = d; best = s; } }
+  return best;
+}
 
 function normalizeTimestamp(s: string): string {
   const raw = (s || "").trim();
@@ -120,15 +133,38 @@ export async function POST(req: NextRequest) {
     try { parsed = JSON.parse(cleaned); }
     catch { return NextResponse.json({ error: "Model returned non-JSON", raw: cleaned.slice(0, 500) }, { status: 502 }); }
     const list = Array.isArray(parsed.chapters) ? parsed.chapters : [];
-    const chapters: ChapterOut[] = list
+    // The transcript's own timestamps. With >=2 present we snap each chapter to
+    // the nearest one so markers land on a real speaker turn, not the model's
+    // rounding. First marker is always forced to 0:00 (YouTube requires it).
+    const realSecs = allTimestampSecs(text);
+    const snapping = realSecs.length >= 2;
+    const built = list
       .filter((c) => c && typeof c.timestamp === "string" && typeof c.title === "string")
-      .map((c) => ({ timestamp: normalizeTimestamp(c.timestamp), title: clampTitle(c.title) }))
+      .map((c, i) => {
+        const title = clampTitle(c.title);
+        let sec = tsToSec(normalizeTimestamp(c.timestamp));
+        if (sec < 0) sec = 0;
+        if (i === 0) sec = 0;
+        else if (snapping) sec = nearest(realSecs, sec);
+        return { sec, title };
+      })
       .filter((c) => c.title.length > 0);
+    // Strictly ascending + unique; a snap that collides with the previous mark
+    // is bumped to the next real timestamp after it (dropped if none remains).
+    const chapters: ChapterOut[] = [];
+    let prev = -1;
+    for (const c of built) {
+      let sec = c.sec;
+      if (sec <= prev) {
+        if (snapping) { const nxt = realSecs.find((s) => s > prev); if (nxt === undefined) continue; sec = nxt; }
+        else sec = prev + 1;
+      }
+      chapters.push({ timestamp: fmtSec(sec), title: c.title });
+      prev = sec;
+    }
     if (chapters.length === 0) {
       return NextResponse.json({ error: "Model returned no chapters", raw: cleaned.slice(0, 500) }, { status: 502 });
     }
-    // YouTube requires the first marker at 0:00; force it if the model
-    // shifted by a second.
     chapters[0] = { ...chapters[0], timestamp: "0:00" };
     return NextResponse.json({ chapters, provider: r.provider });
   } catch (e) {
