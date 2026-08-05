@@ -817,6 +817,7 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "chart",    l: "ChartMAKER",       Icon: GanttChart, href: "/charts", badge: "NEW", sub: "Quick charts" },
     { id: "docu",     l: "DesignSTUDIO",     Icon: Wand,       href: "/design-studio", badge: "NEW", sub: "Docs · graphics · motion" },
     { id: "copy-studio", l: "CopySTUDIO",   Icon: Type,       href: "/copy-studio", badge: "NEW", sub: "Draft · voice · headline" },
+    { id: "cover-creator", l: "CoverCreator", Icon: Sparkles, href: "/testing123/cover-creator", badge: "NEW", sub: "Article cover images" },
     { id: "assets",   l: "Asset Library",    Icon: Library,    sub: "Brand library" },
   ]},
   podcast: { label: "PODCAST", color: C.coral, glow: "rgba(224,99,71,", Icon: Headphones, sub: "SA WEEKLY + FK", items: [
@@ -1785,6 +1786,7 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
   // amber=produce, coral=podcast, blue=prepare, teal=premier, violet=admin.
   var sections: Array<{ key: string; label: string; sub: string; color: string; tiles: { id: string; label: string; sub: string; Icon: LucideIcon; href?: string }[] }> = [
     { key: "produce", label: "Produce", sub: "Make the content", color: C.amber, tiles: [
+      { id: "cover-creator", label: "CoverCreator", sub: "Article cover images", Icon: Sparkles, href: "/testing123/cover-creator" },
       { id: "sloptop",  label: "Slop Top",      sub: "Brief gen + arxiv.lol",   Icon: Zap },
       { id: "carousel", label: "Carousel",      sub: "Instagram carousels",     Icon: LayoutGrid },
       { id: "captions", label: "Capper",        sub: "Captions per platform",   Icon: Captions },
@@ -1945,6 +1947,7 @@ function StockHome({ onNavigate }: { onNavigate: (id: string) => void }) {
   var analyst = isAnalyst(userCtx.user);
   var sections: Array<{ key: string; label: string; sub: string; color: string; tiles: { id: string; label: string; sub: string; Icon: LucideIcon; href?: string; badge?: string }[] }> = [
     { key: "produce", label: "Produce", sub: "MAKE THE CONTENT", color: C.amber, tiles: [
+      { id: "cover-creator", label: "CoverCreator", sub: "Article cover images", Icon: Sparkles, href: "/testing123/cover-creator", badge: "new" },
       { id: "sloptop",  label: "Slop Top",      sub: "Brief gen + arxiv.lol",   Icon: Zap },
       { id: "carousel", label: "Carousel",      sub: "Instagram carousels",     Icon: LayoutGrid },
       { id: "captions", label: "Capper",        sub: "Captions per platform",   Icon: Captions },
@@ -2216,6 +2219,7 @@ function AnalystSplash({ onNavigate }: { onNavigate: (id: string) => void }) {
     { id: "sloptop",    label: "Slop Top",   sub: "Brief Gen + arxiv.lol",  Icon: Zap,        color: C.amber },
     { id: "captions",   label: "Capper",     sub: "Captions per platform",  Icon: Captions,   color: C.teal },
     { id: "brainstorm", label: "Brainstorm", sub: "Tennis ideation",        Icon: Brain,      color: VIOLET },
+    { id: "cover-creator", label: "CoverCreator", sub: "Article cover images", Icon: Sparkles, color: C.amber, href: "/testing123/cover-creator" },
   ];
   // Lifted from whichever tile is currently being hovered. Null when no tile
   // is active → the screen falls back to the resting violet ambient.
