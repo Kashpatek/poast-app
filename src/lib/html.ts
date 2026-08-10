@@ -25,6 +25,10 @@ export function stripHTML(html: string): string {
 export function extractCoverImage(html: string, baseUrl?: string): string | null {
   const abs = (u: string): string => {
     u = (u || "").trim();
+    // Attribute values are HTML-encoded: a resizer URL like ...?w=1200&amp;h=630
+    // must decode to a literal & or the browser requests a bogus "amp;h" param
+    // (broken/wrong-size cover). Decode the ampersand forms before anything else.
+    u = u.replace(/&amp;/gi, "&").replace(/&#0*38;/g, "&").replace(/&#x0*26;/gi, "&");
     if (u.startsWith("//")) return "https:" + u;
     if (u.startsWith("/") && baseUrl) {
       try { return new URL(baseUrl).origin + u; } catch { return u; }

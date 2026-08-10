@@ -522,6 +522,40 @@ function innerSvg(svgText: string): string {
 // Populate fills + slots into the template markup. Fields with no fill entry
 // keep their baked placeholder text; scrim rects are never touched. On a
 // parse failure (should never happen for shipped assets) fall back to the
+// Rects of image slots that actually carry an image on this slide (x/y/w/h in
+// canvas units). Used to gate the legibility halo to text that overlaps them.
+function filledImageRects(root: Element, slide: Slide): { x: number; y: number; w: number; h: number }[] {
+  var imgs = slide.librarySlotImages || {};
+  var out: { x: number; y: number; w: number; h: number }[] = [];
+  var rects = root.getElementsByTagName("rect");
+  for (var i = 0; i < rects.length; i++) {
+    var name = rects[i].getAttribute("data-slot");
+    if (!name || !imgs[name]) continue;
+    var x = parseFloat(rects[i].getAttribute("x") || "");
+    var y = parseFloat(rects[i].getAttribute("y") || "");
+    var w = parseFloat(rects[i].getAttribute("width") || "");
+    var h = parseFloat(rects[i].getAttribute("height") || "");
+    if (isNaN(x) || isNaN(y) || isNaN(w) || isNaN(h)) continue;
+    out.push({ x: x, y: y, w: w, h: h });
+  }
+  return out;
+}
+
+// Does a <text> anchor sit within any image rect? A small pad absorbs baseline
+// vs cap-height slop. If the text lacks numeric x/y (transform-positioned), we
+// can't tell — bias toward legibility and return true.
+function textOverImage(t: Element, rects: { x: number; y: number; w: number; h: number }[]): boolean {
+  var tx = parseFloat(t.getAttribute("x") || "");
+  var ty = parseFloat(t.getAttribute("y") || "");
+  if (isNaN(tx) || isNaN(ty)) return true;
+  var pad = 12;
+  for (var i = 0; i < rects.length; i++) {
+    var r = rects[i];
+    if (tx >= r.x - pad && tx <= r.x + r.w + pad && ty >= r.y - pad && ty <= r.y + r.h + pad) return true;
+  }
+  return false;
+}
+
 // raw template inner so the slide still renders its baked state.
 function populateTemplate(tplText: string, slide: Slide): string {
   var doc = new DOMParser().parseFromString(tplText, "image/svg+xml");
@@ -543,15 +577,18 @@ function populateTemplate(tplText: string, slide: Slide): string {
     var fillText = fills[name] !== undefined ? fills[name] : (texts[i].textContent || "");
     populateField(doc, texts[i], fillText, layouts[name]);
   }
-  // Legibility halo: when the slide carries an image (cover or body), the text
-  // can land over clashing colours. Draw a soft dark stroke BEHIND the glyph
-  // fill (paint-order:stroke) so headlines/labels stay readable on any image.
-  // Pure CSS on the <text> — no filter defs, survives the export rasterizer.
-  var hasImg = !!(slide.librarySlotImages && Object.keys(slide.librarySlotImages).length);
-  if (hasImg) {
+  // Legibility halo: text that lands OVER a filled image can clash with it.
+  // Draw a soft dark stroke BEHIND the glyph fill (paint-order:stroke) so it
+  // stays readable. Pure CSS on the <text> — no filter defs, survives the
+  // export rasterizer. Gated per-text on ACTUAL overlap with an image rect, so
+  // labels sitting on a clean solid panel (split/duo/triptych templates) never
+  // get an unwanted outline; a full-bleed hero still halos all its text.
+  var imgRects = filledImageRects(root, slide);
+  if (imgRects.length) {
     for (var h = 0; h < texts.length; h++) {
       var role = texts[h].getAttribute("data-role") || "";
       if (!texts[h].getAttribute("data-field") || role === "logo" || role === "image") continue;
+      if (!textOverImage(texts[h], imgRects)) continue;
       var st = texts[h].getAttribute("style") || "";
       if (st.indexOf("paint-order") === -1) {
         texts[h].setAttribute("style", st + ";paint-order:stroke;stroke:rgba(5,7,10,0.72);stroke-width:5;stroke-linejoin:round");

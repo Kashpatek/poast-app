@@ -188,6 +188,7 @@ export function PublishStation() {
   const libSeed = useWizard((s) => s.libSeed);
   const bgMode = useWizard((s) => s.bgMode);
   const bgSource = useWizard((s) => s.bgSource);
+  const deckPalette = useWizard((s) => s.deckPalette);
   const articleTitle = useWizard((s) => s.articleTitle);
   const selectedVariantLabel = useWizard((s) => s.selectedVariantLabel);
   const captionOptions = useWizard((s) => s.captionOptions);
@@ -409,6 +410,9 @@ export function PublishStation() {
           libSeed: libSeed,
           bgMode: bgMode,
           bgSource: bgSource,
+          // v3.8: the whole-deck color-theme retint rides the archive so
+          // reopening restores it (else the next restamp reverts to category).
+          deckPalette: deckPalette,
         },
       };
       const res = await saveArchive({

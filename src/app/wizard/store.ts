@@ -619,6 +619,12 @@ function effPalette(cat: ThemeKey): LibPalette {
   return useWizard.getState().deckPalette ?? CATEGORY_PALETTE[cat];
 }
 
+/** Narrow an untrusted persisted value to a LibPalette (or null). Used on the
+ *  draft/archive hydrate paths so a stale/garbage deckPalette can't slip in. */
+function isLibPalette(v: unknown): v is LibPalette {
+  return v === "blend" || v === "amber" || v === "cobalt" || v === "green";
+}
+
 /** Apply a per-deck slide transform across a decks record (bench state). */
 function mapDecks(
   decks: Record<string, Slide[]>,
@@ -774,6 +780,9 @@ export const useWizard = create<WizardStore>()((set, get) => ({
       libSeed: 0,
       bgMode: "infinity",
       bgSource: "library",
+      // A deck-wide retint belongs to the OLD deck, not this fresh run — clear
+      // it so the new deck starts on its category tint (not last deck's green).
+      deckPalette: null,
       captionOptions: [],
       selectedCaptionIdx: 0,
       generating: false,
@@ -1671,6 +1680,9 @@ export const useWizard = create<WizardStore>()((set, get) => ({
         // decks keep their authored look); stamped rows re-render from the
         // libraryBg keys riding their slides.
         bgSource: (wi.bgSource === "library" ? "library" : "legacy") as "legacy" | "library",
+        // v3.8: restore the archived whole-deck retint (or null = category
+        // tint). Also resets any leftover deckPalette from a prior open.
+        deckPalette: isLibPalette(wi.deckPalette) ? wi.deckPalette : null,
         slides: slides,
         activeIdx: 0,
         undoStack: [],
@@ -1764,6 +1776,9 @@ export const useWizard = create<WizardStore>()((set, get) => ({
       // v3.7: old drafts (no bgSource) hydrate to LEGACY so classic decks
       // authored on photo JPGs / unique procedural fields keep their look.
       bgSource: d.bgSource === "library" ? "library" : "legacy",
+      // v3.8: a whole-deck color-theme retint must survive resume — without
+      // this, the next chain re-stamp reverts every slide to the category tint.
+      deckPalette: isLibPalette(d.deckPalette) ? d.deckPalette : null,
       slides: Array.isArray(d.slides) ? d.slides : [],
       activeIdx: typeof d.activeIdx === "number" ? Math.max(0, d.activeIdx) : 0,
       undoStack: [],
@@ -1819,6 +1834,7 @@ function draftSubset(s: WizardStore): WizardDraft {
     libSeed: s.libSeed,
     bgMode: s.bgMode,
     bgSource: s.bgSource,
+    deckPalette: s.deckPalette,
     slides: s.slides,
     activeIdx: s.activeIdx,
     captionOptions: s.captionOptions,
