@@ -571,12 +571,13 @@ export function renderSlideToCanvas(slide: Slide, bgUrl: string, page?: number, 
           ctx.shadowOffsetX = 0;
           ctx.shadowOffsetY = 2;
           var ctaY = FULL_H - ctaFontSize - 60;
+          var ctaUpper = slide.ctaText.toUpperCase();
           if (slide.ctaPosition === "bottom-center") {
             ctx.textAlign = "center";
-            ctx.fillText(slide.ctaText, FULL_W / 2, ctaY);
+            ctx.fillText(ctaUpper, FULL_W / 2, ctaY);
           } else {
             ctx.textAlign = "right";
-            ctx.fillText(slide.ctaText, FULL_W - MARGIN_X, ctaY);
+            ctx.fillText(ctaUpper, FULL_W - MARGIN_X, ctaY);
           }
           ctx.textAlign = "left";
           ctx.shadowColor = "transparent";

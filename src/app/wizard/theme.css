@@ -620,7 +620,7 @@
 .wizard-root .swatch.selected::after{content:"SELECTED";position:absolute;top:6px;right:6px;
   background:var(--amber);color:#0A0A0C;font-family:var(--body);font-size:8px;
   font-weight:700;letter-spacing:.12em;padding:2px 7px;border-radius:3px}
-.wizard-root .thumb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
+.wizard-root .thumb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
 .wizard-root .opt-card{position:relative;border-radius:var(--r-panel);padding:14px 16px;cursor:pointer;
   box-shadow:inset 0 1px 0 var(--bevel-hi), inset 0 -1px 0 rgba(0,0,0,.35);
   transition:border-color .18s var(--ease),box-shadow .18s var(--ease),
