@@ -218,7 +218,7 @@ export function ImagePicker({ open, onClose, onPick, theme, context, suggestedPr
   function loadCatalog() {
     if (catalogState === "loading" || catalogState === "ready") return;
     setCatalogState("loading");
-    fetch("/api/cover?op=styles")
+    fetch("/api/cover/styles")
       .then(function (r) { return r.json(); })
       .then(function (j) {
         setCatalog(Array.isArray(j && j.styles) ? (j.styles as StyleCard[]) : []);
@@ -553,11 +553,11 @@ export function ImagePicker({ open, onClose, onPick, theme, context, suggestedPr
                     <span className="callout">Couldn&apos;t load styles — the quick presets above still work.</span>
                   ) : (
                     <div style={{ maxHeight: 306, overflowY: "auto", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))", gap: 10, padding: 2 }}>
-                      {catalog.map(function (st) {
+                      {catalog.filter(function (st) { return st && st.name; }).map(function (st, si) {
                         const on = preset === st.name;
                         return (
                           <button
-                            key={st.id}
+                            key={st.id || st.name || si}
                             type="button"
                             title={st.name}
                             onClick={function () { chooseStyle(st.name, st.styleBlock || ""); }}
