@@ -267,6 +267,13 @@ export function CoverDesigner({ slide, onChange, theme, compact, sourceText }: C
     }
   }
 
+  // Re-run the Claude prompt-smith from the LATEST cover context (title +
+  // subtitle + topic + thread text) so the user can reprompt inside the picker
+  // and pull fresh context before regenerating. Returns the new prompt text.
+  async function repromptImage(): Promise<string> {
+    return await verbatimImagePrompt(slide.title || "", slide.subtitle || "", theme, sourceText || "");
+  }
+
   const templateGrid = (
     <Section label="TEMPLATE">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, min-content)", gap: 10, justifyContent: "start" }}>
@@ -543,6 +550,7 @@ export function CoverDesigner({ slide, onChange, theme, compact, sourceText }: C
           onClose={() => setPickerOpen(false)}
           onPick={(url: string) => { onChange({ imageUrl: url, imageFit: "cover", imagePosition: slide.imagePosition || "center" }); setPickerOpen(false); }}
           suggestedPrompt={suggestedPrompt}
+          onReprompt={repromptImage}
           theme={theme}
         />
       ) : null}

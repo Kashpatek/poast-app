@@ -31,6 +31,7 @@ export interface ImagePickerProps {
   theme: ThemeKey;
   context?: string;         // slide/body text used to seed the generate prompt
   suggestedPrompt?: string; // takes priority over context for the seed
+  onReprompt?: () => Promise<string>; // re-run the prompt-smith from live context
 }
 
 type Tab = "library" | "upload" | "generate";
@@ -128,7 +129,7 @@ const usedBadgeStyle: CSSProperties = {
   border: "1px solid rgba(247,176,65,.4)", borderRadius: 6, padding: "2px 7px",
 };
 
-export function ImagePicker({ open, onClose, onPick, theme, context, suggestedPrompt }: ImagePickerProps) {
+export function ImagePicker({ open, onClose, onPick, theme, context, suggestedPrompt, onReprompt }: ImagePickerProps) {
   const [tab, setTab] = useState<Tab>("library");
 
   // Wizard state feeds the FROM ARTICLE group and the ON SLIDE badges.
@@ -155,6 +156,7 @@ export function ImagePicker({ open, onClose, onPick, theme, context, suggestedPr
   const [slots, setSlots] = useState<GenSlot[]>(EMPTY_SLOTS);
   const [genBusy, setGenBusy] = useState(false);
   const [fellBack, setFellBack] = useState<string | null>(null);
+  const [repromptBusy, setRepromptBusy] = useState(false);
   // Full Cover Creator style catalog (lazy-loaded on "view all styles"), with
   // real sample previews at /cover-lab/trends/<id>.jpg.
   type StyleCard = { id: string; name: string; styleBlock?: string; sampleUrl?: string | null };
@@ -266,6 +268,21 @@ export function ImagePicker({ open, onClose, onPick, theme, context, suggestedPr
     };
     reader.onerror = function () { showToast("Could not read that file.", "error"); };
     reader.readAsDataURL(file);
+  }
+
+  // Reprompt: re-run the prompt-smith from the live cover context and replace
+  // the editable prompt with the fresh, context-rich result.
+  async function doReprompt() {
+    if (!onReprompt || repromptBusy) return;
+    setRepromptBusy(true);
+    try {
+      const p = await onReprompt();
+      if (p && p.trim()) setPrompt(p.trim());
+      else showToast("No prompt returned — try again.", "error");
+    } catch {
+      showToast("Reprompt failed. Try again.", "error");
+    }
+    setRepromptBusy(false);
   }
 
   async function runGenerate() {
@@ -514,6 +531,18 @@ export function ImagePicker({ open, onClose, onPick, theme, context, suggestedPr
             <>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
                 <div className="ph" style={{ flex: 1, margin: 0 }}>PROMPT</div>
+                {onReprompt ? (
+                  <button
+                    type="button"
+                    className="chip"
+                    onClick={doReprompt}
+                    disabled={repromptBusy}
+                    title="Rewrite the prompt from the cover's title, subtitle, topic and thread text"
+                    style={{ cursor: repromptBusy ? "default" : "pointer", opacity: repromptBusy ? 0.6 : 1 }}
+                  >
+                    {repromptBusy ? "REPROMPTING…" : "↻ REPROMPT"}
+                  </button>
+                ) : null}
                 <div className="seg">
                   <span className={provider === "imagen" ? "on" : ""} onClick={function () { pickProvider("imagen"); }}>IMAGEN</span>
                   <span className={provider === "grok" ? "on" : ""} onClick={function () { pickProvider("grok"); }}>GROK</span>
