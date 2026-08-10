@@ -553,7 +553,7 @@ function LibBgControls({ active, activeIdx }: { active: Slide; activeIdx: number
               current={resolvedKey || "02"}
               onPick={function (k: string, scope?: "slide" | "deck") { if (scope === "deck") { setDeckBgOverride(k); } else { setSlideBgOverride(activeIdx, k); } /* stay open: DONE/ESC closes so picks + highlight stay visible */ }}
               onClose={function () { setAllOpen(false); }}
-              showNative={true}
+              showNative={false}
               infinityPick={false}
               scopeChoice={true}
               seed={libSeed}
