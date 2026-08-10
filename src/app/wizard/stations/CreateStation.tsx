@@ -23,6 +23,7 @@ import { candidates, postSeed } from "../engine/library/backdrop";
 import { NATIVE_PREFIX, nativeMetaOf, nativePoolForTopic, renderNativeBgInner } from "../engine/library/nativebg";
 import { CATEGORY_PALETTE } from "../engine/library/palette";
 import { suggestTopic } from "../engine/library/suggest";
+import type { ThreadEntry } from "../engine/verbatim-thread";
 import { SectionHeader, Kbd, Chip } from "../components/Chrome";
 import { ImagePicker } from "../components/ImagePicker";
 import { showToast } from "../../toast-context";
@@ -277,6 +278,12 @@ export function CreateStation() {
   const patch = useWizard((s) => s.patch);
   const generate = useWizard((s) => s.generate);
   const splitNow = useWizard((s) => s.splitNow);
+  const threadEntries = useWizard((s) => s.threadEntries);
+  const addThreadEntry = useWizard((s) => s.addThreadEntry);
+  const updateThreadEntry = useWizard((s) => s.updateThreadEntry);
+  const removeThreadEntry = useWizard((s) => s.removeThreadEntry);
+  const moveThreadEntry = useWizard((s) => s.moveThreadEntry);
+  const buildThreadDeck = useWizard((s) => s.buildThreadDeck);
   const setTopic = useWizard((s) => s.setTopic);
   const bgMode = useWizard((s) => s.bgMode);
   const bgSource = useWizard((s) => s.bgSource);
@@ -418,7 +425,7 @@ export function CreateStation() {
       return;
     }
     if (useWizard.getState().mode === "verbatim") {
-      splitNow();
+      buildThreadDeck();
       return;
     }
     if (useWizard.getState().fetchingImages) {
@@ -437,7 +444,7 @@ export function CreateStation() {
       return;
     }
     void generate();
-  }, [generate, splitNow, go]);
+  }, [generate, buildThreadDeck, go]);
 
   // v3.3 LOAD: with the toggle on, fire the background preload once context
   // lands (debounced; an in-flight image fetch defers it — the effect
@@ -468,6 +475,11 @@ export function CreateStation() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [primary]);
+
+  // Verbatim opens with one empty post so the composer is never a blank void.
+  useEffect(() => {
+    if (mode === "verbatim" && threadEntries.length === 0) addThreadEntry();
+  }, [mode, threadEntries.length, addThreadEntry]);
 
   // .txt/.md into the paste box (drag-drop or BROWSE): read text, APPEND to source.
   const ingestTextFiles = useCallback(
@@ -533,7 +545,7 @@ export function CreateStation() {
     mode === "library" && !!libraryDecks && !preloading &&
     preloadKey === preloadInputsKey({ url, text, countMode, pageCount, articleImages });
   const ctaLabel =
-    mode === "verbatim" ? "Split into slides"
+    mode === "verbatim" ? "Build the thread"
       : mode === "unique" ? "Design three directions"
         : mode === "library" && preloading ? "Loading the bench…"
           : mode === "library" && benchFresh ? "Open the bench"
@@ -586,6 +598,16 @@ export function CreateStation() {
 
             {/* source panel */}
             <div className="glass rise d3" style={panelStyle}>
+              {mode === "verbatim" ? (
+                <ThreadComposer
+                  entries={threadEntries}
+                  onAdd={addThreadEntry}
+                  onUpdate={updateThreadEntry}
+                  onRemove={removeThreadEntry}
+                  onMove={moveThreadEntry}
+                />
+              ) : (
+              <>
               <SectionHeader label="Source" accent="URL or paste" />
               <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <span style={urlTagStyle}>URL</span>
@@ -695,6 +717,8 @@ export function CreateStation() {
                             : "loads the bench in the background after you input context"}
                   </span>
                 </div>
+              )}
+              </>
               )}
             </div>
 
@@ -1008,6 +1032,91 @@ export function CreateStation() {
         context={text ? text.slice(0, 400) : undefined}
       />
     </section>
+  );
+}
+
+// ═══ Verbatim thread composer ═══
+// Ordered posts, each a verbatim text block + optional image. Each post maps to
+// a page (page 1 is the cover); long posts fit-or-flow across sentence-safe
+// pages at build time. Text is never reworded.
+function ThreadComposer(props: {
+  entries: ThreadEntry[];
+  onAdd: (afterId?: string) => void;
+  onUpdate: (id: string, patch: Partial<ThreadEntry>) => void;
+  onRemove: (id: string) => void;
+  onMove: (id: string, dir: -1 | 1) => void;
+}) {
+  const { entries, onAdd, onUpdate, onRemove, onMove } = props;
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const pickImage = (id: string, file?: File | null) => {
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { showToast("Choose an image file.", "error"); return; }
+    const reader = new FileReader();
+    reader.onload = () => onUpdate(id, { image: String(reader.result || "") });
+    reader.readAsDataURL(file);
+  };
+  const iconBtn = (disabled: boolean): CSSProperties => ({
+    cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.35 : 1, padding: "3px 8px",
+  });
+  const words = entries.reduce((n, e) => n + (e.text.trim() ? e.text.trim().split(/\s+/).length : 0), 0);
+  return (
+    <>
+      <SectionHeader label="Thread" accent="paste each post" />
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {entries.map((e, i) => (
+          <div key={e.id} style={{ border: "1px solid var(--line-2)", borderRadius: 12, background: "rgba(12,12,16,.5)", padding: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+              <span className="whisper" style={{ fontWeight: 600, letterSpacing: ".08em" }}>POST {i + 1}</span>
+              <span style={{ flex: 1 }} />
+              <button type="button" className="chip" title="Move up" disabled={i === 0} onClick={() => onMove(e.id, -1)} style={iconBtn(i === 0)}>↑</button>
+              <button type="button" className="chip" title="Move down" disabled={i === entries.length - 1} onClick={() => onMove(e.id, 1)} style={iconBtn(i === entries.length - 1)}>↓</button>
+              <button type="button" className="chip" title="Remove this post" disabled={entries.length <= 1} onClick={() => onRemove(e.id)} style={iconBtn(entries.length <= 1)}>✕</button>
+            </div>
+            <textarea
+              className="input"
+              value={e.text}
+              placeholder={i === 0 ? "Paste the first post…" : "Paste this post…"}
+              onChange={(ev) => onUpdate(e.id, { text: ev.target.value })}
+              style={{
+                width: "100%", minHeight: 92, background: "transparent", border: "none",
+                boxShadow: "none", resize: "vertical", padding: 0,
+                fontFamily: "var(--body)", fontSize: 12.5, lineHeight: 1.7, fontVariantNumeric: "tabular-nums",
+              }}
+            />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+              {e.image ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={e.image} alt="post" style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line-2)" }} />
+                  <button type="button" className="chip" onClick={() => onUpdate(e.id, { image: undefined })} style={{ cursor: "pointer" }}>REMOVE IMAGE</button>
+                  <span style={{ width: 1, height: 18, background: "var(--line)", margin: "0 2px" }} />
+                  <button type="button" className={"chip" + ((e.imageMode || "share") === "share" ? " on" : "")} title="Image shares the page with the text" onClick={() => onUpdate(e.id, { imageMode: "share" })} style={{ cursor: "pointer" }}>SHARE PAGE</button>
+                  <button type="button" className={"chip" + (e.imageMode === "standalone" ? " on" : "")} title="Image gets its own page" onClick={() => onUpdate(e.id, { imageMode: "standalone" })} style={{ cursor: "pointer" }}>OWN PAGE</button>
+                </>
+              ) : (
+                <button type="button" className="chip" onClick={() => fileRefs.current[e.id]?.click()} style={{ cursor: "pointer" }}>+ IMAGE</button>
+              )}
+              <input
+                ref={(el) => { fileRefs.current[e.id] = el; }}
+                type="file"
+                accept="image/*"
+                onChange={(ev) => pickImage(e.id, ev.target.files?.[0])}
+                style={{ display: "none" }}
+              />
+              {i === entries.length - 1 && (
+                <>
+                  <span style={{ flex: 1 }} />
+                  <button type="button" className="chip on" onClick={() => onAdd(e.id)} style={{ cursor: "pointer" }}>+ ADD POST</button>
+                </>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      <span className="whisper" style={{ display: "block", marginTop: 10 }}>
+        {words > 0 ? fmtInt(words) + " WORDS · " : ""}Each post becomes a page (page 1 is the cover). Text ships verbatim; a long post flows onto extra pages at complete sentences.
+      </span>
+    </>
   );
 }
 

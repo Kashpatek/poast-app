@@ -80,6 +80,11 @@ export interface Slide {
   libraryBgNative?: { fam: string; seed: number; idx: number; n: number };
   librarySlotFit?: Record<string, "cover" | "contain">; // slot name -> FILL (crop) | FIT (letterbox)
   libraryLayout?: Record<string, { size?: number; wMul?: number; lines?: number; dx?: number; dy?: number }>; // field -> text-fit panel overrides (dx/dy = px nudge in template space, may be negative)
+  // Verbatim thread (v3.9): when a long post flows across pages, which part
+  // this slide is (1-based) and how many parts total. parts>1 marks a
+  // continuation for a subtle "continued" affordance; absent on normal slides.
+  threadPart?: number;
+  threadParts?: number;
 }
 
 export interface GeneratedSlide {

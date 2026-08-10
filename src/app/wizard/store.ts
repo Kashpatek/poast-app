@@ -36,6 +36,8 @@ import { CATEGORY_PALETTE, type LibPalette } from "./engine/library/palette";
 import { generateLibraryPlan, type LibraryPlanSlide } from "./engine/library/plan";
 import { ensureLibraryAssets } from "./engine/library/compose";
 import { suggestTopic } from "./engine/library/suggest";
+import { fitOrFlow, makeCanvasMeasure, splitSentences, type ThreadEntry } from "./engine/verbatim-thread";
+import { gf } from "../shared-constants";
 import { showToast } from "../toast-context";
 
 // ═══ STATIONS ═══
@@ -83,6 +85,7 @@ export interface WizardDraft {
   pageCount?: number;
   articleImages?: string[];
   articleTitle?: string;
+  threadEntries?: ThreadEntry[];
   autoLoad?: boolean;
   preloadKey?: string;
   variants?: Record<string, Variant> | null;
@@ -140,6 +143,16 @@ export interface WizardStore {
   fetchingImages: boolean;
   articleTitle: string; // captured from cover after gen
   patch(p: Partial<WizardInputs>): void;
+  // verbatim v3.9: the thread composer's ordered entries (text + optional
+  // image). Each entry maps to a page (page 1 is the cover); long entries
+  // fit-or-flow across pages on sentence boundaries. buildThreadDeck() turns
+  // this into slides and lands on the CHOOSE cover bench, like splitNow().
+  threadEntries: ThreadEntry[];
+  addThreadEntry(afterId?: string): void;
+  updateThreadEntry(id: string, patch: Partial<ThreadEntry>): void;
+  removeThreadEntry(id: string): void;
+  moveThreadEntry(id: string, dir: -1 | 1): void;
+  buildThreadDeck(): void;
   // generation
   generating: boolean;
   genStage: number;
@@ -285,6 +298,7 @@ function recomputePositions(slides: Slide[]): Slide[] {
 }
 
 let slideSeq = 0;
+let threadSeq = 0;
 
 function defaultBodySlide(): Slide {
   slideSeq += 1;
@@ -696,6 +710,7 @@ const initialData = {
   articleImages: [] as string[],
   fetchingImages: false,
   articleTitle: "",
+  threadEntries: [] as ThreadEntry[],
   autoLoad: false,
   preloading: false,
   preloadError: null as string | null,
@@ -1219,6 +1234,192 @@ export const useWizard = create<WizardStore>()((set, get) => ({
     });
     // v3.7: verbatim always has text — the topic suggestion + backdrop
     // stamps land as soon as the topics JSON is in (usually warm already).
+    classicChainKick();
+  },
+
+  // ─── verbatim thread composer (v3.9) ───
+  addThreadEntry(afterId) {
+    threadSeq += 1;
+    const entry: ThreadEntry = { id: "te-" + Date.now() + "-" + threadSeq, text: "", imageMode: "share" };
+    const cur = get().threadEntries.slice();
+    const at = afterId ? cur.findIndex(function (e) { return e.id === afterId; }) : -1;
+    if (at >= 0) cur.splice(at + 1, 0, entry);
+    else cur.push(entry);
+    set({ threadEntries: cur });
+  },
+  updateThreadEntry(id, patch) {
+    set({
+      threadEntries: get().threadEntries.map(function (e) {
+        return e.id === id ? { ...e, ...patch } : e;
+      }),
+    });
+  },
+  removeThreadEntry(id) {
+    set({ threadEntries: get().threadEntries.filter(function (e) { return e.id !== id; }) });
+  },
+  moveThreadEntry(id, dir) {
+    const cur = get().threadEntries.slice();
+    const i = cur.findIndex(function (e) { return e.id === id; });
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= cur.length) return;
+    const tmp = cur[i]; cur[i] = cur[j]; cur[j] = tmp;
+    set({ threadEntries: cur });
+  },
+
+  // Build the deck from the thread: page 1 = cover (hook derived from the first
+  // post, refined in the CHOOSE bench), then one page per entry — long entries
+  // fit-or-flow across sentence-safe pages, shared images share the page (or
+  // lead as a standalone page when text won't fit with them). Lands on CHOOSE
+  // like splitNow(), so the cover/background walkthrough is unchanged.
+  buildThreadDeck() {
+    const st = get();
+    const entries = st.threadEntries.filter(function (e) { return (e.text || "").trim() || e.image; });
+    if (!entries.length) {
+      showToast("Add at least one thread post first.", "error");
+      return;
+    }
+    const FULL_W = 1080, FULL_H = 1350, MARGIN_X = 76;
+    const BOX_W = FULL_W - MARGIN_X * 2; // 928
+    const BOX_H = Math.round(FULL_H * 0.82); // 1107
+    const MINF = 20, MAXF = 40;
+    const measureBody = makeCanvasMeasure(BOX_W, gf, 1.55);
+    const measureImg = makeCanvasMeasure(BOX_W, gf, 1.5);
+
+    const base = function (): Slide {
+      slideSeq += 1;
+      return {
+        id: "slide-" + Date.now() + "-" + slideSeq,
+        position: 2,
+        type: "body",
+        title: "",
+        titleSize: 74,
+        subtitle: "",
+        subtitleSize: 34,
+        bodyText: "",
+        bodySize: 28,
+        imageUrl: "",
+        caption: "",
+        captionSize: 18,
+        titleAnchor: "top",
+        titleMarginTop: 80,
+        bodyAnchor: "top",
+      };
+    };
+    const out: Slide[] = [];
+
+    // Cover: hook = first sentence of the first text entry (capped), editable
+    // in the bench. Falls back to a neutral title if the thread opens on media.
+    const firstText = (entries.find(function (e) { return (e.text || "").trim(); }) || { text: "" }).text || "";
+    let hook = (splitSentences(firstText)[0] || firstText || "Untitled").trim().replace(/\s+/g, " ");
+    if (hook.length > 90) hook = hook.slice(0, hook.lastIndexOf(" ", 90) > 0 ? hook.lastIndexOf(" ", 90) : 90).trim() + "…";
+    const cover = base();
+    cover.position = 1;
+    cover.type = "cover";
+    cover.title = hook;
+    out.push(cover);
+
+    for (let ei = 0; ei < entries.length; ei++) {
+      const e = entries[ei];
+      const text = (e.text || "").trim();
+      const share = (e.imageMode || "share") === "share";
+      const pushText = function (measure: typeof measureBody, boxH: number, imgUrl?: string) {
+        const pages = fitOrFlow(text, { minFont: MINF, maxFont: MAXF, boxHeight: boxH, measure: measure });
+        pages.forEach(function (pg, pi) {
+          const s = base();
+          s.type = imgUrl && pi === 0 ? "image_text" : "body";
+          s.bodyText = pg.text;
+          s.bodySize = pg.fontPx;
+          s.threadPart = pg.part;
+          s.threadParts = pg.parts;
+          if (imgUrl && pi === 0) {
+            s.imageUrl = imgUrl;
+            s.imageHeight = 52;
+            s.imagePosition = "center";
+            s.imageFit = "cover";
+          }
+          out.push(s);
+        });
+      };
+
+      if (e.image && !text) {
+        // media-only post
+        const s = base();
+        s.type = "large_image";
+        s.imageUrl = e.image;
+        s.imageHeight = 82;
+        s.imagePosition = "center";
+        s.imageFit = "cover";
+        out.push(s);
+      } else if (e.image && share) {
+        // Try text + image on ONE page (image reserves ~52%). If it fits, one
+        // image_text page; else lead with a standalone image, text flows full.
+        const reduced = Math.round(BOX_H * 0.46 - 24);
+        const one = fitOrFlow(text, { minFont: MINF, maxFont: MAXF, boxHeight: reduced, measure: measureImg });
+        if (one.length === 1) {
+          const s = base();
+          s.type = "image_text";
+          s.bodyText = one[0].text;
+          s.bodySize = one[0].fontPx;
+          s.imageUrl = e.image;
+          s.imageHeight = 52;
+          s.imagePosition = "center";
+          s.imageFit = "cover";
+          s.threadPart = 1;
+          s.threadParts = 1;
+          out.push(s);
+        } else {
+          const img = base();
+          img.type = "large_image";
+          img.imageUrl = e.image;
+          img.imageHeight = 82;
+          img.imagePosition = "center";
+          img.imageFit = "cover";
+          out.push(img);
+          pushText(measureBody, BOX_H);
+        }
+      } else if (e.image && !share) {
+        // standalone image AFTER the post's text
+        pushText(measureBody, BOX_H);
+        const s = base();
+        s.type = "large_image";
+        s.imageUrl = e.image;
+        s.imageHeight = 82;
+        s.imagePosition = "center";
+        s.imageFit = "cover";
+        out.push(s);
+      } else {
+        pushText(measureBody, BOX_H);
+      }
+    }
+
+    // Positions: cover=1, last=4 (FINAL), middles=2 — matches getSlidePositions
+    // semantics enough for accents/reorder without re-typing the slides.
+    for (let i = 0; i < out.length; i++) {
+      out[i].position = i === 0 ? 1 : i === out.length - 1 ? 4 : 2;
+    }
+
+    const editorSlides = seedCoverAccent(out, st.category);
+    const verbVariant: Variant = {
+      label: "Thread",
+      topic: "Verbatim thread, formatted as-is.",
+      slides: [],
+    };
+    set(function (s) {
+      return {
+        variants: { V: verbVariant },
+        selectedVariantKey: "V",
+        selectedVariantLabel: "Thread",
+        slides: editorSlides,
+        activeIdx: 0,
+        undoStack: [],
+        dirtySinceVariant: false,
+        captionOptions: [],
+        selectedCaptionIdx: 0,
+        articleTitle: hook || s.articleTitle,
+        station: "choose" as Station,
+        maxStation: Math.max(s.maxStation, ordOf("choose")),
+      };
+    });
     classicChainKick();
   },
 
@@ -1751,6 +1952,7 @@ export const useWizard = create<WizardStore>()((set, get) => ({
       articleImages: Array.isArray(d.articleImages) ? d.articleImages : [],
       fetchingImages: false,
       articleTitle: typeof d.articleTitle === "string" ? d.articleTitle : "",
+      threadEntries: Array.isArray(d.threadEntries) ? d.threadEntries : [],
       // v3.3 preload: preference + bench hash persist; in-flight state never
       // does (mirror fetchingImages — a preload cannot resume mid-call).
       autoLoad: d.autoLoad === true,
@@ -1823,6 +2025,7 @@ function draftSubset(s: WizardStore): WizardDraft {
     pageCount: s.pageCount,
     articleImages: s.articleImages,
     articleTitle: s.articleTitle,
+    threadEntries: s.threadEntries,
     autoLoad: s.autoLoad,
     preloadKey: s.preloadKey,
     variants: s.variants,
@@ -1865,6 +2068,11 @@ function leanDraft(d: WizardDraft): WizardDraft {
     slides: leanSlides(d.slides),
     // Library bench decks carry full slide arrays too — same strip per deck.
     libraryDecks: d.libraryDecks ? mapDecks(d.libraryDecks, leanSlides) : d.libraryDecks,
+    // Thread composer images can be pasted base64 — drop them on the lean
+    // retry so a big thread still saves (text survives; images re-add on edit).
+    threadEntries: (d.threadEntries || []).map(function (e) {
+      return { ...e, image: e.image && e.image.indexOf("data:") === 0 ? undefined : e.image };
+    }),
   };
 }
 
