@@ -19,6 +19,7 @@ import { renderCoverSvg } from "../../carousel-covers";
 import { renderUniqueSvg } from "./unique/render";
 import { composeLibrarySvg, ensureLibraryAssets, libraryBgSvgDoc, ensureClassicBgs } from "./library/compose";
 import { FULL_W, FULL_H, getBackdropUrl, type Slide, type ThemeKey } from "./types";
+import { furnitureSvg, type FurnitureOpts } from "./page-furniture";
 
 function hideOnError(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }
 
@@ -52,7 +53,7 @@ function librarySvgHtml(composed: string): string {
   return '<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block">' + composed + '</svg>';
 }
 
-export function SlidePreview({ slide, theme, width, page, total }: { slide: Slide; theme: ThemeKey; width?: number; page?: number; total?: number }) {
+export function SlidePreview({ slide, theme, width, page, total, furniture, topic, showFurniture }: { slide: Slide; theme: ThemeKey; width?: number; page?: number; total?: number; furniture?: FurnitureOpts; topic?: string; showFurniture?: boolean }) {
   var sl = slide;
   var isUnique = sl.type === "unique";
   var isLibrary = sl.type === "library";
@@ -207,5 +208,8 @@ export function SlidePreview({ slide, theme, width, page, total }: { slide: Slid
         </div>
       </div>}
     </div>
+    {showFurniture && furniture ? (
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }} dangerouslySetInnerHTML={{ __html: furnitureSvg(sl, furniture, page ?? 1, total ?? 1, topic) }} />
+    ) : null}
   </div>;
 }

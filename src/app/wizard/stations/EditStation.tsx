@@ -1105,6 +1105,8 @@ export function EditStation() {
   const undoDepth = useWizard((s) => s.undoStack.length);
   const category = useWizard((s) => s.category);
   const articleTitle = useWizard((s) => s.articleTitle);
+  const furniture = useWizard((s) => s.furniture);
+  const deckTopic = useWizard((s) => s.topic);
   const go = useWizard((s) => s.go);
 
   const active: Slide | undefined = slides[activeIdx];
@@ -1428,6 +1430,9 @@ export function EditStation() {
                   theme={category}
                   page={activeIdx + 1}
                   total={slides.length}
+                  furniture={furniture}
+                  topic={deckTopic || undefined}
+                  showFurniture={true}
                   onUpdate={function (s) {
                     // Canvas drop/file replace commits a new url without the
                     // reuse confirm (explicit intent) but still resets that

@@ -37,6 +37,7 @@ import { generateLibraryPlan, type LibraryPlanSlide } from "./engine/library/pla
 import { ensureLibraryAssets } from "./engine/library/compose";
 import { suggestTopic } from "./engine/library/suggest";
 import { fitOrFlow, makeCanvasMeasure, splitSentences, type ThreadEntry } from "./engine/verbatim-thread";
+import { DEFAULT_FURNITURE, type FurnitureOpts } from "./engine/page-furniture";
 import { gf } from "../shared-constants";
 import { showToast } from "../toast-context";
 
@@ -98,6 +99,7 @@ export interface WizardDraft {
   bgMode?: "rotate" | "infinity";
   bgSource?: "legacy" | "library";
   deckPalette?: LibPalette | null;
+  furniture?: FurnitureOpts;
   slides?: Slide[];
   activeIdx?: number;
   captionOptions?: CaptionOption[];
@@ -232,6 +234,10 @@ export interface WizardStore {
   deckPalette: LibPalette | null;
   setDeckPalette(p: LibPalette | null): void;         // retint the whole deck
   setSlidePalette(idx: number, p: LibPalette | null): void; // retint one slide (cover-safe, no ripple)
+  // Page furniture (v3.10): deck-level swipe arrow + logo variant/corner. The
+  // closer CTA is derived, not stored. Applies across all carousel modes.
+  furniture: FurnitureOpts;
+  setFurniture(p: Partial<FurnitureOpts>): void;
   // undo
   undoStack: UndoFrame[];
   pushUndo(): void; // push before destructive ops
@@ -735,6 +741,7 @@ const initialData = {
   // legacy drafts/archives hydrate to "legacy" (see hydrateFromDraft).
   bgSource: "library" as "legacy" | "library",
   deckPalette: null as LibPalette | null,
+  furniture: { ...DEFAULT_FURNITURE } as FurnitureOpts,
   slides: [] as Slide[],
   activeIdx: 0,
   undoStack: [] as UndoFrame[],
@@ -1726,6 +1733,10 @@ export const useWizard = create<WizardStore>()((set, get) => ({
     set({ slides: next, dirtySinceVariant: true });
   },
 
+  setFurniture(p) {
+    set({ furniture: { ...get().furniture, ...p }, dirtySinceVariant: true });
+  },
+
   setBenchDeckBg(deckKey, key) {
     const st = get();
     const deck = st.libraryDecks ? st.libraryDecks[deckKey] : undefined;
@@ -2006,6 +2017,7 @@ export const useWizard = create<WizardStore>()((set, get) => ({
       // v3.8: a whole-deck color-theme retint must survive resume — without
       // this, the next chain re-stamp reverts every slide to the category tint.
       deckPalette: isLibPalette(d.deckPalette) ? d.deckPalette : null,
+      furniture: d.furniture && typeof d.furniture === "object" ? { ...DEFAULT_FURNITURE, ...d.furniture } : { ...DEFAULT_FURNITURE },
       slides: Array.isArray(d.slides) ? d.slides : [],
       activeIdx: typeof d.activeIdx === "number" ? Math.max(0, d.activeIdx) : 0,
       undoStack: [],
@@ -2063,6 +2075,7 @@ function draftSubset(s: WizardStore): WizardDraft {
     bgMode: s.bgMode,
     bgSource: s.bgSource,
     deckPalette: s.deckPalette,
+    furniture: s.furniture,
     slides: s.slides,
     activeIdx: s.activeIdx,
     captionOptions: s.captionOptions,

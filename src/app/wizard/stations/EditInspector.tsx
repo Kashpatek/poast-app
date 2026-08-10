@@ -532,6 +532,8 @@ export function EditInspector() {
   });
   const sourceText = useWizard(function (s) { return s.text; });
   const draftSavedAt = useWizard(function (s) { return s.draftSavedAt; });
+  const furniture = useWizard(function (s) { return s.furniture; });
+  const setFurniture = useWizard(function (s) { return s.setFurniture; });
 
   const active: Slide | undefined = slides[activeIdx];
   const overflow = useBodyOverflow(active);
@@ -539,7 +541,7 @@ export function EditInspector() {
   const [tightenBusy, setTightenBusy] = useState(false);
   const [openSecs, setOpenSecs] = useState<Record<string, boolean>>({
     type: true, layout: true, typo: true, images: true, cover: true, cta: true,
-    backdrop: true, overflow: true, revisions: false,
+    backdrop: true, overflow: true, revisions: false, furniture: false,
     ucontent: true, ustats: true, uchart: true, ubackdrop: true,
   });
   function toggleSec(id: string) {
@@ -1323,6 +1325,35 @@ export function EditInspector() {
             ) : (
               <span className="whisper">Text flow works on BODY and IMG TEXT slides.</span>
             )}
+          </Sec>
+
+          {/* ═══ PAGE FURNITURE (deck-level: arrow + logo on every post-cover page) ═══ */}
+          <Sec id="furniture" label="PAGE FURNITURE" extra={furniture.arrow ? "ARROW" : "NO ARROW"} open={!!openSecs.furniture} onToggle={toggleSec}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span className="whisper" style={{ minWidth: 74 }}>Swipe arrow</span>
+                <button type="button" className={"chip" + (furniture.arrow ? " on" : "")} onClick={function () { setFurniture({ arrow: true }); }} style={{ cursor: "pointer" }}>ON</button>
+                <button type="button" className={"chip" + (!furniture.arrow ? " on" : "")} onClick={function () { setFurniture({ arrow: false }); }} style={{ cursor: "pointer" }}>OFF</button>
+                <span className="whisper">bottom-right, on every page but the last</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span className="whisper" style={{ minWidth: 74 }}>Logo</span>
+                {([["lettermark", "Lettermark"], ["lettermarkText", "Mark+Text"], ["boxLettermark", "Box+Text"], ["full", "Full"], ["none", "None"]] as const).map(function (o) {
+                  return (
+                    <button key={o[0]} type="button" className={"chip" + (furniture.logo === o[0] ? " on" : "")} onClick={function () { setFurniture({ logo: o[0] }); }} style={{ cursor: "pointer" }}>{o[1]}</button>
+                  );
+                })}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span className="whisper" style={{ minWidth: 74 }}>Logo corner</span>
+                {([["tl", "Top L"], ["tr", "Top R"], ["bl", "Bot L"], ["br", "Bot R"]] as const).map(function (o) {
+                  return (
+                    <button key={o[0]} type="button" className={"chip" + (furniture.logoCorner === o[0] ? " on" : "")} disabled={furniture.logo === "none"} onClick={function () { setFurniture({ logoCorner: o[0] }); }} style={{ cursor: furniture.logo === "none" ? "default" : "pointer", opacity: furniture.logo === "none" ? 0.4 : 1 }}>{o[1]}</button>
+                  );
+                })}
+              </div>
+              <span className="whisper">Applies to every carousel mode. The closer fills its blank space with call-to-actions automatically.</span>
+            </div>
           </Sec>
 
           {/* ═══ 7 · REVISIONS (collapsed by default) ═══ */}

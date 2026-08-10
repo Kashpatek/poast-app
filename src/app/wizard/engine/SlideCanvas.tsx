@@ -14,6 +14,7 @@ import { renderCoverSvg } from "../../carousel-covers";
 import { renderUniqueSvg } from "./unique/render";
 import { composeLibrarySvg, ensureLibraryAssets, libraryBgSvgDoc, ensureClassicBgs } from "./library/compose";
 import { FULL_H, DISPLAY_W, DISPLAY_H, SCALE, MARGIN_X, MARGIN_Y, getBackdropUrl, type Slide, type ThemeKey } from "./types";
+import { furnitureSvg, type FurnitureOpts } from "./page-furniture";
 
 // ═══ UNIQUE SLIDE SVG (C3 additive branch) ═══
 // Unique slides are fully self-rendered SVGs (backdrop + content) from
@@ -120,7 +121,7 @@ export function ImageFrame({ imageUrl, onImageChange, onPositionChange, imagePos
 }
 
 // ═══ SLIDE CANVAS (the large visual editor canvas) ═══
-export function SlideCanvas({ slide, theme, onUpdate, onRequestPicker, onSplitBody, page, total }: { slide: Slide; theme: ThemeKey; onUpdate: (s: Slide) => void; onRequestPicker?: (field: "imageUrl" | "imageUrl2") => void; onSplitBody?: (offset: number, fullText: string) => void; page?: number; total?: number }) {
+export function SlideCanvas({ slide, theme, onUpdate, onRequestPicker, onSplitBody, page, total, furniture, topic, showFurniture }: { slide: Slide; theme: ThemeKey; onUpdate: (s: Slide) => void; onRequestPicker?: (field: "imageUrl" | "imageUrl2") => void; onSplitBody?: (offset: number, fullText: string) => void; page?: number; total?: number; furniture?: FurnitureOpts; topic?: string; showFurniture?: boolean }) {
   var isUnique = slide.type === "unique";
   var isLibrary = slide.type === "library";
   // Library compose is synchronous from module caches; null until
@@ -447,5 +448,8 @@ export function SlideCanvas({ slide, theme, onUpdate, onRequestPicker, onSplitBo
     <div style={{ position: "absolute", top: 8, left: 8, fontFamily: mn, fontSize: 9, color: "rgba(255,255,255,0.35)", background: "rgba(0,0,0,0.3)", padding: "2px 6px", borderRadius: 4 }}>
       {slide.position === 1 ? "COVER" : slide.position === 4 ? "CLOSER" : "BODY " + (slide.position === 2 ? "A" : "B")} // pos {slide.position}
     </div>
+    {showFurniture && furniture ? (
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }} dangerouslySetInnerHTML={{ __html: furnitureSvg(slide, furniture, page ?? 1, total ?? 1, topic) }} />
+    ) : null}
   </div>;
 }
