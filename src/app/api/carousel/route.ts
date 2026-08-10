@@ -308,7 +308,10 @@ You MUST respond ONLY with valid JSON. No markdown fences. No preamble.`;
         const result = await genJSON<{ content?: { title?: unknown; sections?: unknown } }>({
           system: UNIQUE_SYS,
           maxTokens: 6000,
-          provider,
+          // Unique is the most demanding structured-design task, so run it on
+          // OpenAI (GPT) when the key is set; fall back to the resolved provider
+          // otherwise. (The shared resolution above drops openai to claude.)
+          provider: process.env.OPENAI_API_KEY ? "openai" : provider,
           prompt: `Design a complete SemiAnalysis carousel from this article.
 
 Category: ${THEMES_MAP[category as string] || category || "general"}
