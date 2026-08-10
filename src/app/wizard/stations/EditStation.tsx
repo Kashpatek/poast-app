@@ -442,15 +442,18 @@ function libBackdropGroups(topics: TopicsData, topicKey: string): { label: strin
  *  modalOpen stands the station shortcuts down while open. Exported for the
  *  CHOOSE bench's per-direction backdrop switch (v3.6) — same shelves, same
  *  ∞/rotate filtering, one picker for both stations. */
-export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose, showNative, infinityPick, seed, palette }: {
+export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose, showNative, infinityPick, seed, palette, scopeChoice }: {
   topics: TopicsData; topicKey: string; current: string;
-  onPick: (key: string) => void; onClose: () => void;
+  onPick: (key: string, scope?: "slide" | "deck") => void; onClose: () => void;
   // showNative: offer the ∞ style/classic shelves (v3.3: BOTH modes — in
   // rotate a native pick is a per-slide frame of the composition).
   // infinityPick: the pick applies deck-wide with mirroring, so baked keys
   // filter to the approval-sitting keepers; rotate offers all 36.
   showNative?: boolean; infinityPick?: boolean; seed?: number; palette?: string;
+  // scopeChoice: show a THIS SLIDE / WHOLE DECK toggle; the pick reports which.
+  scopeChoice?: boolean;
 }) {
+  const [scope, setScope] = useState<"slide" | "deck">("slide");
   useEffect(function () {
     document.body.dataset.modalOpen = "1";
     function onKey(e: KeyboardEvent) {
@@ -481,6 +484,12 @@ export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose
         <div className="rise d1" style={{ padding: "16px 18px 0", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div className="ph" style={{ flex: 1, margin: 0 }}>BACKDROPS · <b>{infinityPick ? "∞ + APPROVED" : showNative ? "∞ + ALL 36" : "ALL 36"}</b></div>
+            {scopeChoice ? (
+              <div className="seg" title="Apply the next pick to just this slide, or the whole deck">
+                <span className={scope === "slide" ? "on" : ""} onClick={function () { setScope("slide"); }}>THIS SLIDE</span>
+                <span className={scope === "deck" ? "on" : ""} onClick={function () { setScope("deck"); }}>WHOLE DECK</span>
+              </div>
+            ) : null}
             <span className="kbd" onClick={onClose} style={{ cursor: "pointer" }} title="Close">ESC</span>
           </div>
         </div>
@@ -507,8 +516,8 @@ export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose
                         tabIndex={0}
                         title={"∞ " + meta.name.toUpperCase() + " · " + meta.desc.toUpperCase()}
                         style={{ display: "flex", flexDirection: "column", gap: 5, cursor: "pointer", minWidth: 0 }}
-                        onClick={function () { onPick(k); }}
-                        onKeyDown={function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(k); } }}
+                        onClick={function () { onPick(k, scope); }}
+                        onKeyDown={function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(k, scope); } }}
                       >
                         <div style={{
                           position: "relative", aspectRatio: "4 / 5", borderRadius: 10, overflow: "hidden",
@@ -545,8 +554,8 @@ export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose
                         tabIndex={0}
                         title={k + " · " + bd.name.toUpperCase() + " · " + bd.tier.toUpperCase()}
                         style={{ display: "flex", flexDirection: "column", gap: 5, cursor: "pointer", minWidth: 0 }}
-                        onClick={function () { onPick(k); }}
-                        onKeyDown={function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(k); } }}
+                        onClick={function () { onPick(k, scope); }}
+                        onKeyDown={function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(k, scope); } }}
                       >
                         <div style={{
                           position: "relative", aspectRatio: "4 / 5", borderRadius: 10, overflow: "hidden",

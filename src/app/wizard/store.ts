@@ -213,6 +213,7 @@ export interface WizardStore {
   setBgMode(m: "rotate" | "infinity"): void; // switches mode + re-chains deck and bench
   setTopic(k: LibTopicKey | null): void; // sets topic + re-chains library decks
   setSlideBgOverride(idx: number, key: string | null): void; // finalize/AUTO one slide, re-chain deck (deck-wide in infinity)
+  setDeckBgOverride(key: string | null): void; // set/AUTO the same backdrop on every eligible slide (EDIT popup "whole deck")
   // v3.6 CHOOSE bench: finalize/AUTO one DIRECTION's backdrop before commit.
   // ∞ picks stamp every slide of that deck (deck-level intent, same as
   // setSlideBgOverride); rotate picks finalize the cover and let the chain
@@ -1676,6 +1677,22 @@ export const useWizard = create<WizardStore>()((set, get) => ({
       // it wins for this slide AND feeds prevKey for the slide after it.
       next[idx] = { ...target, libraryBgOverride: key };
     }
+    set({ slides: withLibraryChain(next), dirtySinceVariant: true });
+  },
+
+  // Deck-wide backdrop: set the SAME key on every eligible slide (or AUTO =
+  // null clears all back to the assignment chain). "Set for all" from the EDIT
+  // backdrop popup. Eligibility mirrors setSlideBgOverride: library slides, or
+  // every slide in a pure classic/verbatim library-source deck.
+  setDeckBgOverride(key) {
+    const st = get();
+    const libDeck = isLibraryDeck(st.slides);
+    if (st.bgSource !== "library" && !libDeck) return;
+    get().pushUndo();
+    const next = st.slides.map(function (sl) {
+      const eligible = sl.type === "library" || (!libDeck && st.bgSource === "library");
+      return eligible ? { ...sl, libraryBgOverride: key } : sl;
+    });
     set({ slides: withLibraryChain(next), dirtySinceVariant: true });
   },
 

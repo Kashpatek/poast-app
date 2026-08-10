@@ -407,6 +407,7 @@ function LibBgControls({ active, activeIdx }: { active: Slide; activeIdx: number
   const libSeed = useWizard(function (s) { return s.libSeed; });
   const category = useWizard(function (s) { return s.category; });
   const setSlideBgOverride = useWizard(function (s) { return s.setSlideBgOverride; });
+  const setDeckBgOverride = useWizard(function (s) { return s.setDeckBgOverride; });
   const deckPalette = useWizard(function (s) { return s.deckPalette; });
   const setDeckPalette = useWizard(function (s) { return s.setDeckPalette; });
   const setSlidePalette = useWizard(function (s) { return s.setSlidePalette; });
@@ -495,10 +496,11 @@ function LibBgControls({ active, activeIdx }: { active: Slide; activeIdx: number
               topics={topicsData}
               topicKey={topicKey}
               current={resolvedKey || "02"}
-              onPick={function (k: string) { setSlideBgOverride(activeIdx, k); setAllOpen(false); }}
+              onPick={function (k: string, scope?: "slide" | "deck") { if (scope === "deck") { setDeckBgOverride(k); } else { setSlideBgOverride(activeIdx, k); } setAllOpen(false); }}
               onClose={function () { setAllOpen(false); }}
               showNative={false}
               infinityPick={false}
+              scopeChoice={true}
               seed={libSeed}
               palette={CATEGORY_PALETTE[category]}
             />,
