@@ -1,3 +1,5 @@
+import { LOGO_BOX, LOGO_LETTERMARK, LOGO_FULL } from "./wizard/engine/logo-assets";
+
 export interface CoverProps {
   title: string;
   subtitle?: string;
@@ -339,26 +341,16 @@ function subtitleBlock(p: ResolvedCoverProps, text: string, x: number, y: number
 function saMark(p: ResolvedCoverProps, x: number, y: number, w: number, h: number, preferred: "box" | "lettermark" | "full"): string {
   if (!p.showLogo) return "";
   const style: "box" | "lettermark" | "full" = p.logoStyle === "auto" ? preferred : p.logoStyle;
-  let inner: string;
-  let vbW: number;
-  let vbH: number;
-  let ns: string;
-  if (style === "box") {
-    inner = LOGO_BOX_INNER; vbW = LOGO_BOX_VBW; vbH = LOGO_BOX_VBH; ns = "salb-";
-  } else if (style === "lettermark") {
-    inner = LOGO_LETTERMARK_INNER; vbW = LOGO_LETTERMARK_VBW; vbH = LOGO_LETTERMARK_VBH; ns = "sall-";
-  } else {
-    inner = LOGO_FULL_INNER; vbW = LOGO_FULL_VBW; vbH = LOGO_FULL_VBH; ns = "salf-";
-  }
-  const scaled = scopeLogo(inner, ns);
-  const scaleX = w / vbW;
-  const scaleY = h / vbH;
-  const scale = Math.min(scaleX, scaleY);
-  const actualW = vbW * scale;
-  const actualH = vbH * scale;
-  // Anchor to the chosen corner: flush-left when logoPosition === "left", else flush-right within the box.
+  const asset = style === "box" ? LOGO_BOX : style === "lettermark" ? LOGO_LETTERMARK : LOGO_FULL;
+  // Fit within the box, preserving aspect. Real committed brand SVG embedded as
+  // a data-URI <image> — renders identically in preview and the rasterized PNG
+  // (no fragile hand-scoped <style>; xlink:href kept for older rasterizers).
+  const scale = Math.min(w / asset.w, h / asset.h);
+  const actualW = asset.w * scale;
+  const actualH = asset.h * scale;
   const tx = p.logoPosition === "left" ? x : x + (w - actualW);
-  return `<g transform="translate(${tx}, ${y + (h - actualH) / 2}) scale(${scale})">${scaled}</g>`;
+  const ty = y + (h - actualH) / 2;
+  return `<image href="${asset.uri}" xlink:href="${asset.uri}" x="${tx}" y="${ty}" width="${actualW}" height="${actualH}" preserveAspectRatio="xMidYMid meet"/>`;
 }
 
 // Suppress unused-warning for helpers exposed for potential future covers.
