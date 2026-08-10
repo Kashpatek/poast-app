@@ -26,6 +26,7 @@ import { LibBackdropAllModal } from "./EditStation";
 import { candidates } from "../engine/library/backdrop";
 import { loadTopics, topicsSync, bgSvgUrl, type TopicsData } from "../engine/library/data";
 import { CATEGORY_PALETTE, type LibPalette } from "../engine/library/palette";
+import { closerCtaInner, CLOSER_STYLES, type CloserStyle } from "../engine/page-furniture";
 import CoverDesigner from "../components/CoverDesigner";
 import ImagePicker from "../components/ImagePicker";
 import { showToast } from "../../toast-context";
@@ -397,6 +398,60 @@ function PaletteChips({ value, onPick, onAuto, autoLabel }: {
   );
 }
 
+// ═══ v3.11 · CLOSER CTA STYLE PICKER (deck-level popup) ═══
+function closerPreviewSvg(id: CloserStyle, accent: string): string {
+  const head = '<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="width:100%;height:auto;display:block"><rect width="1080" height="1350" fill="#0a0f18"/>';
+  if (id === "off") {
+    return head + '<text x="540" y="700" text-anchor="middle" font-family="Grift,Outfit,sans-serif" font-size="60" font-weight="700" fill="rgba(255,255,255,0.3)">NONE</text></svg>';
+  }
+  const body = '<text x="76" y="150" font-family="Grift,Outfit,sans-serif" font-size="40" font-weight="600" fill="rgba(255,255,255,0.92)">The NPO module connects to the</text>'
+    + '<text x="76" y="210" font-family="Grift,Outfit,sans-serif" font-size="40" font-weight="600" fill="rgba(255,255,255,0.92)">substrate via a socket device.</text>';
+  return head + body + closerCtaInner({ bodyText: "The NPO module connects to the substrate via a socket device.", bodySize: 40 }, "", id, "lettermark", accent) + '</svg>';
+}
+
+function CloserCtaPicker({ current, accent, onPick, onClose }: {
+  current: CloserStyle; accent: string; onPick: (id: CloserStyle) => void; onClose: () => void;
+}) {
+  useEffect(function () {
+    document.body.dataset.modalOpen = "1";
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); onClose(); } }
+    window.addEventListener("keydown", onKey, true);
+    return function () { delete document.body.dataset.modalOpen; window.removeEventListener("keydown", onKey, true); };
+  }, [onClose]);
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <div className="modal" onMouseDown={function (e) { e.stopPropagation(); }} style={{ width: 720, maxWidth: "92vw", maxHeight: "84vh", display: "flex", flexDirection: "column" }}>
+        <div className="rise d1" style={{ padding: "16px 18px 0", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div className="ph" style={{ flex: 1, margin: 0 }}>CLOSER CTA · <b>PICK A STYLE</b></div>
+            <span className="whisper" style={{ textTransform: "none", letterSpacing: 0 }}>Fits the space — full when open, compact when tight</span>
+            <span className="kbd" onClick={onClose} style={{ cursor: "pointer" }} title="Close">DONE</span>
+          </div>
+        </div>
+        <div className="rise d2" style={{ padding: 18, overflowY: "auto", flex: 1 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+            {CLOSER_STYLES.map(function (s) {
+              const on = s.id === current;
+              return (
+                <div key={s.id} role="button" tabIndex={0}
+                  onClick={function () { onPick(s.id); }}
+                  onKeyDown={function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(s.id); } }}
+                  style={{ cursor: "pointer", display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div
+                    style={{ position: "relative", aspectRatio: "4 / 5", borderRadius: 10, overflow: "hidden", background: "#0a0f18", border: on ? "2px solid var(--amber)" : "1px solid var(--line-2)", boxShadow: on ? "0 0 0 1px var(--amber)" : undefined }}
+                    dangerouslySetInnerHTML={{ __html: closerPreviewSvg(s.id, accent) }}
+                  />
+                  <span style={{ fontSize: 11.5, color: on ? "var(--amber)" : "var(--muted)", fontWeight: on ? 700 : 500 }}>{s.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ═══ v3.7 · LIBRARY BACKDROP CONTROLS (classic/verbatim/unique slides) ═══
 // The per-slide face of the deck's library-backdrop opt-in: source seg
 // (library vs the mode-native look), the slide's current pick + the topic
@@ -539,6 +594,7 @@ export function EditInspector() {
   const overflow = useBodyOverflow(active);
   const [pickerField, setPickerField] = useState<"imageUrl" | "imageUrl2" | null>(null);
   const [tightenBusy, setTightenBusy] = useState(false);
+  const [closerOpen, setCloserOpen] = useState(false);
   const [openSecs, setOpenSecs] = useState<Record<string, boolean>>({
     type: true, layout: true, typo: true, images: true, cover: true, cta: true,
     backdrop: true, overflow: true, revisions: false, furniture: false,
@@ -1352,9 +1408,27 @@ export function EditInspector() {
                   );
                 })}
               </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", paddingTop: 8, borderTop: "1px solid var(--line-2)" }}>
+                <span className="whisper" style={{ minWidth: 74 }}>Closer CTA</span>
+                <button type="button" className="chip" onClick={function () { setCloserOpen(true); }} style={{ cursor: "pointer" }}>
+                  {(CLOSER_STYLES.find(function (s) { return s.id === furniture.closerCta; }) || CLOSER_STYLES[0]).label} · CHANGE
+                </button>
+                <span className="whisper">the last slide, fitted to the leftover space</span>
+              </div>
               <span className="whisper">Applies to every carousel mode. The closer fills its blank space with call-to-actions automatically.</span>
             </div>
           </Sec>
+          {closerOpen && typeof document !== "undefined"
+            ? createPortal(
+                <CloserCtaPicker
+                  current={furniture.closerCta}
+                  accent={CATEGORY_PALETTE[category] === "amber" ? "#F7B041" : CATEGORY_PALETTE[category] === "cobalt" ? "#0092FF" : CATEGORY_PALETTE[category] === "green" ? "#2EAD8E" : "#F7B041"}
+                  onPick={function (id) { setFurniture({ closerCta: id }); setCloserOpen(false); }}
+                  onClose={function () { setCloserOpen(false); }}
+                />,
+                document.body
+              )
+            : null}
 
           {/* ═══ 7 · REVISIONS (collapsed by default) ═══ */}
           <Sec id="revisions" label="REVISIONS" extra="AUTOSAVE" open={!!openSecs.revisions} onToggle={toggleSec}>

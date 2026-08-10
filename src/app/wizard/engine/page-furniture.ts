@@ -1,173 +1,275 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Page furniture (v3.10) — swipe arrow, per-page logo, and the closer CTA.
+// Page furniture (v3.11) — swipe arrow, per-page logo, and a CHOOSABLE closer CTA.
 //
-// Rendered on every non-cover page across ALL carousel modes:
-//   • swipe arrow  — frosted circle + chevron, bottom-right, on every page
-//     after the cover EXCEPT the last (means "there's more").
-//   • logo         — the real brand mark (logo-assets), placed in a chosen
-//     corner (default top-right, opposite the arrow), on every page after cover.
-//   • closer CTA   — on the LAST page, fills the blank space under the text,
-//     ADAPTIVE: full "follow for more" + logo lockup + 3 CTA cards when ~2/3 is
-//     open, a compact 3-chip strip when only ~1/3 is open, nothing when full.
+// Rendered on every non-cover CLASSIC/verbatim page (unique/library self-render):
+//   • swipe arrow  — frosted circle + chevron, bottom-right, on every page after
+//     the cover EXCEPT the last. Palette-accented.
+//   • logo         — real brand mark (logo-assets), chosen corner, post-cover pages.
+//   • closer CTA   — on the last (text "body") page, fills the blank space under
+//     the text in one of five selectable styles (hero / buttons / list /
+//     newsletter / bar), or a compact chip strip when space is tight, or off.
 //
-// Emitted as SVG inner markup on the 1080×1350 canvas so the live preview, the
-// editor canvas, and the rasterized PNG export all render it identically
-// (data-URI logo works in the SVG-as-<img> export; external href would not).
+// Emitted as SVG inner markup on the 1080×1350 canvas so preview, editor canvas,
+// and the PNG export render it identically (data-URI logo survives SVG-as-<img>).
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { makeCanvasMeasure } from "./verbatim-thread";
 import { LOGO_LETTERMARK, LOGO_LETTERMARKTEXT, LOGO_BOXLETTERMARK, LOGO_FULL, type LogoAsset } from "./logo-assets";
 
 const GF = "Grift, Outfit, sans-serif";
-const FULL_W = 1080, FULL_H = 1350, MARGIN_X = 76;
-const CW = FULL_W - MARGIN_X * 2;         // 928
-const BODY_TOP = Math.round(FULL_H * 0.10);    // 135
-const BODY_BOTTOM = Math.round(FULL_H * 0.92); // 1242
-const AVAIL = BODY_BOTTOM - BODY_TOP;     // 1107
+const FW = 1080, FH = 1350, MX = 76;
+const CW = FW - MX * 2;                 // 928
+const CX = FW / 2;                       // 540
+const BODY_TOP = Math.round(FH * 0.10);  // 135
+const BODY_BOTTOM = Math.round(FH * 0.92); // 1242
+const AVAIL = BODY_BOTTOM - BODY_TOP;
+const INK = "#ffffff", MUT = "rgba(255,255,255,0.55)", AMBER = "#F7B041", COBALT = "#0092FF";
 
-function esc(s: string): string {
-  return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
+function esc(s: string): string { return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 
-// ── Options ────────────────────────────────────────────────────────────────
+// ── Options ──────────────────────────────────────────────────────────────────
 export type LogoVariant = "lettermark" | "lettermarkText" | "boxLettermark" | "full" | "none";
 export type Corner = "tl" | "tr" | "bl" | "br";
-export interface FurnitureOpts { arrow: boolean; logo: LogoVariant; logoCorner: Corner }
-export const DEFAULT_FURNITURE: FurnitureOpts = { arrow: true, logo: "lettermark", logoCorner: "tr" };
+export type CloserStyle = "heroIcons" | "heroLogo" | "heroBold" | "buttons" | "list" | "newsletter" | "bar" | "off";
+export const CLOSER_STYLES: { id: CloserStyle; label: string }[] = [
+  { id: "heroIcons", label: "Hero · icons" },
+  { id: "heroLogo", label: "Hero · logo-led" },
+  { id: "heroBold", label: "Hero · bold" },
+  { id: "buttons", label: "Big buttons" },
+  { id: "list", label: "Minimal list" },
+  { id: "newsletter", label: "Newsletter" },
+  { id: "bar", label: "Icon tiles + bar" },
+  { id: "off", label: "None" },
+];
+export interface FurnitureOpts { arrow: boolean; logo: LogoVariant; logoCorner: Corner; closerCta: CloserStyle }
+export const DEFAULT_FURNITURE: FurnitureOpts = { arrow: true, logo: "lettermark", logoCorner: "tr", closerCta: "heroIcons" };
 
-function logoAsset(v: LogoVariant): LogoAsset | null {
-  if (v === "full") return LOGO_FULL;
-  if (v === "boxLettermark") return LOGO_BOXLETTERMARK;
-  if (v === "lettermarkText") return LOGO_LETTERMARKTEXT;
-  if (v === "lettermark") return LOGO_LETTERMARK;
-  return null;
-}
+function logoAsset(v: LogoVariant): LogoAsset { return v === "full" ? LOGO_FULL : v === "boxLettermark" ? LOGO_BOXLETTERMARK : v === "lettermarkText" ? LOGO_LETTERMARKTEXT : LOGO_LETTERMARK; }
 
-// ── The pool of 6 CTAs (closer shows the first three) ────────────────────────
-export interface CtaItem { label: string; sub: string }
+// ── The 6-CTA pool (icon names map to the line-icon library) ──────────────────
+export interface CtaItem { icon: string; label: string; sub: string }
 export const CLOSER_CTAS: CtaItem[] = [
-  { label: "Read the full analysis", sub: "semianalysis.com" },
-  { label: "Follow @SemiAnalysis", sub: "for daily analysis" },
-  { label: "Subscribe", sub: "the newsletter" },
-  { label: "Share this", sub: "send it on" },
-  { label: "Save for later", sub: "bookmark it" },
-  { label: "Turn on alerts", sub: "never miss a drop" },
+  { icon: "read", label: "Read the full analysis", sub: "semianalysis.com" },
+  { icon: "follow", label: "Follow @SemiAnalysis", sub: "for daily analysis" },
+  { icon: "subscribe", label: "Subscribe", sub: "the newsletter" },
+  { icon: "save", label: "Save for later", sub: "bookmark it" },
+  { icon: "alert", label: "Turn on alerts", sub: "never miss a drop" },
+  { icon: "share", label: "Share this", sub: "send it on" },
 ];
 
-// Palette → accent (matches palette.ts identities). Blend = "both" → the ring
-// takes the second (amber) so the arrow shows cobalt + amber together.
-const PALETTE_ACCENT: Record<string, string> = { amber: "#F7B041", cobalt: "#0092FF", green: "#2EAD8E", blend: "#0092FF" };
+// ── Palette accent ────────────────────────────────────────────────────────────
+const PALETTE_ACCENT: Record<string, string> = { amber: AMBER, cobalt: COBALT, green: "#2EAD8E", blend: COBALT };
 function accentFor(palette?: string): { main: string; ring: string } {
   const p = palette && PALETTE_ACCENT[palette] ? palette : "blend";
   const main = PALETTE_ACCENT[p];
-  const ring = p === "blend" ? "#F7B041" : main; // blend uses both hues
-  return { main, ring };
+  return { main, ring: p === "blend" ? AMBER : main };
 }
 
-// ── Swipe arrow (bottom-right frosted circle + chevron), smaller + accented ──
+// ── Line icons (24-unit grid) ────────────────────────────────────────────────
+const ICON: Record<string, string> = {
+  read: '<path d="M4 12 h13"/><path d="M12 6 l6 6 -6 6"/>',
+  follow: '<circle cx="12" cy="8" r="4"/><path d="M4 20 a8 8 0 0 1 16 0"/>',
+  subscribe: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7 l9 6 9 -6"/>',
+  save: '<path d="M7 3 h10 v18 l-5 -4 -5 4 z"/>',
+  alert: '<path d="M6 9 a6 6 0 0 1 12 0 c0 5 2 6 2 6 H4 s2 -1 2 -6"/><path d="M10 21 a2 2 0 0 0 4 0"/>',
+  share: '<path d="M22 3 L2 11 l7 3 3 7 z"/><path d="M22 3 L11 14"/>',
+};
+function icon(name: string, x: number, y: number, s: number, color: string, sw = 2): string {
+  return `<g transform="translate(${x},${y}) scale(${s / 24})" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${ICON[name] || ""}</g>`;
+}
+function tx(x: number, y: number, size: number, weight: number, fill: string, str: string, anchor = "start", ls = "0"): string {
+  return `<text x="${x}" y="${y}" font-family="${GF}" font-size="${size}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}" letter-spacing="${ls}">${esc(str)}</text>`;
+}
+function chip(cx: number, cy: number, r: number, name: string, color: string): string {
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="rgba(255,255,255,0.06)" stroke="${color}" stroke-opacity="0.5"/>${icon(name, cx - r * 0.55, cy - r * 0.55, r * 1.1, color, 2.2)}`;
+}
+function logoAt(v: LogoVariant, x: number, y: number, h: number): string {
+  const a = logoAsset(v); const w = a.w * (h / a.h);
+  return `<image href="${a.uri}" xlink:href="${a.uri}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet"/>`;
+}
+function logoCentered(v: LogoVariant, cx: number, y: number, h: number): string {
+  const a = logoAsset(v); const w = a.w * (h / a.h);
+  return logoAt(v, cx - w / 2, y, h);
+}
+
+// ── Swipe arrow (bottom-right, smaller, palette-accented) ─────────────────────
 function swipeArrowInner(main: string, ring: string): string {
-  const r = 38;
-  const cx = FULL_W - MARGIN_X - r;
-  const cy = FULL_H - MARGIN_X - r;
-  return (
-    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="rgba(255,255,255,0.08)" stroke="${ring}" stroke-opacity="0.55" stroke-width="1.5"/>` +
-    `<path d="M ${cx - r * 0.22} ${cy - r * 0.40} L ${cx + r * 0.34} ${cy} L ${cx - r * 0.22} ${cy + r * 0.40}" fill="none" stroke="${main}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`
-  );
+  const r = 38, cx = FW - MX - r, cy = FH - MX - r;
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="rgba(255,255,255,0.08)" stroke="${ring}" stroke-opacity="0.55" stroke-width="1.5"/>` +
+    `<path d="M ${cx - r * 0.22} ${cy - r * 0.40} L ${cx + r * 0.34} ${cy} L ${cx - r * 0.22} ${cy + r * 0.40}" fill="none" stroke="${main}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`;
 }
 
-// ── Corner logo ──────────────────────────────────────────────────────────────
-function pageLogoInner(v: LogoVariant, corner: Corner, targetH?: number): string {
-  const asset = logoAsset(v);
-  if (!asset) return "";
-  const h = targetH || (v === "full" ? 92 : v === "boxLettermark" || v === "lettermarkText" ? 46 : 52);
-  const w = asset.w * (h / asset.h);
-  const pad = 64;
-  const x = corner === "tl" || corner === "bl" ? pad : FULL_W - pad - w;
-  const y = corner === "tl" || corner === "tr" ? pad : FULL_H - pad - h;
-  return `<image href="${asset.uri}" xlink:href="${asset.uri}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid meet"/>`;
+// ── Corner logo ────────────────────────────────────────────────────────────────
+function pageLogoInner(v: LogoVariant, corner: Corner): string {
+  if (v === "none") return "";
+  const h = v === "full" ? 92 : v === "boxLettermark" || v === "lettermarkText" ? 46 : 52;
+  const a = logoAsset(v), w = a.w * (h / a.h), pad = 64;
+  const x = corner === "tl" || corner === "bl" ? pad : FW - pad - w;
+  const y = corner === "tl" || corner === "tr" ? pad : FH - pad - h;
+  return logoAt(v, x, y, h);
 }
 
-// ── Closer CTA blocks ────────────────────────────────────────────────────────
-function chevronCircle(cx: number, cy: number, r: number, color: string): string {
-  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>` +
-    `<path d="M ${cx - r * 0.28} ${cy - r * 0.42} L ${cx + r * 0.34} ${cy} L ${cx - r * 0.28} ${cy + r * 0.42}" fill="none" stroke="${color}" stroke-width="${Math.max(3, r * 0.14)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+// ── Closer CTA styles (region-relative) ───────────────────────────────────────
+type Region = { x: number; y: number; w: number; h: number };
+
+function iconRow(names: string[], cy: number, accent: string): string {
+  const isp = 132, x0 = CX - (isp * (names.length - 1)) / 2;
+  return names.map((n, i) => chip(x0 + i * isp, cy, 42, n, accent)).join("");
+}
+const HERO_LOGO = (v: LogoVariant) => (v === "none" ? "lettermark" : v) as LogoVariant;
+
+// Hero · icons — Save/Alerts/Share row → headline → sub → logo, group centered; site pinned bottom
+function sHeroIcons(r: Region, accent: string, logoV: LogoVariant, topic: string): string {
+  const groupH = 84 + 30 + 88 + 14 + 30 + 26 + 58; // icons+head+sub+logo w/ gaps
+  let y = r.y + Math.max(16, ((r.h - 60) - groupH) / 2);
+  let o = "";
+  o += iconRow(["save", "alert", "share"], y + 42, accent);
+  y += 84 + 30;
+  o += tx(CX, y + 64, 82, 800, INK, "FOLLOW FOR MORE", "middle", "1");
+  y += 88 + 14;
+  o += tx(CX, y + 24, 28, 500, MUT, topic ? "More on " + topic : "The full analysis, plus daily updates.", "middle");
+  y += 30 + 26;
+  o += logoCentered(HERO_LOGO(logoV), CX, y, 58);
+  o += tx(CX, r.y + r.h - 14, 32, 700, accent, "semianalysis.com", "middle", "1");
+  return o;
+}
+// Hero · logo-led — big logo → headline → sub → icons row; site pinned bottom
+function sHeroLogo(r: Region, accent: string, logoV: LogoVariant, topic: string): string {
+  const groupH = 74 + 30 + 84 + 14 + 30 + 30 + 84;
+  let y = r.y + Math.max(16, ((r.h - 60) - groupH) / 2);
+  let o = "";
+  o += logoCentered(HERO_LOGO(logoV), CX, y, 74);
+  y += 74 + 30;
+  o += tx(CX, y + 62, 78, 800, INK, "FOLLOW FOR MORE", "middle", "1");
+  y += 84 + 14;
+  o += tx(CX, y + 24, 28, 500, MUT, topic ? "More on " + topic : "The full analysis, plus daily updates.", "middle");
+  y += 30 + 30;
+  o += iconRow(["save", "alert", "share"], y + 42, accent);
+  o += tx(CX, r.y + r.h - 14, 32, 700, accent, "semianalysis.com", "middle", "1");
+  return o;
+}
+// Hero · bold — two-line headline + logo, airy, no icons; site pinned bottom
+function sHeroBold(r: Region, accent: string, logoV: LogoVariant): string {
+  const groupH = 108 + 108 + 40 + 64;
+  let y = r.y + Math.max(16, ((r.h - 60) - groupH) / 2);
+  let o = "";
+  o += tx(CX, y + 90, 108, 900, INK, "FOLLOW", "middle", "1");
+  y += 108;
+  o += tx(CX, y + 90, 108, 900, INK, "FOR MORE", "middle", "1");
+  y += 108 + 40;
+  o += logoCentered(HERO_LOGO(logoV), CX, y, 64);
+  o += tx(CX, r.y + r.h - 14, 32, 700, accent, "semianalysis.com", "middle", "1");
+  return o;
+}
+// 05 · Big buttons — primary (filled read) + secondary (outline follow) + logo
+function sButtons(r: Region, accent: string, logoV: LogoVariant): string {
+  const bh = 148, gap = 22, block = bh * 2 + gap + 96, by = r.y + Math.max(8, (r.h - block) / 2);
+  let o = "";
+  o += `<rect x="${r.x}" y="${by}" width="${r.w}" height="${bh}" rx="26" fill="${accent}"/>`;
+  o += icon("read", r.x + 44, by + bh / 2 - 20, 40, "#0A0B10", 3);
+  o += tx(r.x + 112, by + bh / 2 + 12, 38, 900, "#0A0B10", "READ THE FULL ANALYSIS", "start", "0.5");
+  const b2 = by + bh + gap;
+  o += `<rect x="${r.x}" y="${b2}" width="${r.w}" height="${bh}" rx="26" fill="none" stroke="${INK}" stroke-opacity="0.5" stroke-width="2"/>`;
+  o += icon("follow", r.x + 44, b2 + bh / 2 - 20, 40, INK, 2.6);
+  o += tx(r.x + 112, b2 + bh / 2 + 12, 38, 800, INK, "FOLLOW @SEMIANALYSIS", "start", "0.5");
+  o += logoCentered(logoV === "none" ? "lettermark" : logoV, CX, b2 + bh + 36, 50);
+  return o;
+}
+// 06 · Minimal list — hairline dividers, icon + label + sub
+function sList(r: Region, accent: string): string {
+  const items = CLOSER_CTAS.slice(0, 4), rh = Math.min(150, r.h / items.length), y0 = r.y + (r.h - rh * items.length) / 2;
+  let o = "";
+  items.forEach((c, i) => {
+    const y = y0 + i * rh, my = y + rh / 2;
+    if (i) o += `<line x1="${r.x}" y1="${y}" x2="${r.x + r.w}" y2="${y}" stroke="rgba(255,255,255,0.12)"/>`;
+    o += icon(c.icon, r.x, my - 20, 40, accent, 2.2);
+    o += tx(r.x + 70, my - 2, 36, 800, INK, c.label.toUpperCase(), "start", "0.4");
+    o += tx(r.x + r.w, my - 2, 26, 500, MUT, c.sub, "end");
+  });
+  return o;
+}
+// 07 · Newsletter — leads to the WEBSITE to subscribe; footer icon row + logo.
+// The card + icon row are vertically centered in the region (logo stays pinned
+// low) so the block isn't crowded against the body text above.
+function sNews(r: Region, accent: string, logoV: LogoVariant): string {
+  const ch = Math.min(300, r.h * 0.52);
+  const blockH = ch + 62 + 46; // card + gap + footer icon row
+  const top = r.y + Math.max(24, (r.h - 70 - blockH) / 2);
+  let o = "";
+  o += `<rect x="${r.x}" y="${top}" width="${r.w}" height="${ch}" rx="26" fill="rgba(0,146,255,0.10)" stroke="${accent}" stroke-opacity="0.45"/>`;
+  o += chip(r.x + 82, top + 92, 46, "subscribe", accent);
+  o += tx(r.x + 152, top + 80, 38, 800, INK, "SUBSCRIBE TO THE NEWSLETTER", "start", "0.3");
+  o += tx(r.x + 152, top + 122, 26, 500, MUT, "Free, straight to your inbox.", "start");
+  const btnH = 66, btnY = top + ch - btnH - 30;
+  o += `<rect x="${r.x + 40}" y="${btnY}" width="${r.w - 80}" height="${btnH}" rx="16" fill="${accent}"/>`;
+  o += tx(CX, btnY + btnH / 2 + 9, 28, 800, "#0A0B10", "SUBSCRIBE AT SEMIANALYSIS.COM", "middle", "0.5");
+  const fy = top + ch + 62, fsp = r.w / 4;
+  ["read", "follow", "save", "share"].forEach((n, i) => { o += chip(r.x + fsp * i + fsp / 2, fy, 40, n, accent); });
+  o += logoCentered(logoV === "none" ? "lettermark" : logoV, CX, r.y + r.h - 54, 46);
+  return o;
+}
+// 08 · Icon tiles + footer bar. Tiles centered between the top and the bar so
+// they aren't crowded against the body text above.
+function sBar(r: Region, accent: string, logoV: LogoVariant): string {
+  const items = CLOSER_CTAS.slice(0, 4), gap = 16, pw = (r.w - gap * 3) / 4, ph = Math.min(170, r.h - 200), py = r.y + Math.max(30, (r.h - 86 - ph) / 2);
+  let o = "";
+  items.forEach((c, i) => {
+    const px = r.x + i * (pw + gap);
+    o += `<rect x="${px}" y="${py}" width="${pw}" height="${ph}" rx="20" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.13)"/>`;
+    o += chip(px + pw / 2, py + ph * 0.36, 38, c.icon, i % 2 ? COBALT : accent);
+    o += tx(px + pw / 2, py + ph - 24, 22, 800, INK, c.label.toUpperCase().split(" ")[0], "middle", "0.3");
+  });
+  const barY = r.y + r.h - 86;
+  o += `<rect x="${r.x}" y="${barY}" width="${r.w}" height="86" rx="18" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.12)"/>`;
+  o += logoAt(logoV === "none" ? "lettermark" : logoV, r.x + 28, barY + 22, 42);
+  o += tx(r.x + r.w - 28, barY + 56, 30, 700, accent, "semianalysis.com", "end", "1");
+  return o;
+}
+// Compact fallback when the leftover space is tight (3 icon pills)
+function compactStrip(r: Region, accent: string): string {
+  const items = CLOSER_CTAS.slice(0, 3), gap = 14, pw = (r.w - gap * 2) / 3, ph = Math.min(92, Math.max(60, r.h - 8)), py = r.y + r.h - ph;
+  let o = "";
+  items.forEach((c, i) => {
+    const px = r.x + i * (pw + gap);
+    o += `<rect x="${px}" y="${py}" width="${pw}" height="${ph}" rx="${ph / 2}" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.14)"/>`;
+    o += icon(c.icon, px + 22, py + ph / 2 - 15, 30, accent, 2.2);
+    o += tx(px + 62, py + ph / 2 + 8, 22, 700, INK, c.label.toUpperCase().split(" ").slice(0, 2).join(" "), "start", "0.3");
+  });
+  return o;
 }
 
-function fullBlock(region: { x: number; y: number; w: number; h: number }, ctas: CtaItem[], accent: string, headline: string, logoV: LogoVariant): string {
-  let out = "";
-  // Header lockup: logo + "FOLLOW FOR MORE" style headline.
-  const logo = logoAsset(logoV) || LOGO_LETTERMARK;
-  const lh = 40;
-  const lw = logo.w * (lh / logo.h);
-  out += `<image href="${logo.uri}" xlink:href="${logo.uri}" x="${region.x}" y="${region.y}" width="${lw}" height="${lh}" preserveAspectRatio="xMidYMid meet"/>`;
-  out += `<text x="${region.x + lw + 18}" y="${region.y + 29}" font-family="${GF}" font-size="26" font-weight="800" letter-spacing="2" fill="#ffffff">${esc(headline.toUpperCase())}</text>`;
-  const top = region.y + lh + 20;
-  const gap = 16;
-  const n = ctas.length;
-  const cardH = Math.max(92, Math.floor((region.h - (lh + 20) - gap * (n - 1)) / n));
-  for (let i = 0; i < n; i++) {
-    const cy = top + i * (cardH + gap);
-    const c = ctas[i];
-    out += `<rect x="${region.x}" y="${cy}" width="${region.w}" height="${cardH}" rx="18" fill="rgba(255,255,255,0.045)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>`;
-    out += `<rect x="${region.x}" y="${cy + 14}" width="5" height="${cardH - 28}" rx="2.5" fill="${accent}"/>`;
-    const midY = cy + cardH / 2;
-    out += `<text x="${region.x + 34}" y="${midY - 4}" font-family="${GF}" font-size="34" font-weight="800" letter-spacing="0.5" fill="#ffffff">${esc(c.label.toUpperCase())}</text>`;
-    if (c.sub) out += `<text x="${region.x + 34}" y="${midY + 30}" font-family="${GF}" font-size="22" font-weight="500" fill="rgba(255,255,255,0.55)">${esc(c.sub)}</text>`;
-    out += chevronCircle(region.x + region.w - 44, midY, 26, accent);
-  }
-  return out;
-}
+const MIN_H: Record<string, number> = { heroIcons: 470, heroLogo: 480, heroBold: 440, buttons: 420, list: 320, newsletter: 470, bar: 320 };
 
-function compactStrip(region: { x: number; y: number; w: number; h: number }, ctas: CtaItem[], accent: string): string {
-  let out = "";
-  const n = ctas.length;
-  const gap = 14;
-  const pillW = Math.floor((region.w - gap * (n - 1)) / n);
-  const pillH = Math.min(92, Math.max(60, region.h - 8));
-  const py = region.y + region.h - pillH; // anchor to the bottom of the region
-  for (let i = 0; i < n; i++) {
-    const px = region.x + i * (pillW + gap);
-    const c = ctas[i];
-    out += `<rect x="${px}" y="${py}" width="${pillW}" height="${pillH}" rx="${pillH / 2}" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.14)" stroke-width="1"/>`;
-    out += `<circle cx="${px + 24}" cy="${py + pillH / 2}" r="6" fill="${accent}"/>`;
-    out += `<text x="${px + 42}" y="${py + pillH / 2 + 8}" font-family="${GF}" font-size="22" font-weight="700" letter-spacing="0.4" fill="#ffffff">${esc(c.label.toUpperCase())}</text>`;
-  }
-  return out;
-}
-
-/** Closer CTA inner-SVG (or ""): measures the leftover space under the body
- *  text and picks full / compact / none. */
+/** Closer CTA inner-SVG (or ""): measures leftover space and renders the chosen
+ *  style, a compact strip when tight, or nothing when the page is full. */
 export function closerCtaInner(
-  slide: { bodyText?: string; bodySize?: number; coverAccent?: string; type?: string },
-  topic?: string,
-  logoV: LogoVariant = "lettermark"
+  slide: { bodyText?: string; bodySize?: number },
+  topic: string,
+  style: CloserStyle,
+  logoV: LogoVariant,
+  accent: string
 ): string {
+  if (style === "off") return "";
   const bodyText = (slide.bodyText || "").trim();
   const bodySize = slide.bodySize || 28;
-  const accent = slide.coverAccent || "#F7B041";
-  const measure = makeCanvasMeasure(CW, GF, 1.5);
+  const measure = makeCanvasMeasure(CW, GF, 1.55);
   const textH = bodyText ? measure(bodyText, bodySize) : 0;
-  const textBottom = BODY_TOP + textH;
-  const gap = 44;
-  const regionY = textBottom + gap;
-  const regionH = BODY_BOTTOM - regionY;
-  const emptyFrac = (BODY_BOTTOM - textBottom) / AVAIL;
-  const region = { x: MARGIN_X, y: regionY, w: CW, h: regionH };
-  // topic arrives as a backdrop-topic SLUG (e.g. "gpu-clusters", or "brand" =
-  // fallback). Humanize it for copy and drop the meaningless fallback.
-  const t = topic && topic.trim() && topic.trim().toLowerCase() !== "brand" ? topic.trim().replace(/[-_]+/g, " ") : "";
-  const headline = t ? "Follow for more on " + t : "Follow for more";
-  const ctas = [
-    { label: t ? "Read the full " + t + " piece" : CLOSER_CTAS[0].label, sub: CLOSER_CTAS[0].sub },
-    CLOSER_CTAS[1],
-    CLOSER_CTAS[2],
-  ];
-  if (emptyFrac >= 0.5 && regionH > 300) return fullBlock(region, ctas, accent, headline, logoV);
-  if (emptyFrac >= 0.22 && regionH > 80) return compactStrip(region, ctas, accent);
+  const regionY = BODY_TOP + textH + 44;
+  const r: Region = { x: MX, y: regionY, w: CW, h: BODY_BOTTOM - regionY };
+  if (r.h >= (MIN_H[style] || 320)) {
+    if (style === "heroIcons") return sHeroIcons(r, accent, logoV, topic);
+    if (style === "heroLogo") return sHeroLogo(r, accent, logoV, topic);
+    if (style === "heroBold") return sHeroBold(r, accent, logoV);
+    if (style === "buttons") return sButtons(r, accent, logoV);
+    if (style === "list") return sList(r, accent);
+    if (style === "newsletter") return sNews(r, accent, logoV);
+    if (style === "bar") return sBar(r, accent, logoV);
+  }
+  if (r.h >= 90) return compactStrip(r, accent);
   return "";
 }
 
-// ── Composite: all furniture for one slide ───────────────────────────────────
+// ── Composite furniture for one slide ─────────────────────────────────────────
 export function furnitureInner(
   slide: { type?: string; bodyText?: string; bodySize?: number; coverAccent?: string; libraryPalette?: string },
   opts: FurnitureOpts,
@@ -175,35 +277,24 @@ export function furnitureInner(
   total: number,
   topic?: string
 ): string {
-  const isCover = (slide.type || "").indexOf("cover") === 0;
-  if (isCover) return ""; // the cover draws its own logo/topic
-  // Unique + library slides self-render their own wordmark/footer/logo, so
-  // furniture would double up — it's for the classic/verbatim render path only.
-  if (slide.type === "unique" || slide.type === "library") return "";
+  const type = slide.type || "";
+  if (type.indexOf("cover") === 0) return "";           // cover draws its own
+  if (type === "unique" || type === "library") return ""; // self-render their own furniture
   const isLast = page >= total;
   const acc = accentFor(slide.libraryPalette);
   let out = "";
   if (opts.logo !== "none") out += pageLogoInner(opts.logo, opts.logoCorner);
   if (opts.arrow && !isLast) out += swipeArrowInner(acc.main, acc.ring);
-  // Closer CTA fills the blank space UNDER a plain text closer. Only "body"
-  // closers are measured from BODY_TOP; library/unique/image closers are
-  // self-composed or image-filled, so the CTA would paint over a finished
-  // slide — skip them (and skip an empty closer with no text to measure).
-  if (isLast && total > 1 && slide.type === "body" && (slide.bodyText || "").trim()) {
-    out += closerCtaInner({ ...slide, coverAccent: slide.coverAccent || acc.main }, topic, opts.logo === "none" ? "lettermark" : opts.logo);
+  // Closer CTA fills the blank space under a plain text "body" closer only.
+  if (isLast && total > 1 && type === "body" && (slide.bodyText || "").trim()) {
+    const t = topic && topic.trim() && topic.trim().toLowerCase() !== "brand" ? topic.trim().replace(/[-_]+/g, " ") : "";
+    out += closerCtaInner(slide, t, opts.closerCta, opts.logo, acc.main);
   }
   return out;
 }
 
-/** Full-canvas SVG string for a slide's furniture (or ""). Preview/canvas inject
- *  this via innerHTML; export draws it onto the canvas. */
-export function furnitureSvg(
-  slide: Parameters<typeof furnitureInner>[0],
-  opts: FurnitureOpts,
-  page: number,
-  total: number,
-  topic?: string
-): string {
+/** Full-canvas SVG for a slide's furniture (or ""). */
+export function furnitureSvg(slide: Parameters<typeof furnitureInner>[0], opts: FurnitureOpts, page: number, total: number, topic?: string): string {
   const inner = furnitureInner(slide, opts, page, total, topic);
   if (!inner) return "";
   return '<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="width:100%;height:100%;display:block;position:absolute;inset:0;pointer-events:none">' + inner + "</svg>";
