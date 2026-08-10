@@ -551,11 +551,16 @@ function LibBgControls({ active, activeIdx }: { active: Slide; activeIdx: number
               topics={topicsData}
               topicKey={topicKey}
               current={resolvedKey || "02"}
-              onPick={function (k: string, scope?: "slide" | "deck") { if (scope === "deck") { setDeckBgOverride(k); } else { setSlideBgOverride(activeIdx, k); } /* stay open: DONE/ESC closes so picks + highlight stay visible */ }}
+              onPick={function (k: string, scope?: "slide" | "deck", pal?: LibPalette) {
+                if (scope === "deck") { setDeckBgOverride(k); if (pal) setDeckPalette(pal); }
+                else { setSlideBgOverride(activeIdx, k); if (pal) setSlidePalette(activeIdx, pal); }
+                /* stay open: DONE/ESC closes so picks + highlight stay visible */
+              }}
               onClose={function () { setAllOpen(false); }}
               showNative={false}
               infinityPick={false}
               scopeChoice={true}
+              deckPalette={deckPalette ?? CATEGORY_PALETTE[category]}
               seed={libSeed}
               palette={CATEGORY_PALETTE[category]}
             />,

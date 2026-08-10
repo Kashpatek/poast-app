@@ -28,7 +28,8 @@ import {
   INFINITY_STYLE_CUT, NATIVE_FAMILIES, NATIVE_PREFIX, STYLE_DEFS,
   isNativeKey, nativeGenKeyOf, nativeMetaOf, renderNativeBgInner,
 } from "../engine/library/nativebg";
-import { CATEGORY_PALETTE } from "../engine/library/palette";
+import { CATEGORY_PALETTE, type LibPalette } from "../engine/library/palette";
+import { libraryBgSvgDoc, ensureClassicBgs } from "../engine/library/compose";
 import { generateChartSpec, renderChartSvg, chartSvgToDataUrl } from "../engine/library/chart";
 import { showToast } from "../../toast-context";
 import { confirmDialog } from "../../dialog-context";
@@ -442,17 +443,21 @@ function libBackdropGroups(topics: TopicsData, topicKey: string): { label: strin
  *  modalOpen stands the station shortcuts down while open. Exported for the
  *  CHOOSE bench's per-direction backdrop switch (v3.6) — same shelves, same
  *  ∞/rotate filtering, one picker for both stations. */
-export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose, showNative, infinityPick, seed, palette, scopeChoice }: {
+export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose, showNative, infinityPick, seed, palette, scopeChoice, deckPalette }: {
   topics: TopicsData; topicKey: string; current: string;
-  onPick: (key: string, scope?: "slide" | "deck") => void; onClose: () => void;
+  onPick: (key: string, scope?: "slide" | "deck", pal?: LibPalette) => void; onClose: () => void;
   // showNative: offer the ∞ style/classic shelves (v3.3: BOTH modes — in
   // rotate a native pick is a per-slide frame of the composition).
   // infinityPick: the pick applies deck-wide with mirroring, so baked keys
   // filter to the approval-sitting keepers; rotate offers all 36.
   showNative?: boolean; infinityPick?: boolean; seed?: number; palette?: string;
-  // scopeChoice: show a THIS SLIDE / WHOLE DECK toggle; the pick reports which.
-  scopeChoice?: boolean;
+  // scopeChoice: show APPLY-TO scope buttons + a colour selector that retints
+  // the thumbnails; the pick reports the scope + chosen colour.
+  scopeChoice?: boolean; deckPalette?: LibPalette;
 }) {
+  const [scope, setScope] = useState<"slide" | "deck">("slide");
+  const [pal, setPal] = useState<LibPalette>(deckPalette || "blend");
+  const [bgReady, setBgReady] = useState(0);
   useEffect(function () {
     document.body.dataset.modalOpen = "1";
     function onKey(e: KeyboardEvent) {
@@ -464,6 +469,19 @@ export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose
       window.removeEventListener("keydown", onKey, true);
     };
   }, [onClose]);
+  // Warm the recolor cache for every baked key so the tinted thumbnails resolve
+  // (libraryBgSvgDoc returns null until warmed → the <img> baked thumb shows in
+  // the meantime, so the popup can never break waiting on this).
+  useEffect(function () {
+    if (!scopeChoice) return;
+    let alive = true;
+    const keys = libBackdropGroups(topics, topicKey).flatMap(function (g) { return g.keys; });
+    ensureClassicBgs(keys.map(function (k) { return { libraryBg: k } as Slide; }))
+      .then(function () { if (alive) setBgReady(function (n) { return n + 1; }); })
+      .catch(function () {});
+    return function () { alive = false; };
+  }, [scopeChoice, topics, topicKey]);
+  void bgReady; // re-render trigger once the recolor cache warms
 
   // ∞ mode offers only the approval-sitting keepers (2026-07-15): on the
   // other 27 the mirror fold reads as a crease. Rotate mode keeps all 36.
@@ -483,11 +501,27 @@ export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose
         <div className="rise d1" style={{ padding: "16px 18px 0", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div className="ph" style={{ flex: 1, margin: 0 }}>BACKDROPS · <b>{infinityPick ? "∞ + APPROVED" : showNative ? "∞ + ALL 36" : "ALL 36"}</b></div>
-            {scopeChoice ? (
-              <span className="whisper" style={{ textTransform: "none", letterSpacing: 0 }}>Click a backdrop → this slide · <b style={{ color: "var(--amber)" }}>ALL</b> → whole deck</span>
-            ) : null}
             <span className="kbd" onClick={onClose} style={{ cursor: "pointer" }} title="Close">{scopeChoice ? "DONE" : "ESC"}</span>
           </div>
+          {scopeChoice ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="button" className={"btn " + (scope === "slide" ? "btn--amber" : "btn-ghost")} onClick={function () { setScope("slide"); }} style={{ flex: 1, padding: "9px 12px", fontSize: 11 }}>APPLY TO THIS PAGE</button>
+                <button type="button" className={"btn " + (scope === "deck" ? "btn--amber" : "btn-ghost")} onClick={function () { setScope("deck"); }} style={{ flex: 1, padding: "9px 12px", fontSize: 11 }}>APPLY TO ALL PAGES</button>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span className="whisper" style={{ minWidth: 46 }}>Color</span>
+                {([["blend", "Blend", "linear-gradient(135deg,#0092FF,#F7B041)"], ["amber", "Amber", "#F7B041"], ["cobalt", "Cobalt", "#0092FF"], ["green", "Green", "#2EAD8E"]] as const).map(function (p) {
+                  return (
+                    <button key={p[0]} type="button" className={"chip" + (pal === p[0] ? " on" : "")} onClick={function () { setPal(p[0]); }} title={p[1]} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7 }}>
+                      <span style={{ width: 12, height: 12, borderRadius: "50%", background: p[2], display: "inline-block" }} />{p[1]}
+                    </button>
+                  );
+                })}
+                <span className="whisper">recolors the previews</span>
+              </div>
+            </div>
+          ) : null}
         </div>
         <div className="rise d2" style={{ padding: 18, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
           {showNative ? nativeBackdropGroups(palette || "blend").map(function (ng) {
@@ -543,15 +577,19 @@ export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose
                   {g.keys.map(function (k) {
                     const bd = topics.backdrops[k];
                     const ringed = k === current;
+                    // Tinted preview when a non-blend colour is chosen (falls back
+                    // to the baked <img> until the recolor cache warms).
+                    const tinted = scopeChoice && pal !== "blend" ? libraryBgSvgDoc(k, pal, false) : null;
+                    const doPick = function () { onPick(k, scopeChoice ? scope : undefined, scopeChoice ? pal : undefined); };
                     return (
                       <div
                         key={k}
                         role="button"
                         tabIndex={0}
-                        title={k + " · " + bd.name.toUpperCase() + " · " + bd.tier.toUpperCase() + (scopeChoice ? " · click = this slide" : "")}
+                        title={k + " · " + bd.name.toUpperCase() + " · " + bd.tier.toUpperCase()}
                         style={{ display: "flex", flexDirection: "column", gap: 5, cursor: "pointer", minWidth: 0 }}
-                        onClick={function () { onPick(k, scopeChoice ? "slide" : undefined); }}
-                        onKeyDown={function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(k, scopeChoice ? "slide" : undefined); } }}
+                        onClick={doPick}
+                        onKeyDown={function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); doPick(); } }}
                       >
                         <div style={{
                           position: "relative", aspectRatio: "4 / 5", borderRadius: 10, overflow: "hidden",
@@ -559,17 +597,13 @@ export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose
                           border: ringed ? "1px solid var(--amber)" : "1px solid var(--line-2)",
                           boxShadow: ringed ? "0 0 0 1px var(--amber)" : undefined,
                         }}>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={bgSvgUrl(k)} alt={bd.name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                          {ringed ? <span style={libCornerTagStyle}>THIS SLIDE</span> : null}
-                          {scopeChoice ? (
-                            <button
-                              type="button"
-                              title="Apply this backdrop to the whole deck (slide 2 → end)"
-                              onClick={function (e) { e.stopPropagation(); onPick(k, "deck"); }}
-                              style={{ position: "absolute", right: 5, bottom: 5, padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", color: "#0A0B10", background: "var(--amber)", border: "none", cursor: "pointer" }}
-                            >ALL</button>
-                          ) : null}
+                          {tinted ? (
+                            <div style={{ position: "absolute", inset: 0 }} dangerouslySetInnerHTML={{ __html: tinted }} />
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={bgSvgUrl(k)} alt={bd.name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                          )}
+                          {ringed ? <span style={libCornerTagStyle}>CURRENT</span> : null}
                         </div>
                         <span style={libSwatchLabelStyle}>{k} · {bd.name}</span>
                         <span style={{ ...libSwatchLabelStyle, color: "var(--dim)" }}>{bd.tier}</span>
