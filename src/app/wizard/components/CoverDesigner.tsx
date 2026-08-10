@@ -137,6 +137,7 @@ export function CoverDesigner({ slide, onChange, theme, compact, sourceText }: C
   const sl = slide as CoverSlide;
   const [titleIdeas, setTitleIdeas] = useState<{ title: string; subtitle: string }[]>([]);
   const [titlesBusy, setTitlesBusy] = useState(false);
+  const [draftBusy, setDraftBusy] = useState(false);
   const [regenBusy, setRegenBusy] = useState(false);
   const [subIdeas, setSubIdeas] = useState<string[]>([]);
   const [subsBusy, setSubsBusy] = useState(false);
@@ -170,6 +171,28 @@ export function CoverDesigner({ slide, onChange, theme, compact, sourceText }: C
       showToast(e instanceof Error ? e.message : "Failed to generate titles.", "error");
     }
     setTitlesBusy(false);
+  }
+
+  // One-click "develop the cover from the thread": read the thread context and
+  // draft a title + subtitle (apply the best, keep the rest as alternatives)
+  // and a topic in a single action. The background is already suggested from
+  // the same thread at build time, so this fills the whole cover from the posts.
+  async function draftFromThread() {
+    const src = (sourceText || "").trim();
+    if (!src) { showToast("Add thread posts first — the cover develops from them.", "error"); return; }
+    setDraftBusy(true);
+    try {
+      const pairs = await verbatimTitles(src, theme);
+      if (pairs[0]) onChange({ title: pairs[0].title, subtitle: pairs[0].subtitle });
+      setTitleIdeas(pairs.slice(0, 5));
+      try {
+        const topic = await verbatimTopic((pairs[0] && pairs[0].title) || slide.title || "", src);
+        if (topic) onChange({ coverTopic: topic });
+      } catch { /* topic is optional; title/subtitle already landed */ }
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Could not draft from the thread.", "error");
+    }
+    setDraftBusy(false);
   }
 
   // V1's fallback panel (carousel.tsx:1732) rerolls just the title through
@@ -333,6 +356,23 @@ export function CoverDesigner({ slide, onChange, theme, compact, sourceText }: C
 
   const fields = (
     <div style={{ display: "flex", flexDirection: "column", gap: compact ? 14 : 20, minWidth: 0 }}>
+      {(sourceText || "").trim() ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "10px 12px", borderRadius: 12, border: "1px solid var(--cobalt-line)", background: "var(--cobalt-wash)" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: "1 1 auto", minWidth: 0 }}>
+            <span style={{ ...capsLabel, color: "var(--blue-300)" }}>FROM YOUR THREAD</span>
+            <span className="whisper">The cover develops from the posts you wrote — title, subtitle, and topic.</span>
+          </div>
+          <button
+            type="button"
+            className="btn btn--amber"
+            onClick={draftFromThread}
+            disabled={draftBusy}
+            style={{ ...smallBtn, opacity: draftBusy ? 0.6 : 1, flexShrink: 0 }}
+          >
+            {draftBusy ? "DRAFTING..." : "DRAFT FROM THREAD"}
+          </button>
+        </div>
+      ) : null}
       <Section label="TITLE">
         <input
           className="input"
@@ -446,6 +486,31 @@ export function CoverDesigner({ slide, onChange, theme, compact, sourceText }: C
             <button type="button" className="btn btn-ghost" onClick={() => onChange({ imageUrl: "" })} style={smallBtn}>REMOVE</button>
           ) : null}
         </div>
+        {slide.imageUrl ? (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+              <span style={capsLabel}>FOCUS</span>
+              <span className="whisper">fills the frame — the covers text sits low, so keep the subject up top</span>
+            </div>
+            <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+              {([["top", "TOP"], ["center", "CENTER"], ["bottom", "BOTTOM"]] as const).map(([val, lbl]) => {
+                const on = (slide.imagePosition || "center") === val;
+                return (
+                  <button
+                    key={val}
+                    type="button"
+                    className={"chip" + (on ? " on" : "")}
+                    title={val === "top" ? "Subject in the top two-thirds" : val === "center" ? "Centered" : "Anchored to the bottom"}
+                    onClick={() => onChange({ imagePosition: val, imageFit: "cover" })}
+                    style={{ cursor: "pointer" }}
+                  >
+                    {lbl}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </Section>
     </div>
   );
@@ -476,7 +541,7 @@ export function CoverDesigner({ slide, onChange, theme, compact, sourceText }: C
         <ImagePicker
           open={pickerOpen}
           onClose={() => setPickerOpen(false)}
-          onPick={(url: string) => { onChange({ imageUrl: url }); setPickerOpen(false); }}
+          onPick={(url: string) => { onChange({ imageUrl: url, imageFit: "cover", imagePosition: slide.imagePosition || "center" }); setPickerOpen(false); }}
           suggestedPrompt={suggestedPrompt}
           theme={theme}
         />

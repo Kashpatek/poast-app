@@ -150,10 +150,17 @@ export function ImagePicker({ open, onClose, onPick, theme, context, suggestedPr
   // GENERATE
   const [prompt, setPrompt] = useState("");
   const [preset, setPreset] = useState<string | null>(null);
+  const [styleSuffix, setStyleSuffix] = useState<string | null>(null);
   const [provider, setProvider] = useState<"imagen" | "grok">("imagen");
   const [slots, setSlots] = useState<GenSlot[]>(EMPTY_SLOTS);
   const [genBusy, setGenBusy] = useState(false);
   const [fellBack, setFellBack] = useState<string | null>(null);
+  // Full Cover Creator style catalog (lazy-loaded on "view all styles"), with
+  // real sample previews at /cover-lab/trends/<id>.jpg.
+  type StyleCard = { id: string; name: string; styleBlock?: string; sampleUrl?: string | null };
+  const [catalog, setCatalog] = useState<StyleCard[]>([]);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [catalogState, setCatalogState] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   // Escape closes THIS modal only. Capture phase + stopPropagation beats the
   // shell listener; dataset.modalOpen is the shell's belt-and-braces check.
@@ -207,6 +214,31 @@ export function ImagePicker({ open, onClose, onPick, theme, context, suggestedPr
     window.localStorage.setItem("poast-image-provider", p);
   }
 
+  // Lazy-load the full Cover Creator style catalog on first expand.
+  function loadCatalog() {
+    if (catalogState === "loading" || catalogState === "ready") return;
+    setCatalogState("loading");
+    fetch("/api/cover?op=styles")
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        setCatalog(Array.isArray(j && j.styles) ? (j.styles as StyleCard[]) : []);
+        setCatalogState("ready");
+      })
+      .catch(function () { setCatalogState("error"); });
+  }
+  function toggleCatalog() {
+    const next = !catalogOpen;
+    setCatalogOpen(next);
+    if (next) loadCatalog();
+  }
+  // Selecting a style (quick chip or catalog card) sets the label + the suffix
+  // appended to the prompt; clicking the active one clears it.
+  function chooseStyle(label: string, suffix: string) {
+    const isOn = preset === label;
+    setPreset(isOn ? null : label);
+    setStyleSuffix(isOn ? null : suffix);
+  }
+
   function pickAndClose(url: string) {
     onPick(url);
     onClose();
@@ -239,8 +271,7 @@ export function ImagePicker({ open, onClose, onPick, theme, context, suggestedPr
   async function runGenerate() {
     const base = prompt.trim();
     if (!base || genBusy) return;
-    const chosen = STYLE_PRESETS.find(function (s) { return s.label === preset; });
-    const full = chosen ? base + ", " + chosen.suffix : base;
+    const full = styleSuffix ? base + ", " + styleSuffix : base;
     setGenBusy(true);
     setFellBack(null);
     setSlots([{ status: "loading" }, { status: "loading" }, { status: "loading" }]);
@@ -496,19 +527,63 @@ export function ImagePicker({ open, onClose, onPick, theme, context, suggestedPr
                 onChange={function (e) { setPrompt(e.target.value); }}
                 style={{ resize: "vertical", minHeight: 76, fontSize: 13, lineHeight: 1.5 }}
               />
-              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, margin: "12px 0 16px" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, margin: "12px 0 10px" }}>
                 {STYLE_PRESETS.map(function (s) {
                   return (
                     <span
                       key={s.label}
                       className="chip"
                       style={preset === s.label ? chipOnStyle : chipBtnStyle}
-                      onClick={function () { setPreset(preset === s.label ? null : s.label); }}
+                      onClick={function () { chooseStyle(s.label, s.suffix); }}
                     >{s.label}</span>
                   );
                 })}
-                <span className="callout">Preset is appended to your prompt.</span>
+                <span
+                  className="chip"
+                  style={chipBtnStyle}
+                  onClick={toggleCatalog}
+                >{catalogOpen ? "HIDE STYLES ▴" : "VIEW ALL STYLES ▾"}</span>
+                <span className="callout">Style is appended to your prompt.</span>
               </div>
+              {catalogOpen ? (
+                <div style={{ margin: "0 0 16px" }}>
+                  {catalogState === "loading" ? (
+                    <span className="callout">Loading the style gallery…</span>
+                  ) : catalogState === "error" ? (
+                    <span className="callout">Couldn&apos;t load styles — the quick presets above still work.</span>
+                  ) : (
+                    <div style={{ maxHeight: 306, overflowY: "auto", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))", gap: 10, padding: 2 }}>
+                      {catalog.map(function (st) {
+                        const on = preset === st.name;
+                        return (
+                          <button
+                            key={st.id}
+                            type="button"
+                            title={st.name}
+                            onClick={function () { chooseStyle(st.name, st.styleBlock || ""); }}
+                            style={{
+                              padding: 0, borderRadius: 10, overflow: "hidden", cursor: "pointer",
+                              background: "#0A0B10", textAlign: "left", display: "block",
+                              border: on ? "2px solid var(--amber)" : "1px solid var(--line-2)",
+                            }}
+                          >
+                            {st.sampleUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={st.sampleUrl}
+                                alt={st.name}
+                                style={{ width: "100%", aspectRatio: "4 / 5", objectFit: "cover", display: "block" }}
+                                onError={function (e) { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                              />
+                            ) : null}
+                            <span style={{ display: "block", padding: "5px 7px", fontSize: 10, letterSpacing: ".02em", color: on ? "var(--amber)" : "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{st.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : null}
               <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
                 <button
                   type="button"

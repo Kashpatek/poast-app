@@ -1309,6 +1309,13 @@ export const useWizard = create<WizardStore>()((set, get) => ({
 
     // Cover: hook = first sentence of the first text entry (capped), editable
     // in the bench. Falls back to a neutral title if the thread opens on media.
+    // The whole thread is the only context for the cover step (title/subtitle/
+    // background suggestions read store.text via CoverDesigner's sourceText),
+    // so join every post's text and make it the working source.
+    const threadContext = entries
+      .map(function (e) { return (e.text || "").trim(); })
+      .filter(Boolean)
+      .join("\n\n");
     const firstText = (entries.find(function (e) { return (e.text || "").trim(); }) || { text: "" }).text || "";
     let hook = (splitSentences(firstText)[0] || firstText || "Untitled").trim().replace(/\s+/g, " ");
     if (hook.length > 90) hook = hook.slice(0, hook.lastIndexOf(" ", 90) > 0 ? hook.lastIndexOf(" ", 90) : 90).trim() + "…";
@@ -1409,6 +1416,7 @@ export const useWizard = create<WizardStore>()((set, get) => ({
         variants: { V: verbVariant },
         selectedVariantKey: "V",
         selectedVariantLabel: "Thread",
+        text: threadContext, // the thread is the cover/topic AI context
         slides: editorSlides,
         activeIdx: 0,
         undoStack: [],
