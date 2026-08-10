@@ -25,7 +25,7 @@ import { renderBackdrop, hashSeed } from "../engine/unique/backdrops";
 import { LibBackdropAllModal } from "./EditStation";
 import { candidates } from "../engine/library/backdrop";
 import { loadTopics, topicsSync, bgSvgUrl, type TopicsData } from "../engine/library/data";
-import { CATEGORY_PALETTE } from "../engine/library/palette";
+import { CATEGORY_PALETTE, type LibPalette } from "../engine/library/palette";
 import CoverDesigner from "../components/CoverDesigner";
 import ImagePicker from "../components/ImagePicker";
 import { showToast } from "../../toast-context";
@@ -348,6 +348,55 @@ function BackdropSwatch({ id, accent, seedKey, selected, onPick }: {
   );
 }
 
+// ═══ v3.8 · COLOR-THEME (palette) picker ═══
+// The 36 baked backdrops recolor by palette at compose (recolorBgSvg): amber /
+// cobalt / green remap the accent families, blend is the baked identity. This
+// lets the user retint backdrops to the post's colour theme — deck-wide
+// (setDeckPalette) or per slide (setSlidePalette, cover-safe, no ripple).
+var PALETTES: { key: LibPalette; label: string; sw: string }[] = [
+  { key: "blend", label: "Blend", sw: "linear-gradient(135deg,#0092FF 0%,#F7B041 100%)" },
+  { key: "amber", label: "Amber", sw: "#F7B041" },
+  { key: "cobalt", label: "Cobalt", sw: "#0092FF" },
+  { key: "green", label: "Green", sw: "#2EAD8E" },
+];
+
+// One palette row: 4 swatches + AUTO. `value` is the active selection (null =
+// following the fallback named by `autoLabel`); AUTO clears back to it.
+function PaletteChips({ value, onPick, onAuto, autoLabel }: {
+  value: LibPalette | null; onPick: (p: LibPalette) => void; onAuto: () => void; autoLabel: string;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+      {PALETTES.map(function (p) {
+        const on = value === p.key;
+        return (
+          <button
+            key={p.key}
+            type="button"
+            title={p.label}
+            onClick={function () { onPick(p.key); }}
+            style={{
+              width: 24, height: 24, padding: 0, borderRadius: "50%", cursor: "pointer",
+              background: p.sw, flex: "0 0 auto",
+              border: on ? "2px solid var(--tx)" : "1px solid var(--line-2)",
+              boxShadow: on ? "0 0 0 2px var(--bg)" : "none",
+            }}
+          />
+        );
+      })}
+      <button
+        type="button"
+        className={value === null ? "chip on" : "chip"}
+        onClick={onAuto}
+        style={{ cursor: "pointer" }}
+        title={"Follow " + autoLabel}
+      >
+        AUTO
+      </button>
+    </div>
+  );
+}
+
 // ═══ v3.7 · LIBRARY BACKDROP CONTROLS (classic/verbatim/unique slides) ═══
 // The per-slide face of the deck's library-backdrop opt-in: source seg
 // (library vs the mode-native look), the slide's current pick + the topic
@@ -358,6 +407,9 @@ function LibBgControls({ active, activeIdx }: { active: Slide; activeIdx: number
   const libSeed = useWizard(function (s) { return s.libSeed; });
   const category = useWizard(function (s) { return s.category; });
   const setSlideBgOverride = useWizard(function (s) { return s.setSlideBgOverride; });
+  const deckPalette = useWizard(function (s) { return s.deckPalette; });
+  const setDeckPalette = useWizard(function (s) { return s.setDeckPalette; });
+  const setSlidePalette = useWizard(function (s) { return s.setSlidePalette; });
   const [topicsData, setTopicsData] = useState<TopicsData | null>(topicsSync);
   const [allOpen, setAllOpen] = useState(false);
   useEffect(function () {
@@ -415,6 +467,28 @@ function LibBgControls({ active, activeIdx }: { active: Slide; activeIdx: number
       <span className="whisper">
         {(overridden ? "PICKED" : "AUTO") + " · " + (resolvedKey ? resolvedKey + " " + nameOf(resolvedKey) : "resolving…") + " · topic " + topicKey}
       </span>
+      {/* COLOR THEME — retint the baked backdrops to the post's palette. */}
+      <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6, paddingTop: 8, borderTop: "1px solid var(--line-2)" }}>
+        <span className="whisper" style={{ letterSpacing: ".08em", textTransform: "uppercase", opacity: 0.8 }}>Color theme</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span className="whisper" style={{ minWidth: 62 }}>This slide</span>
+          <PaletteChips
+            value={active.libraryPaletteOverride ?? null}
+            onPick={function (p) { setSlidePalette(activeIdx, p); }}
+            onAuto={function () { setSlidePalette(activeIdx, null); }}
+            autoLabel={"deck (" + (deckPalette || CATEGORY_PALETTE[category]) + ")"}
+          />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span className="whisper" style={{ minWidth: 62 }}>Whole deck</span>
+          <PaletteChips
+            value={deckPalette ?? null}
+            onPick={function (p) { setDeckPalette(p); }}
+            onAuto={function () { setDeckPalette(null); }}
+            autoLabel={"category (" + CATEGORY_PALETTE[category] + ")"}
+          />
+        </div>
+      </div>
       {allOpen && typeof document !== "undefined"
         ? createPortal(
             <LibBackdropAllModal

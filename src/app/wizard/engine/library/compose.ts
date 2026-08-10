@@ -543,6 +543,21 @@ function populateTemplate(tplText: string, slide: Slide): string {
     var fillText = fills[name] !== undefined ? fills[name] : (texts[i].textContent || "");
     populateField(doc, texts[i], fillText, layouts[name]);
   }
+  // Legibility halo: when the slide carries an image (cover or body), the text
+  // can land over clashing colours. Draw a soft dark stroke BEHIND the glyph
+  // fill (paint-order:stroke) so headlines/labels stay readable on any image.
+  // Pure CSS on the <text> — no filter defs, survives the export rasterizer.
+  var hasImg = !!(slide.librarySlotImages && Object.keys(slide.librarySlotImages).length);
+  if (hasImg) {
+    for (var h = 0; h < texts.length; h++) {
+      var role = texts[h].getAttribute("data-role") || "";
+      if (!texts[h].getAttribute("data-field") || role === "logo" || role === "image") continue;
+      var st = texts[h].getAttribute("style") || "";
+      if (st.indexOf("paint-order") === -1) {
+        texts[h].setAttribute("style", st + ";paint-order:stroke;stroke:rgba(5,7,10,0.72);stroke-width:5;stroke-linejoin:round");
+      }
+    }
+  }
   applySlots(doc, root, slide);
   return innerSvg(new XMLSerializer().serializeToString(root));
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { generateWithClaude, generateJSON, AnthropicError } from "@/lib/anthropic";
-import { stripHTML, extractImages } from "@/lib/html";
+import { stripHTML, extractImages, extractCoverImage } from "@/lib/html";
 import { safeFetch } from "@/lib/safe-fetch";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { generateGrokImages, GrokImageError, SA_BRAND_CUES, STYLE_PRESETS } from "@/lib/grok-image";
@@ -120,10 +120,20 @@ export async function POST(req: NextRequest) {
         // Extract article text for context
         const textOnly = stripHTML(html).slice(0, 3000);
 
+        // The article's cover / thumbnail (og:image etc.) — the hero shot that
+        // lives in <head> and never shows up in the <img> scrape. Always lead
+        // with it so it is available for the cover slide and full-bleed layouts.
+        const cover = extractCoverImage(html, fetchUrl);
+        // prepend cover, drop dupes, keep order
+        const withCover = (list: string[]): string[] => {
+          const out = cover ? [cover, ...list.filter((u) => u !== cover)] : list;
+          return out;
+        };
+
         // Extract candidate images
         const candidates = extractImages(html, fetchUrl, 20);
 
-        if (candidates.length === 0) return NextResponse.json({ images: [], ts: Date.now() });
+        if (candidates.length === 0) return NextResponse.json({ images: withCover([]), cover: cover || null, ts: Date.now() });
 
         // Also need alt text for Claude to pick images — re-extract with alt info
         const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*?(?:alt=["']([^"']*)["'])?[^>]*>/gi;
@@ -149,10 +159,10 @@ export async function POST(req: NextRequest) {
             prompt: `Article summary: ${textOnly.slice(0, 1000)}\n\nCandidate images:\n${finalCandidates.map((c, i) => `${i}: ${c.src.slice(-80)} (alt: "${c.alt}")`).join("\n")}\n\nWhich indices are relevant content images? Return JSON array only.`,
           });
           const picked = indices.filter(i => i >= 0 && i < finalCandidates.length).map(i => finalCandidates[i].src);
-          return NextResponse.json({ images: picked, ts: Date.now() });
+          return NextResponse.json({ images: withCover(picked), cover: cover || null, ts: Date.now() });
         } catch {
-          // Fallback: return first 4 candidates
-          return NextResponse.json({ images: candidates.slice(0, 4), ts: Date.now() });
+          // Fallback: cover + first 4 candidates
+          return NextResponse.json({ images: withCover(candidates.slice(0, 4)), cover: cover || null, ts: Date.now() });
         }
       } catch {
         return NextResponse.json({ images: [] });

@@ -17,6 +17,41 @@ export function stripHTML(html: string): string {
 }
 
 /**
+ * The article's cover / thumbnail: og:image, twitter:image, or link[rel=image_src].
+ * This is the hero image content scrapers usually skip (it lives in <head>, not
+ * <img>), so we pull it explicitly and hand it back as the lead image. Returns an
+ * absolute http(s) URL or null.
+ */
+export function extractCoverImage(html: string, baseUrl?: string): string | null {
+  const abs = (u: string): string => {
+    u = (u || "").trim();
+    if (u.startsWith("//")) return "https:" + u;
+    if (u.startsWith("/") && baseUrl) {
+      try { return new URL(baseUrl).origin + u; } catch { return u; }
+    }
+    return u;
+  };
+  const metaVal = (names: string[]): string | null => {
+    for (const n of names) {
+      // Attribute order varies: property/name before content, or after.
+      const re1 = new RegExp(`<meta[^>]+(?:property|name)=["']${n}["'][^>]*?content=["']([^"']+)["']`, "i");
+      const re2 = new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]*?(?:property|name)=["']${n}["']`, "i");
+      const m = html.match(re1) || html.match(re2);
+      if (m && m[1]) return m[1];
+    }
+    return null;
+  };
+  let u = metaVal(["og:image:secure_url", "og:image:url", "og:image", "twitter:image:src", "twitter:image"]);
+  if (!u) {
+    const m = html.match(/<link[^>]+rel=["']image_src["'][^>]*?href=["']([^"']+)["']/i);
+    if (m) u = m[1];
+  }
+  if (!u) return null;
+  u = abs(u);
+  return u.startsWith("http") ? u : null;
+}
+
+/**
  * Extract image URLs from HTML, filtering out junk (data URIs, SVGs, GIFs,
  * favicons, icons, tracking pixels, etc.). Returns up to `limit` absolute URLs.
  */

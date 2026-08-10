@@ -30,7 +30,7 @@ import {
   type LibTopicKey,
   type TopicsData,
 } from "./engine/library/data";
-import { postSeed, resolveBgChain, resolveBgInfinity } from "./engine/library/backdrop";
+import { postSeed, resolveBgChainStable, resolveBgInfinity } from "./engine/library/backdrop";
 import { isNativeKey, nativeGenKeyOf } from "./engine/library/nativebg";
 import { CATEGORY_PALETTE, type LibPalette } from "./engine/library/palette";
 import { generateLibraryPlan, type LibraryPlanSlide } from "./engine/library/plan";
@@ -94,6 +94,7 @@ export interface WizardDraft {
   libSeed?: number;
   bgMode?: "rotate" | "infinity";
   bgSource?: "legacy" | "library";
+  deckPalette?: LibPalette | null;
   slides?: Slide[];
   activeIdx?: number;
   captionOptions?: CaptionOption[];
@@ -113,6 +114,7 @@ interface UndoFrame {
   slides: Slide[];
   bgSource: "legacy" | "library";
   uniqueDecks: Record<string, Slide[]> | null;
+  deckPalette: LibPalette | null;
 }
 
 // ═══ STORE CONTRACT ═══ (docs/ARCHITECTURE.md + generation/draft addenda)
@@ -211,6 +213,11 @@ export interface WizardStore {
   // drafts and archives hydrate to so they keep rendering as authored.
   bgSource: "legacy" | "library";
   setBgSource(v: "legacy" | "library"): void;
+  // Deck-wide backdrop retint (EDIT palette picker). null = auto from category.
+  // Per-slide overrides live on slide.libraryPaletteOverride and win over this.
+  deckPalette: LibPalette | null;
+  setDeckPalette(p: LibPalette | null): void;         // retint the whole deck
+  setSlidePalette(idx: number, p: LibPalette | null): void; // retint one slide (cover-safe, no ripple)
   // undo
   undoStack: UndoFrame[];
   pushUndo(): void; // push before destructive ops
@@ -429,7 +436,7 @@ function stampBgChain(
     keys = res.keys;
     flips = res.flips;
   } else {
-    keys = resolveBgChain(overrides, topics, topic || "brand", seed);
+    keys = resolveBgChainStable(overrides, topics, topic || "brand", seed);
     flips = keys.map(function () { return false; });
   }
   return slides.map(function (sl, i) {
@@ -464,17 +471,17 @@ function withLibraryChain(slides: Slide[]): Slide[] {
   const topics = topicsSync();
   if (topics) {
     if (classic) {
-      const pal = CATEGORY_PALETTE[st.category];
+      const pal = effPalette(st.category);
       return stampPalette(stampBgChain(slides, topics, st.topic, st.libSeed, "rotate", pal, true), pal, true);
     }
-    return stampBgChain(slides, topics, st.topic, st.libSeed, st.bgMode, CATEGORY_PALETTE[st.category]);
+    return stampBgChain(slides, topics, st.topic, st.libSeed, st.bgMode, effPalette(st.category));
   }
   loadTopics()
     .then(function (data) {
       const now = useWizard.getState();
       const nowClassic = !isLibraryDeck(now.slides) && now.bgSource === "library" && now.slides.length > 0;
       if (!isLibraryDeck(now.slides) && !nowClassic) return;
-      const pal = CATEGORY_PALETTE[now.category];
+      const pal = effPalette(now.category);
       useWizard.setState({
         slides: nowClassic
           ? stampPalette(stampBgChain(now.slides, data, now.topic, now.libSeed, "rotate", pal, true), pal, true)
@@ -496,7 +503,7 @@ export function stampClassicPreview(slides: Slide[]): Slide[] {
   if (st.bgSource !== "library" || !slides.length || isLibraryDeck(slides)) return slides;
   const topics = topicsSync();
   if (!topics) return slides;
-  const pal = CATEGORY_PALETTE[st.category];
+  const pal = effPalette(st.category);
   return stampPalette(stampBgChain(slides, topics, st.topic, st.libSeed, "rotate", pal, true), pal, true);
 }
 
@@ -513,7 +520,7 @@ function classicChainKick() {
       if (now.bgSource !== "library") return;
       const topic = now.topic || suggestTopic(now.text || "", topics.topics);
       const libSeed = now.libSeed || postSeed(now.text || now.url || "draft");
-      const pal = CATEGORY_PALETTE[now.category];
+      const pal = effPalette(now.category);
       const stamp = function (deck: Slide[]): Slide[] {
         if (isLibraryDeck(deck)) return deck; // library decks own their chain
         return stampPalette(stampBgChain(deck, topics, topic, libSeed, "rotate", pal, true), pal, true);
@@ -596,9 +603,20 @@ function planSlidesToDeck(planSlides: LibraryPlanSlide[], byIdx: Record<number, 
  *  Non-library slides pass through untouched. */
 function stampPalette(slides: Slide[], palette: LibPalette, allTypes?: boolean): Slide[] {
   return slides.map(function (sl) {
-    if ((sl.type !== "library" && !allTypes) || sl.libraryPalette === palette) return sl;
-    return { ...sl, libraryPalette: palette };
+    if (sl.type !== "library" && !allTypes) return sl;
+    // A per-slide retint override (EDIT palette picker) wins over the deck
+    // palette; unset slides follow the deck. Skip when already stamped.
+    const want = sl.libraryPaletteOverride || palette;
+    if (sl.libraryPalette === want) return sl;
+    return { ...sl, libraryPalette: want };
   });
+}
+
+/** Effective deck retint: the user's deck-wide override (EDIT palette picker)
+ *  if set, else the category-derived tint. deckPalette defaults null, so with
+ *  no override this is byte-identical to the old CATEGORY_PALETTE[category]. */
+function effPalette(cat: ThemeKey): LibPalette {
+  return useWizard.getState().deckPalette ?? CATEGORY_PALETTE[cat];
 }
 
 /** Apply a per-deck slide transform across a decks record (bench state). */
@@ -636,7 +654,7 @@ function withLibraryDeckChains(
   };
   const st = useWizard.getState();
   const topics = topicsSync();
-  if (topics) return rechain(decks, topics, st.topic, st.libSeed, CATEGORY_PALETTE[st.category], st.bgMode);
+  if (topics) return rechain(decks, topics, st.topic, st.libSeed, effPalette(st.category), st.bgMode);
   loadTopics()
     .then(function (data) {
       const now = useWizard.getState();
@@ -647,7 +665,7 @@ function withLibraryDeckChains(
           data,
           now.topic,
           now.libSeed,
-          CATEGORY_PALETTE[now.category],
+          effPalette(now.category),
           now.bgMode
         ),
       });
@@ -694,6 +712,7 @@ const initialData = {
   // v3.7: fresh runs in every mode wear the library backdrops by default;
   // legacy drafts/archives hydrate to "legacy" (see hydrateFromDraft).
   bgSource: "library" as "legacy" | "library",
+  deckPalette: null as LibPalette | null,
   slides: [] as Slide[],
   activeIdx: 0,
   undoStack: [] as UndoFrame[],
@@ -802,7 +821,7 @@ export const useWizard = create<WizardStore>()((set, get) => ({
       templates.forEach(function (t) {
         byIdx[t.idx] = t;
       });
-      const palette = CATEGORY_PALETTE[get().category];
+      const palette = effPalette(get().category);
       const bgModeNow = get().bgMode;
       const decks: Record<string, Slide[]> = {};
       const chips: Record<string, Variant> = {};
@@ -881,7 +900,7 @@ export const useWizard = create<WizardStore>()((set, get) => ({
       // re-tint too (allTypes palette stamp; uniqueDecks bench included).
       const classicWear = st.bgSource === "library" && !isLibraryDeck(st.slides);
       if (isLibraryDeck(st.slides) || st.libraryDecks || (classicWear && (st.slides.length || st.uniqueDecks))) {
-        const palette = CATEGORY_PALETTE[p.category];
+        const palette = effPalette(p.category);
         set({
           ...p,
           slides: stampPalette(st.slides, palette, classicWear),
@@ -1020,7 +1039,7 @@ export const useWizard = create<WizardStore>()((set, get) => ({
         templates.forEach(function (t) {
           byIdx[t.idx] = t;
         });
-        const palette = CATEGORY_PALETTE[st.category]; // category is the TINT
+        const palette = effPalette(st.category); // category is the TINT
         const decks: Record<string, Slide[]> = {};
         const chips: Record<string, Variant> = {};
         plan.plans.forEach(function (p) {
@@ -1442,6 +1461,36 @@ export const useWizard = create<WizardStore>()((set, get) => ({
     set({ slides: withLibraryChain(next), dirtySinceVariant: true });
   },
 
+  // Deck-wide retint: stamp the chosen palette (or auto = category) on every
+  // slide that doesn't carry a per-slide override. No backdrop-key chain touched
+  // (palette is a pure per-slide tint), so this never reshuffles the layout.
+  setDeckPalette(p) {
+    const st = get();
+    if (st.deckPalette === p) return;
+    get().pushUndo();
+    const pal = p ?? CATEGORY_PALETTE[st.category];
+    const allTypes = st.bgSource === "library";
+    const slides = stampPalette(st.slides, pal, allTypes);
+    const uniqueDecks = st.uniqueDecks ? mapDecks(st.uniqueDecks, function (d) { return stampPalette(d, pal, true); }) : st.uniqueDecks;
+    const libraryDecks = st.libraryDecks ? mapDecks(st.libraryDecks, function (d) { return stampPalette(d, pal, true); }) : st.libraryDecks;
+    set({ deckPalette: p, slides, uniqueDecks, libraryDecks, dirtySinceVariant: true });
+  },
+
+  // Per-slide retint (cover included). Touches ONLY this slide's tint, never the
+  // backdrop-key chain, so changing the cover leaves every other slide put.
+  setSlidePalette(idx, p) {
+    const st = get();
+    if (idx < 0 || idx >= st.slides.length) return;
+    const target = st.slides[idx];
+    if (!target) return;
+    if (target.type !== "library" && st.bgSource !== "library") return;
+    get().pushUndo();
+    const deckPal = st.deckPalette ?? CATEGORY_PALETTE[st.category];
+    const next = st.slides.slice();
+    next[idx] = { ...target, libraryPaletteOverride: p, libraryPalette: p || deckPal };
+    set({ slides: next, dirtySinceVariant: true });
+  },
+
   setBenchDeckBg(deckKey, key) {
     const st = get();
     const deck = st.libraryDecks ? st.libraryDecks[deckKey] : undefined;
@@ -1514,6 +1563,7 @@ export const useWizard = create<WizardStore>()((set, get) => ({
       slides: structuredClone(st.slides),
       bgSource: st.bgSource,
       uniqueDecks: st.uniqueDecks ? structuredClone(st.uniqueDecks) : null,
+      deckPalette: st.deckPalette,
     });
     set({ undoStack: stack });
   },
@@ -1527,6 +1577,7 @@ export const useWizard = create<WizardStore>()((set, get) => ({
       slides: prev.slides,
       bgSource: prev.bgSource,
       uniqueDecks: prev.uniqueDecks,
+      deckPalette: prev.deckPalette,
       undoStack: stack,
       activeIdx: Math.max(0, Math.min(prev.slides.length > 0 ? prev.slides.length - 1 : 0, st.activeIdx)),
       dirtySinceVariant: true,

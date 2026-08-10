@@ -118,6 +118,28 @@ void nativeDefaultPool; // guarded import above kept verbatim; unused post-v3.6
  *  mirror (identical repeats; seams rely on the bg's own edge continuity). */
 export var MIRROR_UNSAFE: Record<string, boolean> = { "23": true, "29": true };
 
+/** Non-rippling rotate chain (extension, 2026-08). resolveBgChain (guarded
+ *  port) advances prevKey on the RESOLVED key, so a per-slide finalize — e.g.
+ *  changing the cover — shifts the neighbours' auto picks. Here the AUTO
+ *  sequence is computed with NO overrides (prevKey chains on auto keys only),
+ *  then overrides are overlaid for output. Result: changing one slide's
+ *  backdrop changes ONLY that slide; the rest stay exactly as they were. */
+export function resolveBgChainStable(
+  overrides: (string | null | undefined)[],
+  topics: TopicsData,
+  topicKey: string,
+  seed: number
+): string[] {
+  var out: string[] = [];
+  var prevAuto: string | null = null;
+  for (var i = 0; i < overrides.length; i++) {
+    var auto = pickBackdrop(topics, topicKey, seed, i, null, prevAuto);
+    prevAuto = auto;
+    out.push(overrides[i] || auto);
+  }
+  return out;
+}
+
 /** Backdrops whose seams stay pixel-continuous but where the mirror trick is
  *  perceptually LOUD (2026-07-14 seam review, 3/3 adversarial confirmations
  *  each): one dominant directional feature folds into Rorschach/chevron

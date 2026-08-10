@@ -71,6 +71,7 @@ export interface Slide {
   libraryBg?: string;                         // resolved backdrop key "01".."36"
   libraryBgOverride?: string | null;          // user-finalized key; wins over assignment
   libraryPalette?: "blend" | "amber" | "cobalt" | "green"; // category tint applied to the bg at compose (unset = blend, the baked v1 identity)
+  libraryPaletteOverride?: "blend" | "amber" | "cobalt" | "green" | null; // EDIT per-slide retint; wins over the deck palette (null/unset = follow deck)
   // Platform v3 additions (2026-07-14) — all optional, additive:
   libraryBgFlip?: boolean; // infinity mode: mirror the bg on odd positions (seamless strip)
   // Native infinity (v3.1): when libraryBg is an "n:<family>" key the store
