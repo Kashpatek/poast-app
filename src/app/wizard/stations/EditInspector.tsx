@@ -457,7 +457,7 @@ function LibBgControls({ active, activeIdx }: { active: Slide; activeIdx: number
           );
         })}
         <button type="button" className="chip" onClick={function () { setAllOpen(true); }} style={{ cursor: "pointer" }}>
-          ALL 36
+          VIEW ALL
         </button>
         {overridden ? (
           <button type="button" className="chip" onClick={function () { setSlideBgOverride(activeIdx, null); }} style={{ cursor: "pointer" }}>
@@ -496,9 +496,9 @@ function LibBgControls({ active, activeIdx }: { active: Slide; activeIdx: number
               topics={topicsData}
               topicKey={topicKey}
               current={resolvedKey || "02"}
-              onPick={function (k: string, scope?: "slide" | "deck") { if (scope === "deck") { setDeckBgOverride(k); } else { setSlideBgOverride(activeIdx, k); } setAllOpen(false); }}
+              onPick={function (k: string, scope?: "slide" | "deck") { if (scope === "deck") { setDeckBgOverride(k); } else { setSlideBgOverride(activeIdx, k); } /* stay open: DONE/ESC closes so picks + highlight stay visible */ }}
               onClose={function () { setAllOpen(false); }}
-              showNative={false}
+              showNative={true}
               infinityPick={false}
               scopeChoice={true}
               seed={libSeed}

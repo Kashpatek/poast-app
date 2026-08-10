@@ -1696,11 +1696,17 @@ export const useWizard = create<WizardStore>()((set, get) => ({
     const libDeck = isLibraryDeck(st.slides);
     if (st.bgSource !== "library" && !libDeck) return;
     get().pushUndo();
-    const next = st.slides.map(function (sl) {
-      const eligible = sl.type === "library" || (!libDeck && st.bgSource === "library");
+    const next = st.slides.map(function (sl, i) {
+      // The cover (slide 1) keeps its own design — a deck-wide / continuous
+      // backdrop runs slide 2 → end, exactly as the user described.
+      const isCover = i === 0 || sl.position === 1 || (typeof sl.type === "string" && sl.type.indexOf("cover") === 0);
+      const eligible = !isCover && (sl.type === "library" || (!libDeck && st.bgSource === "library"));
       return eligible ? { ...sl, libraryBgOverride: key } : sl;
     });
-    set({ slides: withLibraryChain(next), dirtySinceVariant: true });
+    // A continuous (∞ native) backdrop only reads as one strip in infinity mode,
+    // so selecting one flips the deck to infinity; a baked key keeps the mode.
+    const nextMode = key && isNativeKey(key) ? "infinity" : st.bgMode;
+    set({ bgMode: nextMode, slides: withLibraryChain(next), dirtySinceVariant: true });
   },
 
   // Deck-wide retint: stamp the chosen palette (or auto = category) on every

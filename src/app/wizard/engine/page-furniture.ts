@@ -54,15 +54,24 @@ export const CLOSER_CTAS: CtaItem[] = [
   { label: "Turn on alerts", sub: "never miss a drop" },
 ];
 
-// ── Swipe arrow (bottom-right frosted circle + chevron) ──────────────────────
-function swipeArrowInner(): string {
-  const r = 52;
+// Palette → accent (matches palette.ts identities). Blend = "both" → the ring
+// takes the second (amber) so the arrow shows cobalt + amber together.
+const PALETTE_ACCENT: Record<string, string> = { amber: "#F7B041", cobalt: "#0092FF", green: "#2EAD8E", blend: "#0092FF" };
+function accentFor(palette?: string): { main: string; ring: string } {
+  const p = palette && PALETTE_ACCENT[palette] ? palette : "blend";
+  const main = PALETTE_ACCENT[p];
+  const ring = p === "blend" ? "#F7B041" : main; // blend uses both hues
+  return { main, ring };
+}
+
+// ── Swipe arrow (bottom-right frosted circle + chevron), smaller + accented ──
+function swipeArrowInner(main: string, ring: string): string {
+  const r = 38;
   const cx = FULL_W - MARGIN_X - r;
   const cy = FULL_H - MARGIN_X - r;
   return (
-    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.28)" stroke-width="1.5"/>` +
-    `<circle cx="${cx}" cy="${cy}" r="${r - 1}" fill="none" stroke="rgba(0,0,0,0.25)" stroke-width="1"/>` +
-    `<path d="M ${cx - r * 0.24} ${cy - r * 0.42} L ${cx + r * 0.34} ${cy} L ${cx - r * 0.24} ${cy + r * 0.42}" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>`
+    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="rgba(255,255,255,0.08)" stroke="${ring}" stroke-opacity="0.55" stroke-width="1.5"/>` +
+    `<path d="M ${cx - r * 0.22} ${cy - r * 0.40} L ${cx + r * 0.34} ${cy} L ${cx - r * 0.22} ${cy + r * 0.40}" fill="none" stroke="${main}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`
   );
 }
 
@@ -157,7 +166,7 @@ export function closerCtaInner(
 
 // ── Composite: all furniture for one slide ───────────────────────────────────
 export function furnitureInner(
-  slide: { type?: string; bodyText?: string; bodySize?: number; coverAccent?: string },
+  slide: { type?: string; bodyText?: string; bodySize?: number; coverAccent?: string; libraryPalette?: string },
   opts: FurnitureOpts,
   page: number,
   total: number,
@@ -166,10 +175,11 @@ export function furnitureInner(
   const isCover = (slide.type || "").indexOf("cover") === 0;
   if (isCover) return ""; // the cover draws its own logo/topic
   const isLast = page >= total;
+  const acc = accentFor(slide.libraryPalette);
   let out = "";
   if (opts.logo !== "none") out += pageLogoInner(opts.logo, opts.logoCorner);
-  if (opts.arrow && !isLast) out += swipeArrowInner();
-  if (isLast && total > 1) out += closerCtaInner(slide, topic, opts.logo === "none" ? "lettermark" : opts.logo);
+  if (opts.arrow && !isLast) out += swipeArrowInner(acc.main, acc.ring);
+  if (isLast && total > 1) out += closerCtaInner({ ...slide, coverAccent: slide.coverAccent || acc.main }, topic, opts.logo === "none" ? "lettermark" : opts.logo);
   return out;
 }
 

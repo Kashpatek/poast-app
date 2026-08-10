@@ -453,7 +453,6 @@ export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose
   // scopeChoice: show a THIS SLIDE / WHOLE DECK toggle; the pick reports which.
   scopeChoice?: boolean;
 }) {
-  const [scope, setScope] = useState<"slide" | "deck">("slide");
   useEffect(function () {
     document.body.dataset.modalOpen = "1";
     function onKey(e: KeyboardEvent) {
@@ -485,12 +484,9 @@ export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div className="ph" style={{ flex: 1, margin: 0 }}>BACKDROPS · <b>{infinityPick ? "∞ + APPROVED" : showNative ? "∞ + ALL 36" : "ALL 36"}</b></div>
             {scopeChoice ? (
-              <div className="seg" title="Apply the next pick to just this slide, or the whole deck">
-                <span className={scope === "slide" ? "on" : ""} onClick={function () { setScope("slide"); }}>THIS SLIDE</span>
-                <span className={scope === "deck" ? "on" : ""} onClick={function () { setScope("deck"); }}>WHOLE DECK</span>
-              </div>
+              <span className="whisper" style={{ textTransform: "none", letterSpacing: 0 }}>Click a backdrop → this slide · <b style={{ color: "var(--amber)" }}>ALL</b> → whole deck</span>
             ) : null}
-            <span className="kbd" onClick={onClose} style={{ cursor: "pointer" }} title="Close">ESC</span>
+            <span className="kbd" onClick={onClose} style={{ cursor: "pointer" }} title="Close">{scopeChoice ? "DONE" : "ESC"}</span>
           </div>
         </div>
         <div className="rise d2" style={{ padding: 18, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -514,10 +510,10 @@ export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose
                         key={k}
                         role="button"
                         tabIndex={0}
-                        title={"∞ " + meta.name.toUpperCase() + " · " + meta.desc.toUpperCase()}
+                        title={"∞ " + meta.name.toUpperCase() + " · " + meta.desc.toUpperCase() + (scopeChoice ? " · continuous, slide 2 → end" : "")}
                         style={{ display: "flex", flexDirection: "column", gap: 5, cursor: "pointer", minWidth: 0 }}
-                        onClick={function () { onPick(k, scope); }}
-                        onKeyDown={function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(k, scope); } }}
+                        onClick={function () { onPick(k, scopeChoice ? "deck" : undefined); }}
+                        onKeyDown={function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(k, scopeChoice ? "deck" : undefined); } }}
                       >
                         <div style={{
                           position: "relative", aspectRatio: "4 / 5", borderRadius: 10, overflow: "hidden",
@@ -526,7 +522,7 @@ export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose
                           boxShadow: ringed ? "0 0 0 1px var(--amber)" : undefined,
                         }}>
                           <LibNativeBgPreview fam={fam} seed={seed || 1} palette={palette || "blend"} />
-                          {ringed ? <span style={libCornerTagStyle}>CURRENT</span> : null}
+                          {ringed ? <span style={libCornerTagStyle}>CURRENT</span> : scopeChoice ? <span style={{ ...libCornerTagStyle, background: "rgba(0,146,255,0.85)" }}>∞ ALL</span> : null}
                         </div>
                         <span style={libSwatchLabelStyle}>∞ · {meta.name}</span>
                         <span style={{ ...libSwatchLabelStyle, color: "var(--dim)" }}>{meta.desc}</span>
@@ -552,10 +548,10 @@ export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose
                         key={k}
                         role="button"
                         tabIndex={0}
-                        title={k + " · " + bd.name.toUpperCase() + " · " + bd.tier.toUpperCase()}
+                        title={k + " · " + bd.name.toUpperCase() + " · " + bd.tier.toUpperCase() + (scopeChoice ? " · click = this slide" : "")}
                         style={{ display: "flex", flexDirection: "column", gap: 5, cursor: "pointer", minWidth: 0 }}
-                        onClick={function () { onPick(k, scope); }}
-                        onKeyDown={function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(k, scope); } }}
+                        onClick={function () { onPick(k, scopeChoice ? "slide" : undefined); }}
+                        onKeyDown={function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(k, scopeChoice ? "slide" : undefined); } }}
                       >
                         <div style={{
                           position: "relative", aspectRatio: "4 / 5", borderRadius: 10, overflow: "hidden",
@@ -565,7 +561,15 @@ export function LibBackdropAllModal({ topics, topicKey, current, onPick, onClose
                         }}>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={bgSvgUrl(k)} alt={bd.name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                          {ringed ? <span style={libCornerTagStyle}>CURRENT</span> : null}
+                          {ringed ? <span style={libCornerTagStyle}>THIS SLIDE</span> : null}
+                          {scopeChoice ? (
+                            <button
+                              type="button"
+                              title="Apply this backdrop to the whole deck (slide 2 → end)"
+                              onClick={function (e) { e.stopPropagation(); onPick(k, "deck"); }}
+                              style={{ position: "absolute", right: 5, bottom: 5, padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", color: "#0A0B10", background: "var(--amber)", border: "none", cursor: "pointer" }}
+                            >ALL</button>
+                          ) : null}
                         </div>
                         <span style={libSwatchLabelStyle}>{k} · {bd.name}</span>
                         <span style={{ ...libSwatchLabelStyle, color: "var(--dim)" }}>{bd.tier}</span>
