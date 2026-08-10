@@ -653,24 +653,31 @@ Return JSON: { "subtitles": ["...", "...", "...", "..."] }`,
       const themeInfo = category ? (THEMES_MAP[category] || category) : "general";
       try {
         const result = await genJSON<{ prompt: string }>({
-          system: `You write image-generation prompts for SemiAnalysis Instagram-carousel COVERS. The image will be rendered behind a headline overlay, so leave generous negative space at the top. SA brand: editorial, technical, restrained color palette (cobalt + amber + deep slate). No text in the image. No watermarks. No people unless the title explicitly names one.`,
+          // Formulated by Claude (like Cover Creator's prompt-smith), regardless
+          // of the deck's text provider. A Cover Creator STYLE recipe is appended
+          // downstream (the picker's style gallery), so this base prompt owns the
+          // SUBJECT and the COMPOSITION only.
+          system: `You write image-generation prompts for SemiAnalysis Instagram-carousel COVERS, in the SemiAnalysis Cover Creator house aesthetic (editorial, technical, restrained — cobalt + amber + deep slate).
+
+CRITICAL COMPOSITION RULE: the image is a full-bleed background and the HEADLINE is overlaid across the BOTTOM of the frame. So the focal subject MUST sit in the TOP TWO-THIRDS of a tall 4:5 vertical frame, and the BOTTOM THIRD must stay visually calm — dark, low-detail, uncluttered negative space (a natural gradient-friendly ground) that large white headline text reads cleanly over. Never put the main subject, faces, or busy detail in the lower third.
+
+Never render text, watermarks, or logos in the image. No living people unless the title names one.`,
           maxTokens: 800,
-          provider,
-          prompt: `Compose ONE image-generation prompt that captures the cover idea below. It will be wrapped with SA style cues + brand palette downstream — focus on the subject, composition, and mood.
+          provider: "claude",
+          prompt: `Compose ONE image-generation prompt for the cover below. A style recipe + palette are appended downstream — you own the SUBJECT and the COMPOSITION.
 
 Cover title: "${title}"
 ${subtitle ? `Subtitle: "${subtitle}"` : ""}
 Category: ${themeInfo}
 ${text ? `Thread excerpt for context:\n${String(text).slice(0, 1500)}` : ""}
 
-The prompt should:
-- Name a concrete focal subject (a chip, a substrate close-up, a data center hall, a graph in 3D, a labeled wafer — pick what fits the title)
+The prompt MUST:
+- Name a concrete focal subject that fits the title (a chip, a substrate close-up, an isometric data-center hall, a 3D graph, a labeled wafer)
+- Place that subject in the TOP TWO-THIRDS of a vertical 4:5 frame, with the BOTTOM THIRD left as calm, dark, uncluttered negative space for a headline overlay (say this explicitly, e.g. "subject anchored in the upper two-thirds; lower third a dark clean gradient with no detail")
 - Specify a mood / lighting (cold studio light, dramatic side-light, soft editorial wash)
-- Specify a composition (centered, off-center with negative space top-right, isometric overhead, etc.)
-- 35-70 words total
+- 40-75 words, one paragraph, plain prose
 - No instructions to render text or logos
-- No mention of specific living people unless their name is in the title
-- One paragraph, plain prose
+- No specific living people unless the title names one
 
 Return JSON: { "prompt": "..." }`,
         });
