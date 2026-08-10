@@ -11,6 +11,7 @@ import { renderCoverSvg } from "../../carousel-covers";
 import { renderUniqueSvg } from "./unique/render";
 import { composeLibrarySvg, ensureLibraryAssets, libraryBgSvgDoc, ensureClassicBgs } from "./library/compose";
 import { FULL_W, FULL_H, MARGIN_X, type Slide } from "./types";
+import { furnitureInner, type FurnitureOpts } from "./page-furniture";
 
 // ═══ CANVAS RENDERER (for export) ═══
 // Ensure Grift (all weights used) is loaded before drawing to canvas.
@@ -70,6 +71,7 @@ export function drawCoverTemplate(ctx: CanvasRenderingContext2D, slide: Slide): 
         subtitle: slide.subtitle || "",
         accent: slide.coverAccent || "#F7B041",
         imageUrl: imgData,
+        imagePosition: slide.imagePosition || "center",
         dual: slide.coverDual || false,
         logoStyle: "auto",
         logoPosition: slide.coverLogoPos || "right",
@@ -252,7 +254,19 @@ function renderLibrarySlideToCanvas(slide: Slide): Promise<Blob> {
   });
 }
 
-export function renderSlideToCanvas(slide: Slide, bgUrl: string, page?: number, total?: number): Promise<Blob> {
+// Draw the page-furniture overlay (classic path only; furnitureInner returns
+// "" for cover/unique/library) onto ctx at full res, then continue.
+function drawFurnitureThen(ctx: CanvasRenderingContext2D, slide: Slide, furniture: FurnitureOpts | undefined, page: number, total: number, topic: string | undefined, done: () => void): void {
+  const inner = furniture ? furnitureInner(slide, furniture, page, total, topic) : "";
+  if (!inner) { done(); return; }
+  const fsvg = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + FULL_W + '" height="' + FULL_H + '" viewBox="0 0 1080 1350">' + inner + "</svg>";
+  const img = new Image();
+  img.onload = function () { try { ctx.drawImage(img, 0, 0, FULL_W, FULL_H); } catch { /* ignore */ } done(); };
+  img.onerror = function () { done(); };
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(fsvg);
+}
+
+export function renderSlideToCanvas(slide: Slide, bgUrl: string, page?: number, total?: number, furniture?: FurnitureOpts, topic?: string): Promise<Blob> {
   // Unique slides render their own full-bleed SVG; no backdrop image exists
   // for them, so branch before the bgUrl load. page/total are optional so
   // existing call sites compile unchanged (Stations pass them when known).
@@ -584,10 +598,12 @@ export function renderSlideToCanvas(slide: Slide, bgUrl: string, page?: number, 
           ctx.shadowBlur = 0;
         }
 
-        canvas.toBlob(function(blob) {
-          if (blob) resolve(blob);
-          else reject(new Error("Canvas toBlob failed"));
-        }, "image/png");
+        drawFurnitureThen(ctx, slide, furniture, page ?? 1, total ?? 1, topic, function () {
+          canvas.toBlob(function(blob) {
+            if (blob) resolve(blob);
+            else reject(new Error("Canvas toBlob failed"));
+          }, "image/png");
+        });
       }
 
       drawContent().catch(reject);

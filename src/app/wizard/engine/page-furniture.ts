@@ -153,9 +153,12 @@ export function closerCtaInner(
   const regionH = BODY_BOTTOM - regionY;
   const emptyFrac = (BODY_BOTTOM - textBottom) / AVAIL;
   const region = { x: MARGIN_X, y: regionY, w: CW, h: regionH };
-  const headline = topic && topic.trim() ? "Follow for more on " + topic.trim() : "Follow for more";
+  // topic arrives as a backdrop-topic SLUG (e.g. "gpu-clusters", or "brand" =
+  // fallback). Humanize it for copy and drop the meaningless fallback.
+  const t = topic && topic.trim() && topic.trim().toLowerCase() !== "brand" ? topic.trim().replace(/[-_]+/g, " ") : "";
+  const headline = t ? "Follow for more on " + t : "Follow for more";
   const ctas = [
-    { label: topic && topic.trim() ? "Read the full " + topic.trim() + " piece" : CLOSER_CTAS[0].label, sub: CLOSER_CTAS[0].sub },
+    { label: t ? "Read the full " + t + " piece" : CLOSER_CTAS[0].label, sub: CLOSER_CTAS[0].sub },
     CLOSER_CTAS[1],
     CLOSER_CTAS[2],
   ];
@@ -174,12 +177,21 @@ export function furnitureInner(
 ): string {
   const isCover = (slide.type || "").indexOf("cover") === 0;
   if (isCover) return ""; // the cover draws its own logo/topic
+  // Unique + library slides self-render their own wordmark/footer/logo, so
+  // furniture would double up — it's for the classic/verbatim render path only.
+  if (slide.type === "unique" || slide.type === "library") return "";
   const isLast = page >= total;
   const acc = accentFor(slide.libraryPalette);
   let out = "";
   if (opts.logo !== "none") out += pageLogoInner(opts.logo, opts.logoCorner);
   if (opts.arrow && !isLast) out += swipeArrowInner(acc.main, acc.ring);
-  if (isLast && total > 1) out += closerCtaInner({ ...slide, coverAccent: slide.coverAccent || acc.main }, topic, opts.logo === "none" ? "lettermark" : opts.logo);
+  // Closer CTA fills the blank space UNDER a plain text closer. Only "body"
+  // closers are measured from BODY_TOP; library/unique/image closers are
+  // self-composed or image-filled, so the CTA would paint over a finished
+  // slide — skip them (and skip an empty closer with no text to measure).
+  if (isLast && total > 1 && slide.type === "body" && (slide.bodyText || "").trim()) {
+    out += closerCtaInner({ ...slide, coverAccent: slide.coverAccent || acc.main }, topic, opts.logo === "none" ? "lettermark" : opts.logo);
+  }
   return out;
 }
 

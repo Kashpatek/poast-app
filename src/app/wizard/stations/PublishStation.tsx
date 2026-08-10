@@ -189,6 +189,8 @@ export function PublishStation() {
   const bgMode = useWizard((s) => s.bgMode);
   const bgSource = useWizard((s) => s.bgSource);
   const deckPalette = useWizard((s) => s.deckPalette);
+  const furniture = useWizard((s) => s.furniture);
+  const threadEntries = useWizard((s) => s.threadEntries);
   const articleTitle = useWizard((s) => s.articleTitle);
   const selectedVariantLabel = useWizard((s) => s.selectedVariantLabel);
   const captionOptions = useWizard((s) => s.captionOptions);
@@ -315,7 +317,7 @@ export function PublishStation() {
     const failures: number[] = [];
     for (let i = 0; i < slides.length; i++) {
       try {
-        files[prefix + "_slide" + (i + 1) + ".png"] = await renderSlidePng(slides[i], category, i + 1, slides.length);
+        files[prefix + "_slide" + (i + 1) + ".png"] = await renderSlidePng(slides[i], category, i + 1, slides.length, furniture, topic || undefined);
       } catch {
         failures.push(i);
       }
@@ -343,7 +345,7 @@ export function PublishStation() {
     setSingleBusy(i);
     try {
       await ensureFontsReady();
-      const bytes = await renderSlidePng(slides[i], category, i + 1, slides.length);
+      const bytes = await renderSlidePng(slides[i], category, i + 1, slides.length, furniture, topic || undefined);
       downloadBlob(bytesToBlob(bytes, "image/png"), prefix + "_slide" + (i + 1) + ".png");
       logAction("SLIDE " + two(i + 1) + " PNG DOWNLOADED");
     } catch {
@@ -413,6 +415,10 @@ export function PublishStation() {
           // v3.8: the whole-deck color-theme retint rides the archive so
           // reopening restores it (else the next restamp reverts to category).
           deckPalette: deckPalette,
+          // v3.9/3.10: the verbatim thread source + page-furniture settings ride
+          // the archive too, so reopening restores the composer + arrow/logo.
+          threadEntries: threadEntries,
+          furniture: furniture,
         },
       };
       const res = await saveArchive({
@@ -561,7 +567,7 @@ export function PublishStation() {
                     >
                       {two(i + 1)}
                     </span>
-                    <SlidePreview slide={sl} theme={category} width={150} />
+                    <SlidePreview slide={sl} theme={category} width={150} page={i + 1} total={slides.length} furniture={furniture} topic={topic || undefined} showFurniture={true} />
                   </button>
                 ))}
               </div>

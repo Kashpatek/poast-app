@@ -1703,10 +1703,12 @@ export const useWizard = create<WizardStore>()((set, get) => ({
       const eligible = !isCover && (sl.type === "library" || (!libDeck && st.bgSource === "library"));
       return eligible ? { ...sl, libraryBgOverride: key } : sl;
     });
-    // A continuous (∞ native) backdrop only reads as one strip in infinity mode,
-    // so selecting one flips the deck to infinity; a baked key keeps the mode.
-    const nextMode = key && isNativeKey(key) ? "infinity" : st.bgMode;
-    set({ bgMode: nextMode, slides: withLibraryChain(next), dirtySinceVariant: true });
+    // A native ("continuous") key deck-wide already stamps a continuous strip:
+    // the rotate chain gives each body slide window i of the native world, so
+    // the run reads seamless across slides 2 → end. (Do NOT flip bgMode here —
+    // withLibraryChain hardcodes rotate for classic/verbatim decks, so a flip
+    // would only leave bgMode lying while the deck still renders as rotate.)
+    set({ slides: withLibraryChain(next), dirtySinceVariant: true });
   },
 
   // Deck-wide retint: stamp the chosen palette (or auto = category) on every
@@ -1926,6 +1928,10 @@ export const useWizard = create<WizardStore>()((set, get) => ({
         // v3.8: restore the archived whole-deck retint (or null = category
         // tint). Also resets any leftover deckPalette from a prior open.
         deckPalette: isLibPalette(wi.deckPalette) ? wi.deckPalette : null,
+        // v3.9/3.10: restore the thread source + furniture (or fresh defaults),
+        // so reopening an archive doesn't leak the previous deck's state.
+        threadEntries: Array.isArray(wi.threadEntries) ? (wi.threadEntries as ThreadEntry[]) : [],
+        furniture: wi.furniture && typeof wi.furniture === "object" ? { ...DEFAULT_FURNITURE, ...(wi.furniture as object) } : { ...DEFAULT_FURNITURE },
         slides: slides,
         activeIdx: 0,
         undoStack: [],

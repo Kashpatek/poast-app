@@ -13,6 +13,7 @@
 
 import { FULL_W, FULL_H, MARGIN_X, getBackdropUrl, type Slide, type ThemeKey, type CaptionOption } from "../engine/types";
 import { renderSlideToCanvas } from "../engine/export-renderer";
+import type { FurnitureOpts } from "../engine/page-furniture";
 import type { PlatTab } from "../store";
 
 // ─── platforms (limits per V1 ReviewStep, carousel.tsx:1882-1886) ───
@@ -100,8 +101,8 @@ export function captionForArchive(opt: CaptionOption | null | undefined, plat: P
 }
 
 // ─── rendering + download plumbing ───
-export async function renderSlidePng(slide: Slide, theme: ThemeKey, page?: number, total?: number): Promise<Uint8Array> {
-  const blob = await renderSlideToCanvas(slide, getBackdropUrl(theme, slide.position), page, total);
+export async function renderSlidePng(slide: Slide, theme: ThemeKey, page?: number, total?: number, furniture?: FurnitureOpts, topic?: string): Promise<Uint8Array> {
+  const blob = await renderSlideToCanvas(slide, getBackdropUrl(theme, slide.position), page, total, furniture, topic);
   return new Uint8Array(await blob.arrayBuffer());
 }
 

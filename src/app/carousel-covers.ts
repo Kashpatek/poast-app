@@ -15,6 +15,7 @@ export interface CoverProps {
   showMeta?: boolean;
   upper?: boolean;
   tight?: boolean;
+  imagePosition?: string;            // cover image focus: "top" | "center" | "bottom" (default center)
 }
 
 export type CoverTemplateId = "01" | "02" | "03" | "04" | "05" | "06";
@@ -48,6 +49,15 @@ interface ResolvedCoverProps {
   showMeta: boolean;
   upper: boolean;
   tight: boolean;
+  imagePar: string; // preserveAspectRatio for the cover image (encodes focus)
+}
+
+// Map the cover-image focus to an SVG preserveAspectRatio Y-alignment. The
+// headline sits low, so "top" keeps the subject in the upper two-thirds.
+function parFor(pos?: string): string {
+  if (pos === "top") return "xMidYMin slice";
+  if (pos === "bottom") return "xMidYMax slice";
+  return "xMidYMid slice";
 }
 
 function resolve(p: CoverProps): ResolvedCoverProps {
@@ -66,6 +76,7 @@ function resolve(p: CoverProps): ResolvedCoverProps {
     showMeta: p.showMeta !== false,
     upper: p.upper !== false,
     tight: p.tight || false,
+    imagePar: parFor(p.imagePosition),
   };
 }
 
@@ -279,7 +290,7 @@ function gradient(id: string, stops: { o: string; c: string; a: number }[]): str
 
 function imageOrFallback(p: ResolvedCoverProps, id: string): string {
   if (p.imageUrl) {
-    return `<image href="${esc(p.imageUrl)}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/>`;
+    return `<image href="${esc(p.imageUrl)}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="${p.imagePar}"/>`;
   }
   return `
     <defs>
@@ -382,7 +393,7 @@ function render01(rawP: CoverProps): string {
   const tb = titleBlock(p, lines, fs, textX, titleBottomY);
 
   const innerImage = p.imageUrl
-    ? `<image href="${esc(p.imageUrl)}" x="${pad}" y="${pad}" width="${frameW}" height="${frameH}" preserveAspectRatio="xMidYMid slice"/>`
+    ? `<image href="${esc(p.imageUrl)}" x="${pad}" y="${pad}" width="${frameW}" height="${frameH}" preserveAspectRatio="${p.imagePar}"/>`
     : `<rect x="${pad}" y="${pad}" width="${frameW}" height="${frameH}" fill="#0F1626"/>
        <rect x="${pad}" y="${pad}" width="${frameW}" height="${frameH}" fill="url(#v01-pat-inner)"/>`;
 
@@ -428,7 +439,7 @@ function render02(rawP: CoverProps): string {
   const subStartY = subEndY - (subLines.length - 1) * subGap;
 
   const bg = p.imageUrl
-    ? `<image href="${esc(p.imageUrl)}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/>
+    ? `<image href="${esc(p.imageUrl)}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="${p.imagePar}"/>
        <rect width="${W}" height="${H}" fill="#0A0B10" fill-opacity="0.74"/>
        <rect width="${W}" height="${H}" fill="url(#v02-pat)"/>`
     : `<rect width="${W}" height="${H}" fill="#0A0B10"/>
@@ -495,10 +506,10 @@ function render03(rawP: CoverProps): string {
   const dualImg = p.imageUrl
     ? `
       <g clip-path="url(#v03-top)">
-        <image href="${esc(p.imageUrl)}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/>
+        <image href="${esc(p.imageUrl)}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="${p.imagePar}"/>
       </g>
       <g clip-path="url(#v03-bot)" filter="url(#v03-tint)">
-        <image href="${esc(p.imageUrl)}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/>
+        <image href="${esc(p.imageUrl)}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="${p.imagePar}"/>
       </g>
     `
     : `
@@ -575,7 +586,7 @@ function render05(rawP: CoverProps): string {
     <rect width="${W}" height="${H}" fill="#0A0B10"/>
     <g clip-path="url(#v05-clip)">
       ${p.imageUrl
-        ? `<image href="${esc(p.imageUrl)}" x="0" y="0" width="${W}" height="${imgH}" preserveAspectRatio="xMidYMid slice"/>`
+        ? `<image href="${esc(p.imageUrl)}" x="0" y="0" width="${W}" height="${imgH}" preserveAspectRatio="${p.imagePar}"/>`
         : `<rect width="${W}" height="${imgH}" fill="#1A2438"/>`}
     </g>
     <defs><clipPath id="v05-clip"><rect width="${W}" height="${imgH}"/></clipPath></defs>
