@@ -22,6 +22,7 @@ export async function ensureFontsReady(): Promise<void> {
     // Pre-request each weight the canvas actually uses.
     await Promise.all([
       document.fonts.load("400 16px Grift"),
+      document.fonts.load("600 16px Grift"),
       document.fonts.load("700 16px Grift"),
       document.fonts.load("800 16px Grift"),
     ]);
@@ -471,19 +472,19 @@ export function renderSlideToCanvas(slide: Slide, bgUrl: string, page?: number, 
             // Image on top, text below
             var bImgH = Math.round(availH * ((slide.imageHeight || 45) / 100));
             await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, bImgH, 20, imgOpts);
-            drawText(slide.bodyText || "", MARGIN_X, TOP_Y + bImgH + 16, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.55);
+            drawText(slide.bodyText || "", MARGIN_X, TOP_Y + bImgH + 16, contentWidth, slide.bodySize, "600", "rgba(255,255,255,0.92)", 1.55);
           } else if (slide.imageUrl && slide.inverted) {
             // Text on top, image below
             var bImgH2 = Math.round(availH * ((slide.imageHeight || 45) / 100));
-            var textEndY = drawText(slide.bodyText || "", MARGIN_X, TOP_Y, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.55);
+            var textEndY = drawText(slide.bodyText || "", MARGIN_X, TOP_Y, contentWidth, slide.bodySize, "600", "rgba(255,255,255,0.92)", 1.55);
             await drawImage(slide.imageUrl, MARGIN_X, textEndY + 16, contentWidth, bImgH2, 20, imgOpts);
           } else if (slide.bodyAnchor === "top") {
             // Text only, top-anchored
-            drawText(slide.bodyText || "", MARGIN_X, TOP_Y, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.55);
+            drawText(slide.bodyText || "", MARGIN_X, TOP_Y, contentWidth, slide.bodySize, "600", "rgba(255,255,255,0.92)", 1.55);
           } else {
             // Text only — vertically center (legacy)
             // Measure text height accounting for paragraph breaks
-            ctx.font = "400 " + slide.bodySize + "px Grift, Outfit, sans-serif";
+            ctx.font = "600 " + slide.bodySize + "px Grift, Outfit, sans-serif";
             var lh = slide.bodySize * 1.55;
             var totalLines = 0;
             var paragraphs = (slide.bodyText || "").split(/\n/);
@@ -501,16 +502,16 @@ export function renderSlideToCanvas(slide: Slide, bgUrl: string, page?: number, 
             }
             var totalTextH = totalLines * lh;
             var bodyY = TOP_Y + Math.max(0, (availH - totalTextH) / 2);
-            drawText(slide.bodyText || "", MARGIN_X, bodyY, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.55);
+            drawText(slide.bodyText || "", MARGIN_X, bodyY, contentWidth, slide.bodySize, "600", "rgba(255,255,255,0.92)", 1.55);
           }
 
         } else if (slide.type === "image_text") {
           var itImgH = Math.round(availH * ((slide.imageHeight || 50) / 100));
           if (!slide.inverted) {
             await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, contentWidth, itImgH, 20, imgOpts);
-            drawText(slide.bodyText || "", MARGIN_X, TOP_Y + itImgH + 16, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.5);
+            drawText(slide.bodyText || "", MARGIN_X, TOP_Y + itImgH + 16, contentWidth, slide.bodySize, "600", "rgba(255,255,255,0.92)", 1.5);
           } else {
-            var itTextEnd = drawText(slide.bodyText || "", MARGIN_X, TOP_Y, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.5);
+            var itTextEnd = drawText(slide.bodyText || "", MARGIN_X, TOP_Y, contentWidth, slide.bodySize, "600", "rgba(255,255,255,0.92)", 1.5);
             await drawImage(slide.imageUrl, MARGIN_X, itTextEnd + 16, contentWidth, itImgH, 20, imgOpts);
           }
 
@@ -563,14 +564,14 @@ export function renderSlideToCanvas(slide: Slide, bgUrl: string, page?: number, 
           var bdImageRowH = Math.max(120, Math.round(availH * 0.55));
           var bdHalfW = Math.round((contentWidth - bdImgGap) / 2);
           if (!slide.inverted) {
-            var bdTextEnd = drawText(slide.bodyText || "", MARGIN_X, TOP_Y, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.5);
+            var bdTextEnd = drawText(slide.bodyText || "", MARGIN_X, TOP_Y, contentWidth, slide.bodySize, "600", "rgba(255,255,255,0.92)", 1.5);
             var bdImgY = bdTextEnd + bdGap;
             await drawImage(slide.imageUrl, MARGIN_X, bdImgY, bdHalfW, bdImageRowH, 16, imgOpts);
             await drawImage(slide.imageUrl2, MARGIN_X + bdHalfW + bdImgGap, bdImgY, bdHalfW, bdImageRowH, 16, imgOpts2);
           } else {
             await drawImage(slide.imageUrl, MARGIN_X, TOP_Y, bdHalfW, bdImageRowH, 16, imgOpts);
             await drawImage(slide.imageUrl2, MARGIN_X + bdHalfW + bdImgGap, TOP_Y, bdHalfW, bdImageRowH, 16, imgOpts2);
-            drawText(slide.bodyText || "", MARGIN_X, TOP_Y + bdImageRowH + bdGap, contentWidth, slide.bodySize, "400", "rgba(255,255,255,0.92)", 1.5);
+            drawText(slide.bodyText || "", MARGIN_X, TOP_Y + bdImageRowH + bdGap, contentWidth, slide.bodySize, "600", "rgba(255,255,255,0.92)", 1.5);
           }
         }
 

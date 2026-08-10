@@ -283,7 +283,7 @@ export function SlideCanvas({ slide, theme, onUpdate, onRequestPicker, onSplitBo
         suppressContentEditableWarning
         onBlur={function(e) { updateField("bodyText", e.currentTarget.innerText); }}
         onKeyDown={handleBodyKeyDown}
-        style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.92)", lineHeight: 1.55, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", overflow: "hidden", textAlign: "left" }}
+        style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 600, color: "rgba(255,255,255,0.92)", lineHeight: 1.55, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", overflow: "hidden", textAlign: "left" }}
       >{slide.bodyText || "Body text"}</div>
       {/* CTA text on closer (position 4) */}
       {slide.position === 4 && slide.ctaText && !showFurniture && <div style={{ position: "absolute", bottom: 60 * SCALE, left: slide.ctaPosition === "bottom-center" ? 0 : "auto", right: slide.ctaPosition === "bottom-center" ? 0 : (60 * SCALE), width: slide.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: slide.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * SCALE, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 10px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.4)", letterSpacing: "1px", textTransform: "uppercase" }}>{slide.ctaText}</div>}
@@ -306,7 +306,7 @@ export function SlideCanvas({ slide, theme, onUpdate, onRequestPicker, onSplitBo
         suppressContentEditableWarning
         onBlur={function(e) { updateField("bodyText", e.currentTarget.innerText); }}
         onKeyDown={handleBodyKeyDown}
-        style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.92)", lineHeight: 1.5, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", flex: 1, overflow: "hidden" }}
+        style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 600, color: "rgba(255,255,255,0.92)", lineHeight: 1.5, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", flex: 1, overflow: "hidden" }}
       >{slide.bodyText || "Body text"}</div>
     </div>}
 
@@ -418,7 +418,7 @@ export function SlideCanvas({ slide, theme, onUpdate, onRequestPicker, onSplitBo
         contentEditable
         suppressContentEditableWarning
         onBlur={function(e) { updateField("bodyText", e.currentTarget.innerText); }}
-        style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 400, color: "rgba(255,255,255,0.92)", lineHeight: 1.5, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", flexShrink: 0, textAlign: "left" }}
+        style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 600, color: "rgba(255,255,255,0.92)", lineHeight: 1.5, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", flexShrink: 0, textAlign: "left" }}
       >{slide.bodyText || "Body text"}</div>
       <div style={{ display: "flex", flex: 1, gap: 8, minHeight: 0 }}>
         <ImageFrame
