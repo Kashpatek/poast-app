@@ -547,6 +547,9 @@ function LibBgControls({ active, activeIdx }: { active: Slide; activeIdx: number
       </div>
       {allOpen && typeof document !== "undefined"
         ? createPortal(
+            // Portaled to <body>, OUTSIDE .wizard-root — wrap so the scoped
+            // .modal-backdrop/.modal (and CSS vars) apply; else it renders inline.
+            <div className="wizard-root">
             <LibBackdropAllModal
               topics={topicsData}
               topicKey={topicKey}
@@ -563,7 +566,8 @@ function LibBgControls({ active, activeIdx }: { active: Slide; activeIdx: number
               deckPalette={deckPalette ?? CATEGORY_PALETTE[category]}
               seed={libSeed}
               palette={CATEGORY_PALETTE[category]}
-            />,
+            />
+            </div>,
             document.body
           )
         : null}
@@ -1425,12 +1429,14 @@ export function EditInspector() {
           </Sec>
           {closerOpen && typeof document !== "undefined"
             ? createPortal(
+                <div className="wizard-root">
                 <CloserCtaPicker
                   current={furniture.closerCta}
                   accent={CATEGORY_PALETTE[category] === "amber" ? "#F7B041" : CATEGORY_PALETTE[category] === "cobalt" ? "#0092FF" : CATEGORY_PALETTE[category] === "green" ? "#2EAD8E" : "#F7B041"}
                   onPick={function (id) { setFurniture({ closerCta: id }); setCloserOpen(false); }}
                   onClose={function () { setCloserOpen(false); }}
-                />,
+                />
+                </div>,
                 document.body
               )
             : null}
