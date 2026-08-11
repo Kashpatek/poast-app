@@ -1395,7 +1395,9 @@ export function EditInspector() {
             )}
           </Sec>
 
-          {/* ═══ PAGE FURNITURE (deck-level: arrow + logo on every post-cover page) ═══ */}
+          {/* ═══ PAGE FURNITURE — only where it applies (classic/verbatim/AI);
+                unique + library self-render their own logo/footer/arrow. ═══ */}
+          {!isUnique && active.type !== "library" ? (<>
           <Sec id="furniture" label="PAGE FURNITURE" extra={furniture.arrow ? "ARROW" : "NO ARROW"} open={!!openSecs.furniture} onToggle={toggleSec}>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -1443,6 +1445,7 @@ export function EditInspector() {
                 document.body
               )
             : null}
+          </>) : null}
 
           {/* ═══ 7 · REVISIONS (collapsed by default) ═══ */}
           <Sec id="revisions" label="REVISIONS" extra="AUTOSAVE" open={!!openSecs.revisions} onToggle={toggleSec}>
