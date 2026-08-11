@@ -463,6 +463,8 @@ function LibBgControls({ active, activeIdx }: { active: Slide; activeIdx: number
   const category = useWizard(function (s) { return s.category; });
   const setSlideBgOverride = useWizard(function (s) { return s.setSlideBgOverride; });
   const setDeckBgOverride = useWizard(function (s) { return s.setDeckBgOverride; });
+  const setSlideBackdrop = useWizard(function (s) { return s.setSlideBackdrop; });
+  const setDeckBackdrop = useWizard(function (s) { return s.setDeckBackdrop; });
   const deckPalette = useWizard(function (s) { return s.deckPalette; });
   const setDeckPalette = useWizard(function (s) { return s.setDeckPalette; });
   const setSlidePalette = useWizard(function (s) { return s.setSlidePalette; });
@@ -555,8 +557,9 @@ function LibBgControls({ active, activeIdx }: { active: Slide; activeIdx: number
               topicKey={topicKey}
               current={resolvedKey || "02"}
               onPick={function (k: string, scope?: "slide" | "deck", pal?: LibPalette) {
-                if (scope === "deck") { setDeckBgOverride(k); if (pal) setDeckPalette(pal); }
-                else { setSlideBgOverride(activeIdx, k); if (pal) setSlidePalette(activeIdx, pal); }
+                const p = pal || "blend";
+                if (scope === "deck") setDeckBackdrop(k, p);
+                else setSlideBackdrop(activeIdx, k, p);
                 /* stay open: DONE/ESC closes so picks + highlight stay visible */
               }}
               onClose={function () { setAllOpen(false); }}

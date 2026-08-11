@@ -216,6 +216,9 @@ export interface WizardStore {
   setTopic(k: LibTopicKey | null): void; // sets topic + re-chains library decks
   setSlideBgOverride(idx: number, key: string | null): void; // finalize/AUTO one slide, re-chain deck (deck-wide in infinity)
   setDeckBgOverride(key: string | null): void; // set/AUTO the same backdrop on every eligible slide (EDIT popup "whole deck")
+  // Atomic backdrop + colour apply from the EDIT popup (one set(), no interleave).
+  setSlideBackdrop(idx: number, key: string, pal: LibPalette): void;
+  setDeckBackdrop(key: string, pal: LibPalette): void;
   // v3.6 CHOOSE bench: finalize/AUTO one DIRECTION's backdrop before commit.
   // ∞ picks stamp every slide of that deck (deck-level intent, same as
   // setSlideBgOverride); rotate picks finalize the cover and let the chain
@@ -1709,6 +1712,36 @@ export const useWizard = create<WizardStore>()((set, get) => ({
     // withLibraryChain hardcodes rotate for classic/verbatim decks, so a flip
     // would only leave bgMode lying while the deck still renders as rotate.)
     set({ slides: withLibraryChain(next), dirtySinceVariant: true });
+  },
+
+  // Atomic "apply to THIS PAGE": backdrop key + colour on one slide, one set().
+  setSlideBackdrop(idx, key, pal) {
+    const st = get();
+    if (idx < 0 || idx >= st.slides.length) return;
+    const target = st.slides[idx];
+    if (!target) return;
+    const isLib = target.type === "library";
+    if (!isLib && (st.bgSource !== "library" || isLibraryDeck(st.slides))) return;
+    get().pushUndo();
+    const next = st.slides.slice();
+    next[idx] = { ...target, libraryBgOverride: key, libraryPaletteOverride: pal };
+    set({ slides: withLibraryChain(next), dirtySinceVariant: true });
+  },
+
+  // Atomic "apply to ALL PAGES": same backdrop + colour on every non-cover slide
+  // (the cover keeps its own design), plus the deck palette, in ONE set() so the
+  // bg + colour land together and nothing re-chains them apart.
+  setDeckBackdrop(key, pal) {
+    const st = get();
+    const libDeck = isLibraryDeck(st.slides);
+    if (st.bgSource !== "library" && !libDeck) return;
+    get().pushUndo();
+    const next = st.slides.map(function (sl, i) {
+      const isCover = i === 0 || sl.position === 1 || (typeof sl.type === "string" && sl.type.indexOf("cover") === 0);
+      if (isCover) return sl;
+      return { ...sl, libraryBgOverride: key, libraryPaletteOverride: pal };
+    });
+    set({ deckPalette: pal, slides: withLibraryChain(next), dirtySinceVariant: true });
   },
 
   // Deck-wide retint: stamp the chosen palette (or auto = category) on every
