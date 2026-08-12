@@ -4,7 +4,8 @@ import GTCFlow from "./gtc-flow";
 import NewsFlow from "./news-flow";
 import BufferSchedule from "./buffer-schedule";
 import PressToPremi from "./press-to-premier";
-import Carousel from "./carousel";
+// The old inline Carousel is replaced platform-wide by CarouselNEU (/carousel-2);
+// the "Carousel" section now redirects there (CarouselRedirect, defined below).
 import FabricatedKnowledge from "./fabricated-knowledge";
 import Trends from "./trends";
 import SlopTop from "./slop-top";
@@ -33,7 +34,7 @@ import HubPalette, { type PaletteItem } from "./hub-palette";
 import { BugButton } from "./bug-report";
 import { trackEvent } from "../lib/poast-track";
 
-import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings, Wand, ShieldCheck, Sparkles, BookmarkCheck, ClipboardCheck, TrendingUp, Layers, CheckSquare, Brain, Type, Rocket, Home, Sun, Search, Bell, Heart, X as XIcon } from "lucide-react";
+import { Zap, LayoutGrid, Captions, Clapperboard, Film, BarChart3, GanttChart, Headphones, Radio, Send, Flame, Lightbulb, Newspaper, Activity, Calendar, Library, Presentation, Settings, Wand, ShieldCheck, Sparkles, BookmarkCheck, ClipboardCheck, TrendingUp, CheckSquare, Brain, Type, Rocket, Home, Sun, Search, Bell, Heart, X as XIcon } from "lucide-react";
 type LucideIcon = React.ComponentType<{ size?: number | string; strokeWidth?: number; color?: string; style?: React.CSSProperties }>;
 import { D as C, PL, ft, gf, mn } from "./shared-constants";
 import { useUser, isAnalyst, canUseDocuDesign, isAkash, emailToUserName } from "./user-context";
@@ -55,6 +56,13 @@ import { SendToChip } from "./components/send-to-chip";
 import { Command } from "cmdk";
 import { useStore, type ToolOutput } from "./lib/store";
 import { ShortcutsProvider, useShortcuts } from "./keyboard-shortcuts";
+
+// Platform Carousel = CarouselNEU. The "Carousel" nav target redirects to the
+// /carousel-2 wizard (same tab) instead of rendering the retired inline v1.
+function CarouselRedirect() {
+  useEffect(function () { window.location.href = "/carousel-2"; }, []);
+  return <div style={{ padding: 48, color: "rgba(255,255,255,0.6)", fontFamily: "var(--body)", fontSize: 14 }}>Opening Carousel…</div>;
+}
 
 // ═══ INTERFACES ═══
 interface BufferChannel {
@@ -813,7 +821,6 @@ var SIDEBAR_CATS: Record<string, SidebarCat> = {
     { id: "production-studio", l: "ProductionSTUDIO", Icon: Clapperboard, href: "/production-studio", badge: "NEW", sub: "Full post suite" },
     { id: "brainstorm", l: "Brainstorm",     Icon: Lightbulb,  sub: "Ideas & angles" },
     { id: "carousel", l: "Carousel",         Icon: LayoutGrid, sub: "Instagram carousels" },
-    { id: "carousel-neu", l: "CarouselNEU",  Icon: Layers,     href: "/carousel-2", badge: "NEW", sub: "Foundry wizard · 4 modes" },
     { id: "chart",    l: "ChartMAKER",       Icon: GanttChart, href: "/charts", badge: "NEW", sub: "Quick charts" },
     { id: "docu",     l: "DesignSTUDIO",     Icon: Wand,       href: "/design-studio", badge: "NEW", sub: "Docs · graphics · motion" },
     { id: "copy-studio", l: "CopySTUDIO",   Icon: Type,       href: "/copy-studio", badge: "NEW", sub: "Draft · voice · headline" },
@@ -1826,8 +1833,6 @@ function SplashScreen({ onNavigate }: { onNavigate: (id: string) => void }) {
   // under Admin so it doesn't crowd the daily creative tiles.
   if (isAkash(userCtx.user)) {
     sections[sections.length - 1].tiles.unshift({ id: "tasks", label: "Task Board", sub: "Daily planner + Focus Mode", Icon: CheckSquare });
-    // Akash-only: the in-progress Carousel 2.0 studio, next to the v1 Carousel tile.
-    sections[0].tiles.splice(2, 0, { id: "carousel-neu", label: "CarouselNEU", sub: "Foundry wizard · 4 modes", Icon: Layers, href: "/carousel-2" });
   }
 
   // Site-wide ordering: Recently used → Favorites → the system sections above.
@@ -1978,7 +1983,7 @@ function StockHome({ onNavigate }: { onNavigate: (id: string) => void }) {
     ] },
   ];
   if (canDocu) sections[0].tiles.push({ id: "docu", label: "DesignStudio", sub: "Docs · graphics · images · motion", Icon: Wand, href: "/design-studio" });
-  if (isAkash(userCtx.user)) { sections[sections.length - 1].tiles.unshift({ id: "tasks", label: "Task Board", sub: "Daily planner + Focus Mode", Icon: CheckSquare }); sections[0].tiles.splice(2, 0, { id: "carousel-neu", label: "CarouselNEU", sub: "Foundry wizard · 4 modes", Icon: Layers, href: "/carousel-2" }); }
+  if (isAkash(userCtx.user)) { sections[sections.length - 1].tiles.unshift({ id: "tasks", label: "Task Board", sub: "Daily planner + Focus Mode", Icon: CheckSquare }); }
   // Analyst gate: only surface tools the analyst can actually open, and drop
   // any category that empties out.
   if (analyst) {
@@ -2877,7 +2882,7 @@ export default function App() {
         {sec === "weekly" && <SAWeekly />}
         {sec === "captions" && <ClipCaptions />}
         {sec === "brainstorm" && <BrainstormHub />}
-        {sec === "carousel" && <Carousel />}
+        {sec === "carousel" && <CarouselRedirect />}
         {sec === "sloptop" && <SlopTop />}
         {sec === "broll" && <BRollLibrary />}
         {sec === "chart" && <ChartMaker />}

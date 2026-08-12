@@ -47,7 +47,10 @@ const PUBLIC_EXACT = new Set(["/api/clip/callback"]);
 // today CoverCreator, opened to everyone signed in while the rest of the hub
 // stays admin-only. (/api/cover is intentionally NOT admin-gated for the same
 // reason; its per-user writes are keyed to the verified session server-side.)
-const ADMIN_ONLY_PREFIXES = ["/board/original", "/carousel-2", "/api/library", "/testing123"];
+// CarouselNEU (/carousel-2 + its /api/library backend) is now the platform
+// Carousel for everyone signed in — promoted out of admin-only. The /testing123
+// hub + Akash's board stay admin-only.
+const ADMIN_ONLY_PREFIXES = ["/board/original", "/testing123"];
 const ADMIN_ONLY_EXCEPTIONS = ["/testing123/cover-creator"];
 const NON_ANALYST_PREFIXES = ["/ai-training"];
 function matchesPrefix(pathname: string, prefixes: string[]): boolean {
