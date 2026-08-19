@@ -30,8 +30,9 @@ function esc(s: string): string { return String(s || "").replace(/&/g, "&amp;").
 // ── Options ──────────────────────────────────────────────────────────────────
 export type LogoVariant = "lettermark" | "lettermarkText" | "boxLettermark" | "full" | "none";
 export type Corner = "tl" | "tr" | "bl" | "br";
-export type CloserStyle = "heroIcons" | "heroLogo" | "heroBold" | "buttons" | "list" | "newsletter" | "bar" | "off";
+export type CloserStyle = "siteLine" | "heroIcons" | "heroLogo" | "heroBold" | "buttons" | "list" | "newsletter" | "bar" | "off";
 export const CLOSER_STYLES: { id: CloserStyle; label: string }[] = [
+  { id: "siteLine", label: "Website line (classic)" },
   { id: "heroIcons", label: "Hero · icons" },
   { id: "heroLogo", label: "Hero · logo-led" },
   { id: "heroBold", label: "Hero · bold" },
@@ -41,8 +42,19 @@ export const CLOSER_STYLES: { id: CloserStyle; label: string }[] = [
   { id: "bar", label: "Icon tiles + bar" },
   { id: "off", label: "None" },
 ];
-export interface FurnitureOpts { arrow: boolean; logo: LogoVariant; logoCorner: Corner; closerCta: CloserStyle }
-export const DEFAULT_FURNITURE: FurnitureOpts = { arrow: true, logo: "lettermark", logoCorner: "tr", closerCta: "heroIcons" };
+// ctaText is the editable "old white CTA" line — the website (e.g. semianalysis.com)
+// or "LINK IN BIO". It replaces the formerly hard-coded site line across every
+// closer style, and is the whole payload of the classic `siteLine` closer.
+export interface FurnitureOpts { arrow: boolean; logo: LogoVariant; logoCorner: Corner; closerCta: CloserStyle; ctaText: string }
+export const DEFAULT_FURNITURE: FurnitureOpts = { arrow: true, logo: "lettermark", logoCorner: "tr", closerCta: "heroIcons", ctaText: "semianalysis.com" };
+export const DEFAULT_CTA_TEXT = "semianalysis.com";
+// Quick presets the inspector offers for the editable line.
+export const CTA_PRESETS = ["semianalysis.com", "LINK IN BIO"];
+// The subscribe button reads naturally whether the line is a domain or a phrase.
+function subscribeLine(site: string): string {
+  const s = (site || DEFAULT_CTA_TEXT).trim();
+  return (s.indexOf(".") >= 0 && s.indexOf(" ") < 0 ? "SUBSCRIBE AT " : "SUBSCRIBE · ") + s.toUpperCase();
+}
 
 function logoAsset(v: LogoVariant): LogoAsset { return v === "full" ? LOGO_FULL : v === "boxLettermark" ? LOGO_BOXLETTERMARK : v === "lettermarkText" ? LOGO_LETTERMARKTEXT : LOGO_LETTERMARK; }
 
@@ -118,8 +130,22 @@ function iconRow(names: string[], cy: number, accent: string): string {
 }
 const HERO_LOGO = (v: LogoVariant) => (v === "none" ? "lettermark" : v) as LogoVariant;
 
+// Classic "old white CTA" — a clean, centered site line is the whole closer.
+// Small caps lead-in → the editable line (website or LINK IN BIO) → logo.
+function sSiteLine(r: Region, accent: string, logoV: LogoVariant, site: string): string {
+  const groupH = 34 + 26 + 74 + 44 + 56;
+  let y = r.y + Math.max(16, ((r.h - 30) - groupH) / 2);
+  let o = "";
+  o += tx(CX, y + 26, 30, 700, MUT, "READ THE FULL ANALYSIS", "middle", "2.5");
+  y += 34 + 26;
+  o += tx(CX, y + 56, 72, 800, accent, site, "middle", "1");
+  y += 74 + 44;
+  o += logoCentered(HERO_LOGO(logoV), CX, y, 56);
+  return o;
+}
+
 // Hero · icons — Save/Alerts/Share row → headline → sub → logo, group centered; site pinned bottom
-function sHeroIcons(r: Region, accent: string, logoV: LogoVariant, topic: string): string {
+function sHeroIcons(r: Region, accent: string, logoV: LogoVariant, topic: string, site: string): string {
   const groupH = 84 + 30 + 88 + 14 + 30 + 26 + 58; // icons+head+sub+logo w/ gaps
   let y = r.y + Math.max(16, ((r.h - 60) - groupH) / 2);
   let o = "";
@@ -130,11 +156,11 @@ function sHeroIcons(r: Region, accent: string, logoV: LogoVariant, topic: string
   o += tx(CX, y + 24, 28, 500, MUT, topic ? "More on " + topic : "The full analysis, plus daily updates.", "middle");
   y += 30 + 26;
   o += logoCentered(HERO_LOGO(logoV), CX, y, 58);
-  o += tx(CX, r.y + r.h - 14, 32, 700, accent, "semianalysis.com", "middle", "1");
+  o += tx(CX, r.y + r.h - 14, 32, 700, accent, site, "middle", "1");
   return o;
 }
 // Hero · logo-led — big logo → headline → sub → icons row; site pinned bottom
-function sHeroLogo(r: Region, accent: string, logoV: LogoVariant, topic: string): string {
+function sHeroLogo(r: Region, accent: string, logoV: LogoVariant, topic: string, site: string): string {
   const groupH = 74 + 30 + 84 + 14 + 30 + 30 + 84;
   let y = r.y + Math.max(16, ((r.h - 60) - groupH) / 2);
   let o = "";
@@ -145,11 +171,11 @@ function sHeroLogo(r: Region, accent: string, logoV: LogoVariant, topic: string)
   o += tx(CX, y + 24, 28, 500, MUT, topic ? "More on " + topic : "The full analysis, plus daily updates.", "middle");
   y += 30 + 30;
   o += iconRow(["save", "alert", "share"], y + 42, accent);
-  o += tx(CX, r.y + r.h - 14, 32, 700, accent, "semianalysis.com", "middle", "1");
+  o += tx(CX, r.y + r.h - 14, 32, 700, accent, site, "middle", "1");
   return o;
 }
 // Hero · bold — two-line headline + logo, airy, no icons; site pinned bottom
-function sHeroBold(r: Region, accent: string, logoV: LogoVariant): string {
+function sHeroBold(r: Region, accent: string, logoV: LogoVariant, site: string): string {
   const groupH = 108 + 108 + 40 + 64;
   let y = r.y + Math.max(16, ((r.h - 60) - groupH) / 2);
   let o = "";
@@ -158,7 +184,7 @@ function sHeroBold(r: Region, accent: string, logoV: LogoVariant): string {
   o += tx(CX, y + 90, 108, 900, INK, "FOR MORE", "middle", "1");
   y += 108 + 40;
   o += logoCentered(HERO_LOGO(logoV), CX, y, 64);
-  o += tx(CX, r.y + r.h - 14, 32, 700, accent, "semianalysis.com", "middle", "1");
+  o += tx(CX, r.y + r.h - 14, 32, 700, accent, site, "middle", "1");
   return o;
 }
 // 05 · Big buttons — primary (filled read) + secondary (outline follow) + logo
@@ -176,7 +202,7 @@ function sButtons(r: Region, accent: string, logoV: LogoVariant): string {
   return o;
 }
 // 06 · Minimal list — hairline dividers, icon + label + sub
-function sList(r: Region, accent: string): string {
+function sList(r: Region, accent: string, site: string): string {
   const items = CLOSER_CTAS.slice(0, 4), rh = Math.min(150, r.h / items.length), y0 = r.y + (r.h - rh * items.length) / 2;
   let o = "";
   items.forEach((c, i) => {
@@ -184,14 +210,14 @@ function sList(r: Region, accent: string): string {
     if (i) o += `<line x1="${r.x}" y1="${y}" x2="${r.x + r.w}" y2="${y}" stroke="rgba(255,255,255,0.12)"/>`;
     o += icon(c.icon, r.x, my - 20, 40, accent, 2.2);
     o += tx(r.x + 70, my - 2, 36, 800, INK, c.label.toUpperCase(), "start", "0.4");
-    o += tx(r.x + r.w, my - 2, 26, 500, MUT, c.sub, "end");
+    o += tx(r.x + r.w, my - 2, 26, 500, MUT, c.icon === "read" ? site : c.sub, "end");
   });
   return o;
 }
 // 07 · Newsletter — leads to the WEBSITE to subscribe; footer icon row + logo.
 // The card + icon row are vertically centered in the region (logo stays pinned
 // low) so the block isn't crowded against the body text above.
-function sNews(r: Region, accent: string, logoV: LogoVariant): string {
+function sNews(r: Region, accent: string, logoV: LogoVariant, site: string): string {
   const ch = Math.min(300, r.h * 0.52);
   const blockH = ch + 62 + 46; // card + gap + footer icon row
   const top = r.y + Math.max(24, (r.h - 70 - blockH) / 2);
@@ -202,7 +228,7 @@ function sNews(r: Region, accent: string, logoV: LogoVariant): string {
   o += tx(r.x + 152, top + 122, 26, 500, MUT, "Free, straight to your inbox.", "start");
   const btnH = 66, btnY = top + ch - btnH - 30;
   o += `<rect x="${r.x + 40}" y="${btnY}" width="${r.w - 80}" height="${btnH}" rx="16" fill="${accent}"/>`;
-  o += tx(CX, btnY + btnH / 2 + 9, 28, 800, "#0A0B10", "SUBSCRIBE AT SEMIANALYSIS.COM", "middle", "0.5");
+  o += tx(CX, btnY + btnH / 2 + 9, 28, 800, "#0A0B10", subscribeLine(site), "middle", "0.5");
   const fy = top + ch + 62, fsp = r.w / 4;
   ["read", "follow", "save", "share"].forEach((n, i) => { o += chip(r.x + fsp * i + fsp / 2, fy, 40, n, accent); });
   o += logoCentered(logoV === "none" ? "lettermark" : logoV, CX, r.y + r.h - 54, 46);
@@ -210,7 +236,7 @@ function sNews(r: Region, accent: string, logoV: LogoVariant): string {
 }
 // 08 · Icon tiles + footer bar. Tiles centered between the top and the bar so
 // they aren't crowded against the body text above.
-function sBar(r: Region, accent: string, logoV: LogoVariant): string {
+function sBar(r: Region, accent: string, logoV: LogoVariant, site: string): string {
   const items = CLOSER_CTAS.slice(0, 4), gap = 16, pw = (r.w - gap * 3) / 4, ph = Math.min(170, r.h - 200), py = r.y + Math.max(30, (r.h - 86 - ph) / 2);
   let o = "";
   items.forEach((c, i) => {
@@ -222,7 +248,7 @@ function sBar(r: Region, accent: string, logoV: LogoVariant): string {
   const barY = r.y + r.h - 86;
   o += `<rect x="${r.x}" y="${barY}" width="${r.w}" height="86" rx="18" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.12)"/>`;
   o += logoAt(logoV === "none" ? "lettermark" : logoV, r.x + 28, barY + 22, 42);
-  o += tx(r.x + r.w - 28, barY + 56, 30, 700, accent, "semianalysis.com", "end", "1");
+  o += tx(r.x + r.w - 28, barY + 56, 30, 700, accent, site, "end", "1");
   return o;
 }
 // Compact fallback when the leftover space is tight (3 icon pills)
@@ -238,7 +264,7 @@ function compactStrip(r: Region, accent: string): string {
   return o;
 }
 
-const MIN_H: Record<string, number> = { heroIcons: 470, heroLogo: 480, heroBold: 440, buttons: 420, list: 320, newsletter: 470, bar: 320 };
+const MIN_H: Record<string, number> = { siteLine: 210, heroIcons: 470, heroLogo: 480, heroBold: 440, buttons: 420, list: 320, newsletter: 470, bar: 320 };
 
 /** Closer CTA inner-SVG (or ""): measures leftover space and renders the chosen
  *  style, a compact strip when tight, or nothing when the page is full. */
@@ -247,9 +273,11 @@ export function closerCtaInner(
   topic: string,
   style: CloserStyle,
   logoV: LogoVariant,
-  accent: string
+  accent: string,
+  ctaText?: string
 ): string {
   if (style === "off") return "";
+  const site = (ctaText || DEFAULT_CTA_TEXT).trim() || DEFAULT_CTA_TEXT;
   const bodyText = (slide.bodyText || "").trim();
   const bodySize = slide.bodySize || 28;
   const measure = makeCanvasMeasure(CW, GF, 1.55);
@@ -257,13 +285,18 @@ export function closerCtaInner(
   const regionY = BODY_TOP + textH + 44;
   const r: Region = { x: MX, y: regionY, w: CW, h: BODY_BOTTOM - regionY };
   if (r.h >= (MIN_H[style] || 320)) {
-    if (style === "heroIcons") return sHeroIcons(r, accent, logoV, topic);
-    if (style === "heroLogo") return sHeroLogo(r, accent, logoV, topic);
-    if (style === "heroBold") return sHeroBold(r, accent, logoV);
+    if (style === "siteLine") return sSiteLine(r, accent, logoV, site);
+    if (style === "heroIcons") return sHeroIcons(r, accent, logoV, topic, site);
+    if (style === "heroLogo") return sHeroLogo(r, accent, logoV, topic, site);
+    if (style === "heroBold") return sHeroBold(r, accent, logoV, site);
     if (style === "buttons") return sButtons(r, accent, logoV);
-    if (style === "list") return sList(r, accent);
-    if (style === "newsletter") return sNews(r, accent, logoV);
-    if (style === "bar") return sBar(r, accent, logoV);
+    if (style === "list") return sList(r, accent, site);
+    if (style === "newsletter") return sNews(r, accent, logoV, site);
+    if (style === "bar") return sBar(r, accent, logoV, site);
+  }
+  // The classic line collapses to a single pinned line when space is tight.
+  if (style === "siteLine" && r.h >= 44) {
+    return tx(CX, r.y + r.h - 12, 34, 800, accent, site, "middle", "1");
   }
   if (r.h >= 90) return compactStrip(r, accent);
   return "";
@@ -288,7 +321,7 @@ export function furnitureInner(
   // Closer CTA fills the blank space under a plain text "body" closer only.
   if (isLast && total > 1 && type === "body" && (slide.bodyText || "").trim()) {
     const t = topic && topic.trim() && topic.trim().toLowerCase() !== "brand" ? topic.trim().replace(/[-_]+/g, " ") : "";
-    out += closerCtaInner(slide, t, opts.closerCta, opts.logo, acc.main);
+    out += closerCtaInner(slide, t, opts.closerCta, opts.logo, acc.main, opts.ctaText);
   }
   return out;
 }

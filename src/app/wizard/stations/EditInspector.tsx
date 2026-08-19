@@ -26,7 +26,7 @@ import { LibBackdropAllModal } from "./EditStation";
 import { candidates } from "../engine/library/backdrop";
 import { loadTopics, topicsSync, bgSvgUrl, type TopicsData } from "../engine/library/data";
 import { CATEGORY_PALETTE, type LibPalette } from "../engine/library/palette";
-import { closerCtaInner, CLOSER_STYLES, type CloserStyle } from "../engine/page-furniture";
+import { closerCtaInner, CLOSER_STYLES, CTA_PRESETS as LINK_PRESETS, type CloserStyle } from "../engine/page-furniture";
 import CoverDesigner from "../components/CoverDesigner";
 import ImagePicker from "../components/ImagePicker";
 import { showToast } from "../../toast-context";
@@ -399,18 +399,18 @@ function PaletteChips({ value, onPick, onAuto, autoLabel }: {
 }
 
 // ═══ v3.11 · CLOSER CTA STYLE PICKER (deck-level popup) ═══
-function closerPreviewSvg(id: CloserStyle, accent: string): string {
+function closerPreviewSvg(id: CloserStyle, accent: string, ctaText?: string): string {
   const head = '<svg viewBox="0 0 1080 1350" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="width:100%;height:auto;display:block"><rect width="1080" height="1350" fill="#0a0f18"/>';
   if (id === "off") {
     return head + '<text x="540" y="700" text-anchor="middle" font-family="Grift,Outfit,sans-serif" font-size="60" font-weight="700" fill="rgba(255,255,255,0.3)">NONE</text></svg>';
   }
   const body = '<text x="76" y="150" font-family="Grift,Outfit,sans-serif" font-size="40" font-weight="600" fill="rgba(255,255,255,0.92)">The NPO module connects to the</text>'
     + '<text x="76" y="210" font-family="Grift,Outfit,sans-serif" font-size="40" font-weight="600" fill="rgba(255,255,255,0.92)">substrate via a socket device.</text>';
-  return head + body + closerCtaInner({ bodyText: "The NPO module connects to the substrate via a socket device.", bodySize: 40 }, "", id, "lettermark", accent) + '</svg>';
+  return head + body + closerCtaInner({ bodyText: "The NPO module connects to the substrate via a socket device.", bodySize: 40 }, "", id, "lettermark", accent, ctaText) + '</svg>';
 }
 
-function CloserCtaPicker({ current, accent, onPick, onClose }: {
-  current: CloserStyle; accent: string; onPick: (id: CloserStyle) => void; onClose: () => void;
+function CloserCtaPicker({ current, accent, ctaText, onPick, onClose }: {
+  current: CloserStyle; accent: string; ctaText?: string; onPick: (id: CloserStyle) => void; onClose: () => void;
 }) {
   useEffect(function () {
     document.body.dataset.modalOpen = "1";
@@ -439,7 +439,7 @@ function CloserCtaPicker({ current, accent, onPick, onClose }: {
                   style={{ cursor: "pointer", display: "flex", flexDirection: "column", gap: 6 }}>
                   <div
                     style={{ position: "relative", aspectRatio: "4 / 5", borderRadius: 10, overflow: "hidden", background: "#0a0f18", border: on ? "2px solid var(--amber)" : "1px solid var(--line-2)", boxShadow: on ? "0 0 0 1px var(--amber)" : undefined }}
-                    dangerouslySetInnerHTML={{ __html: closerPreviewSvg(s.id, accent) }}
+                    dangerouslySetInnerHTML={{ __html: closerPreviewSvg(s.id, accent, ctaText) }}
                   />
                   <span style={{ fontSize: 11.5, color: on ? "var(--amber)" : "var(--muted)", fontWeight: on ? 700 : 500 }}>{s.label}</span>
                 </div>
@@ -1429,7 +1429,25 @@ export function EditInspector() {
                 </button>
                 <span className="whisper">the last slide, fitted to the leftover space</span>
               </div>
-              <span className="whisper">Applies to every carousel mode. The closer fills its blank space with call-to-actions automatically.</span>
+              {/* Editable white CTA line — the website or LINK IN BIO, shown in the
+                  closer's site position (and the whole "Website line" style). */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span className="whisper" style={{ minWidth: 74 }}>Link line</span>
+                <input
+                  className="input"
+                  value={furniture.ctaText || ""}
+                  placeholder="semianalysis.com"
+                  onChange={function (e) { setFurniture({ ctaText: e.target.value }); }}
+                  style={{ flex: 1, minWidth: 160 }}
+                />
+                {LINK_PRESETS.map(function (p) {
+                  const on = (furniture.ctaText || "").trim().toLowerCase() === p.toLowerCase();
+                  return (
+                    <button key={p} type="button" className={"chip" + (on ? " on" : "")} onClick={function () { setFurniture({ ctaText: p }); }} style={{ cursor: "pointer" }}>{p === "semianalysis.com" ? "WEBSITE" : p}</button>
+                  );
+                })}
+              </div>
+              <span className="whisper">Applies to every carousel mode. The closer fills its blank space with call-to-actions automatically; the link line shows your website or “LINK IN BIO”.</span>
             </div>
           </Sec>
           {closerOpen && typeof document !== "undefined"
@@ -1438,6 +1456,7 @@ export function EditInspector() {
                 <CloserCtaPicker
                   current={furniture.closerCta}
                   accent={CATEGORY_PALETTE[category] === "amber" ? "#F7B041" : CATEGORY_PALETTE[category] === "cobalt" ? "#0092FF" : CATEGORY_PALETTE[category] === "green" ? "#2EAD8E" : "#F7B041"}
+                  ctaText={furniture.ctaText}
                   onPick={function (id) { setFurniture({ closerCta: id }); setCloserOpen(false); }}
                   onClose={function () { setCloserOpen(false); }}
                 />
