@@ -62,6 +62,15 @@ const TITLE_SCALES = [
   { label: "L", value: 1.2 },
 ];
 
+// Subtitle size is independent of the title (issue 1): S / M / L / XL so a
+// subtitle can be pushed up to genuinely readable next to a big headline.
+const SUBTITLE_SCALES = [
+  { label: "S", value: 0.85 },
+  { label: "M", value: 1 },
+  { label: "L", value: 1.2 },
+  { label: "XL", value: 1.45 },
+];
+
 // Inline layers over the theme.css contract (.input, .btn, .opt-card):
 // only per-usage overrides live here, chrome comes from the classes.
 const smallBtn: CSSProperties = {
@@ -151,6 +160,8 @@ export function CoverDesigner({ slide, onChange, theme, compact, sourceText }: C
   const activeTpl = COVER_TEMPLATES.find((t) => t.id === tplId);
   const scaleVal = slide.coverTitleScale && slide.coverTitleScale > 0 ? slide.coverTitleScale : 1;
   const scaleLabel = scaleVal < 0.95 ? "S" : scaleVal > 1.05 ? "L" : "M";
+  const subScaleVal = slide.coverSubtitleScale && slide.coverSubtitleScale > 0 ? slide.coverSubtitleScale : 1;
+  const subScaleLabel = subScaleVal >= 1.35 ? "XL" : subScaleVal >= 1.1 ? "L" : subScaleVal < 0.95 ? "S" : "M";
   const upper = sl.coverUpper !== false;
   const tight = sl.coverTight === true;
   const showSub = slide.coverShowSub !== false;
@@ -349,6 +360,17 @@ export function CoverDesigner({ slide, onChange, theme, compact, sourceText }: C
             onPick={(v) => {
               const s = TITLE_SCALES.find((x) => x.label === v);
               onChange({ coverTitleScale: s ? s.value : 1 });
+            }}
+          />
+        </div>
+        <div style={controlRow}>
+          <span style={capsLabel}>SUBTITLE SIZE</span>
+          <Seg
+            options={SUBTITLE_SCALES.map((s) => s.label)}
+            value={subScaleLabel}
+            onPick={(v) => {
+              const s = SUBTITLE_SCALES.find((x) => x.label === v);
+              onChange({ coverSubtitleScale: s ? s.value : 1 });
             }}
           />
         </div>

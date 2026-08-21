@@ -10,6 +10,7 @@ export interface CoverProps {
   logoPosition?: "left" | "right";  // which corner the SemiAnalysis logo sits in (default right)
   topic?: string;                    // the accent "category" label (replaces the old hardcoded ISSUE meta)
   titleScale?: number;               // manual title-size multiplier (1 = template default; lower to de-crowd)
+  subtitleScale?: number;            // manual subtitle-size multiplier (1 = template default; independent of title)
   showSub?: boolean;
   showLogo?: boolean;
   showMeta?: boolean;
@@ -44,6 +45,7 @@ interface ResolvedCoverProps {
   logoPosition: "left" | "right";
   topic: string;
   titleScale: number;
+  subtitleScale: number;
   showSub: boolean;
   showLogo: boolean;
   showMeta: boolean;
@@ -71,6 +73,7 @@ function resolve(p: CoverProps): ResolvedCoverProps {
     logoPosition: p.logoPosition === "left" ? "left" : "right",
     topic: (p.topic || "").trim(),
     titleScale: typeof p.titleScale === "number" && p.titleScale > 0 ? p.titleScale : 1,
+    subtitleScale: typeof p.subtitleScale === "number" && p.subtitleScale > 0 ? p.subtitleScale : 1,
     showSub: p.showSub !== false,
     showLogo: p.showLogo !== false,
     showMeta: p.showMeta !== false,
@@ -224,6 +227,34 @@ function tracking(p: ResolvedCoverProps): string {
   return p.tight ? "-2.5" : "-1";
 }
 
+// ── Subtitle sizing (issue 1) ─────────────────────────────────────────────────
+// The subtitle used to be a flat, unchangeable 30px (26 on template 05) — far
+// too small next to a 90-170px title and with no user control. It now has a
+// readable default base AND an independent user multiplier (subtitleScale), and
+// the line gap + wrap track the size so bigger text never crowds or overflows.
+function subFsFor(p: ResolvedCoverProps, base: number): number {
+  return Math.max(22, Math.round(base * p.subtitleScale));
+}
+function subGapFor(fs: number): number {
+  return Math.round(fs * 1.24);
+}
+function subWrapFor(availWidth: number, fs: number): number {
+  return Math.max(18, Math.floor(availWidth / (fs * 0.5)));
+}
+
+// ── Tag ↔ title as one aligned stack (issue 2) ────────────────────────────────
+// The category tag rides directly above the title block on the SAME left edge,
+// so tag + title + subtitle read as a single vertically-stacked group. Tight
+// mode compresses the tag→title gap (before, Tight only touched title tracking).
+function tagAboveTitle(p: ResolvedCoverProps, titleTopY: number, x: number): string {
+  if (!p.showMeta || !p.topic) return "";
+  return metaTag(p, p.topic, x, titleTopY - (p.tight ? 16 : 30), p.accent, "start");
+}
+// Vertical gap between the title block and the subtitle beneath it.
+function titleSubGap(p: ResolvedCoverProps): number {
+  return p.tight ? 44 : 66;
+}
+
 function wordWrap(text: string, maxCharsPerLine: number): string[] {
   const words = text.split(/\s+/);
   const lines: string[] = [];
@@ -373,20 +404,19 @@ function render01(rawP: CoverProps): string {
   const innerPad = 24;
   const textX = pad + innerPad;
   const maxTitleWidth = frameW - innerPad * 2;
-  const subWrap = Math.max(20, Math.floor(maxTitleWidth / 17));
   const titleWrap = Math.max(8, Math.floor(maxTitleWidth / 28));
   const lines = wordWrap(t, titleWrap);
   const fs = titleFontSizeForLines(lines, scaledBase(p, 110), maxTitleWidth);
 
-  const subLines = p.showSub && p.subtitle ? wordWrap(p.subtitle, subWrap) : [];
-  const subFs = 30;
-  const subGap = 36;
+  const subFs = subFsFor(p, 36);
+  const subGap = subGapFor(subFs);
+  const subLines = p.showSub && p.subtitle ? wordWrap(p.subtitle, subWrapFor(maxTitleWidth, subFs)) : [];
 
   const frameBottom = pad + frameH;
   const blockBottomMargin = 70;
   const subBottomY = frameBottom - blockBottomMargin;
   const subStartY = subBottomY - (subLines.length - 1) * subGap;
-  const titleBottomY = subLines.length ? subStartY - 70 : subBottomY;
+  const titleBottomY = subLines.length ? subStartY - titleSubGap(p) : subBottomY;
   const tb = titleBlock(p, lines, fs, textX, titleBottomY);
 
   const innerImage = p.imageUrl
@@ -410,6 +440,7 @@ function render01(rawP: CoverProps): string {
     <g clip-path="url(#v01-frame)">
       ${innerImage}
       <rect x="${pad}" y="${pad}" width="${frameW}" height="${frameH}" fill="url(#v01-grad)"/>
+      ${tagAboveTitle(p, tb.topY, textX)}
       ${tb.svg}
       ${subLines.map((ln, i) => `<text x="${textX}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.88)">${esc(ln)}</text>`).join("")}
     </g>
@@ -429,9 +460,9 @@ function render02(rawP: CoverProps): string {
   const lineGap = fs * 1.0;
   const titleStartY = 260 + fs;
 
-  const subLines = p.showSub && p.subtitle ? wordWrap(p.subtitle, 40) : [];
-  const subFs = 30;
-  const subGap = 36;
+  const subFs = subFsFor(p, 36);
+  const subGap = subGapFor(subFs);
+  const subLines = p.showSub && p.subtitle ? wordWrap(p.subtitle, subWrapFor(maxWidth, subFs)) : [];
   const subEndY = H - 130;
   const subStartY = subEndY - (subLines.length - 1) * subGap;
 
@@ -452,10 +483,10 @@ function render02(rawP: CoverProps): string {
     </defs>
     ${bg}
     <rect x="0" y="0" width="${W}" height="14" fill="${p.accent}"/>
+    ${tagAboveTitle(p, titleStartY - fs, pad)}
     ${lines.map((ln, i) => `<text x="${pad}" y="${titleStartY + i * lineGap}" font-family="'Outfit', sans-serif" font-size="${fs}" font-weight="900" letter-spacing="${trk}" fill="#FFFFFF">${esc(ln)}</text>`).join("")}
     <line x1="${pad}" y1="${subStartY - 80}" x2="${pad + 100}" y2="${subStartY - 80}" stroke="${p.accent}" stroke-width="4"/>
     ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.80)">${esc(ln)}</text>`).join("")}
-    ${metaTag(p, p.topic, metaSide(p, pad, W - pad).x, H - 60, p.accent, metaSide(p, pad, W - pad).anchor)}
     ${saMark(p, p.logoPosition === "left" ? 80 : W - 80 - 240, H - 200, 240, 120, "lettermark")}
   `;
 }
@@ -468,13 +499,12 @@ function render03(rawP: CoverProps): string {
   const lines = wordWrap(t, 20);
   const fs = titleFontSizeForLines(lines, scaledBase(p, 100), maxTitleWidth);
 
-  const subLines = p.showSub && p.subtitle ? wordWrap(p.subtitle, 44) : [];
-  const subFs = 30;
-  const subGap = 36;
+  const subFs = subFsFor(p, 36);
+  const subGap = subGapFor(subFs);
+  const subLines = p.showSub && p.subtitle ? wordWrap(p.subtitle, subWrapFor(maxTitleWidth, subFs)) : [];
   const subEndY = H - 110;
-  const ms03 = metaSide(p, 60, W - 60);
   const subStartY = subEndY - (subLines.length - 1) * subGap;
-  const titleBottomY = subLines.length ? subStartY - 70 : subEndY;
+  const titleBottomY = subLines.length ? subStartY - titleSubGap(p) : subEndY;
   const tb = titleBlock(p, lines, fs, pad + 24, titleBottomY);
 
   const dual = p.dual;
@@ -522,7 +552,8 @@ function render03(rawP: CoverProps): string {
     ${dual ? `<line x1="0" y1="${splitY}" x2="${W}" y2="${splitY}" stroke="${p.accent}" stroke-width="4"/>` : ""}
     <rect width="${W}" height="${H}" fill="url(#v03-grad)"/>
     ${dropShadowDefs("v03-shadow")}
-    ${shadowed("v03-shadow", saMark(p, p.logoPosition === "left" ? 60 : W - 60 - 220, 50, 220, 132, "full") + metaTag(p, p.topic, ms03.x, 95, p.accent, ms03.anchor))}
+    ${shadowed("v03-shadow", saMark(p, p.logoPosition === "left" ? 60 : W - 60 - 220, 50, 220, 132, "full"))}
+    ${tagAboveTitle(p, tb.topY, pad + 24)}
     ${tb.svg}
     ${subLines.map((ln, i) => `<text x="${pad + 24}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.82)">${esc(ln)}</text>`).join("")}
   `;
@@ -536,13 +567,12 @@ function render04(rawP: CoverProps): string {
   const lines = wordWrap(t, 20);
   const fs = titleFontSizeForLines(lines, scaledBase(p, 100), maxTitleWidth);
 
-  const subLines = p.showSub && p.subtitle ? wordWrap(p.subtitle, 44) : [];
-  const subFs = 30;
-  const subGap = 36;
+  const subFs = subFsFor(p, 36);
+  const subGap = subGapFor(subFs);
+  const subLines = p.showSub && p.subtitle ? wordWrap(p.subtitle, subWrapFor(maxTitleWidth, subFs)) : [];
   const subEndY = H - 100;
-  const ms04 = metaSide(p, 60, W - 60);
   const subStartY = subEndY - (subLines.length - 1) * subGap;
-  const titleBottomY = subLines.length ? subStartY - 70 : subEndY;
+  const titleBottomY = subLines.length ? subStartY - titleSubGap(p) : subEndY;
   const tb = titleBlock(p, lines, fs, pad, titleBottomY);
 
   return `
@@ -551,7 +581,8 @@ function render04(rawP: CoverProps): string {
     <defs>${gradient("v04-grad", [{o:"0%",c:"#000",a:0.15},{o:"45%",c:"#000",a:0},{o:"100%",c:"#000",a:0.94}])}</defs>
     <rect width="${W}" height="${H}" fill="url(#v04-grad)"/>
     ${dropShadowDefs("v04-shadow")}
-    ${shadowed("v04-shadow", metaTag(p, p.topic, ms04.x, 90, p.accent, ms04.anchor) + saMark(p, p.logoPosition === "left" ? 60 : W - 60 - 160, 130, 160, 180, "box"))}
+    ${shadowed("v04-shadow", saMark(p, p.logoPosition === "left" ? 60 : W - 60 - 160, 130, 160, 180, "box"))}
+    ${tagAboveTitle(p, tb.topY, pad)}
     ${tb.svg}
     ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.82)">${esc(ln)}</text>`).join("")}
   `;
@@ -566,9 +597,9 @@ function render05(rawP: CoverProps): string {
   const lines = wordWrap(t, 22);
   const fs = titleFontSizeForLines(lines, scaledBase(p, 90), maxTitleWidth);
 
-  const subLines = p.showSub && p.subtitle ? wordWrap(p.subtitle, 50) : [];
-  const subFs = 26;
-  const subGap = 32;
+  const subFs = subFsFor(p, 31);
+  const subGap = subGapFor(subFs);
+  const subLines = p.showSub && p.subtitle ? wordWrap(p.subtitle, subWrapFor(maxTitleWidth, subFs)) : [];
 
   const barTop = imgH;
   const barH = H - imgH;
@@ -605,13 +636,12 @@ function render06(rawP: CoverProps): string {
   const lines = wordWrap(t, 18);
   const fs = titleFontSizeForLines(lines, scaledBase(p, 110), maxTitleWidth);
 
-  const subLines = p.showSub && p.subtitle ? wordWrap(p.subtitle, 44) : [];
-  const subFs = 30;
-  const subGap = 36;
+  const subFs = subFsFor(p, 36);
+  const subGap = subGapFor(subFs);
+  const subLines = p.showSub && p.subtitle ? wordWrap(p.subtitle, subWrapFor(maxTitleWidth, subFs)) : [];
   const subEndY = H - 110;
-  const ms06 = metaSide(p, 60, W - 60);
   const subStartY = subEndY - (subLines.length - 1) * subGap;
-  const titleBottomY = subLines.length ? subStartY - 70 : subEndY;
+  const titleBottomY = subLines.length ? subStartY - titleSubGap(p) : subEndY;
   const tb = titleBlock(p, lines, fs, pad, titleBottomY);
 
   return `
@@ -620,15 +650,16 @@ function render06(rawP: CoverProps): string {
     <defs>${gradient("v06-grad", [{o:"0%",c:"#000",a:0.18},{o:"45%",c:"#000",a:0},{o:"100%",c:"#000",a:0.93}])}</defs>
     <rect width="${W}" height="${H}" fill="url(#v06-grad)"/>
     ${dropShadowDefs("v06-shadow")}
-    ${shadowed("v06-shadow", metaTag(p, p.topic, ms06.x, 100, p.accent, ms06.anchor) + saMark(p, p.logoPosition === "left" ? 60 : W - 60 - 160, 70, 160, 180, "box"))}
-    <rect x="${pad}" y="${titleBottomY - fs - 60}" width="68" height="4" fill="${p.accent}"/>
+    ${shadowed("v06-shadow", saMark(p, p.logoPosition === "left" ? 60 : W - 60 - 160, 70, 160, 180, "box"))}
+    ${tagAboveTitle(p, tb.topY, pad)}
     ${tb.svg}
     ${subLines.map((ln, i) => `<text x="${pad}" y="${subStartY + i * subGap}" font-family="'Outfit', sans-serif" font-size="${subFs}" font-weight="400" fill="rgba(255,255,255,0.82)">${esc(ln)}</text>`).join("")}
   `;
 }
 
-// Currently unused helper, exported via subtitleBlock-style API parity for future cover variants.
+// Currently unused helpers, kept for future cover variants / API parity.
 void subtitleBlock;
+void metaSide;
 
 // Curated SemiAnalysis content sectors — the accent "topic" label that sits on
 // the cover (replaces the old "ISSUE 24" meta). Used as quick-picks in the

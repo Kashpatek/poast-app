@@ -19,7 +19,7 @@ import { renderCoverSvg } from "../../carousel-covers";
 import { renderUniqueSvg } from "./unique/render";
 import { composeLibrarySvg, ensureLibraryAssets, libraryBgSvgDoc, ensureClassicBgs } from "./library/compose";
 import { FULL_W, FULL_H, getBackdropUrl, type Slide, type ThemeKey } from "./types";
-import { furnitureSvg, type FurnitureOpts } from "./page-furniture";
+import { furnitureSvg, closerCtaActive, type FurnitureOpts } from "./page-furniture";
 
 function hideOnError(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = "none"; }
 
@@ -136,6 +136,7 @@ export function SlidePreview({ slide, theme, width, page, total, furniture, topi
           logoPosition: sl.coverLogoPos || "right",
           topic: sl.coverTopic || "",
           titleScale: sl.coverTitleScale || 1,
+          subtitleScale: sl.coverSubtitleScale || 1,
           showSub: sl.coverShowSub !== false,
           showLogo: true,
           showMeta: true,
@@ -157,7 +158,7 @@ export function SlidePreview({ slide, theme, width, page, total, furniture, topi
           <img src={sl.imageUrl} style={{ width: "100%", height: "100%", objectFit: imgFit, objectPosition: imgPos, display: "block" }} onError={hideOnError} />
         </div>}
         <div style={{ fontFamily: gf, fontSize: sl.bodySize * rScale, fontWeight: 600, color: "rgba(255,255,255,0.92)", lineHeight: 1.5, overflow: "hidden", whiteSpace: "pre-wrap" }}>{sl.bodyText || ""}</div>
-        {sl.position === 4 && sl.ctaText && !showFurniture && <div style={{ position: "absolute", bottom: 60 * rScale, left: sl.ctaPosition === "bottom-center" ? 0 : "auto", right: sl.ctaPosition === "bottom-center" ? 0 : sidePad, width: sl.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: sl.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * rScale, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.5)", letterSpacing: "1px", textTransform: "uppercase" }}>{sl.ctaText}</div>}
+        {sl.position === 4 && sl.ctaText && !(showFurniture && closerCtaActive(sl, furniture, page ?? 1, total ?? 1)) && <div style={{ position: "absolute", bottom: 60 * rScale, left: sl.ctaPosition === "bottom-center" ? 0 : "auto", right: sl.ctaPosition === "bottom-center" ? 0 : sidePad, width: sl.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: sl.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * rScale, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 8px rgba(0,0,0,0.5)", letterSpacing: "1px", textTransform: "uppercase" }}>{sl.ctaText}</div>}
       </div>}
       {sl.type === "image_text" && <div style={{ height: "100%", display: "flex", flexDirection: sl.inverted ? "column-reverse" : "column", justifyContent: sl.inverted ? "flex-end" : "flex-start" }}>
         {sl.imageUrl && <div style={{ width: "100%", height: (sl.imageHeight || 50) + "%", borderRadius: 8 * rScale, overflow: "hidden", marginBottom: sl.inverted ? 0 : 6, marginTop: sl.inverted ? 6 : 0, flexShrink: 0, background: "#000" }}>

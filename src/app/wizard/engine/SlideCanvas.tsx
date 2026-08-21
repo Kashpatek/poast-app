@@ -14,7 +14,7 @@ import { renderCoverSvg } from "../../carousel-covers";
 import { renderUniqueSvg } from "./unique/render";
 import { composeLibrarySvg, ensureLibraryAssets, libraryBgSvgDoc, ensureClassicBgs } from "./library/compose";
 import { FULL_H, DISPLAY_W, DISPLAY_H, SCALE, MARGIN_X, MARGIN_Y, getBackdropUrl, type Slide, type ThemeKey } from "./types";
-import { furnitureSvg, type FurnitureOpts } from "./page-furniture";
+import { furnitureSvg, closerCtaActive, type FurnitureOpts } from "./page-furniture";
 
 // ═══ UNIQUE SLIDE SVG (C3 additive branch) ═══
 // Unique slides are fully self-rendered SVGs (backdrop + content) from
@@ -229,6 +229,7 @@ export function SlideCanvas({ slide, theme, onUpdate, onRequestPicker, onSplitBo
           logoPosition: slide.coverLogoPos || "right",
           topic: slide.coverTopic || "",
           titleScale: slide.coverTitleScale || 1,
+          subtitleScale: slide.coverSubtitleScale || 1,
           showSub: slide.coverShowSub !== false,
           showLogo: true,
           showMeta: true,
@@ -286,7 +287,7 @@ export function SlideCanvas({ slide, theme, onUpdate, onRequestPicker, onSplitBo
         style={{ fontFamily: gf, fontSize: slide.bodySize * SCALE, fontWeight: 600, color: "rgba(255,255,255,0.92)", lineHeight: 1.55, textShadow: textShadow, outline: "none", cursor: "text", whiteSpace: "pre-wrap", wordBreak: "break-word", overflow: "hidden", textAlign: "left" }}
       >{slide.bodyText || "Body text"}</div>
       {/* CTA text on closer (position 4) */}
-      {slide.position === 4 && slide.ctaText && !showFurniture && <div style={{ position: "absolute", bottom: 60 * SCALE, left: slide.ctaPosition === "bottom-center" ? 0 : "auto", right: slide.ctaPosition === "bottom-center" ? 0 : (60 * SCALE), width: slide.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: slide.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * SCALE, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 10px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.4)", letterSpacing: "1px", textTransform: "uppercase" }}>{slide.ctaText}</div>}
+      {slide.position === 4 && slide.ctaText && !(showFurniture && closerCtaActive(slide, furniture, page ?? 1, total ?? 1)) && <div style={{ position: "absolute", bottom: 60 * SCALE, left: slide.ctaPosition === "bottom-center" ? 0 : "auto", right: slide.ctaPosition === "bottom-center" ? 0 : (60 * SCALE), width: slide.ctaPosition === "bottom-center" ? "100%" : "auto", textAlign: slide.ctaPosition === "bottom-center" ? "center" : "right", fontFamily: gf, fontSize: 30 * SCALE, fontWeight: 700, color: "#ffffff", textShadow: "0 2px 10px rgba(0,0,0,0.6), 0 1px 3px rgba(0,0,0,0.4)", letterSpacing: "1px", textTransform: "uppercase" }}>{slide.ctaText}</div>}
     </div>}
 
     {/* ─── IMAGE + TEXT SLIDE ─── */}

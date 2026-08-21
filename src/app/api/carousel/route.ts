@@ -7,6 +7,7 @@ import { checkRateLimit } from "@/lib/ratelimit";
 import { generateGrokImages, GrokImageError, SA_BRAND_CUES, STYLE_PRESETS } from "@/lib/grok-image";
 import { generateImagenImages, ImagenError } from "@/lib/imagen";
 import { callLLM, llmTextOf, parseLLMJson, type LLMProvider } from "@/lib/llm-provider";
+import { cleanCaptionOptions } from "@/lib/caption-clean";
 
 // Provider-aware text helpers — when caller asks for gemini/grok, route
 // through `callLLM`; otherwise stay on the existing Claude path so the
@@ -56,6 +57,7 @@ Slide types:
 - BODY_FINAL: body_text (2-3 short paragraphs separated by double newlines, 80-120 words total, ends with forward-looking statement, no arrow. Never use bullets.)
 - BODY_IMAGE: image_url + body_text (30-50 words, optional)
 - BODY_LARGE_IMAGE: image_url + subtext (10-20 words caption, optional)
+- BODY_IMAGE_TITLE: image_url + title (3-6 word headline) + subtitle (1-2 sentence caption). A big image topped by a short headline — use for a striking visual point when a relevant image exists.
 
 Rules:
 - Never use em dashes. Use commas, periods, or colons.
@@ -66,6 +68,22 @@ Rules:
 - BODY_FINAL uses the background matching its alternation position.
 - Plain declarative sentences. No bullets, no headers.
 - Image URLs: use exact URLs if provided. Never fabricate URLs. Omit image slots if no image.
+
+You MUST respond ONLY with valid JSON. No markdown fences. No preamble.`;
+
+// Dedicated caption voice — the interactive "Generate captions" action used the
+// slide-object generator (CAROUSEL_SYS) by mistake, which produced generic,
+// template-y copy and leaked markdown. This is the real caption prompt.
+const CAPTION_SYS = `You write the social caption that runs UNDER a SemiAnalysis carousel (Instagram / LinkedIn), built from an in-depth semiconductor/AI research post.
+
+SemiAnalysis is the most respected independent silicon + AI research firm. Write like the analyst who actually knows the hardware — sharp, technical, confident, specific. Never like a social-media intern.
+
+Absolute rules:
+- PLAIN TEXT ONLY. Never output markdown of ANY kind: no #, ##, ###, no **bold**, no *italics*, no backticks, no bullet dashes, no numbered lists, no [markdown](links). A caption is prose, not a document. If a heading like "###" is forming, replace it with a plain sentence.
+- No em dashes. No emojis. No hype words (revolutionary, game-changing, insane, mind-blowing, unprecedented).
+- No filler or padding. No "in today's fast-paced world", no "let's dive in", no "save this post".
+- Hook first: the opening line is a specific, scroll-stopping claim taken from THIS post — not a generic teaser.
+- Substance over length. Say the actual finding and why it matters. Concise beats long.
 
 You MUST respond ONLY with valid JSON. No markdown fences. No preamble.`;
 
@@ -183,11 +201,12 @@ export async function POST(req: NextRequest) {
         : manualCount
         ? `The user has requested exactly ${manualCount} slides per variant. Respect this count. Build a cover, ${Math.max(0, manualCount - 2)} body slide(s), and a closer.`
         : `Analyze the content and determine the best slide count for EACH variant independently. Consider:
-- How much substantive content is there? A single insight = 1-2 slides. A standard story = 3-5. Deep research = 5-7.
+- How much substantive content is there? A standard story = 4-5 slides. Deep research = 5-7.
 - How many key data points, statistics, or claims deserve their own slide?
 - How many available images exist? (${hasImages ? imageUrls.length + " images" : "none"}) More images can justify more slides.
 - What slide count best serves THIS specific content?
-Don't pad with filler. Every slide must earn its place. Bias TOWARD 5 (a complete narrative) UNLESS the content genuinely demands fewer or more. Range: 1-7 slides. Do not default to 3 — 3 often feels thin.`;
+Don't pad with filler. Every slide must earn its place. Bias TOWARD 5 (a complete narrative).
+HARD FLOOR: every variant must have AT LEAST 4 slides = a COVER, at least TWO content body slides, and a BODY_FINAL closer. Never output a deck where the closer is the only slide after a single content slide — a newsletter needs two real content slides before the closer. The BODY_FINAL is itself a full content slide (its forward-looking text is real substance); its call-to-action is a small line, not a whole slide, so it does NOT replace a content slide. Range: 4-7 slides.`;
 
       try {
         const variants = await genJSON<Record<string, { slides: { type: string }[] }>>({
@@ -209,9 +228,9 @@ ${slideCountGuidance}
 CRITICAL: Each variant must have a DIFFERENT structure, not just different words on the same template.
 
 Variant A: "Concise" approach
-- Tight, punchy. Cover + minimal body slides + closer.
+- Tight, punchy, but still a real newsletter: COVER + TWO content body slides + BODY_FINAL closer (4 slides minimum). Even "concise" keeps two content slides before the closer — do NOT collapse to a single content slide plus a CTA slide.
 - Every word earns its place. Ideal for quick-scroll audiences.
-${hasImages ? "- Use 1 image on cover only." : ""}
+${hasImages ? "- Use the cover image, and 1 image on a content body slide if a chart/data supports it." : ""}
 
 Variant B: "Deep Dive" approach
 - More detailed narrative with multiple sections.
@@ -219,7 +238,7 @@ Variant B: "Deep Dive" approach
 ${hasImages ? "- Use cover image + 1-2 BODY_IMAGE slides where charts/data directly support the point being made on that slide. Pick the most relevant images." : ""}
 
 Variant C: "${hasImages ? "Visual Story" : "Key Takeaways"}" approach
-- ${hasImages ? "Image-heavy. Use BODY_IMAGE and BODY_LARGE_IMAGE slides to let data/charts do the talking. Less text per slide, more visual impact. Every image slide must have image_url set." : "Each body slide covers ONE specific point or takeaway, not a narrative. Shorter text per slide (50-70 words), more slides. Like a listicle format but without numbers or bullets. Each slide is a standalone insight."}
+- ${hasImages ? "Image-heavy. Mix BODY_IMAGE, BODY_LARGE_IMAGE, and BODY_IMAGE_TITLE slides to let data/charts/photos do the talking with varied layouts. Less text per slide, more visual impact. Every image slide must have image_url set." : "Each body slide covers ONE specific point or takeaway, not a narrative. Shorter text per slide (50-70 words), more slides. Like a listicle format but without numbers or bullets. Each slide is a standalone insight."}
 
 Return JSON:
 {
@@ -399,43 +418,40 @@ Rules:
 
       try {
         const parsed = await genJSON({
-          system: CAROUSEL_SYS,
+          system: CAPTION_SYS,
           maxTokens: 2000,
           provider,
-          prompt: `Generate 3 caption OPTIONS for this carousel. Each option should take a different angle on presenting this content.
+          prompt: `Write 3 distinct caption OPTIONS for the carousel below. Each option is a genuinely different angle on the content, not a reword of the others.
 
-Source: ${sourceUrl || "N/A"}
-Category: ${themeInfo}
-Variant approach: ${variantLabel || "N/A"}
-${extraContext ? "Extra context from user: " + extraContext + "\n" : ""}
-Slide content:
+${sourceUrl ? "Source: " + sourceUrl + "\n" : ""}Category: ${themeInfo}
+${variantLabel ? "Variant approach: " + variantLabel + "\n" : ""}${extraContext ? "Extra context from user: " + extraContext + "\n" : ""}Carousel content (slide by slide):
 ${slideContent}
 
-Return a JSON array of 3 options. Each option has captions for Instagram, TikTok, and YT Shorts:
+Return a JSON array of exactly 3 options. Shape:
 [
-  {
-    "label": "Hook-driven",
-    "instagram": { "caption": "full caption with Save CTA + 5-8 hashtags + Location: San Francisco, CA. Under 2200 chars.", "hashtags": ["tag1", "tag2"] },
-    "tiktok": { "caption": "all lowercase, casual, hook first line. NO hashtags. NO overlay text." },
-    "shorts": { "title": "under 40 chars" }
-  },
-  { "label": "Data-forward", ... },
-  { "label": "Narrative", ... }
+  { "label": "Hook-driven",
+    "instagram": { "caption": "...", "hashtags": ["semiconductors", "..."] },
+    "tiktok": { "caption": "..." },
+    "shorts": { "title": "..." } },
+  { "label": "Data-forward", "instagram": {"caption":"...","hashtags":["..."]}, "tiktok": {"caption":"..."}, "shorts": {"title":"..."} },
+  { "label": "Narrative", "instagram": {"caption":"...","hashtags":["..."]}, "tiktok": {"caption":"..."}, "shorts": {"title":"..."} }
 ]
 
-HARD RULES (absolute):
-- X/Twitter (if requested anywhere): NEVER hashtags
-- TikTok: NEVER overlay text / on-screen text. NEVER hashtags. Caption only.
+INSTAGRAM caption:
+- Structure: a specific HOOK line drawn from THIS post, then 2 to 4 tight sentences of real substance (the actual finding and why it matters), then one soft CTA to read the full analysis.
+- Keep it concise: under ~120 words. Concise beats long.
+- End with 4 to 6 relevant, specific hashtags (semiconductor / AI topical, not generic) on the final line, and ALSO list them in the "hashtags" array (no # inside the array items).
+- Do NOT add a location line. Do NOT write "save this post". Do NOT number or bullet anything.
 
-Style rules:
-- No em dashes, no emojis
-- Confident, technical, institutional tone
-- Each option should feel genuinely different, not just rewording
-- IG: save CTA, hashtags at end, San Francisco CA location
-- TikTok: all lowercase, casual, NO hashtags, NO overlay text
-- YT Shorts: title only, under 40 chars`,
+TIKTOK caption:
+- All lowercase, casual. One strong hook line, then at most one more sentence. NO hashtags. NO overlay/on-screen text. Caption only.
+
+YT SHORTS:
+- "title" only, under 40 characters, punchy.
+
+Every option must be specific to THIS content. Plain text only — never output #, *, backticks, or any other markdown.`,
         });
-        return NextResponse.json({ captionOptions: parsed, ts: Date.now() });
+        return NextResponse.json({ captionOptions: cleanCaptionOptions(parsed), ts: Date.now() });
       } catch (e) {
         if (e instanceof SyntaxError) {
           return NextResponse.json({ error: "Failed to parse caption" }, { status: 500 });

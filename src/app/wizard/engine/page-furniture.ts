@@ -46,7 +46,10 @@ export const CLOSER_STYLES: { id: CloserStyle; label: string }[] = [
 // or "LINK IN BIO". It replaces the formerly hard-coded site line across every
 // closer style, and is the whole payload of the classic `siteLine` closer.
 export interface FurnitureOpts { arrow: boolean; logo: LogoVariant; logoCorner: Corner; closerCta: CloserStyle; ctaText: string }
-export const DEFAULT_FURNITURE: FurnitureOpts = { arrow: true, logo: "lettermark", logoCorner: "tr", closerCta: "heroIcons", ctaText: "semianalysis.com" };
+// Default closer is the COMPACT classic line — it sits under the last slide's
+// body text instead of a full-height hero that swallows a content slide, so a
+// newsletter keeps its two content slides + one small CTA (issue 4 + 6).
+export const DEFAULT_FURNITURE: FurnitureOpts = { arrow: true, logo: "lettermark", logoCorner: "tr", closerCta: "siteLine", ctaText: "semianalysis.com" };
 export const DEFAULT_CTA_TEXT = "semianalysis.com";
 // Quick presets the inspector offers for the editable line.
 export const CTA_PRESETS = ["semianalysis.com", "LINK IN BIO"];
@@ -302,6 +305,28 @@ export function closerCtaInner(
   return "";
 }
 
+// Closer styles that already draw a brand logo inside their own layout — on
+// those, the corner page-logo is redundant (that duplication was the "brand
+// written way too many times" on the last slide).
+const CLOSER_HAS_LOGO: Record<string, boolean> = {
+  siteLine: true, heroIcons: true, heroLogo: true, heroBold: true, buttons: true, newsletter: true, bar: true,
+};
+
+/** True when the furniture closer CTA renders on THIS slide — the single source
+ *  of truth shared by preview, editor canvas, and export so the legacy per-slide
+ *  ctaText overlay never doubles up with the closer (issue 4). */
+export function closerCtaActive(
+  slide: { type?: string; bodyText?: string },
+  opts: FurnitureOpts | undefined,
+  page: number,
+  total: number
+): boolean {
+  if (!opts || opts.closerCta === "off") return false;
+  const type = slide.type || "";
+  if (type.indexOf("cover") === 0 || type === "unique" || type === "library") return false;
+  return page >= total && total > 1 && type === "body" && !!(slide.bodyText || "").trim();
+}
+
 // ── Composite furniture for one slide ─────────────────────────────────────────
 export function furnitureInner(
   slide: { type?: string; bodyText?: string; bodySize?: number; coverAccent?: string; libraryPalette?: string },
@@ -314,12 +339,15 @@ export function furnitureInner(
   if (type.indexOf("cover") === 0) return "";           // cover draws its own
   if (type === "unique" || type === "library") return ""; // self-render their own furniture
   const isLast = page >= total;
+  const closerHere = closerCtaActive(slide, opts, page, total);
   const acc = accentFor(slide.libraryPalette);
   let out = "";
-  if (opts.logo !== "none") out += pageLogoInner(opts.logo, opts.logoCorner);
+  // Skip the corner logo on the closer slide when the closer already carries a
+  // logo — one brand mark per slide, not two.
+  if (opts.logo !== "none" && !(closerHere && CLOSER_HAS_LOGO[opts.closerCta])) out += pageLogoInner(opts.logo, opts.logoCorner);
   if (opts.arrow && !isLast) out += swipeArrowInner(acc.main, acc.ring);
   // Closer CTA fills the blank space under a plain text "body" closer only.
-  if (isLast && total > 1 && type === "body" && (slide.bodyText || "").trim()) {
+  if (closerHere) {
     const t = topic && topic.trim() && topic.trim().toLowerCase() !== "brand" ? topic.trim().replace(/[-_]+/g, " ") : "";
     out += closerCtaInner(slide, t, opts.closerCta, opts.logo, acc.main, opts.ctaText);
   }

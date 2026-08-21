@@ -1564,7 +1564,24 @@ export const useWizard = create<WizardStore>()((set, get) => ({
     if (at === 0 && st.slides.length > 0) at = 1; // never before the cover
     const next = st.slides.slice();
     const isUniqueDeck = st.slides.length > 0 && st.slides[0].type === "unique";
-    next.splice(at, 0, isUniqueDeck ? defaultUniqueSlide(st.slides) : defaultBodySlide());
+    const fresh = isUniqueDeck ? defaultUniqueSlide(st.slides) : defaultBodySlide();
+    // Apply-to-all inheritance (issue 5): if EVERY non-cover slide already shares
+    // one applied backdrop (i.e. the user chose "apply to all pages"), a newly
+    // added slide adopts that same backdrop + tint so the post stays one design.
+    // If the deck is still a rotating mix (no shared override), leave it to the
+    // chain so a new slide picks a fresh topic-pool backdrop as before.
+    if (!isUniqueDeck) {
+      const bodyOv = st.slides
+        .filter(function (s, i) { return i > 0 && !(typeof s.type === "string" && s.type.indexOf("cover") === 0); })
+        .map(function (s) { return s.libraryBgOverride || null; });
+      const distinct = Array.from(new Set(bodyOv));
+      if (bodyOv.length > 0 && distinct.length === 1 && distinct[0]) {
+        const donor = st.slides.find(function (s) { return s.libraryBgOverride === distinct[0]; });
+        fresh.libraryBgOverride = distinct[0];
+        if (donor && donor.libraryPaletteOverride) fresh.libraryPaletteOverride = donor.libraryPaletteOverride;
+      }
+    }
+    next.splice(at, 0, fresh);
     // Library decks: an insert shifts every later chain index → re-resolve.
     set({ slides: withLibraryChain(recomputePositions(next)), activeIdx: at, dirtySinceVariant: true });
   },

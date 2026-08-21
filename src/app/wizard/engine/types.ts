@@ -48,6 +48,7 @@ export interface Slide {
   coverLogoPos?: "left" | "right"; // which corner the SA logo sits in (default right)
   coverTopic?: string;             // accent category label (replaces the old "ISSUE 24" meta)
   coverTitleScale?: number;        // manual title-size multiplier (1 = template default)
+  coverSubtitleScale?: number;     // manual subtitle-size multiplier (1 = template default; independent of title)
   coverUpper?: boolean;            // uppercase cover title (undefined = true, V1 default)
   coverTight?: boolean;            // tight title letter-spacing (undefined = false, V1 default)
   // Unique mode additions (spec 9.4) — all optional, additive, persist through
@@ -267,6 +268,7 @@ export function apiSlidesToEditorSlides(apiSlides: GeneratedSlide[], slideCount:
     if (pos === 1) type = "cover";
     else if (apiSl.type === "BODY_IMAGE") type = "image_text";
     else if (apiSl.type === "BODY_LARGE_IMAGE") type = "large_image";
+    else if (apiSl.type === "BODY_IMAGE_TITLE") type = "large_with_title"; // image + headline + caption
     // else body (for BODY_A, BODY_B, BODY_FINAL, CLOSER)
 
     // Convert bullet points to paragraph breaks in body text

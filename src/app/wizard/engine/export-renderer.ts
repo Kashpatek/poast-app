@@ -11,7 +11,7 @@ import { renderCoverSvg } from "../../carousel-covers";
 import { renderUniqueSvg } from "./unique/render";
 import { composeLibrarySvg, ensureLibraryAssets, libraryBgSvgDoc, ensureClassicBgs } from "./library/compose";
 import { FULL_W, FULL_H, MARGIN_X, type Slide } from "./types";
-import { furnitureInner, type FurnitureOpts } from "./page-furniture";
+import { furnitureInner, closerCtaActive, type FurnitureOpts } from "./page-furniture";
 
 // ═══ CANVAS RENDERER (for export) ═══
 // Ensure Grift (all weights used) is loaded before drawing to canvas.
@@ -78,6 +78,7 @@ export function drawCoverTemplate(ctx: CanvasRenderingContext2D, slide: Slide): 
         logoPosition: slide.coverLogoPos || "right",
         topic: slide.coverTopic || "",
         titleScale: slide.coverTitleScale || 1,
+        subtitleScale: slide.coverSubtitleScale || 1,
         showSub: slide.coverShowSub !== false,
         showLogo: true,
         showMeta: true,
@@ -575,8 +576,10 @@ export function renderSlideToCanvas(slide: Slide, bgUrl: string, page?: number, 
           }
         }
 
-        // CTA text on closer (position 4)
-        if (slide.position === 4 && slide.ctaText) {
+        // CTA text on closer (position 4) — but NOT when the furniture closer is
+        // already drawing its own CTA on this slide (else the export doubles the
+        // CTA + URL, which the preview never showed). Matches SlidePreview/Canvas.
+        if (slide.position === 4 && slide.ctaText && !closerCtaActive(slide, furniture, page ?? 1, total ?? 1)) {
           var ctaFontSize = 30;
           ctx.font = "700 " + ctaFontSize + "px Grift, Outfit, sans-serif";
           ctx.fillStyle = "#ffffff";

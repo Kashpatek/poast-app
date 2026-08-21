@@ -8,6 +8,7 @@ import { callLLM, llmTextOf, parseLLMJson, type LLMProvider } from "@/lib/llm-pr
 import { suggestTopic } from "../../wizard/engine/library/suggest";
 import type { LibField, LibTemplate, LibTopicKey, TopicsData } from "@/app/wizard/engine/library/data";
 import type { CaptionOption } from "@/app/wizard/engine/types";
+import { cleanCaptionOptions } from "@/lib/caption-clean";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LIBRARY platform · POST /api/library (docs/LIBRARY-INTEGRATION.md §C + v2 §Q)
@@ -783,8 +784,19 @@ INTEGRITY RULE: every number, statistic, and claim in your fills must appear in 
 You MUST respond ONLY with valid JSON. No markdown fences. No preamble.`;
 
 // Caption prompt mirrors /api/carousel's "caption" action (same 3-option
-// IG/TikTok/Shorts shape + hard rules) so PUBLISH consumes it unchanged.
-const CAPTION_SYS = `You are a content strategist for SemiAnalysis, writing social captions for Instagram carousel posts built from research articles. Tone: confident, technical, institutional. SA voice. Never use em dashes. No emojis. No hype words like "revolutionary" or "game-changing". You MUST respond ONLY with valid JSON. No markdown fences. No preamble.`;
+// IG/TikTok/Shorts shape + rules) so PUBLISH consumes it unchanged.
+const CAPTION_SYS = `You write the social caption that runs UNDER a SemiAnalysis carousel (Instagram / LinkedIn), built from an in-depth semiconductor/AI research post.
+
+SemiAnalysis is the most respected independent silicon + AI research firm. Write like the analyst who actually knows the hardware — sharp, technical, confident, specific. Never like a social-media intern.
+
+Absolute rules:
+- PLAIN TEXT ONLY. Never output markdown of ANY kind: no #, ##, ###, no **bold**, no *italics*, no backticks, no bullet dashes, no numbered lists, no [markdown](links). A caption is prose, not a document.
+- No em dashes. No emojis. No hype words (revolutionary, game-changing, insane, unprecedented).
+- No filler or padding. No "save this post".
+- Hook first: the opening line is a specific, scroll-stopping claim taken from THIS post.
+- Substance over length. Concise beats long.
+
+You MUST respond ONLY with valid JSON. No markdown fences. No preamble.`;
 
 // ─── chart action (v3 §V) ───
 // EDIT-time "generate a chart for this slot": article text (or a re-fetched
@@ -1113,37 +1125,37 @@ Return JSON exactly in this shape:
         system: CAPTION_SYS,
         maxTokens: 2000,
         provider,
-        prompt: `Generate 3 caption OPTIONS for this carousel. Each option should take a different angle on presenting this content.
+        prompt: `Write 3 distinct caption OPTIONS for the carousel below. Each option is a genuinely different angle, not a reword.
 
 Topic: ${topic}
-Slide content:
+Carousel content (slide by slide):
 ${slideContent}
 
-Return a JSON array of 3 options. Each option has captions for Instagram, TikTok, and YT Shorts:
+Return a JSON array of exactly 3 options. Shape:
 [
-  {
-    "label": "Hook-driven",
-    "instagram": { "caption": "full caption with Save CTA + 5-8 hashtags + Location: San Francisco, CA. Under 2200 chars.", "hashtags": ["tag1", "tag2"] },
-    "tiktok": { "caption": "all lowercase, casual, hook first line. NO hashtags. NO overlay text." },
-    "shorts": { "title": "under 40 chars" }
-  },
-  { "label": "Data-forward", ... },
-  { "label": "Narrative", ... }
+  { "label": "Hook-driven",
+    "instagram": { "caption": "...", "hashtags": ["semiconductors", "..."] },
+    "tiktok": { "caption": "..." },
+    "shorts": { "title": "..." } },
+  { "label": "Data-forward", "instagram": {"caption":"...","hashtags":["..."]}, "tiktok": {"caption":"..."}, "shorts": {"title":"..."} },
+  { "label": "Narrative", "instagram": {"caption":"...","hashtags":["..."]}, "tiktok": {"caption":"..."}, "shorts": {"title":"..."} }
 ]
 
-HARD RULES (absolute):
-- X/Twitter (if requested anywhere): NEVER hashtags
-- TikTok: NEVER overlay text / on-screen text. NEVER hashtags. Caption only.
+INSTAGRAM caption:
+- Structure: a specific HOOK line from THIS post, then 2 to 4 tight sentences of real substance (the finding + why it matters), then one soft CTA to read the full analysis.
+- Concise: under ~120 words.
+- End with 4 to 6 relevant, specific hashtags on the final line, and ALSO list them in the "hashtags" array (no # in the array items).
+- No location line. No "save this post". No bullets or numbering.
 
-Style rules:
-- No em dashes, no emojis
-- Confident, technical, institutional tone
-- Each option should feel genuinely different, not just rewording
-- IG: save CTA, hashtags at end, San Francisco CA location
-- TikTok: all lowercase, casual, NO hashtags, NO overlay text
-- YT Shorts: title only, under 40 chars`,
+TIKTOK caption:
+- All lowercase, casual. One strong hook line, then at most one more sentence. NO hashtags. NO overlay text. Caption only.
+
+YT SHORTS:
+- "title" only, under 40 characters, punchy.
+
+Every option must be specific to THIS content. Plain text only — never output #, *, backticks, or any markdown.`,
       });
-      if (Array.isArray(capResult)) captionOptions = capResult;
+      if (Array.isArray(capResult)) captionOptions = cleanCaptionOptions(capResult);
     } catch (e) {
       console.warn(`[api/library] caption generation failed, returning []: ${e instanceof Error ? e.message : String(e)}`);
     }
